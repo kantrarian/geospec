@@ -71,14 +71,14 @@ jobs:
       - name: Update dashboard
         if: steps.changes.outputs.changed == 'true'
         run: |
-          # Copy latest ensemble JSON to dashboard for GitHub Pages
+          # Copy latest ensemble JSON to docs/ for GitHub Pages
           LATEST=$(ls -t monitoring/data/ensemble_results/ensemble_*.json 2>/dev/null | head -1)
           if [ -n "$LATEST" ]; then
-            cp "$LATEST" monitoring/dashboard/ensemble_latest.json
+            cp "$LATEST" docs/ensemble_latest.json
           fi
           # Also copy CSV for legacy compatibility
-          cp monitoring/data/daily_states.csv monitoring/dashboard/data.csv || true
-          git add monitoring/dashboard/ || true
+          cp monitoring/data/daily_states.csv docs/data.csv || true
+          git add docs/ || true
           git diff --staged --quiet || git commit -m "Update dashboard data"
           git push || true
 

@@ -1,72 +1,106 @@
 # GeoSpec: Earthquake Precursor Detection System
 
-A novel earthquake precursor detection system based on geodetic strain tensor analysis.
+**Prospective monitoring of seismic precursors using geodetic strain analysis.**
 
-## Concept
-
-GeoSpec monitors the stability of principal strain directions derived from continuous GPS networks. When strain directions begin rotating rapidly, it signals stress regime instability that often precedes major earthquakes.
-
-The system computes a diagnostic metric (Λ_geo) that quantifies the rate of eigenframe rotation in the geodetic strain-rate tensor field.
-
-## Validation Results
-
-Retrospective validation against 5 major earthquakes using real GPS data:
-
-| Earthquake | Magnitude | Lead Time | Signal Amplification | Z-score | Detected |
-|------------|-----------|-----------|---------------------|---------|----------|
-| Tohoku 2011 | M9.0 | 143.5 hours | 7,999× | 21,235 | **YES** |
-| Chile 2010 | M8.8 | 186.8 hours | 485× | 4,057 | **YES** |
-| Turkey 2023 | M7.8 | 139.5 hours | 1,336× | 6,539 | **YES** |
-| Ridgecrest 2019 | M7.1 | 141.3 hours | 5,489× | 14,303 | **YES** |
-| Morocco 2023 | M6.8 | 208.6 hours | 2.8× | 1.7 | NO |
-
-**Overall: 4/5 (80%) successful detections**
-
-### Success Criteria
-
-- Lead time: ≥ 24 hours before mainshock
-- Signal amplification: ≥ 5× above baseline
-- Statistical significance: Z-score ≥ 2.0
-
-### Key Findings
-
-- **Consistent lead times**: 139-208 hours (6-9 days) across successful detections
-- **Strong signals**: Amplification factors of 485× to 7,999× in the 72 hours before rupture
-- **Works across tectonic settings**: Subduction (Tohoku, Chile), transform (Ridgecrest), and continental (Turkey)
-- **Morocco failure**: Sparse GPS coverage in region led to insufficient signal
-
-## Data Sources
-
-Validation used publicly available GPS data from:
-- Nevada Geodetic Laboratory (NGL)
-- UNAVCO/EarthScope
-- GEONET (Japan)
-
-## Target Monitoring Regions
-
-The system is designed for prospective monitoring of high-risk fault zones with dense GPS coverage:
-- Southern California (San Andreas Fault)
-- San Francisco Bay Area (Hayward Fault)
-- Tokyo/Kanto Region
-- Cascadia Subduction Zone
-- Istanbul (Marmara Segment)
-
-## Status
-
-- Retrospective validation complete
-- Prospective monitoring system in development
-- Shadow monitoring phase planned
-
-## Author
-
-**R.J. Mathews**
-Email: mail.rjmathews@gmail.com
-ORCID: 0009-0003-8975-1352
-
-## License
-
-MIT License - see LICENSE file
+> Full methodology patent-pending. Available under NDA for research partnerships, licensing discussions, and institutional due diligence.
 
 ---
 
-*For inquiries about collaboration or licensing, please contact the author.*
+## Current Monitoring Status
+
+*Last updated: 2025-12-27 (NGL data latency: ~14 days)*
+
+| Region | Stations | Status | Ratio | Days Elevated |
+|--------|----------|--------|-------|---------------|
+| Southern California - Mojave | 35 | Normal | 0.64× | 0 |
+| Southern California - Coachella | 36 | Normal | 1.85× | 0 |
+| Northern California - Hayward | 23 | Normal | 0.00× | 0 |
+| Tokyo - Kanto | 41 | Normal | 0.21× | 0 |
+| Istanbul - Marmara | 5 | Normal | 0.04× | 0 |
+| Cascadia | 30 | Normal | 0.05× | 0 |
+
+**Alert Tiers:** Normal (<2×) → Watch (2-5×) → Elevated (5-10×) → Critical (≥10×)
+
+---
+
+## Historical Detection Performance
+
+Retrospective validation against major earthquakes (M6.8+):
+
+| Event | Magnitude | Lead Time | Amplification | Detected |
+|-------|-----------|-----------|---------------|----------|
+| Tohoku, Japan 2011 | M9.0 | 143 hours | 7,999× | **YES** |
+| Chile 2010 | M8.8 | 187 hours | 485× | **YES** |
+| Turkey 2023 | M7.8 | 140 hours | 1,336× | **YES** |
+| Ridgecrest 2019 | M7.1 | 141 hours | 5,489× | **YES** |
+| Morocco 2023 | M6.8 | — | 2.8× | NO |
+
+**Detection Rate: 80% (4/5)** on plate boundary events with dense GPS coverage.
+
+### Non-Detection Analysis
+
+Morocco 2023 was not detected due to:
+- Sparse GPS network in Atlas Mountains region
+- Intraplate setting with diffuse deformation
+- Insufficient station density for spatial analysis
+
+---
+
+## False Alarm Analysis
+
+Analysis of Southern California during seismically quiet period (2020-2022, no M≥6.5):
+
+| Threshold | Days Exceeded | Annual Rate |
+|-----------|---------------|-------------|
+| Watch (≥2×) | 7.9% | ~29 days/year |
+| Elevated (≥5×) | 2.1% | ~8 days/year |
+| Critical (≥10×) | 0.27% | ~1 day/year |
+
+---
+
+## Data Sources
+
+Live monitoring uses publicly available GPS data from:
+- Nevada Geodetic Laboratory (NGL) - IGS20 reference frame
+- 17,000+ stations globally
+
+---
+
+## Methodology
+
+The detection framework analyzes temporal evolution of geodetic strain fields to identify mechanical instabilities preceding fault rupture.
+
+**What is disclosed:**
+- Detection thresholds and alert tier definitions
+- Historical validation results with timestamps
+- False alarm rates during quiet periods
+- Monitored regions and station counts
+
+**What is confidential:**
+- Core diagnostic algorithm
+- Signal processing methodology
+- Spatial coherence criteria
+- Mathematical formulations
+
+*Full methodology available under NDA.*
+
+---
+
+## Research Collaboration
+
+For research partnerships, licensing inquiries, or institutional due diligence:
+
+**R.J. Mathews**
+Email: mail.rjmathews@gmail.com
+ORCID: [0009-0003-8975-1352](https://orcid.org/0009-0003-8975-1352)
+
+---
+
+## License
+
+Results and validation data: MIT License
+Methodology and algorithms: Proprietary / Patent Pending
+
+---
+
+*Prospective monitoring began January 2026. Detection performance will be validated as events occur.*

@@ -1,4 +1,15 @@
-# Python
+# ===========================================
+# GEOSPEC - IP PROTECTION
+# Only commit results and documentation
+# ===========================================
+
+# EXCLUDE ALL SOURCE CODE (IP)
+*.py
+src/
+monitoring/
+paper/
+
+# Python artifacts
 __pycache__/
 *.py[cod]
 *$py.class
@@ -18,16 +29,19 @@ ENV/
 .idea/
 *.swp
 
-# Large data files - DO NOT COMMIT
+# Large data files
 *.npz
+*.tenv
 *.tenv3
+*.json
+*.csv
 
-# Generated outputs - regenerate from source
-results/*.png
-figures/*.png
+# Data directories
+data/
+results/
 
 # Cache
-data/cache/
+gps_cache/
 
 # Database files
 *.db
@@ -38,3 +52,11 @@ data/cache/
 Thumbs.db
 .env
 .env.local
+
+# ===========================================
+# EXCEPTIONS - Files that ARE committed
+# ===========================================
+# Only README and LICENSE - NO algorithm details
+!README.md
+!LICENSE
+!.gitignore

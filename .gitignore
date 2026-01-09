@@ -6,8 +6,12 @@
 # EXCLUDE ALL SOURCE CODE (IP)
 *.py
 src/
-monitoring/
 paper/
+
+# Monitoring - exclude code, allow dashboard
+monitoring/src/
+monitoring/data/
+monitoring/logs/
 
 # Python artifacts
 __pycache__/
@@ -56,7 +60,6 @@ Thumbs.db
 # ===========================================
 # EXCEPTIONS - Files that ARE committed
 # ===========================================
-# Only README and LICENSE - NO algorithm details
-!README.md
-!LICENSE
-!.gitignore
+# README, LICENSE, .gitignore always allowed
+# monitoring/dashboard/ and monitoring/.github/ allowed (not in ignore list)
+# No algorithm implementation details committed

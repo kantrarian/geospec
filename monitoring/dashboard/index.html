@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Λ_geo Earthquake Precursor Monitor</title>
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+    <style>
+        :root {
+            --bg-primary: #0a0a0f;
+            --bg-secondary: #12121a;
+            --bg-card: #1a1a24;
+            --text-primary: #e8e8f0;
+            --text-secondary: #8888a0;
+            --accent: #4a9eff;
+            --tier-0: #22c55e;
+            --tier-1: #eab308;
+            --tier-2: #f97316;
+            --tier-3: #ef4444;
+            --border: #2a2a3a;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', monospace;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            padding: 2rem;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 3rem;
+            padding-bottom: 2rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            font-weight: 300;
+            letter-spacing: 0.1em;
+            margin-bottom: 0.5rem;
+        }
+
+        h1 .lambda {
+            color: var(--accent);
+            font-weight: 600;
+        }
+
+        .subtitle {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        .last-update {
+            margin-top: 1rem;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+
+        .status-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 3rem;
+        }
+
+        .region-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.5rem;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .region-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+        }
+
+        .region-card.tier-0::before { background: var(--tier-0); }
+        .region-card.tier-1::before { background: var(--tier-1); }
+        .region-card.tier-2::before { background: var(--tier-2); }
+        .region-card.tier-3::before { background: var(--tier-3); }
+
+        .region-name {
+            font-size: 1.1rem;
+            font-weight: 500;
+            margin-bottom: 1rem;
+        }
+
+        .tier-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.4rem 0.8rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+        }
+
+        .tier-0 .tier-badge { background: rgba(34, 197, 94, 0.2); color: var(--tier-0); }
+        .tier-1 .tier-badge { background: rgba(234, 179, 8, 0.2); color: var(--tier-1); }
+        .tier-2 .tier-badge { background: rgba(249, 115, 22, 0.2); color: var(--tier-2); }
+        .tier-3 .tier-badge { background: rgba(239, 68, 68, 0.2); color: var(--tier-3); }
+
+        .metrics {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+        }
+
+        .metric {
+            background: var(--bg-secondary);
+            padding: 0.8rem;
+            border-radius: 8px;
+        }
+
+        .metric-label {
+            font-size: 0.7rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .metric-value {
+            font-size: 1.4rem;
+            font-weight: 600;
+            margin-top: 0.2rem;
+        }
+
+        .chart-section {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .chart-title {
+            font-size: 1.1rem;
+            margin-bottom: 1rem;
+            color: var(--text-secondary);
+        }
+
+        #history-chart {
+            width: 100%;
+            height: 400px;
+        }
+
+        .legend {
+            display: flex;
+            justify-content: center;
+            gap: 2rem;
+            margin-top: 2rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border);
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.85rem;
+        }
+
+        .legend-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+
+        footer {
+            text-align: center;
+            margin-top: 3rem;
+            padding-top: 2rem;
+            border-top: 1px solid var(--border);
+            color: var(--text-secondary);
+            font-size: 0.8rem;
+        }
+
+        .disclaimer {
+            max-width: 600px;
+            margin: 0 auto 1rem;
+            line-height: 1.6;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .loading {
+            animation: pulse 1.5s infinite;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1><span class="lambda">Λ</span>_geo Three-Method Ensemble Monitor</h1>
+            <p class="subtitle">GPS + Fault Correlation + Seismic THD</p>
+            <p class="last-update" id="last-update">Loading data...</p>
+        </header>
+
+        <div class="status-grid" id="status-grid">
+            <div class="region-card loading">
+                <p>Loading monitoring data...</p>
+            </div>
+        </div>
+
+        <div class="chart-section">
+            <h2 class="chart-title">30-Day History</h2>
+            <div id="history-chart"></div>
+        </div>
+
+        <div class="legend">
+            <div class="legend-item">
+                <span class="legend-dot" style="background: var(--tier-0)"></span>
+                <span>Tier 0: Normal</span>
+            </div>
+            <div class="legend-item">
+                <span class="legend-dot" style="background: var(--tier-1)"></span>
+                <span>Tier 1: Watch</span>
+            </div>
+            <div class="legend-item">
+                <span class="legend-dot" style="background: var(--tier-2)"></span>
+                <span>Tier 2: Elevated</span>
+            </div>
+            <div class="legend-item">
+                <span class="legend-dot" style="background: var(--tier-3)"></span>
+                <span>Tier 3: High</span>
+            </div>
+        </div>
+
+        <footer>
+            <p class="disclaimer">
+                <strong>⚠️ Research System</strong><br>
+                This is an experimental monitoring system for research purposes only.
+                It is NOT an official earthquake warning system and should NOT be used
+                for emergency planning or public alerts.
+            </p>
+            <p>GeoSpec Λ_geo Monitoring System v0.1.0</p>
+        </footer>
+    </div>
+
+    <script>
+        // Parse CSV data
+        function parseCSV(text) {
+            const lines = text.trim().split('\n');
+            const headers = lines[0].split(',');
+            return lines.slice(1).map(line => {
+                const values = line.split(',');
+                const obj = {};
+                headers.forEach((h, i) => obj[h.trim()] = values[i]?.trim());
+                return obj;
+            });
+        }
+
+        // Get tier description
+        function getTierDesc(tier) {
+            const descs = {
+                '0': 'Normal',
+                '1': 'Watch',
+                '2': 'Elevated',
+                '3': 'High Alert'
+            };
+            return descs[tier] || 'Unknown';
+        }
+
+        // Render status cards from ensemble data
+        function renderCards(ensembleData) {
+            const grid = document.getElementById('status-grid');
+            const regions = ensembleData.regions || {};
+
+            grid.innerHTML = Object.entries(regions)
+                .sort((a, b) => (b[1].combined_risk || 0) - (a[1].combined_risk || 0))
+                .map(([region, data]) => {
+                    const tier = data.tier || 0;
+                    const risk = data.combined_risk || 0;
+                    const confidence = data.confidence || 0;
+                    const methods = data.methods_available || 0;
+                    const agreement = data.agreement || 'unknown';
+
+                    return `
+                        <div class="region-card tier-${tier}">
+                            <h3 class="region-name">${region.replace(/_/g, ' ').toUpperCase()}</h3>
+                            <div class="tier-badge">
+                                <span>●</span>
+                                <span>TIER ${tier}: ${getTierDesc(String(tier))}</span>
+                            </div>
+                            <div class="metrics">
+                                <div class="metric">
+                                    <div class="metric-label">Risk Score</div>
+                                    <div class="metric-value">${risk.toFixed(3)}</div>
+                                </div>
+                                <div class="metric">
+                                    <div class="metric-label">Confidence</div>
+                                    <div class="metric-value">${(confidence * 100).toFixed(0)}%</div>
+                                </div>
+                                <div class="metric">
+                                    <div class="metric-label">Methods</div>
+                                    <div class="metric-value">${methods}/3</div>
+                                </div>
+                                <div class="metric">
+                                    <div class="metric-label">Agreement</div>
+                                    <div class="metric-value" style="font-size: 0.9rem">${agreement.replace(/_/g, ' ')}</div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+
+            // Update timestamp
+            document.getElementById('last-update').textContent =
+                `Last update: ${ensembleData.date || 'Unknown'}`;
+        }
+
+        // Render history chart
+        function renderChart(data) {
+            // Group by region
+            const byRegion = {};
+            data.forEach(row => {
+                if (!byRegion[row.region]) byRegion[row.region] = [];
+                byRegion[row.region].push(row);
+            });
+
+            const traces = [];
+            const colors = ['#4a9eff', '#22c55e', '#f97316', '#a855f7', '#ef4444'];
+            let colorIdx = 0;
+
+            for (const [region, rows] of Object.entries(byRegion)) {
+                rows.sort((a, b) => a.date.localeCompare(b.date));
+                
+                traces.push({
+                    x: rows.map(r => r.date),
+                    y: rows.map(r => parseFloat(r.amp_72h) || 0),
+                    name: region.replace(/_/g, ' '),
+                    type: 'scatter',
+                    mode: 'lines+markers',
+                    line: { color: colors[colorIdx % colors.length], width: 2 },
+                    marker: { size: 6 }
+                });
+                colorIdx++;
+            }
+
+            // Add threshold lines
+            traces.push({
+                x: data.map(r => r.date).filter(Boolean).sort(),
+                y: Array(data.length).fill(5),
+                name: '5× threshold',
+                type: 'scatter',
+                mode: 'lines',
+                line: { color: '#f97316', width: 1, dash: 'dash' },
+                opacity: 0.5
+            });
+
+            const layout = {
+                paper_bgcolor: 'rgba(0,0,0,0)',
+                plot_bgcolor: 'rgba(0,0,0,0)',
+                font: { color: '#e8e8f0', family: 'JetBrains Mono, monospace' },
+                xaxis: { 
+                    gridcolor: '#2a2a3a',
+                    title: 'Date'
+                },
+                yaxis: { 
+                    gridcolor: '#2a2a3a',
+                    title: 'Amplification (×)',
+                    type: 'log'
+                },
+                legend: {
+                    orientation: 'h',
+                    y: -0.2
+                },
+                margin: { t: 20, r: 20, b: 60, l: 60 }
+            };
+
+            Plotly.newPlot('history-chart', traces, layout, { responsive: true });
+        }
+
+        // Load and render data
+        async function loadData() {
+            try {
+                // Try ensemble JSON first
+                const ensembleResponse = await fetch('ensemble_latest.json');
+                if (ensembleResponse.ok) {
+                    const ensembleData = await ensembleResponse.json();
+                    renderCards(ensembleData);
+                    // Try CSV for history chart
+                    try {
+                        const csvResponse = await fetch('data.csv');
+                        if (csvResponse.ok) {
+                            const csvData = parseCSV(await csvResponse.text());
+                            if (csvData.length > 0) renderChart(csvData);
+                        }
+                    } catch (e) { /* No history data */ }
+                    return;
+                }
+
+                // Fallback to CSV only
+                const response = await fetch('data.csv');
+                if (!response.ok) {
+                    throw new Error('Data not available');
+                }
+                const text = await response.text();
+                const data = parseCSV(text);
+
+                if (data.length > 0) {
+                    // Convert CSV to ensemble-like format for renderCards
+                    const latest = {};
+                    data.forEach(row => {
+                        const region = row.region;
+                        if (!latest[region] || row.date > latest[region].date) {
+                            latest[region] = row;
+                        }
+                    });
+                    const fakeEnsemble = {
+                        date: Object.values(latest)[0]?.date || 'Unknown',
+                        regions: Object.fromEntries(
+                            Object.entries(latest).map(([r, d]) => [r, {
+                                tier: parseInt(d.tier) || 0,
+                                combined_risk: parseFloat(d.amp_72h) / 20 || 0,
+                                confidence: 0.5,
+                                methods_available: 1,
+                                agreement: 'single_method'
+                            }])
+                        )
+                    };
+                    renderCards(fakeEnsemble);
+                    renderChart(data);
+                } else {
+                    document.getElementById('status-grid').innerHTML =
+                        '<div class="region-card"><p>No monitoring data available yet.</p></div>';
+                }
+            } catch (e) {
+                console.error('Error loading data:', e);
+                document.getElementById('status-grid').innerHTML =
+                    '<div class="region-card"><p>Monitoring data not yet available. Run the daily pipeline to generate data.</p></div>';
+            }
+        }
+
+        // Initialize
+        loadData();
+        
+        // Refresh every 5 minutes
+        setInterval(loadData, 5 * 60 * 1000);
+    </script>
+</body>
+</html>

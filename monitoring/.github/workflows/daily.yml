@@ -1,0 +1,117 @@
+name: Daily Λ_geo Ensemble Monitoring
+
+on:
+  schedule:
+    # Run at 10:30 UTC daily (after NGL daily solutions typically available)
+    - cron: "30 10 * * *"
+  workflow_dispatch:
+    inputs:
+      date:
+        description: 'Target date (YYYY-MM-DD or auto)'
+        required: false
+        default: 'auto'
+
+permissions:
+  contents: write
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for git hash
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install numpy scipy pandas requests obspy
+
+      - name: Run ensemble monitoring
+        id: monitor
+        continue-on-error: true
+        run: |
+          cd monitoring
+          python -m src.run_ensemble_daily --date ${{ github.event.inputs.date || 'auto' }}
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+
+      - name: Check for changes
+        id: changes
+        run: |
+          if git diff --quiet monitoring/data/; then
+            echo "changed=false" >> $GITHUB_OUTPUT
+          else
+            echo "changed=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Commit results
+        if: steps.changes.outputs.changed == 'true'
+        run: |
+          git config user.name "geospec-monitor-bot"
+          git config user.email "monitor-bot@users.noreply.github.com"
+          git add monitoring/data/
+          git commit -m "Daily ensemble monitoring $(date -u +%F)"
+          git push
+
+      - name: Check for elevated alerts
+        if: steps.monitor.outcome == 'failure'
+        run: |
+          echo "⚠️ ELEVATED ALERT DETECTED"
+          echo "Review the monitoring results in monitoring/data/"
+          # In production: trigger notification (email, Slack, etc.)
+
+      - name: Update dashboard
+        if: steps.changes.outputs.changed == 'true'
+        run: |
+          # Copy latest ensemble JSON to dashboard for GitHub Pages
+          LATEST=$(ls -t monitoring/data/ensemble_results/ensemble_*.json 2>/dev/null | head -1)
+          if [ -n "$LATEST" ]; then
+            cp "$LATEST" monitoring/dashboard/ensemble_latest.json
+          fi
+          # Also copy CSV for legacy compatibility
+          cp monitoring/data/daily_states.csv monitoring/dashboard/data.csv || true
+          git add monitoring/dashboard/ || true
+          git diff --staged --quiet || git commit -m "Update dashboard data"
+          git push || true
+
+      - name: Generate README status
+        if: steps.changes.outputs.changed == 'true'
+        run: |
+          # Generate status from latest ensemble JSON
+          LATEST=$(ls -t monitoring/data/ensemble_results/ensemble_*.json 2>/dev/null | head -1)
+          if [ -n "$LATEST" ]; then
+            DATE=$(basename "$LATEST" | sed 's/ensemble_\(.*\)\.json/\1/')
+            MAX_RISK=$(python3 -c "import json; d=json.load(open('$LATEST')); print(f\"{d['summary']['max_risk']:.3f}\")" 2>/dev/null || echo "N/A")
+            MAX_REGION=$(python3 -c "import json; d=json.load(open('$LATEST')); print(d['summary']['max_risk_region'] or 'None')" 2>/dev/null || echo "N/A")
+
+            cat > README.md << EOF
+          # GeoSpec Λ_geo Monitoring
+
+          **Last Update**: ${DATE}
+
+          ## Current Status
+
+          | Metric | Value |
+          |--------|-------|
+          | Highest Risk Region | ${MAX_REGION} |
+          | Risk Score | ${MAX_RISK} |
+
+          ## Dashboard
+
+          View the full dashboard: [GeoSpec Dashboard](https://kantrarian.github.io/geospec/)
+
+          ---
+          *Automated monitoring - research system only*
+          EOF
+          fi
+          git add README.md || true
+          git diff --staged --quiet || git commit -m "Update README status $(date -u +%F)"
+          git push || true

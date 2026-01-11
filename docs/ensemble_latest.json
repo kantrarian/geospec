@@ -1,0 +1,301 @@
+{
+  "date": "2026-01-10",
+  "timestamp": "2026-01-10T20:11:24.020104",
+  "regions": {
+    "ridgecrest": {
+      "region": "ridgecrest",
+      "date": "2026-01-10T20:10:20.685728",
+      "combined_risk": 0.0,
+      "tier": 0,
+      "tier_name": "NORMAL",
+      "components": {
+        "lambda_geo": {
+          "name": "lambda_geo",
+          "available": false,
+          "raw_value": 0.0,
+          "raw_secondary": null,
+          "risk_score": 0.0,
+          "is_elevated": false,
+          "is_critical": false,
+          "notes": "No Lambda_geo data available"
+        },
+        "fault_correlation": {
+          "name": "fault_correlation",
+          "available": false,
+          "raw_value": 0.0,
+          "raw_secondary": null,
+          "risk_score": 0.0,
+          "is_elevated": false,
+          "is_critical": false,
+          "notes": "Insufficient segment data"
+        },
+        "seismic_thd": {
+          "name": "seismic_thd",
+          "available": false,
+          "raw_value": 0.0,
+          "raw_secondary": null,
+          "risk_score": 0.0,
+          "is_elevated": false,
+          "is_critical": false,
+          "notes": "Insufficient data from CI.CCC"
+        }
+      },
+      "confidence": 0.0,
+      "agreement": "no_data",
+      "methods_available": 0,
+      "notes": ""
+    },
+    "socal_saf_mojave": {
+      "region": "socal_saf_mojave",
+      "date": "2026-01-10T20:10:20.685728",
+      "combined_risk": 0.0,
+      "tier": 0,
+      "tier_name": "NORMAL",
+      "components": {
+        "lambda_geo": {
+          "name": "lambda_geo",
+          "available": false,
+          "raw_value": 0.0,
+          "raw_secondary": null,
+          "risk_score": 0.0,
+          "is_elevated": false,
+          "is_critical": false,
+          "notes": "No Lambda_geo data available"
+        },
+        "fault_correlation": {
+          "name": "fault_correlation",
+          "available": false,
+          "raw_value": 0.0,
+          "raw_secondary": null,
+          "risk_score": 0.0,
+          "is_elevated": false,
+          "is_critical": false,
+          "notes": "Insufficient segment data"
+        },
+        "seismic_thd": {
+          "name": "seismic_thd",
+          "available": false,
+          "raw_value": 0.0,
+          "raw_secondary": null,
+          "risk_score": 0.0,
+          "is_elevated": false,
+          "is_critical": false,
+          "notes": "Insufficient data from CI.WBS"
+        }
+      },
+      "confidence": 0.0,
+      "agreement": "no_data",
+      "methods_available": 0,
+      "notes": ""
+    },
+    "socal_saf_coachella": {
+      "region": "socal_saf_coachella",
+      "date": "2026-01-10T20:10:20.685728",
+      "combined_risk": 0.0,
+      "tier": 0,
+      "tier_name": "NORMAL",
+      "components": {
+        "lambda_geo": {
+          "name": "lambda_geo",
+          "available": false,
+          "raw_value": 0.0,
+          "raw_secondary": null,
+          "risk_score": 0.0,
+          "is_elevated": false,
+          "is_critical": false,
+          "notes": "No Lambda_geo data available"
+        },
+        "fault_correlation": {
+          "name": "fault_correlation",
+          "available": false,
+          "raw_value": 0.0,
+          "raw_secondary": null,
+          "risk_score": 0.0,
+          "is_elevated": false,
+          "is_critical": false,
+          "notes": "Error: Unknown region: socal_saf_coachella. Valid: ['ridgecrest', 'socal_saf_mojave', 'socal_coachella', 'norcal_hayward', 'cascadia', 'istanbul_marmara', 'turkey_kahramanmaras', 'japan_tohoku', 'chile_maule']"
+        },
+        "seismic_thd": {
+          "name": "seismic_thd",
+          "available": false,
+          "raw_value": 0.0,
+          "raw_secondary": null,
+          "risk_score": 0.0,
+          "is_elevated": false,
+          "is_critical": false,
+          "notes": "Insufficient data from CI.WMC"
+        }
+      },
+      "confidence": 0.0,
+      "agreement": "no_data",
+      "methods_available": 0,
+      "notes": ""
+    },
+    "norcal_hayward": {
+      "region": "norcal_hayward",
+      "date": "2026-01-10T20:10:20.685728",
+      "combined_risk": 0.0,
+      "tier": 0,
+      "tier_name": "NORMAL",
+      "components": {
+        "lambda_geo": {
+          "name": "lambda_geo",
+          "available": false,
+          "raw_value": 0.0,
+          "raw_secondary": null,
+          "risk_score": 0.0,
+          "is_elevated": false,
+          "is_critical": false,
+          "notes": "No Lambda_geo data available"
+        },
+        "fault_correlation": {
+          "name": "fault_correlation",
+          "available": false,
+          "raw_value": 0.0,
+          "raw_secondary": null,
+          "risk_score": 0.0,
+          "is_elevated": false,
+          "is_critical": false,
+          "notes": "Insufficient segment data"
+        },
+        "seismic_thd": {
+          "name": "seismic_thd",
+          "available": false,
+          "raw_value": 0.0,
+          "raw_secondary": null,
+          "risk_score": 0.0,
+          "is_elevated": false,
+          "is_critical": false,
+          "notes": "Insufficient data from CI.BKS"
+        }
+      },
+      "confidence": 0.0,
+      "agreement": "no_data",
+      "methods_available": 0,
+      "notes": ""
+    },
+    "cascadia": {
+      "region": "cascadia",
+      "date": "2026-01-10T20:10:20.685728",
+      "combined_risk": 0.0,
+      "tier": 0,
+      "tier_name": "NORMAL",
+      "components": {
+        "lambda_geo": {
+          "name": "lambda_geo",
+          "available": false,
+          "raw_value": 0.0,
+          "raw_secondary": null,
+          "risk_score": 0.0,
+          "is_elevated": false,
+          "is_critical": false,
+          "notes": "No Lambda_geo data available"
+        },
+        "fault_correlation": {
+          "name": "fault_correlation",
+          "available": false,
+          "raw_value": 0.0,
+          "raw_secondary": null,
+          "risk_score": 0.0,
+          "is_elevated": false,
+          "is_critical": false,
+          "notes": "Insufficient segment data"
+        },
+        "seismic_thd": {
+          "name": "seismic_thd",
+          "available": false,
+          "raw_value": 0.0,
+          "raw_secondary": null,
+          "risk_score": 0.0,
+          "is_elevated": false,
+          "is_critical": false,
+          "notes": "Insufficient data from CI.LKWY"
+        }
+      },
+      "confidence": 0.0,
+      "agreement": "no_data",
+      "methods_available": 0,
+      "notes": ""
+    },
+    "tokyo_kanto": {
+      "region": "tokyo_kanto",
+      "date": "2026-01-10T20:10:20.685728",
+      "combined_risk": 0.0,
+      "tier": 0,
+      "tier_name": "NORMAL",
+      "components": {
+        "lambda_geo": {
+          "name": "lambda_geo",
+          "available": false,
+          "raw_value": 0.0,
+          "raw_secondary": null,
+          "risk_score": 0.0,
+          "is_elevated": false,
+          "is_critical": false,
+          "notes": "No Lambda_geo data available"
+        }
+      },
+      "confidence": 0.0,
+      "agreement": "no_data",
+      "methods_available": 0,
+      "notes": ""
+    },
+    "istanbul_marmara": {
+      "region": "istanbul_marmara",
+      "date": "2026-01-10T20:10:20.685728",
+      "combined_risk": 0.0,
+      "tier": 0,
+      "tier_name": "NORMAL",
+      "components": {
+        "lambda_geo": {
+          "name": "lambda_geo",
+          "available": false,
+          "raw_value": 0.0,
+          "raw_secondary": null,
+          "risk_score": 0.0,
+          "is_elevated": false,
+          "is_critical": false,
+          "notes": "No Lambda_geo data available"
+        }
+      },
+      "confidence": 0.0,
+      "agreement": "no_data",
+      "methods_available": 0,
+      "notes": ""
+    },
+    "turkey_kahramanmaras": {
+      "region": "turkey_kahramanmaras",
+      "date": "2026-01-10T20:10:20.685728",
+      "combined_risk": 0.0,
+      "tier": 0,
+      "tier_name": "NORMAL",
+      "components": {
+        "lambda_geo": {
+          "name": "lambda_geo",
+          "available": false,
+          "raw_value": 0.0,
+          "raw_secondary": null,
+          "risk_score": 0.0,
+          "is_elevated": false,
+          "is_critical": false,
+          "notes": "No Lambda_geo data available"
+        }
+      },
+      "confidence": 0.0,
+      "agreement": "no_data",
+      "methods_available": 0,
+      "notes": ""
+    }
+  },
+  "summary": {
+    "total_regions": 8,
+    "tier_counts": {
+      "0": 8,
+      "1": 0,
+      "2": 0,
+      "3": 0
+    },
+    "max_risk_region": null,
+    "max_risk": 0.0
+  }
+}

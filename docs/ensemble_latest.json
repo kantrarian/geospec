@@ -1,11 +1,11 @@
 {
-  "date": "2026-01-08",
-  "timestamp": "2026-01-10T20:17:26.372661",
+  "date": "2026-01-10",
+  "timestamp": "2026-01-10T20:42:49.446314",
   "regions": {
     "ridgecrest": {
       "region": "ridgecrest",
-      "date": "2026-01-08T20:16:01.823736",
-      "combined_risk": 0.0,
+      "date": "2026-01-10T20:40:49.965537",
+      "combined_risk": 0.05880788968159753,
       "tier": 0,
       "tier_name": "NORMAL",
       "components": {
@@ -31,24 +31,24 @@
         },
         "seismic_thd": {
           "name": "seismic_thd",
-          "available": false,
-          "raw_value": 0.0,
-          "raw_secondary": null,
-          "risk_score": 0.0,
+          "available": true,
+          "raw_value": 0.029403944840798765,
+          "raw_secondary": 33251.891034333676,
+          "risk_score": 0.05880788968159753,
           "is_elevated": false,
           "is_critical": false,
-          "notes": "Insufficient data from CI.CCC"
+          "notes": "THD=0.0294, SNR=33251.9"
         }
       },
-      "confidence": 0.0,
-      "agreement": "no_data",
-      "methods_available": 0,
+      "confidence": 0.5,
+      "agreement": "single_method",
+      "methods_available": 1,
       "notes": ""
     },
     "socal_saf_mojave": {
       "region": "socal_saf_mojave",
-      "date": "2026-01-08T20:16:01.823736",
-      "combined_risk": 0.0,
+      "date": "2026-01-10T20:40:49.965537",
+      "combined_risk": 0.05880788968159753,
       "tier": 0,
       "tier_name": "NORMAL",
       "components": {
@@ -74,24 +74,24 @@
         },
         "seismic_thd": {
           "name": "seismic_thd",
-          "available": false,
-          "raw_value": 0.0,
-          "raw_secondary": null,
-          "risk_score": 0.0,
+          "available": true,
+          "raw_value": 0.029403944840798765,
+          "raw_secondary": 33251.891034333676,
+          "risk_score": 0.05880788968159753,
           "is_elevated": false,
           "is_critical": false,
-          "notes": "Insufficient data from CI.WBS"
+          "notes": "THD=0.0294, SNR=33251.9"
         }
       },
-      "confidence": 0.0,
-      "agreement": "no_data",
-      "methods_available": 0,
+      "confidence": 0.5,
+      "agreement": "single_method",
+      "methods_available": 1,
       "notes": ""
     },
     "socal_saf_coachella": {
       "region": "socal_saf_coachella",
-      "date": "2026-01-08T20:16:01.823736",
-      "combined_risk": 0.0,
+      "date": "2026-01-10T20:40:49.965537",
+      "combined_risk": 0.05880788968159753,
       "tier": 0,
       "tier_name": "NORMAL",
       "components": {
@@ -117,24 +117,153 @@
         },
         "seismic_thd": {
           "name": "seismic_thd",
+          "available": true,
+          "raw_value": 0.029403944840798765,
+          "raw_secondary": 33251.891034333676,
+          "risk_score": 0.05880788968159753,
+          "is_elevated": false,
+          "is_critical": false,
+          "notes": "THD=0.0294, SNR=33251.9"
+        }
+      },
+      "confidence": 0.5,
+      "agreement": "single_method",
+      "methods_available": 1,
+      "notes": ""
+    },
+    "norcal_hayward": {
+      "region": "norcal_hayward",
+      "date": "2026-01-10T20:40:49.965537",
+      "combined_risk": 0.48931410673736264,
+      "tier": 1,
+      "tier_name": "WATCH",
+      "components": {
+        "lambda_geo": {
+          "name": "lambda_geo",
           "available": false,
           "raw_value": 0.0,
           "raw_secondary": null,
           "risk_score": 0.0,
           "is_elevated": false,
           "is_critical": false,
-          "notes": "Insufficient data from CI.WMC"
+          "notes": "No Lambda_geo data available"
+        },
+        "fault_correlation": {
+          "name": "fault_correlation",
+          "available": false,
+          "raw_value": 0.0,
+          "raw_secondary": null,
+          "risk_score": 0.0,
+          "is_elevated": false,
+          "is_critical": false,
+          "notes": "Insufficient segment data"
+        },
+        "seismic_thd": {
+          "name": "seismic_thd",
+          "available": true,
+          "raw_value": 0.12786282134747254,
+          "raw_secondary": 2843.222043187077,
+          "risk_score": 0.48931410673736264,
+          "is_elevated": false,
+          "is_critical": false,
+          "notes": "THD=0.1279, SNR=2843.2"
         }
       },
-      "confidence": 0.0,
-      "agreement": "no_data",
-      "methods_available": 0,
+      "confidence": 0.5,
+      "agreement": "single_method",
+      "methods_available": 1,
       "notes": ""
     },
-    "norcal_hayward": {
-      "region": "norcal_hayward",
-      "date": "2026-01-08T20:16:01.823736",
-      "combined_risk": 0.0,
+    "cascadia": {
+      "region": "cascadia",
+      "date": "2026-01-10T20:40:49.965537",
+      "combined_risk": 0.1387229474168343,
+      "tier": 0,
+      "tier_name": "NORMAL",
+      "components": {
+        "lambda_geo": {
+          "name": "lambda_geo",
+          "available": false,
+          "raw_value": 0.0,
+          "raw_secondary": null,
+          "risk_score": 0.0,
+          "is_elevated": false,
+          "is_critical": false,
+          "notes": "No Lambda_geo data available"
+        },
+        "fault_correlation": {
+          "name": "fault_correlation",
+          "available": true,
+          "raw_value": 0.6194699422142158,
+          "raw_secondary": 1.8953540332962662,
+          "risk_score": 0.19769003045089412,
+          "is_elevated": false,
+          "is_critical": false,
+          "notes": "L2/L1=0.6195, PR=1.90"
+        },
+        "seismic_thd": {
+          "name": "seismic_thd",
+          "available": true,
+          "raw_value": 0.03987793219138726,
+          "raw_secondary": 275.56741367825936,
+          "risk_score": 0.07975586438277452,
+          "is_elevated": false,
+          "is_critical": false,
+          "notes": "THD=0.0399, SNR=275.6"
+        }
+      },
+      "confidence": 0.8,
+      "agreement": "all_normal",
+      "methods_available": 2,
+      "notes": ""
+    },
+    "tokyo_kanto": {
+      "region": "tokyo_kanto",
+      "date": "2026-01-10T20:40:49.965537",
+      "combined_risk": 0.03849336585308309,
+      "tier": 0,
+      "tier_name": "NORMAL",
+      "components": {
+        "lambda_geo": {
+          "name": "lambda_geo",
+          "available": false,
+          "raw_value": 0.0,
+          "raw_secondary": null,
+          "risk_score": 0.0,
+          "is_elevated": false,
+          "is_critical": false,
+          "notes": "No Lambda_geo data available"
+        },
+        "fault_correlation": {
+          "name": "fault_correlation",
+          "available": false,
+          "raw_value": 0.0,
+          "raw_secondary": null,
+          "risk_score": 0.0,
+          "is_elevated": false,
+          "is_critical": false,
+          "notes": "Error: Unknown region: tokyo_kanto. Valid: ['ridgecrest', 'socal_saf_mojave', 'socal_coachella', 'norcal_hayward', 'cascadia', 'istanbul_marmara', 'turkey_kahramanmaras', 'japan_tohoku', 'chile_maule']"
+        },
+        "seismic_thd": {
+          "name": "seismic_thd",
+          "available": true,
+          "raw_value": 0.019246682926541546,
+          "raw_secondary": 5885.7461085757695,
+          "risk_score": 0.03849336585308309,
+          "is_elevated": false,
+          "is_critical": false,
+          "notes": "THD=0.0192, SNR=5885.7"
+        }
+      },
+      "confidence": 0.5,
+      "agreement": "single_method",
+      "methods_available": 1,
+      "notes": ""
+    },
+    "istanbul_marmara": {
+      "region": "istanbul_marmara",
+      "date": "2026-01-10T20:40:49.965537",
+      "combined_risk": 0.037702197563819026,
       "tier": 0,
       "tier_name": "NORMAL",
       "components": {
@@ -160,24 +289,24 @@
         },
         "seismic_thd": {
           "name": "seismic_thd",
-          "available": false,
-          "raw_value": 0.0,
-          "raw_secondary": null,
-          "risk_score": 0.0,
+          "available": true,
+          "raw_value": 0.018851098781909513,
+          "raw_secondary": 51091.87862999797,
+          "risk_score": 0.037702197563819026,
           "is_elevated": false,
           "is_critical": false,
-          "notes": "Insufficient data from CI.BKS"
+          "notes": "THD=0.0189, SNR=51091.9"
         }
       },
-      "confidence": 0.0,
-      "agreement": "no_data",
-      "methods_available": 0,
+      "confidence": 0.5,
+      "agreement": "single_method",
+      "methods_available": 1,
       "notes": ""
     },
-    "cascadia": {
-      "region": "cascadia",
-      "date": "2026-01-08T20:16:01.823736",
-      "combined_risk": 0.10644343237022116,
+    "turkey_kahramanmaras": {
+      "region": "turkey_kahramanmaras",
+      "date": "2026-01-10T20:40:49.965537",
+      "combined_risk": 0.037702197563819026,
       "tier": 0,
       "tier_name": "NORMAL",
       "components": {
@@ -193,109 +322,40 @@
         },
         "fault_correlation": {
           "name": "fault_correlation",
-          "available": true,
-          "raw_value": 0.9352980969169893,
-          "raw_secondary": 1.9977670283377627,
-          "risk_score": 0.10644343237022116,
-          "is_elevated": false,
-          "is_critical": false,
-          "notes": "L2/L1=0.9353, PR=2.00"
-        },
-        "seismic_thd": {
-          "name": "seismic_thd",
           "available": false,
           "raw_value": 0.0,
           "raw_secondary": null,
           "risk_score": 0.0,
           "is_elevated": false,
           "is_critical": false,
-          "notes": "Insufficient data from CI.LKWY"
+          "notes": "Insufficient segment data"
+        },
+        "seismic_thd": {
+          "name": "seismic_thd",
+          "available": true,
+          "raw_value": 0.018851098781909513,
+          "raw_secondary": 51091.87862999797,
+          "risk_score": 0.037702197563819026,
+          "is_elevated": false,
+          "is_critical": false,
+          "notes": "THD=0.0189, SNR=51091.9"
         }
       },
       "confidence": 0.5,
       "agreement": "single_method",
       "methods_available": 1,
       "notes": ""
-    },
-    "tokyo_kanto": {
-      "region": "tokyo_kanto",
-      "date": "2026-01-08T20:16:01.823736",
-      "combined_risk": 0.0,
-      "tier": 0,
-      "tier_name": "NORMAL",
-      "components": {
-        "lambda_geo": {
-          "name": "lambda_geo",
-          "available": false,
-          "raw_value": 0.0,
-          "raw_secondary": null,
-          "risk_score": 0.0,
-          "is_elevated": false,
-          "is_critical": false,
-          "notes": "No Lambda_geo data available"
-        }
-      },
-      "confidence": 0.0,
-      "agreement": "no_data",
-      "methods_available": 0,
-      "notes": ""
-    },
-    "istanbul_marmara": {
-      "region": "istanbul_marmara",
-      "date": "2026-01-08T20:16:01.823736",
-      "combined_risk": 0.0,
-      "tier": 0,
-      "tier_name": "NORMAL",
-      "components": {
-        "lambda_geo": {
-          "name": "lambda_geo",
-          "available": false,
-          "raw_value": 0.0,
-          "raw_secondary": null,
-          "risk_score": 0.0,
-          "is_elevated": false,
-          "is_critical": false,
-          "notes": "No Lambda_geo data available"
-        }
-      },
-      "confidence": 0.0,
-      "agreement": "no_data",
-      "methods_available": 0,
-      "notes": ""
-    },
-    "turkey_kahramanmaras": {
-      "region": "turkey_kahramanmaras",
-      "date": "2026-01-08T20:16:01.823736",
-      "combined_risk": 0.0,
-      "tier": 0,
-      "tier_name": "NORMAL",
-      "components": {
-        "lambda_geo": {
-          "name": "lambda_geo",
-          "available": false,
-          "raw_value": 0.0,
-          "raw_secondary": null,
-          "risk_score": 0.0,
-          "is_elevated": false,
-          "is_critical": false,
-          "notes": "No Lambda_geo data available"
-        }
-      },
-      "confidence": 0.0,
-      "agreement": "no_data",
-      "methods_available": 0,
-      "notes": ""
     }
   },
   "summary": {
     "total_regions": 8,
     "tier_counts": {
-      "0": 8,
-      "1": 0,
+      "0": 7,
+      "1": 1,
       "2": 0,
       "3": 0
     },
-    "max_risk_region": "cascadia",
-    "max_risk": 0.10644343237022116
+    "max_risk_region": "norcal_hayward",
+    "max_risk": 0.48931410673736264
   }
 }

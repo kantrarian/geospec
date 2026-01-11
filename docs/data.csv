@@ -15,3 +15,12 @@ date,region,tier,risk,methods,confidence,lg_ratio,thd,fc_l2l1,status,notes
 2026-01-09,tokyo_kanto,2,0.597,2,0.75,,0.343,0.6312,CONFIRMED,
 2026-01-09,istanbul_marmara,1,1.000,1,0.50,,0.449,,CONFIRMED,tier_capped
 2026-01-09,turkey_kahramanmaras,1,1.000,1,0.50,,0.449,,CONFIRMED,tier_capped
+2026-01-11,ridgecrest,1,0.546,1,0.50,,0.309,,PRELIMINARY,tier_capped
+2026-01-11,socal_saf_mojave,1,0.546,1,0.50,,0.309,,PRELIMINARY,tier_capped
+2026-01-11,socal_saf_coachella,1,0.546,1,0.50,,0.309,,PRELIMINARY,tier_capped
+2026-01-11,norcal_hayward,1,0.597,1,0.50,,0.215,,CONFIRMED,tier_capped
+2026-01-11,cascadia,1,0.294,2,0.80,,0.226,0.9041,PRELIMINARY,
+2026-01-11,tokyo_kanto,1,0.441,2,0.75,,0.197,0.9109,PRELIMINARY,
+2026-01-11,istanbul_marmara,2,0.555,2,0.75,,0.372,0.6782,PRELIMINARY,
+2026-01-11,turkey_kahramanmaras,1,1.000,1,0.50,,0.372,,PRELIMINARY,tier_capped
+2026-01-11,campi_flegrei,0,0.200,1,0.50,,,0.3190,PRELIMINARY,

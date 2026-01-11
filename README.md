@@ -1,23 +1,23 @@
 ﻿# GeoSpec Ensemble Monitoring
 
-**Last Update**: 2026-01-08
+**Last Update**: 2026-01-09
 
 ## Current Status
 
 | Metric | Value |
 |--------|-------|
-| Highest Risk Region | cascadia |
-| Risk Score | 0.106 |
+| Highest Risk Region | norcal_hayward |
+| Risk Score | 1.0 |
 | Regions Monitored | 8 |
 
 ### Tier Distribution
 
 | Tier | Count |
 |------|-------|
-| NORMAL (0) | 8 |
-| WATCH (1) | 0 |
-| ELEVATED (2) | 0 |
-| CRITICAL (3) | 0 |
+| NORMAL (0) | 0 |
+| WATCH (1) | 3 |
+| ELEVATED (2) | 4 |
+| CRITICAL (3) | 1 |
 
 ## Dashboard
 

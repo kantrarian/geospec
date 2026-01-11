@@ -60,6 +60,13 @@ Thumbs.db
 # ===========================================
 # EXCEPTIONS - Files that ARE committed
 # ===========================================
+# Dashboard data files (results only, no code)
+!docs/
+!docs/index.html
+!docs/ensemble_latest.json
+!docs/data.csv
+
 # README, LICENSE, .gitignore always allowed
-# monitoring/dashboard/ and monitoring/.github/ allowed (not in ignore list)
-# No algorithm implementation details committed
+!README.md
+!LICENSE
+!.gitignore

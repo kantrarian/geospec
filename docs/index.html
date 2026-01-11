@@ -358,7 +358,7 @@
                 
                 traces.push({
                     x: rows.map(r => r.date),
-                    y: rows.map(r => parseFloat(r.amp_72h) || 0),
+                    y: rows.map(r => parseFloat(r.risk) || 0),
                     name: region.replace(/_/g, ' '),
                     type: 'scatter',
                     mode: 'lines+markers',
@@ -368,14 +368,24 @@
                 colorIdx++;
             }
 
-            // Add threshold lines
+            // Add threshold lines for tier boundaries
+            const dates = recentData.map(r => r.date).filter(Boolean).sort();
             traces.push({
-                x: recentData.map(r => r.date).filter(Boolean).sort(),
-                y: Array(recentData.length).fill(5),
-                name: '5× threshold',
+                x: dates,
+                y: Array(dates.length).fill(0.5),
+                name: 'ELEVATED (0.5)',
                 type: 'scatter',
                 mode: 'lines',
                 line: { color: '#f97316', width: 1, dash: 'dash' },
+                opacity: 0.5
+            });
+            traces.push({
+                x: dates,
+                y: Array(dates.length).fill(0.75),
+                name: 'CRITICAL (0.75)',
+                type: 'scatter',
+                mode: 'lines',
+                line: { color: '#ef4444', width: 1, dash: 'dash' },
                 opacity: 0.5
             });
 
@@ -383,14 +393,14 @@
                 paper_bgcolor: 'rgba(0,0,0,0)',
                 plot_bgcolor: 'rgba(0,0,0,0)',
                 font: { color: '#e8e8f0', family: 'JetBrains Mono, monospace' },
-                xaxis: { 
+                xaxis: {
                     gridcolor: '#2a2a3a',
                     title: 'Date'
                 },
-                yaxis: { 
+                yaxis: {
                     gridcolor: '#2a2a3a',
-                    title: 'Amplification (×)',
-                    type: 'log'
+                    title: 'Risk Score',
+                    range: [0, 1.1]
                 },
                 legend: {
                     orientation: 'h',
@@ -443,10 +453,10 @@
                         regions: Object.fromEntries(
                             Object.entries(latest).map(([r, d]) => [r, {
                                 tier: parseInt(d.tier) || 0,
-                                combined_risk: parseFloat(d.amp_72h) / 20 || 0,
-                                confidence: 0.5,
-                                methods_available: 1,
-                                agreement: 'single_method'
+                                combined_risk: parseFloat(d.risk) || 0,
+                                confidence: parseFloat(d.confidence) || 0.5,
+                                methods_available: parseInt(d.methods) || 1,
+                                agreement: d.status === 'CONFIRMED' ? 'confirmed' : 'single_method'
                             }])
                         )
                     };

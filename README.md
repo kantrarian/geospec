@@ -8,15 +8,15 @@
 |--------|-------|
 | Highest Risk Region | norcal_hayward |
 | Risk Score | 1.0 |
-| Regions Monitored | 8 |
+| Regions Monitored | 9 |
 
 ### Tier Distribution
 
 | Tier | Count |
 |------|-------|
 | NORMAL (0) | 0 |
-| WATCH (1) | 3 |
-| ELEVATED (2) | 4 |
+| WATCH (1) | 5 |
+| ELEVATED (2) | 2 |
 | CRITICAL (3) | 1 |
 
 ## Dashboard

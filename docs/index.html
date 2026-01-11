@@ -335,9 +335,16 @@
 
         // Render history chart
         function renderChart(data) {
+            // Filter to last 30 days only
+            const cutoffDate = new Date();
+            cutoffDate.setDate(cutoffDate.getDate() - 30);
+            const cutoffStr = cutoffDate.toISOString().split('T')[0];
+
+            const recentData = data.filter(row => row.date >= cutoffStr);
+
             // Group by region
             const byRegion = {};
-            data.forEach(row => {
+            recentData.forEach(row => {
                 if (!byRegion[row.region]) byRegion[row.region] = [];
                 byRegion[row.region].push(row);
             });
@@ -363,8 +370,8 @@
 
             // Add threshold lines
             traces.push({
-                x: data.map(r => r.date).filter(Boolean).sort(),
-                y: Array(data.length).fill(5),
+                x: recentData.map(r => r.date).filter(Boolean).sort(),
+                y: Array(recentData.length).fill(5),
                 name: '5× threshold',
                 type: 'scatter',
                 mode: 'lines',

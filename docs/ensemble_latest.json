@@ -1,10 +1,10 @@
 {
-  "date": "2026-01-10",
-  "timestamp": "2026-01-10T20:11:24.020104",
+  "date": "2026-01-08",
+  "timestamp": "2026-01-10T20:17:26.372661",
   "regions": {
     "ridgecrest": {
       "region": "ridgecrest",
-      "date": "2026-01-10T20:10:20.685728",
+      "date": "2026-01-08T20:16:01.823736",
       "combined_risk": 0.0,
       "tier": 0,
       "tier_name": "NORMAL",
@@ -47,7 +47,7 @@
     },
     "socal_saf_mojave": {
       "region": "socal_saf_mojave",
-      "date": "2026-01-10T20:10:20.685728",
+      "date": "2026-01-08T20:16:01.823736",
       "combined_risk": 0.0,
       "tier": 0,
       "tier_name": "NORMAL",
@@ -90,7 +90,7 @@
     },
     "socal_saf_coachella": {
       "region": "socal_saf_coachella",
-      "date": "2026-01-10T20:10:20.685728",
+      "date": "2026-01-08T20:16:01.823736",
       "combined_risk": 0.0,
       "tier": 0,
       "tier_name": "NORMAL",
@@ -133,7 +133,7 @@
     },
     "norcal_hayward": {
       "region": "norcal_hayward",
-      "date": "2026-01-10T20:10:20.685728",
+      "date": "2026-01-08T20:16:01.823736",
       "combined_risk": 0.0,
       "tier": 0,
       "tier_name": "NORMAL",
@@ -176,8 +176,8 @@
     },
     "cascadia": {
       "region": "cascadia",
-      "date": "2026-01-10T20:10:20.685728",
-      "combined_risk": 0.0,
+      "date": "2026-01-08T20:16:01.823736",
+      "combined_risk": 0.10644343237022116,
       "tier": 0,
       "tier_name": "NORMAL",
       "components": {
@@ -193,13 +193,13 @@
         },
         "fault_correlation": {
           "name": "fault_correlation",
-          "available": false,
-          "raw_value": 0.0,
-          "raw_secondary": null,
-          "risk_score": 0.0,
+          "available": true,
+          "raw_value": 0.9352980969169893,
+          "raw_secondary": 1.9977670283377627,
+          "risk_score": 0.10644343237022116,
           "is_elevated": false,
           "is_critical": false,
-          "notes": "Insufficient segment data"
+          "notes": "L2/L1=0.9353, PR=2.00"
         },
         "seismic_thd": {
           "name": "seismic_thd",
@@ -212,14 +212,14 @@
           "notes": "Insufficient data from CI.LKWY"
         }
       },
-      "confidence": 0.0,
-      "agreement": "no_data",
-      "methods_available": 0,
+      "confidence": 0.5,
+      "agreement": "single_method",
+      "methods_available": 1,
       "notes": ""
     },
     "tokyo_kanto": {
       "region": "tokyo_kanto",
-      "date": "2026-01-10T20:10:20.685728",
+      "date": "2026-01-08T20:16:01.823736",
       "combined_risk": 0.0,
       "tier": 0,
       "tier_name": "NORMAL",
@@ -242,7 +242,7 @@
     },
     "istanbul_marmara": {
       "region": "istanbul_marmara",
-      "date": "2026-01-10T20:10:20.685728",
+      "date": "2026-01-08T20:16:01.823736",
       "combined_risk": 0.0,
       "tier": 0,
       "tier_name": "NORMAL",
@@ -265,7 +265,7 @@
     },
     "turkey_kahramanmaras": {
       "region": "turkey_kahramanmaras",
-      "date": "2026-01-10T20:10:20.685728",
+      "date": "2026-01-08T20:16:01.823736",
       "combined_risk": 0.0,
       "tier": 0,
       "tier_name": "NORMAL",
@@ -295,7 +295,7 @@
       "2": 0,
       "3": 0
     },
-    "max_risk_region": null,
-    "max_risk": 0.0
+    "max_risk_region": "cascadia",
+    "max_risk": 0.10644343237022116
   }
 }

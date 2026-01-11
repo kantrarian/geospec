@@ -1,13 +1,13 @@
 ﻿# GeoSpec Ensemble Monitoring
 
-**Last Update**: 2026-01-10
+**Last Update**: 2026-01-08
 
 ## Current Status
 
 | Metric | Value |
 |--------|-------|
-| Highest Risk Region |  |
-| Risk Score | 0.0 |
+| Highest Risk Region | cascadia |
+| Risk Score | 0.106 |
 | Regions Monitored | 8 |
 
 ### Tier Distribution

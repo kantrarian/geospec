@@ -121,6 +121,31 @@
         .tier-2 .tier-badge { background: rgba(249, 115, 22, 0.2); color: var(--tier-2); }
         .tier-3 .tier-badge { background: rgba(239, 68, 68, 0.2); color: var(--tier-3); }
 
+        .unconfirmed-badge {
+            background: rgba(168, 85, 247, 0.3);
+            color: #a855f7;
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.65rem;
+            margin-left: 0.5rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .region-card.tier-capped {
+            border-style: dashed;
+        }
+
+        .capped-note {
+            margin-top: 1rem;
+            padding: 0.5rem;
+            background: rgba(168, 85, 247, 0.1);
+            border-radius: 4px;
+            font-size: 0.75rem;
+            color: #a855f7;
+            text-align: center;
+        }
+
         .metrics {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -298,13 +323,26 @@
                     const confidence = data.confidence || 0;
                     const methods = data.methods_available || 0;
                     const agreement = data.agreement || 'unknown';
+                    const notes = data.notes || '';
+
+                    // Check if tier was capped (single method showing high risk)
+                    const isTierCapped = notes.toLowerCase().includes('tier capped') ||
+                                        notes.toLowerCase().includes('tier_capped');
+
+                    // Build tier display with unconfirmed indicator
+                    let tierDisplay = `TIER ${tier}: ${getTierDesc(String(tier))}`;
+                    let unconfirmedBadge = '';
+                    if (isTierCapped && tier >= 1) {
+                        unconfirmedBadge = '<span class="unconfirmed-badge">UNCONFIRMED</span>';
+                    }
 
                     return `
-                        <div class="region-card tier-${tier}">
+                        <div class="region-card tier-${tier}${isTierCapped ? ' tier-capped' : ''}">
                             <h3 class="region-name">${region.replace(/_/g, ' ').toUpperCase()}</h3>
                             <div class="tier-badge">
                                 <span>●</span>
-                                <span>TIER ${tier}: ${getTierDesc(String(tier))}</span>
+                                <span>${tierDisplay}</span>
+                                ${unconfirmedBadge}
                             </div>
                             <div class="metrics">
                                 <div class="metric">
@@ -324,6 +362,7 @@
                                     <div class="metric-value" style="font-size: 0.9rem">${agreement.replace(/_/g, ' ')}</div>
                                 </div>
                             </div>
+                            ${isTierCapped ? '<div class="capped-note">Risk elevated but waiting for multi-method confirmation</div>' : ''}
                         </div>
                     `;
                 }).join('');

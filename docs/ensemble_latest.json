@@ -1,11 +1,11 @@
 {
   "date": "2026-01-10",
-  "timestamp": "2026-01-12T06:05:30.767928",
+  "timestamp": "2026-01-12T13:36:49.560912",
   "regions": {
     "ridgecrest": {
       "region": "ridgecrest",
-      "date": "2026-01-10T06:00:11.990935",
-      "combined_risk": 0.5769129062411532,
+      "date": "2026-01-10T13:35:48.222605",
+      "combined_risk": 0.5748202515838424,
       "tier": 1,
       "tier_name": "WATCH",
       "components": {
@@ -32,12 +32,12 @@
         "seismic_thd": {
           "name": "seismic_thd",
           "available": true,
-          "raw_value": 0.31538258124823065,
-          "raw_secondary": 154316.12181857115,
-          "risk_score": 0.5769129062411532,
+          "raw_value": 0.3149640503167685,
+          "raw_secondary": 65679.03876131453,
+          "risk_score": 0.5748202515838424,
           "is_elevated": true,
           "is_critical": false,
-          "notes": "THD=0.3154, z=2.31, rate=40Hz"
+          "notes": "THD=0.3150, z=2.30, rate=40Hz"
         }
       },
       "confidence": 0.5,
@@ -67,8 +67,8 @@
     },
     "socal_saf_mojave": {
       "region": "socal_saf_mojave",
-      "date": "2026-01-10T06:00:11.990935",
-      "combined_risk": 0.33950097429248477,
+      "date": "2026-01-10T13:35:48.222605",
+      "combined_risk": 0.30508095030287663,
       "tier": 1,
       "tier_name": "WATCH",
       "components": {
@@ -85,22 +85,22 @@
         "fault_correlation": {
           "name": "fault_correlation",
           "available": true,
-          "raw_value": 0.9522185720709108,
-          "raw_secondary": 1.9988026219871324,
-          "risk_score": 0.10208904234381638,
+          "raw_value": 0.978633403912357,
+          "raw_secondary": 2.9986341743465874,
+          "risk_score": 0.035341649021910754,
           "is_elevated": false,
           "is_critical": false,
-          "notes": "L2/L1=0.9522, PR=2.00, 2/4 segments"
+          "notes": "L2/L1=0.9786, PR=3.00, 3/4 segments"
         },
         "seismic_thd": {
           "name": "seismic_thd",
           "available": true,
-          "raw_value": 0.31538258124823065,
-          "raw_secondary": 154316.12181857115,
-          "risk_score": 0.5769129062411532,
+          "raw_value": 0.3149640503167685,
+          "raw_secondary": 65679.03876131453,
+          "risk_score": 0.5748202515838424,
           "is_elevated": true,
           "is_critical": false,
-          "notes": "THD=0.3154, z=2.31, rate=40Hz"
+          "notes": "THD=0.3150, z=2.30, rate=40Hz"
         }
       },
       "confidence": 0.75,
@@ -109,12 +109,13 @@
       "notes": "",
       "coverage": {
         "segments_defined": 4,
-        "segments_working": 2,
+        "segments_working": 3,
         "segment_names": [
+          "mojave_north",
           "mojave_central",
           "san_bernardino"
         ],
-        "coverage_pct": 50.0
+        "coverage_pct": 75.0
       },
       "effective_weights": {
         "fault_correlation": 0.5,
@@ -134,8 +135,8 @@
     },
     "socal_saf_coachella": {
       "region": "socal_saf_coachella",
-      "date": "2026-01-10T06:00:11.990935",
-      "combined_risk": 0.5769129062411532,
+      "date": "2026-01-10T13:35:48.222605",
+      "combined_risk": 0.5748202515838424,
       "tier": 1,
       "tier_name": "WATCH",
       "components": {
@@ -162,12 +163,12 @@
         "seismic_thd": {
           "name": "seismic_thd",
           "available": true,
-          "raw_value": 0.31538258124823065,
-          "raw_secondary": 154316.12181857115,
-          "risk_score": 0.5769129062411532,
+          "raw_value": 0.3149640503167685,
+          "raw_secondary": 65679.03876131453,
+          "risk_score": 0.5748202515838424,
           "is_elevated": true,
           "is_critical": false,
-          "notes": "THD=0.3154, z=2.31, rate=40Hz"
+          "notes": "THD=0.3150, z=2.30, rate=40Hz"
         }
       },
       "confidence": 0.5,
@@ -197,8 +198,8 @@
     },
     "norcal_hayward": {
       "region": "norcal_hayward",
-      "date": "2026-01-10T06:00:11.990935",
-      "combined_risk": 0.8518957725391418,
+      "date": "2026-01-10T13:35:48.222605",
+      "combined_risk": 0.8594827396715754,
       "tier": 1,
       "tier_name": "WATCH",
       "components": {
@@ -225,12 +226,12 @@
         "seismic_thd": {
           "name": "seismic_thd",
           "available": true,
-          "raw_value": 0.29094788626957097,
-          "raw_secondary": 4373.210123973573,
-          "risk_score": 0.851895772539142,
+          "raw_value": 0.2947413698357877,
+          "raw_secondary": 3630.064798298535,
+          "risk_score": 0.8594827396715754,
           "is_elevated": true,
           "is_critical": true,
-          "notes": "THD=0.2909, z=4.27, rate=40Hz"
+          "notes": "THD=0.2947, z=4.37, rate=40Hz"
         }
       },
       "confidence": 0.5,
@@ -260,8 +261,8 @@
     },
     "cascadia": {
       "region": "cascadia",
-      "date": "2026-01-10T06:00:11.990935",
-      "combined_risk": 0.4892895206712119,
+      "date": "2026-01-10T13:35:48.222605",
+      "combined_risk": 0.3676509456518422,
       "tier": 1,
       "tier_name": "WATCH",
       "components": {
@@ -288,12 +289,12 @@
         "seismic_thd": {
           "name": "seismic_thd",
           "available": true,
-          "raw_value": 0.2854445054457649,
-          "raw_secondary": 554.5862510444094,
-          "risk_score": 0.7808890108915297,
+          "raw_value": 0.23601789773644644,
+          "raw_secondary": 988.8365760819295,
+          "risk_score": 0.5376118608527902,
           "is_elevated": true,
-          "is_critical": true,
-          "notes": "THD=0.2854, z=3.39, rate=40Hz"
+          "is_critical": false,
+          "notes": "THD=0.2360, z=2.15, rate=40Hz"
         }
       },
       "confidence": 0.75,
@@ -327,7 +328,7 @@
     },
     "tokyo_kanto": {
       "region": "tokyo_kanto",
-      "date": "2026-01-10T06:00:11.990935",
+      "date": "2026-01-10T13:35:48.222605",
       "combined_risk": 0.5479391289928935,
       "tier": 2,
       "tier_name": "ELEVATED",
@@ -355,12 +356,12 @@
         "seismic_thd": {
           "name": "seismic_thd",
           "available": true,
-          "raw_value": 0.43897101427554813,
-          "raw_secondary": 12039.036334531418,
+          "raw_value": 0.29585064875018097,
+          "raw_secondary": 17370.93630624834,
           "risk_score": 1.0,
           "is_elevated": true,
           "is_critical": true,
-          "notes": "THD=0.4390, z=11.30, rate=40Hz"
+          "notes": "THD=0.2959, z=6.53, rate=40Hz"
         }
       },
       "confidence": 0.75,
@@ -394,7 +395,7 @@
     },
     "istanbul_marmara": {
       "region": "istanbul_marmara",
-      "date": "2026-01-10T06:00:11.990935",
+      "date": "2026-01-10T13:35:48.222605",
       "combined_risk": 0.5553925478162742,
       "tier": 2,
       "tier_name": "ELEVATED",
@@ -422,12 +423,12 @@
         "seismic_thd": {
           "name": "seismic_thd",
           "available": true,
-          "raw_value": 0.4806249117955406,
-          "raw_secondary": 12413.183374582222,
+          "raw_value": 0.4332043238287694,
+          "raw_secondary": 14040.941092409152,
           "risk_score": 1.0,
           "is_elevated": true,
           "is_critical": true,
-          "notes": "THD=0.4806, z=21.53, rate=40Hz"
+          "notes": "THD=0.4332, z=19.16, rate=40Hz"
         }
       },
       "confidence": 0.75,
@@ -462,7 +463,7 @@
     },
     "turkey_kahramanmaras": {
       "region": "turkey_kahramanmaras",
-      "date": "2026-01-10T06:00:11.990935",
+      "date": "2026-01-10T13:35:48.222605",
       "combined_risk": 0.5225902279847927,
       "tier": 2,
       "tier_name": "ELEVATED",
@@ -490,12 +491,12 @@
         "seismic_thd": {
           "name": "seismic_thd",
           "available": true,
-          "raw_value": 0.4806249117955406,
-          "raw_secondary": 12413.183374582222,
+          "raw_value": 0.4332043238287694,
+          "raw_secondary": 14040.941092409152,
           "risk_score": 1.0,
           "is_elevated": true,
           "is_critical": true,
-          "notes": "THD=0.4806, z=21.53, rate=40Hz"
+          "notes": "THD=0.4332, z=19.16, rate=40Hz"
         }
       },
       "confidence": 0.75,
@@ -530,7 +531,7 @@
     },
     "campi_flegrei": {
       "region": "campi_flegrei",
-      "date": "2026-01-10T06:00:11.990935",
+      "date": "2026-01-10T13:35:48.222605",
       "combined_risk": 0.14498382986420433,
       "tier": 0,
       "tier_name": "NORMAL",
@@ -610,6 +611,362 @@
     "preliminary_watch_count": 0,
     "degraded_count": 0,
     "max_risk_region": "norcal_hayward",
-    "max_risk": 0.8518957725391418
+    "max_risk": 0.8594827396715754
+  },
+  "earthquake_events": {
+    "ridgecrest": {
+      "region": "ridgecrest",
+      "bounds": {
+        "minlat": 35.0,
+        "maxlat": 36.5,
+        "minlon": -118.5,
+        "maxlon": -116.5
+      },
+      "last_updated": "2026-01-12T18:36:46.308118",
+      "event_count": 0,
+      "largest_event": null,
+      "most_recent_event": null,
+      "events": []
+    },
+    "socal_saf_mojave": {
+      "region": "socal_saf_mojave",
+      "bounds": {
+        "minlat": 34.0,
+        "maxlat": 36.5,
+        "minlon": -118.5,
+        "maxlon": -115.5
+      },
+      "last_updated": "2026-01-12T18:36:46.599288",
+      "event_count": 0,
+      "largest_event": null,
+      "most_recent_event": null,
+      "events": []
+    },
+    "socal_saf_coachella": {
+      "region": "socal_saf_coachella",
+      "bounds": {
+        "minlat": 33.0,
+        "maxlat": 34.5,
+        "minlon": -117.0,
+        "maxlon": -115.0
+      },
+      "last_updated": "2026-01-12T18:36:47.118735",
+      "event_count": 0,
+      "largest_event": null,
+      "most_recent_event": null,
+      "events": []
+    },
+    "norcal_hayward": {
+      "region": "norcal_hayward",
+      "bounds": {
+        "minlat": 37.0,
+        "maxlat": 38.5,
+        "minlon": -123.0,
+        "maxlon": -121.5
+      },
+      "last_updated": "2026-01-12T18:36:47.625413",
+      "event_count": 1,
+      "largest_event": {
+        "event_id": "nc75279971",
+        "time": "2025-12-14T23:30:43.210000",
+        "latitude": 38.373,
+        "longitude": -122.604,
+        "depth_km": 3.13,
+        "magnitude": 4.03,
+        "mag_type": "mw",
+        "place": "6 km W of Glen Ellen, CA",
+        "url": "https://earthquake.usgs.gov/earthquakes/eventpage/nc75279971"
+      },
+      "most_recent_event": {
+        "event_id": "nc75279971",
+        "time": "2025-12-14T23:30:43.210000",
+        "latitude": 38.373,
+        "longitude": -122.604,
+        "depth_km": 3.13,
+        "magnitude": 4.03,
+        "mag_type": "mw",
+        "place": "6 km W of Glen Ellen, CA",
+        "url": "https://earthquake.usgs.gov/earthquakes/eventpage/nc75279971"
+      },
+      "events": [
+        {
+          "event_id": "nc75279971",
+          "time": "2025-12-14T23:30:43.210000",
+          "latitude": 38.373,
+          "longitude": -122.604,
+          "depth_km": 3.13,
+          "magnitude": 4.03,
+          "mag_type": "mw",
+          "place": "6 km W of Glen Ellen, CA",
+          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/nc75279971"
+        }
+      ]
+    },
+    "cascadia": {
+      "region": "cascadia",
+      "bounds": {
+        "minlat": 42.0,
+        "maxlat": 49.0,
+        "minlon": -125.0,
+        "maxlon": -121.0
+      },
+      "last_updated": "2026-01-12T18:36:47.882600",
+      "event_count": 0,
+      "largest_event": null,
+      "most_recent_event": null,
+      "events": []
+    },
+    "tokyo_kanto": {
+      "region": "tokyo_kanto",
+      "bounds": {
+        "minlat": 34.5,
+        "maxlat": 37.0,
+        "minlon": 138.5,
+        "maxlon": 141.5
+      },
+      "last_updated": "2026-01-12T18:36:48.383155",
+      "event_count": 11,
+      "largest_event": {
+        "event_id": "us7000rnm9",
+        "time": "2026-01-09T11:07:58.213000",
+        "latitude": 35.2901,
+        "longitude": 140.4891,
+        "depth_km": 22.547,
+        "magnitude": 4.9,
+        "mag_type": "mb",
+        "place": "9 km ENE of \u014chara, Japan",
+        "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us7000rnm9"
+      },
+      "most_recent_event": {
+        "event_id": "us7000rnm9",
+        "time": "2026-01-09T11:07:58.213000",
+        "latitude": 35.2901,
+        "longitude": 140.4891,
+        "depth_km": 22.547,
+        "magnitude": 4.9,
+        "mag_type": "mb",
+        "place": "9 km ENE of \u014chara, Japan",
+        "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us7000rnm9"
+      },
+      "events": [
+        {
+          "event_id": "us7000rnm9",
+          "time": "2026-01-09T11:07:58.213000",
+          "latitude": 35.2901,
+          "longitude": 140.4891,
+          "depth_km": 22.547,
+          "magnitude": 4.9,
+          "mag_type": "mb",
+          "place": "9 km ENE of \u014chara, Japan",
+          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us7000rnm9"
+        },
+        {
+          "event_id": "us6000rue0",
+          "time": "2025-12-12T10:05:19.253000",
+          "latitude": 36.0804,
+          "longitude": 140.2301,
+          "depth_km": 56.218,
+          "magnitude": 4.9,
+          "mag_type": "mb",
+          "place": "5 km NNE of Ami, Japan",
+          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us6000rue0"
+        },
+        {
+          "event_id": "us7000rfk8",
+          "time": "2025-11-16T07:03:24.694000",
+          "latitude": 35.31,
+          "longitude": 140.2222,
+          "depth_km": 68.858,
+          "magnitude": 4.2,
+          "mag_type": "mb",
+          "place": "3 km NW of \u014ctaki, Japan",
+          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us7000rfk8"
+        },
+        {
+          "event_id": "us7000rf34",
+          "time": "2025-11-13T21:36:20.833000",
+          "latitude": 35.5524,
+          "longitude": 140.0125,
+          "depth_km": 97.369,
+          "magnitude": 4.3,
+          "mag_type": "mb",
+          "place": "7 km WNW of Ichihara, Japan",
+          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us7000rf34"
+        },
+        {
+          "event_id": "us7000regr",
+          "time": "2025-11-11T21:50:49.880000",
+          "latitude": 36.441,
+          "longitude": 140.47,
+          "depth_km": 68.482,
+          "magnitude": 4.2,
+          "mag_type": "mb",
+          "place": "7 km NW of Hitachi-Naka, Japan",
+          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us7000regr"
+        },
+        {
+          "event_id": "us6000rmak",
+          "time": "2025-11-08T21:24:58.358000",
+          "latitude": 36.3432,
+          "longitude": 140.0067,
+          "depth_km": 84.053,
+          "magnitude": 4.4,
+          "mag_type": "mb",
+          "place": "3 km NE of Chikusei, Japan",
+          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us6000rmak"
+        },
+        {
+          "event_id": "us6000rlid",
+          "time": "2025-11-04T22:17:29.328000",
+          "latitude": 34.7242,
+          "longitude": 140.9772,
+          "depth_km": 35,
+          "magnitude": 4.7,
+          "mag_type": "mww",
+          "place": "76 km SE of Shinmachi, Japan",
+          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us6000rlid"
+        },
+        {
+          "event_id": "us7000rdh0",
+          "time": "2025-11-04T05:00:11.221000",
+          "latitude": 36.0959,
+          "longitude": 139.9355,
+          "depth_km": 83.632,
+          "magnitude": 4.2,
+          "mag_type": "mb",
+          "place": "3 km SW of Ishige, Japan",
+          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us7000rdh0"
+        },
+        {
+          "event_id": "us6000rjk2",
+          "time": "2025-10-26T13:34:57.870000",
+          "latitude": 35.7618,
+          "longitude": 140.0357,
+          "depth_km": 85.358,
+          "magnitude": 4.6,
+          "mag_type": "mb",
+          "place": "5 km SSW of Shiroi, Japan",
+          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us6000rjk2"
+        },
+        {
+          "event_id": "us6000rjin",
+          "time": "2025-10-26T03:04:55.283000",
+          "latitude": 36.6074,
+          "longitude": 139.3644,
+          "depth_km": 12.413,
+          "magnitude": 4.6,
+          "mag_type": "mb",
+          "place": "19 km NNE of Midori, Japan",
+          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us6000rjin"
+        }
+      ]
+    },
+    "istanbul_marmara": {
+      "region": "istanbul_marmara",
+      "bounds": {
+        "minlat": 40.0,
+        "maxlat": 41.5,
+        "minlon": 27.5,
+        "maxlon": 30.5
+      },
+      "last_updated": "2026-01-12T18:36:48.640288",
+      "event_count": 0,
+      "largest_event": null,
+      "most_recent_event": null,
+      "events": []
+    },
+    "turkey_kahramanmaras": {
+      "region": "turkey_kahramanmaras",
+      "bounds": {
+        "minlat": 36.5,
+        "maxlat": 38.5,
+        "minlon": 36.0,
+        "maxlon": 38.5
+      },
+      "last_updated": "2026-01-12T18:36:49.093264",
+      "event_count": 4,
+      "largest_event": {
+        "event_id": "us6000rpb8",
+        "time": "2025-11-20T09:09:09.881000",
+        "latitude": 37.1887,
+        "longitude": 36.7952,
+        "depth_km": 10,
+        "magnitude": 4.3,
+        "mag_type": "mwr",
+        "place": "5 km ENE of Nurda\u011f\u0131, Turkey",
+        "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us6000rpb8"
+      },
+      "most_recent_event": {
+        "event_id": "us6000rvds",
+        "time": "2025-12-17T01:15:09.462000",
+        "latitude": 36.6364,
+        "longitude": 36.4572,
+        "depth_km": 10,
+        "magnitude": 4.1,
+        "mag_type": "mb",
+        "place": "17 km NNE of K\u0131r\u0131khan, Turkey",
+        "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us6000rvds"
+      },
+      "events": [
+        {
+          "event_id": "us6000rvds",
+          "time": "2025-12-17T01:15:09.462000",
+          "latitude": 36.6364,
+          "longitude": 36.4572,
+          "depth_km": 10,
+          "magnitude": 4.1,
+          "mag_type": "mb",
+          "place": "17 km NNE of K\u0131r\u0131khan, Turkey",
+          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us6000rvds"
+        },
+        {
+          "event_id": "us6000rpb8",
+          "time": "2025-11-20T09:09:09.881000",
+          "latitude": 37.1887,
+          "longitude": 36.7952,
+          "depth_km": 10,
+          "magnitude": 4.3,
+          "mag_type": "mwr",
+          "place": "5 km ENE of Nurda\u011f\u0131, Turkey",
+          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us6000rpb8"
+        },
+        {
+          "event_id": "us6000ried",
+          "time": "2025-10-21T02:06:00.384000",
+          "latitude": 37.2945,
+          "longitude": 36.9665,
+          "depth_km": 10,
+          "magnitude": 4.1,
+          "mag_type": "mb",
+          "place": "24 km NE of Nurda\u011f\u0131, Turkey",
+          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us6000ried"
+        },
+        {
+          "event_id": "us6000ri5n",
+          "time": "2025-10-19T11:39:11.967000",
+          "latitude": 37.7871,
+          "longitude": 36.1678,
+          "depth_km": 12.785,
+          "magnitude": 4.3,
+          "mag_type": "mb",
+          "place": "22 km E of Feke, Turkey",
+          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us6000ri5n"
+        }
+      ]
+    },
+    "campi_flegrei": {
+      "region": "campi_flegrei",
+      "bounds": {
+        "minlat": 40.5,
+        "maxlat": 41.0,
+        "minlon": 13.8,
+        "maxlon": 14.5
+      },
+      "last_updated": "2026-01-12T18:36:49.546907",
+      "event_count": 0,
+      "largest_event": null,
+      "most_recent_event": null,
+      "events": []
+    }
   }
 }

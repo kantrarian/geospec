@@ -146,6 +146,59 @@
             margin-top: 0.2rem;
         }
 
+        .events-section {
+            margin-top: 1rem;
+            padding-top: 0.8rem;
+            border-top: 1px solid var(--border);
+        }
+
+        .events-header {
+            font-size: 0.7rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.5rem;
+        }
+
+        .event-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.4rem 0;
+            font-size: 0.8rem;
+        }
+
+        .event-mag {
+            font-weight: 600;
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            background: var(--bg-secondary);
+        }
+
+        .event-mag.mag-4 { color: #22c55e; }
+        .event-mag.mag-5 { color: #eab308; }
+        .event-mag.mag-6 { color: #f97316; }
+        .event-mag.mag-7 { color: #ef4444; }
+
+        .event-date {
+            color: var(--text-secondary);
+            font-size: 0.75rem;
+        }
+
+        .event-place {
+            flex: 1;
+            margin: 0 0.5rem;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .no-events {
+            color: var(--text-secondary);
+            font-size: 0.8rem;
+            font-style: italic;
+        }
+
         .chart-section {
             background: var(--bg-card);
             border: 1px solid var(--border);
@@ -285,10 +338,76 @@
             return descs[tier] || 'Unknown';
         }
 
+        // Format earthquake event for display
+        function formatEvent(event) {
+            if (!event) return '';
+            const mag = event.magnitude || 0;
+            const magClass = mag >= 7 ? 'mag-7' : mag >= 6 ? 'mag-6' : mag >= 5 ? 'mag-5' : 'mag-4';
+            const date = event.time ? new Date(event.time).toLocaleDateString() : '';
+            const place = event.place || 'Unknown';
+            // Truncate place name
+            const shortPlace = place.length > 25 ? place.substring(0, 22) + '...' : place;
+
+            return `
+                <div class="event-item">
+                    <span class="event-mag ${magClass}">M${mag.toFixed(1)}</span>
+                    <span class="event-place" title="${place}">${shortPlace}</span>
+                    <span class="event-date">${date}</span>
+                </div>
+            `;
+        }
+
+        // Render events section for a region
+        function renderEventsSection(region, eventsData) {
+            const regionEvents = eventsData[region];
+            if (!regionEvents) {
+                return `
+                    <div class="events-section">
+                        <div class="events-header">Recent Seismic Events (90d)</div>
+                        <div class="no-events">No event data available</div>
+                    </div>
+                `;
+            }
+
+            const count = regionEvents.event_count || 0;
+            const largest = regionEvents.largest_event;
+            const recent = regionEvents.most_recent_event;
+
+            if (count === 0) {
+                return `
+                    <div class="events-section">
+                        <div class="events-header">Recent Seismic Events (90d)</div>
+                        <div class="no-events">No M4+ events in last 90 days</div>
+                    </div>
+                `;
+            }
+
+            let eventsHtml = `
+                <div class="events-section">
+                    <div class="events-header">Recent Seismic Events (${count} M4+ in 90d)</div>
+            `;
+
+            // Show largest event
+            if (largest) {
+                eventsHtml += `<div style="font-size: 0.7rem; color: var(--text-secondary); margin-bottom: 0.2rem;">Largest:</div>`;
+                eventsHtml += formatEvent(largest);
+            }
+
+            // Show most recent if different from largest
+            if (recent && recent.event_id !== largest?.event_id) {
+                eventsHtml += `<div style="font-size: 0.7rem; color: var(--text-secondary); margin-top: 0.3rem; margin-bottom: 0.2rem;">Most Recent:</div>`;
+                eventsHtml += formatEvent(recent);
+            }
+
+            eventsHtml += '</div>';
+            return eventsHtml;
+        }
+
         // Render status cards from ensemble data
         function renderCards(ensembleData) {
             const grid = document.getElementById('status-grid');
             const regions = ensembleData.regions || {};
+            const eventsData = ensembleData.earthquake_events || {};
 
             grid.innerHTML = Object.entries(regions)
                 .sort((a, b) => (b[1].combined_risk || 0) - (a[1].combined_risk || 0))
@@ -324,6 +443,7 @@
                                     <div class="metric-value" style="font-size: 0.9rem">${agreement.replace(/_/g, ' ')}</div>
                                 </div>
                             </div>
+                            ${renderEventsSection(region, eventsData)}
                         </div>
                     `;
                 }).join('');

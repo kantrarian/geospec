@@ -121,31 +121,6 @@
         .tier-2 .tier-badge { background: rgba(249, 115, 22, 0.2); color: var(--tier-2); }
         .tier-3 .tier-badge { background: rgba(239, 68, 68, 0.2); color: var(--tier-3); }
 
-        .unconfirmed-badge {
-            background: rgba(168, 85, 247, 0.3);
-            color: #a855f7;
-            padding: 0.2rem 0.5rem;
-            border-radius: 4px;
-            font-size: 0.65rem;
-            margin-left: 0.5rem;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-        }
-
-        .region-card.tier-capped {
-            border-style: dashed;
-        }
-
-        .capped-note {
-            margin-top: 1rem;
-            padding: 0.5rem;
-            background: rgba(168, 85, 247, 0.1);
-            border-radius: 4px;
-            font-size: 0.75rem;
-            color: #a855f7;
-            text-align: center;
-        }
-
         .metrics {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -169,6 +144,59 @@
             font-size: 1.4rem;
             font-weight: 600;
             margin-top: 0.2rem;
+        }
+
+        .events-section {
+            margin-top: 1rem;
+            padding-top: 0.8rem;
+            border-top: 1px solid var(--border);
+        }
+
+        .events-header {
+            font-size: 0.7rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.5rem;
+        }
+
+        .event-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.4rem 0;
+            font-size: 0.8rem;
+        }
+
+        .event-mag {
+            font-weight: 600;
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            background: var(--bg-secondary);
+        }
+
+        .event-mag.mag-4 { color: #22c55e; }
+        .event-mag.mag-5 { color: #eab308; }
+        .event-mag.mag-6 { color: #f97316; }
+        .event-mag.mag-7 { color: #ef4444; }
+
+        .event-date {
+            color: var(--text-secondary);
+            font-size: 0.75rem;
+        }
+
+        .event-place {
+            flex: 1;
+            margin: 0 0.5rem;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .no-events {
+            color: var(--text-secondary);
+            font-size: 0.8rem;
+            font-style: italic;
         }
 
         .chart-section {
@@ -310,10 +338,76 @@
             return descs[tier] || 'Unknown';
         }
 
+        // Format earthquake event for display
+        function formatEvent(event) {
+            if (!event) return '';
+            const mag = event.magnitude || 0;
+            const magClass = mag >= 7 ? 'mag-7' : mag >= 6 ? 'mag-6' : mag >= 5 ? 'mag-5' : 'mag-4';
+            const date = event.time ? new Date(event.time).toLocaleDateString() : '';
+            const place = event.place || 'Unknown';
+            // Truncate place name
+            const shortPlace = place.length > 25 ? place.substring(0, 22) + '...' : place;
+
+            return `
+                <div class="event-item">
+                    <span class="event-mag ${magClass}">M${mag.toFixed(1)}</span>
+                    <span class="event-place" title="${place}">${shortPlace}</span>
+                    <span class="event-date">${date}</span>
+                </div>
+            `;
+        }
+
+        // Render events section for a region
+        function renderEventsSection(region, eventsData) {
+            const regionEvents = eventsData[region];
+            if (!regionEvents) {
+                return `
+                    <div class="events-section">
+                        <div class="events-header">Recent Seismic Events (90d)</div>
+                        <div class="no-events">No event data available</div>
+                    </div>
+                `;
+            }
+
+            const count = regionEvents.event_count || 0;
+            const largest = regionEvents.largest_event;
+            const recent = regionEvents.most_recent_event;
+
+            if (count === 0) {
+                return `
+                    <div class="events-section">
+                        <div class="events-header">Recent Seismic Events (90d)</div>
+                        <div class="no-events">No M4+ events in last 90 days</div>
+                    </div>
+                `;
+            }
+
+            let eventsHtml = `
+                <div class="events-section">
+                    <div class="events-header">Recent Seismic Events (${count} M4+ in 90d)</div>
+            `;
+
+            // Show largest event
+            if (largest) {
+                eventsHtml += `<div style="font-size: 0.7rem; color: var(--text-secondary); margin-bottom: 0.2rem;">Largest:</div>`;
+                eventsHtml += formatEvent(largest);
+            }
+
+            // Show most recent if different from largest
+            if (recent && recent.event_id !== largest?.event_id) {
+                eventsHtml += `<div style="font-size: 0.7rem; color: var(--text-secondary); margin-top: 0.3rem; margin-bottom: 0.2rem;">Most Recent:</div>`;
+                eventsHtml += formatEvent(recent);
+            }
+
+            eventsHtml += '</div>';
+            return eventsHtml;
+        }
+
         // Render status cards from ensemble data
         function renderCards(ensembleData) {
             const grid = document.getElementById('status-grid');
             const regions = ensembleData.regions || {};
+            const eventsData = ensembleData.earthquake_events || {};
 
             grid.innerHTML = Object.entries(regions)
                 .sort((a, b) => (b[1].combined_risk || 0) - (a[1].combined_risk || 0))
@@ -323,26 +417,13 @@
                     const confidence = data.confidence || 0;
                     const methods = data.methods_available || 0;
                     const agreement = data.agreement || 'unknown';
-                    const notes = data.notes || '';
-
-                    // Check if tier was capped (single method showing high risk)
-                    const isTierCapped = notes.toLowerCase().includes('tier capped') ||
-                                        notes.toLowerCase().includes('tier_capped');
-
-                    // Build tier display with unconfirmed indicator
-                    let tierDisplay = `TIER ${tier}: ${getTierDesc(String(tier))}`;
-                    let unconfirmedBadge = '';
-                    if (isTierCapped && tier >= 1) {
-                        unconfirmedBadge = '<span class="unconfirmed-badge">UNCONFIRMED</span>';
-                    }
 
                     return `
-                        <div class="region-card tier-${tier}${isTierCapped ? ' tier-capped' : ''}">
+                        <div class="region-card tier-${tier}">
                             <h3 class="region-name">${region.replace(/_/g, ' ').toUpperCase()}</h3>
                             <div class="tier-badge">
                                 <span>●</span>
-                                <span>${tierDisplay}</span>
-                                ${unconfirmedBadge}
+                                <span>TIER ${tier}: ${getTierDesc(String(tier))}</span>
                             </div>
                             <div class="metrics">
                                 <div class="metric">
@@ -362,7 +443,7 @@
                                     <div class="metric-value" style="font-size: 0.9rem">${agreement.replace(/_/g, ' ')}</div>
                                 </div>
                             </div>
-                            ${isTierCapped ? '<div class="capped-note">Risk elevated but waiting for multi-method confirmation</div>' : ''}
+                            ${renderEventsSection(region, eventsData)}
                         </div>
                     `;
                 }).join('');
@@ -374,16 +455,9 @@
 
         // Render history chart
         function renderChart(data) {
-            // Filter to last 30 days only
-            const cutoffDate = new Date();
-            cutoffDate.setDate(cutoffDate.getDate() - 30);
-            const cutoffStr = cutoffDate.toISOString().split('T')[0];
-
-            const recentData = data.filter(row => row.date >= cutoffStr);
-
             // Group by region
             const byRegion = {};
-            recentData.forEach(row => {
+            data.forEach(row => {
                 if (!byRegion[row.region]) byRegion[row.region] = [];
                 byRegion[row.region].push(row);
             });
@@ -397,7 +471,7 @@
                 
                 traces.push({
                     x: rows.map(r => r.date),
-                    y: rows.map(r => parseFloat(r.risk) || 0),
+                    y: rows.map(r => parseFloat(r.amp_72h) || 0),
                     name: region.replace(/_/g, ' '),
                     type: 'scatter',
                     mode: 'lines+markers',
@@ -407,24 +481,14 @@
                 colorIdx++;
             }
 
-            // Add threshold lines for tier boundaries
-            const dates = recentData.map(r => r.date).filter(Boolean).sort();
+            // Add threshold lines
             traces.push({
-                x: dates,
-                y: Array(dates.length).fill(0.5),
-                name: 'ELEVATED (0.5)',
+                x: data.map(r => r.date).filter(Boolean).sort(),
+                y: Array(data.length).fill(5),
+                name: '5× threshold',
                 type: 'scatter',
                 mode: 'lines',
                 line: { color: '#f97316', width: 1, dash: 'dash' },
-                opacity: 0.5
-            });
-            traces.push({
-                x: dates,
-                y: Array(dates.length).fill(0.75),
-                name: 'CRITICAL (0.75)',
-                type: 'scatter',
-                mode: 'lines',
-                line: { color: '#ef4444', width: 1, dash: 'dash' },
                 opacity: 0.5
             });
 
@@ -432,14 +496,14 @@
                 paper_bgcolor: 'rgba(0,0,0,0)',
                 plot_bgcolor: 'rgba(0,0,0,0)',
                 font: { color: '#e8e8f0', family: 'JetBrains Mono, monospace' },
-                xaxis: {
+                xaxis: { 
                     gridcolor: '#2a2a3a',
                     title: 'Date'
                 },
-                yaxis: {
+                yaxis: { 
                     gridcolor: '#2a2a3a',
-                    title: 'Risk Score',
-                    range: [0, 1.1]
+                    title: 'Amplification (×)',
+                    type: 'log'
                 },
                 legend: {
                     orientation: 'h',
@@ -492,10 +556,10 @@
                         regions: Object.fromEntries(
                             Object.entries(latest).map(([r, d]) => [r, {
                                 tier: parseInt(d.tier) || 0,
-                                combined_risk: parseFloat(d.risk) || 0,
-                                confidence: parseFloat(d.confidence) || 0.5,
-                                methods_available: parseInt(d.methods) || 1,
-                                agreement: d.status === 'CONFIRMED' ? 'confirmed' : 'single_method'
+                                combined_risk: parseFloat(d.amp_72h) / 20 || 0,
+                                confidence: 0.5,
+                                methods_available: 1,
+                                agreement: 'single_method'
                             }])
                         )
                     };

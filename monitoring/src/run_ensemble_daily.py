@@ -137,7 +137,7 @@ REGIONS = {
     # Italy - Volcanic caldera pilot (Method 2 sandbox)
     'campi_flegrei': {
         'name': 'Campi Flegrei',
-        'thd_station': 'CSFT',     # IV.CSFT Solfatara - epicenter of unrest
+        'thd_station': 'CAFE',     # IV.CAFE - CSFT has connection issues, CAFE reliable 100Hz
         'thd_network': 'IV',       # INGV network - open data via EIDA
         'seismic_available': True,
         'latency_days': 0,

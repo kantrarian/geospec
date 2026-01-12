@@ -25,7 +25,8 @@ class SeismicStation:
     lat: float    # Latitude
     lon: float    # Longitude
     name: str = ""  # Station name (optional)
-    channels: List[str] = field(default_factory=lambda: ['BHZ', 'HHZ'])
+    # Try common vertical channels in preferred order (HHZ=high-rate, BHZ=broadband, HNZ/EHZ=short-period)
+    channels: List[str] = field(default_factory=lambda: ['HHZ', 'BHZ', 'HNZ', 'EHZ'])
 
     @property
     def nslc(self) -> str:
@@ -139,6 +140,8 @@ RIDGECREST_SEGMENTS = [
 
 # =============================================================================
 # SOUTHERN SAN ANDREAS - MOJAVE SEGMENTS
+# Updated 2026-01-12 with verified SCEDC CI stations from availability scan
+# Original stations (GSC, HEC, VTV) had data gaps; replaced with verified working stations
 # =============================================================================
 
 SOCAL_SAF_MOJAVE_SEGMENTS = [
@@ -146,73 +149,88 @@ SOCAL_SAF_MOJAVE_SEGMENTS = [
         name="mojave_north",
         region="socal_saf_mojave",
         stations=[
-            SeismicStation("CI", "GSC", 35.302, -116.806, "Goldstone"),
-            SeismicStation("CI", "HEC", 34.829, -116.335, "Hector Mine"),
+            # Ridgecrest/China Lake/Coso corridor - all verified 100Hz HHZ/HNZ
+            SeismicStation("CI", "JRC2", 35.982, -117.809, "Joshua Ridge: China Lake"),
+            SeismicStation("CI", "WVP2", 35.949, -117.818, "Volcano Peak 2"),
+            SeismicStation("CI", "SLA", 35.891, -117.283, "Slate Mountain"),
+            SeismicStation("CI", "CLC", 35.816, -117.598, "China Lake"),
+            SeismicStation("CI", "SEV", 35.589, -117.287, "Searles Valley"),
         ],
         polygon=[
-            (35.0, -117.5),
-            (35.0, -116.5),
-            (35.5, -116.5),
-            (35.5, -117.5),
+            (35.0, -118.5),
+            (35.0, -117.0),
+            (36.0, -117.0),
+            (36.0, -118.5),
         ],
         strike=305,  # SAF strike in Mojave
         dip=90,
         rake=180,
-        notes="Northern Mojave segment"
+        notes="Northern Mojave - Ridgecrest/China Lake corridor"
     ),
     FaultSegment(
         name="mojave_central",
         region="socal_saf_mojave",
         stations=[
-            SeismicStation("CI", "VTV", 34.567, -117.333, "Victorville"),
-            SeismicStation("CI", "HEC", 34.829, -116.335, "Hector Mine"),
+            # Barstow/Edwards/Rodman area - verified working stations
+            SeismicStation("CI", "BAW", 34.839, -117.149, "Barstow"),
+            SeismicStation("CI", "RRX", 34.875, -116.997, "Barstow Service Center"),
+            SeismicStation("CI", "RMM", 34.644, -116.624, "Rodman Mountain"),
+            SeismicStation("CI", "HYS", 34.865, -117.570, "Haystack Butte"),
+            SeismicStation("CI", "EDW2", 34.881, -117.994, "Edwards 2"),
         ],
         polygon=[
-            (34.5, -117.5),
+            (34.5, -118.5),
             (34.5, -116.5),
             (35.0, -116.5),
-            (35.0, -117.5),
+            (35.0, -118.5),
         ],
         strike=300,
         dip=90,
         rake=180,
-        notes="Central Mojave - includes 1857 rupture extent"
+        notes="Central Mojave - Barstow/Edwards corridor, includes 1857 rupture extent"
     ),
     FaultSegment(
         name="mojave_south",
         region="socal_saf_mojave",
         stations=[
-            SeismicStation("CI", "BEL", 34.001, -117.752, "Bell Canyon"),
-            SeismicStation("CI", "PFO", 33.611, -116.459, "Pinon Flat Observatory"),
+            # San Bernardino Mountains / desert transition - verified working
+            SeismicStation("CI", "BBR", 34.262, -116.921, "Big Bear Solar Observatory"),
+            SeismicStation("CI", "FHO", 34.094, -116.936, "Forest Home - SOSAF Station"),
+            SeismicStation("CI", "SVD", 34.106, -117.098, "Seven Oaks"),
+            SeismicStation("CI", "GMA", 34.291, -116.383, "Goat Mountain Astronomical Research Station"),
+            SeismicStation("CI", "BEL", 34.001, -115.998, "Belle Mountain Joshua Tree"),
         ],
         polygon=[
-            (34.0, -118.0),
-            (34.0, -117.0),
-            (34.5, -117.0),
-            (34.5, -118.0),
+            (34.0, -117.5),
+            (34.0, -116.0),
+            (34.5, -116.0),
+            (34.5, -117.5),
         ],
         strike=295,
         dip=90,
         rake=175,
-        notes="San Bernardino Mountains junction"
+        notes="Southern Mojave - San Bernardino Mountains junction"
     ),
     FaultSegment(
         name="san_bernardino",
         region="socal_saf_mojave",
         stations=[
-            SeismicStation("CI", "BEL", 34.001, -117.752, "Bell Canyon"),
-            SeismicStation("CI", "DGR", 33.650, -116.101, "Durmid Hill"),
+            # San Bernardino segment - mountain stations with good coverage
+            SeismicStation("CI", "CFT", 34.035, -117.112, "Crafton Hills"),
+            SeismicStation("CI", "CLT", 34.093, -117.317, "Calectric"),
+            SeismicStation("CI", "BTL2", 34.257, -117.005, "Butler Peak 2"),
+            SeismicStation("CI", "SBPX", 34.232, -117.235, "Strawberry Peak"),
         ],
         polygon=[
             (33.8, -117.5),
             (33.8, -116.5),
-            (34.2, -116.5),
-            (34.2, -117.5),
+            (34.3, -116.5),
+            (34.3, -117.5),
         ],
         strike=290,
         dip=85,
         rake=170,
-        notes="San Bernardino segment"
+        notes="San Bernardino segment - mountain stations"
     ),
 ]
 

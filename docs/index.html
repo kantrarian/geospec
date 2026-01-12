@@ -463,15 +463,18 @@
             });
 
             const traces = [];
-            const colors = ['#4a9eff', '#22c55e', '#f97316', '#a855f7', '#ef4444'];
+            const colors = [
+                '#4a9eff', '#22c55e', '#f97316', '#a855f7', '#ef4444',
+                '#14b8a6', '#f43f5e', '#8b5cf6', '#eab308'
+            ];
             let colorIdx = 0;
 
             for (const [region, rows] of Object.entries(byRegion)) {
                 rows.sort((a, b) => a.date.localeCompare(b.date));
-                
+
                 traces.push({
                     x: rows.map(r => r.date),
-                    y: rows.map(r => parseFloat(r.amp_72h) || 0),
+                    y: rows.map(r => parseFloat(r.risk) || 0),
                     name: region.replace(/_/g, ' '),
                     type: 'scatter',
                     mode: 'lines+markers',
@@ -481,29 +484,43 @@
                 colorIdx++;
             }
 
-            // Add threshold lines
+            // Add tier threshold lines
+            const dates = [...new Set(data.map(r => r.date))].filter(Boolean).sort();
+
+            // ELEVATED threshold (0.5)
             traces.push({
-                x: data.map(r => r.date).filter(Boolean).sort(),
-                y: Array(data.length).fill(5),
-                name: '5× threshold',
+                x: dates,
+                y: Array(dates.length).fill(0.5),
+                name: 'ELEVATED (0.5)',
                 type: 'scatter',
                 mode: 'lines',
                 line: { color: '#f97316', width: 1, dash: 'dash' },
-                opacity: 0.5
+                opacity: 0.7
+            });
+
+            // CRITICAL threshold (0.75)
+            traces.push({
+                x: dates,
+                y: Array(dates.length).fill(0.75),
+                name: 'CRITICAL (0.75)',
+                type: 'scatter',
+                mode: 'lines',
+                line: { color: '#ef4444', width: 1, dash: 'dash' },
+                opacity: 0.7
             });
 
             const layout = {
                 paper_bgcolor: 'rgba(0,0,0,0)',
                 plot_bgcolor: 'rgba(0,0,0,0)',
                 font: { color: '#e8e8f0', family: 'JetBrains Mono, monospace' },
-                xaxis: { 
+                xaxis: {
                     gridcolor: '#2a2a3a',
                     title: 'Date'
                 },
-                yaxis: { 
+                yaxis: {
                     gridcolor: '#2a2a3a',
-                    title: 'Amplification (×)',
-                    type: 'log'
+                    title: 'Risk Score',
+                    range: [0, 1.1]
                 },
                 legend: {
                     orientation: 'h',

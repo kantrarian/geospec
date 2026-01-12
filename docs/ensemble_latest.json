@@ -1,215 +1,11 @@
 {
-  "date": "2026-01-09",
-  "timestamp": "2026-01-12T00:23:11.854145",
+  "date": "2026-01-10",
+  "timestamp": "2026-01-12T06:05:30.767928",
   "regions": {
     "ridgecrest": {
       "region": "ridgecrest",
-      "date": "2026-01-09T00:22:16.216725",
-      "combined_risk": 0.38904204440994017,
-      "tier": 1,
-      "tier_name": "WATCH",
-      "components": {
-        "lambda_geo": {
-          "name": "lambda_geo",
-          "available": false,
-          "raw_value": 0.0,
-          "raw_secondary": null,
-          "risk_score": 0.0,
-          "is_elevated": false,
-          "is_critical": false,
-          "notes": "No Lambda_geo data available"
-        },
-        "fault_correlation": {
-          "name": "fault_correlation",
-          "available": true,
-          "raw_value": 0.9195191666666634,
-          "raw_secondary": 2.99434988612313,
-          "risk_score": 0.0501202083333341,
-          "is_elevated": false,
-          "is_critical": false,
-          "notes": "L2/L1=0.9195, PR=2.99, 3/3 segments"
-        },
-        "seismic_thd": {
-          "name": "seismic_thd",
-          "available": true,
-          "raw_value": 0.34559277609730926,
-          "raw_secondary": 440274.6533986506,
-          "risk_score": 0.7279638804865463,
-          "is_elevated": true,
-          "is_critical": false,
-          "notes": "THD=0.3456, z=2.91, rate=40Hz"
-        }
-      },
-      "confidence": 0.75,
-      "agreement": "mostly_elevated",
-      "methods_available": 2,
-      "notes": "",
-      "coverage": {
-        "segments_defined": 3,
-        "segments_working": 3,
-        "segment_names": [
-          "ridgecrest_mainshock",
-          "airport_lake",
-          "little_lake"
-        ],
-        "coverage_pct": 100.0
-      },
-      "effective_weights": {
-        "fault_correlation": 0.5,
-        "seismic_thd": 0.5
-      },
-      "persistence": {
-        "current_tier": 1,
-        "consecutive_days": 2,
-        "is_confirmed": true,
-        "tier_history": [
-          null,
-          null,
-          1,
-          1
-        ]
-      }
-    },
-    "socal_saf_mojave": {
-      "region": "socal_saf_mojave",
-      "date": "2026-01-09T00:22:16.216725",
-      "combined_risk": 0.38133056490626144,
-      "tier": 1,
-      "tier_name": "WATCH",
-      "components": {
-        "lambda_geo": {
-          "name": "lambda_geo",
-          "available": false,
-          "raw_value": 0.0,
-          "raw_secondary": null,
-          "risk_score": 0.0,
-          "is_elevated": false,
-          "is_critical": false,
-          "notes": "No Lambda_geo data available"
-        },
-        "fault_correlation": {
-          "name": "fault_correlation",
-          "available": true,
-          "raw_value": 0.9812110026960933,
-          "raw_secondary": 3.9978366728534875,
-          "risk_score": 0.034697249325976655,
-          "is_elevated": false,
-          "is_critical": false,
-          "notes": "L2/L1=0.9812, PR=4.00, 4/4 segments"
-        },
-        "seismic_thd": {
-          "name": "seismic_thd",
-          "available": true,
-          "raw_value": 0.34559277609730926,
-          "raw_secondary": 440274.6533986506,
-          "risk_score": 0.7279638804865463,
-          "is_elevated": true,
-          "is_critical": false,
-          "notes": "THD=0.3456, z=2.91, rate=40Hz"
-        }
-      },
-      "confidence": 0.75,
-      "agreement": "mostly_elevated",
-      "methods_available": 2,
-      "notes": "",
-      "coverage": {
-        "segments_defined": 4,
-        "segments_working": 4,
-        "segment_names": [
-          "mojave_north",
-          "mojave_central",
-          "mojave_south",
-          "san_bernardino"
-        ],
-        "coverage_pct": 100.0
-      },
-      "effective_weights": {
-        "fault_correlation": 0.5,
-        "seismic_thd": 0.5
-      },
-      "persistence": {
-        "current_tier": 1,
-        "consecutive_days": 2,
-        "is_confirmed": true,
-        "tier_history": [
-          null,
-          null,
-          1,
-          1
-        ]
-      }
-    },
-    "socal_saf_coachella": {
-      "region": "socal_saf_coachella",
-      "date": "2026-01-09T00:22:16.216725",
-      "combined_risk": 0.41354489342636763,
-      "tier": 1,
-      "tier_name": "WATCH",
-      "components": {
-        "lambda_geo": {
-          "name": "lambda_geo",
-          "available": false,
-          "raw_value": 0.0,
-          "raw_secondary": null,
-          "risk_score": 0.0,
-          "is_elevated": false,
-          "is_critical": false,
-          "notes": "No Lambda_geo data available"
-        },
-        "fault_correlation": {
-          "name": "fault_correlation",
-          "available": true,
-          "raw_value": 0.9638220665478971,
-          "raw_secondary": 1.9993214749736394,
-          "risk_score": 0.09912590636618898,
-          "is_elevated": false,
-          "is_critical": false,
-          "notes": "L2/L1=0.9638, PR=2.00, 2/3 segments"
-        },
-        "seismic_thd": {
-          "name": "seismic_thd",
-          "available": true,
-          "raw_value": 0.34559277609730926,
-          "raw_secondary": 440274.6533986506,
-          "risk_score": 0.7279638804865463,
-          "is_elevated": true,
-          "is_critical": false,
-          "notes": "THD=0.3456, z=2.91, rate=40Hz"
-        }
-      },
-      "confidence": 0.75,
-      "agreement": "mostly_elevated",
-      "methods_available": 2,
-      "notes": "",
-      "coverage": {
-        "segments_defined": 3,
-        "segments_working": 2,
-        "segment_names": [
-          "coachella_south",
-          "brawley_seismic_zone"
-        ],
-        "coverage_pct": 66.66666666666666
-      },
-      "effective_weights": {
-        "fault_correlation": 0.5,
-        "seismic_thd": 0.5
-      },
-      "persistence": {
-        "current_tier": 1,
-        "consecutive_days": 2,
-        "is_confirmed": true,
-        "tier_history": [
-          null,
-          null,
-          1,
-          1
-        ]
-      }
-    },
-    "norcal_hayward": {
-      "region": "norcal_hayward",
-      "date": "2026-01-09T00:22:16.216725",
-      "combined_risk": 0.9760142657165987,
+      "date": "2026-01-10T06:00:11.990935",
+      "combined_risk": 0.5769129062411532,
       "tier": 1,
       "tier_name": "WATCH",
       "components": {
@@ -236,12 +32,205 @@
         "seismic_thd": {
           "name": "seismic_thd",
           "available": true,
-          "raw_value": 0.3530071328582993,
-          "raw_secondary": 3436.8837346884807,
-          "risk_score": 0.9760142657165987,
+          "raw_value": 0.31538258124823065,
+          "raw_secondary": 154316.12181857115,
+          "risk_score": 0.5769129062411532,
+          "is_elevated": true,
+          "is_critical": false,
+          "notes": "THD=0.3154, z=2.31, rate=40Hz"
+        }
+      },
+      "confidence": 0.5,
+      "agreement": "single_method",
+      "methods_available": 1,
+      "notes": "Tier capped at WATCH (was ELEVATED): need >=2 methods for ELEVATED+",
+      "coverage": {
+        "segments_defined": 3,
+        "segments_working": 0,
+        "segment_names": [],
+        "coverage_pct": 0.0
+      },
+      "effective_weights": {
+        "seismic_thd": 1.0
+      },
+      "persistence": {
+        "current_tier": 1,
+        "consecutive_days": 3,
+        "is_confirmed": true,
+        "tier_history": [
+          null,
+          1,
+          1,
+          1
+        ]
+      }
+    },
+    "socal_saf_mojave": {
+      "region": "socal_saf_mojave",
+      "date": "2026-01-10T06:00:11.990935",
+      "combined_risk": 0.33950097429248477,
+      "tier": 1,
+      "tier_name": "WATCH",
+      "components": {
+        "lambda_geo": {
+          "name": "lambda_geo",
+          "available": false,
+          "raw_value": 0.0,
+          "raw_secondary": null,
+          "risk_score": 0.0,
+          "is_elevated": false,
+          "is_critical": false,
+          "notes": "No Lambda_geo data available"
+        },
+        "fault_correlation": {
+          "name": "fault_correlation",
+          "available": true,
+          "raw_value": 0.9522185720709108,
+          "raw_secondary": 1.9988026219871324,
+          "risk_score": 0.10208904234381638,
+          "is_elevated": false,
+          "is_critical": false,
+          "notes": "L2/L1=0.9522, PR=2.00, 2/4 segments"
+        },
+        "seismic_thd": {
+          "name": "seismic_thd",
+          "available": true,
+          "raw_value": 0.31538258124823065,
+          "raw_secondary": 154316.12181857115,
+          "risk_score": 0.5769129062411532,
+          "is_elevated": true,
+          "is_critical": false,
+          "notes": "THD=0.3154, z=2.31, rate=40Hz"
+        }
+      },
+      "confidence": 0.75,
+      "agreement": "mostly_elevated",
+      "methods_available": 2,
+      "notes": "",
+      "coverage": {
+        "segments_defined": 4,
+        "segments_working": 2,
+        "segment_names": [
+          "mojave_central",
+          "san_bernardino"
+        ],
+        "coverage_pct": 50.0
+      },
+      "effective_weights": {
+        "fault_correlation": 0.5,
+        "seismic_thd": 0.5
+      },
+      "persistence": {
+        "current_tier": 1,
+        "consecutive_days": 3,
+        "is_confirmed": true,
+        "tier_history": [
+          null,
+          1,
+          1,
+          1
+        ]
+      }
+    },
+    "socal_saf_coachella": {
+      "region": "socal_saf_coachella",
+      "date": "2026-01-10T06:00:11.990935",
+      "combined_risk": 0.5769129062411532,
+      "tier": 1,
+      "tier_name": "WATCH",
+      "components": {
+        "lambda_geo": {
+          "name": "lambda_geo",
+          "available": false,
+          "raw_value": 0.0,
+          "raw_secondary": null,
+          "risk_score": 0.0,
+          "is_elevated": false,
+          "is_critical": false,
+          "notes": "No Lambda_geo data available"
+        },
+        "fault_correlation": {
+          "name": "fault_correlation",
+          "available": false,
+          "raw_value": 0.0,
+          "raw_secondary": null,
+          "risk_score": 0.0,
+          "is_elevated": false,
+          "is_critical": false,
+          "notes": "Insufficient segment data"
+        },
+        "seismic_thd": {
+          "name": "seismic_thd",
+          "available": true,
+          "raw_value": 0.31538258124823065,
+          "raw_secondary": 154316.12181857115,
+          "risk_score": 0.5769129062411532,
+          "is_elevated": true,
+          "is_critical": false,
+          "notes": "THD=0.3154, z=2.31, rate=40Hz"
+        }
+      },
+      "confidence": 0.5,
+      "agreement": "single_method",
+      "methods_available": 1,
+      "notes": "Tier capped at WATCH (was ELEVATED): need >=2 methods for ELEVATED+",
+      "coverage": {
+        "segments_defined": 3,
+        "segments_working": 0,
+        "segment_names": [],
+        "coverage_pct": 0.0
+      },
+      "effective_weights": {
+        "seismic_thd": 1.0
+      },
+      "persistence": {
+        "current_tier": 1,
+        "consecutive_days": 3,
+        "is_confirmed": true,
+        "tier_history": [
+          null,
+          1,
+          1,
+          1
+        ]
+      }
+    },
+    "norcal_hayward": {
+      "region": "norcal_hayward",
+      "date": "2026-01-10T06:00:11.990935",
+      "combined_risk": 0.8518957725391418,
+      "tier": 1,
+      "tier_name": "WATCH",
+      "components": {
+        "lambda_geo": {
+          "name": "lambda_geo",
+          "available": false,
+          "raw_value": 0.0,
+          "raw_secondary": null,
+          "risk_score": 0.0,
+          "is_elevated": false,
+          "is_critical": false,
+          "notes": "No Lambda_geo data available"
+        },
+        "fault_correlation": {
+          "name": "fault_correlation",
+          "available": false,
+          "raw_value": 0.0,
+          "raw_secondary": null,
+          "risk_score": 0.0,
+          "is_elevated": false,
+          "is_critical": false,
+          "notes": "Insufficient segment data"
+        },
+        "seismic_thd": {
+          "name": "seismic_thd",
+          "available": true,
+          "raw_value": 0.29094788626957097,
+          "raw_secondary": 4373.210123973573,
+          "risk_score": 0.851895772539142,
           "is_elevated": true,
           "is_critical": true,
-          "notes": "THD=0.3530, z=5.83, rate=40Hz"
+          "notes": "THD=0.2909, z=4.27, rate=40Hz"
         }
       },
       "confidence": 0.5,
@@ -259,11 +248,11 @@
       },
       "persistence": {
         "current_tier": 1,
-        "consecutive_days": 2,
+        "consecutive_days": 3,
         "is_confirmed": true,
         "tier_history": [
           null,
-          null,
+          1,
           1,
           1
         ]
@@ -271,10 +260,10 @@
     },
     "cascadia": {
       "region": "cascadia",
-      "date": "2026-01-09T00:22:16.216725",
-      "combined_risk": 0.5047602701592766,
-      "tier": 2,
-      "tier_name": "ELEVATED",
+      "date": "2026-01-10T06:00:11.990935",
+      "combined_risk": 0.4892895206712119,
+      "tier": 1,
+      "tier_name": "WATCH",
       "components": {
         "lambda_geo": {
           "name": "lambda_geo",
@@ -289,22 +278,22 @@
         "fault_correlation": {
           "name": "fault_correlation",
           "available": true,
-          "raw_value": 0.7008674132005501,
-          "raw_secondary": 1.9399950398624641,
-          "risk_score": 0.17198374191636676,
+          "raw_value": 0.6194699422142158,
+          "raw_secondary": 1.8953540332962662,
+          "risk_score": 0.19769003045089412,
           "is_elevated": false,
           "is_critical": false,
-          "notes": "L2/L1=0.7009, PR=1.94, 2/4 segments"
+          "notes": "L2/L1=0.6195, PR=1.90, 2/4 segments"
         },
         "seismic_thd": {
           "name": "seismic_thd",
           "available": true,
-          "raw_value": 0.3137683992010932,
-          "raw_secondary": 204.11708642911006,
-          "risk_score": 0.8375367984021864,
+          "raw_value": 0.2854445054457649,
+          "raw_secondary": 554.5862510444094,
+          "risk_score": 0.7808890108915297,
           "is_elevated": true,
           "is_critical": true,
-          "notes": "THD=0.3138, z=4.09, rate=40Hz"
+          "notes": "THD=0.2854, z=3.39, rate=40Hz"
         }
       },
       "confidence": 0.75,
@@ -325,21 +314,21 @@
         "seismic_thd": 0.5
       },
       "persistence": {
-        "current_tier": 2,
-        "consecutive_days": 2,
+        "current_tier": 1,
+        "consecutive_days": 3,
         "is_confirmed": true,
         "tier_history": [
           null,
-          null,
           1,
-          2
+          2,
+          1
         ]
       }
     },
     "tokyo_kanto": {
       "region": "tokyo_kanto",
-      "date": "2026-01-09T00:22:16.216725",
-      "combined_risk": 0.5969427149599609,
+      "date": "2026-01-10T06:00:11.990935",
+      "combined_risk": 0.5479391289928935,
       "tier": 2,
       "tier_name": "ELEVATED",
       "components": {
@@ -356,22 +345,22 @@
         "fault_correlation": {
           "name": "fault_correlation",
           "available": true,
-          "raw_value": 0.6311570517778549,
-          "raw_secondary": 1.9027108927967875,
-          "risk_score": 0.19388542991992175,
+          "raw_value": 0.9766212464909959,
+          "raw_secondary": 1.9997202532621983,
+          "risk_score": 0.0958782579857872,
           "is_elevated": false,
           "is_critical": false,
-          "notes": "L2/L1=0.6312, PR=1.90, 2/3 segments"
+          "notes": "L2/L1=0.9766, PR=2.00, 2/3 segments"
         },
         "seismic_thd": {
           "name": "seismic_thd",
           "available": true,
-          "raw_value": 0.4153706940083258,
-          "raw_secondary": 7074.919224065405,
+          "raw_value": 0.43897101427554813,
+          "raw_secondary": 12039.036334531418,
           "risk_score": 1.0,
           "is_elevated": true,
           "is_critical": true,
-          "notes": "THD=0.4154, z=10.51, rate=40Hz"
+          "notes": "THD=0.4390, z=11.30, rate=40Hz"
         }
       },
       "confidence": 0.75,
@@ -393,11 +382,11 @@
       },
       "persistence": {
         "current_tier": 2,
-        "consecutive_days": 2,
+        "consecutive_days": 3,
         "is_confirmed": true,
         "tier_history": [
           null,
-          null,
+          2,
           2,
           2
         ]
@@ -405,8 +394,8 @@
     },
     "istanbul_marmara": {
       "region": "istanbul_marmara",
-      "date": "2026-01-09T00:22:16.216725",
-      "combined_risk": 0.5647159584491306,
+      "date": "2026-01-10T06:00:11.990935",
+      "combined_risk": 0.5553925478162742,
       "tier": 2,
       "tier_name": "ELEVATED",
       "components": {
@@ -423,22 +412,22 @@
         "fault_correlation": {
           "name": "fault_correlation",
           "available": true,
-          "raw_value": 0.6022723324069549,
-          "raw_secondary": 2.7498530786372974,
-          "risk_score": 0.12943191689826128,
+          "raw_value": 0.6768596174698062,
+          "raw_secondary": 2.870892161104842,
+          "risk_score": 0.11078509563254844,
           "is_elevated": false,
           "is_critical": false,
-          "notes": "L2/L1=0.6023, PR=2.75, 3/3 segments"
+          "notes": "L2/L1=0.6769, PR=2.87, 3/3 segments"
         },
         "seismic_thd": {
           "name": "seismic_thd",
           "available": true,
-          "raw_value": 0.3810735129876399,
-          "raw_secondary": 57256.96001700099,
+          "raw_value": 0.4806249117955406,
+          "raw_secondary": 12413.183374582222,
           "risk_score": 1.0,
           "is_elevated": true,
           "is_critical": true,
-          "notes": "THD=0.3811, z=16.55, rate=40Hz"
+          "notes": "THD=0.4806, z=21.53, rate=40Hz"
         }
       },
       "confidence": 0.75,
@@ -461,20 +450,20 @@
       },
       "persistence": {
         "current_tier": 2,
-        "consecutive_days": 2,
+        "consecutive_days": 3,
         "is_confirmed": true,
         "tier_history": [
           null,
-          null,
           1,
+          2,
           2
         ]
       }
     },
     "turkey_kahramanmaras": {
       "region": "turkey_kahramanmaras",
-      "date": "2026-01-09T00:22:16.216725",
-      "combined_risk": 0.5360991611546987,
+      "date": "2026-01-10T06:00:11.990935",
+      "combined_risk": 0.5225902279847927,
       "tier": 2,
       "tier_name": "ELEVATED",
       "components": {
@@ -491,22 +480,22 @@
         "fault_correlation": {
           "name": "fault_correlation",
           "available": true,
-          "raw_value": 0.8312067107624109,
-          "raw_secondary": 2.920538284952826,
-          "risk_score": 0.07219832230939724,
+          "raw_value": 0.9392781761216581,
+          "raw_secondary": 2.9928788618246873,
+          "risk_score": 0.04518045596958544,
           "is_elevated": false,
           "is_critical": false,
-          "notes": "L2/L1=0.8312, PR=2.92, 3/3 segments"
+          "notes": "L2/L1=0.9393, PR=2.99, 3/3 segments"
         },
         "seismic_thd": {
           "name": "seismic_thd",
           "available": true,
-          "raw_value": 0.3810735129876399,
-          "raw_secondary": 57256.96001700099,
+          "raw_value": 0.4806249117955406,
+          "raw_secondary": 12413.183374582222,
           "risk_score": 1.0,
           "is_elevated": true,
           "is_critical": true,
-          "notes": "THD=0.3811, z=16.55, rate=40Hz"
+          "notes": "THD=0.4806, z=21.53, rate=40Hz"
         }
       },
       "confidence": 0.75,
@@ -529,20 +518,20 @@
       },
       "persistence": {
         "current_tier": 2,
-        "consecutive_days": 2,
+        "consecutive_days": 3,
         "is_confirmed": true,
         "tier_history": [
           null,
-          null,
           1,
+          2,
           2
         ]
       }
     },
     "campi_flegrei": {
       "region": "campi_flegrei",
-      "date": "2026-01-09T00:22:16.216725",
-      "combined_risk": 0.193685962381709,
+      "date": "2026-01-10T06:00:11.990935",
+      "combined_risk": 0.14498382986420433,
       "tier": 0,
       "tier_name": "NORMAL",
       "components": {
@@ -559,12 +548,12 @@
         "fault_correlation": {
           "name": "fault_correlation",
           "available": true,
-          "raw_value": 0.34525615047316394,
-          "raw_secondary": 2.8214245817298944,
-          "risk_score": 0.193685962381709,
+          "raw_value": 0.5400646805431827,
+          "raw_secondary": 3.146651314438966,
+          "risk_score": 0.14498382986420433,
           "is_elevated": false,
           "is_critical": false,
-          "notes": "L2/L1=0.3453, PR=2.82, 4/4 segments"
+          "notes": "L2/L1=0.5401, PR=3.15, 4/4 segments"
         },
         "seismic_thd": {
           "name": "seismic_thd",
@@ -602,7 +591,7 @@
         "tier_history": [
           null,
           null,
-          null,
+          0,
           0
         ]
       }
@@ -613,14 +602,14 @@
     "tier_counts": {
       "-1": 0,
       "0": 1,
-      "1": 4,
-      "2": 4,
+      "1": 5,
+      "2": 3,
       "3": 0
     },
     "confirmed_watch_count": 8,
     "preliminary_watch_count": 0,
     "degraded_count": 0,
     "max_risk_region": "norcal_hayward",
-    "max_risk": 0.9760142657165987
+    "max_risk": 0.8518957725391418
   }
 }

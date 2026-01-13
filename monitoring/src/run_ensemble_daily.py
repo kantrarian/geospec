@@ -61,6 +61,15 @@ except ImportError:
     LAMBDA_GEO_PILOT_AVAILABLE = False
     PILOT_REGION = None
 
+# NGL-based Lambda_geo for all regions with polygon definitions
+try:
+    from live_data import NGLLiveAcquisition, acquire_region_data
+    from regions import FAULT_POLYGONS
+    NGL_LAMBDA_GEO_AVAILABLE = True
+except ImportError:
+    NGL_LAMBDA_GEO_AVAILABLE = False
+    FAULT_POLYGONS = {}
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -254,6 +263,69 @@ def fetch_earthquake_events(regions: List[str], lookback_days: int = 90) -> Dict
     return events_data
 
 
+def fetch_ngl_lambda_geo(
+    regions: List[str],
+    target_date: datetime,
+    days_back: int = 120,
+) -> Dict[str, float]:
+    """
+    Fetch Lambda_geo ratios from NGL GPS data for all regions with polygon definitions.
+
+    Args:
+        regions: List of region keys to process
+        target_date: Target date for assessment
+        days_back: Number of days of GPS data to use (default 120)
+
+    Returns:
+        Dict mapping region to Lambda_geo ratio (baseline multiplier)
+    """
+    if not NGL_LAMBDA_GEO_AVAILABLE:
+        logger.warning("NGL Lambda_geo module not available")
+        return {}
+
+    lambda_geo_data = {}
+
+    # Initialize NGL acquisition with cache directory
+    cache_dir = Path(__file__).parent.parent / 'data' / 'gps_cache'
+    ngl = NGLLiveAcquisition(cache_dir)
+
+    # Load station catalog once
+    logger.info("Loading NGL station catalog for Lambda_geo computation...")
+    ngl.load_station_catalog()
+
+    for region in regions:
+        # Skip regions without polygon definitions
+        if region not in FAULT_POLYGONS:
+            logger.debug(f"No polygon definition for {region}, skipping Lambda_geo")
+            continue
+
+        try:
+            logger.info(f"Computing Lambda_geo for {region}...")
+            result = acquire_region_data(region, ngl, days_back, target_date)
+
+            if result and result.n_stations >= 3 and result.lambda_geo_max > 0:
+                # Convert to baseline ratio
+                # Baseline Lambda_geo ~ 1e-6 for stable regions
+                baseline = 1e-6
+                ratio = result.lambda_geo_max / baseline
+
+                # Clamp to reasonable range (0.1x to 100x)
+                ratio = max(0.1, min(100.0, ratio))
+
+                lambda_geo_data[region] = ratio
+                logger.info(f"  {region}: Lambda_geo ratio = {ratio:.1f}x "
+                           f"({result.n_stations} stations, {result.data_quality})")
+            else:
+                quality = result.data_quality if result else 'no_data'
+                n_stations = result.n_stations if result else 0
+                logger.info(f"  {region}: Lambda_geo unavailable ({n_stations} stations, {quality})")
+
+        except Exception as e:
+            logger.warning(f"Failed to compute Lambda_geo for {region}: {e}")
+
+    return lambda_geo_data
+
+
 def run_all_regions(
     target_date: datetime,
     regions: Optional[List[str]] = None,
@@ -280,7 +352,7 @@ def run_all_regions(
     if lambda_geo_data is None:
         lambda_geo_data = {}
 
-    # Check for Lambda_geo pilot data
+    # Check for Lambda_geo pilot data (real-time RTCM)
     if LAMBDA_GEO_PILOT_AVAILABLE:
         pilot_status = check_pilot_status()
         logger.info(f"Lambda_geo pilot status: {pilot_status.message}")
@@ -295,6 +367,16 @@ def run_all_regions(
         else:
             logger.info(f"Lambda_geo pilot data accumulating: {pilot_status.days_accumulated} days "
                        f"(need {3 - pilot_status.days_accumulated} more)")
+
+    # Fetch Lambda_geo from NGL for all regions with polygon definitions
+    # This supplements pilot data with historical GPS data (2-14 day latency)
+    if NGL_LAMBDA_GEO_AVAILABLE:
+        ngl_lambda_geo = fetch_ngl_lambda_geo(regions, target_date)
+        # Merge NGL data, but don't override pilot data if available
+        for region, ratio in ngl_lambda_geo.items():
+            if region not in lambda_geo_data:
+                lambda_geo_data[region] = ratio
+        logger.info(f"Lambda_geo available for {len(lambda_geo_data)} regions via NGL/pilot data")
 
     results = {}
 

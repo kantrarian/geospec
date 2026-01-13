@@ -3,6 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <title>Λ_geo Earthquake Precursor Monitor</title>
     <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
     <style>
@@ -543,14 +546,17 @@
         // Load and render data
         async function loadData() {
             try {
+                // Cache-busting: append timestamp to prevent stale data
+                const cacheBust = `?t=${Date.now()}`;
+
                 // Try ensemble JSON first
-                const ensembleResponse = await fetch('ensemble_latest.json');
+                const ensembleResponse = await fetch('ensemble_latest.json' + cacheBust);
                 if (ensembleResponse.ok) {
                     const ensembleData = await ensembleResponse.json();
                     renderCards(ensembleData);
                     // Try CSV for history chart
                     try {
-                        const csvResponse = await fetch('data.csv');
+                        const csvResponse = await fetch('data.csv' + cacheBust);
                         if (csvResponse.ok) {
                             const csvData = parseCSV(await csvResponse.text());
                             if (csvData.length > 0) renderChart(csvData);
@@ -560,7 +566,7 @@
                 }
 
                 // Fallback to CSV only
-                const response = await fetch('data.csv');
+                const response = await fetch('data.csv' + cacheBust);
                 if (!response.ok) {
                     throw new Error('Data not available');
                 }

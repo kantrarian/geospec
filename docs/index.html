@@ -459,9 +459,11 @@
                     `;
                 }).join('');
 
-            // Update timestamp
+            // Update timestamp - show generation time, not data date
+            const timestamp = ensembleData.timestamp || '';
+            const genDate = timestamp ? new Date(timestamp).toLocaleString() : 'Unknown';
             document.getElementById('last-update').textContent =
-                `Last update: ${ensembleData.date || 'Unknown'}`;
+                `Data for: ${ensembleData.date || 'Unknown'} | Generated: ${genDate}`;
         }
 
         // Render history chart

@@ -11,7 +11,7 @@ Runs the three-method ensemble assessment for all configured regions:
 Seismic data sources:
 - California: IU.TUC (Tucson), BK.BKS (Berkeley)
 - Cascadia: IU.COR (Corvallis)
-- Japan: IU.MAJO (Matsushiro)
+- Japan: NIED Hi-net (128 Kanto stations @ 100Hz), IU.MAJO fallback
 - Turkey: IU.ANTO (Ankara) - 40Hz for consistent THD baselines
 
 Features:
@@ -120,13 +120,20 @@ REGIONS = {
         'latency_days': 0,
     },
 
-    # International - Lambda_geo only (seismic data restricted)
+    # International - Japan
     'tokyo_kanto': {
         'name': 'Tokyo Kanto',
-        'thd_station': 'MAJO',     # IU.MAJO Matsushiro - via IRIS
-        'thd_network': 'IU',
-        'seismic_available': True, # Try IU station
+        # Primary: NIED Hi-net (Phase 2 complete - January 2026)
+        'thd_station': 'N.KI2H',   # Hi-net Kita-Ibaraki - 100Hz, Kanto region
+        'thd_network': 'HINET',    # NIED Hi-net via status page polling
+        'hinet_enabled': True,     # Hi-net integration active
+        'hinet_network': '0101',   # NIED Hi-net network code
+        'seismic_available': True,
         'latency_days': 0,
+        # Fallback to IU.MAJO when Hi-net unavailable
+        'fallback_station': 'MAJO',
+        'fallback_network': 'IU',
+        'notes': 'Hi-net primary (128 Kanto stations @ 100Hz), IU.MAJO fallback',
     },
     'istanbul_marmara': {
         'name': 'Istanbul Marmara',
@@ -305,12 +312,13 @@ def fetch_ngl_lambda_geo(
 
             if result and result.n_stations >= 3 and result.lambda_geo_max > 0:
                 # Convert to baseline ratio
-                # Baseline Lambda_geo ~ 1e-6 for stable regions
-                baseline = 1e-6
+                # Baseline Lambda_geo ~ 0.01 for stable regions (calibrated from observations)
+                # Values below baseline = normal, above = elevated
+                baseline = 0.01
                 ratio = result.lambda_geo_max / baseline
 
-                # Clamp to reasonable range (0.1x to 100x)
-                ratio = max(0.1, min(100.0, ratio))
+                # Clamp to reasonable range (0.1x to 50x)
+                ratio = max(0.1, min(50.0, ratio))
 
                 lambda_geo_data[region] = ratio
                 logger.info(f"  {region}: Lambda_geo ratio = {ratio:.1f}x "

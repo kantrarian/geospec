@@ -1,0 +1,155 @@
+# Backtest Configuration for GeoSpec Monitoring System
+#
+# This file defines the station-to-region mappings and evaluation parameters
+# for running reproducible backtests of the monitoring system.
+#
+# Author: R.J. Mathews / Claude
+# Date: January 2026
+# Version: 1.0.0
+
+version: "1.0.0"
+created: "2026-01-12"
+
+# =============================================================================
+# STATION MAPPINGS
+# =============================================================================
+# Maps each monitored region to its primary THD station.
+# Some stations serve multiple regions (acknowledged limitation).
+
+stations:
+  # SoCal Regions - IU.TUC serves all 3 (known limitation)
+  ridgecrest:
+    network: IU
+    station: TUC
+    sample_rate: 40
+    channel: BHZ
+    notes: "Tucson, AZ - 400km from Ridgecrest. Validated with 2019 M7.1"
+
+  socal_saf_mojave:
+    network: IU
+    station: TUC
+    sample_rate: 40
+    channel: BHZ
+    notes: "Same station as ridgecrest - known substitution"
+
+  socal_saf_coachella:
+    network: IU
+    station: TUC
+    sample_rate: 40
+    channel: BHZ
+    notes: "Same station as ridgecrest - known substitution"
+
+  # NorCal - BK.BKS (Berkeley)
+  norcal_hayward:
+    network: BK
+    station: BKS
+    sample_rate: 40
+    channel: BHZ
+    notes: "Berkeley, CA - directly on Hayward fault"
+
+  # Cascadia - IU.COR (Corvallis)
+  cascadia:
+    network: IU
+    station: COR
+    sample_rate: 40
+    channel: BHZ
+    notes: "Corvallis, OR - 100km from subduction zone"
+
+  # Japan - NIED Hi-net (Phase 2 complete - January 2026)
+  tokyo_kanto:
+    network: HINET
+    station: N.KI2H
+    sample_rate: 100
+    channel: U
+    fallback_network: IU
+    fallback_station: MAJO
+    notes: "Hi-net Kita-Ibaraki (100Hz) - primary. IU.MAJO fallback when Hi-net unavailable."
+
+  # Turkey Regions - IU.ANTO serves both (known limitation)
+  istanbul_marmara:
+    network: IU
+    station: ANTO
+    sample_rate: 40
+    channel: BHZ
+    notes: "Ankara - 300km from Marmara Sea"
+
+  turkey_kahramanmaras:
+    network: IU
+    station: ANTO
+    sample_rate: 40
+    channel: BHZ
+    notes: "Same station as istanbul_marmara - known substitution"
+
+  # Italy - IV.CAFE (Campi Flegrei)
+  campi_flegrei:
+    network: IV
+    station: CAFE
+    sample_rate: 100
+    channel: HHZ
+    notes: "Direct Campi Flegrei station - INGV network"
+
+# =============================================================================
+# KNOWN STATION SUBSTITUTIONS
+# =============================================================================
+# Documents where single stations serve multiple regions.
+# This is a known limitation pending deployment of region-specific sensors.
+
+substitutions:
+  - station: IU.TUC
+    regions: [ridgecrest, socal_saf_mojave, socal_saf_coachella]
+    max_distance_km: 400
+    limitation: "Single proxy for 3 SoCal regions"
+
+  - station: IU.ANTO
+    regions: [istanbul_marmara, turkey_kahramanmaras]
+    max_distance_km: 500
+    limitation: "Single proxy for 2 Turkey regions"
+
+  - station: HINET.N.KI2H
+    regions: [tokyo_kanto]
+    max_distance_km: 100
+    limitation: "Hi-net primary (128 Kanto stations). IU.MAJO fallback available."
+
+# =============================================================================
+# EVALUATION PARAMETERS
+# =============================================================================
+# Defines how hits, misses, and false alarms are scored.
+
+evaluation:
+  # Event criteria
+  min_magnitude: 6.0
+  lead_window_days: 7        # Look for warnings up to 7 days before event
+  aftershock_exclusion_days: 30  # Ignore events within 30 days of larger event
+
+  # Tier thresholds for "hit" scoring
+  hit_min_tier: "WATCH"      # WATCH or higher counts as hit
+
+  # False alarm definition
+  false_alarm_forward_days: 14   # No M6+ within 14 days = false alarm
+
+  # Regional matching
+  event_region_buffer_km: 100    # Event within 100km of region boundary counts
+
+# =============================================================================
+# ACCEPTANCE CRITERIA (HARD GATES)
+# =============================================================================
+# Backtest must pass ALL of these to be acceptable.
+
+acceptance_criteria:
+  max_tier2_false_alarms_per_year: 1.0   # FAR budget from monitoring spec
+  min_hit_rate: 0.60                      # 60% of M6+ events detected
+  min_precision: 0.30                     # 30% of WATCH+ alerts are true
+  max_time_in_warning: 0.15               # <15% of days at WATCH or higher
+  min_baseline_coverage: 0.80             # 80% of region-days have valid baseline
+  no_missing_baselines: true              # All configured stations must have baselines
+
+# =============================================================================
+# DATA SOURCES FOR EVENTS
+# =============================================================================
+# Where to get ground truth event catalog.
+
+event_catalog:
+  source: USGS
+  api: "https://earthquake.usgs.gov/fdsnws/event/1/query"
+  format: geojson
+  min_magnitude: 5.5    # Fetch M5.5+ to catch near-misses

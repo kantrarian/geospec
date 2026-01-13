@@ -1,12 +1,31 @@
 # GeoSpec Three-Method Ensemble: Technical Methods Document
 
-**Version**: 1.2
+**Version**: 1.4
 **Date**: January 2026
 **Author**: R.J. Mathews
 **Status**: Partial Operational
-- THD: Operational (all 8 regions via IU/BK networks)
+- THD: Operational (all 9 regions via IU/BK/HINET networks)
 - Fault Correlation: Operational (Cascadia only); Disabled elsewhere (insufficient coverage)
-- Lambda_geo: Retrospective-only (awaiting RT-GNSS integration)
+- Lambda_geo: **Pilot operational** (3 SoCal stations via IGS-IP NTRIP + RTKLIB pipeline)
+- **Hi-net: OPERATIONAL** (Tokyo/Kanto via NIED Hi-net - 128 stations @ 100Hz)
+
+**Changelog v1.4**:
+- **RTCM Pipeline**: Implemented real-time GNSS via IGS-IP NTRIP caster + RTKLIB
+- Added 3 pilot stations: COSO00USA0, GOLD00USA0, JPLM00USA0 (SoCal)
+- Global NAV strategy: merge ephemeris across stations for OBS-only streams
+- Position adapter (`position_adapter.py`) converts RTKLIB .pos → NGL format
+- Q-conditional QC thresholds: different sigma limits per RTKLIB quality level (Q=1-6)
+- QC flags: `flag_low_sats`, `flag_high_sigma`, `flag_bad_q` with human-readable `qc_reason`
+- Lambda_geo status upgraded from "Retrospective-only" to "Pilot operational"
+- Added wsl/ processing scripts for hybrid Windows/WSL workflow
+
+**Changelog v1.3**:
+- Added Appendix C: Post-Event Regime (freeze/reset protocol after M≥6.5)
+- Added Appendix D: Pre-Registered Scoring Rules (event definition, lead window, FAR hierarchy)
+- Added Appendix E: Daily State CSV Format for dashboard trending
+- Fixed region-key mapping (tokyo_kanto→japan_tohoku, socal_saf_coachella→socal_coachella)
+- Added DEGRADED state (tier -1) for insufficient data coverage
+- Clarified false alarm rate hierarchy (TER vs GAR vs FAR)
 
 **Changelog v1.2**:
 - Clarified tier definitions as signal anomaly levels, not earthquake probabilities
@@ -46,11 +65,26 @@ The GeoSpec system uses a three-method ensemble approach to detect earthquake pr
 
 **Current Status (January 2026):**
 - THD analysis operational for all 8 regions using IU global network
-- Fault correlation disabled for most regions (insufficient station coverage)
-- Lambda_geo awaiting real-time GPS integration (retrospective-only)
+- Fault correlation operational for **Cascadia only**; disabled elsewhere (insufficient coverage)
+- Lambda_geo **pilot operational** (3 SoCal stations via IGS-IP NTRIP + RTKLIB)
 - Validation: 16/16 tests passed on 4 major earthquakes (M7.1-M9.0)
   - Each event tested for: ELEVATED reached, CRITICAL reached, ≥72h lead time, sustained until mainshock
   - **Caveat**: All retrospective; prospective validation pending
+
+**Monitored Regions (8 total):**
+
+| Region Key | Display Name | Location | Methods |
+|------------|--------------|----------|---------|
+| ridgecrest | Ridgecrest/Mojave | SoCal inland | THD + FC (partial) |
+| socal_saf_mojave | SoCal SAF Mojave | SoCal SAF north | THD + FC (partial) |
+| socal_coachella | SoCal SAF Coachella | SoCal SAF south | THD + FC (partial) |
+| norcal_hayward | NorCal Hayward | SF Bay Area | THD only |
+| cascadia | Cascadia | Pacific NW | THD + FC |
+| tokyo_kanto | Tokyo Kanto | Japan Trench | THD + FC (Hi-net) |
+| istanbul_marmara | Istanbul Marmara | NW Turkey | THD only |
+| turkey_kahramanmaras | Turkey Kahramanmaras | SE Turkey | THD only |
+
+*Tokyo/Kanto now uses NIED Hi-net (128 stations @ 100Hz) instead of distant IU.MAJO proxy
 
 ---
 
@@ -61,33 +95,34 @@ The GeoSpec system uses a three-method ensemble approach to detect earthquake pr
 ```
                     GPS DATA                         SEISMIC DATA
                        │                                  │
-                       ▼                                  ▼
-              ┌────────────────┐              ┌─────────────────────┐
-              │   Lambda_geo   │              │  Waveform Fetching  │
-              │   (NGL IGS20)  │              │  (IRIS/NCEDC/SCEDC) │
-              └───────┬────────┘              └──────────┬──────────┘
-                      │                                  │
-                      │                       ┌──────────┴──────────┐
-                      │                       │                     │
-                      │              ┌────────▼────────┐  ┌─────────▼─────────┐
-                      │              │ Fault Correlation│  │   Seismic THD    │
-                      │              │   (Eigenvalues)  │  │   (Harmonics)    │
-                      │              └────────┬─────────┘  └─────────┬────────┘
-                      │                       │                      │
-                      └───────────────────────┼──────────────────────┘
-                                              │
-                                              ▼
-                                    ┌─────────────────┐
-                                    │    ENSEMBLE     │
-                                    │  Risk Scoring   │
-                                    │  (Weighted Sum) │
-                                    └────────┬────────┘
-                                             │
-                                             ▼
-                                    ┌─────────────────┐
-                                    │   ALERT TIER    │
-                                    │    (0-3)        │
-                                    └─────────────────┘
+          ┌────────────┴────────────┐                     │
+          ▼                         ▼                     ▼
+  ┌───────────────┐        ┌───────────────┐    ┌─────────────────────┐
+  │  NGL IGS20    │        │  IGS-IP NTRIP │    │  Waveform Fetching  │
+  │ (2-14d delay) │        │   + RTKLIB    │    │  (IRIS/NCEDC/SCEDC) │
+  │ (retrospective)│       │  (real-time)  │    └──────────┬──────────┘
+  └───────┬───────┘        └───────┬───────┘               │
+          │                        │              ┌────────┴────────┐
+          │    position_adapter.py │              │                 │
+          │           ▼            │     ┌────────▼────────┐ ┌──────▼──────┐
+          └──────>┌─────────┐<─────┘     │ Fault Correlation│ │ Seismic THD │
+                  │Lambda_geo│            │  (Eigenvalues)   │ │ (Harmonics) │
+                  └────┬─────┘           └────────┬─────────┘ └──────┬──────┘
+                       │                          │                  │
+                       └──────────────────────────┼──────────────────┘
+                                                  │
+                                                  ▼
+                                        ┌─────────────────┐
+                                        │    ENSEMBLE     │
+                                        │  Risk Scoring   │
+                                        │  (Weighted Sum) │
+                                        └────────┬────────┘
+                                                 │
+                                                 ▼
+                                        ┌─────────────────┐
+                                        │   ALERT TIER    │
+                                        │    (0-3)        │
+                                        └─────────────────┘
 ```
 
 ### Method Weights
@@ -120,6 +155,8 @@ Where:
 
 ### Data Source
 
+**Primary (Retrospective):**
+
 | Parameter | Value |
 |-----------|-------|
 | Source | Nevada Geodetic Laboratory (NGL) |
@@ -128,6 +165,45 @@ Where:
 | Latency | 2-14 days |
 | Format | TENV3 position files |
 | URL | http://geodesy.unr.edu/gps_timeseries/tenv3/IGS20/ |
+
+**Pilot Real-Time (v1.4):**
+
+| Parameter | Value |
+|-----------|-------|
+| Source | IGS-IP NTRIP Caster |
+| Product | RTCM3 MSM streams |
+| Update Frequency | 1 Hz (real-time) |
+| Latency | Seconds to minutes |
+| Processing | RTKLIB (convbin + rnx2rtkp) |
+| Output Format | NGL-compatible (via position_adapter.py) |
+| Pilot Stations | COSO00USA0, GOLD00USA0, JPLM00USA0 |
+
+**RTCM Pipeline Architecture:**
+```
+NTRIP Caster (igs-ip.net)     Windows: ntripclient.exe
+        │                              │
+        ▼                              ▼
+   RTCM3 streams ──────────────> .rtcm3 files
+        │                              │
+        │      WSL: RTKLIB             │
+        │    ┌─────────────────────────┘
+        ▼    ▼
+    convbin: RTCM → RINEX (.obs + .nav)
+        │
+        ▼
+    Global NAV merge (all stations)
+        │
+        ▼
+    rnx2rtkp: RINEX → positions (.pos)
+        │
+        ▼
+    position_adapter.py: .pos → NGL format (.json)
+        │
+        ▼
+    Lambda_geo: NGL positions → strain analysis
+```
+
+**Global NAV Strategy**: Some RTCM streams (GOLD, JPLM) are observation-only without ephemeris. The pipeline merges NAV files from all stations into a global ephemeris file, enabling positioning for OBS-only streams using another station's broadcast.
 
 ### Risk Conversion
 
@@ -157,7 +233,15 @@ def lambda_geo_to_risk(ratio: float) -> float:
 
 ### Current Status
 
-**NOT YET OPERATIONAL** - Awaiting real-time GPS integration. Historical validation used reconstructed ratios from published observations.
+**PILOT OPERATIONAL (v1.4)** - Real-time GNSS pipeline via IGS-IP NTRIP + RTKLIB. Three SoCal pilot stations (COSO, GOLD, JPLM) producing positions in NGL format. Historical validation used reconstructed ratios from published observations.
+
+**Pilot Station Performance (January 2026):**
+
+| Station | Stream Type | Epochs/Day | Notes |
+|---------|-------------|------------|-------|
+| COSO00USA0 | OBS + NAV | ~35 | Full RTCM (provides ephemeris to others) |
+| GOLD00USA0 | OBS-only | ~305 | Uses global NAV |
+| JPLM00USA0 | OBS-only | ~305 | Uses global NAV |
 
 ---
 
@@ -280,6 +364,8 @@ def thd_to_risk(thd: float) -> float:
 
 **OPERATIONAL** - Working for all 8 regions using IU global network stations.
 
+**Sample Rate Sensitivity**: THD values are sensitive to sample rate. 20Hz stations (GE network) show ~15× higher THD than 40Hz stations (IU network) for the same signal. **Mitigation**: Use 40Hz IU stations as primary THD sources. If using 20Hz stations, apply separate calibration or establish station-specific baselines.
+
 ---
 
 ## Risk Combination and Tier Assignment
@@ -304,6 +390,38 @@ def compute_combined_risk(components: Dict[str, MethodResult]) -> float:
         return weighted_risk / total_weight
     return 0.0
 ```
+
+### Tier Assignment (with Method-Count Gate)
+
+**IMPORTANT**: Tier is NOT a direct lookup from combined_risk. The method-count gate prevents single-method false alarms:
+
+```python
+def assign_tier(combined_risk: float, methods_available: int) -> Tuple[int, str]:
+    """
+    Assign tier with method-count gate.
+    Returns (tier, notes) where notes explain any downgrade.
+    """
+    # Step 1: Raw tier from risk score
+    if combined_risk >= 0.75:
+        raw_tier = 3  # CRITICAL
+    elif combined_risk >= 0.50:
+        raw_tier = 2  # ELEVATED
+    elif combined_risk >= 0.25:
+        raw_tier = 1  # WATCH
+    else:
+        raw_tier = 0  # NORMAL
+
+    # Step 2: Apply method-count gate for Tier ≥2
+    if raw_tier >= 2 and methods_available < 2:
+        # Downgrade: single method cannot trigger ELEVATED/CRITICAL
+        final_tier = 1  # Cap at WATCH
+        notes = f"tier_capped (was {['NORMAL','WATCH','ELEVATED','CRITICAL'][raw_tier]})"
+        return (final_tier, notes)
+
+    return (raw_tier, "")
+```
+
+**Rationale**: A single method showing risk=0.90 might be a sensor artifact, calibration issue, or genuine signal. Without corroboration from a second method, we cap at WATCH (Tier 1) to avoid false alarms while still flagging the anomaly for attention.
 
 ### Weight Renormalization Warning
 
@@ -354,6 +472,22 @@ Confidence reflects **operational certainty** based on method agreement and data
 | single_method | 0.50 | Only one method available |
 | no_data | 0.00 | No data available |
 
+**Agreement Computation for Partial Methods**:
+- Agreement is computed over **available methods only**
+- "all_elevated" with 2/3 methods means both available methods are elevated (not that all 3 are)
+- When only 1 method is available, agreement is forced to `single_method` regardless of signal level
+
+**Confidence Cap Rule**: When `methods_available < 3`, maximum confidence is capped:
+```python
+if methods_available == 1:
+    max_confidence = 0.50  # single_method cap
+elif methods_available == 2:
+    max_confidence = 0.85  # all_elevated cap (cannot reach all_critical)
+else:
+    max_confidence = 0.95  # full ensemble can reach all_critical
+```
+This ensures 3-method agreement is required for highest confidence levels.
+
 **Confidence ≠ Earthquake Probability**: A 95% confidence means "95% certain the signal pattern matches historical precursors," not "95% chance of earthquake."
 
 ### Dashboard Display Specification
@@ -395,7 +529,7 @@ The web dashboard (https://kantrarian.github.io/geospec/) should display these c
 | SoCal SAF Coachella | TUC | IU | IRIS | Tucson, AZ | 100% |
 | NorCal Hayward | BKS | BK | NCEDC | Berkeley, CA | 100% |
 | Cascadia | COR | IU | IRIS | Corvallis, OR | 100% |
-| Tokyo Kanto | MAJO | IU | IRIS | Matsushiro, Japan | 100% |
+| Tokyo Kanto | N.KI2H | HINET | NIED | Kita-Ibaraki, Japan | 100% |
 | Istanbul Marmara | ANTO | IU | IRIS | Ankara, Turkey | 100% |
 | Turkey Kahramanmaras | ANTO | IU | IRIS | Ankara, Turkey | 100% |
 
@@ -423,7 +557,7 @@ Regional networks showed poor data availability (20-25% for SCEDC, 0% for many o
 | IU.TUC (Tucson) | Nearest IU station to SoCal; stable bedrock site |
 | BK.BKS (Berkeley) | Only working Bay Area station; historic station |
 | IU.COR (Corvallis) | Nearest IU to Cascadia subduction zone |
-| IU.MAJO (Matsushiro) | Japan's primary IU station; near Tokyo |
+| HINET.N.KI2H (Kita-Ibaraki) | Hi-net 100Hz station in Kanto region; IU.MAJO fallback |
 | IU.ANTO (Ankara) | Turkey's only IU station; covers both regions |
 
 ### Fault Correlation Segments
@@ -439,7 +573,7 @@ Fault correlation requires minimum 2 stations per fault segment and 2 segments p
 | Cascadia | 4 | 2 | OPERATIONAL | CN/UW partial availability |
 | Istanbul | 4 | 0 | **DISABLED** | KO network restricted |
 | Turkey Kahramanmaras | 3 | 0 | **DISABLED** | KO/GE network restricted |
-| Tokyo | 4 | 0 | **DISABLED** | Requires NIED Hi-net |
+| Tokyo | 4 | 2 | OPERATIONAL | Hi-net integration complete |
 
 **Status Legend**:
 - OPERATIONAL: ≥2 segments with ≥2 stations each, producing correlation metrics
@@ -492,32 +626,48 @@ NC.HOPS: 0% availability
 
 ### Problem 3: International Network Restrictions
 
-**Impact**: Regional networks in Turkey and Japan not accessible via FDSN
+**Impact**: Regional networks in Turkey not accessible via FDSN. Japan resolved via Hi-net.
 
 **Affected Networks**:
 | Network | Region | Issue |
 |---------|--------|-------|
 | KO | Turkey | Kandilli Observatory - not on IRIS |
 | TU | Turkey | National network - restricted |
-| NIED Hi-net | Japan | Requires registration (submitted) |
+| NIED Hi-net | Japan | **RESOLVED** - account approved, integration complete |
 | GE | Germany/Turkey | GEOFON - partial availability |
 
-**Current Workaround**: Using IU stations (ANTO, MAJO)
+**Current Workaround**:
+- Turkey: Using IU.ANTO (single station for both regions)
+- Japan: **Hi-net operational** with 128 Kanto stations @ 100Hz
 
-**Impact on Results**: Single station per country. Cannot monitor multiple fault systems independently.
+**Impact on Results**:
+- Turkey: Single station for entire country
+- Japan: **Full Kanto coverage** via Hi-net (N.KI2H primary, 127 backup stations)
 
 ### Problem 4: GPS Data Latency
 
-**Impact**: Lambda_geo method not operational in real-time
+**Impact**: Lambda_geo method historically limited by 2-14 day latency
 
-**Current Situation**:
+**Previous Situation (v1.3)**:
 - NGL IGS20 data has 2-14 day latency
 - No real-time GPS integration implemented
 - Historical validation only
 
-**Root Cause**: NGL processes GPS data in daily batches with significant delay
+**Current Situation (v1.4)**:
+- **SOLVED for pilot stations** via IGS-IP NTRIP + RTKLIB pipeline
+- 3 SoCal stations (COSO, GOLD, JPLM) producing real-time positions
+- Latency reduced from days to seconds/minutes
+- NGL format preserved via position_adapter.py
 
-**Required Solution**: Partner with UNAVCO/GAGE for real-time streams
+**Remaining Challenges**:
+- Pilot covers only 3 stations (need regional expansion)
+- Some streams are OBS-only (require global NAV merge)
+- Positioning accuracy is broadcast-only (~1-5m) vs PPP (~cm)
+
+**Future Improvements**:
+- Add more IGS-IP stations for regional coverage
+- Integrate IGS Real-Time Service for PPP corrections
+- Implement automated daily processing via Windows Task Scheduler
 
 ### Problem 5: THD Sample Rate Sensitivity
 
@@ -565,10 +715,11 @@ Result: 0 segments with sufficient data
 
 ### High Priority
 
-#### 1. Complete NIED Hi-net Registration
-**Status**: Application submitted January 2026
-**Expected Outcome**: Access to Japan's dense seismic network
-**Impact**: Enable fault correlation for Tokyo region; improve THD with local stations
+#### 1. NIED Hi-net Integration - COMPLETE
+**Status**: ✅ Completed January 13, 2026
+**Implementation**: Status page polling method (workaround for HinetPy timing issues)
+**Results**: 128 Kanto stations @ 100Hz operational
+**Impact**: Tokyo/Kanto now has direct regional coverage instead of 200km distant IU.MAJO proxy
 
 #### 2. Investigate SCEDC Data Issues
 **Actions**:
@@ -688,11 +839,11 @@ Each event is validated against 4 criteria (4 events × 4 tests = 16 total):
 | Ridgecrest | 0.059 | NORMAL | 1/3 (THD) | 50% | CI stations unavailable |
 | SoCal Mojave | 0.059 | NORMAL | 1/3 (THD) | 50% | CI stations unavailable |
 | SoCal Coachella | 0.059 | NORMAL | 1/3 (THD) | 50% | CI stations unavailable |
-| Tokyo | 0.038 | NORMAL | 1/3 (THD) | 50% | Awaiting NIED Hi-net |
+| Tokyo | 0.311 | WATCH | 3/3 (LG+FC+THD) | 60% | Hi-net operational |
 | Istanbul | 0.038 | NORMAL | 1/3 (THD) | 50% | KO network restricted |
 | Turkey Kahramanmaras | 0.038 | NORMAL | 1/3 (THD) | 50% | KO network restricted |
 
-**Interpretation**: Cascadia is the only region with 2+ methods operational. All other regions are THD-only with 50% confidence. If any region showed ELEVATED (≥0.50) with only 1 method, it would be flagged for confirmation.
+**Interpretation**: Cascadia and Tokyo are regions with 2+ methods operational. Tokyo now uses Hi-net for THD (100Hz) and fault correlation.
 
 ### Performance Metrics
 
@@ -708,6 +859,8 @@ Each event is validated against 4 criteria (4 events × 4 tests = 16 total):
 
 ## Appendix A: Code References
 
+### Core Ensemble Components
+
 | Component | File | Key Functions |
 |-----------|------|---------------|
 | Ensemble Integration | `monitoring/src/ensemble.py` | `compute_risk()`, `GeoSpecEnsemble` |
@@ -718,6 +871,69 @@ Each event is validated against 4 criteria (4 events × 4 tests = 16 total):
 | Region Config | `monitoring/src/fault_segments.py` | `FAULT_SEGMENTS` |
 | **API Reference** | `docs/API_REFERENCE.md` | Connection instructions for IRIS, IGS, NIED, ORFEUS |
 
+### RTCM/RTKLIB Pipeline (v1.4)
+
+| Component | File | Description |
+|-----------|------|-------------|
+| RTCM Capture | `monitoring/capture_rtcm.py` | Windows NTRIP client (ntripclient.exe wrapper) |
+| RTCM Processing | `wsl/process_rtcm.sh` | WSL script: RTCM→RINEX→positions via RTKLIB |
+| Position Adapter | `monitoring/src/position_adapter.py` | Converts RTKLIB .pos → NGL JSON format |
+| Capture Config | `monitoring/config/ntrip_stations.yaml` | Station list with mountpoints and coordinates |
+
+### Position Adapter Details
+
+**File**: `monitoring/src/position_adapter.py`
+
+**Key Features**:
+- Parses RTKLIB .pos files (LLH and ECEF formats)
+- Converts to NGL format (refepoch, e, n, u, se, sn, su, station)
+- Q-conditional QC thresholds per positioning mode
+- Outputs both basic and extended (_qc) JSON files
+
+**QC Thresholds by Quality Level**:
+```python
+QC_THRESHOLDS = {
+    1: (6, 0.20, 0.40),    # fix: min_sats=6, max_h_sigma=0.20m, max_v_sigma=0.40m
+    2: (6, 1.00, 2.00),    # float
+    3: (6, 5.00, 10.00),   # SBAS
+    4: (6, 5.00, 10.00),   # DGPS
+    5: (6, 15.0, 30.0),    # single (broadcast-only)
+    6: (6, 0.50, 1.00),    # PPP
+}
+```
+
+**QC Flags**:
+| Flag | Meaning |
+|------|---------|
+| `flag_low_sats` | Satellite count < minimum for Q level |
+| `flag_high_sigma` | Horizontal or vertical sigma exceeds Q threshold |
+| `flag_bad_q` | Quality value not in expected range (1-6) |
+| `qc_reason` | Human-readable explanation (e.g., "LOW_SATS(4<6);HIGH_SIGMA(h=0.8>0.2)") |
+
+### WSL Processing Script Details
+
+**File**: `wsl/process_rtcm.sh`
+
+**Three-Phase Processing**:
+1. **Phase 1**: Convert all RTCM to RINEX via `convbin`
+2. **Phase 2**: Build global merged NAV from all stations (handles OBS-only streams)
+3. **Phase 3**: Compute positions via `rnx2rtkp` using global NAV
+
+**NAV Merge Logic**:
+```bash
+# First file: keep full RINEX header + body
+cat "$NAV_FILE" > "$GLOBAL_NAV"
+
+# Subsequent files: append body only (skip header)
+awk 'f{print} /END OF HEADER/{f=1}' "$NAV_FILE" >> "$GLOBAL_NAV"
+```
+
+**Positioning Options**:
+- `-p 0`: Single-point positioning (broadcast ephemeris)
+- `-p 7`: PPP mode (requires SP3/CLK products)
+- `-sys GRE`: Multi-GNSS (GPS + GLONASS + Galileo)
+- `-ti 30`: 30-second output interval
+
 ## Appendix B: Data Center Endpoints
 
 | Data Center | FDSN URL | Networks |
@@ -725,6 +941,241 @@ Each event is validated against 4 criteria (4 events × 4 tests = 16 total):
 | IRIS | https://service.iris.edu/fdsnws/ | IU, II, CN, UW, GE |
 | NCEDC | https://service.ncedc.org/fdsnws/ | BK, NC |
 | SCEDC | https://service.scedc.caltech.edu/fdsnws/ | CI, AZ |
+
+---
+
+## Appendix C: Post-Event Regime
+
+### Problem
+
+After a significant earthquake (M≥6.5), aftershock sequences and postseismic deformation can:
+- Inflate seismic baselines
+- Create correlated artifacts across methods
+- Cause "stuck elevated" states that appear as false alarms
+
+### Post-Event Protocol
+
+When an M≥6.5 earthquake occurs within a monitored region:
+
+| Phase | Duration | Action |
+|-------|----------|--------|
+| **Freeze** | 0-48 hours | Suspend tier escalation; display "POST-EVENT HOLD" |
+| **Reset** | 48h-7 days | Reset baselines; widen thresholds by 50% |
+| **Recovery** | 7-30 days | Gradual return to normal thresholds |
+| **Normal** | >30 days | Standard monitoring resumes |
+
+### Implementation
+
+```python
+POST_EVENT_CONFIG = {
+    'magnitude_threshold': 6.5,      # Minimum magnitude to trigger
+    'distance_km': 100,              # Within this distance of region center
+    'freeze_hours': 48,              # Suspend alerting
+    'reset_days': 7,                 # Reset baselines
+    'recovery_days': 30,             # Gradual threshold return
+    'threshold_widening': 1.5,       # 50% wider during recovery
+}
+```
+
+### Display During Post-Event
+
+Dashboard shows: `"⏸️ POST-EVENT HOLD (M6.8 Ridgecrest +36h)"` with grayed-out tier
+
+---
+
+## Appendix D: Pre-Registered Scoring Rules
+
+**Purpose**: Define scoring criteria BEFORE prospective monitoring begins to prevent post-hoc parameter tuning.
+
+### Event Definitions
+
+| Parameter | Value | Rationale |
+|-----------|-------|-----------|
+| **Magnitude cutoff** | M ≥ 6.0 | Below this, precursor signals are unreliable |
+| **Distance tolerance** | ≤ 100 km from region centroid | Beyond this, attribution is ambiguous |
+| **One event per window** | Yes | Multiple events in 14 days = single scoring event |
+| **Foreshock handling** | Score largest event in sequence | Avoids double-counting |
+
+### Lead Window Definition
+
+| Window | Range | Credit |
+|--------|-------|--------|
+| **Valid lead time** | 24 hours to 14 days before mainshock | Full credit |
+| **Too short** | < 24 hours | No credit (insufficient warning) |
+| **Too long** | > 14 days | No credit (spurious correlation) |
+
+### Alert Definitions
+
+| Alert Type | Criteria | Scored? |
+|------------|----------|---------|
+| **CONFIRMED ELEVATED** | Tier ≥2 for ≥2 consecutive days AND ≥2 methods | Yes |
+| **PRELIMINARY ELEVATED** | Tier ≥2 but single method OR single day | No (not scored) |
+| **WATCH** | Tier 1 | Not scored as alert |
+| **DEGRADED** | Insufficient data | Excluded from scoring |
+
+### False Alarm Rate Hierarchy
+
+| Metric | Definition | Target |
+|--------|------------|--------|
+| **TER** (Threshold Exceedance Rate) | Days with raw signal > threshold / total days | Informational only |
+| **GAR** (Gated Alert Rate) | CONFIRMED ELEVATED days / total region-days | < 10⁻⁵ per region-day |
+| **FAR** (Event-Linked False Alarm Rate) | CONFIRMED alerts NOT followed by M≥6.0 within 14 days / total CONFIRMED alerts | Report after 12 months |
+
+### Detection Metrics
+
+| Metric | Definition |
+|--------|------------|
+| **True Positive** | CONFIRMED ELEVATED alert within 24h-14d before M≥6.0 event |
+| **False Negative** | M≥6.0 event NOT preceded by CONFIRMED alert in lead window |
+| **False Positive** | CONFIRMED alert NOT followed by M≥6.0 event within 14 days |
+
+### Pre-Registration Statement
+
+> **Shadow Monitoring Study**: GeoSpec will operate in shadow mode from January 2026. After accumulating 365 region-days across all monitored regions, we will publish:
+> 1. Gated Alert Rate (GAR) with 95% confidence interval
+> 2. Event-Linked FAR (if any CONFIRMED alerts issued)
+> 3. True Positive / False Negative counts (if any M≥6.0 events occur in monitored regions)
+>
+> Parameter changes after this date require documentation in CHANGELOG.
+
+### Region Selection Criteria
+
+Regions are selected based on:
+
+| Factor | Weight | Notes |
+|--------|--------|-------|
+| Population exposure | 40% | Urban areas prioritized |
+| Seismic hazard (USGS/GSHAP) | 30% | Known active fault systems |
+| Sensor coverage | 30% | ≥1 method must be operational |
+
+**Current regions were NOT selected to maximize detection rate**—they represent high-risk areas where monitoring is societally useful.
+
+---
+
+## Appendix E: Daily State CSV Format
+
+For dashboard trending and GitHub Actions automation:
+
+### File: `daily_states.csv`
+
+```csv
+date,region,tier,risk,methods,confidence,lg_ratio,thd,fc_l2l1,status,notes
+2026-01-08,ridgecrest,1,0.747,1,0.50,,0.349,,PRELIMINARY,tier_capped
+2026-01-08,cascadia,1,0.498,2,0.75,,0.340,0.935,PRELIMINARY,
+2026-01-08,japan_tohoku,2,0.562,2,0.75,,0.470,0.867,PRELIMINARY,
+```
+
+**Note**: Region keys should use canonical names from the region table (e.g., `japan_tohoku` not `tokyo_kanto`).
+
+### Column Definitions
+
+| Column | Type | Description |
+|--------|------|-------------|
+| date | ISO date | Assessment date (YYYY-MM-DD) |
+| region | string | Region key |
+| tier | int | 0=NORMAL, 1=WATCH, 2=ELEVATED, 3=CRITICAL, -1=DEGRADED |
+| risk | float | Combined risk score (0.000-1.000) |
+| methods | int | Methods available (1-3) |
+| confidence | float | Agreement confidence (0.00-1.00) |
+| lg_ratio | float | Lambda_geo baseline ratio (empty if unavailable) |
+| thd | float | THD value (empty if unavailable) |
+| fc_l2l1 | float | Fault correlation L2/L1 ratio (empty if unavailable) |
+| status | string | PRELIMINARY or CONFIRMED |
+| notes | string | Operational flags (tier_capped, post_event, etc.) |
+
+### Append Logic
+
+Daily runner appends one row per region. Never overwrites historical data.
+
+### Retention
+
+Keep indefinitely for trend analysis and FAR calculation.
+
+---
+
+## Appendix F: RTCM Pipeline Data Structure (v1.4)
+
+### Directory Layout
+
+```
+geospec_sprint/
+├── monitoring/
+│   ├── data/
+│   │   ├── rtcm/                          # Raw RTCM captures
+│   │   │   └── {STATION}/
+│   │   │       └── {YYYY-MM-DD}/
+│   │   │           └── {STATION}_{HHMMSS}.rtcm3
+│   │   ├── positions/                     # RTKLIB outputs
+│   │   │   ├── global_merged_{YYYY-MM-DD}.nav   # Merged ephemeris
+│   │   │   ├── processing_summary_{YYYY-MM-DD}.json
+│   │   │   └── {STATION}/
+│   │   │       └── {YYYY-MM-DD}/
+│   │   │           ├── {STATION}_{HHMMSS}.obs   # RINEX observations
+│   │   │           ├── {STATION}_{HHMMSS}.nav   # RINEX navigation
+│   │   │           └── {STATION}_{HHMMSS}.pos   # Position solutions
+│   │   └── ngl_format/                    # NGL-compatible outputs
+│   │       ├── rtcm_positions_{YYYY-MM-DD}.json      # Basic schema
+│   │       └── rtcm_positions_{YYYY-MM-DD}_qc.json   # With QC flags
+│   ├── src/
+│   │   └── position_adapter.py            # .pos → NGL converter
+│   └── config/
+│       └── ntrip_stations.yaml            # Station configuration
+└── wsl/
+    └── process_rtcm.sh                    # WSL processing script
+```
+
+### Output File Formats
+
+**Basic NGL Format** (`rtcm_positions_YYYY-MM-DD.json`):
+```json
+{
+  "date": "2026-01-11",
+  "created_at": "2026-01-11T19:18:12Z",
+  "source": "RTKLIB via WSL",
+  "reference_strategy": "median_first_100_epochs",
+  "include_qc": false,
+  "stations": {
+    "COSO00USA0": {
+      "ref_lla": [35.982354, -117.808916, 1464.13],
+      "epochs": 35
+    }
+  },
+  "total_epochs": 645,
+  "time_range": {"start": 2026.0291, "end": 2026.0295}
+}
+```
+
+**Extended QC Format** (`rtcm_positions_YYYY-MM-DD_qc.json`):
+```json
+{
+  "include_qc": true,
+  "qc_thresholds": {
+    "1": {"min_sats": 6, "max_h_sigma_m": 0.2, "max_v_sigma_m": 0.4},
+    "5": {"min_sats": 6, "max_h_sigma_m": 15.0, "max_v_sigma_m": 30.0}
+  },
+  "qc_threshold_desc": "Q: 1=fix, 2=float, 3=SBAS, 4=DGPS, 5=single, 6=PPP"
+}
+```
+
+### RTKLIB Quality Codes
+
+| Q | Mode | Description | Expected Accuracy |
+|---|------|-------------|-------------------|
+| 1 | Fix | Ambiguity resolved | cm-level |
+| 2 | Float | Ambiguity not resolved | 10-50 cm |
+| 3 | SBAS | Satellite-based augmentation | 1-3 m |
+| 4 | DGPS | Differential GPS | 0.5-2 m |
+| 5 | Single | Broadcast ephemeris only | 1-5 m |
+| 6 | PPP | Precise Point Positioning | cm-dm |
+
+### Processing Workflow
+
+1. **Capture** (Windows): `capture_rtcm.py` → `.rtcm3` files
+2. **Convert** (WSL): `convbin` → `.obs` + `.nav` files
+3. **Merge NAV** (WSL): Combine ephemeris from all stations
+4. **Position** (WSL): `rnx2rtkp` → `.pos` files
+5. **Adapt** (Windows): `position_adapter.py` → NGL `.json` files
+6. **Analyze**: Lambda_geo computation on NGL positions
 
 ---
 

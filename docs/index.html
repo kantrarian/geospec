@@ -418,6 +418,14 @@
                     const methods = data.methods_available || 0;
                     const agreement = data.agreement || 'unknown';
 
+                    // Build method names from components
+                    const components = data.components || {};
+                    const methodNames = [];
+                    if (components.lambda_geo && components.lambda_geo.available) methodNames.push('LG');
+                    if (components.fault_correlation && components.fault_correlation.available) methodNames.push('FC');
+                    if (components.seismic_thd && components.seismic_thd.available) methodNames.push('THD');
+                    const methodsDisplay = methodNames.length > 0 ? methodNames.join(', ') : 'None';
+
                     return `
                         <div class="region-card tier-${tier}">
                             <h3 class="region-name">${region.replace(/_/g, ' ').toUpperCase()}</h3>
@@ -436,7 +444,7 @@
                                 </div>
                                 <div class="metric">
                                     <div class="metric-label">Methods</div>
-                                    <div class="metric-value">${methods}/3</div>
+                                    <div class="metric-value" style="font-size: 0.9rem">${methodsDisplay}</div>
                                 </div>
                                 <div class="metric">
                                     <div class="metric-label">Agreement</div>

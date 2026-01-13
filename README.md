@@ -6,16 +6,16 @@
 
 | Metric | Value |
 |--------|-------|
-| Highest Risk Region | tokyo_kanto |
-| Risk Score | 0.334 |
+| Highest Risk Region | norcal_hayward |
+| Risk Score | 0.255 |
 | Regions Monitored | 9 |
 
 ### Tier Distribution
 
 | Tier | Count |
 |------|-------|
-| NORMAL (0) | 7 |
-| WATCH (1) | 2 |
+| NORMAL (0) | 8 |
+| WATCH (1) | 1 |
 | ELEVATED (2) | 0 |
 | CRITICAL (3) | 0 |
 

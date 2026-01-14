@@ -6,16 +6,16 @@
 
 | Metric | Value |
 |--------|-------|
-| Highest Risk Region | norcal_hayward |
-| Risk Score | 0.255 |
+| Highest Risk Region | ridgecrest |
+| Risk Score | 0.317 |
 | Regions Monitored | 9 |
 
 ### Tier Distribution
 
 | Tier | Count |
 |------|-------|
-| NORMAL (0) | 8 |
-| WATCH (1) | 1 |
+| NORMAL (0) | 7 |
+| WATCH (1) | 2 |
 | ELEVATED (2) | 0 |
 | CRITICAL (3) | 0 |
 

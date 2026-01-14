@@ -7,16 +7,16 @@
 | Metric | Value |
 |--------|-------|
 | Highest Risk Region | ridgecrest |
-| Risk Score | 0.317 |
+| Risk Score | 0.519 |
 | Regions Monitored | 9 |
 
 ### Tier Distribution
 
 | Tier | Count |
 |------|-------|
-| NORMAL (0) | 7 |
-| WATCH (1) | 2 |
-| ELEVATED (2) | 0 |
+| NORMAL (0) | 5 |
+| WATCH (1) | 3 |
+| ELEVATED (2) | 1 |
 | CRITICAL (3) | 0 |
 
 ## Dashboard

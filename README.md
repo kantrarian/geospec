@@ -6,18 +6,18 @@
 
 | Metric | Value |
 |--------|-------|
-| Highest Risk Region | norcal_hayward |
-| Risk Score | 0.945 |
+| Highest Risk Region | campi_flegrei |
+| Risk Score | 0.182 |
 | Regions Monitored | 9 |
 
 ### Tier Distribution
 
 | Tier | Count |
 |------|-------|
-| NORMAL (0) | 6 |
+| NORMAL (0) | 9 |
 | WATCH (1) | 0 |
-| ELEVATED (2) | 2 |
-| CRITICAL (3) | 1 |
+| ELEVATED (2) | 0 |
+| CRITICAL (3) | 0 |
 
 ## Dashboard
 

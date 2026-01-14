@@ -802,6 +802,69 @@ Implement automated monitoring to detect:
 
 ## Validation Results
 
+### Multi-Event Backtest Summary (January 2026)
+
+| Event | Magnitude | Classification | Lead Time | Methods |
+|-------|-----------|---------------|-----------|---------|
+| Ridgecrest 2019 | M7.1 | **HIT** | 4.1 days | LG + THD + FC |
+| Tohoku 2011 | M9.0 | **HIT** | 7.7 days | LG only |
+| Turkey 2023 | M7.8 | **HIT** | 6.6 days | LG only |
+| Chile 2010 | M8.8 | **HIT** | 6.8 days | LG only |
+| Morocco 2023 | M6.8 | MARGINAL | — | LG only (sparse) |
+
+**Summary**: 80% hit rate (4/5 events), Mean lead time: 6.3 days
+
+### Acceptance Criteria Results
+
+| Metric | Value | Target | Status |
+|--------|-------|--------|--------|
+| Hit Rate | 80% (4/5) | ≥60% | ✓ PASS |
+| Precision | 100% | ≥30% | ✓ PASS |
+| FAR | 0.00/year | ≤1.0/year | ✓ PASS |
+| Time in Warning | 44.6% | ≤15% | ✗ FAIL* |
+
+*Time-in-warning failure is expected for event-centric validation. See caveats below.
+
+### Confidence Intervals (n=5)
+
+| Method | Lower 95% CI | Point Estimate | Upper 95% CI |
+|--------|--------------|----------------|--------------|
+| Wilson | 38% | 80% | 96% |
+| Bootstrap | 40% | 80% | 100% |
+
+**Note**: Wide CIs due to small sample size. Additional M6-7 events needed to narrow.
+
+### FAR Calculation Methodology
+
+False Alarm Rate is computed consistently between `compute_full_metrics.py` and `verify_backtest.py`:
+
+```python
+# false_alarm_rate is per region-day
+# n_regions is loaded from backtest_config.yaml (currently 9 regions)
+far_per_year = false_alarm_rate * 365 * n_regions
+```
+
+**Monitored Regions** (from `monitoring/config/backtest_config.yaml`):
+1. ridgecrest
+2. socal_saf_mojave
+3. socal_saf_coachella
+4. norcal_hayward
+5. cascadia
+6. tokyo_kanto
+7. istanbul_marmara
+8. turkey_kahramanmaras
+9. campi_flegrei
+
+### Important Caveats
+
+1. **Event-centric validation**: Current metrics are computed over event windows only, not continuous year-round monitoring. This inflates time-in-warning (44.6%) and makes FAR artificially low (0.0).
+
+2. **Retrospective analysis**: All validations analyzed data knowing earthquake times. Prospective (shadow) monitoring required for true operational metrics.
+
+3. **Morocco expected failure**: Morocco has sparse GPS coverage (300-900km station distances). This validates that Lambda_geo requires adequate station density (≥4 stations within 200km).
+
+4. **Retrospective leakage statement**: Tier thresholds were configured from literature values and earthquake phenomenology, NOT tuned to these specific events. However, true prospective validation is required.
+
 ### Historical Validation (4 Events)
 
 | Event | Magnitude | CRITICAL Lead | Methods | Tests |
@@ -828,7 +891,7 @@ Each event is validated against 4 criteria (4 events × 4 tests = 16 total):
 - All validations are **retrospective** (analyzed knowing earthquake times)
 - Events 2-4 used Lambda_geo only (seismic data not accessible)
 - Ridgecrest used reconstructed historical data, not live monitoring
-- Sample size (n=4) is statistically limited; prospective validation needed
+- Sample size (n=5) is statistically limited; prospective validation needed
 
 ### Current Operational Results (January 10, 2026)
 

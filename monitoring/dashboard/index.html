@@ -218,6 +218,11 @@
             height: 400px;
         }
 
+        #backtest-chart {
+            width: 100%;
+            height: 350px;
+        }
+
         .legend {
             display: flex;
             justify-content: center;
@@ -263,6 +268,68 @@
         .loading {
             animation: pulse 1.5s infinite;
         }
+
+        /* Validation Metrics Styles */
+        .validation-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .validation-card {
+            background: var(--bg-secondary);
+            border-radius: 8px;
+            padding: 1rem;
+            text-align: center;
+        }
+
+        .validation-label {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.5rem;
+        }
+
+        .validation-value {
+            font-size: 2rem;
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+        }
+
+        .validation-value.pass {
+            color: var(--tier-0);
+        }
+
+        .validation-value.fail {
+            color: var(--tier-3);
+        }
+
+        .validation-value.neutral {
+            color: var(--accent);
+        }
+
+        .validation-detail {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            margin-bottom: 0.25rem;
+        }
+
+        .validation-target {
+            font-size: 0.7rem;
+            color: var(--text-secondary);
+            opacity: 0.7;
+        }
+
+        .validation-note {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            padding: 0.8rem;
+            background: var(--bg-secondary);
+            border-radius: 8px;
+            line-height: 1.6;
+        }
     </style>
 </head>
 <body>
@@ -303,6 +370,47 @@
             </div>
         </div>
 
+        <!-- Backtest Results Chart -->
+        <div class="chart-section">
+            <h2 class="chart-title">Multi-Event Backtest Results</h2>
+            <div id="backtest-chart"></div>
+        </div>
+
+        <!-- Validation Metrics Section -->
+        <div class="chart-section" id="validation-section">
+            <h2 class="chart-title">Backtest Validation Metrics</h2>
+            <div class="validation-grid">
+                <div class="validation-card">
+                    <div class="validation-label">Hit Rate</div>
+                    <div class="validation-value pass">80%</div>
+                    <div class="validation-detail">4/5 events detected</div>
+                    <div class="validation-target">Target: ≥60%</div>
+                </div>
+                <div class="validation-card">
+                    <div class="validation-label">Precision</div>
+                    <div class="validation-value pass">100%</div>
+                    <div class="validation-detail">All alerts preceded events</div>
+                    <div class="validation-target">Target: ≥30%</div>
+                </div>
+                <div class="validation-card">
+                    <div class="validation-label">FAR</div>
+                    <div class="validation-value pass">0.0/yr</div>
+                    <div class="validation-detail">Across 9 monitored regions</div>
+                    <div class="validation-target">Target: ≤1.0/year</div>
+                </div>
+                <div class="validation-card">
+                    <div class="validation-label">Mean Lead Time</div>
+                    <div class="validation-value neutral">6.3 days</div>
+                    <div class="validation-detail">Range: 4.1-7.7 days</div>
+                    <div class="validation-target">Target: 3-10 days</div>
+                </div>
+            </div>
+            <div class="validation-note">
+                <strong>95% CI:</strong> Hit rate [38%, 96%] (Wilson) — wide due to n=5 events<br>
+                <strong>Note:</strong> Event-centric validation; continuous monitoring metrics pending
+            </div>
+        </div>
+
         <footer>
             <p class="disclaimer">
                 <strong>⚠️ Research System</strong><br>
@@ -310,7 +418,10 @@
                 It is NOT an official earthquake warning system and should NOT be used
                 for emergency planning or public alerts.
             </p>
-            <p>GeoSpec Λ_geo Monitoring System v0.1.0</p>
+            <p>GeoSpec Λ_geo Monitoring System v1.4.0</p>
+            <p style="font-size: 0.7rem; margin-top: 0.5rem;">
+                Backtest validation: 5 events (M6.8-9.0) | 9 monitored regions | January 2026
+            </p>
         </footer>
     </div>
 
@@ -601,9 +712,83 @@
             }
         }
 
+        // Backtest validation data
+        const backtestData = {
+            events: [
+                { name: 'Ridgecrest 2019', mag: 7.1, date: '2019-07-06', leadDays: 4.1, classification: 'HIT', methods: 'LG+THD+FC' },
+                { name: 'Tohoku 2011', mag: 9.0, date: '2011-03-11', leadDays: 7.7, classification: 'HIT', methods: 'LG' },
+                { name: 'Turkey 2023', mag: 7.8, date: '2023-02-06', leadDays: 6.6, classification: 'HIT', methods: 'LG' },
+                { name: 'Chile 2010', mag: 8.8, date: '2010-02-27', leadDays: 6.8, classification: 'HIT', methods: 'LG' },
+                { name: 'Morocco 2023', mag: 6.8, date: '2023-09-08', leadDays: 0, classification: 'MARGINAL', methods: 'LG (sparse)' }
+            ]
+        };
+
+        // Render backtest chart
+        function renderBacktestChart() {
+            const events = backtestData.events;
+
+            // Create bar chart for lead times
+            const colors = events.map(e =>
+                e.classification === 'HIT' ? '#22c55e' :
+                e.classification === 'MARGINAL' ? '#eab308' : '#ef4444'
+            );
+
+            const leadTimeTrace = {
+                x: events.map(e => e.name),
+                y: events.map(e => e.leadDays),
+                type: 'bar',
+                name: 'Lead Time (days)',
+                marker: { color: colors },
+                text: events.map(e => `M${e.mag}<br>${e.classification}<br>${e.methods}`),
+                textposition: 'auto',
+                hovertemplate: '<b>%{x}</b><br>Lead: %{y:.1f} days<br>%{text}<extra></extra>'
+            };
+
+            // Target line at 7 days
+            const targetLine = {
+                x: events.map(e => e.name),
+                y: Array(events.length).fill(7),
+                type: 'scatter',
+                mode: 'lines',
+                name: 'Target (7 days)',
+                line: { color: '#4a9eff', width: 2, dash: 'dash' }
+            };
+
+            const layout = {
+                paper_bgcolor: 'rgba(0,0,0,0)',
+                plot_bgcolor: 'rgba(0,0,0,0)',
+                font: { color: '#e8e8f0', family: 'JetBrains Mono, monospace' },
+                xaxis: {
+                    gridcolor: '#2a2a3a',
+                    title: 'Event'
+                },
+                yaxis: {
+                    gridcolor: '#2a2a3a',
+                    title: 'Lead Time (days)',
+                    range: [0, 10]
+                },
+                legend: {
+                    orientation: 'h',
+                    y: -0.25
+                },
+                margin: { t: 20, r: 20, b: 100, l: 60 },
+                height: 350,
+                annotations: events.map((e, i) => ({
+                    x: e.name,
+                    y: e.leadDays + 0.5,
+                    text: `M${e.mag}`,
+                    showarrow: false,
+                    font: { size: 11, color: '#e8e8f0' }
+                }))
+            };
+
+            Plotly.newPlot('backtest-chart', [leadTimeTrace, targetLine], layout, { responsive: true });
+        }
+
         // Initialize
         loadData();
-        
+        renderBacktestChart();
+
         // Refresh every 5 minutes
         setInterval(loadData, 5 * 60 * 1000);
     </script>

@@ -36,6 +36,7 @@ import argparse
 import csv
 import json
 import logging
+import numpy as np
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -270,6 +271,54 @@ def fetch_earthquake_events(regions: List[str], lookback_days: int = 90) -> Dict
     return events_data
 
 
+def load_lambda_geo_baselines() -> Dict:
+    """
+    Load region-specific Lambda_geo baselines from calibration file.
+
+    These baselines are computed from 90 days of REAL NGL GPS data using
+    calibrate_lambda_geo_baselines.py. Using region-specific baselines
+    ensures consistent units between live computation and historical reference.
+
+    Returns:
+        Dict mapping region_id to baseline statistics
+    """
+    baseline_file = Path(__file__).parent.parent / 'data' / 'baselines' / 'lambda_geo_baselines.json'
+
+    if not baseline_file.exists():
+        logger.warning(f"Lambda_geo baselines file not found: {baseline_file}")
+        logger.warning("Run calibrate_lambda_geo_baselines.py to generate baselines")
+        return {}
+
+    try:
+        with open(baseline_file) as f:
+            data = json.load(f)
+        return data.get('regions', {})
+    except Exception as e:
+        logger.error(f"Failed to load Lambda_geo baselines: {e}")
+        return {}
+
+
+# Global cache for Lambda_geo baselines (loaded once per session)
+_LAMBDA_GEO_BASELINES = None
+
+
+def get_lambda_geo_baseline(region: str) -> Optional[float]:
+    """
+    Get the calibrated Lambda_geo baseline for a region.
+
+    Returns mean_lambda_geo from the calibration file, or None if unavailable.
+    """
+    global _LAMBDA_GEO_BASELINES
+
+    if _LAMBDA_GEO_BASELINES is None:
+        _LAMBDA_GEO_BASELINES = load_lambda_geo_baselines()
+
+    baseline_info = _LAMBDA_GEO_BASELINES.get(region, {})
+    if baseline_info.get('available', False):
+        return baseline_info.get('mean_lambda_geo')
+    return None
+
+
 def fetch_ngl_lambda_geo(
     regions: List[str],
     target_date: datetime,
@@ -277,6 +326,10 @@ def fetch_ngl_lambda_geo(
 ) -> Dict[str, float]:
     """
     Fetch Lambda_geo ratios from NGL GPS data for all regions with polygon definitions.
+
+    CRITICAL FIX (January 2026): Now uses region-specific baselines computed from
+    real NGL GPS data (lambda_geo_baselines.json) instead of a hardcoded 0.01.
+    This ensures consistent units between live computation and baseline reference.
 
     Args:
         regions: List of region keys to process
@@ -300,6 +353,11 @@ def fetch_ngl_lambda_geo(
     logger.info("Loading NGL station catalog for Lambda_geo computation...")
     ngl.load_station_catalog()
 
+    # Load region-specific baselines
+    baselines = load_lambda_geo_baselines()
+    if not baselines:
+        logger.warning("No Lambda_geo baselines available - ratios will be unreliable")
+
     for region in regions:
         # Skip regions without polygon definitions
         if region not in FAULT_POLYGONS:
@@ -311,10 +369,27 @@ def fetch_ngl_lambda_geo(
             result = acquire_region_data(region, ngl, days_back, target_date)
 
             if result and result.n_stations >= 3 and result.lambda_geo_max > 0:
-                # Convert to baseline ratio
-                # Baseline Lambda_geo ~ 0.01 for stable regions (calibrated from observations)
-                # Values below baseline = normal, above = elevated
-                baseline = 0.01
+                # Get region-specific baseline (calibrated from real GPS data)
+                baseline_info = baselines.get(region, {})
+                if baseline_info.get('available', False):
+                    baseline = baseline_info['mean_lambda_geo']
+                    baseline_quality = baseline_info.get('quality', 'unknown')
+                else:
+                    # Fallback: use median across all calibrated regions
+                    # This is a temporary fallback - proper baseline should be computed
+                    all_means = [b['mean_lambda_geo'] for b in baselines.values()
+                                if b.get('available', False)]
+                    if all_means:
+                        baseline = float(np.median(all_means))
+                        baseline_quality = 'fallback_median'
+                        logger.warning(f"  {region}: Using fallback baseline ({baseline:.4f})")
+                    else:
+                        # Last resort: use 0.1 (order of magnitude estimate)
+                        baseline = 0.1
+                        baseline_quality = 'hardcoded_fallback'
+                        logger.warning(f"  {region}: Using hardcoded fallback baseline (0.1)")
+
+                # Compute ratio
                 ratio = result.lambda_geo_max / baseline
 
                 # Clamp to reasonable range (0.1x to 50x)
@@ -322,7 +397,8 @@ def fetch_ngl_lambda_geo(
 
                 lambda_geo_data[region] = ratio
                 logger.info(f"  {region}: Lambda_geo ratio = {ratio:.1f}x "
-                           f"({result.n_stations} stations, {result.data_quality})")
+                           f"(baseline={baseline:.4f}, {baseline_quality}, "
+                           f"{result.n_stations} stations, {result.data_quality})")
             else:
                 quality = result.data_quality if result else 'no_data'
                 n_stations = result.n_stations if result else 0

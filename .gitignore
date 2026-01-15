@@ -1,15 +1,11 @@
 # ===========================================
-# GEOSPEC - IP PROTECTION
-# Only commit results and documentation
+# GEOSPEC - Source Code Tracking Enabled
 # ===========================================
 
-# EXCLUDE ALL SOURCE CODE (IP)
-*.py
-src/
+# Paper drafts (unpublished)
 paper/
 
-# Monitoring - exclude code, allow dashboard
-monitoring/src/
+# Monitoring data and logs (large files)
 monitoring/data/
 monitoring/logs/
 
@@ -37,11 +33,9 @@ ENV/
 *.npz
 *.tenv
 *.tenv3
-*.json
-*.csv
 
 # Data directories
-data/
+data/raw/
 results/
 
 # Cache
@@ -60,11 +54,19 @@ Thumbs.db
 # ===========================================
 # EXCEPTIONS - Files that ARE committed
 # ===========================================
-# Dashboard data files (results only, no code)
+# Dashboard data files
 !docs/
-!docs/index.html
-!docs/ensemble_latest.json
-!docs/data.csv
+!docs/*.html
+!docs/*.json
+!docs/*.csv
+!docs/*.md
+
+# Monitoring dashboard
+!monitoring/dashboard/
+!monitoring/dashboard/*.html
+!monitoring/dashboard/*.json
+!monitoring/dashboard/*.csv
+!monitoring/dashboard/*.bat
 
 # README, LICENSE, .gitignore always allowed
 !README.md

@@ -137,29 +137,38 @@ def lambda_geo_to_risk(ratio: float) -> float:
     """
     Convert Lambda_geo baseline ratio to 0-1 risk score.
 
-    Design Note: Historical detections show ratios 485× to 7999×.
-    Using 1000× saturation keeps 50× and 5000× distinguishable.
-    Raw ratio is always preserved for analyst review.
+    CALIBRATED FROM REAL GPS DATA (January 2026):
+    - Based on 5 historical earthquakes (M6.8-M9.0)
+    - Real observed ratios: 2.0x to 5.6x
+    - Thresholds set to detect all calibration events
 
-    Mapping (logarithmic with 1000× saturation):
-    - ratio < 3: NORMAL (risk ~ 0.00-0.16)
-    - ratio 3-10: WATCH (risk ~ 0.16-0.33)
-    - ratio 10-100: ELEVATED (risk ~ 0.33-0.67)
-    - ratio 100-1000: CRITICAL (risk ~ 0.67-1.00)
-    - ratio > 1000: Capped at 1.0 (raw value shown separately)
+    Mapping (linear, calibrated to real data):
+    - ratio < 1.5: NORMAL (risk ~ 0.00-0.20)
+    - ratio 1.5-2.5: WATCH (risk ~ 0.20-0.45)
+    - ratio 2.5-4.0: ELEVATED (risk ~ 0.45-0.70)
+    - ratio > 4.0: CRITICAL (risk ~ 0.70-1.00, saturates at 8x)
+
+    Calibration events:
+    - Tohoku 2011 M9.0: 5.6x → CRITICAL
+    - Morocco 2023 M6.8: 3.3x → ELEVATED
+    - Ridgecrest 2019 M7.1: 2.3x → WATCH
+    - Chile 2010 M8.8: 2.1x → WATCH
+    - Turkey 2023 M7.8: 2.0x → WATCH
     """
-    if ratio <= 1:
+    if ratio <= 1.0:
         return 0.0
-
-    # Logarithmic mapping: log10(ratio) / log10(max_ratio)
-    # At ratio=3:    log10(3)/log10(1000) ≈ 0.16
-    # At ratio=10:   log10(10)/log10(1000) ≈ 0.33
-    # At ratio=100:  log10(100)/log10(1000) ≈ 0.67
-    # At ratio=1000: log10(1000)/log10(1000) = 1.0
-
-    max_log_ratio = np.log10(1000)  # Saturation point at 1000×
-    risk = np.log10(max(1, ratio)) / max_log_ratio
-    return min(1.0, risk)
+    elif ratio < 1.5:
+        # Transition from 0 to 0.20
+        return 0.20 * (ratio - 1.0) / 0.5
+    elif ratio < 2.5:
+        # WATCH: 0.20 to 0.45
+        return 0.20 + 0.25 * (ratio - 1.5) / 1.0
+    elif ratio < 4.0:
+        # ELEVATED: 0.45 to 0.70
+        return 0.45 + 0.25 * (ratio - 2.5) / 1.5
+    else:
+        # CRITICAL: 0.70 to 1.0 (saturates at 8x)
+        return min(1.0, 0.70 + 0.30 * (ratio - 4.0) / 4.0)
 
 
 def fault_correlation_to_risk(l2_l1_ratio: float, participation_ratio: float) -> float:
@@ -276,9 +285,17 @@ class MethodResult:
     is_elevated: bool = False
     is_critical: bool = False
     notes: str = ""
+    # THD baseline context (populated for seismic_thd method)
+    baseline_mean: float = 0.0
+    baseline_std: float = 0.0
+    baseline_n: int = 0
+    baseline_window: str = ""      # e.g., "2025-10-15 to 2026-01-05"
+    baseline_quality: str = "unknown"  # good, acceptable, poor, missing
+    z_score: float = 0.0           # Standard deviations above baseline
+    sample_rate_hz: float = 0.0    # Native sample rate of station
 
     def to_dict(self) -> Dict:
-        return {
+        result = {
             'name': self.name,
             'available': self.available,
             'raw_value': float(self.raw_value) if self.raw_value is not None else None,
@@ -288,6 +305,18 @@ class MethodResult:
             'is_critical': bool(self.is_critical),
             'notes': self.notes,
         }
+        # Include baseline fields only for THD method
+        if self.name == 'seismic_thd' and self.available:
+            result['baseline'] = {
+                'mean': float(self.baseline_mean),
+                'std': float(self.baseline_std),
+                'n_samples': self.baseline_n,
+                'window': self.baseline_window,
+                'quality': self.baseline_quality,
+            }
+            result['z_score'] = float(self.z_score)
+            result['sample_rate_hz'] = float(self.sample_rate_hz)
+        return result
 
 
 @dataclass
@@ -559,6 +588,13 @@ class GeoSpecEnsemble:
             # Get station baseline if available
             baseline = get_baseline(station_code, station_network) if get_baseline else None
 
+            # Default baseline context (for structured output)
+            baseline_mean = 0.0
+            baseline_std = 0.0
+            baseline_n = 0
+            baseline_window = ""
+            baseline_quality = "missing"
+
             if baseline:
                 # Use baseline-aware risk calculation
                 risk, z_score = thd_to_risk_with_baseline(
@@ -566,6 +602,20 @@ class GeoSpecEnsemble:
                     baseline.mean_thd,
                     baseline.std_thd
                 )
+                # Populate baseline context
+                baseline_mean = baseline.mean_thd
+                baseline_std = baseline.std_thd
+                baseline_n = baseline.n_samples
+                baseline_window = baseline.calibration_period
+
+                # Determine quality from n_samples (rough heuristic)
+                if baseline.n_samples >= 60:
+                    baseline_quality = "good"
+                elif baseline.n_samples >= 30:
+                    baseline_quality = "acceptable"
+                else:
+                    baseline_quality = "poor"
+
                 # Include full baseline context for diagnostics
                 notes = (f'sta={station_network}.{station_code}, '
                         f'THD={thd_result.thd_value:.4f}, z={z_score:.2f}, '
@@ -585,7 +635,15 @@ class GeoSpecEnsemble:
                 risk_score=risk,
                 is_elevated=risk >= 0.5,
                 is_critical=risk >= 0.75,
-                notes=notes
+                notes=notes,
+                # Structured baseline context
+                baseline_mean=baseline_mean,
+                baseline_std=baseline_std,
+                baseline_n=baseline_n,
+                baseline_window=baseline_window,
+                baseline_quality=baseline_quality,
+                z_score=z_score,
+                sample_rate_hz=native_sample_rate,
             )
 
         except Exception as e:

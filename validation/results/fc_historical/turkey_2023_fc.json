@@ -1,0 +1,1568 @@
+{
+  "event_key": "turkey_2023",
+  "event": {
+    "name": "East Anatolian Fault",
+    "date": "2023-02-06T01:17:35",
+    "magnitude": 7.8
+  },
+  "data_source": {
+    "segments": [
+      "eaf_north",
+      "eaf_south"
+    ],
+    "fetch_date": "2026-01-15T00:23:47.521924",
+    "window_hours": 24,
+    "step_hours": 6
+  },
+  "statistics": {
+    "baseline_mean": 0.7247,
+    "baseline_std": 0.36,
+    "min_l2_l1": 0.049,
+    "min_date": "2023-01-25T01:17:35",
+    "n_elevated": 7,
+    "n_critical": 5
+  },
+  "timeseries": [
+    {
+      "date": "2023-01-23",
+      "datetime": "2023-01-23T01:17:35",
+      "days_before_event": 14.0,
+      "segment": "eaf_north",
+      "l2_l1": 0.9648,
+      "lambda1": 1.018,
+      "lambda2": 0.9821,
+      "stations": [
+        "IU.ANTO",
+        "GE.ISP"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-01-23",
+      "datetime": "2023-01-23T01:17:35",
+      "days_before_event": 14.0,
+      "segment": "eaf_south",
+      "l2_l1": 0.9942,
+      "lambda1": 1.0029,
+      "lambda2": 0.9971,
+      "stations": [
+        "GE.ISP",
+        "GE.CSS"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-01-23",
+      "datetime": "2023-01-23T07:17:35",
+      "days_before_event": 13.75,
+      "segment": "eaf_north",
+      "l2_l1": 0.9629,
+      "lambda1": 1.019,
+      "lambda2": 0.9812,
+      "stations": [
+        "IU.ANTO",
+        "GE.ISP"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-01-23",
+      "datetime": "2023-01-23T07:17:35",
+      "days_before_event": 13.75,
+      "segment": "eaf_south",
+      "l2_l1": 0.9774,
+      "lambda1": 1.0115,
+      "lambda2": 0.9886,
+      "stations": [
+        "GE.ISP",
+        "GE.CSS"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-01-23",
+      "datetime": "2023-01-23T13:17:35",
+      "days_before_event": 13.5,
+      "segment": "eaf_north",
+      "l2_l1": 0.9854,
+      "lambda1": 1.0074,
+      "lambda2": 0.9927,
+      "stations": [
+        "IU.ANTO",
+        "GE.ISP"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-01-23",
+      "datetime": "2023-01-23T13:17:35",
+      "days_before_event": 13.5,
+      "segment": "eaf_south",
+      "l2_l1": 0.9989,
+      "lambda1": 1.0005,
+      "lambda2": 0.9995,
+      "stations": [
+        "GE.ISP",
+        "GE.CSS"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-01-23",
+      "datetime": "2023-01-23T19:17:35",
+      "days_before_event": 13.25,
+      "segment": "eaf_north",
+      "l2_l1": 0.9974,
+      "lambda1": 1.0013,
+      "lambda2": 0.9987,
+      "stations": [
+        "IU.ANTO",
+        "GE.ISP"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-01-23",
+      "datetime": "2023-01-23T19:17:35",
+      "days_before_event": 13.25,
+      "segment": "eaf_south",
+      "l2_l1": 0.99,
+      "lambda1": 1.005,
+      "lambda2": 0.995,
+      "stations": [
+        "GE.ISP",
+        "GE.CSS"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-01-24",
+      "datetime": "2023-01-24T01:17:35",
+      "days_before_event": 13.0,
+      "segment": "eaf_north",
+      "l2_l1": 0.9049,
+      "lambda1": 1.0506,
+      "lambda2": 0.9506,
+      "stations": [
+        "IU.ANTO",
+        "GE.ISP"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-01-24",
+      "datetime": "2023-01-24T01:17:35",
+      "days_before_event": 13.0,
+      "segment": "eaf_south",
+      "l2_l1": 0.9287,
+      "lambda1": 1.0373,
+      "lambda2": 0.9634,
+      "stations": [
+        "GE.ISP",
+        "GE.CSS"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-01-24",
+      "datetime": "2023-01-24T07:17:35",
+      "days_before_event": 12.75,
+      "segment": "eaf_north",
+      "l2_l1": 0.8705,
+      "lambda1": 1.0705,
+      "lambda2": 0.9319,
+      "stations": [
+        "IU.ANTO",
+        "GE.ISP"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-01-24",
+      "datetime": "2023-01-24T07:17:35",
+      "days_before_event": 12.75,
+      "segment": "eaf_south",
+      "l2_l1": 0.8994,
+      "lambda1": 1.0537,
+      "lambda2": 0.9477,
+      "stations": [
+        "GE.ISP",
+        "GE.CSS"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-01-24",
+      "datetime": "2023-01-24T13:17:35",
+      "days_before_event": 12.5,
+      "segment": "eaf_north",
+      "l2_l1": 0.116,
+      "lambda1": 2.2255,
+      "lambda2": 0.2583,
+      "stations": [
+        "IU.ANTO",
+        "GE.ISP"
+      ],
+      "tier": "ELEVATED"
+    },
+    {
+      "date": "2023-01-24",
+      "datetime": "2023-01-24T13:17:35",
+      "days_before_event": 12.5,
+      "segment": "eaf_south",
+      "l2_l1": 0.0505,
+      "lambda1": 2.6666,
+      "lambda2": 0.1347,
+      "stations": [
+        "GE.ISP",
+        "GE.CSS"
+      ],
+      "tier": "CRITICAL"
+    },
+    {
+      "date": "2023-01-24",
+      "datetime": "2023-01-24T19:17:35",
+      "days_before_event": 12.25,
+      "segment": "eaf_north",
+      "l2_l1": 0.1149,
+      "lambda1": 2.2312,
+      "lambda2": 0.2563,
+      "stations": [
+        "IU.ANTO",
+        "GE.ISP"
+      ],
+      "tier": "ELEVATED"
+    },
+    {
+      "date": "2023-01-24",
+      "datetime": "2023-01-24T19:17:35",
+      "days_before_event": 12.25,
+      "segment": "eaf_south",
+      "l2_l1": 0.0498,
+      "lambda1": 2.6732,
+      "lambda2": 0.1332,
+      "stations": [
+        "GE.ISP",
+        "GE.CSS"
+      ],
+      "tier": "CRITICAL"
+    },
+    {
+      "date": "2023-01-25",
+      "datetime": "2023-01-25T01:17:35",
+      "days_before_event": 12.0,
+      "segment": "eaf_north",
+      "l2_l1": 0.1132,
+      "lambda1": 2.2397,
+      "lambda2": 0.2535,
+      "stations": [
+        "IU.ANTO",
+        "GE.ISP"
+      ],
+      "tier": "ELEVATED"
+    },
+    {
+      "date": "2023-01-25",
+      "datetime": "2023-01-25T01:17:35",
+      "days_before_event": 12.0,
+      "segment": "eaf_south",
+      "l2_l1": 0.049,
+      "lambda1": 2.6811,
+      "lambda2": 0.1315,
+      "stations": [
+        "GE.ISP",
+        "GE.CSS"
+      ],
+      "tier": "CRITICAL"
+    },
+    {
+      "date": "2023-01-25",
+      "datetime": "2023-01-25T07:17:35",
+      "days_before_event": 11.75,
+      "segment": "eaf_north",
+      "l2_l1": 0.1135,
+      "lambda1": 2.2379,
+      "lambda2": 0.2541,
+      "stations": [
+        "IU.ANTO",
+        "GE.ISP"
+      ],
+      "tier": "ELEVATED"
+    },
+    {
+      "date": "2023-01-25",
+      "datetime": "2023-01-25T07:17:35",
+      "days_before_event": 11.75,
+      "segment": "eaf_south",
+      "l2_l1": 0.0494,
+      "lambda1": 2.6775,
+      "lambda2": 0.1323,
+      "stations": [
+        "GE.ISP",
+        "GE.CSS"
+      ],
+      "tier": "CRITICAL"
+    },
+    {
+      "date": "2023-01-25",
+      "datetime": "2023-01-25T13:17:35",
+      "days_before_event": 11.5,
+      "segment": "eaf_north",
+      "l2_l1": 0.9968,
+      "lambda1": 1.0016,
+      "lambda2": 0.9984,
+      "stations": [
+        "IU.ANTO",
+        "GE.ISP"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-01-25",
+      "datetime": "2023-01-25T13:17:35",
+      "days_before_event": 11.5,
+      "segment": "eaf_south",
+      "l2_l1": 0.9943,
+      "lambda1": 1.0028,
+      "lambda2": 0.9972,
+      "stations": [
+        "GE.ISP",
+        "GE.CSS"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-01-25",
+      "datetime": "2023-01-25T19:17:35",
+      "days_before_event": 11.25,
+      "segment": "eaf_north",
+      "l2_l1": 0.9923,
+      "lambda1": 1.0039,
+      "lambda2": 0.9961,
+      "stations": [
+        "IU.ANTO",
+        "GE.ISP"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-01-25",
+      "datetime": "2023-01-25T19:17:35",
+      "days_before_event": 11.25,
+      "segment": "eaf_south",
+      "l2_l1": 0.9867,
+      "lambda1": 1.0067,
+      "lambda2": 0.9933,
+      "stations": [
+        "GE.ISP",
+        "GE.CSS"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-01-26",
+      "datetime": "2023-01-26T01:17:35",
+      "days_before_event": 11.0,
+      "segment": "eaf_north",
+      "l2_l1": 0.8717,
+      "lambda1": 1.0698,
+      "lambda2": 0.9325,
+      "stations": [
+        "IU.ANTO",
+        "GE.ISP"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-01-26",
+      "datetime": "2023-01-26T01:17:35",
+      "days_before_event": 11.0,
+      "segment": "eaf_south",
+      "l2_l1": 0.9394,
+      "lambda1": 1.0315,
+      "lambda2": 0.969,
+      "stations": [
+        "GE.ISP",
+        "GE.CSS"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-01-26",
+      "datetime": "2023-01-26T07:17:35",
+      "days_before_event": 10.75,
+      "segment": "eaf_north",
+      "l2_l1": 0.8752,
+      "lambda1": 1.0677,
+      "lambda2": 0.9345,
+      "stations": [
+        "IU.ANTO",
+        "GE.ISP"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-01-26",
+      "datetime": "2023-01-26T07:17:35",
+      "days_before_event": 10.75,
+      "segment": "eaf_south",
+      "l2_l1": 0.9317,
+      "lambda1": 1.0357,
+      "lambda2": 0.9649,
+      "stations": [
+        "GE.ISP",
+        "GE.CSS"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-01-26",
+      "datetime": "2023-01-26T13:17:35",
+      "days_before_event": 10.5,
+      "segment": "eaf_north",
+      "l2_l1": 0.9384,
+      "lambda1": 1.0321,
+      "lambda2": 0.9685,
+      "stations": [
+        "IU.ANTO",
+        "GE.ISP"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-01-26",
+      "datetime": "2023-01-26T13:17:35",
+      "days_before_event": 10.5,
+      "segment": "eaf_south",
+      "l2_l1": 0.9749,
+      "lambda1": 1.0128,
+      "lambda2": 0.9873,
+      "stations": [
+        "GE.ISP",
+        "GE.CSS"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-01-26",
+      "datetime": "2023-01-26T19:17:35",
+      "days_before_event": 10.25,
+      "segment": "eaf_north",
+      "l2_l1": 0.9794,
+      "lambda1": 1.0104,
+      "lambda2": 0.9896,
+      "stations": [
+        "IU.ANTO",
+        "GE.ISP"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-01-26",
+      "datetime": "2023-01-26T19:17:35",
+      "days_before_event": 10.25,
+      "segment": "eaf_south",
+      "l2_l1": 0.9202,
+      "lambda1": 1.042,
+      "lambda2": 0.9589,
+      "stations": [
+        "GE.ISP",
+        "GE.CSS"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-01-27",
+      "datetime": "2023-01-27T01:17:35",
+      "days_before_event": 10.0,
+      "segment": "eaf_north",
+      "l2_l1": 0.968,
+      "lambda1": 1.0163,
+      "lambda2": 0.9838,
+      "stations": [
+        "IU.ANTO",
+        "GE.ISP"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-01-27",
+      "datetime": "2023-01-27T01:17:35",
+      "days_before_event": 10.0,
+      "segment": "eaf_south",
+      "l2_l1": 0.9426,
+      "lambda1": 1.0298,
+      "lambda2": 0.9707,
+      "stations": [
+        "GE.ISP",
+        "GE.CSS"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-01-27",
+      "datetime": "2023-01-27T07:17:35",
+      "days_before_event": 9.75,
+      "segment": "eaf_north",
+      "l2_l1": 0.9455,
+      "lambda1": 1.0282,
+      "lambda2": 0.9722,
+      "stations": [
+        "IU.ANTO",
+        "GE.ISP"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-01-27",
+      "datetime": "2023-01-27T07:17:35",
+      "days_before_event": 9.75,
+      "segment": "eaf_south",
+      "l2_l1": 0.9492,
+      "lambda1": 1.0263,
+      "lambda2": 0.9741,
+      "stations": [
+        "GE.ISP",
+        "GE.CSS"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-01-27",
+      "datetime": "2023-01-27T13:17:35",
+      "days_before_event": 9.5,
+      "segment": "eaf_north",
+      "l2_l1": 0.798,
+      "lambda1": 1.1159,
+      "lambda2": 0.8904,
+      "stations": [
+        "IU.ANTO",
+        "GE.ISP"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-01-27",
+      "datetime": "2023-01-27T13:17:35",
+      "days_before_event": 9.5,
+      "segment": "eaf_south",
+      "l2_l1": 0.9999,
+      "lambda1": 1.0,
+      "lambda2": 1.0,
+      "stations": [
+        "GE.ISP",
+        "GE.CSS"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-01-27",
+      "datetime": "2023-01-27T19:17:35",
+      "days_before_event": 9.25,
+      "segment": "eaf_north",
+      "l2_l1": 0.2989,
+      "lambda1": 1.672,
+      "lambda2": 0.4997,
+      "stations": [
+        "IU.ANTO",
+        "GE.ISP"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-01-27",
+      "datetime": "2023-01-27T19:17:35",
+      "days_before_event": 9.25,
+      "segment": "eaf_south",
+      "l2_l1": 0.2505,
+      "lambda1": 1.7765,
+      "lambda2": 0.4451,
+      "stations": [
+        "GE.ISP",
+        "GE.CSS"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-01-28",
+      "datetime": "2023-01-28T01:17:35",
+      "days_before_event": 9.0,
+      "segment": "eaf_north",
+      "l2_l1": 0.2922,
+      "lambda1": 1.6855,
+      "lambda2": 0.4924,
+      "stations": [
+        "IU.ANTO",
+        "GE.ISP"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-01-28",
+      "datetime": "2023-01-28T01:17:35",
+      "days_before_event": 9.0,
+      "segment": "eaf_south",
+      "l2_l1": 0.2484,
+      "lambda1": 1.7815,
+      "lambda2": 0.4426,
+      "stations": [
+        "GE.ISP",
+        "GE.CSS"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-01-28",
+      "datetime": "2023-01-28T07:17:35",
+      "days_before_event": 8.75,
+      "segment": "eaf_north",
+      "l2_l1": 0.2945,
+      "lambda1": 1.6809,
+      "lambda2": 0.4949,
+      "stations": [
+        "IU.ANTO",
+        "GE.ISP"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-01-28",
+      "datetime": "2023-01-28T07:17:35",
+      "days_before_event": 8.75,
+      "segment": "eaf_south",
+      "l2_l1": 0.2452,
+      "lambda1": 1.7891,
+      "lambda2": 0.4388,
+      "stations": [
+        "GE.ISP",
+        "GE.CSS"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-01-28",
+      "datetime": "2023-01-28T13:17:35",
+      "days_before_event": 8.5,
+      "segment": "eaf_north",
+      "l2_l1": 0.1972,
+      "lambda1": 1.9181,
+      "lambda2": 0.3783,
+      "stations": [
+        "IU.ANTO",
+        "GE.ISP"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-01-28",
+      "datetime": "2023-01-28T13:17:35",
+      "days_before_event": 8.5,
+      "segment": "eaf_south",
+      "l2_l1": 0.148,
+      "lambda1": 2.086,
+      "lambda2": 0.3088,
+      "stations": [
+        "GE.ISP",
+        "GE.CSS"
+      ],
+      "tier": "ELEVATED"
+    },
+    {
+      "date": "2023-01-28",
+      "datetime": "2023-01-28T19:17:35",
+      "days_before_event": 8.25,
+      "segment": "eaf_north",
+      "l2_l1": 0.9536,
+      "lambda1": 1.0239,
+      "lambda2": 0.9764,
+      "stations": [
+        "IU.ANTO",
+        "GE.ISP"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-01-28",
+      "datetime": "2023-01-28T19:17:35",
+      "days_before_event": 8.25,
+      "segment": "eaf_south",
+      "l2_l1": 0.8343,
+      "lambda1": 1.0926,
+      "lambda2": 0.9115,
+      "stations": [
+        "GE.ISP",
+        "GE.CSS"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-01-29",
+      "datetime": "2023-01-29T01:17:35",
+      "days_before_event": 8.0,
+      "segment": "eaf_north",
+      "l2_l1": 0.9937,
+      "lambda1": 1.0032,
+      "lambda2": 0.9968,
+      "stations": [
+        "IU.ANTO",
+        "GE.ISP"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-01-29",
+      "datetime": "2023-01-29T01:17:35",
+      "days_before_event": 8.0,
+      "segment": "eaf_south",
+      "l2_l1": 0.9169,
+      "lambda1": 1.0438,
+      "lambda2": 0.9571,
+      "stations": [
+        "GE.ISP",
+        "GE.CSS"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-01-29",
+      "datetime": "2023-01-29T07:17:35",
+      "days_before_event": 7.75,
+      "segment": "eaf_north",
+      "l2_l1": 0.9894,
+      "lambda1": 1.0054,
+      "lambda2": 0.9947,
+      "stations": [
+        "IU.ANTO",
+        "GE.ISP"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-01-29",
+      "datetime": "2023-01-29T07:17:35",
+      "days_before_event": 7.75,
+      "segment": "eaf_south",
+      "l2_l1": 0.9994,
+      "lambda1": 1.0003,
+      "lambda2": 0.9997,
+      "stations": [
+        "GE.ISP",
+        "GE.CSS"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-01-29",
+      "datetime": "2023-01-29T13:17:35",
+      "days_before_event": 7.5,
+      "segment": "eaf_north",
+      "l2_l1": 0.9489,
+      "lambda1": 1.0264,
+      "lambda2": 0.9739,
+      "stations": [
+        "IU.ANTO",
+        "GE.ISP"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-01-29",
+      "datetime": "2023-01-29T13:17:35",
+      "days_before_event": 7.5,
+      "segment": "eaf_south",
+      "l2_l1": 0.9389,
+      "lambda1": 1.0318,
+      "lambda2": 0.9687,
+      "stations": [
+        "GE.ISP",
+        "GE.CSS"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-01-29",
+      "datetime": "2023-01-29T19:17:35",
+      "days_before_event": 7.25,
+      "segment": "eaf_north",
+      "l2_l1": 0.9527,
+      "lambda1": 1.0244,
+      "lambda2": 0.9759,
+      "stations": [
+        "IU.ANTO",
+        "GE.ISP"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-01-29",
+      "datetime": "2023-01-29T19:17:35",
+      "days_before_event": 7.25,
+      "segment": "eaf_south",
+      "l2_l1": 0.9434,
+      "lambda1": 1.0293,
+      "lambda2": 0.9711,
+      "stations": [
+        "GE.ISP",
+        "GE.CSS"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-01-30",
+      "datetime": "2023-01-30T01:17:35",
+      "days_before_event": 7.0,
+      "segment": "eaf_north",
+      "l2_l1": 0.8351,
+      "lambda1": 1.092,
+      "lambda2": 0.912,
+      "stations": [
+        "IU.ANTO",
+        "GE.ISP"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-01-30",
+      "datetime": "2023-01-30T01:17:35",
+      "days_before_event": 7.0,
+      "segment": "eaf_south",
+      "l2_l1": 0.8577,
+      "lambda1": 1.0782,
+      "lambda2": 0.9248,
+      "stations": [
+        "GE.ISP",
+        "GE.CSS"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-01-30",
+      "datetime": "2023-01-30T07:17:35",
+      "days_before_event": 6.75,
+      "segment": "eaf_north",
+      "l2_l1": 0.8387,
+      "lambda1": 1.0898,
+      "lambda2": 0.914,
+      "stations": [
+        "IU.ANTO",
+        "GE.ISP"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-01-30",
+      "datetime": "2023-01-30T07:17:35",
+      "days_before_event": 6.75,
+      "segment": "eaf_south",
+      "l2_l1": 0.8997,
+      "lambda1": 1.0536,
+      "lambda2": 0.9478,
+      "stations": [
+        "GE.ISP",
+        "GE.CSS"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-01-30",
+      "datetime": "2023-01-30T13:17:35",
+      "days_before_event": 6.5,
+      "segment": "eaf_north",
+      "l2_l1": 0.8923,
+      "lambda1": 1.0577,
+      "lambda2": 0.9439,
+      "stations": [
+        "IU.ANTO",
+        "GE.ISP"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-01-30",
+      "datetime": "2023-01-30T13:17:35",
+      "days_before_event": 6.5,
+      "segment": "eaf_south",
+      "l2_l1": 0.7606,
+      "lambda1": 1.1413,
+      "lambda2": 0.8681,
+      "stations": [
+        "GE.ISP",
+        "GE.CSS"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-01-30",
+      "datetime": "2023-01-30T19:17:35",
+      "days_before_event": 6.25,
+      "segment": "eaf_north",
+      "l2_l1": 0.8652,
+      "lambda1": 1.0737,
+      "lambda2": 0.929,
+      "stations": [
+        "IU.ANTO",
+        "GE.ISP"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-01-30",
+      "datetime": "2023-01-30T19:17:35",
+      "days_before_event": 6.25,
+      "segment": "eaf_south",
+      "l2_l1": 0.6098,
+      "lambda1": 1.2612,
+      "lambda2": 0.7691,
+      "stations": [
+        "GE.ISP",
+        "GE.CSS"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-01-31",
+      "datetime": "2023-01-31T01:17:35",
+      "days_before_event": 6.0,
+      "segment": "eaf_north",
+      "l2_l1": 0.9053,
+      "lambda1": 1.0504,
+      "lambda2": 0.9509,
+      "stations": [
+        "IU.ANTO",
+        "GE.ISP"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-01-31",
+      "datetime": "2023-01-31T01:17:35",
+      "days_before_event": 6.0,
+      "segment": "eaf_south",
+      "l2_l1": 0.8075,
+      "lambda1": 1.1096,
+      "lambda2": 0.8961,
+      "stations": [
+        "GE.ISP",
+        "GE.CSS"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-01-31",
+      "datetime": "2023-01-31T07:17:35",
+      "days_before_event": 5.75,
+      "segment": "eaf_north",
+      "l2_l1": 0.9455,
+      "lambda1": 1.0282,
+      "lambda2": 0.9722,
+      "stations": [
+        "IU.ANTO",
+        "GE.ISP"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-01-31",
+      "datetime": "2023-01-31T07:17:35",
+      "days_before_event": 5.75,
+      "segment": "eaf_south",
+      "l2_l1": 0.858,
+      "lambda1": 1.078,
+      "lambda2": 0.9249,
+      "stations": [
+        "GE.ISP",
+        "GE.CSS"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-01-31",
+      "datetime": "2023-01-31T13:17:35",
+      "days_before_event": 5.5,
+      "segment": "eaf_north",
+      "l2_l1": 0.9497,
+      "lambda1": 1.026,
+      "lambda2": 0.9744,
+      "stations": [
+        "IU.ANTO",
+        "GE.ISP"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-01-31",
+      "datetime": "2023-01-31T13:17:35",
+      "days_before_event": 5.5,
+      "segment": "eaf_south",
+      "l2_l1": 0.9378,
+      "lambda1": 1.0324,
+      "lambda2": 0.9681,
+      "stations": [
+        "GE.ISP",
+        "GE.CSS"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-01-31",
+      "datetime": "2023-01-31T19:17:35",
+      "days_before_event": 5.25,
+      "segment": "eaf_north",
+      "l2_l1": 0.9556,
+      "lambda1": 1.0228,
+      "lambda2": 0.9774,
+      "stations": [
+        "IU.ANTO",
+        "GE.ISP"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-01-31",
+      "datetime": "2023-01-31T19:17:35",
+      "days_before_event": 5.25,
+      "segment": "eaf_south",
+      "l2_l1": 0.9414,
+      "lambda1": 1.0304,
+      "lambda2": 0.97,
+      "stations": [
+        "GE.ISP",
+        "GE.CSS"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-02-01",
+      "datetime": "2023-02-01T01:17:35",
+      "days_before_event": 5.0,
+      "segment": "eaf_north",
+      "l2_l1": 0.9878,
+      "lambda1": 1.0061,
+      "lambda2": 0.9939,
+      "stations": [
+        "IU.ANTO",
+        "GE.ISP"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-02-01",
+      "datetime": "2023-02-01T01:17:35",
+      "days_before_event": 5.0,
+      "segment": "eaf_south",
+      "l2_l1": 0.9601,
+      "lambda1": 1.0205,
+      "lambda2": 0.9797,
+      "stations": [
+        "GE.ISP",
+        "GE.CSS"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-02-01",
+      "datetime": "2023-02-01T07:17:35",
+      "days_before_event": 4.75,
+      "segment": "eaf_north",
+      "l2_l1": 0.9566,
+      "lambda1": 1.0223,
+      "lambda2": 0.978,
+      "stations": [
+        "IU.ANTO",
+        "GE.ISP"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-02-01",
+      "datetime": "2023-02-01T07:17:35",
+      "days_before_event": 4.75,
+      "segment": "eaf_south",
+      "l2_l1": 0.9158,
+      "lambda1": 1.0444,
+      "lambda2": 0.9565,
+      "stations": [
+        "GE.ISP",
+        "GE.CSS"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-02-01",
+      "datetime": "2023-02-01T13:17:35",
+      "days_before_event": 4.5,
+      "segment": "eaf_north",
+      "l2_l1": 0.9743,
+      "lambda1": 1.013,
+      "lambda2": 0.987,
+      "stations": [
+        "IU.ANTO",
+        "GE.ISP"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-02-01",
+      "datetime": "2023-02-01T13:17:35",
+      "days_before_event": 4.5,
+      "segment": "eaf_south",
+      "l2_l1": 0.9966,
+      "lambda1": 1.0017,
+      "lambda2": 0.9983,
+      "stations": [
+        "GE.ISP",
+        "GE.CSS"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-02-01",
+      "datetime": "2023-02-01T19:17:35",
+      "days_before_event": 4.25,
+      "segment": "eaf_north",
+      "l2_l1": 0.9921,
+      "lambda1": 1.004,
+      "lambda2": 0.9961,
+      "stations": [
+        "IU.ANTO",
+        "GE.ISP"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-02-01",
+      "datetime": "2023-02-01T19:17:35",
+      "days_before_event": 4.25,
+      "segment": "eaf_south",
+      "l2_l1": 0.9163,
+      "lambda1": 1.0442,
+      "lambda2": 0.9568,
+      "stations": [
+        "GE.ISP",
+        "GE.CSS"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-02-02",
+      "datetime": "2023-02-02T01:17:35",
+      "days_before_event": 4.0,
+      "segment": "eaf_north",
+      "l2_l1": 0.991,
+      "lambda1": 1.0045,
+      "lambda2": 0.9955,
+      "stations": [
+        "IU.ANTO",
+        "GE.ISP"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-02-02",
+      "datetime": "2023-02-02T01:17:35",
+      "days_before_event": 4.0,
+      "segment": "eaf_south",
+      "l2_l1": 0.8938,
+      "lambda1": 1.0569,
+      "lambda2": 0.9446,
+      "stations": [
+        "GE.ISP",
+        "GE.CSS"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-02-02",
+      "datetime": "2023-02-02T07:17:35",
+      "days_before_event": 3.75,
+      "segment": "eaf_north",
+      "l2_l1": 0.9921,
+      "lambda1": 1.004,
+      "lambda2": 0.996,
+      "stations": [
+        "IU.ANTO",
+        "GE.ISP"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-02-02",
+      "datetime": "2023-02-02T07:17:35",
+      "days_before_event": 3.75,
+      "segment": "eaf_south",
+      "l2_l1": 0.9314,
+      "lambda1": 1.0359,
+      "lambda2": 0.9648,
+      "stations": [
+        "GE.ISP",
+        "GE.CSS"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-02-02",
+      "datetime": "2023-02-02T13:17:35",
+      "days_before_event": 3.5,
+      "segment": "eaf_north",
+      "l2_l1": 0.9188,
+      "lambda1": 1.0428,
+      "lambda2": 0.9581,
+      "stations": [
+        "IU.ANTO",
+        "GE.ISP"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-02-02",
+      "datetime": "2023-02-02T13:17:35",
+      "days_before_event": 3.5,
+      "segment": "eaf_south",
+      "l2_l1": 0.9671,
+      "lambda1": 1.0168,
+      "lambda2": 0.9834,
+      "stations": [
+        "GE.ISP",
+        "GE.CSS"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-02-02",
+      "datetime": "2023-02-02T19:17:35",
+      "days_before_event": 3.25,
+      "segment": "eaf_north",
+      "l2_l1": 0.9247,
+      "lambda1": 1.0395,
+      "lambda2": 0.9612,
+      "stations": [
+        "IU.ANTO",
+        "GE.ISP"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-02-02",
+      "datetime": "2023-02-02T19:17:35",
+      "days_before_event": 3.25,
+      "segment": "eaf_south",
+      "l2_l1": 0.945,
+      "lambda1": 1.0285,
+      "lambda2": 0.9719,
+      "stations": [
+        "GE.ISP",
+        "GE.CSS"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-02-03",
+      "datetime": "2023-02-03T01:17:35",
+      "days_before_event": 3.0,
+      "segment": "eaf_north",
+      "l2_l1": 0.9688,
+      "lambda1": 1.0159,
+      "lambda2": 0.9842,
+      "stations": [
+        "IU.ANTO",
+        "GE.ISP"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-02-03",
+      "datetime": "2023-02-03T01:17:35",
+      "days_before_event": 3.0,
+      "segment": "eaf_south",
+      "l2_l1": 0.9085,
+      "lambda1": 1.0485,
+      "lambda2": 0.9526,
+      "stations": [
+        "GE.ISP",
+        "GE.CSS"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-02-03",
+      "datetime": "2023-02-03T07:17:35",
+      "days_before_event": 2.75,
+      "segment": "eaf_north",
+      "l2_l1": 0.9539,
+      "lambda1": 1.0237,
+      "lambda2": 0.9766,
+      "stations": [
+        "IU.ANTO",
+        "GE.ISP"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-02-03",
+      "datetime": "2023-02-03T07:17:35",
+      "days_before_event": 2.75,
+      "segment": "eaf_south",
+      "l2_l1": 0.9942,
+      "lambda1": 1.0029,
+      "lambda2": 0.9971,
+      "stations": [
+        "GE.ISP",
+        "GE.CSS"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-02-03",
+      "datetime": "2023-02-03T13:17:35",
+      "days_before_event": 2.5,
+      "segment": "eaf_north",
+      "l2_l1": 0.9442,
+      "lambda1": 1.0289,
+      "lambda2": 0.9715,
+      "stations": [
+        "IU.ANTO",
+        "GE.ISP"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-02-03",
+      "datetime": "2023-02-03T13:17:35",
+      "days_before_event": 2.5,
+      "segment": "eaf_south",
+      "l2_l1": 0.9536,
+      "lambda1": 1.0239,
+      "lambda2": 0.9764,
+      "stations": [
+        "GE.ISP",
+        "GE.CSS"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-02-03",
+      "datetime": "2023-02-03T19:17:35",
+      "days_before_event": 2.25,
+      "segment": "eaf_north",
+      "l2_l1": 0.9674,
+      "lambda1": 1.0166,
+      "lambda2": 0.9835,
+      "stations": [
+        "IU.ANTO",
+        "GE.ISP"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-02-03",
+      "datetime": "2023-02-03T19:17:35",
+      "days_before_event": 2.25,
+      "segment": "eaf_south",
+      "l2_l1": 0.8728,
+      "lambda1": 1.0692,
+      "lambda2": 0.9331,
+      "stations": [
+        "GE.ISP",
+        "GE.CSS"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-02-04",
+      "datetime": "2023-02-04T01:17:35",
+      "days_before_event": 2.0,
+      "segment": "eaf_north",
+      "l2_l1": 0.9869,
+      "lambda1": 1.0066,
+      "lambda2": 0.9934,
+      "stations": [
+        "IU.ANTO",
+        "GE.ISP"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-02-04",
+      "datetime": "2023-02-04T01:17:35",
+      "days_before_event": 2.0,
+      "segment": "eaf_south",
+      "l2_l1": 0.8643,
+      "lambda1": 1.0742,
+      "lambda2": 0.9285,
+      "stations": [
+        "GE.ISP",
+        "GE.CSS"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-02-04",
+      "datetime": "2023-02-04T07:17:35",
+      "days_before_event": 1.75,
+      "segment": "eaf_north",
+      "l2_l1": 0.9677,
+      "lambda1": 1.0165,
+      "lambda2": 0.9837,
+      "stations": [
+        "IU.ANTO",
+        "GE.ISP"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-02-04",
+      "datetime": "2023-02-04T07:17:35",
+      "days_before_event": 1.75,
+      "segment": "eaf_south",
+      "l2_l1": 0.9742,
+      "lambda1": 1.0131,
+      "lambda2": 0.987,
+      "stations": [
+        "GE.ISP",
+        "GE.CSS"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-02-04",
+      "datetime": "2023-02-04T13:17:35",
+      "days_before_event": 1.5,
+      "segment": "eaf_north",
+      "l2_l1": 0.7006,
+      "lambda1": 1.1853,
+      "lambda2": 0.8305,
+      "stations": [
+        "IU.ANTO",
+        "GE.ISP"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-02-04",
+      "datetime": "2023-02-04T13:17:35",
+      "days_before_event": 1.5,
+      "segment": "eaf_south",
+      "l2_l1": 0.8396,
+      "lambda1": 1.0893,
+      "lambda2": 0.9146,
+      "stations": [
+        "GE.ISP",
+        "GE.CSS"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-02-04",
+      "datetime": "2023-02-04T19:17:35",
+      "days_before_event": 1.25,
+      "segment": "eaf_north",
+      "l2_l1": 0.4993,
+      "lambda1": 1.3734,
+      "lambda2": 0.6857,
+      "stations": [
+        "IU.ANTO",
+        "GE.ISP"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-02-04",
+      "datetime": "2023-02-04T19:17:35",
+      "days_before_event": 1.25,
+      "segment": "eaf_south",
+      "l2_l1": 0.5459,
+      "lambda1": 1.323,
+      "lambda2": 0.7222,
+      "stations": [
+        "GE.ISP",
+        "GE.CSS"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-02-05",
+      "datetime": "2023-02-05T01:17:35",
+      "days_before_event": 1.0,
+      "segment": "eaf_north",
+      "l2_l1": 0.8199,
+      "lambda1": 1.1017,
+      "lambda2": 0.9032,
+      "stations": [
+        "IU.ANTO",
+        "GE.ISP"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-02-05",
+      "datetime": "2023-02-05T01:17:35",
+      "days_before_event": 1.0,
+      "segment": "eaf_south",
+      "l2_l1": 0.7439,
+      "lambda1": 1.1531,
+      "lambda2": 0.8578,
+      "stations": [
+        "GE.ISP",
+        "GE.CSS"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-02-05",
+      "datetime": "2023-02-05T07:17:35",
+      "days_before_event": 0.75,
+      "segment": "eaf_north",
+      "l2_l1": 0.0744,
+      "lambda1": 2.4694,
+      "lambda2": 0.1837,
+      "stations": [
+        "IU.ANTO",
+        "GE.ISP"
+      ],
+      "tier": "CRITICAL"
+    },
+    {
+      "date": "2023-02-05",
+      "datetime": "2023-02-05T07:17:35",
+      "days_before_event": 0.75,
+      "segment": "eaf_south",
+      "l2_l1": 0.4041,
+      "lambda1": 1.495,
+      "lambda2": 0.6042,
+      "stations": [
+        "GE.ISP",
+        "GE.CSS"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2023-02-05",
+      "datetime": "2023-02-05T13:17:35",
+      "days_before_event": 0.5,
+      "segment": "eaf_north",
+      "l2_l1": 0.0808,
+      "lambda1": 2.4255,
+      "lambda2": 0.1959,
+      "stations": [
+        "IU.ANTO",
+        "GE.ISP"
+      ],
+      "tier": "ELEVATED"
+    },
+    {
+      "date": "2023-02-05",
+      "datetime": "2023-02-05T13:17:35",
+      "days_before_event": 0.5,
+      "segment": "eaf_south",
+      "l2_l1": 0.0936,
+      "lambda1": 2.3452,
+      "lambda2": 0.2196,
+      "stations": [
+        "GE.ISP",
+        "GE.CSS"
+      ],
+      "tier": "ELEVATED"
+    }
+  ],
+  "notes": "Using GEOFON (GE) network. KOERI (KO) would be better but may be restricted."
+}

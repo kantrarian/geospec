@@ -1,0 +1,798 @@
+{
+  "event_key": "ridgecrest_2019",
+  "event": {
+    "name": "Eastern California Shear Zone",
+    "date": "2019-07-06T03:19:53",
+    "magnitude": 7.1
+  },
+  "data_source": {
+    "segments": [
+      "ridgecrest_main",
+      "garlock_junction"
+    ],
+    "fetch_date": "2026-01-15T00:21:15.469370",
+    "window_hours": 24,
+    "step_hours": 6
+  },
+  "statistics": {
+    "baseline_mean": 0.1129,
+    "baseline_std": 0.2348,
+    "min_l2_l1": 0.002,
+    "min_date": "2019-06-27T09:19:53",
+    "n_elevated": 7,
+    "n_critical": 28
+  },
+  "timeseries": [
+    {
+      "date": "2019-06-22",
+      "datetime": "2019-06-22T03:19:53",
+      "days_before_event": 14.0,
+      "segment": "ridgecrest_main",
+      "l2_l1": 0.1934,
+      "lambda1": 1.9296,
+      "lambda2": 0.3732,
+      "stations": [
+        "CI.WBS",
+        "CI.SLA"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2019-06-22",
+      "datetime": "2019-06-22T09:19:53",
+      "days_before_event": 13.75,
+      "segment": "ridgecrest_main",
+      "l2_l1": 0.0188,
+      "lambda1": 3.0937,
+      "lambda2": 0.0581,
+      "stations": [
+        "CI.WBS",
+        "CI.SLA"
+      ],
+      "tier": "CRITICAL"
+    },
+    {
+      "date": "2019-06-22",
+      "datetime": "2019-06-22T15:19:53",
+      "days_before_event": 13.5,
+      "segment": "ridgecrest_main",
+      "l2_l1": 0.0184,
+      "lambda1": 3.102,
+      "lambda2": 0.057,
+      "stations": [
+        "CI.WBS",
+        "CI.SLA"
+      ],
+      "tier": "CRITICAL"
+    },
+    {
+      "date": "2019-06-22",
+      "datetime": "2019-06-22T21:19:53",
+      "days_before_event": 13.25,
+      "segment": "ridgecrest_main",
+      "l2_l1": 0.0184,
+      "lambda1": 3.102,
+      "lambda2": 0.057,
+      "stations": [
+        "CI.WBS",
+        "CI.SLA"
+      ],
+      "tier": "CRITICAL"
+    },
+    {
+      "date": "2019-06-23",
+      "datetime": "2019-06-23T03:19:53",
+      "days_before_event": 13.0,
+      "segment": "ridgecrest_main",
+      "l2_l1": 0.0183,
+      "lambda1": 3.1039,
+      "lambda2": 0.0567,
+      "stations": [
+        "CI.WBS",
+        "CI.SLA"
+      ],
+      "tier": "CRITICAL"
+    },
+    {
+      "date": "2019-06-23",
+      "datetime": "2019-06-23T09:19:53",
+      "days_before_event": 12.75,
+      "segment": "ridgecrest_main",
+      "l2_l1": 0.0087,
+      "lambda1": 3.3463,
+      "lambda2": 0.0291,
+      "stations": [
+        "CI.WBS",
+        "CI.SLA"
+      ],
+      "tier": "CRITICAL"
+    },
+    {
+      "date": "2019-06-23",
+      "datetime": "2019-06-23T15:19:53",
+      "days_before_event": 12.5,
+      "segment": "ridgecrest_main",
+      "l2_l1": 0.0084,
+      "lambda1": 3.3566,
+      "lambda2": 0.0282,
+      "stations": [
+        "CI.WBS",
+        "CI.SLA"
+      ],
+      "tier": "CRITICAL"
+    },
+    {
+      "date": "2019-06-23",
+      "datetime": "2019-06-23T21:19:53",
+      "days_before_event": 12.25,
+      "segment": "ridgecrest_main",
+      "l2_l1": 0.0084,
+      "lambda1": 3.3576,
+      "lambda2": 0.0281,
+      "stations": [
+        "CI.WBS",
+        "CI.SLA"
+      ],
+      "tier": "CRITICAL"
+    },
+    {
+      "date": "2019-06-24",
+      "datetime": "2019-06-24T03:19:53",
+      "days_before_event": 12.0,
+      "segment": "ridgecrest_main",
+      "l2_l1": 0.0079,
+      "lambda1": 3.3719,
+      "lambda2": 0.0268,
+      "stations": [
+        "CI.WBS",
+        "CI.SLA"
+      ],
+      "tier": "CRITICAL"
+    },
+    {
+      "date": "2019-06-24",
+      "datetime": "2019-06-24T09:19:53",
+      "days_before_event": 11.75,
+      "segment": "ridgecrest_main",
+      "l2_l1": 0.0062,
+      "lambda1": 3.4387,
+      "lambda2": 0.0212,
+      "stations": [
+        "CI.WBS",
+        "CI.SLA"
+      ],
+      "tier": "CRITICAL"
+    },
+    {
+      "date": "2019-06-24",
+      "datetime": "2019-06-24T15:19:53",
+      "days_before_event": 11.5,
+      "segment": "ridgecrest_main",
+      "l2_l1": 0.0755,
+      "lambda1": 2.4618,
+      "lambda2": 0.1858,
+      "stations": [
+        "CI.WBS",
+        "CI.SLA"
+      ],
+      "tier": "CRITICAL"
+    },
+    {
+      "date": "2019-06-24",
+      "datetime": "2019-06-24T21:19:53",
+      "days_before_event": 11.25,
+      "segment": "ridgecrest_main",
+      "l2_l1": 0.0639,
+      "lambda1": 2.5483,
+      "lambda2": 0.163,
+      "stations": [
+        "CI.WBS",
+        "CI.SLA"
+      ],
+      "tier": "CRITICAL"
+    },
+    {
+      "date": "2019-06-25",
+      "datetime": "2019-06-25T03:19:53",
+      "days_before_event": 11.0,
+      "segment": "ridgecrest_main",
+      "l2_l1": 0.0213,
+      "lambda1": 3.0456,
+      "lambda2": 0.0649,
+      "stations": [
+        "CI.WBS",
+        "CI.SLA"
+      ],
+      "tier": "CRITICAL"
+    },
+    {
+      "date": "2019-06-25",
+      "datetime": "2019-06-25T09:19:53",
+      "days_before_event": 10.75,
+      "segment": "ridgecrest_main",
+      "l2_l1": 0.0175,
+      "lambda1": 3.1196,
+      "lambda2": 0.0546,
+      "stations": [
+        "CI.WBS",
+        "CI.SLA"
+      ],
+      "tier": "CRITICAL"
+    },
+    {
+      "date": "2019-06-25",
+      "datetime": "2019-06-25T15:19:53",
+      "days_before_event": 10.5,
+      "segment": "ridgecrest_main",
+      "l2_l1": 0.0158,
+      "lambda1": 3.1574,
+      "lambda2": 0.0498,
+      "stations": [
+        "CI.WBS",
+        "CI.SLA"
+      ],
+      "tier": "CRITICAL"
+    },
+    {
+      "date": "2019-06-25",
+      "datetime": "2019-06-25T21:19:53",
+      "days_before_event": 10.25,
+      "segment": "ridgecrest_main",
+      "l2_l1": 0.0155,
+      "lambda1": 3.1632,
+      "lambda2": 0.049,
+      "stations": [
+        "CI.WBS",
+        "CI.SLA"
+      ],
+      "tier": "CRITICAL"
+    },
+    {
+      "date": "2019-06-26",
+      "datetime": "2019-06-26T03:19:53",
+      "days_before_event": 10.0,
+      "segment": "ridgecrest_main",
+      "l2_l1": 0.0126,
+      "lambda1": 3.2332,
+      "lambda2": 0.0408,
+      "stations": [
+        "CI.WBS",
+        "CI.SLA"
+      ],
+      "tier": "CRITICAL"
+    },
+    {
+      "date": "2019-06-26",
+      "datetime": "2019-06-26T09:19:53",
+      "days_before_event": 9.75,
+      "segment": "ridgecrest_main",
+      "l2_l1": 0.4289,
+      "lambda1": 1.4605,
+      "lambda2": 0.6264,
+      "stations": [
+        "CI.WBS",
+        "CI.SLA"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2019-06-26",
+      "datetime": "2019-06-26T15:19:53",
+      "days_before_event": 9.5,
+      "segment": "ridgecrest_main",
+      "l2_l1": 0.0024,
+      "lambda1": 3.6372,
+      "lambda2": 0.0086,
+      "stations": [
+        "CI.WBS",
+        "CI.SLA"
+      ],
+      "tier": "CRITICAL"
+    },
+    {
+      "date": "2019-06-26",
+      "datetime": "2019-06-26T21:19:53",
+      "days_before_event": 9.25,
+      "segment": "ridgecrest_main",
+      "l2_l1": 0.0022,
+      "lambda1": 3.6487,
+      "lambda2": 0.0081,
+      "stations": [
+        "CI.WBS",
+        "CI.SLA"
+      ],
+      "tier": "CRITICAL"
+    },
+    {
+      "date": "2019-06-27",
+      "datetime": "2019-06-27T03:19:53",
+      "days_before_event": 9.0,
+      "segment": "ridgecrest_main",
+      "l2_l1": 0.0021,
+      "lambda1": 3.6549,
+      "lambda2": 0.0078,
+      "stations": [
+        "CI.WBS",
+        "CI.SLA"
+      ],
+      "tier": "CRITICAL"
+    },
+    {
+      "date": "2019-06-27",
+      "datetime": "2019-06-27T09:19:53",
+      "days_before_event": 8.75,
+      "segment": "ridgecrest_main",
+      "l2_l1": 0.002,
+      "lambda1": 3.6642,
+      "lambda2": 0.0074,
+      "stations": [
+        "CI.WBS",
+        "CI.SLA"
+      ],
+      "tier": "CRITICAL"
+    },
+    {
+      "date": "2019-06-27",
+      "datetime": "2019-06-27T15:19:53",
+      "days_before_event": 8.5,
+      "segment": "ridgecrest_main",
+      "l2_l1": 0.9697,
+      "lambda1": 1.0154,
+      "lambda2": 0.9847,
+      "stations": [
+        "CI.WBS",
+        "CI.SLA"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2019-06-27",
+      "datetime": "2019-06-27T21:19:53",
+      "days_before_event": 8.25,
+      "segment": "ridgecrest_main",
+      "l2_l1": 0.1055,
+      "lambda1": 2.279,
+      "lambda2": 0.2405,
+      "stations": [
+        "CI.WBS",
+        "CI.SLA"
+      ],
+      "tier": "ELEVATED"
+    },
+    {
+      "date": "2019-06-28",
+      "datetime": "2019-06-28T03:19:53",
+      "days_before_event": 8.0,
+      "segment": "ridgecrest_main",
+      "l2_l1": 0.1018,
+      "lambda1": 2.2989,
+      "lambda2": 0.2341,
+      "stations": [
+        "CI.WBS",
+        "CI.SLA"
+      ],
+      "tier": "ELEVATED"
+    },
+    {
+      "date": "2019-06-28",
+      "datetime": "2019-06-28T09:19:53",
+      "days_before_event": 7.75,
+      "segment": "ridgecrest_main",
+      "l2_l1": 0.0976,
+      "lambda1": 2.3223,
+      "lambda2": 0.2267,
+      "stations": [
+        "CI.WBS",
+        "CI.SLA"
+      ],
+      "tier": "ELEVATED"
+    },
+    {
+      "date": "2019-06-28",
+      "datetime": "2019-06-28T15:19:53",
+      "days_before_event": 7.5,
+      "segment": "ridgecrest_main",
+      "l2_l1": 0.0918,
+      "lambda1": 2.3563,
+      "lambda2": 0.2162,
+      "stations": [
+        "CI.WBS",
+        "CI.SLA"
+      ],
+      "tier": "ELEVATED"
+    },
+    {
+      "date": "2019-06-28",
+      "datetime": "2019-06-28T21:19:53",
+      "days_before_event": 7.25,
+      "segment": "ridgecrest_main",
+      "l2_l1": 0.8286,
+      "lambda1": 1.0961,
+      "lambda2": 0.9083,
+      "stations": [
+        "CI.WBS",
+        "CI.SLA"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2019-06-29",
+      "datetime": "2019-06-29T03:19:53",
+      "days_before_event": 7.0,
+      "segment": "ridgecrest_main",
+      "l2_l1": 0.8365,
+      "lambda1": 1.0912,
+      "lambda2": 0.9128,
+      "stations": [
+        "CI.WBS",
+        "CI.SLA"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2019-06-29",
+      "datetime": "2019-06-29T09:19:53",
+      "days_before_event": 6.75,
+      "segment": "ridgecrest_main",
+      "l2_l1": 0.9527,
+      "lambda1": 1.0244,
+      "lambda2": 0.9759,
+      "stations": [
+        "CI.WBS",
+        "CI.SLA"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2019-06-29",
+      "datetime": "2019-06-29T15:19:53",
+      "days_before_event": 6.5,
+      "segment": "ridgecrest_main",
+      "l2_l1": 0.9303,
+      "lambda1": 1.0364,
+      "lambda2": 0.9642,
+      "stations": [
+        "CI.WBS",
+        "CI.SLA"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2019-06-29",
+      "datetime": "2019-06-29T21:19:53",
+      "days_before_event": 6.25,
+      "segment": "ridgecrest_main",
+      "l2_l1": 0.922,
+      "lambda1": 1.041,
+      "lambda2": 0.9598,
+      "stations": [
+        "CI.WBS",
+        "CI.SLA"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2019-06-30",
+      "datetime": "2019-06-30T03:19:53",
+      "days_before_event": 6.0,
+      "segment": "ridgecrest_main",
+      "l2_l1": 0.6012,
+      "lambda1": 1.269,
+      "lambda2": 0.763,
+      "stations": [
+        "CI.WBS",
+        "CI.SLA"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2019-06-30",
+      "datetime": "2019-06-30T09:19:53",
+      "days_before_event": 5.75,
+      "segment": "ridgecrest_main",
+      "l2_l1": 0.6127,
+      "lambda1": 1.2586,
+      "lambda2": 0.7711,
+      "stations": [
+        "CI.WBS",
+        "CI.SLA"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2019-06-30",
+      "datetime": "2019-06-30T15:19:53",
+      "days_before_event": 5.5,
+      "segment": "ridgecrest_main",
+      "l2_l1": 0.6312,
+      "lambda1": 1.2421,
+      "lambda2": 0.7841,
+      "stations": [
+        "CI.WBS",
+        "CI.SLA"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2019-06-30",
+      "datetime": "2019-06-30T21:19:53",
+      "days_before_event": 5.25,
+      "segment": "ridgecrest_main",
+      "l2_l1": 0.3433,
+      "lambda1": 1.5903,
+      "lambda2": 0.546,
+      "stations": [
+        "CI.WBS",
+        "CI.SLA"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2019-07-01",
+      "datetime": "2019-07-01T03:19:53",
+      "days_before_event": 5.0,
+      "segment": "ridgecrest_main",
+      "l2_l1": 0.3657,
+      "lambda1": 1.5532,
+      "lambda2": 0.5681,
+      "stations": [
+        "CI.WBS",
+        "CI.SLA"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2019-07-01",
+      "datetime": "2019-07-01T09:19:53",
+      "days_before_event": 4.75,
+      "segment": "ridgecrest_main",
+      "l2_l1": 0.1433,
+      "lambda1": 2.1047,
+      "lambda2": 0.3017,
+      "stations": [
+        "CI.WBS",
+        "CI.SLA"
+      ],
+      "tier": "ELEVATED"
+    },
+    {
+      "date": "2019-07-01",
+      "datetime": "2019-07-01T15:19:53",
+      "days_before_event": 4.5,
+      "segment": "ridgecrest_main",
+      "l2_l1": 0.183,
+      "lambda1": 1.9623,
+      "lambda2": 0.359,
+      "stations": [
+        "CI.WBS",
+        "CI.SLA"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2019-07-01",
+      "datetime": "2019-07-01T21:19:53",
+      "days_before_event": 4.25,
+      "segment": "ridgecrest_main",
+      "l2_l1": 0.2753,
+      "lambda1": 1.7207,
+      "lambda2": 0.4737,
+      "stations": [
+        "CI.WBS",
+        "CI.SLA"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2019-07-02",
+      "datetime": "2019-07-02T03:19:53",
+      "days_before_event": 4.0,
+      "segment": "ridgecrest_main",
+      "l2_l1": 0.359,
+      "lambda1": 1.5641,
+      "lambda2": 0.5615,
+      "stations": [
+        "CI.WBS",
+        "CI.SLA"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2019-07-02",
+      "datetime": "2019-07-02T09:19:53",
+      "days_before_event": 3.75,
+      "segment": "ridgecrest_main",
+      "l2_l1": 0.6115,
+      "lambda1": 1.2596,
+      "lambda2": 0.7703,
+      "stations": [
+        "CI.WBS",
+        "CI.SLA"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2019-07-02",
+      "datetime": "2019-07-02T15:19:53",
+      "days_before_event": 3.5,
+      "segment": "ridgecrest_main",
+      "l2_l1": 0.7098,
+      "lambda1": 1.1783,
+      "lambda2": 0.8364,
+      "stations": [
+        "CI.WBS",
+        "CI.SLA"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2019-07-02",
+      "datetime": "2019-07-02T21:19:53",
+      "days_before_event": 3.25,
+      "segment": "ridgecrest_main",
+      "l2_l1": 0.8362,
+      "lambda1": 1.0914,
+      "lambda2": 0.9126,
+      "stations": [
+        "CI.WBS",
+        "CI.SLA"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2019-07-03",
+      "datetime": "2019-07-03T03:19:53",
+      "days_before_event": 3.0,
+      "segment": "ridgecrest_main",
+      "l2_l1": 0.8493,
+      "lambda1": 1.0833,
+      "lambda2": 0.9201,
+      "stations": [
+        "CI.WBS",
+        "CI.SLA"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2019-07-03",
+      "datetime": "2019-07-03T09:19:53",
+      "days_before_event": 2.75,
+      "segment": "ridgecrest_main",
+      "l2_l1": 0.0273,
+      "lambda1": 2.9467,
+      "lambda2": 0.0803,
+      "stations": [
+        "CI.WBS",
+        "CI.SLA"
+      ],
+      "tier": "CRITICAL"
+    },
+    {
+      "date": "2019-07-03",
+      "datetime": "2019-07-03T15:19:53",
+      "days_before_event": 2.5,
+      "segment": "ridgecrest_main",
+      "l2_l1": 0.0273,
+      "lambda1": 2.9457,
+      "lambda2": 0.0805,
+      "stations": [
+        "CI.WBS",
+        "CI.SLA"
+      ],
+      "tier": "CRITICAL"
+    },
+    {
+      "date": "2019-07-03",
+      "datetime": "2019-07-03T21:19:53",
+      "days_before_event": 2.25,
+      "segment": "ridgecrest_main",
+      "l2_l1": 0.0434,
+      "lambda1": 2.7397,
+      "lambda2": 0.1189,
+      "stations": [
+        "CI.WBS",
+        "CI.SLA"
+      ],
+      "tier": "CRITICAL"
+    },
+    {
+      "date": "2019-07-04",
+      "datetime": "2019-07-04T03:19:53",
+      "days_before_event": 2.0,
+      "segment": "ridgecrest_main",
+      "l2_l1": 0.0434,
+      "lambda1": 2.7395,
+      "lambda2": 0.1189,
+      "stations": [
+        "CI.WBS",
+        "CI.SLA"
+      ],
+      "tier": "CRITICAL"
+    },
+    {
+      "date": "2019-07-04",
+      "datetime": "2019-07-04T09:19:53",
+      "days_before_event": 1.75,
+      "segment": "ridgecrest_main",
+      "l2_l1": 0.0434,
+      "lambda1": 2.7396,
+      "lambda2": 0.1189,
+      "stations": [
+        "CI.WBS",
+        "CI.SLA"
+      ],
+      "tier": "CRITICAL"
+    },
+    {
+      "date": "2019-07-04",
+      "datetime": "2019-07-04T15:19:53",
+      "days_before_event": 1.5,
+      "segment": "ridgecrest_main",
+      "l2_l1": 0.0484,
+      "lambda1": 2.6877,
+      "lambda2": 0.13,
+      "stations": [
+        "CI.WBS",
+        "CI.SLA"
+      ],
+      "tier": "CRITICAL"
+    },
+    {
+      "date": "2019-07-04",
+      "datetime": "2019-07-04T21:19:53",
+      "days_before_event": 1.25,
+      "segment": "ridgecrest_main",
+      "l2_l1": 0.1133,
+      "lambda1": 2.239,
+      "lambda2": 0.2537,
+      "stations": [
+        "CI.WBS",
+        "CI.SLA"
+      ],
+      "tier": "ELEVATED"
+    },
+    {
+      "date": "2019-07-05",
+      "datetime": "2019-07-05T03:19:53",
+      "days_before_event": 1.0,
+      "segment": "ridgecrest_main",
+      "l2_l1": 0.0929,
+      "lambda1": 2.3497,
+      "lambda2": 0.2182,
+      "stations": [
+        "CI.WBS",
+        "CI.SLA"
+      ],
+      "tier": "ELEVATED"
+    },
+    {
+      "date": "2019-07-05",
+      "datetime": "2019-07-05T09:19:53",
+      "days_before_event": 0.75,
+      "segment": "ridgecrest_main",
+      "l2_l1": 0.0239,
+      "lambda1": 3.0005,
+      "lambda2": 0.0717,
+      "stations": [
+        "CI.WBS",
+        "CI.SLA"
+      ],
+      "tier": "CRITICAL"
+    },
+    {
+      "date": "2019-07-05",
+      "datetime": "2019-07-05T15:19:53",
+      "days_before_event": 0.5,
+      "segment": "ridgecrest_main",
+      "l2_l1": 0.0223,
+      "lambda1": 3.0288,
+      "lambda2": 0.0674,
+      "stations": [
+        "CI.WBS",
+        "CI.SLA"
+      ],
+      "tier": "CRITICAL"
+    }
+  ],
+  "notes": "Best coverage - dense CI network in region. Already have cached FC data."
+}

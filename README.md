@@ -1,21 +1,21 @@
 ﻿# GeoSpec Ensemble Monitoring
 
-**Last Update**: 2026-01-12
+**Last Update**: 2026-01-13
 
 ## Current Status
 
 | Metric | Value |
 |--------|-------|
-| Highest Risk Region | campi_flegrei |
-| Risk Score | 0.182 |
+| Highest Risk Region | norcal_hayward |
+| Risk Score | 0.497 |
 | Regions Monitored | 9 |
 
 ### Tier Distribution
 
 | Tier | Count |
 |------|-------|
-| NORMAL (0) | 9 |
-| WATCH (1) | 0 |
+| NORMAL (0) | 4 |
+| WATCH (1) | 5 |
 | ELEVATED (2) | 0 |
 | CRITICAL (3) | 0 |
 

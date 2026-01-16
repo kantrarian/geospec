@@ -166,8 +166,14 @@ REGIONS = {
         'name': 'New Zealand (Kaikoura)',
         'thd_station': 'HSES',     # Hanmer Springs (GeoNet) - reliable broadband
         'thd_network': 'NZ',
-        'seismic_available': True, 
+        'seismic_available': True,
         'latency_days': 0,
+        # Fallback chain for when primary station unavailable
+        'fallback_station': 'WEL',    # Wellington (GeoNet) - reliable broadband
+        'fallback_network': 'NZ',
+        'fallback2_station': 'BKZ',   # Black Birch (GeoNet)
+        'fallback2_network': 'NZ',
+        'notes': 'NZ.HSES primary, NZ.WEL and NZ.BKZ as fallbacks',
     },
     'anchorage': {
         'name': 'Alaska (Anchorage)',
@@ -175,6 +181,12 @@ REGIONS = {
         'thd_network': 'AK',
         'seismic_available': True,
         'latency_days': 0,
+        # Fallback chain for when primary station unavailable
+        'fallback_station': 'COLA',   # College, AK (IU global) - very reliable
+        'fallback_network': 'IU',
+        'fallback2_station': 'BMR',   # Burnt Mountain (AK)
+        'fallback2_network': 'AK',
+        'notes': 'AK.SSL primary, IU.COLA (global) and AK.BMR as fallbacks',
     },
     'kumamoto': {
         'name': 'Japan (Kumamoto)',
@@ -233,12 +245,39 @@ def run_region_assessment(
         seismic_ok = use_seismic and config['seismic_available']
 
         if seismic_ok and config['thd_station']:
-            # Full ensemble
-            result = ensemble.compute_risk(
-                target_date,
-                thd_station=config['thd_station'],
-                thd_network=config.get('thd_network', 'CI')
-            )
+            # Build list of stations to try (primary + fallbacks)
+            stations_to_try = [
+                (config['thd_station'], config.get('thd_network', 'CI'))
+            ]
+            # Add fallback stations if defined
+            if config.get('fallback_station'):
+                stations_to_try.append(
+                    (config['fallback_station'], config.get('fallback_network', 'IU'))
+                )
+            if config.get('fallback2_station'):
+                stations_to_try.append(
+                    (config['fallback2_station'], config.get('fallback2_network', 'IU'))
+                )
+
+            # Try each station until we get THD data
+            result = None
+            for station_code, network_code in stations_to_try:
+                logger.debug(f"  Trying THD station {network_code}.{station_code}...")
+                result = ensemble.compute_risk(
+                    target_date,
+                    thd_station=station_code,
+                    thd_network=network_code
+                )
+                # Check if THD was successful
+                thd_component = result.components.get('seismic_thd')
+                if thd_component and thd_component.available:
+                    logger.info(f"  THD data obtained from {network_code}.{station_code}")
+                    break
+                else:
+                    logger.debug(f"  {network_code}.{station_code} returned no data, trying next...")
+
+            # Return best result we got (even if THD failed on all stations)
+            return result
         else:
             # Lambda_geo only
             lg_result = ensemble.compute_lambda_geo_risk(target_date)

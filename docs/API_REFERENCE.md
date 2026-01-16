@@ -79,16 +79,24 @@ st.write("waveforms.mseed", format="MSEED")
 ## 2. IGS Real-Time Service (RTS)
 
 **Purpose**: Real-time GNSS corrections for Lambda_geo (addresses 2-14 day NGL latency)
-**Status**: NOT YET INTEGRATED
+**Status**: CREDENTIALS OBTAINED - Connection verified January 2026
+
+### Connection Status (January 2026)
+- **User**: devilldog (credentials stored in `.env`)
+- **Verified casters**:
+  - `igs-ip.net:2101` - 352 streams (IGS, EUREF, MGEX networks)
+  - `products.igs-ip.net:2101` - 87 streams (corrections: IGS02, IGS03)
+  - `euref-ip.net:2101` - 211 streams (European stations)
+- **Test script**: `monitoring/src/test_ntrip_connection.py`
 
 ### Endpoint
 - Caster URL: `products.igs-ip.net:2101`
 - Protocol: NTRIP (Networked Transport of RTCM via Internet Protocol)
 
 ### Authentication
-- **Required**: Registration at https://igs.org/rts/user-access/
+- **Registered**: January 2026 via BKG
 - **Cost**: Free for non-commercial/research use
-- **Terms**: Must accept IGS terms of service
+- **Expires**: After 6 months of inactivity
 
 ### Connection (BKG NTRIP Client)
 

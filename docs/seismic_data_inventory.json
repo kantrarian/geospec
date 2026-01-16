@@ -1,0 +1,225 @@
+{
+  "metadata": {
+    "created": "2026-01-09",
+    "author": "R.J. Mathews",
+    "purpose": "Seismic station inventory for GeoSpec fault correlation monitoring",
+    "data_sources": {
+      "iris": {
+        "url": "https://service.iris.edu/fdsnws/",
+        "services": ["station/1/", "dataselect/1/", "event/1/"],
+        "notes": "Primary source for global and most regional networks"
+      },
+      "scedc": {
+        "url": "https://service.scedc.caltech.edu/fdsnws/",
+        "services": ["station/1/", "dataselect/1/"],
+        "notes": "Southern California data (CI network). Rate limits apply.",
+        "aws_bucket": "s3://scedc-pds/continuous_waveforms/"
+      },
+      "ncedc": {
+        "url": "https://service.ncedc.org/fdsnws/",
+        "services": ["station/1/", "dataselect/1/"],
+        "notes": "Northern California data (NC, BK networks)"
+      },
+      "nied_hinet": {
+        "url": "https://hinetwww11.bosai.go.jp/",
+        "notes": "Japan data. Requires registration. Not FDSN-compatible."
+      }
+    }
+  },
+  "regions": {
+    "ridgecrest": {
+      "description": "Ridgecrest fault zone (site of 2019 M7.1)",
+      "bounds": {
+        "lat_min": 35.0,
+        "lat_max": 36.5,
+        "lon_min": -118.5,
+        "lon_max": -117.0
+      },
+      "primary_client": "SCEDC",
+      "fallback_client": "IRIS",
+      "networks": ["CI"],
+      "preferred_channels": ["BHZ", "HHZ", "HNZ"],
+      "stations": [
+        {"code": "WBS", "network": "CI", "lat": 35.726, "lon": -117.943, "name": "Wells Road"},
+        {"code": "SLA", "network": "CI", "lat": 35.891, "lon": -117.283, "name": "Searles Lake"},
+        {"code": "CLC", "network": "CI", "lat": 35.816, "lon": -117.598, "name": "China Lake"},
+        {"code": "LRL", "network": "CI", "lat": 35.480, "lon": -117.682, "name": "Little Lake"},
+        {"code": "TOW2", "network": "CI", "lat": 35.812, "lon": -117.768, "name": "Towers"},
+        {"code": "CCC", "network": "CI", "lat": 35.525, "lon": -117.365, "name": "Coso Volcanic Fld"},
+        {"code": "JRC2", "network": "CI", "lat": 35.982, "lon": -117.808, "name": "Jawbone Ranch"},
+        {"code": "MPM", "network": "CI", "lat": 36.058, "lon": -117.489, "name": "Mono Mine"}
+      ],
+      "fault_segments": ["ridgecrest_mainshock", "airport_lake", "little_lake"],
+      "validation_events": [
+        {"date": "2019-07-04T17:33:49", "magnitude": 6.4, "type": "foreshock"},
+        {"date": "2019-07-06T03:19:53", "magnitude": 7.1, "type": "mainshock"}
+      ]
+    },
+    "socal_saf_mojave": {
+      "description": "Southern San Andreas Fault - Mojave segment",
+      "bounds": {
+        "lat_min": 34.0,
+        "lat_max": 36.0,
+        "lon_min": -118.5,
+        "lon_max": -116.5
+      },
+      "primary_client": "SCEDC",
+      "fallback_client": "IRIS",
+      "networks": ["CI", "AZ"],
+      "preferred_channels": ["BHZ", "HHZ"],
+      "stations": [
+        {"code": "PFO", "network": "CI", "lat": 33.611, "lon": -116.459, "name": "Pinon Flat Observatory"},
+        {"code": "DGR", "network": "CI", "lat": 33.650, "lon": -116.101, "name": "Durmid Hill"},
+        {"code": "BEL", "network": "CI", "lat": 34.001, "lon": -117.752, "name": "Bell Canyon"},
+        {"code": "GSC", "network": "CI", "lat": 35.302, "lon": -116.806, "name": "Goldstone"},
+        {"code": "RPV", "network": "CI", "lat": 33.745, "lon": -118.398, "name": "Rancho Palos Verdes"},
+        {"code": "SBC", "network": "CI", "lat": 34.441, "lon": -119.714, "name": "Santa Barbara"},
+        {"code": "VTV", "network": "CI", "lat": 34.567, "lon": -117.333, "name": "Victorville"},
+        {"code": "HEC", "network": "CI", "lat": 34.829, "lon": -116.335, "name": "Hector Mine"}
+      ],
+      "fault_segments": ["mojave_north", "mojave_central", "mojave_south", "san_bernardino"],
+      "validation_events": []
+    },
+    "socal_coachella": {
+      "description": "Coachella Valley segment of SAF",
+      "bounds": {
+        "lat_min": 33.0,
+        "lat_max": 34.5,
+        "lon_min": -117.0,
+        "lon_max": -115.5
+      },
+      "primary_client": "SCEDC",
+      "fallback_client": "IRIS",
+      "networks": ["CI", "AZ"],
+      "preferred_channels": ["BHZ", "HHZ"],
+      "stations": [
+        {"code": "BOR", "network": "CI", "lat": 33.263, "lon": -116.406, "name": "Borrego Air Ranch"},
+        {"code": "BC3", "network": "CI", "lat": 33.655, "lon": -115.455, "name": "Blythe"},
+        {"code": "BTC", "network": "CI", "lat": 33.990, "lon": -116.518, "name": "Butterfly Creek"},
+        {"code": "CTW", "network": "CI", "lat": 33.393, "lon": -116.638, "name": "Coyote Wells"},
+        {"code": "PSR", "network": "CI", "lat": 33.818, "lon": -116.555, "name": "Palm Springs"},
+        {"code": "RXH", "network": "CI", "lat": 33.182, "lon": -115.624, "name": "Ripley"},
+        {"code": "TRO", "network": "CI", "lat": 33.523, "lon": -116.425, "name": "Toro Peak"},
+        {"code": "WMC", "network": "CI", "lat": 33.573, "lon": -116.071, "name": "Wiley Well"}
+      ],
+      "fault_segments": ["coachella_north", "coachella_south", "brawley_seismic_zone"],
+      "validation_events": []
+    },
+    "norcal_hayward": {
+      "description": "Hayward-Rodgers Creek Fault System",
+      "bounds": {
+        "lat_min": 37.0,
+        "lat_max": 38.5,
+        "lon_min": -122.5,
+        "lon_max": -121.5
+      },
+      "primary_client": "NCEDC",
+      "fallback_client": "IRIS",
+      "networks": ["NC", "BK"],
+      "preferred_channels": ["BHZ", "HHZ"],
+      "stations": [
+        {"code": "BKS", "network": "BK", "lat": 37.876, "lon": -122.236, "name": "Berkeley"},
+        {"code": "CMB", "network": "BK", "lat": 38.035, "lon": -120.386, "name": "Columbia"},
+        {"code": "MCCM", "network": "NC", "lat": 38.145, "lon": -122.880, "name": "Marin County"},
+        {"code": "PACP", "network": "NC", "lat": 37.008, "lon": -121.287, "name": "Pacheco Peak"},
+        {"code": "WENL", "network": "NC", "lat": 37.622, "lon": -121.757, "name": "Wente Vineyards"},
+        {"code": "FARB", "network": "NC", "lat": 37.697, "lon": -123.001, "name": "Farallon Island"},
+        {"code": "HOPS", "network": "NC", "lat": 38.994, "lon": -123.072, "name": "Hopland"},
+        {"code": "JRSC", "network": "NC", "lat": 37.404, "lon": -122.239, "name": "Jasper Ridge"}
+      ],
+      "fault_segments": ["hayward_north", "hayward_south", "rodgers_creek", "calaveras"],
+      "validation_events": [
+        {"date": "1868-10-21", "magnitude": 6.8, "type": "historical"},
+        {"date": "1906-04-18", "magnitude": 7.9, "type": "san_andreas_rupture"}
+      ]
+    },
+    "cascadia": {
+      "description": "Cascadia Subduction Zone",
+      "bounds": {
+        "lat_min": 45.0,
+        "lat_max": 49.0,
+        "lon_min": -125.0,
+        "lon_max": -122.0
+      },
+      "primary_client": "IRIS",
+      "fallback_client": null,
+      "networks": ["UW", "CN", "CC"],
+      "preferred_channels": ["BHZ", "HHZ"],
+      "stations": [
+        {"code": "LLLB", "network": "CN", "lat": 49.475, "lon": -123.233, "name": "Lillooet Lake"},
+        {"code": "GOBB", "network": "CN", "lat": 49.317, "lon": -121.878, "name": "Goble Creek"},
+        {"code": "PHC", "network": "CN", "lat": 50.709, "lon": -127.429, "name": "Port Hardy"},
+        {"code": "WALA", "network": "CN", "lat": 49.071, "lon": -125.437, "name": "Walters Point"},
+        {"code": "ALBH", "network": "PB", "lat": 48.390, "lon": -123.488, "name": "Albert Head"},
+        {"code": "LON", "network": "UW", "lat": 46.750, "lon": -121.810, "name": "Longmire"},
+        {"code": "STOR", "network": "UW", "lat": 45.894, "lon": -122.206, "name": "St. Helens"},
+        {"code": "PCEP", "network": "UW", "lat": 47.050, "lon": -122.890, "name": "Pacific Beach"}
+      ],
+      "fault_segments": ["vancouver_island", "puget_sound", "olympic_peninsula", "columbia_river"],
+      "validation_events": [
+        {"date": "1700-01-26", "magnitude": 9.0, "type": "great_earthquake"}
+      ]
+    },
+    "tokyo_kanto": {
+      "description": "Tokyo Metropolitan / Kanto Plain",
+      "bounds": {
+        "lat_min": 35.0,
+        "lat_max": 37.0,
+        "lon_min": 139.0,
+        "lon_max": 141.0
+      },
+      "primary_client": "NIED_HINET",
+      "fallback_client": "IRIS",
+      "networks": ["N."],
+      "preferred_channels": ["U"],
+      "stations": [],
+      "notes": "Requires NIED Hi-net registration. Station list populated after access granted.",
+      "fault_segments": ["sagami_trough", "tokyo_bay", "kanto_fragment"],
+      "validation_events": [
+        {"date": "2011-03-11", "magnitude": 9.0, "type": "tohoku_precursor_region"},
+        {"date": "1923-09-01", "magnitude": 7.9, "type": "great_kanto"}
+      ]
+    },
+    "istanbul_marmara": {
+      "description": "Istanbul - Marmara Sea Region (North Anatolian Fault)",
+      "bounds": {
+        "lat_min": 40.0,
+        "lat_max": 42.0,
+        "lon_min": 27.0,
+        "lon_max": 31.0
+      },
+      "primary_client": "IRIS",
+      "fallback_client": null,
+      "networks": ["KO", "TU", "HL"],
+      "preferred_channels": ["BHZ", "HHZ"],
+      "stations": [
+        {"code": "ISK", "network": "KO", "lat": 41.069, "lon": 29.062, "name": "Istanbul"},
+        {"code": "ADVT", "network": "KO", "lat": 40.467, "lon": 26.744, "name": "Adapazari"},
+        {"code": "CSS", "network": "II", "lat": 34.995, "lon": 33.331, "name": "Cyprus"},
+        {"code": "BNR", "network": "KO", "lat": 40.469, "lon": 29.491, "name": "Bandirma"},
+        {"code": "GADA", "network": "KO", "lat": 40.367, "lon": 26.904, "name": "Gallipoli"},
+        {"code": "SAUV", "network": "TU", "lat": 40.740, "lon": 30.377, "name": "Sakarya"}
+      ],
+      "fault_segments": ["marmara_north", "marmara_central", "izmit", "duzce"],
+      "validation_events": [
+        {"date": "2023-02-06", "magnitude": 7.8, "type": "kahramanmaras"},
+        {"date": "1999-08-17", "magnitude": 7.6, "type": "izmit"}
+      ]
+    }
+  },
+  "channel_codes": {
+    "BHZ": {"description": "Broadband High-gain Vertical", "sample_rate": "20-80 Hz", "use": "preferred"},
+    "HHZ": {"description": "High Broadband Vertical", "sample_rate": "80-250 Hz", "use": "high_res"},
+    "HNZ": {"description": "High-gain Accelerometer Vertical", "sample_rate": "80-250 Hz", "use": "strong_motion"},
+    "LHZ": {"description": "Long-period Vertical", "sample_rate": "1 Hz", "use": "teleseismic"},
+    "EHZ": {"description": "Short-period Vertical", "sample_rate": "80-250 Hz", "use": "local"}
+  },
+  "processing_parameters": {
+    "correlation_window_hours": 24,
+    "correlation_step_hours": 6,
+    "bandpass_filter_hz": [0.01, 1.0],
+    "decimate_to_hz": 1.0,
+    "min_stations_per_segment": 3,
+    "cache_ttl_days": 7
+  }
+}

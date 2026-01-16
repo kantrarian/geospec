@@ -1,0 +1,81 @@
+# GeoSpec Backtest Acceptance Criteria
+#
+# These criteria must be met for a backtest to be considered acceptable.
+# Used by verify_backtest.py to gate deployment.
+#
+# Author: R.J. Mathews / Claude
+# Date: January 2026
+# Version: 1.0.0
+
+version: "1.0.0"
+
+# =============================================================================
+# PERFORMANCE METRICS
+# =============================================================================
+
+# False Alarm Rate (FAR)
+# Maximum false Tier-2 (ELEVATED+) alerts per year globally across all regions.
+# Target from MONITORING_SPECIFICATION_v2: ≤1 per year
+max_tier2_false_alarms_per_year: 1.0
+
+# Hit Rate
+# Minimum fraction of M6+ events that were detected (Tier >= ELEVATED within lead window).
+# A hit is defined as having ELEVATED or higher tier within 7 days before the event.
+# 60% hit rate is aggressive for a research system but achievable with good calibration.
+min_hit_rate: 0.60
+
+# Precision
+# Minimum fraction of ELEVATED+ alerts that were true positives.
+# precision = hits / (hits + false_alarms)
+# 30% precision means ~3 false alarms per true detection - acceptable for research.
+min_precision: 0.30
+
+# Time in Warning
+# Maximum fraction of region-days spent at WATCH or higher tier.
+# If too high, the system is always "crying wolf" and alerts lose meaning.
+# <15% means most days are NORMAL, with occasional elevated periods.
+max_time_in_warning: 0.15
+
+# =============================================================================
+# DATA QUALITY METRICS
+# =============================================================================
+
+# Baseline Coverage
+# Minimum fraction of region-days with valid baseline data.
+# 80% coverage means most days have proper baseline context for anomaly detection.
+min_baseline_coverage: 0.80
+
+# Missing Baselines
+# If true, all configured stations must have calibrated baselines.
+# Prevents running with "estimate" baselines that cause z-score saturation.
+no_missing_baselines: true
+
+# =============================================================================
+# STATISTICAL SIGNIFICANCE
+# =============================================================================
+
+# Minimum Events
+# Minimum number of scoreable events (after aftershock exclusion) for meaningful statistics.
+# With too few events, hit rate and precision are unreliable.
+min_events_scored: 1
+
+# =============================================================================
+# NOTES
+# =============================================================================
+#
+# These criteria balance scientific rigor with practical constraints:
+#
+# 1. FAR Budget: 1/year is the spec requirement. With Bonferroni correction across
+#    9 regions × 365 days = 3285 tests, this requires per-test α ≈ 0.0003.
+#
+# 2. Hit Rate: 60% is optimistic but based on retrospective validation showing
+#    elevated precursors before major events (Ridgecrest, Kahramanmaras).
+#
+# 3. Precision: 30% is low by alerting standards but acceptable for research.
+#    The ensemble provides "watch" level awareness, not operational alerts.
+#
+# 4. Time in Warning: <15% ensures the system isn't always elevated, which would
+#    make tier information meaningless. This roughly matches base rate of
+#    seismically active periods in monitored regions.
+#
+# Criteria may be adjusted as more validation data becomes available.

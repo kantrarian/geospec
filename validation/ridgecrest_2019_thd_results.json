@@ -1,0 +1,366 @@
+{
+  "event": "Ridgecrest 2019 M7.1",
+  "foreshock": "2019-07-04T10:33:00",
+  "mainshock": "2019-07-06T03:19:00",
+  "data_range": {
+    "start": "20190619",
+    "end": "20190705"
+  },
+  "baseline_period": {
+    "start": "20190619",
+    "end": "20190630",
+    "n_days": 11
+  },
+  "pre_event_period": {
+    "start": "20190701",
+    "end": "20190705",
+    "n_days": 5
+  },
+  "daily_results": [
+    {
+      "date": "20190619",
+      "stations": {
+        "CI.WBS": {
+          "thd": 0.6033099261684445,
+          "snr": 16997.46767181234,
+          "is_elevated": true,
+          "is_critical": true
+        },
+        "CI.SLA": {
+          "thd": 0.349129919492007,
+          "snr": 289303.7004314271,
+          "is_elevated": true,
+          "is_critical": true
+        },
+        "CI.CLC": {
+          "thd": 0.11423079488258964,
+          "snr": 2244224260.1440563,
+          "is_elevated": true,
+          "is_critical": false
+        }
+      }
+    },
+    {
+      "date": "20190621",
+      "stations": {
+        "CI.WBS": {
+          "thd": 0.17273241419734836,
+          "snr": 108452.11151417972,
+          "is_elevated": true,
+          "is_critical": true
+        },
+        "CI.SLA": {
+          "thd": 0.3299681826953968,
+          "snr": 971356.7925891326,
+          "is_elevated": true,
+          "is_critical": true
+        },
+        "CI.CLC": {
+          "thd": 0.08682213189431752,
+          "snr": 11250609259.151022,
+          "is_elevated": false,
+          "is_critical": false
+        }
+      }
+    },
+    {
+      "date": "20190622",
+      "stations": {
+        "CI.WBS": {
+          "thd": 0.20700803928779876,
+          "snr": 274969.04929706105,
+          "is_elevated": true,
+          "is_critical": true
+        },
+        "CI.SLA": {
+          "thd": 0.4751465937636959,
+          "snr": 140211.36335380535,
+          "is_elevated": true,
+          "is_critical": true
+        },
+        "CI.CLC": {
+          "thd": 0.11945966164245252,
+          "snr": 543357847.159767,
+          "is_elevated": true,
+          "is_critical": false
+        }
+      }
+    },
+    {
+      "date": "20190623",
+      "stations": {
+        "CI.WBS": {
+          "thd": 0.18439222414471726,
+          "snr": 11854963.210531184,
+          "is_elevated": true,
+          "is_critical": true
+        },
+        "CI.SLA": {
+          "thd": 0.48030444549938983,
+          "snr": 4656740.1829707185,
+          "is_elevated": true,
+          "is_critical": true
+        },
+        "CI.CLC": {
+          "thd": 0.10474535475812327,
+          "snr": 633420573.9855086,
+          "is_elevated": true,
+          "is_critical": false
+        }
+      }
+    },
+    {
+      "date": "20190624",
+      "stations": {
+        "CI.WBS": {
+          "thd": 0.13900294126326412,
+          "snr": 1114326.7145662026,
+          "is_elevated": true,
+          "is_critical": false
+        },
+        "CI.SLA": {
+          "thd": 0.38793909606507215,
+          "snr": 259774.84611995565,
+          "is_elevated": true,
+          "is_critical": true
+        },
+        "CI.CLC": {
+          "thd": 0.19804982496563636,
+          "snr": 13568873392.167906,
+          "is_elevated": true,
+          "is_critical": true
+        }
+      }
+    },
+    {
+      "date": "20190625",
+      "stations": {
+        "CI.WBS": {
+          "thd": 0.6720103972434275,
+          "snr": 823534.6681616557,
+          "is_elevated": true,
+          "is_critical": true
+        },
+        "CI.SLA": {
+          "thd": 0.2544821167905021,
+          "snr": 90142982.82194178,
+          "is_elevated": true,
+          "is_critical": true
+        },
+        "CI.CLC": {
+          "thd": 0.1876943981953662,
+          "snr": 8055170.0217311755,
+          "is_elevated": true,
+          "is_critical": true
+        }
+      }
+    },
+    {
+      "date": "20190626",
+      "stations": {
+        "CI.WBS": {
+          "thd": 0.5022599657458447,
+          "snr": 32695.868384352605,
+          "is_elevated": true,
+          "is_critical": true
+        },
+        "CI.SLA": {
+          "thd": 0.18446341347992137,
+          "snr": 1295329.5159795042,
+          "is_elevated": true,
+          "is_critical": true
+        },
+        "CI.CLC": {
+          "thd": 0.12442687396718677,
+          "snr": 77198367.92008008,
+          "is_elevated": true,
+          "is_critical": false
+        }
+      }
+    },
+    {
+      "date": "20190627",
+      "stations": {
+        "CI.CLC": {
+          "thd": 0.11497503927412729,
+          "snr": 18888432.62180956,
+          "is_elevated": true,
+          "is_critical": false
+        }
+      }
+    },
+    {
+      "date": "20190628",
+      "stations": {
+        "CI.SLA": {
+          "thd": 0.3630557726538788,
+          "snr": 167747.93419046002,
+          "is_elevated": true,
+          "is_critical": true
+        },
+        "CI.CLC": {
+          "thd": 0.13091061155603567,
+          "snr": 133076533.1699903,
+          "is_elevated": true,
+          "is_critical": false
+        }
+      }
+    },
+    {
+      "date": "20190629",
+      "stations": {
+        "CI.SLA": {
+          "thd": 0.2933335910664595,
+          "snr": 109267004.87419644,
+          "is_elevated": true,
+          "is_critical": true
+        },
+        "CI.CLC": {
+          "thd": 0.12485928982666106,
+          "snr": 151808467.409326,
+          "is_elevated": true,
+          "is_critical": false
+        }
+      }
+    },
+    {
+      "date": "20190630",
+      "stations": {
+        "CI.WBS": {
+          "thd": 0.5721739627742323,
+          "snr": 102365.61822368714,
+          "is_elevated": true,
+          "is_critical": true
+        },
+        "CI.SLA": {
+          "thd": 0.11739542407861164,
+          "snr": 502551.21905191155,
+          "is_elevated": true,
+          "is_critical": false
+        },
+        "CI.CLC": {
+          "thd": 0.13089817568858775,
+          "snr": 320157477.63866484,
+          "is_elevated": true,
+          "is_critical": false
+        }
+      }
+    },
+    {
+      "date": "20190701",
+      "stations": {
+        "CI.WBS": {
+          "thd": 0.42968210747488145,
+          "snr": 61649.71932230909,
+          "is_elevated": true,
+          "is_critical": true
+        },
+        "CI.SLA": {
+          "thd": 0.40008465207322974,
+          "snr": 303019.29526935687,
+          "is_elevated": true,
+          "is_critical": true
+        },
+        "CI.CLC": {
+          "thd": 0.11466812002763863,
+          "snr": 50236000.28725243,
+          "is_elevated": true,
+          "is_critical": false
+        }
+      }
+    },
+    {
+      "date": "20190702",
+      "stations": {
+        "CI.WBS": {
+          "thd": 0.26318720923005284,
+          "snr": 64577.11589162627,
+          "is_elevated": true,
+          "is_critical": true
+        },
+        "CI.SLA": {
+          "thd": 0.3609331895940966,
+          "snr": 334793.37549927185,
+          "is_elevated": true,
+          "is_critical": true
+        },
+        "CI.CLC": {
+          "thd": 0.10925189639540285,
+          "snr": 17462148.546119418,
+          "is_elevated": true,
+          "is_critical": false
+        }
+      }
+    },
+    {
+      "date": "20190703",
+      "stations": {
+        "CI.WBS": {
+          "thd": 0.44900988900953726,
+          "snr": 23346.225238278286,
+          "is_elevated": true,
+          "is_critical": true
+        },
+        "CI.SLA": {
+          "thd": 0.290144592158063,
+          "snr": 301670.0276705622,
+          "is_elevated": true,
+          "is_critical": true
+        },
+        "CI.CLC": {
+          "thd": 0.1269497713302532,
+          "snr": 107166337.56610997,
+          "is_elevated": true,
+          "is_critical": false
+        }
+      }
+    },
+    {
+      "date": "20190704",
+      "stations": {
+        "CI.WBS": {
+          "thd": 1.2363534344533271,
+          "snr": 0.40875171434611446,
+          "is_elevated": true,
+          "is_critical": true
+        },
+        "CI.SLA": {
+          "thd": 0.17594281588140392,
+          "snr": 461469.76712530165,
+          "is_elevated": true,
+          "is_critical": true
+        }
+      }
+    },
+    {
+      "date": "20190705",
+      "stations": {
+        "CI.WBS": {
+          "thd": 0.179389268905792,
+          "snr": 22.998484625031402,
+          "is_elevated": true,
+          "is_critical": true
+        },
+        "CI.SLA": {
+          "thd": 0.45484707540137115,
+          "snr": 18.226812767364677,
+          "is_elevated": true,
+          "is_critical": true
+        },
+        "CI.CLC": {
+          "thd": 0.26255254373833514,
+          "snr": 2.9301746766590493,
+          "is_elevated": true,
+          "is_critical": true
+        }
+      }
+    }
+  ],
+  "overall_z_score": 0.47429664381519987,
+  "clean_analysis": {
+    "baseline_mean": 0.2723888070643923,
+    "baseline_std": 0.17149710360464474,
+    "pre_event_mean": 0.26728364093360135,
+    "z_score": -0.02976823528495243
+  }
+}

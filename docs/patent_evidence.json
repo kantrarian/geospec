@@ -1,0 +1,46 @@
+{
+  "generated": "2026-01-08T10:28:14.365918",
+  "author": "R.J. Mathews",
+  "related_patents": [
+    "US 63/903,809"
+  ],
+  "validation_summary": {
+    "total_earthquakes": 1,
+    "successful_detections": 1,
+    "success_rate": 1.0,
+    "data_source": "Real GPS data from NGL",
+    "individual_results": [
+      {
+        "max_lambda_geo_precursor": 0.023255266733697794,
+        "mean_lambda_geo_precursor": 0.002042668257730033,
+        "max_lambda_geo_background": 0.035251223248527364,
+        "mean_lambda_geo_background": 0.0022087163386196257,
+        "std_lambda_geo_background": 0.004981982330536776,
+        "amplification_factor": 10.52886073556714,
+        "zscore_max": 4.224533328043847,
+        "max_risk_precursor": 1.0,
+        "mean_risk_precursor": 1.0,
+        "mean_risk_background": 1.0,
+        "pct_time_high_risk": 100.0,
+        "first_detection_hours_before": 72.0,
+        "peak_detection_hours_before": 72.0,
+        "epicenter_proximity_at_peak": 441.5580139517295,
+        "earthquake_key": "morocco_2023",
+        "earthquake_info": {
+          "name": "2023 Morocco M6.8",
+          "date": "2023-09-08T22:11:01",
+          "lat": 31.055,
+          "lon": -8.396,
+          "magnitude": 6.8,
+          "search_radius_deg": 3.0,
+          "data_window_days": 14
+        }
+      }
+    ]
+  },
+  "claims_validated": [
+    "Claim 1: Core commutator method",
+    "Claim 2: Geodetic strain tensor embodiment",
+    "Claim 13(iv): Geophysics stress-regime change"
+  ]
+}

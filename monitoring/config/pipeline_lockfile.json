@@ -1,0 +1,121 @@
+{
+  "_comment": "Pipeline Lockfile for GeoSpec THD Monitoring",
+  "_purpose": "Ensures reproducibility by documenting exact pipeline parameters",
+  "_created": "2026-01-12",
+  "_version": "1.0.0",
+
+  "thd_pipeline": {
+    "analyzer": {
+      "fundamental_frequency_hz": 2.2371e-05,
+      "fundamental_period_hours": 12.42,
+      "fundamental_source": "M2 lunar semidiurnal tide",
+      "n_harmonics": 5,
+      "harmonics_analyzed": ["2f", "3f", "4f", "5f", "6f"],
+      "freq_tolerance": 0.1,
+      "window_hours": 24,
+      "use_band_integration": true,
+      "min_bins_for_band": 3
+    },
+
+    "preprocessing": {
+      "detrend_methods": ["demean", "linear"],
+      "filter_type": "bandpass",
+      "filter_freqmin_hz": 0.01,
+      "filter_freqmax_hz": 1.0,
+      "filter_corners": 4,
+      "filter_zerophase": true,
+      "target_sample_rate_hz": 1.0,
+      "decimate_method": "scipy.signal.decimate"
+    },
+
+    "spectrum": {
+      "fft_library": "scipy.fft.fft",
+      "window_function": "hanning",
+      "power_normalization": "window_power",
+      "positive_frequencies_only": true
+    },
+
+    "noise_estimation": {
+      "method": "median_excluding_tidal_bands",
+      "exclusion_factor": 0.7,
+      "snr_calculation": "band_integrated"
+    }
+  },
+
+  "baseline_calculation": {
+    "statistic": "median",
+    "dispersion": "MAD",
+    "mad_to_sigma": 1.4826,
+    "min_samples": 60,
+    "min_coverage_pct": 80,
+    "exclude_recent_days": 7,
+    "lookback_days": 90
+  },
+
+  "z_score_to_risk": {
+    "description": "Piecewise linear mapping from z-score to 0-1 risk",
+    "mapping": {
+      "z_lt_0": "0.0 to 0.1 (below baseline)",
+      "z_0_to_1": "0.1 to 0.25 (normal variation)",
+      "z_1_to_2": "0.25 to 0.50 (elevated)",
+      "z_2_to_3": "0.50 to 0.75 (significant anomaly)",
+      "z_gt_3": "0.75 to 1.0 (critical anomaly)"
+    }
+  },
+
+  "tier_logic": {
+    "ensemble_weights": {
+      "lambda_geo": 0.40,
+      "seismic_thd": 0.35,
+      "fault_correlation": 0.25
+    },
+    "tier_thresholds": {
+      "NOMINAL": {"max_risk": 0.25},
+      "ELEVATED": {"min_risk": 0.25, "max_risk": 0.50},
+      "WATCH": {"min_risk": 0.50, "max_risk": 0.75},
+      "WARNING": {"min_risk": 0.75}
+    },
+    "escalation_persistence_days": 2,
+    "deescalation_persistence_days": 3
+  },
+
+  "data_sources": {
+    "seismic": {
+      "primary_clients": ["IRIS", "SCEDC", "NCEDC", "KOERI", "INGV"],
+      "protocol": "FDSN",
+      "timeout_seconds": 120,
+      "cache_ttl_days": 7
+    },
+    "gnss": {
+      "provider": "NGL (Nevada Geodetic Laboratory)",
+      "solution": "daily",
+      "format": "tenv3"
+    },
+    "events": {
+      "catalog": "USGS ComCat",
+      "api": "FDSN event"
+    }
+  },
+
+  "sample_rates": {
+    "IU_network": 40,
+    "BK_network": 40,
+    "IV_network": 100,
+    "GE_network": 20,
+    "target_after_decimation": 1
+  },
+
+  "tidal_frequencies_hz": {
+    "M2": 2.2371e-05,
+    "S2": 2.3148e-05,
+    "K1": 1.1606e-05,
+    "O1": 1.0758e-05
+  },
+
+  "software_versions": {
+    "python": "3.11",
+    "obspy": ">=1.4.0",
+    "scipy": ">=1.11.0",
+    "numpy": ">=1.24.0"
+  }
+}

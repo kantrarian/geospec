@@ -1,0 +1,194 @@
+{
+  "generated": "2026-01-12T18:32:44.148264",
+  "lookback_days": 90,
+  "min_magnitude": 4.0,
+  "regions": {
+    "ridgecrest": {
+      "region": "ridgecrest",
+      "bounds": {
+        "minlat": 35.0,
+        "maxlat": 36.5,
+        "minlon": -118.5,
+        "maxlon": -116.5
+      },
+      "last_updated": "2026-01-12T18:32:42.852986",
+      "event_count": 0,
+      "largest_event": null,
+      "most_recent_event": null,
+      "events": []
+    },
+    "socal_saf_mojave": {
+      "region": "socal_saf_mojave",
+      "bounds": {
+        "minlat": 34.0,
+        "maxlat": 36.5,
+        "minlon": -118.5,
+        "maxlon": -115.5
+      },
+      "last_updated": "2026-01-12T18:32:43.326990",
+      "event_count": 0,
+      "largest_event": null,
+      "most_recent_event": null,
+      "events": []
+    },
+    "tokyo_kanto": {
+      "region": "tokyo_kanto",
+      "bounds": {
+        "minlat": 34.5,
+        "maxlat": 37.0,
+        "minlon": 138.5,
+        "maxlon": 141.5
+      },
+      "last_updated": "2026-01-12T18:32:43.685208",
+      "event_count": 11,
+      "largest_event": {
+        "event_id": "us7000rnm9",
+        "time": "2026-01-09T11:07:58.213000",
+        "latitude": 35.2901,
+        "longitude": 140.4891,
+        "depth_km": 22.547,
+        "magnitude": 4.9,
+        "mag_type": "mb",
+        "place": "9 km ENE of \u014chara, Japan",
+        "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us7000rnm9"
+      },
+      "most_recent_event": {
+        "event_id": "us7000rnm9",
+        "time": "2026-01-09T11:07:58.213000",
+        "latitude": 35.2901,
+        "longitude": 140.4891,
+        "depth_km": 22.547,
+        "magnitude": 4.9,
+        "mag_type": "mb",
+        "place": "9 km ENE of \u014chara, Japan",
+        "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us7000rnm9"
+      },
+      "events": [
+        {
+          "event_id": "us7000rnm9",
+          "time": "2026-01-09T11:07:58.213000",
+          "latitude": 35.2901,
+          "longitude": 140.4891,
+          "depth_km": 22.547,
+          "magnitude": 4.9,
+          "mag_type": "mb",
+          "place": "9 km ENE of \u014chara, Japan",
+          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us7000rnm9"
+        },
+        {
+          "event_id": "us6000rue0",
+          "time": "2025-12-12T10:05:19.253000",
+          "latitude": 36.0804,
+          "longitude": 140.2301,
+          "depth_km": 56.218,
+          "magnitude": 4.9,
+          "mag_type": "mb",
+          "place": "5 km NNE of Ami, Japan",
+          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us6000rue0"
+        },
+        {
+          "event_id": "us7000rfk8",
+          "time": "2025-11-16T07:03:24.694000",
+          "latitude": 35.31,
+          "longitude": 140.2222,
+          "depth_km": 68.858,
+          "magnitude": 4.2,
+          "mag_type": "mb",
+          "place": "3 km NW of \u014ctaki, Japan",
+          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us7000rfk8"
+        },
+        {
+          "event_id": "us7000rf34",
+          "time": "2025-11-13T21:36:20.833000",
+          "latitude": 35.5524,
+          "longitude": 140.0125,
+          "depth_km": 97.369,
+          "magnitude": 4.3,
+          "mag_type": "mb",
+          "place": "7 km WNW of Ichihara, Japan",
+          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us7000rf34"
+        },
+        {
+          "event_id": "us7000regr",
+          "time": "2025-11-11T21:50:49.880000",
+          "latitude": 36.441,
+          "longitude": 140.47,
+          "depth_km": 68.482,
+          "magnitude": 4.2,
+          "mag_type": "mb",
+          "place": "7 km NW of Hitachi-Naka, Japan",
+          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us7000regr"
+        },
+        {
+          "event_id": "us6000rmak",
+          "time": "2025-11-08T21:24:58.358000",
+          "latitude": 36.3432,
+          "longitude": 140.0067,
+          "depth_km": 84.053,
+          "magnitude": 4.4,
+          "mag_type": "mb",
+          "place": "3 km NE of Chikusei, Japan",
+          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us6000rmak"
+        },
+        {
+          "event_id": "us6000rlid",
+          "time": "2025-11-04T22:17:29.328000",
+          "latitude": 34.7242,
+          "longitude": 140.9772,
+          "depth_km": 35,
+          "magnitude": 4.7,
+          "mag_type": "mww",
+          "place": "76 km SE of Shinmachi, Japan",
+          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us6000rlid"
+        },
+        {
+          "event_id": "us7000rdh0",
+          "time": "2025-11-04T05:00:11.221000",
+          "latitude": 36.0959,
+          "longitude": 139.9355,
+          "depth_km": 83.632,
+          "magnitude": 4.2,
+          "mag_type": "mb",
+          "place": "3 km SW of Ishige, Japan",
+          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us7000rdh0"
+        },
+        {
+          "event_id": "us6000rjk2",
+          "time": "2025-10-26T13:34:57.870000",
+          "latitude": 35.7618,
+          "longitude": 140.0357,
+          "depth_km": 85.358,
+          "magnitude": 4.6,
+          "mag_type": "mb",
+          "place": "5 km SSW of Shiroi, Japan",
+          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us6000rjk2"
+        },
+        {
+          "event_id": "us6000rjin",
+          "time": "2025-10-26T03:04:55.283000",
+          "latitude": 36.6074,
+          "longitude": 139.3644,
+          "depth_km": 12.413,
+          "magnitude": 4.6,
+          "mag_type": "mb",
+          "place": "19 km NNE of Midori, Japan",
+          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us6000rjin"
+        }
+      ]
+    },
+    "istanbul_marmara": {
+      "region": "istanbul_marmara",
+      "bounds": {
+        "minlat": 40.0,
+        "maxlat": 41.5,
+        "minlon": 27.5,
+        "maxlon": 30.5
+      },
+      "last_updated": "2026-01-12T18:32:44.148264",
+      "event_count": 0,
+      "largest_event": null,
+      "most_recent_event": null,
+      "events": []
+    }
+  }
+}

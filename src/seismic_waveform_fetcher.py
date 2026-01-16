@@ -36,9 +36,12 @@ NETWORK_PRIORITY = {
     'JP': ['IRIS'],               # Japan (F-net often accessible via IRIS)
     'TU': ['IRIS', 'KOERI'],      # Turkey (KOERI check needed)
     'GE': ['IRIS', 'GFZ'],        # GEOFON
+    'NZ': ['GEONET', 'IRIS'],     # New Zealand (GeoNet)
+    'AK': ['IRIS'],               # Alaska (AEC)
+    'TW': ['IRIS'],               # Taiwan (BATS)
 }
 
-DEFAULT_CLIENTS = ['IRIS']
+DEFAULT_CLIENTS = ['IRIS', 'GEONET']
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

@@ -457,6 +457,47 @@ FAULT_POLYGONS = {
         ],
         "expected_m7_rate": 0.001,  # Volcanic, different risk model
     },
+    "kaikoura": {
+        "name": "New Zealand - Kaikoura/Marlborough",
+        # Region covering localized fault rupture and surrounding stations
+        "polygon": [
+            (-41.5, 172.5),  # NW (Nelson/Tasman)
+            (-41.5, 174.5),  # NE (Cook Strait)
+            (-43.5, 174.5),  # SE (Offshore Kaikoura)
+            (-43.5, 172.5),  # SW (North Canterbury)
+        ],
+        "expected_m7_rate": 0.05,
+    },
+    "anchorage": {
+        "name": "Alaska - Anchorage/Cook Inlet",
+        "polygon": [
+            (60.0, -151.0),  # SW (Cook Inlet)
+            (62.5, -151.0),  # NW (Denali/Talkeetna)
+            (62.5, -148.5),  # NE (Talkeetna/Chugach)
+            (60.0, -148.5),  # SE (Kenai/Seward)
+        ],
+        "expected_m7_rate": 0.03,
+    },
+    "kumamoto": {
+        "name": "Japan - Kumamoto/Kyushu",
+        "polygon": [
+            (31.5, 130.0),  # SW (Kagoshima)
+            (33.5, 130.0),  # NW (Fukuoka)
+            (33.5, 132.0),  # NE (Oita)
+            (31.5, 132.0),  # SE (Miyazaki)
+        ],
+        "expected_m7_rate": 0.02,
+    },
+    "hualien": {
+        "name": "Taiwan - Hualien",
+        "polygon": [
+            (21.5, 119.5),  # SW
+            (25.5, 119.5),  # NW
+            (25.5, 122.5),  # NE
+            (21.5, 122.5),  # SE
+        ],
+        "expected_m7_rate": 0.1,  # Highly active
+    },
 }
 
 

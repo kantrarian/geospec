@@ -261,6 +261,9 @@ class NGLLiveAcquisition:
 
                 if dt < cutoff_date:
                     continue
+                
+                if dt > target_date:
+                    continue
 
                 times.append(dt)
                 # IGS20 tenv: columns 7,8,9 are E,N,U in meters
@@ -316,6 +319,9 @@ class NGLLiveAcquisition:
                 dt = datetime(year, 1, 1) + timedelta(days=day_of_year)
 
                 if dt < cutoff_date:
+                    continue
+                
+                if dt > target_date:
                     continue
 
                 times.append(dt)

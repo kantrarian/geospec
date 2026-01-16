@@ -182,6 +182,25 @@ TURKEY_STATIONS = {
     "ERZI": (39.746, 39.506, 350),     # Erzincan
 }
 
+# New Zealand - Kaikoura 2016 M7.8
+# Epicenter: -42.757, 173.077
+# Stations from NGL (converted from 0-360 longitude if needed)
+KAIKOURA_STATIONS = {
+    "KAIK": (-42.425, 173.534, 50),    # Kaikoura - VERY CLOSE
+    "HANM": (-42.553, 172.793, 40),    # Hanmer Springs - Close
+    "CMBL": (-41.749, 174.214, 140),   # Cape Campbell - North
+    "MQZG": (-43.703, 172.655, 110),   # Near Christchurch - South
+}
+
+# Alaska - Anchorage 2018 M7.1
+# Epicenter: 61.34, -149.96
+ANCHORAGE_STATIONS = {
+    "AC20": (60.929, -149.353, 50),    # Turnagain Arm
+    "ATW2": (61.598, -149.132, 40),    # Palmer/Wasilla
+    "AC33": (62.671, -150.685, 150),   # Denali (North)
+    "AV01": (59.359, -153.461, 200),   # Augustine (South West)
+}
+
 
 # ============================================================================
 # NGL DATA DOWNLOADER
@@ -236,6 +255,10 @@ class NGLDataDownloader:
             stations_dict = CHILE_STATIONS
         elif earthquake_key == 'morocco_2023':
             stations_dict = MOROCCO_STATIONS
+        elif earthquake_key == 'kaikoura_2016':
+            stations_dict = KAIKOURA_STATIONS
+        elif earthquake_key == 'anchorage_2018':
+            stations_dict = ANCHORAGE_STATIONS
         else:
             return {}
         

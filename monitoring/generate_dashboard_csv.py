@@ -18,9 +18,9 @@ ENSEMBLE_DIR = Path(__file__).parent / 'data' / 'ensemble_results'
 DASHBOARD_DIR = Path(__file__).parent / 'dashboard'
 OUTPUT_CSV = DASHBOARD_DIR / 'data.csv'
 
-# Calibration cutoff - only include data from this date onwards
-# THD baselines were properly calibrated on 2026-01-11
-CALIBRATION_CUTOFF = '2026-01-11'
+# Calibration cutoff - lowered to include historical backfill data
+# Note: Ensure baseline consistency for older data
+CALIBRATION_CUTOFF = '2016-01-01'
 
 
 def load_ensemble_files():

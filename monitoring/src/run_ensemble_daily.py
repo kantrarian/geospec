@@ -160,6 +160,36 @@ REGIONS = {
         'latency_days': 0,
         'notes': 'Volcanic caldera - bradyseismic unrest since 2012, densest FC coverage',
     },
+
+    # New Historical Regions (Added Jan 2026)
+    'kaikoura': {
+        'name': 'New Zealand (Kaikoura)',
+        'thd_station': 'HSES',     # Hanmer Springs (GeoNet) - reliable broadband
+        'thd_network': 'NZ',
+        'seismic_available': True, 
+        'latency_days': 0,
+    },
+    'anchorage': {
+        'name': 'Alaska (Anchorage)',
+        'thd_station': 'SSL',      # South Sled (AV/AK) - near Anchorage
+        'thd_network': 'AK',
+        'seismic_available': True,
+        'latency_days': 0,
+    },
+    'kumamoto': {
+        'name': 'Japan (Kumamoto)',
+        'thd_station': 'MAJO',     # Matsushiro (IU) - Global standard fallback
+        'thd_network': 'IU',       # Using IU to avoid complex F-net/Hi-net auth for backtest
+        'seismic_available': True,
+        'latency_days': 0,
+    },
+    'hualien': {
+        'name': 'Taiwan (Hualien)',
+        'thd_station': 'TATO',     # Taipei (IU) - Reliable global station
+        'thd_network': 'IU',
+        'seismic_available': True,
+        'latency_days': 0,
+    },
 }
 
 
@@ -601,8 +631,8 @@ def save_results(
         'timestamp': datetime.now().isoformat(),
         'regions': {},
         'summary': {
-            'total_regions': len(results),
-            'tier_counts': {-1: 0, 0: 0, 1: 0, 2: 0, 3: 0},  # -1 = DEGRADED
+            'total_regions': 0,
+            'tier_counts': {-1: 0, 0: 0, 1: 0, 2: 0, 3: 0},
             'confirmed_watch_count': 0,
             'preliminary_watch_count': 0,
             'degraded_count': 0,
@@ -612,6 +642,24 @@ def save_results(
         'earthquake_events': events_data or {},
     }
 
+    # Load existing data if file exists to merge
+    if output_file.exists():
+        try:
+            with open(output_file, 'r') as f:
+                existing_data = json.load(f)
+                # Preserve existing regions and summary
+                if 'regions' in existing_data:
+                    output_data['regions'] = existing_data['regions']
+                if 'summary' in existing_data:
+                    output_data['summary'] = existing_data['summary']
+                # Merge earthquake events
+                if 'earthquake_events' in existing_data:
+                    output_data['earthquake_events'].update(existing_data['earthquake_events'])
+            logger.info(f"Merging results into existing file: {output_file}")
+        except Exception as e:
+            logger.warning(f"Failed to read existing file for merge: {e}")
+
+    # Update with new results
     for region, result in results.items():
         region_data = result.to_dict()
 
@@ -619,21 +667,48 @@ def save_results(
         if persistence and region in persistence:
             region_data['persistence'] = persistence[region]
             if result.tier >= 1:
-                if persistence[region]['is_confirmed']:
-                    output_data['summary']['confirmed_watch_count'] += 1
-                else:
-                    output_data['summary']['preliminary_watch_count'] += 1
+                # Update counters if this is a new entry or status change
+                # Note: This simple counter update is imperfect for merges but sufficient for dashboard
+                pass 
 
         output_data['regions'][region] = region_data
-        output_data['summary']['tier_counts'][result.tier] += 1
 
-        # Track DEGRADED separately
-        if result.tier == -1:
-            output_data['summary']['degraded_count'] += 1
+    # Re-calculate summary from scratch based on ALL regions (merged)
+    tier_counts = {-1: 0, 0: 0, 1: 0, 2: 0, 3: 0}
+    max_risk = 0.0
+    max_risk_region = None
+    confirmed_count = 0
+    preliminary_count = 0
+    degraded_count = 0
 
-        if result.tier >= 0 and result.combined_risk > output_data['summary']['max_risk']:
-            output_data['summary']['max_risk'] = result.combined_risk
-            output_data['summary']['max_risk_region'] = region
+    for r_name, r_data in output_data['regions'].items():
+        tier = r_data.get('tier', 0)
+        risk = r_data.get('combined_risk', 0.0)
+        
+        tier_counts[tier] = tier_counts.get(tier, 0) + 1
+        
+        if risk > max_risk:
+            max_risk = risk
+            max_risk_region = r_name
+            
+        if tier == -1:
+            degraded_count += 1
+            
+        # Check persistence from stored data
+        if 'persistence' in r_data and r_data['persistence'].get('is_confirmed'):
+            confirmed_count += 1
+        elif tier >= 1:
+            preliminary_count += 1
+
+    output_data['summary'] = {
+        'total_regions': len(output_data['regions']),
+        'tier_counts': tier_counts,
+        'confirmed_watch_count': confirmed_count,
+        'preliminary_watch_count': preliminary_count,
+        'degraded_count': degraded_count,
+        'max_risk_region': max_risk_region,
+        'max_risk': max_risk,
+    }
 
     with open(output_file, 'w') as f:
         json.dump(output_data, f, indent=2)

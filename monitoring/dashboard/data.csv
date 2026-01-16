@@ -1,4 +1,15 @@
 date,region,tier,risk,confidence,methods,agreement
+2025-12-17,kaikoura,0,0.1008,0.50,1,single_method
+2025-12-17,anchorage,1,1.0000,0.50,1,single_method
+2025-12-17,kumamoto,0,0.1042,0.80,2,all_normal
+2025-12-17,hualien,1,0.7469,0.50,1,single_method
+2025-12-18,kaikoura,1,0.3958,0.50,1,single_method
+2025-12-18,anchorage,1,1.0000,0.50,1,single_method
+2025-12-18,kumamoto,0,0.0320,0.80,2,all_normal
+2025-12-18,hualien,1,0.7524,0.50,1,single_method
+2025-12-19,kaikoura,1,0.7010,0.50,1,single_method
+2025-12-19,anchorage,1,1.0000,0.50,1,single_method
+2025-12-19,kumamoto,0,0.0359,0.80,2,all_normal
 2026-01-11,ridgecrest,1,0.3904,0.60,3,mixed
 2026-01-11,socal_saf_mojave,0,0.2175,0.60,3,mixed
 2026-01-11,socal_saf_coachella,0,0.2410,0.75,2,mostly_elevated

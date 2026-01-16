@@ -62,6 +62,11 @@ REGION_KEY_MAP = {
     'chile_maule': 'chile_maule',
     'japan_tohoku': 'japan_tohoku',
     'socal_coachella': 'socal_coachella',
+    # New Historical Regions
+    'kaikoura': 'kaikoura',
+    'anchorage': 'anchorage',
+    'kumamoto': 'kumamoto',
+    'hualien': 'hualien',
 }
 
 

@@ -819,6 +819,99 @@ CAMPI_FLEGREI_SEGMENTS = [
     ),
 ]
 
+# =============================================================================
+# HISTORICAL RETROSPECTIVE SEGMENTS (Placeholders for FC)
+# =============================================================================
+
+KAIKOURA_SEGMENTS = [
+    FaultSegment(
+        name="kaikoura_mainshock",
+        region="kaikoura",
+        stations=[
+            SeismicStation("NZ", "HSES", -42.532, 172.825, "Hanmer Springs"),
+            SeismicStation("NZ", "KAIB", -42.419, 173.682, "Kaikoura"),
+            SeismicStation("NZ", "MQZ", -43.705, 172.647, "McQueens Valley"),
+        ],
+        polygon=[
+            (-44.0, 172.0),
+            (-44.0, 174.5),
+            (-41.0, 174.5),
+            (-41.0, 172.0),
+        ],
+        strike=45,
+        dip=70,
+        rake=140,
+        notes="M7.8 Kaikoura rupture zone (Hope/Kekerengu/Jordon Thrust)"
+    )
+]
+
+ANCHORAGE_SEGMENTS = [
+    FaultSegment(
+        name="cook_inlet_slab",
+        region="anchorage",
+        stations=[
+            SeismicStation("AK", "ATW", 61.594, -149.132, "Palmer/Tsunometer"),
+            SeismicStation("AK", "KNK", 61.465, -149.734, "Knik Glacier"),
+            SeismicStation("AK", "SSN", 60.124, -149.444, "Seward"),
+        ],
+        polygon=[
+            (60.0, -151.0),
+            (60.0, -148.0),
+            (62.0, -148.0),
+            (62.0, -151.0),
+        ],
+        strike=220,  # Aleutian subduction strike
+        dip=15,
+        rake=90,
+        notes="Pacific Plate subduction slab under Anchorage"
+    )
+]
+
+KUMAMOTO_SEGMENTS = [
+    FaultSegment(
+        name="futagawa_hinagu",
+        region="kumamoto",
+        stations=[
+            # Using stable IU.MAJO and JP.JMM as broad regional proxies
+            # Ideal would be local Kyushu stations (e.g. J.JNU, J.KKA) if accessible
+            SeismicStation("IU", "MAJO", 36.546, 138.204, "Matsushiro (Broadband Ref)"),
+            SeismicStation("JP", "JMM", 37.869, 140.790, "Minamisoma (Reference)"),
+        ],
+        polygon=[
+            (32.0, 130.0),
+            (32.0, 132.0),
+            (34.0, 132.0),
+            (34.0, 130.0),
+        ],
+        strike=230,
+        dip=70,
+        rake=180,
+        notes="Futagawa-Hinagu fault zone (Kyushu)"
+    )
+]
+
+HUALIEN_SEGMENTS = [
+    FaultSegment(
+        name="longitudinal_valley",
+        region="hualien",
+        stations=[
+            SeismicStation("IU", "TATO", 25.176, 121.543, "Taipei"),
+            SeismicStation("TW", "HUAL", 23.977, 121.605, "Hualien City"),
+            SeismicStation("TW", "NACB", 26.166, 119.957, "Nangan"),
+        ],
+        polygon=[
+            (22.0, 120.0),
+            (22.0, 122.5),
+            (25.5, 122.5),
+            (25.5, 120.0),
+        ],
+        strike=20,
+        dip=60,
+        rake=45,
+        notes="Longitudinal Valley Fault (Philippine Sea Plate collision)"
+    )
+]
+
 
 # =============================================================================
 # FAULT SEGMENT REGISTRY
@@ -835,6 +928,10 @@ FAULT_SEGMENTS: Dict[str, List[FaultSegment]] = {
     'japan_tohoku': JAPAN_TOHOKU_SEGMENTS,
     'chile_maule': CHILE_MAULE_SEGMENTS,
     'campi_flegrei': CAMPI_FLEGREI_SEGMENTS,
+    'kaikoura': KAIKOURA_SEGMENTS,
+    'anchorage': ANCHORAGE_SEGMENTS,
+    'kumamoto': KUMAMOTO_SEGMENTS,
+    'hualien': HUALIEN_SEGMENTS,
 }
 
 

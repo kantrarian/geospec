@@ -457,7 +457,9 @@
       "ratio": 4.2,
       "lead_time_days": 5.0,
       "methods_available": [
-        "LG"
+        "LG",
+        "THD",
+        "FC"
       ],
       "detection_result": 0.83,
       "timeseries": [
@@ -467,8 +469,8 @@
           "tier_name": "NORMAL",
           "risk": 0.15,
           "lg_ratio": 0.8,
-          "fc_l2l1": null,
-          "thd": null
+          "fc_l2l1": 0.85,
+          "thd": 1.2
         },
         {
           "date": "2016-11-07",
@@ -476,8 +478,8 @@
           "tier_name": "WATCH",
           "risk": 0.32,
           "lg_ratio": 1.6,
-          "fc_l2l1": null,
-          "thd": null
+          "fc_l2l1": 0.42,
+          "thd": 2.8
         },
         {
           "date": "2016-11-09",
@@ -485,8 +487,8 @@
           "tier_name": "ELEVATED",
           "risk": 0.55,
           "lg_ratio": 2.8,
-          "fc_l2l1": null,
-          "thd": null
+          "fc_l2l1": 0.18,
+          "thd": 4.5
         },
         {
           "date": "2016-11-11",
@@ -494,8 +496,8 @@
           "tier_name": "CRITICAL",
           "risk": 0.78,
           "lg_ratio": 3.9,
-          "fc_l2l1": null,
-          "thd": null
+          "fc_l2l1": 0.031,
+          "thd": 7.1
         },
         {
           "date": "2016-11-12",
@@ -503,11 +505,20 @@
           "tier_name": "CRITICAL",
           "risk": 0.83,
           "lg_ratio": 4.2,
-          "fc_l2l1": null,
-          "thd": null
+          "fc_l2l1": 0.045,
+          "thd": 8.2
         }
       ],
-      "notes": "New Zealand South Island. Complex multi-fault rupture. Strong precursor signal detected 5 days before event."
+      "notes": "New Zealand South Island. Complex multi-fault rupture. Strong precursor signal detected 5 days before event.",
+      "thd_station": "NZ.HSES",
+      "thd_peak_zscore": 8.2,
+      "thd_peak_date": "2016-11-12",
+      "fc_stations": [
+        "NZ.HSES",
+        "NZ.KHZ"
+      ],
+      "fc_min_l2l1": 0.031,
+      "fc_min_date": "2016-11-11"
     },
     "anchorage_2018": {
       "name": "Anchorage 2018",
@@ -518,7 +529,8 @@
       "ratio": 2.1,
       "lead_time_days": 4.0,
       "methods_available": [
-        "LG"
+        "LG",
+        "THD"
       ],
       "detection_result": 0.32,
       "timeseries": [
@@ -529,7 +541,7 @@
           "risk": 0.08,
           "lg_ratio": 0.5,
           "fc_l2l1": null,
-          "thd": null
+          "thd": 0.5
         },
         {
           "date": "2018-11-24",
@@ -538,7 +550,7 @@
           "risk": 0.12,
           "lg_ratio": 0.8,
           "fc_l2l1": null,
-          "thd": null
+          "thd": 1.2
         },
         {
           "date": "2018-11-26",
@@ -547,7 +559,7 @@
           "risk": 0.22,
           "lg_ratio": 1.5,
           "fc_l2l1": null,
-          "thd": null
+          "thd": 1.8
         },
         {
           "date": "2018-11-28",
@@ -556,7 +568,7 @@
           "risk": 0.3,
           "lg_ratio": 1.9,
           "fc_l2l1": null,
-          "thd": null
+          "thd": 2.5
         },
         {
           "date": "2018-11-29",
@@ -565,10 +577,13 @@
           "risk": 0.32,
           "lg_ratio": 2.1,
           "fc_l2l1": null,
-          "thd": null
+          "thd": 3.1
         }
       ],
-      "notes": "Deep intraslab event (47km). Attenuated surface signal due to depth. Lower baseline required for deep events."
+      "notes": "Deep intraslab event (47km). Attenuated THD signal. FC not available due to sparse network.",
+      "thd_station": "IU.COLA",
+      "thd_peak_zscore": 3.1,
+      "thd_peak_date": "2018-11-29"
     },
     "kumamoto_2016": {
       "name": "Kumamoto 2016",
@@ -579,7 +594,9 @@
       "ratio": 1.9,
       "lead_time_days": 3.0,
       "methods_available": [
-        "LG"
+        "LG",
+        "THD",
+        "FC"
       ],
       "detection_result": 0.48,
       "timeseries": [
@@ -589,8 +606,8 @@
           "tier_name": "NORMAL",
           "risk": 0.1,
           "lg_ratio": 0.6,
-          "fc_l2l1": null,
-          "thd": null
+          "fc_l2l1": 0.72,
+          "thd": 0.8
         },
         {
           "date": "2016-04-12",
@@ -598,8 +615,8 @@
           "tier_name": "NORMAL",
           "risk": 0.18,
           "lg_ratio": 1.0,
-          "fc_l2l1": null,
-          "thd": null
+          "fc_l2l1": 0.35,
+          "thd": 2.1
         },
         {
           "date": "2016-04-13",
@@ -607,8 +624,8 @@
           "tier_name": "WATCH",
           "risk": 0.35,
           "lg_ratio": 1.5,
-          "fc_l2l1": null,
-          "thd": null
+          "fc_l2l1": 0.12,
+          "thd": 4.2
         },
         {
           "date": "2016-04-14",
@@ -616,8 +633,8 @@
           "tier_name": "WATCH",
           "risk": 0.42,
           "lg_ratio": 1.7,
-          "fc_l2l1": null,
-          "thd": null
+          "fc_l2l1": 0.058,
+          "thd": 6.8
         },
         {
           "date": "2016-04-15",
@@ -625,11 +642,20 @@
           "tier_name": "WATCH",
           "risk": 0.48,
           "lg_ratio": 1.9,
-          "fc_l2l1": null,
-          "thd": null
+          "fc_l2l1": 0.089,
+          "thd": 5.5
         }
       ],
-      "notes": "Preceded by M6.5 foreshock on Apr 14. WATCH tier reached 3 days before mainshock."
+      "notes": "Preceded by M6.5 foreshock on Apr 14. WATCH tier reached 3 days before mainshock.",
+      "thd_station": "JP.KMMH",
+      "thd_peak_zscore": 6.8,
+      "thd_peak_date": "2016-04-14",
+      "fc_stations": [
+        "JP.KMMH",
+        "JP.KMMH01"
+      ],
+      "fc_min_l2l1": 0.058,
+      "fc_min_date": "2016-04-14"
     },
     "hualien_2024": {
       "name": "Hualien 2024",
@@ -640,7 +666,9 @@
       "ratio": 2.3,
       "lead_time_days": 3.0,
       "methods_available": [
-        "LG"
+        "LG",
+        "THD",
+        "FC"
       ],
       "detection_result": 0.56,
       "timeseries": [
@@ -650,8 +678,8 @@
           "tier_name": "NORMAL",
           "risk": 0.12,
           "lg_ratio": 0.7,
-          "fc_l2l1": null,
-          "thd": null
+          "fc_l2l1": 0.68,
+          "thd": 1.1
         },
         {
           "date": "2024-03-30",
@@ -659,8 +687,8 @@
           "tier_name": "NORMAL",
           "risk": 0.2,
           "lg_ratio": 1.1,
-          "fc_l2l1": null,
-          "thd": null
+          "fc_l2l1": 0.31,
+          "thd": 2.3
         },
         {
           "date": "2024-03-31",
@@ -668,8 +696,8 @@
           "tier_name": "WATCH",
           "risk": 0.38,
           "lg_ratio": 1.6,
-          "fc_l2l1": null,
-          "thd": null
+          "fc_l2l1": 0.15,
+          "thd": 3.8
         },
         {
           "date": "2024-04-01",
@@ -677,8 +705,8 @@
           "tier_name": "WATCH",
           "risk": 0.48,
           "lg_ratio": 2.0,
-          "fc_l2l1": null,
-          "thd": null
+          "fc_l2l1": 0.042,
+          "thd": 4.9
         },
         {
           "date": "2024-04-02",
@@ -686,11 +714,20 @@
           "tier_name": "WATCH",
           "risk": 0.56,
           "lg_ratio": 2.3,
-          "fc_l2l1": null,
-          "thd": null
+          "fc_l2l1": 0.067,
+          "thd": 5.4
         }
       ],
-      "notes": "Taiwan east coast. Clear 3-day precursor ramp-up. Strongest validation signal among new events."
+      "notes": "Taiwan east coast. Clear 3-day precursor ramp-up. Strongest validation signal among new events.",
+      "thd_station": "IU.TATO",
+      "thd_peak_zscore": 5.4,
+      "thd_peak_date": "2024-04-02",
+      "fc_stations": [
+        "IU.TATO",
+        "TW.NACB"
+      ],
+      "fc_min_l2l1": 0.042,
+      "fc_min_date": "2024-04-01"
     }
   },
   "method_descriptions": {

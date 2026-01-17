@@ -72,6 +72,15 @@ except ImportError:
     NGL_LAMBDA_GEO_AVAILABLE = False
     FAULT_POLYGONS = {}
 
+# === EXPERIMENTAL: Trans-Pacific Correlation Research ===
+# Disabled by default via config/experimental.yaml
+# Reference: docs/TRANS_PACIFIC_CORRELATION_PAPER_SKELETON.md
+try:
+    from experimental.trans_pacific.config import is_trans_pacific_enabled, get_config
+    TRANS_PACIFIC_AVAILABLE = True
+except ImportError:
+    TRANS_PACIFIC_AVAILABLE = False
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -554,6 +563,25 @@ def run_all_regions(
     if fetch_events:
         logger.info("Fetching recent earthquake events from USGS...")
         events_data = fetch_earthquake_events(regions)
+
+    # === EXPERIMENTAL: Trans-Pacific Correlation Research ===
+    # Only runs if explicitly enabled in config/experimental.yaml
+    if TRANS_PACIFIC_AVAILABLE and is_trans_pacific_enabled():
+        cfg = get_config()
+        if not cfg.backtest_only:  # Only run in live mode if explicitly allowed
+            try:
+                from experimental.trans_pacific.analyzer import run_trans_pacific_analysis
+                trans_pacific_output = cfg.get_output_dir('correlation_results')
+                trans_pacific_results = run_trans_pacific_analysis(
+                    results,
+                    target_date,
+                    output_dir=trans_pacific_output
+                )
+                logger.info(f"Trans-Pacific analysis complete: {len(trans_pacific_results)} pairs analyzed")
+            except ImportError:
+                logger.debug("Trans-Pacific analyzer not yet implemented")
+            except Exception as e:
+                logger.warning(f"Trans-Pacific analysis failed (non-critical): {e}")
 
     return results, events_data
 

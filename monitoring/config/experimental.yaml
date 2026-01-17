@@ -1,0 +1,58 @@
+# Experimental Features Configuration
+# =====================================
+# All features are DISABLED by default in production.
+# Enable only in development/backtest environments.
+#
+# Reference: docs/TRANS_PACIFIC_CORRELATION_PAPER_SKELETON.md
+
+version: "1.0"
+last_updated: "2026-01-17"
+
+features:
+
+  # Trans-Pacific Tectonic Stress Correlation Research
+  # ---------------------------------------------------
+  # Investigates potential stress coupling mechanisms between
+  # regions on opposing sides of the Pacific Plate.
+  #
+  # Primary Hypotheses:
+  #   H0 (Null): Correlations are tidal aliasing artifacts (~180 degree M2 phase)
+  #   H1: Short-term lithospheric stress transfer (hours to days)
+  #   H2: Mantle convection deflection (weeks to months) - DEFERRED
+  #
+  trans_pacific_correlation:
+
+    # Master toggle - MUST be explicitly enabled
+    enabled: false
+
+    # Sub-features (all require master toggle = true)
+    tidal_phase_correction: true       # M2 phase correction for H0 testing
+    thd_thd_correlation: true          # Cross-region THD correlation
+    lambda_geo_correlation: true       # For full-coverage pairs only
+    vertical_transient_detection: false # Slab orphaning signature (experimental)
+    moment_ratio_analysis: false        # Aseismic vs seismic discrimination
+
+    # Region pairs to analyze
+    # Note: Hualien is THD-only (single station IU.TATO, no GPS triangle)
+    # Lambda_geo requires 3+ GPS stations for strain tensor computation
+    region_pairs:
+      - ["norcal_hayward", "hualien"]      # THD-only (original observation)
+      - ["norcal_hayward", "tokyo_kanto"]  # Full coverage (Lambda_geo + THD)
+      - ["cascadia", "tokyo_kanto"]        # Full coverage (subduction zones)
+
+    # Safety settings - CRITICAL for production isolation
+    write_to_production_csv: false    # NEVER pollute dashboard/data.csv
+    generate_paper_figures: true      # Output to data/experimental/trans_pacific/figures/
+    backtest_only: true               # Only run in backtest mode, not live monitoring
+
+    # Analysis parameters
+    analysis:
+      correlation_window_days: 31     # Match current monitoring period
+      lag_range_days: 15              # -15 to +15 day lag analysis
+      significance_threshold: 0.01   # p-value after Bonferroni correction
+      min_data_points: 20            # Minimum observations for valid correlation
+
+    # Tidal correction parameters
+    tidal:
+      use_longitudinal_approximation: true  # Avoid heavy pytides dependency
+      m2_period_hours: 12.42               # M2 semidiurnal period

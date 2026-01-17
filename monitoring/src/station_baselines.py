@@ -70,6 +70,22 @@ STATION_BASELINES: Dict[str, StationBaseline] = {
         calibration_period='2025-12-10 to 2026-01-09',
         notes='Auto-calibrated. QA=acceptable. Serves istanbul_marmara, turkey_kahramanmaras.'
     ),
+    'IU.TATO': StationBaseline(
+        station='IU.TATO',
+        mean_thd=0.338773,
+        std_thd=0.037314,
+        n_samples=32,
+        calibration_period='2025-12-09 to 2026-01-09',
+        notes='Auto-calibrated. QA=acceptable. Serves hualien region (Taiwan).'
+    ),
+    'IU.COLA': StationBaseline(
+        station='IU.COLA',
+        mean_thd=0.183849,
+        std_thd=0.039561,
+        n_samples=32,
+        calibration_period='2025-12-09 to 2026-01-09',
+        notes='Auto-calibrated. QA=acceptable. Fallback for anchorage (AK.SSL unavailable).'
+    ),
 
     # BK Network (40Hz) - Berkeley
     'BK.BKS': StationBaseline(

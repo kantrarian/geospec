@@ -93,6 +93,20 @@ CALIBRATION_STATIONS = {
         'channel': 'HHZ',
         'notes': 'Direct volcanic monitoring',
     },
+    'IU.TATO': {
+        'region': 'Hualien/Taiwan',
+        'location': 'Taipei, Taiwan',
+        'sample_rate': 40,
+        'channel': 'BHZ',
+        'notes': 'Serves hualien region',
+    },
+    'IU.COLA': {
+        'region': 'Anchorage/Alaska',
+        'location': 'College, AK',
+        'sample_rate': 40,
+        'channel': 'BHZ',
+        'notes': 'Fallback for anchorage (primary AK.SSL often unavailable)',
+    },
 }
 
 

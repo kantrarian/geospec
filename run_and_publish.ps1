@@ -78,18 +78,15 @@ if ($LatestFile) {
     exit 1
 }
 
-# Copy CSV if exists (use ensemble_results version with new schema)
-$CsvFile = Join-Path $RepoRoot "monitoring\data\ensemble_results\daily_states.csv"
+# Copy dashboard CSV (the authoritative source with complete historical data)
+# IMPORTANT: Use monitoring/dashboard/data.csv NOT ensemble_results/daily_states.csv
+# The dashboard CSV has the correct schema and complete 30-day history
+$CsvFile = Join-Path $RepoRoot "monitoring\dashboard\data.csv"
 if (Test-Path $CsvFile) {
     Copy-Item $CsvFile (Join-Path $DocsDir "data.csv") -Force
-    Write-Host "  Copied: ensemble_results/daily_states.csv -> docs/data.csv" -ForegroundColor Green
+    Write-Host "  Copied: monitoring/dashboard/data.csv -> docs/data.csv" -ForegroundColor Green
 } else {
-    # Fallback to old location
-    $CsvFile = Join-Path $RepoRoot "monitoring\data\daily_states.csv"
-    if (Test-Path $CsvFile) {
-        Copy-Item $CsvFile (Join-Path $DocsDir "data.csv") -Force
-        Write-Host "  Copied: daily_states.csv -> docs/data.csv (legacy)" -ForegroundColor Yellow
-    }
+    Write-Host "  WARNING: Dashboard data.csv not found at $CsvFile" -ForegroundColor Red
 }
 
 # 4. Update README

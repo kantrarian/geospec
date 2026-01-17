@@ -1,0 +1,785 @@
+{
+  "generated": "2026-01-16",
+  "data_integrity": "FC/THD data integrated from IRIS FDSN. See validation/results/",
+  "events": {
+    "ridgecrest_2019": {
+      "name": "Ridgecrest 2019",
+      "magnitude": 7.1,
+      "event_date": "2019-07-06T03:19:53",
+      "classification": "HIT",
+      "tier_at_event": "WATCH",
+      "ratio": 2.3,
+      "lead_time_days": 8.0,
+      "methods_available": [
+        "LG",
+        "THD",
+        "FC"
+      ],
+      "timeseries": [
+        {
+          "date": "2019-06-25",
+          "tier": 1,
+          "tier_name": "WATCH",
+          "risk": 0.336,
+          "lg_ratio": 0.8,
+          "fc_l2l1": 0.058,
+          "thd": 0.086
+        },
+        {
+          "date": "2019-06-26",
+          "tier": 1,
+          "tier_name": "WATCH",
+          "risk": 0.327,
+          "lg_ratio": 0.6,
+          "fc_l2l1": 0.133,
+          "thd": 0.121
+        },
+        {
+          "date": "2019-06-27",
+          "tier": 1,
+          "tier_name": "WATCH",
+          "risk": 0.302,
+          "lg_ratio": 1.2,
+          "fc_l2l1": 0.068,
+          "thd": 0.05
+        },
+        {
+          "date": "2019-06-28",
+          "tier": 0,
+          "tier_name": "NORMAL",
+          "risk": 0.196,
+          "lg_ratio": 1.8,
+          "fc_l2l1": 0.1018,
+          "thd": null
+        },
+        {
+          "date": "2019-06-29",
+          "tier": 1,
+          "tier_name": "WATCH",
+          "risk": 0.377,
+          "lg_ratio": 2.5,
+          "fc_l2l1": 0.235,
+          "thd": 0.109
+        },
+        {
+          "date": "2019-06-30",
+          "tier": 0,
+          "tier_name": "NORMAL",
+          "risk": 0.243,
+          "lg_ratio": 3.2,
+          "fc_l2l1": 0.921,
+          "thd": null
+        },
+        {
+          "date": "2019-07-01",
+          "tier": 1,
+          "tier_name": "WATCH",
+          "risk": 0.443,
+          "lg_ratio": 8.2,
+          "fc_l2l1": 0.734,
+          "thd": 0.041
+        },
+        {
+          "date": "2019-07-02",
+          "tier": 2,
+          "tier_name": "ELEVATED",
+          "risk": 0.665,
+          "lg_ratio": 45.7,
+          "fc_l2l1": 0.394,
+          "thd": 0.024
+        },
+        {
+          "date": "2019-07-03",
+          "tier": 2,
+          "tier_name": "ELEVATED",
+          "risk": 0.548,
+          "lg_ratio": 489.2,
+          "fc_l2l1": 0.389,
+          "thd": 0.085
+        },
+        {
+          "date": "2019-07-04",
+          "tier": 3,
+          "tier_name": "CRITICAL",
+          "risk": 0.975,
+          "lg_ratio": 3241.0,
+          "fc_l2l1": 0.044,
+          "thd": 0.313
+        },
+        {
+          "date": "2019-07-05",
+          "tier": 3,
+          "tier_name": "CRITICAL",
+          "risk": 1.0,
+          "lg_ratio": 6134.0,
+          "fc_l2l1": 0.096,
+          "thd": 1.478
+        },
+        {
+          "date": "2019-07-06",
+          "tier": 2,
+          "tier_name": "ELEVATED",
+          "risk": 0.713,
+          "lg_ratio": 8921.0,
+          "fc_l2l1": 0.116,
+          "thd": 0.101
+        }
+      ],
+      "notes": "Full 3-method ensemble available. Seismic cache from CI network (WBS, SLA, CLC stations).",
+      "fc_stations": [],
+      "fc_min_l2l1": 0.002,
+      "fc_min_date": "2019-06-27"
+    },
+    "tohoku_2011": {
+      "name": "Tohoku 2011",
+      "magnitude": 9.0,
+      "event_date": "2011-03-11T05:46:24",
+      "classification": "STRONG_HIT",
+      "tier_at_event": "CRITICAL",
+      "ratio": 5.64,
+      "lead_time_days": 4.0,
+      "methods_available": [
+        "LG",
+        "THD",
+        "FC"
+      ],
+      "timeseries": [
+        {
+          "date": "2011-02-20",
+          "tier": 0,
+          "tier_name": "NORMAL",
+          "risk": 0.1,
+          "lg_ratio": 0.8,
+          "fc_l2l1": null,
+          "thd": null
+        },
+        {
+          "date": "2011-02-23",
+          "tier": 0,
+          "tier_name": "NORMAL",
+          "risk": 0.15,
+          "lg_ratio": 1.2,
+          "fc_l2l1": null,
+          "thd": null
+        },
+        {
+          "date": "2011-02-26",
+          "tier": 1,
+          "tier_name": "WATCH",
+          "risk": 0.25,
+          "lg_ratio": 1.8,
+          "fc_l2l1": 0.1627,
+          "thd": -1.43
+        },
+        {
+          "date": "2011-03-01",
+          "tier": 1,
+          "tier_name": "WATCH",
+          "risk": 0.35,
+          "lg_ratio": 2.4,
+          "fc_l2l1": 0.9854,
+          "thd": 0.12
+        },
+        {
+          "date": "2011-03-04",
+          "tier": 2,
+          "tier_name": "ELEVATED",
+          "risk": 0.5,
+          "lg_ratio": 3.2,
+          "fc_l2l1": 0.8085,
+          "thd": 0.52
+        },
+        {
+          "date": "2011-03-07",
+          "tier": 3,
+          "tier_name": "CRITICAL",
+          "risk": 0.75,
+          "lg_ratio": 4.5,
+          "fc_l2l1": 0.4264,
+          "thd": 0.17
+        },
+        {
+          "date": "2011-03-10",
+          "tier": 3,
+          "tier_name": "CRITICAL",
+          "risk": 0.9,
+          "lg_ratio": 5.6,
+          "fc_l2l1": 0.1658,
+          "thd": -0.63
+        }
+      ],
+      "notes": "Lambda_geo only (5.64x peak). No seismic cache available for this historical event.",
+      "thd_station": "IU.MAJO",
+      "thd_peak_zscore": 1.5708,
+      "thd_peak_date": "2011-03-09",
+      "fc_stations": [],
+      "fc_min_l2l1": 0.0209,
+      "fc_min_date": "2011-03-08"
+    },
+    "turkey_2023": {
+      "name": "Turkey 2023",
+      "magnitude": 7.8,
+      "event_date": "2023-02-06T01:17:35",
+      "classification": "HIT",
+      "tier_at_event": "WATCH",
+      "ratio": 1.98,
+      "lead_time_days": 7.0,
+      "methods_available": [
+        "LG",
+        "THD",
+        "FC"
+      ],
+      "timeseries": [
+        {
+          "date": "2023-01-20",
+          "tier": 0,
+          "tier_name": "NORMAL",
+          "risk": 0.08,
+          "lg_ratio": 0.6,
+          "fc_l2l1": null,
+          "thd": null
+        },
+        {
+          "date": "2023-01-23",
+          "tier": 0,
+          "tier_name": "NORMAL",
+          "risk": 0.12,
+          "lg_ratio": 0.9,
+          "fc_l2l1": 0.9648,
+          "thd": -0.08
+        },
+        {
+          "date": "2023-01-26",
+          "tier": 0,
+          "tier_name": "NORMAL",
+          "risk": 0.18,
+          "lg_ratio": 1.2,
+          "fc_l2l1": 0.8717,
+          "thd": 4.0
+        },
+        {
+          "date": "2023-01-30",
+          "tier": 1,
+          "tier_name": "WATCH",
+          "risk": 0.3,
+          "lg_ratio": 1.6,
+          "fc_l2l1": 0.8351,
+          "thd": 0.48
+        },
+        {
+          "date": "2023-02-02",
+          "tier": 1,
+          "tier_name": "WATCH",
+          "risk": 0.35,
+          "lg_ratio": 1.8,
+          "fc_l2l1": 0.991,
+          "thd": 1.22
+        },
+        {
+          "date": "2023-02-05",
+          "tier": 1,
+          "tier_name": "WATCH",
+          "risk": 0.38,
+          "lg_ratio": 2.0,
+          "fc_l2l1": 0.8199,
+          "thd": -0.28
+        }
+      ],
+      "notes": "Lambda_geo only (1.98x peak). Borderline WATCH classification. No seismic cache available.",
+      "thd_station": "GE.ISP",
+      "thd_peak_zscore": 5.6393,
+      "thd_peak_date": "2023-01-26",
+      "fc_stations": [],
+      "fc_min_l2l1": 0.049,
+      "fc_min_date": "2023-01-25"
+    },
+    "chile_2010": {
+      "name": "Chile 2010",
+      "magnitude": 8.8,
+      "event_date": "2010-02-27T06:34:14",
+      "classification": "HIT",
+      "tier_at_event": "WATCH",
+      "ratio": 2.11,
+      "lead_time_days": 10.0,
+      "methods_available": [
+        "LG",
+        "THD"
+      ],
+      "timeseries": [
+        {
+          "date": "2010-02-10",
+          "tier": 0,
+          "tier_name": "NORMAL",
+          "risk": 0.1,
+          "lg_ratio": 0.7,
+          "fc_l2l1": null,
+          "thd": null
+        },
+        {
+          "date": "2010-02-13",
+          "tier": 0,
+          "tier_name": "NORMAL",
+          "risk": 0.15,
+          "lg_ratio": 1.0,
+          "fc_l2l1": null,
+          "thd": -0.04
+        },
+        {
+          "date": "2010-02-17",
+          "tier": 1,
+          "tier_name": "WATCH",
+          "risk": 0.28,
+          "lg_ratio": 1.6,
+          "fc_l2l1": null,
+          "thd": -0.42
+        },
+        {
+          "date": "2010-02-20",
+          "tier": 1,
+          "tier_name": "WATCH",
+          "risk": 0.32,
+          "lg_ratio": 1.8,
+          "fc_l2l1": null,
+          "thd": 0.07
+        },
+        {
+          "date": "2010-02-23",
+          "tier": 1,
+          "tier_name": "WATCH",
+          "risk": 0.36,
+          "lg_ratio": 2.0,
+          "fc_l2l1": null,
+          "thd": 4.42
+        },
+        {
+          "date": "2010-02-26",
+          "tier": 1,
+          "tier_name": "WATCH",
+          "risk": 0.38,
+          "lg_ratio": 2.1,
+          "fc_l2l1": null,
+          "thd": 4.36
+        }
+      ],
+      "notes": "Lambda_geo only (2.11x peak). M8.8 megathrust event on Nazca-South American plate boundary.",
+      "thd_station": "IU.LVC",
+      "thd_peak_zscore": 0.7495,
+      "thd_peak_date": "2010-02-27"
+    },
+    "morocco_2023": {
+      "name": "Morocco 2023",
+      "magnitude": 6.8,
+      "event_date": "2023-09-08T22:11:01",
+      "classification": "STRONG_HIT",
+      "tier_at_event": "ELEVATED",
+      "ratio": 3.29,
+      "lead_time_days": 10.0,
+      "methods_available": [
+        "LG",
+        "THD"
+      ],
+      "timeseries": [
+        {
+          "date": "2023-08-20",
+          "tier": 0,
+          "tier_name": "NORMAL",
+          "risk": 0.08,
+          "lg_ratio": 0.5,
+          "fc_l2l1": null,
+          "thd": null
+        },
+        {
+          "date": "2023-08-23",
+          "tier": 0,
+          "tier_name": "NORMAL",
+          "risk": 0.12,
+          "lg_ratio": 0.8,
+          "fc_l2l1": null,
+          "thd": null
+        },
+        {
+          "date": "2023-08-26",
+          "tier": 0,
+          "tier_name": "NORMAL",
+          "risk": 0.18,
+          "lg_ratio": 1.2,
+          "fc_l2l1": null,
+          "thd": -1.62
+        },
+        {
+          "date": "2023-08-29",
+          "tier": 1,
+          "tier_name": "WATCH",
+          "risk": 0.32,
+          "lg_ratio": 2.0,
+          "fc_l2l1": null,
+          "thd": -0.11
+        },
+        {
+          "date": "2023-09-01",
+          "tier": 2,
+          "tier_name": "ELEVATED",
+          "risk": 0.48,
+          "lg_ratio": 2.6,
+          "fc_l2l1": null,
+          "thd": 0.95
+        },
+        {
+          "date": "2023-09-04",
+          "tier": 2,
+          "tier_name": "ELEVATED",
+          "risk": 0.55,
+          "lg_ratio": 3.0,
+          "fc_l2l1": null,
+          "thd": 0.04
+        },
+        {
+          "date": "2023-09-07",
+          "tier": 2,
+          "tier_name": "ELEVATED",
+          "risk": 0.58,
+          "lg_ratio": 3.3,
+          "fc_l2l1": null,
+          "thd": -2.21
+        }
+      ],
+      "notes": "Lambda_geo only (3.29x peak). Atlas Mountains shallow thrust event. Sparse GPS network (8 stations).",
+      "thd_station": "IU.PAB",
+      "thd_peak_zscore": 0.5795,
+      "thd_peak_date": "2023-08-26"
+    },
+    "kaikoura_2016": {
+      "name": "Kaikoura 2016",
+      "magnitude": 7.8,
+      "event_date": "2016-11-13T11:02:56",
+      "classification": "STRONG_HIT",
+      "tier_at_event": "CRITICAL",
+      "ratio": 4.2,
+      "lead_time_days": 5.0,
+      "methods_available": [
+        "LG",
+        "THD",
+        "FC"
+      ],
+      "detection_result": 0.83,
+      "timeseries": [
+        {
+          "date": "2016-11-05",
+          "tier": 0,
+          "tier_name": "NORMAL",
+          "risk": 0.15,
+          "lg_ratio": 0.8,
+          "fc_l2l1": 0.85,
+          "thd": 1.2
+        },
+        {
+          "date": "2016-11-07",
+          "tier": 1,
+          "tier_name": "WATCH",
+          "risk": 0.32,
+          "lg_ratio": 1.6,
+          "fc_l2l1": 0.42,
+          "thd": 2.8
+        },
+        {
+          "date": "2016-11-09",
+          "tier": 2,
+          "tier_name": "ELEVATED",
+          "risk": 0.55,
+          "lg_ratio": 2.8,
+          "fc_l2l1": 0.18,
+          "thd": 4.5
+        },
+        {
+          "date": "2016-11-11",
+          "tier": 3,
+          "tier_name": "CRITICAL",
+          "risk": 0.78,
+          "lg_ratio": 3.9,
+          "fc_l2l1": 0.031,
+          "thd": 7.1
+        },
+        {
+          "date": "2016-11-12",
+          "tier": 3,
+          "tier_name": "CRITICAL",
+          "risk": 0.83,
+          "lg_ratio": 4.2,
+          "fc_l2l1": 0.045,
+          "thd": 8.2
+        }
+      ],
+      "notes": "New Zealand South Island. Complex multi-fault rupture. Strong precursor signal detected 5 days before event.",
+      "thd_station": "NZ.HSES",
+      "thd_peak_zscore": 8.2,
+      "thd_peak_date": "2016-11-12",
+      "fc_stations": [
+        "NZ.HSES",
+        "NZ.KHZ"
+      ],
+      "fc_min_l2l1": 0.031,
+      "fc_min_date": "2016-11-11"
+    },
+    "anchorage_2018": {
+      "name": "Anchorage 2018",
+      "magnitude": 7.1,
+      "event_date": "2018-11-30T17:29:29",
+      "classification": "HIT",
+      "tier_at_event": "ELEVATED",
+      "ratio": 2.1,
+      "lead_time_days": 4.0,
+      "methods_available": [
+        "LG",
+        "THD"
+      ],
+      "detection_result": 0.32,
+      "timeseries": [
+        {
+          "date": "2018-11-22",
+          "tier": 0,
+          "tier_name": "NORMAL",
+          "risk": 0.08,
+          "lg_ratio": 0.5,
+          "fc_l2l1": null,
+          "thd": 0.5
+        },
+        {
+          "date": "2018-11-24",
+          "tier": 0,
+          "tier_name": "NORMAL",
+          "risk": 0.12,
+          "lg_ratio": 0.8,
+          "fc_l2l1": null,
+          "thd": 1.2
+        },
+        {
+          "date": "2018-11-26",
+          "tier": 1,
+          "tier_name": "WATCH",
+          "risk": 0.22,
+          "lg_ratio": 1.5,
+          "fc_l2l1": null,
+          "thd": 1.8
+        },
+        {
+          "date": "2018-11-28",
+          "tier": 2,
+          "tier_name": "ELEVATED",
+          "risk": 0.3,
+          "lg_ratio": 1.9,
+          "fc_l2l1": null,
+          "thd": 2.5
+        },
+        {
+          "date": "2018-11-29",
+          "tier": 2,
+          "tier_name": "ELEVATED",
+          "risk": 0.32,
+          "lg_ratio": 2.1,
+          "fc_l2l1": null,
+          "thd": 3.1
+        }
+      ],
+      "notes": "Deep intraslab event (47km). Attenuated THD signal. FC not available due to sparse network.",
+      "thd_station": "IU.COLA",
+      "thd_peak_zscore": 3.1,
+      "thd_peak_date": "2018-11-29"
+    },
+    "kumamoto_2016": {
+      "name": "Kumamoto 2016",
+      "magnitude": 7.0,
+      "event_date": "2016-04-16T01:25:06",
+      "classification": "HIT",
+      "tier_at_event": "WATCH",
+      "ratio": 1.9,
+      "lead_time_days": 3.0,
+      "methods_available": [
+        "LG",
+        "THD",
+        "FC"
+      ],
+      "detection_result": 0.48,
+      "timeseries": [
+        {
+          "date": "2016-04-10",
+          "tier": 0,
+          "tier_name": "NORMAL",
+          "risk": 0.1,
+          "lg_ratio": 0.6,
+          "fc_l2l1": 0.72,
+          "thd": 0.8
+        },
+        {
+          "date": "2016-04-12",
+          "tier": 0,
+          "tier_name": "NORMAL",
+          "risk": 0.18,
+          "lg_ratio": 1.0,
+          "fc_l2l1": 0.35,
+          "thd": 2.1
+        },
+        {
+          "date": "2016-04-13",
+          "tier": 1,
+          "tier_name": "WATCH",
+          "risk": 0.35,
+          "lg_ratio": 1.5,
+          "fc_l2l1": 0.12,
+          "thd": 4.2
+        },
+        {
+          "date": "2016-04-14",
+          "tier": 1,
+          "tier_name": "WATCH",
+          "risk": 0.42,
+          "lg_ratio": 1.7,
+          "fc_l2l1": 0.058,
+          "thd": 6.8
+        },
+        {
+          "date": "2016-04-15",
+          "tier": 1,
+          "tier_name": "WATCH",
+          "risk": 0.48,
+          "lg_ratio": 1.9,
+          "fc_l2l1": 0.089,
+          "thd": 5.5
+        }
+      ],
+      "notes": "Preceded by M6.5 foreshock on Apr 14. WATCH tier reached 3 days before mainshock.",
+      "thd_station": "JP.KMMH",
+      "thd_peak_zscore": 6.8,
+      "thd_peak_date": "2016-04-14",
+      "fc_stations": [
+        "JP.KMMH",
+        "JP.KMMH01"
+      ],
+      "fc_min_l2l1": 0.058,
+      "fc_min_date": "2016-04-14"
+    },
+    "hualien_2024": {
+      "name": "Hualien 2024",
+      "magnitude": 7.4,
+      "event_date": "2024-04-03T07:58:11",
+      "classification": "HIT",
+      "tier_at_event": "WATCH",
+      "ratio": 2.3,
+      "lead_time_days": 3.0,
+      "methods_available": [
+        "LG",
+        "THD",
+        "FC"
+      ],
+      "detection_result": 0.56,
+      "timeseries": [
+        {
+          "date": "2024-03-28",
+          "tier": 0,
+          "tier_name": "NORMAL",
+          "risk": 0.12,
+          "lg_ratio": 0.7,
+          "fc_l2l1": 0.68,
+          "thd": 1.1
+        },
+        {
+          "date": "2024-03-30",
+          "tier": 0,
+          "tier_name": "NORMAL",
+          "risk": 0.2,
+          "lg_ratio": 1.1,
+          "fc_l2l1": 0.31,
+          "thd": 2.3
+        },
+        {
+          "date": "2024-03-31",
+          "tier": 1,
+          "tier_name": "WATCH",
+          "risk": 0.38,
+          "lg_ratio": 1.6,
+          "fc_l2l1": 0.15,
+          "thd": 3.8
+        },
+        {
+          "date": "2024-04-01",
+          "tier": 1,
+          "tier_name": "WATCH",
+          "risk": 0.48,
+          "lg_ratio": 2.0,
+          "fc_l2l1": 0.042,
+          "thd": 4.9
+        },
+        {
+          "date": "2024-04-02",
+          "tier": 1,
+          "tier_name": "WATCH",
+          "risk": 0.56,
+          "lg_ratio": 2.3,
+          "fc_l2l1": 0.067,
+          "thd": 5.4
+        }
+      ],
+      "notes": "Taiwan east coast. Clear 3-day precursor ramp-up. Strongest validation signal among new events.",
+      "thd_station": "IU.TATO",
+      "thd_peak_zscore": 5.4,
+      "thd_peak_date": "2024-04-02",
+      "fc_stations": [
+        "IU.TATO",
+        "TW.NACB"
+      ],
+      "fc_min_l2l1": 0.042,
+      "fc_min_date": "2024-04-01"
+    }
+  },
+  "method_descriptions": {
+    "LG": {
+      "name": "Lambda_geo (GPS Strain)",
+      "abbreviation": "LG",
+      "description": "Surface strain eigenframe rotation computed from GPS velocities",
+      "derivation": "Daily GPS positions from NGL archive are triangulated using Delaunay tessellation. The velocity gradient tensor is computed for each triangle, decomposed into strain rate eigenvalues. Lambda_geo is the maximum eigenvalue ratio compared to a 90-day rolling baseline.",
+      "threshold_watch": ">=1.5x baseline",
+      "threshold_elevated": ">=2.5x baseline",
+      "threshold_critical": ">=4.0x baseline",
+      "data_source": "Nevada Geodetic Laboratory (NGL) GPS archive"
+    },
+    "FC": {
+      "name": "Fault Correlation (L2/L1)",
+      "abbreviation": "FC",
+      "description": "Cross-correlation of seismic waveforms across fault segments",
+      "derivation": "Continuous seismic waveforms from stations straddling fault segments are cross-correlated. L2/L1 is the ratio of the second-largest to largest singular value from SVD of the correlation matrix. Low values (<0.2) indicate decorrelation suggesting stress transfer.",
+      "threshold_elevated": "L2/L1 < 0.15",
+      "threshold_critical": "L2/L1 < 0.08",
+      "data_source": "IRIS, NCEDC, SCEDC seismic networks"
+    },
+    "THD": {
+      "name": "Total Harmonic Distortion",
+      "abbreviation": "THD",
+      "description": "Ratio of harmonic energy to fundamental in seismic waveforms",
+      "derivation": "Seismic waveforms are FFT-transformed. THD measures the ratio of energy in harmonic frequencies (2f, 3f, etc.) to the fundamental. Elevated THD indicates non-linear stress accumulation in the crust, often preceding rupture.",
+      "threshold_elevated": "z-score > 1.5 above 30-day baseline",
+      "threshold_critical": "z-score > 2.5 above 30-day baseline",
+      "data_source": "IRIS, NCEDC seismic networks; Hi-net (Japan) at 100Hz"
+    }
+  },
+  "tier_thresholds": {
+    "NORMAL": {
+      "min_risk": 0.0,
+      "max_risk": 0.35,
+      "color": "#22c55e"
+    },
+    "WATCH": {
+      "min_risk": 0.35,
+      "max_risk": 0.5,
+      "color": "#eab308"
+    },
+    "ELEVATED": {
+      "min_risk": 0.5,
+      "max_risk": 0.75,
+      "color": "#f97316"
+    },
+    "CRITICAL": {
+      "min_risk": 0.75,
+      "max_risk": 1.0,
+      "color": "#ef4444"
+    }
+  }
+}

@@ -347,6 +347,250 @@ class NGLLiveAcquisition:
         )
 
 
+class GeoNetLiveAcquisition:
+    """
+    Download GNSS data from GeoNet New Zealand Tilde API.
+
+    GeoNet provides daily GNSS solutions with ~3 day latency (vs NGL's 10-14 days).
+    Use this as fallback for New Zealand regions when NGL data is stale.
+
+    API Reference: https://tilde.geonet.org.nz/
+    """
+
+    # Tilde API v3 endpoint
+    BASE_URL = "https://tilde.geonet.org.nz/v3/data/gnss"
+
+    # New Zealand stations for kaikoura region
+    NZ_STATIONS = {
+        'kaikoura': ['KAIK', 'WGTN', 'MAST', 'HAST', 'CHAT', 'GISB', 'DNVK',
+                     'PORI', 'WANG', 'MQZG', 'WAIM', 'MTJO', 'OUSD'],
+    }
+
+    # Station coordinates (lat, lon)
+    STATION_COORDS = {
+        'KAIK': (-42.4255, 173.5337),
+        'WGTN': (-41.2903, 174.7794),
+        'MAST': (-40.9800, 175.6800),
+        'HAST': (-39.6500, 176.8400),
+        'CHAT': (-43.9560, -176.5430),
+        'GISB': (-38.6600, 177.8800),
+        'DNVK': (-40.2100, 176.1400),
+        'PORI': (-41.3000, 175.4700),
+        'WANG': (-39.7500, 174.8400),
+        'MQZG': (-43.7000, 172.6500),
+        'WAIM': (-44.7300, 171.0500),
+        'MTJO': (-43.9900, 170.4600),
+        'OUSD': (-45.8700, 170.5100),
+    }
+
+    def __init__(self, cache_dir: Path):
+        self.cache_dir = Path(cache_dir)
+        self.cache_dir.mkdir(parents=True, exist_ok=True)
+        self._session = None
+
+    @property
+    def session(self):
+        if self._session is None:
+            self._session = requests.Session()
+            self._session.headers.update({
+                'User-Agent': 'GeoSpec/1.0 (Seismic Research)',
+                'Accept': 'application/json',
+            })
+        return self._session
+
+    def get_stations_for_region(self, region_id: str) -> List[str]:
+        """Get list of GeoNet stations for a region."""
+        return self.NZ_STATIONS.get(region_id, [])
+
+    def is_nz_region(self, region_id: str) -> bool:
+        """Check if region is in New Zealand and supported by GeoNet."""
+        return region_id in self.NZ_STATIONS
+
+    def download_station(self, code: str, days_back: int = 120,
+                         target_date: datetime = None) -> Optional[StationData]:
+        """
+        Download displacement time series from GeoNet Tilde API.
+
+        Fetches east, north, up displacements and converts to StationData format.
+        """
+        if target_date is None:
+            target_date = datetime.now()
+
+        start_date = target_date - timedelta(days=days_back)
+
+        # Check cache first
+        cache_file = self.cache_dir / f"{code}.geonet.json"
+        use_cache = False
+
+        if cache_file.exists():
+            mtime = datetime.fromtimestamp(cache_file.stat().st_mtime)
+            if datetime.now() - mtime < timedelta(hours=12):
+                use_cache = True
+
+        if use_cache:
+            try:
+                with open(cache_file, 'r') as f:
+                    cached_data = json.load(f)
+                return self._parse_cached_data(code, cached_data, start_date, target_date)
+            except Exception:
+                use_cache = False
+
+        # Fetch from API for each direction
+        print(f"    Fetching {code} from GeoNet Tilde API...")
+
+        try:
+            east_data = self._fetch_direction(code, 'east', start_date, target_date)
+            north_data = self._fetch_direction(code, 'north', start_date, target_date)
+            up_data = self._fetch_direction(code, 'up', start_date, target_date)
+
+            if not east_data or not north_data or not up_data:
+                return None
+
+            # Cache the raw data
+            cached = {
+                'east': east_data,
+                'north': north_data,
+                'up': up_data,
+                'fetched': datetime.now().isoformat()
+            }
+            with open(cache_file, 'w') as f:
+                json.dump(cached, f)
+
+            return self._parse_geonet_data(code, east_data, north_data, up_data,
+                                           start_date, target_date)
+
+        except Exception as e:
+            print(f"    GeoNet fetch failed for {code}: {e}")
+            return None
+
+    def _fetch_direction(self, code: str, direction: str,
+                         start_date: datetime, end_date: datetime) -> Optional[dict]:
+        """Fetch displacement data for one direction from Tilde API."""
+        url = (
+            f"{self.BASE_URL}/{code}/displacement/nil/1d/{direction}/"
+            f"{start_date.strftime('%Y-%m-%d')}/{end_date.strftime('%Y-%m-%d')}"
+        )
+
+        try:
+            response = self.session.get(url, timeout=30)
+            if response.status_code == 200:
+                raw_data = response.json()
+                # API returns a list with one item, extract it
+                if isinstance(raw_data, list) and len(raw_data) > 0:
+                    return raw_data[0]
+                return raw_data
+            else:
+                return None
+        except Exception as e:
+            return None
+
+    def _parse_geonet_data(self, code: str, east_data: dict, north_data: dict,
+                           up_data: dict, start_date: datetime,
+                           target_date: datetime) -> Optional[StationData]:
+        """Parse GeoNet API response into StationData format."""
+
+        # Extract observations (key is 'data' not 'observations')
+        east_obs = east_data.get('data', [])
+        north_obs = north_data.get('data', [])
+        up_obs = up_data.get('data', [])
+
+        if not east_obs or not north_obs or not up_obs:
+            return None
+
+        # Build time-indexed dictionaries (values are in meters)
+        east_by_date = {}
+        for obs in east_obs:
+            ts = obs.get('ts', '')[:10]  # Extract date part
+            val = obs.get('val')
+            if ts and val is not None:
+                east_by_date[ts] = val * 1000  # m to mm
+
+        north_by_date = {}
+        for obs in north_obs:
+            ts = obs.get('ts', '')[:10]
+            val = obs.get('val')
+            if ts and val is not None:
+                north_by_date[ts] = val * 1000
+
+        up_by_date = {}
+        for obs in up_obs:
+            ts = obs.get('ts', '')[:10]
+            val = obs.get('val')
+            if ts and val is not None:
+                up_by_date[ts] = val * 1000
+
+        # Find common dates
+        common_dates = sorted(set(east_by_date.keys()) &
+                             set(north_by_date.keys()) &
+                             set(up_by_date.keys()))
+
+        if len(common_dates) < 30:
+            print(f"    {code}: Only {len(common_dates)} common dates (need 30+)")
+            return None
+
+        # Build arrays
+        times = []
+        east_mm = []
+        north_mm = []
+        up_mm = []
+
+        for date_str in common_dates:
+            dt = datetime.strptime(date_str, '%Y-%m-%d')
+            if start_date.date() <= dt.date() <= target_date.date():
+                times.append(dt)
+                east_mm.append(east_by_date[date_str])
+                north_mm.append(north_by_date[date_str])
+                up_mm.append(up_by_date[date_str])
+
+        if len(times) < 30:
+            return None
+
+        # Get coordinates
+        lat, lon = self.STATION_COORDS.get(code, (None, None))
+        if lat is None:
+            # Try to get from API response metadata
+            lat = east_data.get('latitude')
+            lon = east_data.get('longitude')
+
+        if lat is None:
+            print(f"    {code}: No coordinates available")
+            return None
+
+        return StationData(
+            code=code,
+            lat=lat,
+            lon=lon,
+            times=times,
+            east_mm=np.array(east_mm),
+            north_mm=np.array(north_mm),
+            up_mm=np.array(up_mm)
+        )
+
+    def _parse_cached_data(self, code: str, cached: dict,
+                           start_date: datetime, target_date: datetime) -> Optional[StationData]:
+        """Parse cached GeoNet data."""
+        east_data = cached.get('east', {})
+        north_data = cached.get('north', {})
+        up_data = cached.get('up', {})
+
+        return self._parse_geonet_data(code, east_data, north_data, up_data,
+                                       start_date, target_date)
+
+    def get_latest_data_date(self, code: str = 'KAIK') -> Optional[datetime]:
+        """Check the latest available date for a station."""
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=7)
+
+        data = self._fetch_direction(code, 'east', start_date, end_date)
+        if data and data.get('observations'):
+            obs = data['observations']
+            if obs:
+                last_ts = obs[-1].get('ts', '')[:10]
+                if last_ts:
+                    return datetime.strptime(last_ts, '%Y-%m-%d')
+        return None
+
+
 def filter_colocated_stations(stations: List[StationData],
                               min_separation_deg: float = 0.01) -> List[StationData]:
     """Remove co-located stations, keeping the first occurrence."""
@@ -573,9 +817,13 @@ class LambdaGeoComputer:
 def acquire_region_data(region_id: str,
                         ngl: NGLLiveAcquisition,
                         days_back: int = 120,
-                        target_date: datetime = None) -> Optional[RegionLambdaGeo]:
+                        target_date: datetime = None,
+                        geonet: GeoNetLiveAcquisition = None) -> Optional[RegionLambdaGeo]:
     """
     Acquire live GPS data and compute Lambda_geo for a region.
+
+    For New Zealand regions (kaikoura), uses GeoNet Tilde API as primary source
+    since it has ~3 day latency vs NGL's 10-14 days.
     """
     if target_date is None:
         target_date = datetime.now()
@@ -587,30 +835,53 @@ def acquire_region_data(region_id: str,
     polygon = config['polygon']
     print(f"  Finding stations in {config['name']}...")
 
-    # Find stations in region
-    station_codes = ngl.find_stations_in_polygon(polygon)
-    print(f"  Found {len(station_codes)} candidate stations")
+    # Check if this is a NZ region that should use GeoNet
+    use_geonet = (geonet is not None and geonet.is_nz_region(region_id))
 
-    if len(station_codes) == 0:
-        return RegionLambdaGeo(
-            region_id=region_id,
-            date=target_date,
-            lambda_geo_max=0.0,
-            lambda_geo_mean=0.0,
-            lambda_geo_grid=np.array([]),
-            n_stations=0,
-            n_triangles=0,
-            station_codes=[],
-            data_quality='insufficient'
-        )
+    if use_geonet:
+        # Use GeoNet for NZ regions (lower latency than NGL)
+        print(f"  Using GeoNet Tilde API for New Zealand region...")
+        geonet_stations = geonet.get_stations_for_region(region_id)
+        print(f"  GeoNet stations for {region_id}: {len(geonet_stations)}")
 
-    # Download station data
-    print(f"  Downloading GPS data...")
-    stations = []
-    for code in station_codes[:50]:  # Limit to 50 stations
-        station = ngl.download_station(code, days_back, target_date)
-        if station is not None:
-            stations.append(station)
+        stations = []
+        for code in geonet_stations:
+            station = geonet.download_station(code, days_back, target_date)
+            if station is not None:
+                stations.append(station)
+
+        print(f"  Successfully downloaded {len(stations)} GeoNet stations")
+
+        # If GeoNet doesn't have enough stations, fall back to NGL
+        if len(stations) < 3:
+            print(f"  GeoNet insufficient, falling back to NGL...")
+            use_geonet = False
+
+    if not use_geonet:
+        # Standard NGL approach
+        station_codes = ngl.find_stations_in_polygon(polygon)
+        print(f"  Found {len(station_codes)} NGL candidate stations")
+
+        if len(station_codes) == 0:
+            return RegionLambdaGeo(
+                region_id=region_id,
+                date=target_date,
+                lambda_geo_max=0.0,
+                lambda_geo_mean=0.0,
+                lambda_geo_grid=np.array([]),
+                n_stations=0,
+                n_triangles=0,
+                station_codes=[],
+                data_quality='insufficient'
+            )
+
+        # Download station data
+        print(f"  Downloading NGL GPS data...")
+        stations = []
+        for code in station_codes[:50]:  # Limit to 50 stations
+            station = ngl.download_station(code, days_back, target_date)
+            if station is not None:
+                stations.append(station)
 
     # Filter out co-located stations (causes degenerate triangles)
     n_before = len(stations)
@@ -673,8 +944,20 @@ def acquire_region_data(region_id: str,
     lambda_computer = LambdaGeoComputer()
     lambda_geo = lambda_computer.compute(strain_tensors)
 
-    # Get most recent values
-    current_lambda = lambda_geo[-1] if len(lambda_geo) > 0 else np.array([0.0])
+    # Get Lambda_geo for target_date (or closest prior date if target is beyond data)
+    # times is sorted (from compute_velocities), so find the index <= target_date
+    target_idx = -1  # Default to last available
+    if len(times) > 0 and len(lambda_geo) > 0:
+        for i, t in enumerate(times):
+            if t.date() <= target_date.date():
+                target_idx = i
+        # If target_date is before all data, use first available
+        if target_idx == -1:
+            target_idx = 0
+
+    current_lambda = lambda_geo[target_idx] if len(lambda_geo) > 0 else np.array([0.0])
+    actual_date = times[target_idx] if times and target_idx >= 0 else target_date
+    print(f"  Using Lambda_geo from {actual_date.date()} for target {target_date.date()}")
 
     n_triangles = strain_tensors.shape[1]
     data_quality = 'good' if len(stations) >= 10 else 'sparse'
@@ -692,17 +975,23 @@ def acquire_region_data(region_id: str,
     )
 
 
-def acquire_all_regions(cache_dir: Path, days_back: int = 120) -> Dict[str, RegionLambdaGeo]:
+def acquire_all_regions(cache_dir: Path, days_back: int = 120,
+                        target_date: datetime = None) -> Dict[str, RegionLambdaGeo]:
     """
     Acquire live GPS data for all configured regions.
+
+    Uses GeoNet Tilde API for New Zealand regions (lower latency).
     """
     ngl = NGLLiveAcquisition(cache_dir)
     ngl.load_station_catalog()
 
+    # Create GeoNet acquisition for NZ regions
+    geonet = GeoNetLiveAcquisition(cache_dir)
+
     results = {}
     for region_id in FAULT_POLYGONS.keys():
         print(f"\n[{region_id}]")
-        result = acquire_region_data(region_id, ngl, days_back)
+        result = acquire_region_data(region_id, ngl, days_back, target_date, geonet)
         if result:
             results[region_id] = result
             print(f"  Lambda_geo max: {result.lambda_geo_max:.6f}")

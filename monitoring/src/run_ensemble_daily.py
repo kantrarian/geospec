@@ -63,8 +63,9 @@ except ImportError:
     PILOT_REGION = None
 
 # NGL-based Lambda_geo for all regions with polygon definitions
+# GeoNet for New Zealand regions (lower latency than NGL)
 try:
-    from live_data import NGLLiveAcquisition, acquire_region_data
+    from live_data import NGLLiveAcquisition, GeoNetLiveAcquisition, acquire_region_data
     from regions import FAULT_POLYGONS
     NGL_LAMBDA_GEO_AVAILABLE = True
 except ImportError:
@@ -418,6 +419,9 @@ def fetch_ngl_lambda_geo(
     cache_dir = Path(__file__).parent.parent / 'data' / 'gps_cache'
     ngl = NGLLiveAcquisition(cache_dir)
 
+    # Initialize GeoNet acquisition for New Zealand regions (lower latency than NGL)
+    geonet = GeoNetLiveAcquisition(cache_dir)
+
     # Load station catalog once
     logger.info("Loading NGL station catalog for Lambda_geo computation...")
     ngl.load_station_catalog()
@@ -435,7 +439,8 @@ def fetch_ngl_lambda_geo(
 
         try:
             logger.info(f"Computing Lambda_geo for {region}...")
-            result = acquire_region_data(region, ngl, days_back, target_date)
+            # Use GeoNet for NZ regions (kaikoura) - has ~3 day latency vs NGL's 10-14 days
+            result = acquire_region_data(region, ngl, days_back, target_date, geonet)
 
             if result and result.n_stations >= 3 and result.lambda_geo_max > 0:
                 # Get region-specific baseline (calibrated from real GPS data)

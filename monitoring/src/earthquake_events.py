@@ -116,6 +116,12 @@ class RegionEvents:
     event_count: int = 0
 
     def to_dict(self) -> Dict:
+        # Sort events by date (newest first), then by magnitude (largest first)
+        sorted_events = sorted(
+            self.events,
+            key=lambda e: (e.time, e.magnitude),
+            reverse=True
+        )
         return {
             'region': self.region,
             'bounds': {
@@ -128,7 +134,7 @@ class RegionEvents:
             'event_count': self.event_count,
             'largest_event': self.largest_event.to_dict() if self.largest_event else None,
             'most_recent_event': self.most_recent_event.to_dict() if self.most_recent_event else None,
-            'events': [e.to_dict() for e in self.events[:10]],  # Limit to 10 most recent
+            'events': [e.to_dict() for e in sorted_events[:5]],  # Top 5 most recent
         }
 
 

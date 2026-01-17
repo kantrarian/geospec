@@ -1,5 +1,5 @@
 {
-  "generated": "2026-01-17T14:49:19.219603",
+  "generated": "2026-01-17T15:48:52.436584",
   "lookback_days": 90,
   "min_magnitude": 4.0,
   "regions": {
@@ -11,7 +11,7 @@
         "minlon": -118.5,
         "maxlon": -116.5
       },
-      "last_updated": "2026-01-17T14:49:07.809152",
+      "last_updated": "2026-01-17T15:48:41.312362",
       "event_count": 0,
       "largest_event": null,
       "most_recent_event": null,
@@ -25,7 +25,7 @@
         "minlon": -118.5,
         "maxlon": -115.5
       },
-      "last_updated": "2026-01-17T14:49:08.654355",
+      "last_updated": "2026-01-17T15:48:41.926856",
       "event_count": 0,
       "largest_event": null,
       "most_recent_event": null,
@@ -39,7 +39,7 @@
         "minlon": -117.0,
         "maxlon": -115.0
       },
-      "last_updated": "2026-01-17T14:49:09.445535",
+      "last_updated": "2026-01-17T15:48:42.704781",
       "event_count": 0,
       "largest_event": null,
       "most_recent_event": null,
@@ -53,7 +53,7 @@
         "minlon": -117.0,
         "maxlon": -115.0
       },
-      "last_updated": "2026-01-17T14:49:10.078015",
+      "last_updated": "2026-01-17T15:48:43.491357",
       "event_count": 0,
       "largest_event": null,
       "most_recent_event": null,
@@ -67,7 +67,7 @@
         "minlon": -123.0,
         "maxlon": -121.5
       },
-      "last_updated": "2026-01-17T14:49:10.898166",
+      "last_updated": "2026-01-17T15:48:44.104534",
       "event_count": 1,
       "largest_event": {
         "event_id": "nc75279971",
@@ -113,7 +113,7 @@
         "minlon": -130.0,
         "maxlon": -122.0
       },
-      "last_updated": "2026-01-17T14:49:11.581236",
+      "last_updated": "2026-01-17T15:48:44.879449",
       "event_count": 8,
       "largest_event": {
         "event_id": "us7000rq0d",
@@ -192,39 +192,6 @@
           "mag_type": "mb",
           "place": "290 km WNW of Barview, Oregon",
           "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us6000rmxh"
-        },
-        {
-          "event_id": "us6000rlky",
-          "time": "2025-11-05T03:21:23.087000",
-          "latitude": 43.4404,
-          "longitude": -126.8241,
-          "depth_km": 10,
-          "magnitude": 4.1,
-          "mag_type": "mb",
-          "place": "199 km W of Bandon, Oregon",
-          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us6000rlky"
-        },
-        {
-          "event_id": "us6000rk5r",
-          "time": "2025-10-29T14:00:23.094000",
-          "latitude": 44.381,
-          "longitude": -129.6821,
-          "depth_km": 10,
-          "magnitude": 5.4,
-          "mag_type": "mww",
-          "place": "off the coast of Oregon",
-          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us6000rk5r"
-        },
-        {
-          "event_id": "us6000rk5p",
-          "time": "2025-10-29T13:42:44.529000",
-          "latitude": 44.6049,
-          "longitude": -129.8321,
-          "depth_km": 10,
-          "magnitude": 4.8,
-          "mag_type": "mww",
-          "place": "off the coast of Oregon",
-          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us6000rk5p"
         }
       ]
     },
@@ -236,7 +203,7 @@
         "minlon": -152.0,
         "maxlon": -147.0
       },
-      "last_updated": "2026-01-17T14:49:12.363445",
+      "last_updated": "2026-01-17T15:48:45.667793",
       "event_count": 4,
       "largest_event": {
         "event_id": "ak2025xjbvhj",
@@ -315,7 +282,7 @@
         "minlon": 138.5,
         "maxlon": 141.5
       },
-      "last_updated": "2026-01-17T14:49:13.047638",
+      "last_updated": "2026-01-17T15:48:46.285921",
       "event_count": 12,
       "largest_event": {
         "event_id": "us7000rnm9",
@@ -394,61 +361,6 @@
           "mag_type": "mb",
           "place": "7 km WNW of Ichihara, Japan",
           "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us7000rf34"
-        },
-        {
-          "event_id": "us7000regr",
-          "time": "2025-11-11T21:50:49.880000",
-          "latitude": 36.441,
-          "longitude": 140.47,
-          "depth_km": 68.482,
-          "magnitude": 4.2,
-          "mag_type": "mb",
-          "place": "7 km NW of Hitachi-Naka, Japan",
-          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us7000regr"
-        },
-        {
-          "event_id": "us6000rmak",
-          "time": "2025-11-08T21:24:58.358000",
-          "latitude": 36.3432,
-          "longitude": 140.0067,
-          "depth_km": 84.053,
-          "magnitude": 4.4,
-          "mag_type": "mb",
-          "place": "3 km NE of Chikusei, Japan",
-          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us6000rmak"
-        },
-        {
-          "event_id": "us6000rlid",
-          "time": "2025-11-04T22:17:29.328000",
-          "latitude": 34.7242,
-          "longitude": 140.9772,
-          "depth_km": 35,
-          "magnitude": 4.7,
-          "mag_type": "mww",
-          "place": "76 km SE of Shinmachi, Japan",
-          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us6000rlid"
-        },
-        {
-          "event_id": "us7000rdh0",
-          "time": "2025-11-04T05:00:11.221000",
-          "latitude": 36.0959,
-          "longitude": 139.9355,
-          "depth_km": 83.632,
-          "magnitude": 4.2,
-          "mag_type": "mb",
-          "place": "3 km SW of Ishige, Japan",
-          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us7000rdh0"
-        },
-        {
-          "event_id": "us6000rjk2",
-          "time": "2025-10-26T13:34:57.870000",
-          "latitude": 35.7618,
-          "longitude": 140.0357,
-          "depth_km": 85.358,
-          "magnitude": 4.6,
-          "mag_type": "mb",
-          "place": "5 km SSW of Shiroi, Japan",
-          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us6000rjk2"
         }
       ]
     },
@@ -460,7 +372,7 @@
         "minlon": 139.0,
         "maxlon": 145.0
       },
-      "last_updated": "2026-01-17T14:49:14.156014",
+      "last_updated": "2026-01-17T15:48:47.224425",
       "event_count": 248,
       "largest_event": {
         "event_id": "us6000rtdt",
@@ -539,61 +451,6 @@
           "mag_type": "mww",
           "place": "73 km ENE of Mutsu, Japan",
           "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us7000rmza"
-        },
-        {
-          "event_id": "us7000rmrh",
-          "time": "2026-01-06T03:34:06.051000",
-          "latitude": 40.5126,
-          "longitude": 142.0199,
-          "depth_km": 56.185,
-          "magnitude": 4.5,
-          "mag_type": "mb",
-          "place": "41 km NNE of Kuji, Japan",
-          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us7000rmrh"
-        },
-        {
-          "event_id": "us7000rlqw",
-          "time": "2025-12-31T16:30:24.925000",
-          "latitude": 40.984,
-          "longitude": 143.0054,
-          "depth_km": 64.338,
-          "magnitude": 4.9,
-          "mag_type": "mb",
-          "place": "127 km S of Honch\u014d, Japan",
-          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us7000rlqw"
-        },
-        {
-          "event_id": "us7000rlqg",
-          "time": "2025-12-31T14:50:04.480000",
-          "latitude": 39.7986,
-          "longitude": 141.865,
-          "depth_km": 58.369,
-          "magnitude": 4.4,
-          "mag_type": "mb",
-          "place": "7 km SE of Iwaizumi, Japan",
-          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us7000rlqg"
-        },
-        {
-          "event_id": "us7000rlq3",
-          "time": "2025-12-31T14:26:56.732000",
-          "latitude": 40.1119,
-          "longitude": 142.8885,
-          "depth_km": 19.297,
-          "magnitude": 6,
-          "mag_type": "mww",
-          "place": "91 km E of Noda, Japan",
-          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us7000rlq3"
-        },
-        {
-          "event_id": "us7000rlm7",
-          "time": "2025-12-30T23:51:37.190000",
-          "latitude": 39.5079,
-          "longitude": 142.6174,
-          "depth_km": 35,
-          "magnitude": 4.8,
-          "mag_type": "mb",
-          "place": "57 km E of Yamada, Japan",
-          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us7000rlm7"
         }
       ]
     },
@@ -605,7 +462,7 @@
         "minlon": 129.5,
         "maxlon": 132.0
       },
-      "last_updated": "2026-01-17T14:49:14.944283",
+      "last_updated": "2026-01-17T15:48:47.985523",
       "event_count": 4,
       "largest_event": {
         "event_id": "us7000rdmh",
@@ -684,7 +541,7 @@
         "minlon": 120.5,
         "maxlon": 122.5
       },
-      "last_updated": "2026-01-17T14:49:15.812599",
+      "last_updated": "2026-01-17T15:48:48.912411",
       "event_count": 25,
       "largest_event": {
         "event_id": "us7000rl2n",
@@ -763,61 +620,6 @@
           "mag_type": "mb",
           "place": "35 km ESE of Yilan, Taiwan",
           "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us7000rl3a"
-        },
-        {
-          "event_id": "us7000rl2n",
-          "time": "2025-12-27T15:05:55.423000",
-          "latitude": 24.6727,
-          "longitude": 122.0572,
-          "depth_km": 63,
-          "magnitude": 6.6,
-          "mag_type": "mww",
-          "place": "32 km ESE of Yilan, Taiwan",
-          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us7000rl2n"
-        },
-        {
-          "event_id": "us7000rkb9",
-          "time": "2025-12-23T07:46:09.541000",
-          "latitude": 23.7299,
-          "longitude": 121.6344,
-          "depth_km": 35.977,
-          "magnitude": 4.8,
-          "mag_type": "mb",
-          "place": "27 km S of Hualien City, Taiwan",
-          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us7000rkb9"
-        },
-        {
-          "event_id": "us6000rwbe",
-          "time": "2025-12-21T10:00:41.219000",
-          "latitude": 23.7708,
-          "longitude": 122.4699,
-          "depth_km": 10,
-          "magnitude": 4.4,
-          "mag_type": "mb",
-          "place": "91 km ESE of Hualien City, Taiwan",
-          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us6000rwbe"
-        },
-        {
-          "event_id": "us6000rvnk",
-          "time": "2025-12-18T11:32:50.036000",
-          "latitude": 24.0702,
-          "longitude": 121.7741,
-          "depth_km": 32.176,
-          "magnitude": 4.6,
-          "mag_type": "mwr",
-          "place": "20 km ENE of Hualien City, Taiwan",
-          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us6000rvnk"
-        },
-        {
-          "event_id": "us6000rupb",
-          "time": "2025-12-13T17:58:35.236000",
-          "latitude": 24.1435,
-          "longitude": 121.9403,
-          "depth_km": 32.908,
-          "magnitude": 4.1,
-          "mag_type": "mwr",
-          "place": "38 km ENE of Hualien City, Taiwan",
-          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us6000rupb"
         }
       ]
     },
@@ -829,7 +631,7 @@
         "minlon": 172.0,
         "maxlon": 175.0
       },
-      "last_updated": "2026-01-17T14:49:16.569963",
+      "last_updated": "2026-01-17T15:48:49.657903",
       "event_count": 1,
       "largest_event": {
         "event_id": "us6000rkvm",
@@ -875,7 +677,7 @@
         "minlon": 27.5,
         "maxlon": 30.5
       },
-      "last_updated": "2026-01-17T14:49:17.182022",
+      "last_updated": "2026-01-17T15:48:50.419362",
       "event_count": 0,
       "largest_event": null,
       "most_recent_event": null,
@@ -889,7 +691,7 @@
         "minlon": 36.0,
         "maxlon": 38.5
       },
-      "last_updated": "2026-01-17T14:49:17.960379",
+      "last_updated": "2026-01-17T15:48:51.028249",
       "event_count": 3,
       "largest_event": {
         "event_id": "us6000rpb8",
@@ -957,7 +759,7 @@
         "minlon": 13.8,
         "maxlon": 14.5
       },
-      "last_updated": "2026-01-17T14:49:18.573906",
+      "last_updated": "2026-01-17T15:48:51.636275",
       "event_count": 0,
       "largest_event": null,
       "most_recent_event": null,
@@ -971,7 +773,7 @@
         "minlon": -73.5,
         "maxlon": -70.5
       },
-      "last_updated": "2026-01-17T14:49:19.218097",
+      "last_updated": "2026-01-17T15:48:52.436584",
       "event_count": 1,
       "largest_event": {
         "event_id": "us6000rkgt",

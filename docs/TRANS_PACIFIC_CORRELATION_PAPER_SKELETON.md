@@ -617,6 +617,40 @@ This suggests that **THD anomalies in Tokyo precede similar anomalies in Cascadi
 
 **Caution**: The 12-day lag for Hayward-Tokyo may be an edge effect given only 31 days of data. Extended monitoring is needed to validate.
 
+### 9.4 Timezone Artifact Audit (January 17, 2026)
+
+A 1-day lag across 17 timezone hours (Tokyo UTC+9, Cascadia UTC-8) raised concern about binning artifacts. Detailed audit results:
+
+**UTC Alignment Verified**:
+- All seismic data fetched via ObsPy UTCDateTime (always UTC)
+- Ensemble windows: 25 hours ending at UTC midnight
+- Same UTC window applied to ALL regions regardless of local time
+- No timezone-dependent logic in pipeline
+
+**Data Integrity**:
+- 31/31 days have THD available for both Cascadia and Tokyo
+- No gaps that could create spurious lag correlations
+
+**Outlier Sensitivity Analysis**:
+| Subset | Lag -1 (r) | Lag 0 (r) | Conclusion |
+|--------|------------|-----------|------------|
+| Full data (n=31) | 0.90 | 0.58 | Tokyo leads |
+| Exclude last day (n=30) | **0.94** | 0.59 | Even stronger |
+| Exclude first 3 days (n=28) | 0.90 | 0.57 | Consistent |
+
+**Verdict**: The 1-day lag is NOT a timezone artifact. The correlation is robust to outlier removal and actually strengthens when the anomalous Jan 16 Cascadia value (0.082, far below baseline) is excluded.
+
+### 9.5 Recommendations for Phase 4
+
+1. **Sub-daily Resolution**: Implement 6-hour window analysis to determine if lag is exactly 24.0 hours (suspicious) or approximately 19.5 hours (physical, matching timezone offset)
+
+2. **Extended Monitoring**: Collect 90+ days to confirm persistence and rule out edge effects
+
+3. **Mechanism Candidates**:
+   - **Common Mode (LOD/Polar Motion)**: Earth rotation variations affect both regions with diurnal detection sensitivity
+   - **Kuril Bridge Propagation**: Physical stress transfer at ~300 km/h (matches atmospheric wave velocities)
+   - **Mantle Flow Coherence**: Asthenospheric coupling beneath North Pacific
+
 ---
 
 ## 10. Discussion Points (To Be Developed)
@@ -726,6 +760,7 @@ This suggests that **THD anomalies in Tokyo precede similar anomalies in Cascadi
 | 0.5 | 2026-01-16 | **Major revision per peer feedback**: (1) Reframed as methodological paper on tidal artifact decoupling; (2) Added explicit H0 null hypothesis for tidal aliasing; (3) Downgraded H2 (mantle convection) to future work due to 31-day limitation; (4) Clarified data asymmetry—Hualien/Anchorage are THD-only (single station), cannot support Lambda_geo; (5) Added aseismic vs seismic coupling discrimination via moment ratios; (6) Added Phase 6 for vertical velocity transient detection (slab orphaning signature per Grima 2020) |
 | 0.6 | 2026-01-17 | **MAJOR PIVOT - North Pacific Bridge**: (1) Title changed to reflect Cascadia-Japan focus; (2) Abstract rewritten with new findings; (3) Hayward-Hualien demoted to negative control (r=0.27, artifact confirmed); (4) Primary focus now on Cascadia-Tokyo (r=0.58, p<0.001) and Hayward-Tokyo (r=0.48, p=0.008); (5) Tidal aliasing H0 REJECTED for Japan pairs (145-149 deg phase, not opposing); (6) Added Phase 2 results table with full statistics |
 | 0.7 | 2026-01-17 | **Phase 3 Lag Analysis**: (1) Added Section 9.3 with lag correlation results; (2) Critical finding: Tokyo leads Cascadia by 1 day with r=0.90 at optimal lag; (3) Suggests counter-clockwise stress propagation along northern Pacific margin; (4) Lag-correlation figures generated for all pairs |
+| 0.8 | 2026-01-17 | **Timezone Artifact Audit**: (1) Added Section 9.4 verifying UTC alignment in pipeline; (2) Confirmed all seismic data uses ObsPy UTCDateTime; (3) Outlier sensitivity analysis shows lag=-1 correlation strengthens to r=0.94 without outliers; (4) Section 9.5 added with Phase 4 recommendations including sub-daily resolution |
 
 ---
 

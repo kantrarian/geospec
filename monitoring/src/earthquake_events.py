@@ -40,11 +40,23 @@ REGION_BOUNDS = {
     'socal_saf_coachella': (33.0, 34.5, -117.0, -115.0),
     'socal_coachella': (33.0, 34.5, -117.0, -115.0),  # Alias
     'norcal_hayward': (37.0, 38.5, -123.0, -121.5),
-    'cascadia': (42.0, 49.0, -125.0, -121.0),
+    'cascadia': (42.0, 49.0, -130.0, -122.0),  # Extended westward for offshore events
 
-    # International
+    # Alaska
+    'anchorage': (59.0, 63.0, -152.0, -147.0),
+
+    # Japan
     'tokyo_kanto': (34.5, 37.0, 138.5, 141.5),
     'japan_tohoku': (36.0, 42.0, 139.0, 145.0),
+    'kumamoto': (31.5, 34.0, 129.5, 132.0),  # Kyushu region
+
+    # Taiwan
+    'hualien': (23.0, 25.5, 120.5, 122.5),
+
+    # New Zealand
+    'kaikoura': (-43.5, -41.5, 172.0, 175.0),
+
+    # Turkey
     'istanbul_marmara': (40.0, 41.5, 27.5, 30.5),
     'turkey_kahramanmaras': (36.5, 38.5, 36.0, 38.5),
 

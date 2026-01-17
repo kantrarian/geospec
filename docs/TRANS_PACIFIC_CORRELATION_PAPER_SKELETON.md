@@ -640,15 +640,37 @@ A 1-day lag across 17 timezone hours (Tokyo UTC+9, Cascadia UTC-8) raised concer
 
 **Verdict**: The 1-day lag is NOT a timezone artifact. The correlation is robust to outlier removal and actually strengthens when the anomalous Jan 16 Cascadia value (0.082, far below baseline) is excluded.
 
-### 9.5 Recommendations for Phase 4
+### 9.5 Phase 4 Sub-daily Analysis Attempt (January 17, 2026)
 
-1. **Sub-daily Resolution**: Implement 6-hour window analysis to determine if lag is exactly 24.0 hours (suspicious) or approximately 19.5 hours (physical, matching timezone offset)
+**Objective**: Distinguish 17-hour (timezone) from 24-hour (physical) lag using 6-hour bins.
 
-2. **Extended Monitoring**: Collect 90+ days to confirm persistence and rule out edge effects
+**Critical Limitation Discovered**: THD cannot be computed in 6-hour windows.
+- M2 tidal period = 12.42 hours
+- 6-hour window < 1 tidal cycle → FFT cannot resolve tidal harmonics
+- Resulting THD values are noise (range: 1 to 1400+ vs normal ~0.3)
+
+**Alternative Approaches**:
+
+1. **RMS Envelope Method** (IMPLEMENTED): Compute rolling RMS of seismic amplitude in 6-hour windows. RMS has no tidal frequency requirement and can be computed in any window size. Implementation in `subdaily_analysis.py:run_phase4_rms_test()`.
+
+2. **Cross-correlation of Raw Waveforms**: Compute daily waveform similarity at hourly resolution, then analyze lag structure.
+
+3. **Spectral Energy in Microseism Band**: Use 0.1-0.3 Hz (secondary microseism) which has shorter period and can be resolved in 6-hour windows.
+
+4. **Extended Daily Analysis**: With 90+ days of daily data, use wavelet coherence to identify time-varying lag structure.
+
+**Implication**: The current 1-day lag finding (from 24-hour windows) cannot be directly resolved to hourly precision using THD. The RMS alternative has been implemented and can be used to test the 17h vs 24h hypothesis when sufficient data is collected.
+
+### 9.6 Recommendations for Extended Monitoring
+
+1. **Extended Duration**: Collect 90+ days to confirm persistence and seasonality
+
+2. **Alternative Metrics**: Implement RMS or microseism spectral energy at sub-daily resolution
 
 3. **Mechanism Candidates**:
    - **Common Mode (LOD/Polar Motion)**: Earth rotation variations affect both regions with diurnal detection sensitivity
    - **Kuril Bridge Propagation**: Physical stress transfer at ~300 km/h (matches atmospheric wave velocities)
+   - **LAIC (Lithosphere-Atmosphere-Ionosphere Coupling)**: Atmospheric pressure waves or ionospheric disturbances propagating across Pacific
    - **Mantle Flow Coherence**: Asthenospheric coupling beneath North Pacific
 
 ---
@@ -761,6 +783,7 @@ A 1-day lag across 17 timezone hours (Tokyo UTC+9, Cascadia UTC-8) raised concer
 | 0.6 | 2026-01-17 | **MAJOR PIVOT - North Pacific Bridge**: (1) Title changed to reflect Cascadia-Japan focus; (2) Abstract rewritten with new findings; (3) Hayward-Hualien demoted to negative control (r=0.27, artifact confirmed); (4) Primary focus now on Cascadia-Tokyo (r=0.58, p<0.001) and Hayward-Tokyo (r=0.48, p=0.008); (5) Tidal aliasing H0 REJECTED for Japan pairs (145-149 deg phase, not opposing); (6) Added Phase 2 results table with full statistics |
 | 0.7 | 2026-01-17 | **Phase 3 Lag Analysis**: (1) Added Section 9.3 with lag correlation results; (2) Critical finding: Tokyo leads Cascadia by 1 day with r=0.90 at optimal lag; (3) Suggests counter-clockwise stress propagation along northern Pacific margin; (4) Lag-correlation figures generated for all pairs |
 | 0.8 | 2026-01-17 | **Timezone Artifact Audit**: (1) Added Section 9.4 verifying UTC alignment in pipeline; (2) Confirmed all seismic data uses ObsPy UTCDateTime; (3) Outlier sensitivity analysis shows lag=-1 correlation strengthens to r=0.94 without outliers; (4) Section 9.5 added with Phase 4 recommendations including sub-daily resolution |
+| 0.9 | 2026-01-17 | **Phase 4 Sub-daily Implementation**: (1) Implemented 6-hour THD analysis in subdaily_analysis.py; (2) Discovered critical limitation: THD requires M2 period (12.42h) > window size; (3) Implemented RMS envelope alternative (run_phase4_rms_test); (4) Updated Section 9.5 with findings and implementation status |
 
 ---
 

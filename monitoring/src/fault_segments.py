@@ -823,26 +823,75 @@ CAMPI_FLEGREI_SEGMENTS = [
 # HISTORICAL RETROSPECTIVE SEGMENTS (Placeholders for FC)
 # =============================================================================
 
+# =============================================================================
+# NEW ZEALAND / KAIKOURA SEGMENTS (2016 M7.8)
+# The 2016 Kaikoura earthquake ruptured ~20 faults. Key segments:
+# - Hundalee Fault (rupture initiation)
+# - Hope Fault (northern extent)
+# - Kekerengu Fault (major surface rupture)
+# - Jordan Thrust / Papatea Fault
+# =============================================================================
+
 KAIKOURA_SEGMENTS = [
     FaultSegment(
-        name="kaikoura_mainshock",
+        name="hundalee_coastal",
+        region="kaikoura",
+        stations=[
+            # Coastal stations near rupture initiation zone
+            SeismicStation("NZ", "MQZ", -43.705, 172.647, "McQueens Valley"),
+            SeismicStation("NZ", "KHZ", -42.416, 173.539, "Kahutara"),
+            SeismicStation("NZ", "WEL", -41.286, 174.768, "Wellington"),
+        ],
+        polygon=[
+            (-43.0, 172.5),
+            (-43.0, 173.5),
+            (-42.2, 173.5),
+            (-42.2, 172.5),
+        ],
+        strike=30,   # NE-SW trending
+        dip=65,
+        rake=130,    # Oblique thrust
+        notes="Hundalee Fault - rupture initiation zone (2016 M7.8)"
+    ),
+    FaultSegment(
+        name="hope_fault",
         region="kaikoura",
         stations=[
             SeismicStation("NZ", "HSES", -42.532, 172.825, "Hanmer Springs"),
-            SeismicStation("NZ", "KAIB", -42.419, 173.682, "Kaikoura"),
-            SeismicStation("NZ", "MQZ", -43.705, 172.647, "McQueens Valley"),
+            SeismicStation("NZ", "RPZ", -43.719, 171.054, "Rata Peaks"),
+            SeismicStation("NZ", "JCZ", -44.073, 168.785, "Jackson Bay"),
         ],
         polygon=[
-            (-44.0, 172.0),
-            (-44.0, 174.5),
-            (-41.0, 174.5),
-            (-41.0, 172.0),
+            (-42.8, 171.5),
+            (-42.8, 173.0),
+            (-42.0, 173.0),
+            (-42.0, 171.5),
         ],
-        strike=45,
+        strike=60,   # ENE-WSW
+        dip=80,
+        rake=175,    # Right-lateral strike-slip
+        notes="Hope Fault - major dextral fault, northern Kaikoura"
+    ),
+    FaultSegment(
+        name="kekerengu_needles",
+        region="kaikoura",
+        stations=[
+            # Northeastern stations near major surface rupture
+            SeismicStation("NZ", "KAIB", -42.419, 173.682, "Kaikoura"),
+            SeismicStation("NZ", "BFZ", -40.680, 176.246, "Flat Point, Birch Farm"),
+            SeismicStation("NZ", "WEL", -41.286, 174.768, "Wellington"),
+        ],
+        polygon=[
+            (-42.5, 173.5),
+            (-42.5, 174.5),
+            (-41.5, 174.5),
+            (-41.5, 173.5),
+        ],
+        strike=35,   # NE-SW
         dip=70,
-        rake=140,
-        notes="M7.8 Kaikoura rupture zone (Hope/Kekerengu/Jordon Thrust)"
-    )
+        rake=160,    # Right-lateral with thrust component
+        notes="Kekerengu/Needles Faults - largest surface slip (12m) in 2016"
+    ),
 ]
 
 ANCHORAGE_SEGMENTS = [

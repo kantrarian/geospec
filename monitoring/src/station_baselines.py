@@ -117,6 +117,44 @@ STATION_BASELINES: Dict[str, StationBaseline] = {
 
     # IV Network - Campi Flegrei (requires INGV access - not available via IRIS)
     # 'IV.CAFE': Not available - requires direct INGV access
+
+    # NZ Network (GeoNet New Zealand) - Added January 2026
+    # UNCALIBRATED - using conservative estimates based on similar broadband stations
+    # TODO: Run calibration once 30+ days of data accumulated
+    'NZ.HSES': StationBaseline(
+        station='NZ.HSES',
+        mean_thd=0.30,  # UNCALIBRATED - estimate based on similar broadband
+        std_thd=0.08,   # Conservative estimate
+        n_samples=0,
+        calibration_period='UNCALIBRATED',
+        notes='UNCALIBRATED. Hanmer Springs, NZ. Primary for Kaikoura region.'
+    ),
+    'NZ.WEL': StationBaseline(
+        station='NZ.WEL',
+        mean_thd=0.32,  # UNCALIBRATED
+        std_thd=0.08,
+        n_samples=0,
+        calibration_period='UNCALIBRATED',
+        notes='UNCALIBRATED. Wellington, NZ. Fallback for Kaikoura.'
+    ),
+    'NZ.BKZ': StationBaseline(
+        station='NZ.BKZ',
+        mean_thd=0.28,  # UNCALIBRATED
+        std_thd=0.07,
+        n_samples=0,
+        calibration_period='UNCALIBRATED',
+        notes='UNCALIBRATED. Black Birch, NZ. Fallback2 for Kaikoura.'
+    ),
+
+    # AK Network (Alaska) - Added January 2026
+    'AK.SSL': StationBaseline(
+        station='AK.SSL',
+        mean_thd=0.25,  # UNCALIBRATED
+        std_thd=0.06,
+        n_samples=0,
+        calibration_period='UNCALIBRATED',
+        notes='UNCALIBRATED. South Sled, AK. Primary for Anchorage.'
+    ),
 }
 
 

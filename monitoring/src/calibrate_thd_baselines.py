@@ -107,6 +107,38 @@ CALIBRATION_STATIONS = {
         'channel': 'BHZ',
         'notes': 'Fallback for anchorage (primary AK.SSL often unavailable)',
     },
+
+    # New Zealand / GeoNet - Added January 2026
+    'NZ.HSES': {
+        'region': 'Kaikoura/New Zealand',
+        'location': 'Hanmer Springs, NZ',
+        'sample_rate': 100,  # GeoNet broadband
+        'channel': 'HHZ',
+        'notes': 'Primary for Kaikoura region',
+    },
+    'NZ.WEL': {
+        'region': 'Kaikoura/New Zealand',
+        'location': 'Wellington, NZ',
+        'sample_rate': 100,
+        'channel': 'HHZ',
+        'notes': 'Fallback for Kaikoura',
+    },
+    'NZ.BKZ': {
+        'region': 'Kaikoura/New Zealand',
+        'location': 'Black Birch, NZ',
+        'sample_rate': 100,
+        'channel': 'HHZ',
+        'notes': 'Fallback2 for Kaikoura',
+    },
+
+    # Alaska - Added January 2026
+    'AK.SSL': {
+        'region': 'Anchorage/Alaska',
+        'location': 'South Sled, AK',
+        'sample_rate': 100,
+        'channel': 'HHZ',
+        'notes': 'Primary for Anchorage region',
+    },
 }
 
 

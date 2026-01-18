@@ -1338,6 +1338,450 @@
       "largest_event": null,
       "most_recent_event": null,
       "events": []
+    },
+    "socal_coachella": {
+      "region": "socal_coachella",
+      "bounds": {
+        "minlat": 33.0,
+        "maxlat": 34.5,
+        "minlon": -117.0,
+        "maxlon": -115.0
+      },
+      "last_updated": "2026-01-17T15:48:43.491357",
+      "event_count": 0,
+      "largest_event": null,
+      "most_recent_event": null,
+      "events": []
+    },
+    "anchorage": {
+      "region": "anchorage",
+      "bounds": {
+        "minlat": 59.0,
+        "maxlat": 63.0,
+        "minlon": -152.0,
+        "maxlon": -147.0
+      },
+      "last_updated": "2026-01-17T15:48:45.667793",
+      "event_count": 4,
+      "largest_event": {
+        "event_id": "ak2025xjbvhj",
+        "time": "2025-11-27T17:11:29.059000",
+        "latitude": 61.56951904296875,
+        "longitude": -150.75079345703125,
+        "depth_km": 69.43339538574219,
+        "magnitude": 6,
+        "mag_type": "mww",
+        "place": "12 km WNW of Susitna, Alaska",
+        "url": "https://earthquake.usgs.gov/earthquakes/eventpage/ak2025xjbvhj"
+      },
+      "most_recent_event": {
+        "event_id": "ak2025xjbvhj",
+        "time": "2025-11-27T17:11:29.059000",
+        "latitude": 61.56951904296875,
+        "longitude": -150.75079345703125,
+        "depth_km": 69.43339538574219,
+        "magnitude": 6,
+        "mag_type": "mww",
+        "place": "12 km WNW of Susitna, Alaska",
+        "url": "https://earthquake.usgs.gov/earthquakes/eventpage/ak2025xjbvhj"
+      },
+      "events": [
+        {
+          "event_id": "ak2025xjbvhj",
+          "time": "2025-11-27T17:11:29.059000",
+          "latitude": 61.56951904296875,
+          "longitude": -150.75079345703125,
+          "depth_km": 69.43339538574219,
+          "magnitude": 6,
+          "mag_type": "mww",
+          "place": "12 km WNW of Susitna, Alaska",
+          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/ak2025xjbvhj"
+        },
+        {
+          "event_id": "ak2025wzudcl",
+          "time": "2025-11-22T15:38:56.062000",
+          "latitude": 61.19461822509766,
+          "longitude": -151.2418975830078,
+          "depth_km": 61.73199081420898,
+          "magnitude": 4.857113952380471,
+          "mag_type": "ml",
+          "place": "10 km NW of Beluga, Alaska",
+          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/ak2025wzudcl"
+        },
+        {
+          "event_id": "ak025dxe5mlz",
+          "time": "2025-10-30T17:33:14.566000",
+          "latitude": 59.6308,
+          "longitude": -150.2328,
+          "depth_km": 23.6,
+          "magnitude": 5.4,
+          "mag_type": "ml",
+          "place": "48 km ESE of Fox River, Alaska",
+          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/ak025dxe5mlz"
+        },
+        {
+          "event_id": "ak025dnijfwa",
+          "time": "2025-10-24T20:03:26.351000",
+          "latitude": 61.8836,
+          "longitude": -151.2428,
+          "depth_km": 66.5,
+          "magnitude": 4.6,
+          "mag_type": "ml",
+          "place": "14 km SE of Skwentna, Alaska",
+          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/ak025dnijfwa"
+        }
+      ]
+    },
+    "japan_tohoku": {
+      "region": "japan_tohoku",
+      "bounds": {
+        "minlat": 36.0,
+        "maxlat": 42.0,
+        "minlon": 139.0,
+        "maxlon": 145.0
+      },
+      "last_updated": "2026-01-17T15:48:47.224425",
+      "event_count": 248,
+      "largest_event": {
+        "event_id": "us6000rtdt",
+        "time": "2025-12-08T14:15:10.397000",
+        "latitude": 40.9966,
+        "longitude": 142.1802,
+        "depth_km": 45.351,
+        "magnitude": 7.6,
+        "mag_type": "mww",
+        "place": "2025 Aomori Prefecture, Japan Earthquake",
+        "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us6000rtdt"
+      },
+      "most_recent_event": {
+        "event_id": "us7000rq7c",
+        "time": "2026-01-16T19:34:14.593000",
+        "latitude": 41.2952,
+        "longitude": 142.6496,
+        "depth_km": 37.852,
+        "magnitude": 5.4,
+        "mag_type": "mww",
+        "place": "95 km SSW of Honch\u014d, Japan",
+        "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us7000rq7c"
+      },
+      "events": [
+        {
+          "event_id": "us7000rq7c",
+          "time": "2026-01-16T19:34:14.593000",
+          "latitude": 41.2952,
+          "longitude": 142.6496,
+          "depth_km": 37.852,
+          "magnitude": 5.4,
+          "mag_type": "mww",
+          "place": "95 km SSW of Honch\u014d, Japan",
+          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us7000rq7c"
+        },
+        {
+          "event_id": "us7000rp08",
+          "time": "2026-01-11T04:15:37.170000",
+          "latitude": 39.5919,
+          "longitude": 141.7252,
+          "depth_km": 79.657,
+          "magnitude": 5.2,
+          "mag_type": "mb",
+          "place": "19 km WSW of Miyako, Japan",
+          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us7000rp08"
+        },
+        {
+          "event_id": "us7000rnmb",
+          "time": "2026-01-09T11:24:13.922000",
+          "latitude": 40.3616,
+          "longitude": 140.8261,
+          "depth_km": 10,
+          "magnitude": 4.4,
+          "mag_type": "mb",
+          "place": "8 km ESE of Kosaka, Japan",
+          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us7000rnmb"
+        },
+        {
+          "event_id": "us7000rnm5",
+          "time": "2026-01-09T09:56:53.998000",
+          "latitude": 40.2458,
+          "longitude": 140.8816,
+          "depth_km": 10,
+          "magnitude": 4.6,
+          "mag_type": "mb",
+          "place": "10 km NE of Hanawa, Japan",
+          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us7000rnm5"
+        },
+        {
+          "event_id": "us7000rmza",
+          "time": "2026-01-06T18:04:44.862000",
+          "latitude": 41.4358,
+          "longitude": 142.0717,
+          "depth_km": 60.011,
+          "magnitude": 4.8,
+          "mag_type": "mww",
+          "place": "73 km ENE of Mutsu, Japan",
+          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us7000rmza"
+        }
+      ]
+    },
+    "kumamoto": {
+      "region": "kumamoto",
+      "bounds": {
+        "minlat": 31.5,
+        "maxlat": 34.0,
+        "minlon": 129.5,
+        "maxlon": 132.0
+      },
+      "last_updated": "2026-01-17T15:48:47.985523",
+      "event_count": 4,
+      "largest_event": {
+        "event_id": "us7000rdmh",
+        "time": "2025-11-25T09:01:17.565000",
+        "latitude": 33.0268,
+        "longitude": 131.0979,
+        "depth_km": 10,
+        "magnitude": 5.4,
+        "mag_type": "mww",
+        "place": "10 km N of Aso, Japan",
+        "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us7000rdmh"
+      },
+      "most_recent_event": {
+        "event_id": "us6000rug5",
+        "time": "2025-11-25T12:59:11.348000",
+        "latitude": 32.9861,
+        "longitude": 131.0674,
+        "depth_km": 10,
+        "magnitude": 4.3,
+        "mag_type": "mwr",
+        "place": "5 km NNW of Aso, Japan",
+        "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us6000rug5"
+      },
+      "events": [
+        {
+          "event_id": "us6000rug5",
+          "time": "2025-11-25T12:59:11.348000",
+          "latitude": 32.9861,
+          "longitude": 131.0674,
+          "depth_km": 10,
+          "magnitude": 4.3,
+          "mag_type": "mwr",
+          "place": "5 km NNW of Aso, Japan",
+          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us6000rug5"
+        },
+        {
+          "event_id": "us7000rdmh",
+          "time": "2025-11-25T09:01:17.565000",
+          "latitude": 33.0268,
+          "longitude": 131.0979,
+          "depth_km": 10,
+          "magnitude": 5.4,
+          "mag_type": "mww",
+          "place": "10 km N of Aso, Japan",
+          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us7000rdmh"
+        },
+        {
+          "event_id": "us6000rlyz",
+          "time": "2025-11-06T19:25:54.956000",
+          "latitude": 31.8975,
+          "longitude": 131.843,
+          "depth_km": 42.271,
+          "magnitude": 4.5,
+          "mag_type": "mb",
+          "place": "40 km E of Miyazaki, Japan",
+          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us6000rlyz"
+        },
+        {
+          "event_id": "us6000rlvy",
+          "time": "2025-11-06T16:23:24.758000",
+          "latitude": 32.0697,
+          "longitude": 131.9259,
+          "depth_km": 47.528,
+          "magnitude": 4.9,
+          "mag_type": "mb",
+          "place": "39 km ESE of Tsun\u014d, Japan",
+          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us6000rlvy"
+        }
+      ]
+    },
+    "hualien": {
+      "region": "hualien",
+      "bounds": {
+        "minlat": 23.0,
+        "maxlat": 25.5,
+        "minlon": 120.5,
+        "maxlon": 122.5
+      },
+      "last_updated": "2026-01-17T15:48:48.912411",
+      "event_count": 25,
+      "largest_event": {
+        "event_id": "us7000rl2n",
+        "time": "2025-12-27T15:05:55.423000",
+        "latitude": 24.6727,
+        "longitude": 122.0572,
+        "depth_km": 63,
+        "magnitude": 6.6,
+        "mag_type": "mww",
+        "place": "32 km ESE of Yilan, Taiwan",
+        "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us7000rl2n"
+      },
+      "most_recent_event": {
+        "event_id": "us7000rq95",
+        "time": "2026-01-17T04:18:11.421000",
+        "latitude": 23.9051,
+        "longitude": 122.437,
+        "depth_km": 10,
+        "magnitude": 5,
+        "mag_type": "mb",
+        "place": "84 km SW of Yonakuni, Japan",
+        "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us7000rq95"
+      },
+      "events": [
+        {
+          "event_id": "us7000rq95",
+          "time": "2026-01-17T04:18:11.421000",
+          "latitude": 23.9051,
+          "longitude": 122.437,
+          "depth_km": 10,
+          "magnitude": 5,
+          "mag_type": "mb",
+          "place": "84 km SW of Yonakuni, Japan",
+          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us7000rq95"
+        },
+        {
+          "event_id": "us7000rq1x",
+          "time": "2026-01-16T08:49:00.323000",
+          "latitude": 23.6982,
+          "longitude": 122.0679,
+          "depth_km": 11.388,
+          "magnitude": 4.5,
+          "mag_type": "mb",
+          "place": "56 km ESE of Hualien City, Taiwan",
+          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us7000rq1x"
+        },
+        {
+          "event_id": "us7000rp5v",
+          "time": "2026-01-12T13:31:49.524000",
+          "latitude": 24.7086,
+          "longitude": 122.0009,
+          "depth_km": 68.318,
+          "magnitude": 4.6,
+          "mag_type": "mww",
+          "place": "25 km ESE of Yilan, Taiwan",
+          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us7000rp5v"
+        },
+        {
+          "event_id": "us7000rmaz",
+          "time": "2026-01-03T19:52:50.597000",
+          "latitude": 24.7136,
+          "longitude": 121.7944,
+          "depth_km": 10,
+          "magnitude": 4.2,
+          "mag_type": "mb",
+          "place": "6 km SE of Yilan, Taiwan",
+          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us7000rmaz"
+        },
+        {
+          "event_id": "us7000rl3a",
+          "time": "2025-12-27T16:45:42.746000",
+          "latitude": 24.5968,
+          "longitude": 122.0614,
+          "depth_km": 62.797,
+          "magnitude": 4.5,
+          "mag_type": "mb",
+          "place": "35 km ESE of Yilan, Taiwan",
+          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us7000rl3a"
+        }
+      ]
+    },
+    "kaikoura": {
+      "region": "kaikoura",
+      "bounds": {
+        "minlat": -43.5,
+        "maxlat": -41.5,
+        "minlon": 172.0,
+        "maxlon": 175.0
+      },
+      "last_updated": "2026-01-17T15:48:49.657903",
+      "event_count": 1,
+      "largest_event": {
+        "event_id": "us6000rkvm",
+        "time": "2025-11-01T00:47:38.126000",
+        "latitude": -42.7116,
+        "longitude": 172.0928,
+        "depth_km": 18.856,
+        "magnitude": 4.1,
+        "mag_type": "mb",
+        "place": "63 km WSW of Hanmer Springs, New Zealand",
+        "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us6000rkvm"
+      },
+      "most_recent_event": {
+        "event_id": "us6000rkvm",
+        "time": "2025-11-01T00:47:38.126000",
+        "latitude": -42.7116,
+        "longitude": 172.0928,
+        "depth_km": 18.856,
+        "magnitude": 4.1,
+        "mag_type": "mb",
+        "place": "63 km WSW of Hanmer Springs, New Zealand",
+        "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us6000rkvm"
+      },
+      "events": [
+        {
+          "event_id": "us6000rkvm",
+          "time": "2025-11-01T00:47:38.126000",
+          "latitude": -42.7116,
+          "longitude": 172.0928,
+          "depth_km": 18.856,
+          "magnitude": 4.1,
+          "mag_type": "mb",
+          "place": "63 km WSW of Hanmer Springs, New Zealand",
+          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us6000rkvm"
+        }
+      ]
+    },
+    "chile_maule": {
+      "region": "chile_maule",
+      "bounds": {
+        "minlat": -37.0,
+        "maxlat": -34.0,
+        "minlon": -73.5,
+        "maxlon": -70.5
+      },
+      "last_updated": "2026-01-17T15:48:52.436584",
+      "event_count": 1,
+      "largest_event": {
+        "event_id": "us6000rkgt",
+        "time": "2025-10-30T21:16:16.031000",
+        "latitude": -34.7273,
+        "longitude": -71.7914,
+        "depth_km": 49.446,
+        "magnitude": 4.2,
+        "mag_type": "mwr",
+        "place": "40 km WSW of Santa Cruz, Chile",
+        "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us6000rkgt"
+      },
+      "most_recent_event": {
+        "event_id": "us6000rkgt",
+        "time": "2025-10-30T21:16:16.031000",
+        "latitude": -34.7273,
+        "longitude": -71.7914,
+        "depth_km": 49.446,
+        "magnitude": 4.2,
+        "mag_type": "mwr",
+        "place": "40 km WSW of Santa Cruz, Chile",
+        "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us6000rkgt"
+      },
+      "events": [
+        {
+          "event_id": "us6000rkgt",
+          "time": "2025-10-30T21:16:16.031000",
+          "latitude": -34.7273,
+          "longitude": -71.7914,
+          "depth_km": 49.446,
+          "magnitude": 4.2,
+          "mag_type": "mwr",
+          "place": "40 km WSW of Santa Cruz, Chile",
+          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us6000rkgt"
+        }
+      ]
     }
   }
 }

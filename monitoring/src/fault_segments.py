@@ -837,10 +837,8 @@ KAIKOURA_SEGMENTS = [
         name="hundalee_coastal",
         region="kaikoura",
         stations=[
-            # Coastal stations near rupture initiation zone
-            SeismicStation("NZ", "MQZ", -43.705, 172.647, "McQueens Valley"),
-            SeismicStation("NZ", "KHZ", -42.416, 173.539, "Kahutara"),
-            SeismicStation("NZ", "WEL", -41.286, 174.768, "Wellington"),
+            # IU.SNZO is only IRIS-accessible station in NZ
+            SeismicStation("IU", "SNZO", -41.310, 174.705, "South Karori, Wellington"),
         ],
         polygon=[
             (-43.0, 172.5),
@@ -857,9 +855,8 @@ KAIKOURA_SEGMENTS = [
         name="hope_fault",
         region="kaikoura",
         stations=[
-            SeismicStation("NZ", "HSES", -42.532, 172.825, "Hanmer Springs"),
-            SeismicStation("NZ", "RPZ", -43.719, 171.054, "Rata Peaks"),
-            SeismicStation("NZ", "JCZ", -44.073, 168.785, "Jackson Bay"),
+            # IU.SNZO covers entire NZ region as only IRIS station
+            SeismicStation("IU", "SNZO", -41.310, 174.705, "South Karori, Wellington"),
         ],
         polygon=[
             (-42.8, 171.5),
@@ -876,10 +873,8 @@ KAIKOURA_SEGMENTS = [
         name="kekerengu_needles",
         region="kaikoura",
         stations=[
-            # Northeastern stations near major surface rupture
-            SeismicStation("NZ", "KAIB", -42.419, 173.682, "Kaikoura"),
-            SeismicStation("NZ", "BFZ", -40.680, 176.246, "Flat Point, Birch Farm"),
-            SeismicStation("NZ", "WEL", -41.286, 174.768, "Wellington"),
+            # IU.SNZO provides regional coverage
+            SeismicStation("IU", "SNZO", -41.310, 174.705, "South Karori, Wellington"),
         ],
         polygon=[
             (-42.5, 173.5),

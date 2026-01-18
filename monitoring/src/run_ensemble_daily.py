@@ -174,16 +174,11 @@ REGIONS = {
     # New Historical Regions (Added Jan 2026)
     'kaikoura': {
         'name': 'New Zealand (Kaikoura)',
-        'thd_station': 'HSES',     # Hanmer Springs (GeoNet) - reliable broadband
-        'thd_network': 'NZ',
+        'thd_station': 'SNZO',     # South Karori, Wellington (IU) - IRIS accessible
+        'thd_network': 'IU',
         'seismic_available': True,
         'latency_days': 0,
-        # Fallback chain for when primary station unavailable
-        'fallback_station': 'WEL',    # Wellington (GeoNet) - reliable broadband
-        'fallback_network': 'NZ',
-        'fallback2_station': 'BKZ',   # Black Birch (GeoNet)
-        'fallback2_network': 'NZ',
-        'notes': 'NZ.HSES primary, NZ.WEL and NZ.BKZ as fallbacks',
+        'notes': 'IU.SNZO (Wellington) - only IRIS-accessible station in NZ',
     },
     'anchorage': {
         'name': 'Alaska (Anchorage)',

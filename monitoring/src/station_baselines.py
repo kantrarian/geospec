@@ -118,33 +118,21 @@ STATION_BASELINES: Dict[str, StationBaseline] = {
     # IV Network - Campi Flegrei (requires INGV access - not available via IRIS)
     # 'IV.CAFE': Not available - requires direct INGV access
 
-    # NZ Network (GeoNet New Zealand) - Added January 2026
-    # UNCALIBRATED - using conservative estimates based on similar broadband stations
-    # TODO: Run calibration once 30+ days of data accumulated
-    'NZ.HSES': StationBaseline(
-        station='NZ.HSES',
-        mean_thd=0.30,  # UNCALIBRATED - estimate based on similar broadband
-        std_thd=0.08,   # Conservative estimate
+    # IU Network - New Zealand (IRIS accessible)
+    'IU.SNZO': StationBaseline(
+        station='IU.SNZO',
+        mean_thd=0.30,  # UNCALIBRATED - estimate based on similar IU broadband
+        std_thd=0.07,   # Conservative estimate
         n_samples=0,
         calibration_period='UNCALIBRATED',
-        notes='UNCALIBRATED. Hanmer Springs, NZ. Primary for Kaikoura region.'
+        notes='UNCALIBRATED. South Karori, Wellington NZ. Only IRIS station in NZ for Kaikoura.'
     ),
-    'NZ.WEL': StationBaseline(
-        station='NZ.WEL',
-        mean_thd=0.32,  # UNCALIBRATED
-        std_thd=0.08,
-        n_samples=0,
-        calibration_period='UNCALIBRATED',
-        notes='UNCALIBRATED. Wellington, NZ. Fallback for Kaikoura.'
-    ),
-    'NZ.BKZ': StationBaseline(
-        station='NZ.BKZ',
-        mean_thd=0.28,  # UNCALIBRATED
-        std_thd=0.07,
-        n_samples=0,
-        calibration_period='UNCALIBRATED',
-        notes='UNCALIBRATED. Black Birch, NZ. Fallback2 for Kaikoura.'
-    ),
+
+    # NZ Network (GeoNet New Zealand) - Not accessible via IRIS
+    # Kept for reference but requires GeoNet FDSN endpoint
+    # 'NZ.HSES': Not accessible via IRIS - requires GeoNet
+    # 'NZ.WEL': Not accessible via IRIS - requires GeoNet
+    # 'NZ.BKZ': Not accessible via IRIS - requires GeoNet
 
     # AK Network (Alaska) - Added January 2026
     'AK.SSL': StationBaseline(

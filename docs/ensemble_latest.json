@@ -1,13 +1,13 @@
 {
   "date": "2026-01-16",
-  "timestamp": "2026-01-18T06:11:25.199776",
+  "timestamp": "2026-01-18T14:43:44.759352",
   "regions": {
     "kaikoura": {
       "region": "kaikoura",
-      "date": "2026-01-16T06:00:11.430592",
-      "combined_risk": 0.0,
-      "tier": 0,
-      "tier_name": "NORMAL",
+      "date": "2026-01-16T00:00:00",
+      "combined_risk": 0.3640467200887497,
+      "tier": 1,
+      "tier_name": "WATCH",
       "components": {
         "lambda_geo": {
           "name": "lambda_geo",
@@ -31,18 +31,27 @@
         },
         "seismic_thd": {
           "name": "seismic_thd",
-          "available": false,
-          "raw_value": 0.0,
-          "raw_secondary": null,
-          "risk_score": 0.0,
-          "is_elevated": false,
-          "is_critical": false,
-          "notes": "Insufficient data from NZ.BKZ"
+          "available": true,
+          "raw_value": 0.5970120535145306,
+          "raw_secondary": 532.5916479666947,
+          "risk_score": 0.8494423468737492,
+          "is_elevated": true,
+          "is_critical": true,
+          "notes": "sta=IU.SNZO, THD=0.5970, z=4.24, baseline_mean=0.3000, baseline_std=0.0700, n=0, rate=40Hz",
+          "baseline": {
+            "mean": 0.3,
+            "std": 0.07,
+            "n_samples": 0,
+            "window": "UNCALIBRATED",
+            "quality": "poor"
+          },
+          "z_score": 4.243029335921865,
+          "sample_rate_hz": 40.0
         }
       },
-      "confidence": 0.5,
-      "agreement": "single_method",
-      "methods_available": 1,
+      "confidence": 0.75,
+      "agreement": "mostly_elevated",
+      "methods_available": 2,
       "notes": "",
       "coverage": {
         "segments_defined": 3,
@@ -51,17 +60,18 @@
         "coverage_pct": 0.0
       },
       "effective_weights": {
-        "lambda_geo": 1.0
+        "lambda_geo": 0.5714285714285715,
+        "seismic_thd": 0.4285714285714286
       },
       "persistence": {
-        "current_tier": 0,
-        "consecutive_days": 0,
+        "current_tier": 1,
+        "consecutive_days": 1,
         "is_confirmed": false,
         "tier_history": [
           0,
           0,
           0,
-          0
+          1
         ]
       }
     },
@@ -973,18 +983,64 @@
     "total_regions": 13,
     "tier_counts": {
       "-1": 0,
-      "0": 8,
-      "1": 5,
+      "0": 7,
+      "1": 6,
       "2": 0,
       "3": 0
     },
     "confirmed_watch_count": 5,
-    "preliminary_watch_count": 0,
+    "preliminary_watch_count": 1,
     "degraded_count": 0,
     "max_risk_region": "norcal_hayward",
     "max_risk": 0.4929227015417452
   },
   "earthquake_events": {
+    "kaikoura": {
+      "region": "kaikoura",
+      "bounds": {
+        "minlat": -43.5,
+        "maxlat": -41.5,
+        "minlon": 172.0,
+        "maxlon": 175.0
+      },
+      "last_updated": "2026-01-18T11:11:22.775746",
+      "event_count": 1,
+      "largest_event": {
+        "event_id": "us6000rkvm",
+        "time": "2025-11-01T00:47:38.126000",
+        "latitude": -42.7116,
+        "longitude": 172.0928,
+        "depth_km": 18.856,
+        "magnitude": 4.1,
+        "mag_type": "mb",
+        "place": "63 km WSW of Hanmer Springs, New Zealand",
+        "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us6000rkvm"
+      },
+      "most_recent_event": {
+        "event_id": "us6000rkvm",
+        "time": "2025-11-01T00:47:38.126000",
+        "latitude": -42.7116,
+        "longitude": 172.0928,
+        "depth_km": 18.856,
+        "magnitude": 4.1,
+        "mag_type": "mb",
+        "place": "63 km WSW of Hanmer Springs, New Zealand",
+        "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us6000rkvm"
+      },
+      "events": [
+        {
+          "event_id": "us6000rkvm",
+          "time": "2025-11-01T00:47:38.126000",
+          "latitude": -42.7116,
+          "longitude": 172.0928,
+          "depth_km": 18.856,
+          "magnitude": 4.1,
+          "mag_type": "mb",
+          "place": "63 km WSW of Hanmer Springs, New Zealand",
+          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us6000rkvm"
+        }
+      ]
+    },
     "ridgecrest": {
       "region": "ridgecrest",
       "bounds": {
@@ -1338,52 +1394,6 @@
       "largest_event": null,
       "most_recent_event": null,
       "events": []
-    },
-    "kaikoura": {
-      "region": "kaikoura",
-      "bounds": {
-        "minlat": -43.5,
-        "maxlat": -41.5,
-        "minlon": 172.0,
-        "maxlon": 175.0
-      },
-      "last_updated": "2026-01-18T11:11:22.775746",
-      "event_count": 1,
-      "largest_event": {
-        "event_id": "us6000rkvm",
-        "time": "2025-11-01T00:47:38.126000",
-        "latitude": -42.7116,
-        "longitude": 172.0928,
-        "depth_km": 18.856,
-        "magnitude": 4.1,
-        "mag_type": "mb",
-        "place": "63 km WSW of Hanmer Springs, New Zealand",
-        "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us6000rkvm"
-      },
-      "most_recent_event": {
-        "event_id": "us6000rkvm",
-        "time": "2025-11-01T00:47:38.126000",
-        "latitude": -42.7116,
-        "longitude": 172.0928,
-        "depth_km": 18.856,
-        "magnitude": 4.1,
-        "mag_type": "mb",
-        "place": "63 km WSW of Hanmer Springs, New Zealand",
-        "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us6000rkvm"
-      },
-      "events": [
-        {
-          "event_id": "us6000rkvm",
-          "time": "2025-11-01T00:47:38.126000",
-          "latitude": -42.7116,
-          "longitude": 172.0928,
-          "depth_km": 18.856,
-          "magnitude": 4.1,
-          "mag_type": "mb",
-          "place": "63 km WSW of Hanmer Springs, New Zealand",
-          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us6000rkvm"
-        }
-      ]
     },
     "anchorage": {
       "region": "anchorage",

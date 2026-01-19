@@ -1,7 +1,7 @@
 # GeoSpec Three-Method Ensemble: Technical Methods Document
 
-**Version**: 1.5.0
-**Date**: January 15, 2026
+**Version**: 1.5.1
+**Date**: January 18, 2026
 **Author**: R.J. Mathews
 **Status**: Operational
 - THD: Operational (all 9 regions via IU/BK/GE/HINET networks)
@@ -9,6 +9,12 @@
 - Lambda_geo: **Pilot operational** (3 SoCal stations via IGS-IP NTRIP + RTKLIB pipeline)
 - **Hi-net: OPERATIONAL** (Tokyo/Kanto via NIED Hi-net - 128 stations @ 100Hz)
 - **Historical Backtests: ALL 3 METHODS** for Ridgecrest, Tohoku, Turkey (FC/THD fetched from IRIS/FDSN January 2026)
+
+**Changelog v1.5.1**:
+- **Dashboard Dataflow Fix**: Daily run now auto-appends to `monitoring/dashboard/data.csv`
+- **Appendix E Rewrite**: Full dataflow diagram from data generation → GitHub Pages
+- **Kaikoura Fix**: Added IU.SNZO (Wellington) as IRIS-accessible station for NZ region
+- **Two CSV Architecture**: Documented dashboard CSV vs debug log CSV purposes
 
 **Changelog v1.5.0**:
 - **Historical FC Data**: Computed L2/L1 from real IRIS/FDSN waveforms for Ridgecrest (CI.WBS/SLA), Tohoku (IU.MAJO/PS.TSK), Turkey (IU.ANTO/GE.ISP/CSS)
@@ -1207,11 +1213,80 @@ Regions are selected based on:
 
 ---
 
-## Appendix E: Daily State CSV Format
+## Appendix E: Dashboard Data Flow and CSV Formats
 
-For dashboard trending and GitHub Actions automation:
+### Data Flow Overview
 
-### File: `daily_states.csv`
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                           DATA GENERATION                                │
+│                                                                          │
+│  GPS Data (NGL/GeoNet)  ──┐                                             │
+│  Seismic Data (IRIS)    ──┼──►  run_ensemble_daily.py                   │
+│  USGS Earthquake API    ──┘           │                                 │
+│                                       ▼                                 │
+│                    monitoring/data/ensemble_results/                    │
+│                    ├── ensemble_YYYY-MM-DD.json  (daily snapshot)       │
+│                    └── daily_states.csv (detailed debug log)            │
+│                                       │                                 │
+│                                       ▼                                 │
+│                    monitoring/dashboard/data.csv  (30-day chart source) │
+│                                                                          │
+└─────────────────────────────────────────────────────────────────────────┘
+                                       │
+                                       ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                           PUBLISHING                                     │
+│                                                                          │
+│    run_and_publish.ps1  (Scheduled 6 AM daily)                          │
+│    ├── Runs: python -m src.run_ensemble_daily                           │
+│    ├── Copies: monitoring/dashboard/data.csv → docs/data.csv            │
+│    ├── Copies: ensemble_latest.json → docs/ensemble_latest.json         │
+│    └── git push to GitHub                                               │
+│                                                                          │
+└─────────────────────────────────────────────────────────────────────────┘
+                                       │
+                                       ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                         GITHUB PAGES DASHBOARD                           │
+│                         https://kantrarian.github.io/geospec/            │
+│                                                                          │
+│    docs/index.html reads:                                                │
+│    ├── ensemble_latest.json → Status cards (current risk per region)    │
+│    ├── data.csv → 30-day history chart (Plotly line graph)              │
+│    └── events.json → Earthquake events per region                       │
+│                                                                          │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### File 1: `monitoring/dashboard/data.csv` (Dashboard Source)
+
+**Purpose**: Authoritative source for the 30-day history chart on GitHub Pages.
+
+**Auto-updated**: Yes, by `run_ensemble_daily.py` after each run.
+
+```csv
+date,region,tier,risk,confidence,methods,agreement
+2026-01-16,ridgecrest,0,0.1796,0.80,3,all_normal
+2026-01-16,cascadia,0,0.0543,0.80,3,all_normal
+2026-01-17,kaikoura,1,0.3640,0.75,2,mostly_elevated
+```
+
+| Column | Type | Description |
+|--------|------|-------------|
+| date | ISO date | Assessment date (YYYY-MM-DD) |
+| region | string | Region key |
+| tier | int | 0=NORMAL, 1=WATCH, 2=ELEVATED, 3=CRITICAL, -1=DEGRADED |
+| risk | float | Combined risk score (0.0000-1.0000) |
+| confidence | float | Agreement confidence (0.00-1.00) |
+| methods | int | Methods available (1-3) |
+| agreement | string | all_normal, mixed, mostly_elevated, etc. |
+
+### File 2: `monitoring/data/ensemble_results/daily_states.csv` (Debug Log)
+
+**Purpose**: Detailed log with component-level values for debugging and analysis.
+
+**Auto-updated**: Yes, by `run_ensemble_daily.py` after each run.
 
 ```csv
 date,region,tier,risk,methods,confidence,lg_ratio,thd,fc_l2l1,status,notes
@@ -1219,10 +1294,6 @@ date,region,tier,risk,methods,confidence,lg_ratio,thd,fc_l2l1,status,notes
 2026-01-08,cascadia,1,0.498,2,0.75,,0.340,0.935,PRELIMINARY,
 2026-01-08,japan_tohoku,2,0.562,2,0.75,,0.470,0.867,PRELIMINARY,
 ```
-
-**Note**: Region keys should use canonical names from the region table (e.g., `japan_tohoku` not `tokyo_kanto`).
-
-### Column Definitions
 
 | Column | Type | Description |
 |--------|------|-------------|
@@ -1238,9 +1309,14 @@ date,region,tier,risk,methods,confidence,lg_ratio,thd,fc_l2l1,status,notes
 | status | string | PRELIMINARY or CONFIRMED |
 | notes | string | Operational flags (tier_capped, post_event, etc.) |
 
+**Note**: Region keys should use canonical names from the region table (e.g., `japan_tohoku` not `tokyo_kanto`).
+
 ### Append Logic
 
-Daily runner appends one row per region. Never overwrites historical data.
+Both CSVs use append-only logic:
+- Daily runner appends one row per region per date
+- Duplicate dates are skipped (checked before append)
+- Never overwrites historical data
 
 ### Retention
 

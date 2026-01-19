@@ -873,6 +873,70 @@ def append_to_daily_csv(
     return csv_file
 
 
+def append_to_dashboard_csv(
+    results: Dict[str, EnsembleResult],
+    target_date: datetime,
+) -> Path:
+    """
+    Append results to monitoring/dashboard/data.csv for the 30-day history chart.
+
+    This is the authoritative source that gets copied to docs/data.csv by run_and_publish.ps1.
+    Format: date,region,tier,risk,confidence,methods,agreement
+
+    Args:
+        results: Dict mapping region to EnsembleResult
+        target_date: Date of the assessment
+
+    Returns:
+        Path to the CSV file
+    """
+    # Path to dashboard CSV (authoritative source for GitHub Pages)
+    csv_file = Path(__file__).parent.parent / 'dashboard' / 'data.csv'
+    date_str = target_date.strftime('%Y-%m-%d')
+
+    # Check if file exists to determine if we need header
+    file_exists = csv_file.exists()
+
+    # Check if this date already has entries (avoid duplicates)
+    if file_exists:
+        with open(csv_file, 'r', newline='') as f:
+            reader = csv.reader(f)
+            for row in reader:
+                if len(row) > 0 and row[0] == date_str:
+                    logger.info(f"Date {date_str} already in dashboard CSV, skipping append")
+                    return csv_file
+
+        # Ensure file ends with newline before appending
+        with open(csv_file, 'rb') as f:
+            f.seek(-1, 2)  # Go to last byte
+            if f.read(1) != b'\n':
+                with open(csv_file, 'a') as f2:
+                    f2.write('\n')
+
+    with open(csv_file, 'a', newline='') as f:
+        writer = csv.writer(f)
+
+        # Write header if new file
+        if not file_exists:
+            writer.writerow([
+                'date', 'region', 'tier', 'risk', 'confidence', 'methods', 'agreement'
+            ])
+
+        for region, result in results.items():
+            writer.writerow([
+                date_str,
+                region,
+                result.tier,
+                f"{result.combined_risk:.4f}",
+                f"{result.confidence:.2f}",
+                result.methods_available,
+                result.agreement or ''
+            ])
+
+    logger.info(f"Appended {len(results)} rows to dashboard CSV: {csv_file}")
+    return csv_file
+
+
 def print_summary(results: Dict[str, EnsembleResult], persistence: Optional[Dict[str, Dict]] = None):
     """Print summary table to console."""
     print("\n" + "=" * 90)
@@ -1025,8 +1089,11 @@ def main():
     # Save results with persistence info and earthquake events
     save_results(results, output_dir, target_date, persistence, events_data)
 
-    # Append to daily CSV for trending
+    # Append to daily CSV for trending (detailed log)
     append_to_daily_csv(results, output_dir, target_date, persistence)
+
+    # Append to dashboard CSV (authoritative source for 30-day history chart)
+    append_to_dashboard_csv(results, target_date)
 
     # Print summary
     if not args.quiet:

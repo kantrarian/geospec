@@ -801,14 +801,24 @@ def append_to_daily_csv(
     # Check if file exists to determine if we need header
     file_exists = csv_file.exists()
 
-    # Check if this date already has entries (avoid duplicates)
+    # Check which regions already have entries for this date (avoid duplicates per region)
+    existing_regions = set()
     if file_exists:
         with open(csv_file, 'r', newline='') as f:
             reader = csv.reader(f)
             for row in reader:
-                if len(row) > 0 and row[0] == date_str:
-                    logger.info(f"Date {date_str} already in CSV, skipping append")
-                    return csv_file
+                if len(row) >= 2 and row[0] == date_str:
+                    existing_regions.add(row[1])  # row[1] is region
+
+    # Filter to only regions not already in CSV for this date
+    regions_to_add = {r: res for r, res in results.items() if r not in existing_regions}
+
+    if not regions_to_add:
+        logger.info(f"All {len(results)} regions already in daily CSV for {date_str}, skipping")
+        return csv_file
+
+    if existing_regions:
+        logger.info(f"Found {len(existing_regions)} existing regions for {date_str}, adding {len(regions_to_add)} new")
 
     with open(csv_file, 'a', newline='') as f:
         writer = csv.writer(f)
@@ -820,7 +830,7 @@ def append_to_daily_csv(
                 'lg_ratio', 'thd', 'fc_l2l1', 'status', 'notes'
             ])
 
-        for region, result in results.items():
+        for region, result in regions_to_add.items():
             # Extract component values
             lg_ratio = ''
             thd_val = ''
@@ -869,7 +879,7 @@ def append_to_daily_csv(
                 notes
             ])
 
-    logger.info(f"Appended {len(results)} rows to: {csv_file}")
+    logger.info(f"Appended {len(regions_to_add)} rows to: {csv_file}")
     return csv_file
 
 
@@ -897,14 +907,14 @@ def append_to_dashboard_csv(
     # Check if file exists to determine if we need header
     file_exists = csv_file.exists()
 
-    # Check if this date already has entries (avoid duplicates)
+    # Check which regions already have entries for this date (avoid duplicates per region)
+    existing_regions = set()
     if file_exists:
         with open(csv_file, 'r', newline='') as f:
             reader = csv.reader(f)
             for row in reader:
-                if len(row) > 0 and row[0] == date_str:
-                    logger.info(f"Date {date_str} already in dashboard CSV, skipping append")
-                    return csv_file
+                if len(row) >= 2 and row[0] == date_str:
+                    existing_regions.add(row[1])  # row[1] is region
 
         # Ensure file ends with newline before appending
         with open(csv_file, 'rb') as f:
@@ -912,6 +922,16 @@ def append_to_dashboard_csv(
             if f.read(1) != b'\n':
                 with open(csv_file, 'a') as f2:
                     f2.write('\n')
+
+    # Filter to only regions not already in CSV for this date
+    regions_to_add = {r: res for r, res in results.items() if r not in existing_regions}
+
+    if not regions_to_add:
+        logger.info(f"All {len(results)} regions already in dashboard CSV for {date_str}, skipping")
+        return csv_file
+
+    if existing_regions:
+        logger.info(f"Found {len(existing_regions)} existing regions for {date_str}, adding {len(regions_to_add)} new")
 
     with open(csv_file, 'a', newline='') as f:
         writer = csv.writer(f)
@@ -922,7 +942,7 @@ def append_to_dashboard_csv(
                 'date', 'region', 'tier', 'risk', 'confidence', 'methods', 'agreement'
             ])
 
-        for region, result in results.items():
+        for region, result in regions_to_add.items():
             writer.writerow([
                 date_str,
                 region,
@@ -933,7 +953,7 @@ def append_to_dashboard_csv(
                 result.agreement or ''
             ])
 
-    logger.info(f"Appended {len(results)} rows to dashboard CSV: {csv_file}")
+    logger.info(f"Appended {len(regions_to_add)} rows to dashboard CSV: {csv_file}")
     return csv_file
 
 

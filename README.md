@@ -1,13 +1,13 @@
 ﻿# GeoSpec Ensemble Monitoring
 
-**Last Update**: 2026-01-18
+**Last Update**: 2026-01-19
 
 ## Current Status
 
 | Metric | Value |
 |--------|-------|
-| Highest Risk Region | ridgecrest |
-| Risk Score | 0.528 |
+| Highest Risk Region | norcal_hayward |
+| Risk Score | 0.857 |
 | Regions Monitored | 13 |
 
 ### Tier Distribution
@@ -16,8 +16,8 @@
 |------|-------|
 | NORMAL (0) | 8 |
 | WATCH (1) | 4 |
-| ELEVATED (2) | 1 |
-| CRITICAL (3) | 0 |
+| ELEVATED (2) | 0 |
+| CRITICAL (3) | 1 |
 
 ## Dashboard
 

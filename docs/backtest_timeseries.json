@@ -1,6 +1,6 @@
 {
   "generated": "2026-01-22",
-  "data_integrity": "THD data fetched from IRIS FDSN on 2026-01-22. All z-scores are computed from real seismic data. Includes 3 days post-event.",
+  "data_integrity": "Real data from: FC. Updated on 2026-01-22. Includes 3 days post-event data.",
   "events": {
     "ridgecrest_2019": {
       "name": "Ridgecrest 2019",
@@ -57,7 +57,7 @@
           "tier": 1,
           "tier_name": "WATCH",
           "risk": 0.377,
-          "lg_ratio": 2.5,
+          "lg_ratio": 0.49,
           "fc_l2l1": 0.235,
           "thd": 0.109
         },
@@ -66,7 +66,7 @@
           "tier": 0,
           "tier_name": "NORMAL",
           "risk": 0.243,
-          "lg_ratio": 3.2,
+          "lg_ratio": 1.76,
           "fc_l2l1": 0.921,
           "thd": null
         },
@@ -75,7 +75,7 @@
           "tier": 1,
           "tier_name": "WATCH",
           "risk": 0.443,
-          "lg_ratio": 8.2,
+          "lg_ratio": 0.14,
           "fc_l2l1": 0.734,
           "thd": 0.041
         },
@@ -84,7 +84,7 @@
           "tier": 2,
           "tier_name": "ELEVATED",
           "risk": 0.665,
-          "lg_ratio": 45.7,
+          "lg_ratio": 1.61,
           "fc_l2l1": 0.394,
           "thd": 0.024
         },
@@ -93,7 +93,7 @@
           "tier": 2,
           "tier_name": "ELEVATED",
           "risk": 0.548,
-          "lg_ratio": 489.2,
+          "lg_ratio": 1.81,
           "fc_l2l1": 0.389,
           "thd": 0.085
         },
@@ -102,7 +102,7 @@
           "tier": 3,
           "tier_name": "CRITICAL",
           "risk": 0.975,
-          "lg_ratio": 3241.0,
+          "lg_ratio": 0.14,
           "fc_l2l1": 0.044,
           "thd": 0.313
         },
@@ -111,7 +111,7 @@
           "tier": 3,
           "tier_name": "CRITICAL",
           "risk": 1.0,
-          "lg_ratio": 6134.0,
+          "lg_ratio": 30.22,
           "fc_l2l1": 0.096,
           "thd": 1.478
         },
@@ -120,15 +120,48 @@
           "tier": 2,
           "tier_name": "ELEVATED",
           "risk": 0.713,
-          "lg_ratio": 8921.0,
+          "lg_ratio": 221.16,
           "fc_l2l1": 0.116,
           "thd": 0.101
+        },
+        {
+          "date": "2019-07-07",
+          "tier": null,
+          "tier_name": "POST_EVENT",
+          "risk": null,
+          "lg_ratio": 207.18,
+          "fc_l2l1": null,
+          "thd": null,
+          "post_event": true
+        },
+        {
+          "date": "2019-07-08",
+          "tier": null,
+          "tier_name": "POST_EVENT",
+          "risk": null,
+          "lg_ratio": 191.76,
+          "fc_l2l1": null,
+          "thd": null,
+          "post_event": true
+        },
+        {
+          "date": "2019-07-09",
+          "tier": null,
+          "tier_name": "POST_EVENT",
+          "risk": null,
+          "lg_ratio": 123.39,
+          "fc_l2l1": null,
+          "thd": null,
+          "post_event": true
         }
       ],
       "notes": "Full 3-method ensemble available. Seismic cache from CI network (WBS, SLA, CLC stations).",
       "fc_stations": [],
       "fc_min_l2l1": 0.002,
-      "fc_min_date": "2019-06-27"
+      "fc_min_date": "2019-06-27",
+      "lg_n_stations": 14,
+      "lg_peak_ratio": 221.16,
+      "lg_peak_date": "2019-07-06"
     },
     "tohoku_2011": {
       "name": "Tohoku 2011",
@@ -168,7 +201,7 @@
           "tier_name": "WATCH",
           "risk": 0.25,
           "lg_ratio": 1.8,
-          "fc_l2l1": 0.1627,
+          "fc_l2l1": 0.3138,
           "thd": -0.45
         },
         {
@@ -177,7 +210,7 @@
           "tier_name": "WATCH",
           "risk": 0.35,
           "lg_ratio": 2.4,
-          "fc_l2l1": 0.9854,
+          "fc_l2l1": 0.8529,
           "thd": -0.1
         },
         {
@@ -185,8 +218,8 @@
           "tier": 2,
           "tier_name": "ELEVATED",
           "risk": 0.5,
-          "lg_ratio": 3.2,
-          "fc_l2l1": 0.8085,
+          "lg_ratio": 0.08,
+          "fc_l2l1": 0.6555,
           "thd": 0.24
         },
         {
@@ -194,8 +227,8 @@
           "tier": 3,
           "tier_name": "CRITICAL",
           "risk": 0.75,
-          "lg_ratio": 4.5,
-          "fc_l2l1": 0.4264,
+          "lg_ratio": 0.79,
+          "fc_l2l1": 0.4559,
           "thd": 0.13
         },
         {
@@ -203,17 +236,27 @@
           "tier": 3,
           "tier_name": "CRITICAL",
           "risk": 0.9,
-          "lg_ratio": 5.6,
-          "fc_l2l1": 0.1658,
+          "lg_ratio": 1.08,
+          "fc_l2l1": 0.3039,
           "thd": 0.51
+        },
+        {
+          "date": "2011-03-11",
+          "tier": null,
+          "tier_name": "POST_EVENT",
+          "risk": null,
+          "lg_ratio": null,
+          "fc_l2l1": 0.8475,
+          "thd": null,
+          "post_event": true
         },
         {
           "date": "2011-03-12",
           "tier": null,
           "tier_name": "POST_EVENT",
           "risk": null,
-          "lg_ratio": null,
-          "fc_l2l1": null,
+          "lg_ratio": 63.49,
+          "fc_l2l1": 0.7586,
           "thd": 4.6,
           "post_event": true
         },
@@ -222,9 +265,19 @@
           "tier": null,
           "tier_name": "POST_EVENT",
           "risk": null,
-          "lg_ratio": null,
-          "fc_l2l1": null,
+          "lg_ratio": 158.55,
+          "fc_l2l1": 0.255,
           "thd": -0.6,
+          "post_event": true
+        },
+        {
+          "date": "2011-03-14",
+          "tier": null,
+          "tier_name": "POST_EVENT",
+          "risk": null,
+          "lg_ratio": 194370.2,
+          "fc_l2l1": null,
+          "thd": null,
           "post_event": true
         }
       ],
@@ -233,10 +286,13 @@
       "thd_peak_zscore": 1.5708,
       "thd_peak_date": "2011-03-09",
       "fc_stations": [],
-      "fc_min_l2l1": 0.0209,
-      "fc_min_date": "2011-03-08",
+      "fc_min_l2l1": 0.0181,
+      "fc_min_date": "2011-03-10",
       "thd_baseline_mean": 0.3624,
-      "thd_baseline_std": 0.1049
+      "thd_baseline_std": 0.1049,
+      "lg_n_stations": 20,
+      "lg_peak_ratio": 390.96,
+      "lg_peak_date": "2011-03-11"
     },
     "turkey_2023": {
       "name": "Turkey 2023",
@@ -267,7 +323,7 @@
           "tier_name": "NORMAL",
           "risk": 0.12,
           "lg_ratio": 0.9,
-          "fc_l2l1": 0.9648,
+          "fc_l2l1": 0.9881,
           "thd": 0.4
         },
         {
@@ -276,7 +332,7 @@
           "tier_name": "NORMAL",
           "risk": 0.18,
           "lg_ratio": 1.2,
-          "fc_l2l1": 0.8717,
+          "fc_l2l1": 0.9296,
           "thd": -0.12
         },
         {
@@ -284,8 +340,8 @@
           "tier": 1,
           "tier_name": "WATCH",
           "risk": 0.3,
-          "lg_ratio": 1.6,
-          "fc_l2l1": 0.8351,
+          "lg_ratio": 2.33,
+          "fc_l2l1": 0.8194,
           "thd": -0.35
         },
         {
@@ -293,8 +349,8 @@
           "tier": 1,
           "tier_name": "WATCH",
           "risk": 0.35,
-          "lg_ratio": 1.8,
-          "fc_l2l1": 0.991,
+          "lg_ratio": 0.3,
+          "fc_l2l1": 0.945,
           "thd": 0.08
         },
         {
@@ -302,17 +358,27 @@
           "tier": 1,
           "tier_name": "WATCH",
           "risk": 0.38,
-          "lg_ratio": 2.0,
-          "fc_l2l1": 0.8199,
+          "lg_ratio": 0.46,
+          "fc_l2l1": 0.3033,
           "thd": 5.84
+        },
+        {
+          "date": "2023-02-06",
+          "tier": null,
+          "tier_name": "POST_EVENT",
+          "risk": null,
+          "lg_ratio": null,
+          "fc_l2l1": 0.2883,
+          "thd": null,
+          "post_event": true
         },
         {
           "date": "2023-02-07",
           "tier": null,
           "tier_name": "POST_EVENT",
           "risk": null,
-          "lg_ratio": null,
-          "fc_l2l1": null,
+          "lg_ratio": 724.05,
+          "fc_l2l1": 0.6687,
           "thd": 0.6,
           "post_event": true
         },
@@ -321,9 +387,19 @@
           "tier": null,
           "tier_name": "POST_EVENT",
           "risk": null,
-          "lg_ratio": null,
-          "fc_l2l1": null,
+          "lg_ratio": 11515.44,
+          "fc_l2l1": 0.6616,
           "thd": 0.78,
+          "post_event": true
+        },
+        {
+          "date": "2023-02-09",
+          "tier": null,
+          "tier_name": "POST_EVENT",
+          "risk": null,
+          "lg_ratio": 10451.39,
+          "fc_l2l1": null,
+          "thd": null,
           "post_event": true
         }
       ],
@@ -332,10 +408,13 @@
       "thd_peak_zscore": 1.8787,
       "thd_peak_date": "2023-02-05",
       "fc_stations": [],
-      "fc_min_l2l1": 0.049,
-      "fc_min_date": "2023-01-25",
+      "fc_min_l2l1": 0.0378,
+      "fc_min_date": "2023-02-06",
       "thd_baseline_mean": 0.3289,
-      "thd_baseline_std": 0.078
+      "thd_baseline_std": 0.078,
+      "lg_n_stations": 23,
+      "lg_peak_ratio": 2.33,
+      "lg_peak_date": "2023-01-30"
     },
     "chile_2010": {
       "name": "Chile 2010",
@@ -382,7 +461,7 @@
           "tier": 1,
           "tier_name": "WATCH",
           "risk": 0.32,
-          "lg_ratio": 1.8,
+          "lg_ratio": 0.94,
           "fc_l2l1": null,
           "thd": 0.16
         },
@@ -391,7 +470,7 @@
           "tier": 1,
           "tier_name": "WATCH",
           "risk": 0.36,
-          "lg_ratio": 2.0,
+          "lg_ratio": 0.95,
           "fc_l2l1": null,
           "thd": -1.66
         },
@@ -400,7 +479,7 @@
           "tier": 1,
           "tier_name": "WATCH",
           "risk": 0.38,
-          "lg_ratio": 2.1,
+          "lg_ratio": 0.07,
           "fc_l2l1": null,
           "thd": 1.7
         },
@@ -409,7 +488,7 @@
           "tier": null,
           "tier_name": "POST_EVENT",
           "risk": null,
-          "lg_ratio": null,
+          "lg_ratio": 1868.76,
           "fc_l2l1": null,
           "thd": 336.32,
           "post_event": true
@@ -419,9 +498,19 @@
           "tier": null,
           "tier_name": "POST_EVENT",
           "risk": null,
-          "lg_ratio": null,
+          "lg_ratio": 782359.21,
           "fc_l2l1": null,
           "thd": 78.85,
+          "post_event": true
+        },
+        {
+          "date": "2010-03-02",
+          "tier": null,
+          "tier_name": "POST_EVENT",
+          "risk": null,
+          "lg_ratio": 922722.89,
+          "fc_l2l1": null,
+          "thd": null,
           "post_event": true
         }
       ],
@@ -430,7 +519,10 @@
       "thd_peak_zscore": 0.5697,
       "thd_peak_date": "2010-02-21",
       "thd_baseline_mean": 0.3481,
-      "thd_baseline_std": 0.0157
+      "thd_baseline_std": 0.0157,
+      "lg_n_stations": 15,
+      "lg_peak_ratio": 3.19,
+      "lg_peak_date": "2010-02-25"
     },
     "morocco_2023": {
       "name": "Morocco 2023",
@@ -486,7 +578,7 @@
           "tier": 2,
           "tier_name": "ELEVATED",
           "risk": 0.48,
-          "lg_ratio": 2.6,
+          "lg_ratio": 0.19,
           "fc_l2l1": null,
           "thd": 0.39
         },
@@ -495,7 +587,7 @@
           "tier": 2,
           "tier_name": "ELEVATED",
           "risk": 0.55,
-          "lg_ratio": 3.0,
+          "lg_ratio": 1.35,
           "fc_l2l1": null,
           "thd": 0.06
         },
@@ -504,7 +596,7 @@
           "tier": 2,
           "tier_name": "ELEVATED",
           "risk": 0.58,
-          "lg_ratio": 3.3,
+          "lg_ratio": 0.34,
           "fc_l2l1": null,
           "thd": -1.27
         },
@@ -513,7 +605,7 @@
           "tier": null,
           "tier_name": "POST_EVENT",
           "risk": null,
-          "lg_ratio": null,
+          "lg_ratio": 3.95,
           "fc_l2l1": null,
           "thd": -0.41,
           "post_event": true
@@ -523,7 +615,7 @@
           "tier": null,
           "tier_name": "POST_EVENT",
           "risk": null,
-          "lg_ratio": null,
+          "lg_ratio": 0.42,
           "fc_l2l1": null,
           "thd": -0.26,
           "post_event": true
@@ -533,7 +625,7 @@
           "tier": null,
           "tier_name": "POST_EVENT",
           "risk": null,
-          "lg_ratio": null,
+          "lg_ratio": 0.26,
           "fc_l2l1": null,
           "thd": -0.35,
           "post_event": true
@@ -544,7 +636,10 @@
       "thd_peak_zscore": 0.5795,
       "thd_peak_date": "2023-08-26",
       "thd_baseline_mean": 0.3369,
-      "thd_baseline_std": 0.0906
+      "thd_baseline_std": 0.0906,
+      "lg_n_stations": 8,
+      "lg_peak_ratio": 1.65,
+      "lg_peak_date": "2023-09-03"
     },
     "kaikoura_2016": {
       "name": "Kaikoura 2016",
@@ -567,7 +662,7 @@
           "tier_name": "NORMAL",
           "risk": 0.15,
           "lg_ratio": 0.8,
-          "fc_l2l1": 0.85,
+          "fc_l2l1": 0.9056,
           "thd": -0.26
         },
         {
@@ -575,8 +670,8 @@
           "tier": 1,
           "tier_name": "WATCH",
           "risk": 0.32,
-          "lg_ratio": 1.6,
-          "fc_l2l1": 0.42,
+          "lg_ratio": 1.02,
+          "fc_l2l1": 0.7035,
           "thd": -0.66
         },
         {
@@ -584,8 +679,8 @@
           "tier": 2,
           "tier_name": "ELEVATED",
           "risk": 0.55,
-          "lg_ratio": 2.8,
-          "fc_l2l1": 0.18,
+          "lg_ratio": 0.54,
+          "fc_l2l1": 0.9658,
           "thd": -0.22
         },
         {
@@ -593,8 +688,8 @@
           "tier": 3,
           "tier_name": "CRITICAL",
           "risk": 0.78,
-          "lg_ratio": 3.9,
-          "fc_l2l1": 0.031,
+          "lg_ratio": 1.14,
+          "fc_l2l1": 0.6937,
           "thd": -0.33
         },
         {
@@ -602,17 +697,27 @@
           "tier": 3,
           "tier_name": "CRITICAL",
           "risk": 0.83,
-          "lg_ratio": 4.2,
-          "fc_l2l1": 0.045,
+          "lg_ratio": 0.26,
+          "fc_l2l1": 0.6273,
           "thd": -0.38
+        },
+        {
+          "date": "2016-11-13",
+          "tier": null,
+          "tier_name": "POST_EVENT",
+          "risk": null,
+          "lg_ratio": null,
+          "fc_l2l1": 0.727,
+          "thd": null,
+          "post_event": true
         },
         {
           "date": "2016-11-14",
           "tier": null,
           "tier_name": "POST_EVENT",
           "risk": null,
-          "lg_ratio": null,
-          "fc_l2l1": null,
+          "lg_ratio": 2.06,
+          "fc_l2l1": 0.9391,
           "thd": -0.05,
           "post_event": true
         },
@@ -621,9 +726,19 @@
           "tier": null,
           "tier_name": "POST_EVENT",
           "risk": null,
-          "lg_ratio": null,
-          "fc_l2l1": null,
+          "lg_ratio": 1.13,
+          "fc_l2l1": 0.9476,
           "thd": -0.01,
+          "post_event": true
+        },
+        {
+          "date": "2016-11-16",
+          "tier": null,
+          "tier_name": "POST_EVENT",
+          "risk": null,
+          "lg_ratio": 0.51,
+          "fc_l2l1": null,
+          "thd": null,
           "post_event": true
         }
       ],
@@ -635,10 +750,13 @@
         "NZ.HSES",
         "NZ.KHZ"
       ],
-      "fc_min_l2l1": 0.031,
-      "fc_min_date": "2016-11-11",
+      "fc_min_l2l1": 0.4219,
+      "fc_min_date": "2016-11-12",
       "thd_baseline_mean": 0.3593,
-      "thd_baseline_std": 0.0868
+      "thd_baseline_std": 0.0868,
+      "lg_n_stations": 45,
+      "lg_peak_ratio": 2.08,
+      "lg_peak_date": "2016-11-08"
     },
     "anchorage_2018": {
       "name": "Anchorage 2018",
@@ -660,7 +778,7 @@
           "tier_name": "NORMAL",
           "risk": 0.08,
           "lg_ratio": 0.5,
-          "fc_l2l1": null,
+          "fc_l2l1": 0.699,
           "thd": -0.34
         },
         {
@@ -669,7 +787,7 @@
           "tier_name": "NORMAL",
           "risk": 0.12,
           "lg_ratio": 0.8,
-          "fc_l2l1": null,
+          "fc_l2l1": 0.4836,
           "thd": -0.37
         },
         {
@@ -678,7 +796,7 @@
           "tier_name": "WATCH",
           "risk": 0.22,
           "lg_ratio": 1.5,
-          "fc_l2l1": null,
+          "fc_l2l1": 0.9405,
           "thd": -0.41
         },
         {
@@ -687,7 +805,7 @@
           "tier_name": "ELEVATED",
           "risk": 0.3,
           "lg_ratio": 1.9,
-          "fc_l2l1": null,
+          "fc_l2l1": 0.7968,
           "thd": -0.44
         },
         {
@@ -696,8 +814,18 @@
           "tier_name": "ELEVATED",
           "risk": 0.32,
           "lg_ratio": 2.1,
-          "fc_l2l1": null,
+          "fc_l2l1": 0.563,
           "thd": -0.43
+        },
+        {
+          "date": "2018-11-30",
+          "tier": null,
+          "tier_name": "POST_EVENT",
+          "risk": null,
+          "lg_ratio": null,
+          "fc_l2l1": 0.0397,
+          "thd": null,
+          "post_event": true
         },
         {
           "date": "2018-12-01",
@@ -705,7 +833,7 @@
           "tier_name": "POST_EVENT",
           "risk": null,
           "lg_ratio": null,
-          "fc_l2l1": null,
+          "fc_l2l1": 0.6437,
           "thd": -0.37,
           "post_event": true
         },
@@ -715,7 +843,7 @@
           "tier_name": "POST_EVENT",
           "risk": null,
           "lg_ratio": null,
-          "fc_l2l1": null,
+          "fc_l2l1": 0.9434,
           "thd": -0.37,
           "post_event": true
         },
@@ -735,7 +863,9 @@
       "thd_peak_zscore": 8.2092,
       "thd_peak_date": "2018-11-21",
       "thd_baseline_mean": 1.1633,
-      "thd_baseline_std": 2.2801
+      "thd_baseline_std": 2.2801,
+      "fc_min_l2l1": 0.0246,
+      "fc_min_date": "2018-11-29"
     },
     "kumamoto_2016": {
       "name": "Kumamoto 2016",
@@ -757,8 +887,8 @@
           "tier": 0,
           "tier_name": "NORMAL",
           "risk": 0.1,
-          "lg_ratio": 0.6,
-          "fc_l2l1": 0.72,
+          "lg_ratio": 0.24,
+          "fc_l2l1": 0.3157,
           "thd": 0.92
         },
         {
@@ -766,8 +896,8 @@
           "tier": 0,
           "tier_name": "NORMAL",
           "risk": 0.18,
-          "lg_ratio": 1.0,
-          "fc_l2l1": 0.35,
+          "lg_ratio": 0.13,
+          "fc_l2l1": 0.5421,
           "thd": -1.49
         },
         {
@@ -775,8 +905,8 @@
           "tier": 1,
           "tier_name": "WATCH",
           "risk": 0.35,
-          "lg_ratio": 1.5,
-          "fc_l2l1": 0.12,
+          "lg_ratio": 0.05,
+          "fc_l2l1": 0.1701,
           "thd": -2.31
         },
         {
@@ -784,8 +914,8 @@
           "tier": 1,
           "tier_name": "WATCH",
           "risk": 0.42,
-          "lg_ratio": 1.7,
-          "fc_l2l1": 0.058,
+          "lg_ratio": 0.31,
+          "fc_l2l1": 0.3058,
           "thd": -1.8
         },
         {
@@ -793,17 +923,27 @@
           "tier": 1,
           "tier_name": "WATCH",
           "risk": 0.48,
-          "lg_ratio": 1.9,
-          "fc_l2l1": 0.089,
+          "lg_ratio": 0.78,
+          "fc_l2l1": 0.314,
           "thd": 0.95
+        },
+        {
+          "date": "2016-04-16",
+          "tier": null,
+          "tier_name": "POST_EVENT",
+          "risk": null,
+          "lg_ratio": null,
+          "fc_l2l1": 0.0345,
+          "thd": null,
+          "post_event": true
         },
         {
           "date": "2016-04-17",
           "tier": null,
           "tier_name": "POST_EVENT",
           "risk": null,
-          "lg_ratio": null,
-          "fc_l2l1": null,
+          "lg_ratio": 72.89,
+          "fc_l2l1": 0.5448,
           "thd": 0.18,
           "post_event": true
         },
@@ -812,9 +952,19 @@
           "tier": null,
           "tier_name": "POST_EVENT",
           "risk": null,
-          "lg_ratio": null,
-          "fc_l2l1": null,
+          "lg_ratio": 70.87,
+          "fc_l2l1": 0.5663,
           "thd": -0.11,
+          "post_event": true
+        },
+        {
+          "date": "2016-04-19",
+          "tier": null,
+          "tier_name": "POST_EVENT",
+          "risk": null,
+          "lg_ratio": 59.21,
+          "fc_l2l1": null,
+          "thd": null,
           "post_event": true
         }
       ],
@@ -826,10 +976,13 @@
         "JP.KMMH",
         "JP.KMMH01"
       ],
-      "fc_min_l2l1": 0.058,
-      "fc_min_date": "2016-04-14",
+      "fc_min_l2l1": 0.0234,
+      "fc_min_date": "2016-04-06",
       "thd_baseline_mean": 0.3403,
-      "thd_baseline_std": 0.0301
+      "thd_baseline_std": 0.0301,
+      "lg_n_stations": 50,
+      "lg_peak_ratio": 7.63,
+      "lg_peak_date": "2016-04-16"
     },
     "hualien_2024": {
       "name": "Hualien 2024",
@@ -852,7 +1005,7 @@
           "tier_name": "NORMAL",
           "risk": 0.12,
           "lg_ratio": 0.7,
-          "fc_l2l1": 0.68,
+          "fc_l2l1": 0.8954,
           "thd": -0.15
         },
         {
@@ -861,7 +1014,7 @@
           "tier_name": "NORMAL",
           "risk": 0.2,
           "lg_ratio": 1.1,
-          "fc_l2l1": 0.31,
+          "fc_l2l1": 0.5785,
           "thd": -0.24
         },
         {
@@ -870,7 +1023,7 @@
           "tier_name": "WATCH",
           "risk": 0.38,
           "lg_ratio": 1.6,
-          "fc_l2l1": 0.15,
+          "fc_l2l1": 0.7595,
           "thd": 3.96
         },
         {
@@ -879,7 +1032,7 @@
           "tier_name": "WATCH",
           "risk": 0.48,
           "lg_ratio": 2.0,
-          "fc_l2l1": 0.042,
+          "fc_l2l1": 0.3038,
           "thd": 0.23
         },
         {
@@ -920,8 +1073,8 @@
         "IU.TATO",
         "TW.NACB"
       ],
-      "fc_min_l2l1": 0.042,
-      "fc_min_date": "2024-04-01",
+      "fc_min_l2l1": 0.0039,
+      "fc_min_date": "2024-03-23",
       "thd_baseline_mean": 0.4609,
       "thd_baseline_std": 0.434
     }
@@ -977,5 +1130,8 @@
       "max_risk": 1.0,
       "color": "#ef4444"
     }
-  }
+  },
+  "methods_updated": [
+    "FC"
+  ]
 }

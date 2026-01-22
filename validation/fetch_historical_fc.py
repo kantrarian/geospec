@@ -49,6 +49,7 @@ FAULT_SEGMENTS = {
         'event_date': datetime(2011, 3, 11, 5, 46, 24),
         'magnitude': 9.0,
         'lead_days': 14,
+        'post_days': 3,
         'segments': [
             {
                 'name': 'tohoku_north',
@@ -73,6 +74,7 @@ FAULT_SEGMENTS = {
         'event_date': datetime(2023, 2, 6, 1, 17, 35),
         'magnitude': 7.8,
         'lead_days': 14,
+        'post_days': 3,
         'segments': [
             {
                 'name': 'eaf_north',
@@ -96,6 +98,7 @@ FAULT_SEGMENTS = {
         'event_date': datetime(2010, 2, 27, 6, 34, 14),
         'magnitude': 8.8,
         'lead_days': 14,
+        'post_days': 3,
         'segments': [
             {
                 'name': 'maule_north',
@@ -112,6 +115,7 @@ FAULT_SEGMENTS = {
         'event_date': datetime(2019, 7, 6, 3, 19, 53),
         'magnitude': 7.1,
         'lead_days': 14,
+        'post_days': 3,
         'segments': [
             {
                 'name': 'ridgecrest_main',
@@ -130,7 +134,75 @@ FAULT_SEGMENTS = {
             }
         ],
         'notes': 'Best coverage - dense CI network in region. Already have cached FC data.'
-    }
+    },
+    'kaikoura_2016': {
+        'name': 'Alpine Fault / Hikurangi',
+        'event_date': datetime(2016, 11, 13, 11, 2, 56),
+        'magnitude': 7.8,
+        'lead_days': 14,
+        'post_days': 3,
+        'segments': [
+            {
+                'name': 'kaikoura_main',
+                'stations': [
+                    {'network': 'IU', 'code': 'SNZO', 'lat': -41.31, 'lon': 174.70},  # Wellington
+                    {'network': 'II', 'code': 'TAU', 'lat': -42.91, 'lon': 147.32},   # Tasmania
+                ]
+            }
+        ],
+        'notes': 'Limited to IU/II stations. GeoNet NZ would provide better coverage.'
+    },
+    'anchorage_2018': {
+        'name': 'Alaska Subduction Zone',
+        'event_date': datetime(2018, 11, 30, 17, 29, 29),
+        'magnitude': 7.1,
+        'lead_days': 14,
+        'post_days': 3,
+        'segments': [
+            {
+                'name': 'anchorage_main',
+                'stations': [
+                    {'network': 'IU', 'code': 'COLA', 'lat': 64.87, 'lon': -147.86},  # College
+                    {'network': 'II', 'code': 'KDAK', 'lat': 57.78, 'lon': -152.58},  # Kodiak
+                ]
+            }
+        ],
+        'notes': 'Using IU/II stations. AK/AV networks would be better but may be restricted.'
+    },
+    'kumamoto_2016': {
+        'name': 'Futagawa-Hinagu Fault Zone',
+        'event_date': datetime(2016, 4, 16, 1, 25, 6),
+        'magnitude': 7.0,
+        'lead_days': 14,
+        'post_days': 3,
+        'segments': [
+            {
+                'name': 'kumamoto_main',
+                'stations': [
+                    {'network': 'IU', 'code': 'MAJO', 'lat': 36.54, 'lon': 138.20},  # Matsushiro
+                    {'network': 'II', 'code': 'ERM', 'lat': 42.02, 'lon': 143.16},   # Erimo
+                ]
+            }
+        ],
+        'notes': 'Using IU/II stations. Hi-net/F-net would be better but requires account.'
+    },
+    'hualien_2024': {
+        'name': 'Longitudinal Valley Fault',
+        'event_date': datetime(2024, 4, 3, 7, 58, 11),
+        'magnitude': 7.4,
+        'lead_days': 14,
+        'post_days': 3,
+        'segments': [
+            {
+                'name': 'hualien_main',
+                'stations': [
+                    {'network': 'IU', 'code': 'TATO', 'lat': 24.97, 'lon': 121.50},  # Taipei
+                    {'network': 'TW', 'code': 'NACB', 'lat': 24.18, 'lon': 120.87},  # Nantou
+                ]
+            }
+        ],
+        'notes': 'Using IU/TW stations. CWB network would be better but may be restricted.'
+    },
 }
 
 
@@ -337,9 +409,10 @@ def compute_fc_timeseries(
         print(f"Segments: {len(config['segments'])}")
         print("-" * 70)
 
-    # Time window
+    # Time window - include post_days after event
+    post_days = config.get('post_days', 3)
     start_time = event_date - timedelta(days=lead_days)
-    end_time = event_date + timedelta(hours=12)
+    end_time = event_date + timedelta(days=post_days)
 
     all_timeseries = []
 
@@ -427,7 +500,7 @@ def compute_fc_timeseries(
             window_time = start_time + timedelta(seconds=window_start_sec)
             days_before = (event_date - window_time).total_seconds() / 86400
 
-            all_timeseries.append({
+            entry = {
                 'date': window_time.strftime('%Y-%m-%d'),
                 'datetime': window_time.isoformat(),
                 'days_before_event': round(days_before, 2),
@@ -437,7 +510,13 @@ def compute_fc_timeseries(
                 'lambda2': round(lambda2, 4),
                 'stations': station_names,
                 'tier': 'CRITICAL' if l2_l1 < 0.08 else ('ELEVATED' if l2_l1 < 0.15 else 'NORMAL')
-            })
+            }
+
+            # Mark post-event entries
+            if window_time > event_date:
+                entry['post_event'] = True
+
+            all_timeseries.append(entry)
 
     if not all_timeseries:
         if verbose:

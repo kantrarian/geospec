@@ -10,17 +10,17 @@
       "tohoku_north",
       "tohoku_south"
     ],
-    "fetch_date": "2026-01-15T00:22:10.187430",
+    "fetch_date": "2026-01-22T16:12:01.741343",
     "window_hours": 24,
     "step_hours": 6
   },
   "statistics": {
-    "baseline_mean": 0.6224,
-    "baseline_std": 0.3227,
-    "min_l2_l1": 0.0209,
-    "min_date": "2011-03-08T05:46:24",
+    "baseline_mean": 0.5985,
+    "baseline_std": 0.3258,
+    "min_l2_l1": 0.0181,
+    "min_date": "2011-03-10T05:46:24",
     "n_elevated": 3,
-    "n_critical": 8
+    "n_critical": 9
   },
   "timeseries": [
     {
@@ -28,9 +28,9 @@
       "datetime": "2011-02-25T05:46:24",
       "days_before_event": 14.0,
       "segment": "tohoku_south",
-      "l2_l1": 0.9036,
-      "lambda1": 1.0513,
-      "lambda2": 0.9499,
+      "l2_l1": 0.2345,
+      "lambda1": 1.8156,
+      "lambda2": 0.4258,
       "stations": [
         "IU.MAJO",
         "PS.TSK"
@@ -42,9 +42,9 @@
       "datetime": "2011-02-25T11:46:24",
       "days_before_event": 13.75,
       "segment": "tohoku_south",
-      "l2_l1": 0.1819,
-      "lambda1": 1.9658,
-      "lambda2": 0.3575,
+      "l2_l1": 0.1822,
+      "lambda1": 1.9646,
+      "lambda2": 0.358,
       "stations": [
         "IU.MAJO",
         "PS.TSK"
@@ -56,9 +56,9 @@
       "datetime": "2011-02-25T17:46:24",
       "days_before_event": 13.5,
       "segment": "tohoku_south",
-      "l2_l1": 0.2546,
-      "lambda1": 1.767,
-      "lambda2": 0.4498,
+      "l2_l1": 0.2542,
+      "lambda1": 1.768,
+      "lambda2": 0.4494,
       "stations": [
         "IU.MAJO",
         "PS.TSK"
@@ -71,8 +71,8 @@
       "days_before_event": 13.25,
       "segment": "tohoku_south",
       "l2_l1": 0.1648,
-      "lambda1": 2.0234,
-      "lambda2": 0.3335,
+      "lambda1": 2.0237,
+      "lambda2": 0.3334,
       "stations": [
         "IU.MAJO",
         "PS.TSK"
@@ -85,8 +85,8 @@
       "days_before_event": 13.0,
       "segment": "tohoku_south",
       "l2_l1": 0.1627,
-      "lambda1": 2.0309,
-      "lambda2": 0.3305,
+      "lambda1": 2.0312,
+      "lambda2": 0.3304,
       "stations": [
         "IU.MAJO",
         "PS.TSK"
@@ -99,8 +99,8 @@
       "days_before_event": 12.75,
       "segment": "tohoku_south",
       "l2_l1": 0.1626,
-      "lambda1": 2.0313,
-      "lambda2": 0.3304,
+      "lambda1": 2.0315,
+      "lambda2": 0.3303,
       "stations": [
         "IU.MAJO",
         "PS.TSK"
@@ -112,9 +112,9 @@
       "datetime": "2011-02-26T17:46:24",
       "days_before_event": 12.5,
       "segment": "tohoku_south",
-      "l2_l1": 0.1234,
-      "lambda1": 2.1905,
-      "lambda2": 0.2704,
+      "l2_l1": 0.1235,
+      "lambda1": 2.1902,
+      "lambda2": 0.2705,
       "stations": [
         "IU.MAJO",
         "PS.TSK"
@@ -126,9 +126,9 @@
       "datetime": "2011-02-26T23:46:24",
       "days_before_event": 12.25,
       "segment": "tohoku_south",
-      "l2_l1": 0.8069,
-      "lambda1": 1.1101,
-      "lambda2": 0.8957,
+      "l2_l1": 0.8064,
+      "lambda1": 1.1104,
+      "lambda2": 0.8954,
       "stations": [
         "IU.MAJO",
         "PS.TSK"
@@ -140,9 +140,9 @@
       "datetime": "2011-02-27T05:46:24",
       "days_before_event": 12.0,
       "segment": "tohoku_south",
-      "l2_l1": 0.225,
-      "lambda1": 1.8401,
-      "lambda2": 0.4141,
+      "l2_l1": 0.2251,
+      "lambda1": 1.8398,
+      "lambda2": 0.4142,
       "stations": [
         "IU.MAJO",
         "PS.TSK"
@@ -154,9 +154,9 @@
       "datetime": "2011-02-27T11:46:24",
       "days_before_event": 11.75,
       "segment": "tohoku_south",
-      "l2_l1": 0.1649,
-      "lambda1": 2.0231,
-      "lambda2": 0.3337,
+      "l2_l1": 0.165,
+      "lambda1": 2.0228,
+      "lambda2": 0.3338,
       "stations": [
         "IU.MAJO",
         "PS.TSK"
@@ -169,8 +169,8 @@
       "days_before_event": 11.5,
       "segment": "tohoku_south",
       "l2_l1": 0.3056,
-      "lambda1": 1.6589,
-      "lambda2": 0.5069,
+      "lambda1": 1.6588,
+      "lambda2": 0.507,
       "stations": [
         "IU.MAJO",
         "PS.TSK"
@@ -184,7 +184,7 @@
       "segment": "tohoku_south",
       "l2_l1": 0.5495,
       "lambda1": 1.3192,
-      "lambda2": 0.725,
+      "lambda2": 0.7249,
       "stations": [
         "IU.MAJO",
         "PS.TSK"
@@ -196,9 +196,9 @@
       "datetime": "2011-02-28T05:46:24",
       "days_before_event": 11.0,
       "segment": "tohoku_south",
-      "l2_l1": 0.4714,
-      "lambda1": 1.4062,
-      "lambda2": 0.6629,
+      "l2_l1": 0.4713,
+      "lambda1": 1.4063,
+      "lambda2": 0.6628,
       "stations": [
         "IU.MAJO",
         "PS.TSK"
@@ -210,8 +210,8 @@
       "datetime": "2011-02-28T11:46:24",
       "days_before_event": 10.75,
       "segment": "tohoku_south",
-      "l2_l1": 0.4854,
-      "lambda1": 1.3895,
+      "l2_l1": 0.4853,
+      "lambda1": 1.3896,
       "lambda2": 0.6744,
       "stations": [
         "IU.MAJO",
@@ -224,9 +224,9 @@
       "datetime": "2011-02-28T17:46:24",
       "days_before_event": 10.5,
       "segment": "tohoku_south",
-      "l2_l1": 0.804,
-      "lambda1": 1.1119,
-      "lambda2": 0.894,
+      "l2_l1": 0.8032,
+      "lambda1": 1.1125,
+      "lambda2": 0.8935,
       "stations": [
         "IU.MAJO",
         "PS.TSK"
@@ -238,9 +238,9 @@
       "datetime": "2011-02-28T23:46:24",
       "days_before_event": 10.25,
       "segment": "tohoku_south",
-      "l2_l1": 0.9529,
-      "lambda1": 1.0243,
-      "lambda2": 0.976,
+      "l2_l1": 0.9526,
+      "lambda1": 1.0244,
+      "lambda2": 0.9759,
       "stations": [
         "IU.MAJO",
         "PS.TSK"
@@ -252,9 +252,9 @@
       "datetime": "2011-03-01T05:46:24",
       "days_before_event": 10.0,
       "segment": "tohoku_south",
-      "l2_l1": 0.9854,
-      "lambda1": 1.0074,
-      "lambda2": 0.9927,
+      "l2_l1": 0.9848,
+      "lambda1": 1.0077,
+      "lambda2": 0.9924,
       "stations": [
         "IU.MAJO",
         "PS.TSK"
@@ -266,9 +266,9 @@
       "datetime": "2011-03-01T11:46:24",
       "days_before_event": 9.75,
       "segment": "tohoku_south",
-      "l2_l1": 0.8862,
-      "lambda1": 1.0613,
-      "lambda2": 0.9405,
+      "l2_l1": 0.8866,
+      "lambda1": 1.0611,
+      "lambda2": 0.9407,
       "stations": [
         "IU.MAJO",
         "PS.TSK"
@@ -280,9 +280,9 @@
       "datetime": "2011-03-01T17:46:24",
       "days_before_event": 9.5,
       "segment": "tohoku_south",
-      "l2_l1": 0.7584,
-      "lambda1": 1.1428,
-      "lambda2": 0.8667,
+      "l2_l1": 0.758,
+      "lambda1": 1.1431,
+      "lambda2": 0.8665,
       "stations": [
         "IU.MAJO",
         "PS.TSK"
@@ -294,9 +294,9 @@
       "datetime": "2011-03-01T23:46:24",
       "days_before_event": 9.25,
       "segment": "tohoku_south",
-      "l2_l1": 0.7825,
-      "lambda1": 1.1262,
-      "lambda2": 0.8813,
+      "l2_l1": 0.7822,
+      "lambda1": 1.1264,
+      "lambda2": 0.8811,
       "stations": [
         "IU.MAJO",
         "PS.TSK"
@@ -308,9 +308,9 @@
       "datetime": "2011-03-02T05:46:24",
       "days_before_event": 9.0,
       "segment": "tohoku_south",
-      "l2_l1": 0.9485,
-      "lambda1": 1.0266,
-      "lambda2": 0.9737,
+      "l2_l1": 0.9477,
+      "lambda1": 1.027,
+      "lambda2": 0.9733,
       "stations": [
         "IU.MAJO",
         "PS.TSK"
@@ -322,9 +322,9 @@
       "datetime": "2011-03-02T11:46:24",
       "days_before_event": 8.75,
       "segment": "tohoku_south",
-      "l2_l1": 0.9091,
-      "lambda1": 1.0482,
-      "lambda2": 0.9529,
+      "l2_l1": 0.9095,
+      "lambda1": 1.048,
+      "lambda2": 0.9531,
       "stations": [
         "IU.MAJO",
         "PS.TSK"
@@ -350,9 +350,9 @@
       "datetime": "2011-03-02T23:46:24",
       "days_before_event": 8.25,
       "segment": "tohoku_south",
-      "l2_l1": 0.893,
-      "lambda1": 1.0574,
-      "lambda2": 0.9442,
+      "l2_l1": 0.8935,
+      "lambda1": 1.0571,
+      "lambda2": 0.9445,
       "stations": [
         "IU.MAJO",
         "PS.TSK"
@@ -364,9 +364,9 @@
       "datetime": "2011-03-03T05:46:24",
       "days_before_event": 8.0,
       "segment": "tohoku_south",
-      "l2_l1": 0.9732,
-      "lambda1": 1.0136,
-      "lambda2": 0.9864,
+      "l2_l1": 0.9741,
+      "lambda1": 1.0132,
+      "lambda2": 0.9869,
       "stations": [
         "IU.MAJO",
         "PS.TSK"
@@ -378,9 +378,9 @@
       "datetime": "2011-03-03T11:46:24",
       "days_before_event": 7.75,
       "segment": "tohoku_south",
-      "l2_l1": 0.95,
-      "lambda1": 1.0258,
-      "lambda2": 0.9745,
+      "l2_l1": 0.951,
+      "lambda1": 1.0253,
+      "lambda2": 0.975,
       "stations": [
         "IU.MAJO",
         "PS.TSK"
@@ -392,9 +392,9 @@
       "datetime": "2011-03-03T17:46:24",
       "days_before_event": 7.5,
       "segment": "tohoku_south",
-      "l2_l1": 0.9349,
-      "lambda1": 1.0339,
-      "lambda2": 0.9666,
+      "l2_l1": 0.9356,
+      "lambda1": 1.0336,
+      "lambda2": 0.967,
       "stations": [
         "IU.MAJO",
         "PS.TSK"
@@ -406,9 +406,9 @@
       "datetime": "2011-03-03T23:46:24",
       "days_before_event": 7.25,
       "segment": "tohoku_south",
-      "l2_l1": 0.8777,
-      "lambda1": 1.0663,
-      "lambda2": 0.9358,
+      "l2_l1": 0.8779,
+      "lambda1": 1.0662,
+      "lambda2": 0.936,
       "stations": [
         "IU.MAJO",
         "PS.TSK"
@@ -434,9 +434,9 @@
       "datetime": "2011-03-04T11:46:24",
       "days_before_event": 6.75,
       "segment": "tohoku_south",
-      "l2_l1": 0.6272,
-      "lambda1": 1.2457,
-      "lambda2": 0.7813,
+      "l2_l1": 0.6268,
+      "lambda1": 1.246,
+      "lambda2": 0.781,
       "stations": [
         "IU.MAJO",
         "PS.TSK"
@@ -448,9 +448,9 @@
       "datetime": "2011-03-04T17:46:24",
       "days_before_event": 6.5,
       "segment": "tohoku_south",
-      "l2_l1": 0.5501,
-      "lambda1": 1.3186,
-      "lambda2": 0.7254,
+      "l2_l1": 0.5505,
+      "lambda1": 1.3183,
+      "lambda2": 0.7256,
       "stations": [
         "IU.MAJO",
         "PS.TSK"
@@ -462,9 +462,9 @@
       "datetime": "2011-03-04T23:46:24",
       "days_before_event": 6.25,
       "segment": "tohoku_south",
-      "l2_l1": 0.6358,
-      "lambda1": 1.2382,
-      "lambda2": 0.7873,
+      "l2_l1": 0.6363,
+      "lambda1": 1.2377,
+      "lambda2": 0.7876,
       "stations": [
         "IU.MAJO",
         "PS.TSK"
@@ -476,9 +476,9 @@
       "datetime": "2011-03-05T05:46:24",
       "days_before_event": 6.0,
       "segment": "tohoku_south",
-      "l2_l1": 0.6397,
-      "lambda1": 1.2348,
-      "lambda2": 0.7899,
+      "l2_l1": 0.6395,
+      "lambda1": 1.235,
+      "lambda2": 0.7898,
       "stations": [
         "IU.MAJO",
         "PS.TSK"
@@ -504,9 +504,9 @@
       "datetime": "2011-03-05T17:46:24",
       "days_before_event": 5.5,
       "segment": "tohoku_south",
-      "l2_l1": 0.4181,
-      "lambda1": 1.4753,
-      "lambda2": 0.6169,
+      "l2_l1": 0.4185,
+      "lambda1": 1.4747,
+      "lambda2": 0.6172,
       "stations": [
         "IU.MAJO",
         "PS.TSK"
@@ -518,9 +518,9 @@
       "datetime": "2011-03-05T23:46:24",
       "days_before_event": 5.25,
       "segment": "tohoku_south",
-      "l2_l1": 0.5425,
-      "lambda1": 1.3264,
-      "lambda2": 0.7196,
+      "l2_l1": 0.543,
+      "lambda1": 1.3259,
+      "lambda2": 0.72,
       "stations": [
         "IU.MAJO",
         "PS.TSK"
@@ -532,9 +532,9 @@
       "datetime": "2011-03-06T05:46:24",
       "days_before_event": 5.0,
       "segment": "tohoku_south",
-      "l2_l1": 0.0961,
-      "lambda1": 2.3311,
-      "lambda2": 0.2239,
+      "l2_l1": 0.0963,
+      "lambda1": 2.3298,
+      "lambda2": 0.2243,
       "stations": [
         "IU.MAJO",
         "PS.TSK"
@@ -546,9 +546,9 @@
       "datetime": "2011-03-06T11:46:24",
       "days_before_event": 4.75,
       "segment": "tohoku_south",
-      "l2_l1": 0.129,
-      "lambda1": 2.1653,
-      "lambda2": 0.2793,
+      "l2_l1": 0.1292,
+      "lambda1": 2.1643,
+      "lambda2": 0.2797,
       "stations": [
         "IU.MAJO",
         "PS.TSK"
@@ -560,9 +560,9 @@
       "datetime": "2011-03-06T17:46:24",
       "days_before_event": 4.5,
       "segment": "tohoku_south",
-      "l2_l1": 0.1868,
-      "lambda1": 1.9502,
-      "lambda2": 0.3642,
+      "l2_l1": 0.187,
+      "lambda1": 1.9495,
+      "lambda2": 0.3645,
       "stations": [
         "IU.MAJO",
         "PS.TSK"
@@ -574,9 +574,9 @@
       "datetime": "2011-03-06T23:46:24",
       "days_before_event": 4.25,
       "segment": "tohoku_south",
-      "l2_l1": 0.4121,
-      "lambda1": 1.4837,
-      "lambda2": 0.6114,
+      "l2_l1": 0.4124,
+      "lambda1": 1.4833,
+      "lambda2": 0.6117,
       "stations": [
         "IU.MAJO",
         "PS.TSK"
@@ -602,9 +602,9 @@
       "datetime": "2011-03-07T11:46:24",
       "days_before_event": 3.75,
       "segment": "tohoku_south",
-      "l2_l1": 0.2711,
-      "lambda1": 1.7297,
-      "lambda2": 0.469,
+      "l2_l1": 0.271,
+      "lambda1": 1.73,
+      "lambda2": 0.4688,
       "stations": [
         "IU.MAJO",
         "PS.TSK"
@@ -616,9 +616,9 @@
       "datetime": "2011-03-07T17:46:24",
       "days_before_event": 3.5,
       "segment": "tohoku_south",
-      "l2_l1": 0.3412,
-      "lambda1": 1.594,
-      "lambda2": 0.5439,
+      "l2_l1": 0.3406,
+      "lambda1": 1.5949,
+      "lambda2": 0.5433,
       "stations": [
         "IU.MAJO",
         "PS.TSK"
@@ -630,9 +630,9 @@
       "datetime": "2011-03-07T23:46:24",
       "days_before_event": 3.25,
       "segment": "tohoku_south",
-      "l2_l1": 0.7859,
-      "lambda1": 1.1239,
-      "lambda2": 0.8833,
+      "l2_l1": 0.7855,
+      "lambda1": 1.1242,
+      "lambda2": 0.8831,
       "stations": [
         "IU.MAJO",
         "PS.TSK"
@@ -644,9 +644,9 @@
       "datetime": "2011-03-08T05:46:24",
       "days_before_event": 3.0,
       "segment": "tohoku_south",
-      "l2_l1": 0.0209,
-      "lambda1": 3.0531,
-      "lambda2": 0.0639,
+      "l2_l1": 0.0211,
+      "lambda1": 3.0503,
+      "lambda2": 0.0643,
       "stations": [
         "IU.MAJO",
         "PS.TSK"
@@ -658,9 +658,9 @@
       "datetime": "2011-03-08T11:46:24",
       "days_before_event": 2.75,
       "segment": "tohoku_south",
-      "l2_l1": 0.021,
-      "lambda1": 3.0524,
-      "lambda2": 0.064,
+      "l2_l1": 0.0211,
+      "lambda1": 3.0496,
+      "lambda2": 0.0644,
       "stations": [
         "IU.MAJO",
         "PS.TSK"
@@ -672,9 +672,9 @@
       "datetime": "2011-03-08T17:46:24",
       "days_before_event": 2.5,
       "segment": "tohoku_south",
-      "l2_l1": 0.021,
-      "lambda1": 3.0522,
-      "lambda2": 0.064,
+      "l2_l1": 0.0211,
+      "lambda1": 3.0494,
+      "lambda2": 0.0644,
       "stations": [
         "IU.MAJO",
         "PS.TSK"
@@ -686,9 +686,9 @@
       "datetime": "2011-03-08T23:46:24",
       "days_before_event": 2.25,
       "segment": "tohoku_south",
-      "l2_l1": 0.0242,
-      "lambda1": 2.9963,
-      "lambda2": 0.0724,
+      "l2_l1": 0.0243,
+      "lambda1": 2.9943,
+      "lambda2": 0.0727,
       "stations": [
         "IU.MAJO",
         "PS.TSK"
@@ -700,9 +700,9 @@
       "datetime": "2011-03-09T05:46:24",
       "days_before_event": 2.0,
       "segment": "tohoku_south",
-      "l2_l1": 0.047,
-      "lambda1": 2.7017,
-      "lambda2": 0.127,
+      "l2_l1": 0.0467,
+      "lambda1": 2.7045,
+      "lambda2": 0.1263,
       "stations": [
         "IU.MAJO",
         "PS.TSK"
@@ -714,9 +714,9 @@
       "datetime": "2011-03-09T11:46:24",
       "days_before_event": 1.75,
       "segment": "tohoku_south",
-      "l2_l1": 0.0471,
-      "lambda1": 2.7001,
-      "lambda2": 0.1273,
+      "l2_l1": 0.0469,
+      "lambda1": 2.703,
+      "lambda2": 0.1267,
       "stations": [
         "IU.MAJO",
         "PS.TSK"
@@ -728,9 +728,9 @@
       "datetime": "2011-03-09T17:46:24",
       "days_before_event": 1.5,
       "segment": "tohoku_south",
-      "l2_l1": 0.0471,
-      "lambda1": 2.7002,
-      "lambda2": 0.1273,
+      "l2_l1": 0.0469,
+      "lambda1": 2.7031,
+      "lambda2": 0.1267,
       "stations": [
         "IU.MAJO",
         "PS.TSK"
@@ -742,9 +742,9 @@
       "datetime": "2011-03-09T23:46:24",
       "days_before_event": 1.25,
       "segment": "tohoku_south",
-      "l2_l1": 0.0268,
-      "lambda1": 2.9538,
-      "lambda2": 0.0792,
+      "l2_l1": 0.0266,
+      "lambda1": 2.9574,
+      "lambda2": 0.0786,
       "stations": [
         "IU.MAJO",
         "PS.TSK"
@@ -756,14 +756,190 @@
       "datetime": "2011-03-10T05:46:24",
       "days_before_event": 1.0,
       "segment": "tohoku_south",
-      "l2_l1": 0.1658,
-      "lambda1": 2.0199,
-      "lambda2": 0.335,
+      "l2_l1": 0.0181,
+      "lambda1": 3.1066,
+      "lambda2": 0.0564,
+      "stations": [
+        "IU.MAJO",
+        "PS.TSK"
+      ],
+      "tier": "CRITICAL"
+    },
+    {
+      "date": "2011-03-10",
+      "datetime": "2011-03-10T11:46:24",
+      "days_before_event": 0.75,
+      "segment": "tohoku_south",
+      "l2_l1": 0.3953,
+      "lambda1": 1.5079,
+      "lambda2": 0.596,
       "stations": [
         "IU.MAJO",
         "PS.TSK"
       ],
       "tier": "NORMAL"
+    },
+    {
+      "date": "2011-03-10",
+      "datetime": "2011-03-10T17:46:24",
+      "days_before_event": 0.5,
+      "segment": "tohoku_south",
+      "l2_l1": 0.3952,
+      "lambda1": 1.508,
+      "lambda2": 0.596,
+      "stations": [
+        "IU.MAJO",
+        "PS.TSK"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2011-03-10",
+      "datetime": "2011-03-10T23:46:24",
+      "days_before_event": 0.25,
+      "segment": "tohoku_south",
+      "l2_l1": 0.407,
+      "lambda1": 1.4909,
+      "lambda2": 0.6068,
+      "stations": [
+        "IU.MAJO",
+        "PS.TSK"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2011-03-11",
+      "datetime": "2011-03-11T05:46:24",
+      "days_before_event": 0.0,
+      "segment": "tohoku_south",
+      "l2_l1": 0.408,
+      "lambda1": 1.4895,
+      "lambda2": 0.6077,
+      "stations": [
+        "IU.MAJO",
+        "PS.TSK"
+      ],
+      "tier": "NORMAL"
+    },
+    {
+      "date": "2011-03-11",
+      "datetime": "2011-03-11T11:46:24",
+      "days_before_event": -0.25,
+      "segment": "tohoku_south",
+      "l2_l1": 0.9879,
+      "lambda1": 1.0061,
+      "lambda2": 0.9939,
+      "stations": [
+        "IU.MAJO",
+        "PS.TSK"
+      ],
+      "tier": "NORMAL",
+      "post_event": true
+    },
+    {
+      "date": "2011-03-11",
+      "datetime": "2011-03-11T17:46:24",
+      "days_before_event": -0.5,
+      "segment": "tohoku_south",
+      "l2_l1": 0.9966,
+      "lambda1": 1.0017,
+      "lambda2": 0.9983,
+      "stations": [
+        "IU.MAJO",
+        "PS.TSK"
+      ],
+      "tier": "NORMAL",
+      "post_event": true
+    },
+    {
+      "date": "2011-03-11",
+      "datetime": "2011-03-11T23:46:24",
+      "days_before_event": -0.75,
+      "segment": "tohoku_south",
+      "l2_l1": 0.9976,
+      "lambda1": 1.0012,
+      "lambda2": 0.9988,
+      "stations": [
+        "IU.MAJO",
+        "PS.TSK"
+      ],
+      "tier": "NORMAL",
+      "post_event": true
+    },
+    {
+      "date": "2011-03-12",
+      "datetime": "2011-03-12T05:46:24",
+      "days_before_event": -1.0,
+      "segment": "tohoku_south",
+      "l2_l1": 0.9364,
+      "lambda1": 1.0331,
+      "lambda2": 0.9674,
+      "stations": [
+        "IU.MAJO",
+        "PS.TSK"
+      ],
+      "tier": "NORMAL",
+      "post_event": true
+    },
+    {
+      "date": "2011-03-12",
+      "datetime": "2011-03-12T11:46:24",
+      "days_before_event": -1.25,
+      "segment": "tohoku_south",
+      "l2_l1": 0.7203,
+      "lambda1": 1.1704,
+      "lambda2": 0.843,
+      "stations": [
+        "IU.MAJO",
+        "PS.TSK"
+      ],
+      "tier": "NORMAL",
+      "post_event": true
+    },
+    {
+      "date": "2011-03-12",
+      "datetime": "2011-03-12T17:46:24",
+      "days_before_event": -1.5,
+      "segment": "tohoku_south",
+      "l2_l1": 0.6953,
+      "lambda1": 1.1894,
+      "lambda2": 0.827,
+      "stations": [
+        "IU.MAJO",
+        "PS.TSK"
+      ],
+      "tier": "NORMAL",
+      "post_event": true
+    },
+    {
+      "date": "2011-03-12",
+      "datetime": "2011-03-12T23:46:24",
+      "days_before_event": -1.75,
+      "segment": "tohoku_south",
+      "l2_l1": 0.6825,
+      "lambda1": 1.1995,
+      "lambda2": 0.8186,
+      "stations": [
+        "IU.MAJO",
+        "PS.TSK"
+      ],
+      "tier": "NORMAL",
+      "post_event": true
+    },
+    {
+      "date": "2011-03-13",
+      "datetime": "2011-03-13T05:46:24",
+      "days_before_event": -2.0,
+      "segment": "tohoku_south",
+      "l2_l1": 0.255,
+      "lambda1": 1.766,
+      "lambda2": 0.4504,
+      "stations": [
+        "IU.MAJO",
+        "PS.TSK"
+      ],
+      "tier": "NORMAL",
+      "post_event": true
     }
   ],
   "notes": "Limited to IU/II stations. Hi-net would provide better coverage but requires account."

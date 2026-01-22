@@ -46,7 +46,8 @@ logger = logging.getLogger(__name__)
 
 VALIDATION_CONFIG = {
     'min_magnitude': 4.5,           # Minimum magnitude to count as significant event
-    'hit_min_tier': 1,              # Tier >= WATCH counts as prediction (1=WATCH, 2=ELEVATED, 3=CRITICAL)
+    'hit_min_tier': 2,              # Tier >= ELEVATED counts as prediction (2=ELEVATED, 3=CRITICAL)
+                                    # WATCH (Tier 1) is awareness only, not scored as prediction
     'lead_window_days': 7,          # Event within N days AFTER prediction = hit
     'lookback_start_days': 7,       # Start looking back N days ago
     'lookback_end_days': 14,        # End looking back N days ago
@@ -176,7 +177,7 @@ def load_predictions_from_csv(
     csv_path: Path,
     start_date: datetime,
     end_date: datetime,
-    min_tier: int = 1,
+    min_tier: int = None,
 ) -> List[Prediction]:
     """
     Load predictions from daily_states.csv for a date range.
@@ -185,11 +186,15 @@ def load_predictions_from_csv(
         csv_path: Path to daily_states.csv
         start_date: Start of date range
         end_date: End of date range
-        min_tier: Minimum tier to include (default: WATCH=1)
+        min_tier: Minimum tier to include (default: from VALIDATION_CONFIG)
 
     Returns:
         List of Prediction objects
     """
+    # Use config default if not specified
+    if min_tier is None:
+        min_tier = VALIDATION_CONFIG['hit_min_tier']
+
     predictions = []
 
     if not csv_path.exists():
@@ -513,8 +518,8 @@ def save_validated_events(
 def run_validation(
     lookback_start_days: int = 7,
     lookback_end_days: int = 14,
-    min_tier: int = 1,
-    min_magnitude: float = 5.5,
+    min_tier: int = None,
+    min_magnitude: float = None,
     output_path: Optional[Path] = None,
 ) -> Tuple[List[ValidatedEvent], Dict]:
     """
@@ -530,6 +535,12 @@ def run_validation(
     Returns:
         Tuple of (validated events, stats)
     """
+    # Use config defaults if not specified
+    if min_tier is None:
+        min_tier = VALIDATION_CONFIG['hit_min_tier']
+    if min_magnitude is None:
+        min_magnitude = VALIDATION_CONFIG['min_magnitude']
+
     # Paths
     monitoring_dir = Path(__file__).parent.parent
     csv_path = monitoring_dir / 'data' / 'ensemble_results' / 'daily_states.csv'
@@ -573,8 +584,8 @@ def run_validation(
 
 
 def rebuild_all_validations(
-    min_tier: int = 1,
-    min_magnitude: float = 5.5,
+    min_tier: int = None,
+    min_magnitude: float = None,
     output_path: Optional[Path] = None,
 ) -> Tuple[List[ValidatedEvent], Dict]:
     """
@@ -582,6 +593,12 @@ def rebuild_all_validations(
 
     This processes the entire daily_states.csv to build a complete track record.
     """
+    # Use config defaults if not specified
+    if min_tier is None:
+        min_tier = VALIDATION_CONFIG['hit_min_tier']
+    if min_magnitude is None:
+        min_magnitude = VALIDATION_CONFIG['min_magnitude']
+
     monitoring_dir = Path(__file__).parent.parent
     csv_path = monitoring_dir / 'data' / 'ensemble_results' / 'daily_states.csv'
 
@@ -643,12 +660,12 @@ def main():
         help='End of lookback window in days (default: 14)'
     )
     parser.add_argument(
-        '--min-tier', type=int, default=1,
-        help='Minimum tier to validate (default: 1=WATCH)'
+        '--min-tier', type=int, default=VALIDATION_CONFIG['hit_min_tier'],
+        help=f"Minimum tier to validate (default: {VALIDATION_CONFIG['hit_min_tier']}=ELEVATED)"
     )
     parser.add_argument(
-        '--min-magnitude', type=float, default=4.5,
-        help='Minimum earthquake magnitude (default: 4.5)'
+        '--min-magnitude', type=float, default=VALIDATION_CONFIG['min_magnitude'],
+        help=f"Minimum earthquake magnitude (default: {VALIDATION_CONFIG['min_magnitude']})"
     )
     parser.add_argument(
         '--rebuild', action='store_true',

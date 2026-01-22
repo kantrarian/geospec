@@ -1,6 +1,6 @@
 # GeoSpec Three-Method Ensemble: Technical Methods Document
 
-**Version**: 1.5.2
+**Version**: 1.5.3
 **Date**: January 22, 2026
 **Author**: R.J. Mathews
 **Status**: Operational
@@ -9,6 +9,13 @@
 - Lambda_geo: **Pilot operational** (3 SoCal stations via IGS-IP NTRIP + RTKLIB pipeline)
 - **Hi-net: OPERATIONAL** (Tokyo/Kanto via NIED Hi-net - 128 stations @ 100Hz)
 - **Historical Backtests: ALL 3 METHODS** for Ridgecrest, Tohoku, Turkey (FC/THD fetched from IRIS/FDSN January 2026)
+
+**Changelog v1.5.3**:
+- **New Feature**: Added Appendix H documenting Data Regeneration and Calibration Tracking
+- New `regenerate_daily_states.py` script rebuilds CSV from authoritative JSON files
+- Added calibration metadata columns (`calibration_date`, `regenerated_at`) for audit trail
+- Fixed stale data issue where daily_states.csv had pre-calibration values
+- Corrected track record: 53 predictions, 3 hits, 5.7% hit rate
 
 **Changelog v1.5.2**:
 - **New Feature**: Added Appendix G documenting the Prediction Validation System
@@ -87,6 +94,7 @@
     - [Appendix E: Dashboard Data Flow and CSV Formats](#appendix-e-dashboard-data-flow-and-csv-formats)
     - [Appendix F: RTCM Pipeline Data Structure](#appendix-f-rtcm-pipeline-data-structure-v14)
     - [Appendix G: Prediction Validation System (Track Record)](#appendix-g-prediction-validation-system-track-record)
+    - [Appendix H: Data Regeneration and Calibration Tracking](#appendix-h-data-regeneration-and-calibration-tracking)
 
 ---
 
@@ -1613,6 +1621,168 @@ python validate_predictions.py --min-days 5 --max-days 10
 3. **Tier-stratified analysis**: Compare hit rates for WATCH vs ELEVATED vs CRITICAL predictions
 4. **Confidence intervals**: Calculate 95% CI on hit rate as sample size grows
 5. **ROC curve generation**: Plot true positive rate vs false positive rate at different tier thresholds
+
+---
+
+## Appendix H: Data Regeneration and Calibration Tracking
+
+### Purpose
+
+This appendix documents the data architecture that separates **raw measurements** from **calibrated outputs**, enabling recalibration without data loss. It also describes the regeneration script that rebuilds derived CSV files from authoritative JSON sources.
+
+### Data Architecture: Raw vs Derived
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                         DATA HIERARCHY                                   │
+│                                                                          │
+│  RAW DATA (Authoritative - Never Modify for Calibration)                │
+│  ─────────────────────────────────────────────────────────              │
+│  monitoring/data/baselines/lambda_geo_baselines.json                    │
+│    └── GPS station statistics (mean, std, n_samples per region)         │
+│  monitoring/data/baselines/thd_baselines_YYYYMMDD.json                  │
+│    └── Seismic station THD statistics (mean, std, percentiles)          │
+│  monitoring/data/ensemble_results/ensemble_YYYY-MM-DD.json              │
+│    └── Daily ensemble computations (tier, risk, components)             │
+│                                                                          │
+│  CALIBRATION PARAMETERS (Safe to Modify)                                │
+│  ───────────────────────────────────────                                │
+│  monitoring/src/ensemble.py                                              │
+│    └── Risk conversion functions (ratio→risk, z-score→risk)             │
+│  monitoring/config/backtest_config.yaml                                  │
+│    └── Evaluation thresholds (min_magnitude, hit_min_tier)              │
+│                                                                          │
+│  DERIVED DATA (Regenerate After Calibration Change)                     │
+│  ──────────────────────────────────────────────────                     │
+│  monitoring/data/ensemble_results/daily_states.csv                      │
+│    └── Historical predictions (regenerated from JSON)                   │
+│  monitoring/dashboard/data.csv                                           │
+│    └── Dashboard display data                                            │
+│  monitoring/data/validated_events.json                                   │
+│    └── Track record (regenerated from daily_states.csv + USGS)          │
+│                                                                          │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Regeneration Script
+
+**File**: `monitoring/src/regenerate_daily_states.py`
+
+**Purpose**: Rebuilds `daily_states.csv` from authoritative ensemble JSON files, ensuring consistency after calibration changes.
+
+**Usage**:
+```bash
+# Preview changes (dry run)
+cd monitoring
+python -m src.regenerate_daily_states --dry-run
+
+# Regenerate
+python -m src.regenerate_daily_states
+```
+
+**What It Does**:
+1. Reads all `ensemble_YYYY-MM-DD.json` files
+2. Extracts tier, risk, and component values for each region
+3. Adds calibration metadata columns
+4. Writes new `daily_states.csv` (backs up existing file first)
+
+### CSV Schema with Calibration Metadata
+
+**File**: `monitoring/data/ensemble_results/daily_states.csv`
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `date` | YYYY-MM-DD | Assessment date |
+| `region` | string | Region identifier |
+| `tier` | int | Risk tier (0=NORMAL, 1=WATCH, 2=ELEVATED, 3=CRITICAL) |
+| `risk` | float | Combined risk score (0.0-1.0) |
+| `methods` | int | Number of methods available |
+| `confidence` | float | Confidence score (0.0-1.0) |
+| `lg_ratio` | float | Lambda_geo raw value (ratio) |
+| `thd` | float | THD raw value |
+| `fc_l2l1` | float | Fault correlation L2/L1 ratio |
+| `status` | string | REGENERATED, PRELIMINARY, or CONFIRMED |
+| `notes` | string | Tier capping notes, degraded status |
+| `calibration_date` | YYYY-MM-DD | **Date of baseline calibration used** |
+| `regenerated_at` | YYYY-MM-DD HH:MM | **When this row was generated** |
+
+### Example Row
+
+```csv
+2026-01-08,tokyo_kanto,0,0.2071,3,0.60,0.107,0.3771,0.8670,REGENERATED,,2026-01-16,2026-01-22 10:36
+```
+
+**Interpretation**:
+- January 8, 2026 assessment for Tokyo Kanto
+- Tier 0 (NORMAL), risk 0.21
+- 3 methods available, confidence 0.60
+- Lambda_geo ratio: 0.107, THD: 0.377, FC L2/L1: 0.867
+- Data regenerated on Jan 22, 2026 using Jan 16, 2026 calibration
+
+### Recalibration Workflow
+
+When calibration parameters change:
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│                      RECALIBRATION WORKFLOW                             │
+│                                                                         │
+│  1. BACKUP                                                              │
+│     cp monitoring/src/ensemble.py ensemble.py.backup                   │
+│                                                                         │
+│  2. MODIFY CALIBRATION                                                  │
+│     Edit monitoring/src/ensemble.py:                                   │
+│       - lambda_geo_to_risk() thresholds                                │
+│       - thd_to_risk_with_baseline() z-score mapping                    │
+│       - RISK_TIERS boundaries                                           │
+│                                                                         │
+│  3. REGENERATE DERIVED DATA                                             │
+│     cd monitoring                                                       │
+│     python -m src.regenerate_daily_states                              │
+│                                                                         │
+│  4. REBUILD TRACK RECORD                                                │
+│     python -m src.validate_predictions --rebuild                       │
+│                                                                         │
+│  5. UPDATE DASHBOARD                                                    │
+│     cp data/validated_events.json ../docs/                             │
+│                                                                         │
+│  6. VERIFY                                                              │
+│     - Check dashboard matches CSV                                       │
+│     - Check track record reflects new calibration                       │
+│                                                                         │
+└────────────────────────────────────────────────────────────────────────┘
+```
+
+### Why This Architecture Matters
+
+1. **Audit Trail**: `calibration_date` and `regenerated_at` columns document exactly which calibration produced each prediction
+
+2. **Reproducibility**: Raw JSON files preserve original computations; derived CSVs can be rebuilt anytime
+
+3. **Safe Recalibration**: Changing thresholds doesn't destroy historical data—just regenerate derived files
+
+4. **Debugging**: If dashboard doesn't match track record, regenerate from authoritative JSONs
+
+### Data Integrity Incident (January 2026)
+
+**Problem**: `daily_states.csv` contained pre-calibration values from early January that didn't match the ensemble JSON files (which were regenerated on Jan 16 with updated calibration).
+
+**Symptom**: Track record showed Tokyo Kanto at Tier 2 before M4.5 events, but dashboard showed Tier 0-1.
+
+**Root Cause**: CSV was written incrementally and never regenerated after calibration change.
+
+**Resolution**: Created `regenerate_daily_states.py` to rebuild CSV from authoritative JSON files.
+
+**Prevention**: Added calibration metadata columns so discrepancies are immediately visible.
+
+### Code Reference
+
+| Component | File | Purpose |
+|-----------|------|---------|
+| Regeneration Script | `monitoring/src/regenerate_daily_states.py` | Rebuild CSV from JSONs |
+| Validation Rebuild | `monitoring/src/validate_predictions.py --rebuild` | Rebuild track record |
+| Baseline Files | `monitoring/data/baselines/*.json` | Raw calibration data |
+| Ensemble JSONs | `monitoring/data/ensemble_results/ensemble_*.json` | Authoritative daily results |
 
 ---
 

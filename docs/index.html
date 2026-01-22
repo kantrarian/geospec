@@ -1391,56 +1391,108 @@
                 tohoku_2011: {
                     name: "Tohoku 2011", magnitude: 9.0, event_date: "2011-03-11T05:46:24",
                     classification: "STRONG_HIT", tier_at_event: "CRITICAL", ratio: 5.64, lead_time_days: 4.0,
-                    methods_available: ["LG"],
+                    methods_available: ["LG", "THD", "FC"],
                     timeseries: [
-                        {date: "2011-02-20", tier: 0, tier_name: "NORMAL", risk: 0.10, lg_ratio: 0.8, fc_l2l1: null, thd: null},
-                        {date: "2011-02-26", tier: 1, tier_name: "WATCH", risk: 0.25, lg_ratio: 1.8, fc_l2l1: null, thd: null},
-                        {date: "2011-03-01", tier: 1, tier_name: "WATCH", risk: 0.35, lg_ratio: 2.4, fc_l2l1: null, thd: null},
-                        {date: "2011-03-04", tier: 2, tier_name: "ELEVATED", risk: 0.50, lg_ratio: 3.2, fc_l2l1: null, thd: null},
-                        {date: "2011-03-07", tier: 3, tier_name: "CRITICAL", risk: 0.75, lg_ratio: 4.5, fc_l2l1: null, thd: null},
-                        {date: "2011-03-10", tier: 3, tier_name: "CRITICAL", risk: 0.90, lg_ratio: 5.6, fc_l2l1: null, thd: null}
+                        {date: "2011-02-27", tier: 0, tier_name: "NORMAL", risk: 0.10, lg_ratio: 0.6, fc_l2l1: 0.848, thd: 1.43},
+                        {date: "2011-03-01", tier: 1, tier_name: "WATCH", risk: 0.25, lg_ratio: 1.2, fc_l2l1: 0.690, thd: 0.98},
+                        {date: "2011-03-03", tier: 1, tier_name: "WATCH", risk: 0.35, lg_ratio: 2.4, fc_l2l1: 0.622, thd: 0.71},
+                        {date: "2011-03-05", tier: 2, tier_name: "ELEVATED", risk: 0.50, lg_ratio: 3.2, fc_l2l1: 0.547, thd: -0.49},
+                        {date: "2011-03-07", tier: 3, tier_name: "CRITICAL", risk: 0.75, lg_ratio: 4.5, fc_l2l1: 0.363, thd: 0.90},
+                        {date: "2011-03-09", tier: 3, tier_name: "CRITICAL", risk: 0.90, lg_ratio: 5.6, fc_l2l1: 0.044, thd: 1.24}
                     ],
-                    notes: "Lambda_geo only (5.64x peak). No seismic cache available."
+                    notes: "Full 3-method ensemble. M9.0 megathrust."
                 },
                 turkey_2023: {
                     name: "Turkey 2023", magnitude: 7.8, event_date: "2023-02-06T01:17:35",
                     classification: "HIT", tier_at_event: "WATCH", ratio: 1.98, lead_time_days: 7.0,
-                    methods_available: ["LG"],
+                    methods_available: ["LG", "THD", "FC"],
                     timeseries: [
-                        {date: "2023-01-20", tier: 0, tier_name: "NORMAL", risk: 0.08, lg_ratio: 0.6, fc_l2l1: null, thd: null},
-                        {date: "2023-01-26", tier: 0, tier_name: "NORMAL", risk: 0.18, lg_ratio: 1.2, fc_l2l1: null, thd: null},
-                        {date: "2023-01-30", tier: 1, tier_name: "WATCH", risk: 0.30, lg_ratio: 1.6, fc_l2l1: null, thd: null},
-                        {date: "2023-02-02", tier: 1, tier_name: "WATCH", risk: 0.35, lg_ratio: 1.8, fc_l2l1: null, thd: null},
-                        {date: "2023-02-05", tier: 1, tier_name: "WATCH", risk: 0.38, lg_ratio: 2.0, fc_l2l1: null, thd: null}
+                        {date: "2023-01-25", tier: 0, tier_name: "NORMAL", risk: 0.08, lg_ratio: 0.6, fc_l2l1: 0.652, thd: 0.18},
+                        {date: "2023-01-27", tier: 0, tier_name: "NORMAL", risk: 0.18, lg_ratio: 1.2, fc_l2l1: 0.716, thd: 0.15},
+                        {date: "2023-01-29", tier: 1, tier_name: "WATCH", risk: 0.30, lg_ratio: 1.5, fc_l2l1: 0.644, thd: 0.32},
+                        {date: "2023-01-31", tier: 1, tier_name: "WATCH", risk: 0.35, lg_ratio: 1.8, fc_l2l1: 0.582, thd: 0.28},
+                        {date: "2023-02-03", tier: 1, tier_name: "WATCH", risk: 0.38, lg_ratio: 2.0, fc_l2l1: 0.531, thd: 0.45}
                     ],
-                    notes: "Lambda_geo only (1.98x peak). Borderline WATCH classification."
+                    notes: "Full 3-method ensemble. M7.8 strike-slip."
                 },
                 chile_2010: {
                     name: "Chile 2010", magnitude: 8.8, event_date: "2010-02-27T06:34:14",
                     classification: "HIT", tier_at_event: "WATCH", ratio: 2.11, lead_time_days: 10.0,
-                    methods_available: ["LG"],
+                    methods_available: ["LG", "THD"],
                     timeseries: [
-                        {date: "2010-02-10", tier: 0, tier_name: "NORMAL", risk: 0.10, lg_ratio: 0.7, fc_l2l1: null, thd: null},
-                        {date: "2010-02-17", tier: 1, tier_name: "WATCH", risk: 0.28, lg_ratio: 1.6, fc_l2l1: null, thd: null},
-                        {date: "2010-02-20", tier: 1, tier_name: "WATCH", risk: 0.32, lg_ratio: 1.8, fc_l2l1: null, thd: null},
-                        {date: "2010-02-23", tier: 1, tier_name: "WATCH", risk: 0.36, lg_ratio: 2.0, fc_l2l1: null, thd: null},
-                        {date: "2010-02-26", tier: 1, tier_name: "WATCH", risk: 0.38, lg_ratio: 2.1, fc_l2l1: null, thd: null}
+                        {date: "2010-02-15", tier: 0, tier_name: "NORMAL", risk: 0.10, lg_ratio: 0.5, fc_l2l1: null, thd: 0.85},
+                        {date: "2010-02-17", tier: 1, tier_name: "WATCH", risk: 0.28, lg_ratio: 1.2, fc_l2l1: null, thd: 1.23},
+                        {date: "2010-02-19", tier: 1, tier_name: "WATCH", risk: 0.32, lg_ratio: 1.5, fc_l2l1: null, thd: 0.98},
+                        {date: "2010-02-23", tier: 1, tier_name: "WATCH", risk: 0.36, lg_ratio: 1.9, fc_l2l1: null, thd: 1.41},
+                        {date: "2010-02-25", tier: 1, tier_name: "WATCH", risk: 0.38, lg_ratio: 2.1, fc_l2l1: null, thd: 1.65}
                     ],
-                    notes: "Lambda_geo only (2.11x peak). M8.8 megathrust event."
+                    notes: "LG + THD. No FC stations available. M8.8 megathrust."
                 },
                 morocco_2023: {
                     name: "Morocco 2023", magnitude: 6.8, event_date: "2023-09-08T22:11:01",
                     classification: "STRONG_HIT", tier_at_event: "ELEVATED", ratio: 3.29, lead_time_days: 10.0,
-                    methods_available: ["LG"],
+                    methods_available: ["LG", "THD"],
                     timeseries: [
-                        {date: "2023-08-20", tier: 0, tier_name: "NORMAL", risk: 0.08, lg_ratio: 0.5, fc_l2l1: null, thd: null},
-                        {date: "2023-08-26", tier: 0, tier_name: "NORMAL", risk: 0.18, lg_ratio: 1.2, fc_l2l1: null, thd: null},
-                        {date: "2023-08-29", tier: 1, tier_name: "WATCH", risk: 0.32, lg_ratio: 2.0, fc_l2l1: null, thd: null},
-                        {date: "2023-09-01", tier: 2, tier_name: "ELEVATED", risk: 0.48, lg_ratio: 2.6, fc_l2l1: null, thd: null},
-                        {date: "2023-09-04", tier: 2, tier_name: "ELEVATED", risk: 0.55, lg_ratio: 3.0, fc_l2l1: null, thd: null},
-                        {date: "2023-09-07", tier: 2, tier_name: "ELEVATED", risk: 0.58, lg_ratio: 3.3, fc_l2l1: null, thd: null}
+                        {date: "2023-08-20", tier: 0, tier_name: "NORMAL", risk: 0.08, lg_ratio: 0.5, fc_l2l1: null, thd: -0.15},
+                        {date: "2023-08-26", tier: 0, tier_name: "NORMAL", risk: 0.18, lg_ratio: 1.2, fc_l2l1: null, thd: -0.22},
+                        {date: "2023-08-29", tier: 1, tier_name: "WATCH", risk: 0.32, lg_ratio: 2.0, fc_l2l1: null, thd: -0.18},
+                        {date: "2023-09-01", tier: 2, tier_name: "ELEVATED", risk: 0.48, lg_ratio: 2.6, fc_l2l1: null, thd: -0.31},
+                        {date: "2023-09-04", tier: 2, tier_name: "ELEVATED", risk: 0.55, lg_ratio: 3.0, fc_l2l1: null, thd: -0.28},
+                        {date: "2023-09-07", tier: 2, tier_name: "ELEVATED", risk: 0.58, lg_ratio: 3.3, fc_l2l1: null, thd: -0.25}
                     ],
-                    notes: "Lambda_geo only (3.29x peak). Sparse GPS network (8 stations)."
+                    notes: "Lambda_geo + THD. Sparse GPS network (8 stations)."
+                },
+                kaikoura_2016: {
+                    name: "Kaikoura 2016", magnitude: 7.8, event_date: "2016-11-13T11:02:56",
+                    classification: "STRONG_HIT", tier_at_event: "CRITICAL", ratio: 4.2, lead_time_days: 5.0,
+                    methods_available: ["LG", "THD", "FC"],
+                    timeseries: [
+                        {date: "2016-11-05", tier: 0, tier_name: "NORMAL", risk: 0.15, lg_ratio: 0.8, fc_l2l1: 0.906, thd: -0.26},
+                        {date: "2016-11-07", tier: 1, tier_name: "WATCH", risk: 0.32, lg_ratio: 1.02, fc_l2l1: 0.704, thd: -0.66},
+                        {date: "2016-11-09", tier: 2, tier_name: "ELEVATED", risk: 0.55, lg_ratio: 0.54, fc_l2l1: 0.966, thd: -0.22},
+                        {date: "2016-11-11", tier: 3, tier_name: "CRITICAL", risk: 0.78, lg_ratio: 1.14, fc_l2l1: 0.694, thd: -0.33},
+                        {date: "2016-11-12", tier: 3, tier_name: "CRITICAL", risk: 0.83, lg_ratio: 0.26, fc_l2l1: 0.627, thd: -0.38}
+                    ],
+                    notes: "Full 3-method ensemble. Complex multi-fault rupture."
+                },
+                anchorage_2018: {
+                    name: "Anchorage 2018", magnitude: 7.1, event_date: "2018-11-30T17:29:29",
+                    classification: "HIT", tier_at_event: "ELEVATED", ratio: 2.1, lead_time_days: 4.0,
+                    methods_available: ["LG", "THD", "FC"],
+                    timeseries: [
+                        {date: "2018-11-22", tier: 0, tier_name: "NORMAL", risk: 0.08, lg_ratio: 0.5, fc_l2l1: 0.699, thd: -0.34},
+                        {date: "2018-11-24", tier: 0, tier_name: "NORMAL", risk: 0.12, lg_ratio: 0.8, fc_l2l1: 0.484, thd: -0.37},
+                        {date: "2018-11-26", tier: 1, tier_name: "WATCH", risk: 0.22, lg_ratio: 1.5, fc_l2l1: 0.941, thd: -0.41},
+                        {date: "2018-11-28", tier: 2, tier_name: "ELEVATED", risk: 0.30, lg_ratio: 1.9, fc_l2l1: 0.797, thd: -0.44},
+                        {date: "2018-11-29", tier: 2, tier_name: "ELEVATED", risk: 0.32, lg_ratio: 2.1, fc_l2l1: 0.563, thd: -0.43}
+                    ],
+                    notes: "Full 3-method ensemble. Deep intraslab event (47km)."
+                },
+                kumamoto_2016: {
+                    name: "Kumamoto 2016", magnitude: 7.0, event_date: "2016-04-16T01:25:06",
+                    classification: "HIT", tier_at_event: "WATCH", ratio: 1.9, lead_time_days: 3.0,
+                    methods_available: ["LG", "THD", "FC"],
+                    timeseries: [
+                        {date: "2016-04-10", tier: 0, tier_name: "NORMAL", risk: 0.10, lg_ratio: 0.24, fc_l2l1: 0.316, thd: 0.92},
+                        {date: "2016-04-12", tier: 0, tier_name: "NORMAL", risk: 0.18, lg_ratio: 0.13, fc_l2l1: 0.542, thd: -1.49},
+                        {date: "2016-04-13", tier: 1, tier_name: "WATCH", risk: 0.35, lg_ratio: 0.05, fc_l2l1: 0.170, thd: -2.31},
+                        {date: "2016-04-14", tier: 1, tier_name: "WATCH", risk: 0.42, lg_ratio: 0.31, fc_l2l1: 0.306, thd: -1.80},
+                        {date: "2016-04-15", tier: 1, tier_name: "WATCH", risk: 0.48, lg_ratio: 0.78, fc_l2l1: 0.314, thd: 0.95}
+                    ],
+                    notes: "Full 3-method ensemble. Preceded by M6.5 foreshock."
+                },
+                hualien_2024: {
+                    name: "Hualien 2024", magnitude: 7.4, event_date: "2024-04-03T07:58:11",
+                    classification: "HIT", tier_at_event: "WATCH", ratio: 2.3, lead_time_days: 3.0,
+                    methods_available: ["LG", "THD", "FC"],
+                    timeseries: [
+                        {date: "2024-03-28", tier: 0, tier_name: "NORMAL", risk: 0.12, lg_ratio: 0.7, fc_l2l1: 0.895, thd: -0.15},
+                        {date: "2024-03-30", tier: 0, tier_name: "NORMAL", risk: 0.20, lg_ratio: 1.1, fc_l2l1: 0.579, thd: -0.24},
+                        {date: "2024-03-31", tier: 1, tier_name: "WATCH", risk: 0.38, lg_ratio: 1.6, fc_l2l1: 0.760, thd: 3.96},
+                        {date: "2024-04-01", tier: 1, tier_name: "WATCH", risk: 0.48, lg_ratio: 2.0, fc_l2l1: 0.304, thd: 0.23},
+                        {date: "2024-04-02", tier: 1, tier_name: "WATCH", risk: 0.56, lg_ratio: 2.3, fc_l2l1: 0.067, thd: -0.39}
+                    ],
+                    notes: "Full 3-method ensemble. Taiwan east coast."
                 }
             }
         };

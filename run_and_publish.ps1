@@ -89,6 +89,15 @@ if (Test-Path $CsvFile) {
     Write-Host "  WARNING: Dashboard data.csv not found at $CsvFile" -ForegroundColor Red
 }
 
+# Copy validated events (track record) for public dashboard
+$ValidatedFile = Join-Path $RepoRoot "monitoring\data\validated_events.json"
+if (Test-Path $ValidatedFile) {
+    Copy-Item $ValidatedFile (Join-Path $DocsDir "validated_events.json") -Force
+    Write-Host "  Copied: monitoring/data/validated_events.json -> docs/validated_events.json" -ForegroundColor Green
+} else {
+    Write-Host "  WARNING: Validated events not found at $ValidatedFile (track record not available)" -ForegroundColor Yellow
+}
+
 # 4. Update README
 Write-Host "[4/5] Updating README..." -ForegroundColor Yellow
 $TierCounts = $EnsembleData.summary.tier_counts
@@ -131,7 +140,7 @@ Write-Host "[5/5] Committing and pushing to GitHub..." -ForegroundColor Yellow
 Push-Location $RepoRoot
 
 try {
-    git add docs/ensemble_latest.json docs/data.csv README.md 2>$null
+    git add docs/ensemble_latest.json docs/data.csv docs/validated_events.json README.md 2>$null
 
     $HasChanges = git diff --cached --quiet; $HasChanges = $LASTEXITCODE -ne 0
 

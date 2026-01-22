@@ -480,6 +480,110 @@
 
         .method-badge.available { color: var(--tier-0); border: 1px solid var(--tier-0); }
         .method-badge.unavailable { color: var(--text-secondary); border: 1px solid var(--border); opacity: 0.5; }
+
+        /* Track Record Styles */
+        .track-record-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .track-stat {
+            background: var(--bg-secondary);
+            border-radius: 8px;
+            padding: 1rem;
+            text-align: center;
+        }
+
+        .track-stat-label {
+            font-size: 0.7rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.3rem;
+        }
+
+        .track-stat-value {
+            font-size: 1.8rem;
+            font-weight: 600;
+        }
+
+        .track-stat-value.hit-rate {
+            color: var(--accent);
+        }
+
+        .hits-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+            font-size: 0.85rem;
+        }
+
+        .hits-table th {
+            text-align: left;
+            padding: 0.6rem 0.8rem;
+            background: var(--bg-secondary);
+            color: var(--text-secondary);
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .hits-table td {
+            padding: 0.6rem 0.8rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .hits-table tr:hover {
+            background: var(--bg-secondary);
+        }
+
+        .hit-badge {
+            display: inline-block;
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .hit-badge.hit {
+            background: rgba(34, 197, 94, 0.2);
+            color: var(--tier-0);
+        }
+
+        .hit-badge.false-alarm {
+            background: rgba(136, 136, 160, 0.2);
+            color: var(--text-secondary);
+        }
+
+        .usgs-link {
+            color: var(--accent);
+            text-decoration: none;
+            font-size: 0.75rem;
+        }
+
+        .usgs-link:hover {
+            text-decoration: underline;
+        }
+
+        .track-record-note {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            padding: 0.8rem;
+            background: var(--bg-secondary);
+            border-radius: 8px;
+            line-height: 1.6;
+            margin-top: 1rem;
+        }
+
+        .no-track-data {
+            color: var(--text-secondary);
+            font-style: italic;
+            padding: 2rem;
+            text-align: center;
+        }
     </style>
 </head>
 <body>
@@ -567,6 +671,48 @@
             </div>
         </div>
 
+        <!-- Prospective Track Record Section -->
+        <div class="chart-section" id="track-record-section">
+            <h2 class="chart-title">Prospective Track Record (Live Predictions vs USGS Events)</h2>
+            <p style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 1rem;">
+                Real-time validation: predictions made 7-14 days ago correlated with actual USGS earthquake events.
+                <strong>This is prospective data</strong> — predictions logged before outcomes known.
+            </p>
+            <div class="track-record-stats" id="track-stats">
+                <div class="track-stat">
+                    <div class="track-stat-label">Total Validated</div>
+                    <div class="track-stat-value" id="stat-total">--</div>
+                </div>
+                <div class="track-stat">
+                    <div class="track-stat-label">Hits</div>
+                    <div class="track-stat-value" id="stat-hits" style="color: var(--tier-0);">--</div>
+                </div>
+                <div class="track-stat">
+                    <div class="track-stat-label">False Alarms</div>
+                    <div class="track-stat-value" id="stat-false-alarms" style="color: var(--text-secondary);">--</div>
+                </div>
+                <div class="track-stat">
+                    <div class="track-stat-label">Hit Rate</div>
+                    <div class="track-stat-value hit-rate" id="stat-hit-rate">--</div>
+                </div>
+                <div class="track-stat">
+                    <div class="track-stat-label">Last Updated</div>
+                    <div class="track-stat-value" id="stat-updated" style="font-size: 0.9rem; color: var(--text-secondary);">--</div>
+                </div>
+            </div>
+
+            <h3 style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 0.5rem;">Verified Hits (Predictions Followed by USGS Events)</h3>
+            <div id="hits-table-container">
+                <p class="no-track-data">Loading track record data...</p>
+            </div>
+
+            <div class="track-record-note">
+                <strong>How this works:</strong> Each day, predictions from 7-14 days ago are checked against the USGS earthquake catalog.
+                A "hit" means an elevated prediction (Tier ≥1) was followed by an M4.5+ earthquake within 150km of the region within 7 days.<br>
+                <strong>USGS Event IDs</strong> are provided so anyone can verify events at <a href="https://earthquake.usgs.gov/earthquakes/search/" target="_blank" style="color: var(--accent);">earthquake.usgs.gov</a>
+            </div>
+        </div>
+
         <!-- Methods Legend Section -->
         <div class="chart-section">
             <h2 class="chart-title">Detection Methods Explained</h2>
@@ -593,9 +739,9 @@
                 It is NOT an official earthquake warning system and should NOT be used
                 for emergency planning or public alerts.
             </p>
-            <p>GeoSpec Λ_geo Monitoring System v1.5.0</p>
+            <p>GeoSpec Λ_geo Monitoring System v1.5.2</p>
             <p style="font-size: 0.7rem; margin-top: 0.5rem;">
-                Backtest validation: 5 events (M6.8-9.0) | Real GPS data | 100% hit rate | January 2026
+                Backtest: 5 events (M6.8-9.0) | Prospective track record: live validation vs USGS | January 2026
             </p>
         </footer>
     </div>
@@ -1344,6 +1490,98 @@
             }
         }
 
+        // Load and render track record (prospective validation)
+        async function loadTrackRecord() {
+            console.log('Loading track record data...');
+            try {
+                const response = await fetch('validated_events.json');
+                if (!response.ok) {
+                    console.log('Track record not available (validated_events.json not found)');
+                    document.getElementById('hits-table-container').innerHTML =
+                        '<p class="no-track-data">Track record data not yet available. Run daily monitoring to generate.</p>';
+                    return;
+                }
+
+                const data = await response.json();
+                console.log('Track record loaded:', data.aggregate_stats);
+
+                // Update stats
+                const stats = data.aggregate_stats || {};
+                document.getElementById('stat-total').textContent = stats.total_validated || 0;
+                document.getElementById('stat-hits').textContent = stats.total_hits || 0;
+                document.getElementById('stat-false-alarms').textContent = stats.total_false_alarms || 0;
+                document.getElementById('stat-hit-rate').textContent =
+                    stats.hit_rate ? (stats.hit_rate * 100).toFixed(1) + '%' : '0%';
+
+                // Format last updated date
+                if (stats.last_updated) {
+                    const date = new Date(stats.last_updated);
+                    document.getElementById('stat-updated').textContent = date.toLocaleDateString();
+                }
+
+                // Filter for hits only and render table
+                const hits = (data.events || []).filter(e => e.classification === 'hit');
+                renderHitsTable(hits);
+
+            } catch (e) {
+                console.error('Error loading track record:', e);
+                document.getElementById('hits-table-container').innerHTML =
+                    '<p class="no-track-data">Error loading track record data.</p>';
+            }
+        }
+
+        // Render hits table
+        function renderHitsTable(hits) {
+            const container = document.getElementById('hits-table-container');
+
+            if (!hits || hits.length === 0) {
+                container.innerHTML = '<p class="no-track-data">No verified hits yet. Track record will build as predictions are validated.</p>';
+                return;
+            }
+
+            // Sort by prediction date descending (most recent first)
+            hits.sort((a, b) => b.prediction_date.localeCompare(a.prediction_date));
+
+            const tierNames = {0: 'NORMAL', 1: 'WATCH', 2: 'ELEVATED', 3: 'CRITICAL'};
+
+            const tableHtml = `
+                <table class="hits-table">
+                    <thead>
+                        <tr>
+                            <th>Prediction Date</th>
+                            <th>Region</th>
+                            <th>Tier</th>
+                            <th>Event</th>
+                            <th>Lead Time</th>
+                            <th>USGS ID</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${hits.map(hit => `
+                            <tr>
+                                <td>${hit.prediction_date}</td>
+                                <td>${hit.prediction_region.replace(/_/g, ' ')}</td>
+                                <td><span class="hit-badge hit">${tierNames[hit.prediction_tier] || 'T' + hit.prediction_tier}</span></td>
+                                <td>
+                                    <strong>M${hit.event_magnitude.toFixed(1)}</strong><br>
+                                    <span style="font-size: 0.75rem; color: var(--text-secondary);">${hit.event_location || 'Unknown location'}</span>
+                                </td>
+                                <td>${hit.lead_days.toFixed(1)} days</td>
+                                <td>
+                                    ${hit.event_id ?
+                                        `<a href="https://earthquake.usgs.gov/earthquakes/eventpage/${hit.event_id}" target="_blank" class="usgs-link">${hit.event_id}</a>` :
+                                        '<span style="color: var(--text-secondary);">—</span>'
+                                    }
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+
+            container.innerHTML = tableHtml;
+        }
+
         // Initialize
         console.log('=== GeoSpec Dashboard Initializing ===');
 
@@ -1353,6 +1591,7 @@
 
         loadData();
         renderBacktestChart();
+        loadTrackRecord();
 
         // Load backtest data (with fallback)
         loadBacktestTimeseries().then(() => {

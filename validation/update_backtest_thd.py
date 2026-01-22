@@ -48,7 +48,7 @@ def get_daily_thd_zscore(thd_timeseries: list, target_date: str) -> float:
 
 def update_backtest_with_real_thd(backtest: dict, fetched_thd: dict) -> dict:
     """
-    Update backtest events with real THD z-scores.
+    Update backtest events with real THD z-scores, including post-event data.
 
     Args:
         backtest: Loaded backtest_timeseries.json
@@ -71,6 +71,12 @@ def update_backtest_with_real_thd(backtest: dict, fetched_thd: dict) -> dict:
             print(f"  WARNING: No THD timeseries for {event_key}")
             continue
 
+        # Get event date for determining post-event entries
+        event_date_str = event.get('event_date', '')[:10]  # Extract YYYY-MM-DD
+
+        # Get existing dates in timeseries
+        existing_dates = {entry.get('date') for entry in event.get('timeseries', [])}
+
         # Update each day in the event's timeseries
         updates = 0
         for day_entry in event.get('timeseries', []):
@@ -88,6 +94,34 @@ def update_backtest_with_real_thd(backtest: dict, fetched_thd: dict) -> dict:
                 # No data for this date - set to null instead of keeping fabricated value
                 day_entry['thd'] = None
 
+            # Mark post-event entries
+            if date > event_date_str:
+                day_entry['post_event'] = True
+
+        # Find and add post-event dates from THD data that aren't in backtest
+        thd_dates = sorted(set(entry['date'] for entry in thd_timeseries))
+        post_event_dates = [d for d in thd_dates if d > event_date_str and d not in existing_dates]
+
+        added = 0
+        for post_date in post_event_dates[:3]:  # Limit to 3 days post-event
+            z_score = get_daily_thd_zscore(thd_timeseries, post_date)
+            if z_score is not None:
+                new_entry = {
+                    'date': post_date,
+                    'tier': None,
+                    'tier_name': 'POST_EVENT',
+                    'risk': None,
+                    'lg_ratio': None,
+                    'fc_l2l1': None,
+                    'thd': z_score,
+                    'post_event': True,
+                }
+                event['timeseries'].append(new_entry)
+                added += 1
+
+        # Sort timeseries by date
+        event['timeseries'] = sorted(event['timeseries'], key=lambda x: x.get('date', ''))
+
         # Update event metadata
         stats = thd_data.get('statistics', {})
         event['thd_station'] = thd_data.get('data_source', {}).get('station')
@@ -97,10 +131,10 @@ def update_backtest_with_real_thd(backtest: dict, fetched_thd: dict) -> dict:
         event['thd_baseline_std'] = stats.get('baseline_std')
 
         events_updated.append(event_key)
-        print(f"  Updated {event_key}: {updates} days with real THD z-scores")
+        print(f"  Updated {event_key}: {updates} days updated, {added} post-event days added")
 
     # Update metadata
-    backtest['data_integrity'] = f"THD data fetched from IRIS FDSN on {datetime.now().strftime('%Y-%m-%d')}. All z-scores are computed from real seismic data."
+    backtest['data_integrity'] = f"THD data fetched from IRIS FDSN on {datetime.now().strftime('%Y-%m-%d')}. All z-scores are computed from real seismic data. Includes 3 days post-event."
     backtest['generated'] = datetime.now().strftime('%Y-%m-%d')
 
     return backtest

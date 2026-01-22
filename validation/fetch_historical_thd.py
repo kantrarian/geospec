@@ -191,7 +191,7 @@ def fetch_event_thd(
     event_date = event['date']
     lead_days = event['lead_days']
     start_time = event_date - timedelta(days=lead_days)
-    end_time = event_date + timedelta(hours=12)  # Include some post-event data
+    end_time = event_date + timedelta(days=3)  # Include 3 days post-event data
 
     if verbose:
         print(f"Analysis window: {start_time.strftime('%Y-%m-%d')} to {end_time.strftime('%Y-%m-%d')}")

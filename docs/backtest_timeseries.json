@@ -1,6 +1,6 @@
 {
   "generated": "2026-01-22",
-  "data_integrity": "THD data fetched from IRIS FDSN on 2026-01-22. All z-scores are computed from real seismic data.",
+  "data_integrity": "THD data fetched from IRIS FDSN on 2026-01-22. All z-scores are computed from real seismic data. Includes 3 days post-event.",
   "events": {
     "ridgecrest_2019": {
       "name": "Ridgecrest 2019",
@@ -206,6 +206,26 @@
           "lg_ratio": 5.6,
           "fc_l2l1": 0.1658,
           "thd": 0.51
+        },
+        {
+          "date": "2011-03-12",
+          "tier": null,
+          "tier_name": "POST_EVENT",
+          "risk": null,
+          "lg_ratio": null,
+          "fc_l2l1": null,
+          "thd": 4.6,
+          "post_event": true
+        },
+        {
+          "date": "2011-03-13",
+          "tier": null,
+          "tier_name": "POST_EVENT",
+          "risk": null,
+          "lg_ratio": null,
+          "fc_l2l1": null,
+          "thd": -0.6,
+          "post_event": true
         }
       ],
       "notes": "Lambda_geo only (5.64x peak). No seismic cache available for this historical event.",
@@ -285,6 +305,26 @@
           "lg_ratio": 2.0,
           "fc_l2l1": 0.8199,
           "thd": 5.84
+        },
+        {
+          "date": "2023-02-07",
+          "tier": null,
+          "tier_name": "POST_EVENT",
+          "risk": null,
+          "lg_ratio": null,
+          "fc_l2l1": null,
+          "thd": 0.6,
+          "post_event": true
+        },
+        {
+          "date": "2023-02-08",
+          "tier": null,
+          "tier_name": "POST_EVENT",
+          "risk": null,
+          "lg_ratio": null,
+          "fc_l2l1": null,
+          "thd": 0.78,
+          "post_event": true
         }
       ],
       "notes": "Lambda_geo only (1.98x peak). Borderline WATCH classification. No seismic cache available.",
@@ -326,7 +366,7 @@
           "risk": 0.15,
           "lg_ratio": 1.0,
           "fc_l2l1": null,
-          "thd": -0.04
+          "thd": 0.27
         },
         {
           "date": "2010-02-17",
@@ -335,7 +375,7 @@
           "risk": 0.28,
           "lg_ratio": 1.6,
           "fc_l2l1": null,
-          "thd": -0.38
+          "thd": -0.57
         },
         {
           "date": "2010-02-20",
@@ -344,7 +384,7 @@
           "risk": 0.32,
           "lg_ratio": 1.8,
           "fc_l2l1": null,
-          "thd": -0.53
+          "thd": 0.16
         },
         {
           "date": "2010-02-23",
@@ -353,7 +393,7 @@
           "risk": 0.36,
           "lg_ratio": 2.0,
           "fc_l2l1": null,
-          "thd": -2.82
+          "thd": -1.66
         },
         {
           "date": "2010-02-26",
@@ -362,15 +402,35 @@
           "risk": 0.38,
           "lg_ratio": 2.1,
           "fc_l2l1": null,
-          "thd": 1.74
+          "thd": 1.7
+        },
+        {
+          "date": "2010-02-28",
+          "tier": null,
+          "tier_name": "POST_EVENT",
+          "risk": null,
+          "lg_ratio": null,
+          "fc_l2l1": null,
+          "thd": 336.32,
+          "post_event": true
+        },
+        {
+          "date": "2010-03-01",
+          "tier": null,
+          "tier_name": "POST_EVENT",
+          "risk": null,
+          "lg_ratio": null,
+          "fc_l2l1": null,
+          "thd": 78.85,
+          "post_event": true
         }
       ],
       "notes": "Lambda_geo only (2.11x peak). M8.8 megathrust event on Nazca-South American plate boundary.",
       "thd_station": "IU.LVC",
-      "thd_peak_zscore": 0.7495,
-      "thd_peak_date": "2010-02-27",
-      "thd_baseline_mean": 0.3444,
-      "thd_baseline_std": 0.0179
+      "thd_peak_zscore": 0.5697,
+      "thd_peak_date": "2010-02-21",
+      "thd_baseline_mean": 0.3481,
+      "thd_baseline_std": 0.0157
     },
     "morocco_2023": {
       "name": "Morocco 2023",
@@ -447,6 +507,36 @@
           "lg_ratio": 3.3,
           "fc_l2l1": null,
           "thd": -1.27
+        },
+        {
+          "date": "2023-09-09",
+          "tier": null,
+          "tier_name": "POST_EVENT",
+          "risk": null,
+          "lg_ratio": null,
+          "fc_l2l1": null,
+          "thd": -0.41,
+          "post_event": true
+        },
+        {
+          "date": "2023-09-10",
+          "tier": null,
+          "tier_name": "POST_EVENT",
+          "risk": null,
+          "lg_ratio": null,
+          "fc_l2l1": null,
+          "thd": -0.26,
+          "post_event": true
+        },
+        {
+          "date": "2023-09-11",
+          "tier": null,
+          "tier_name": "POST_EVENT",
+          "risk": null,
+          "lg_ratio": null,
+          "fc_l2l1": null,
+          "thd": -0.35,
+          "post_event": true
         }
       ],
       "notes": "Lambda_geo only (3.29x peak). Atlas Mountains shallow thrust event. Sparse GPS network (8 stations).",
@@ -515,6 +605,26 @@
           "lg_ratio": 4.2,
           "fc_l2l1": 0.045,
           "thd": -0.38
+        },
+        {
+          "date": "2016-11-14",
+          "tier": null,
+          "tier_name": "POST_EVENT",
+          "risk": null,
+          "lg_ratio": null,
+          "fc_l2l1": null,
+          "thd": -0.05,
+          "post_event": true
+        },
+        {
+          "date": "2016-11-15",
+          "tier": null,
+          "tier_name": "POST_EVENT",
+          "risk": null,
+          "lg_ratio": null,
+          "fc_l2l1": null,
+          "thd": -0.01,
+          "post_event": true
         }
       ],
       "notes": "New Zealand South Island. Complex multi-fault rupture. Strong precursor signal detected 5 days before event.",
@@ -588,6 +698,36 @@
           "lg_ratio": 2.1,
           "fc_l2l1": null,
           "thd": -0.43
+        },
+        {
+          "date": "2018-12-01",
+          "tier": null,
+          "tier_name": "POST_EVENT",
+          "risk": null,
+          "lg_ratio": null,
+          "fc_l2l1": null,
+          "thd": -0.37,
+          "post_event": true
+        },
+        {
+          "date": "2018-12-02",
+          "tier": null,
+          "tier_name": "POST_EVENT",
+          "risk": null,
+          "lg_ratio": null,
+          "fc_l2l1": null,
+          "thd": -0.37,
+          "post_event": true
+        },
+        {
+          "date": "2018-12-03",
+          "tier": null,
+          "tier_name": "POST_EVENT",
+          "risk": null,
+          "lg_ratio": null,
+          "fc_l2l1": null,
+          "thd": -0.42,
+          "post_event": true
         }
       ],
       "notes": "Deep intraslab event (47km). Attenuated THD signal. FC not available due to sparse network.",
@@ -656,6 +796,26 @@
           "lg_ratio": 1.9,
           "fc_l2l1": 0.089,
           "thd": 0.95
+        },
+        {
+          "date": "2016-04-17",
+          "tier": null,
+          "tier_name": "POST_EVENT",
+          "risk": null,
+          "lg_ratio": null,
+          "fc_l2l1": null,
+          "thd": 0.18,
+          "post_event": true
+        },
+        {
+          "date": "2016-04-18",
+          "tier": null,
+          "tier_name": "POST_EVENT",
+          "risk": null,
+          "lg_ratio": null,
+          "fc_l2l1": null,
+          "thd": -0.11,
+          "post_event": true
         }
       ],
       "notes": "Preceded by M6.5 foreshock on Apr 14. WATCH tier reached 3 days before mainshock.",
@@ -730,6 +890,26 @@
           "lg_ratio": 2.3,
           "fc_l2l1": 0.067,
           "thd": -0.39
+        },
+        {
+          "date": "2024-04-04",
+          "tier": null,
+          "tier_name": "POST_EVENT",
+          "risk": null,
+          "lg_ratio": null,
+          "fc_l2l1": null,
+          "thd": -0.27,
+          "post_event": true
+        },
+        {
+          "date": "2024-04-05",
+          "tier": null,
+          "tier_name": "POST_EVENT",
+          "risk": null,
+          "lg_ratio": null,
+          "fc_l2l1": null,
+          "thd": -0.32,
+          "post_event": true
         }
       ],
       "notes": "Taiwan east coast. Clear 3-day precursor ramp-up. Strongest validation signal among new events.",

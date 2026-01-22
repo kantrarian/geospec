@@ -95,6 +95,61 @@ HISTORICAL_EVENTS = {
         ],
         'notes': 'High Atlas M6.8 - largest Morocco earthquake since 1960'
     },
+    'kaikoura_2016': {
+        'name': 'Kaikoura 2016',
+        'date': datetime(2016, 11, 13, 11, 2, 56),  # UTC
+        'magnitude': 7.8,
+        'location': (-42.69, 173.02),
+        'region': 'new_zealand_south',
+        'lead_days': 14,
+        'stations': [
+            {'network': 'IU', 'code': 'SNZO', 'channel': 'BHZ', 'priority': 1},  # South Karori, NZ
+            {'network': 'IU', 'code': 'CTAO', 'channel': 'BHZ', 'priority': 2},  # Australia
+            {'network': 'II', 'code': 'TAU', 'channel': 'BHZ', 'priority': 3},   # Tasmania
+        ],
+        'notes': 'South Island M7.8 - Complex multi-fault rupture'
+    },
+    'anchorage_2018': {
+        'name': 'Anchorage 2018',
+        'date': datetime(2018, 11, 30, 17, 29, 29),  # UTC
+        'magnitude': 7.1,
+        'location': (61.35, -149.96),
+        'region': 'alaska_cook_inlet',
+        'lead_days': 14,
+        'stations': [
+            {'network': 'IU', 'code': 'COLA', 'channel': 'BHZ', 'priority': 1},  # College, Alaska
+            {'network': 'II', 'code': 'KDAK', 'channel': 'BHZ', 'priority': 2},  # Kodiak Island
+        ],
+        'notes': 'Cook Inlet M7.1 - Deep intraslab event (47km depth)'
+    },
+    'kumamoto_2016': {
+        'name': 'Kumamoto 2016',
+        'date': datetime(2016, 4, 16, 1, 25, 6),  # UTC (mainshock)
+        'magnitude': 7.0,
+        'location': (32.78, 130.73),
+        'region': 'japan_kyushu',
+        'lead_days': 14,
+        'stations': [
+            {'network': 'IU', 'code': 'MAJO', 'channel': 'BHZ', 'priority': 1},  # Matsushiro
+            {'network': 'II', 'code': 'ERM', 'channel': 'BHZ', 'priority': 2},   # Erimo
+            {'network': 'IU', 'code': 'TATO', 'channel': 'BHZ', 'priority': 3},  # Taiwan
+        ],
+        'notes': 'Kyushu M7.0 - Preceded by M6.5 foreshock on Apr 14'
+    },
+    'hualien_2024': {
+        'name': 'Hualien 2024',
+        'date': datetime(2024, 4, 3, 7, 58, 11),  # UTC
+        'magnitude': 7.4,
+        'location': (23.82, 121.56),
+        'region': 'taiwan_east_coast',
+        'lead_days': 14,
+        'stations': [
+            {'network': 'IU', 'code': 'TATO', 'channel': 'BHZ', 'priority': 1},  # Taipei
+            {'network': 'II', 'code': 'TLY', 'channel': 'BHZ', 'priority': 2},   # Russia
+            {'network': 'IU', 'code': 'GUMO', 'channel': 'BHZ', 'priority': 3},  # Guam
+        ],
+        'notes': 'East coast Taiwan M7.4 - Strongest Taiwan quake since 1999'
+    },
 }
 
 

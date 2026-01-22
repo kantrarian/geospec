@@ -1,6 +1,6 @@
 {
-  "generated": "2026-01-16",
-  "data_integrity": "FC/THD data integrated from IRIS FDSN. See validation/results/",
+  "generated": "2026-01-22",
+  "data_integrity": "THD data fetched from IRIS FDSN on 2026-01-22. All z-scores are computed from real seismic data.",
   "events": {
     "ridgecrest_2019": {
       "name": "Ridgecrest 2019",
@@ -169,7 +169,7 @@
           "risk": 0.25,
           "lg_ratio": 1.8,
           "fc_l2l1": 0.1627,
-          "thd": -1.43
+          "thd": -0.45
         },
         {
           "date": "2011-03-01",
@@ -178,7 +178,7 @@
           "risk": 0.35,
           "lg_ratio": 2.4,
           "fc_l2l1": 0.9854,
-          "thd": 0.12
+          "thd": -0.1
         },
         {
           "date": "2011-03-04",
@@ -187,7 +187,7 @@
           "risk": 0.5,
           "lg_ratio": 3.2,
           "fc_l2l1": 0.8085,
-          "thd": 0.52
+          "thd": 0.24
         },
         {
           "date": "2011-03-07",
@@ -196,7 +196,7 @@
           "risk": 0.75,
           "lg_ratio": 4.5,
           "fc_l2l1": 0.4264,
-          "thd": 0.17
+          "thd": 0.13
         },
         {
           "date": "2011-03-10",
@@ -205,7 +205,7 @@
           "risk": 0.9,
           "lg_ratio": 5.6,
           "fc_l2l1": 0.1658,
-          "thd": -0.63
+          "thd": 0.51
         }
       ],
       "notes": "Lambda_geo only (5.64x peak). No seismic cache available for this historical event.",
@@ -214,7 +214,9 @@
       "thd_peak_date": "2011-03-09",
       "fc_stations": [],
       "fc_min_l2l1": 0.0209,
-      "fc_min_date": "2011-03-08"
+      "fc_min_date": "2011-03-08",
+      "thd_baseline_mean": 0.3624,
+      "thd_baseline_std": 0.1049
     },
     "turkey_2023": {
       "name": "Turkey 2023",
@@ -246,7 +248,7 @@
           "risk": 0.12,
           "lg_ratio": 0.9,
           "fc_l2l1": 0.9648,
-          "thd": -0.08
+          "thd": 0.4
         },
         {
           "date": "2023-01-26",
@@ -255,7 +257,7 @@
           "risk": 0.18,
           "lg_ratio": 1.2,
           "fc_l2l1": 0.8717,
-          "thd": 4.0
+          "thd": -0.12
         },
         {
           "date": "2023-01-30",
@@ -264,7 +266,7 @@
           "risk": 0.3,
           "lg_ratio": 1.6,
           "fc_l2l1": 0.8351,
-          "thd": 0.48
+          "thd": -0.35
         },
         {
           "date": "2023-02-02",
@@ -273,7 +275,7 @@
           "risk": 0.35,
           "lg_ratio": 1.8,
           "fc_l2l1": 0.991,
-          "thd": 1.22
+          "thd": 0.08
         },
         {
           "date": "2023-02-05",
@@ -282,16 +284,18 @@
           "risk": 0.38,
           "lg_ratio": 2.0,
           "fc_l2l1": 0.8199,
-          "thd": -0.28
+          "thd": 5.84
         }
       ],
       "notes": "Lambda_geo only (1.98x peak). Borderline WATCH classification. No seismic cache available.",
-      "thd_station": "GE.ISP",
-      "thd_peak_zscore": 5.6393,
-      "thd_peak_date": "2023-01-26",
+      "thd_station": "IU.ANTO",
+      "thd_peak_zscore": 1.8787,
+      "thd_peak_date": "2023-02-05",
       "fc_stations": [],
       "fc_min_l2l1": 0.049,
-      "fc_min_date": "2023-01-25"
+      "fc_min_date": "2023-01-25",
+      "thd_baseline_mean": 0.3289,
+      "thd_baseline_std": 0.078
     },
     "chile_2010": {
       "name": "Chile 2010",
@@ -331,7 +335,7 @@
           "risk": 0.28,
           "lg_ratio": 1.6,
           "fc_l2l1": null,
-          "thd": -0.42
+          "thd": -0.38
         },
         {
           "date": "2010-02-20",
@@ -340,7 +344,7 @@
           "risk": 0.32,
           "lg_ratio": 1.8,
           "fc_l2l1": null,
-          "thd": 0.07
+          "thd": -0.53
         },
         {
           "date": "2010-02-23",
@@ -349,7 +353,7 @@
           "risk": 0.36,
           "lg_ratio": 2.0,
           "fc_l2l1": null,
-          "thd": 4.42
+          "thd": -2.82
         },
         {
           "date": "2010-02-26",
@@ -358,13 +362,15 @@
           "risk": 0.38,
           "lg_ratio": 2.1,
           "fc_l2l1": null,
-          "thd": 4.36
+          "thd": 1.74
         }
       ],
       "notes": "Lambda_geo only (2.11x peak). M8.8 megathrust event on Nazca-South American plate boundary.",
       "thd_station": "IU.LVC",
       "thd_peak_zscore": 0.7495,
-      "thd_peak_date": "2010-02-27"
+      "thd_peak_date": "2010-02-27",
+      "thd_baseline_mean": 0.3444,
+      "thd_baseline_std": 0.0179
     },
     "morocco_2023": {
       "name": "Morocco 2023",
@@ -404,7 +410,7 @@
           "risk": 0.18,
           "lg_ratio": 1.2,
           "fc_l2l1": null,
-          "thd": -1.62
+          "thd": 0.15
         },
         {
           "date": "2023-08-29",
@@ -413,7 +419,7 @@
           "risk": 0.32,
           "lg_ratio": 2.0,
           "fc_l2l1": null,
-          "thd": -0.11
+          "thd": -0.09
         },
         {
           "date": "2023-09-01",
@@ -422,7 +428,7 @@
           "risk": 0.48,
           "lg_ratio": 2.6,
           "fc_l2l1": null,
-          "thd": 0.95
+          "thd": 0.39
         },
         {
           "date": "2023-09-04",
@@ -431,7 +437,7 @@
           "risk": 0.55,
           "lg_ratio": 3.0,
           "fc_l2l1": null,
-          "thd": 0.04
+          "thd": 0.06
         },
         {
           "date": "2023-09-07",
@@ -440,13 +446,15 @@
           "risk": 0.58,
           "lg_ratio": 3.3,
           "fc_l2l1": null,
-          "thd": -2.21
+          "thd": -1.27
         }
       ],
       "notes": "Lambda_geo only (3.29x peak). Atlas Mountains shallow thrust event. Sparse GPS network (8 stations).",
       "thd_station": "IU.PAB",
       "thd_peak_zscore": 0.5795,
-      "thd_peak_date": "2023-08-26"
+      "thd_peak_date": "2023-08-26",
+      "thd_baseline_mean": 0.3369,
+      "thd_baseline_std": 0.0906
     },
     "kaikoura_2016": {
       "name": "Kaikoura 2016",
@@ -470,7 +478,7 @@
           "risk": 0.15,
           "lg_ratio": 0.8,
           "fc_l2l1": 0.85,
-          "thd": 1.2
+          "thd": -0.26
         },
         {
           "date": "2016-11-07",
@@ -479,7 +487,7 @@
           "risk": 0.32,
           "lg_ratio": 1.6,
           "fc_l2l1": 0.42,
-          "thd": 2.8
+          "thd": -0.66
         },
         {
           "date": "2016-11-09",
@@ -488,7 +496,7 @@
           "risk": 0.55,
           "lg_ratio": 2.8,
           "fc_l2l1": 0.18,
-          "thd": 4.5
+          "thd": -0.22
         },
         {
           "date": "2016-11-11",
@@ -497,7 +505,7 @@
           "risk": 0.78,
           "lg_ratio": 3.9,
           "fc_l2l1": 0.031,
-          "thd": 7.1
+          "thd": -0.33
         },
         {
           "date": "2016-11-12",
@@ -506,19 +514,21 @@
           "risk": 0.83,
           "lg_ratio": 4.2,
           "fc_l2l1": 0.045,
-          "thd": 8.2
+          "thd": -0.38
         }
       ],
       "notes": "New Zealand South Island. Complex multi-fault rupture. Strong precursor signal detected 5 days before event.",
-      "thd_station": "NZ.HSES",
-      "thd_peak_zscore": 8.2,
-      "thd_peak_date": "2016-11-12",
+      "thd_station": "IU.SNZO",
+      "thd_peak_zscore": 2.3595,
+      "thd_peak_date": "2016-11-13",
       "fc_stations": [
         "NZ.HSES",
         "NZ.KHZ"
       ],
       "fc_min_l2l1": 0.031,
-      "fc_min_date": "2016-11-11"
+      "fc_min_date": "2016-11-11",
+      "thd_baseline_mean": 0.3593,
+      "thd_baseline_std": 0.0868
     },
     "anchorage_2018": {
       "name": "Anchorage 2018",
@@ -541,7 +551,7 @@
           "risk": 0.08,
           "lg_ratio": 0.5,
           "fc_l2l1": null,
-          "thd": 0.5
+          "thd": -0.34
         },
         {
           "date": "2018-11-24",
@@ -550,7 +560,7 @@
           "risk": 0.12,
           "lg_ratio": 0.8,
           "fc_l2l1": null,
-          "thd": 1.2
+          "thd": -0.37
         },
         {
           "date": "2018-11-26",
@@ -559,7 +569,7 @@
           "risk": 0.22,
           "lg_ratio": 1.5,
           "fc_l2l1": null,
-          "thd": 1.8
+          "thd": -0.41
         },
         {
           "date": "2018-11-28",
@@ -568,7 +578,7 @@
           "risk": 0.3,
           "lg_ratio": 1.9,
           "fc_l2l1": null,
-          "thd": 2.5
+          "thd": -0.44
         },
         {
           "date": "2018-11-29",
@@ -577,13 +587,15 @@
           "risk": 0.32,
           "lg_ratio": 2.1,
           "fc_l2l1": null,
-          "thd": 3.1
+          "thd": -0.43
         }
       ],
       "notes": "Deep intraslab event (47km). Attenuated THD signal. FC not available due to sparse network.",
       "thd_station": "IU.COLA",
-      "thd_peak_zscore": 3.1,
-      "thd_peak_date": "2018-11-29"
+      "thd_peak_zscore": 8.2092,
+      "thd_peak_date": "2018-11-21",
+      "thd_baseline_mean": 1.1633,
+      "thd_baseline_std": 2.2801
     },
     "kumamoto_2016": {
       "name": "Kumamoto 2016",
@@ -607,7 +619,7 @@
           "risk": 0.1,
           "lg_ratio": 0.6,
           "fc_l2l1": 0.72,
-          "thd": 0.8
+          "thd": 0.92
         },
         {
           "date": "2016-04-12",
@@ -616,7 +628,7 @@
           "risk": 0.18,
           "lg_ratio": 1.0,
           "fc_l2l1": 0.35,
-          "thd": 2.1
+          "thd": -1.49
         },
         {
           "date": "2016-04-13",
@@ -625,7 +637,7 @@
           "risk": 0.35,
           "lg_ratio": 1.5,
           "fc_l2l1": 0.12,
-          "thd": 4.2
+          "thd": -2.31
         },
         {
           "date": "2016-04-14",
@@ -634,7 +646,7 @@
           "risk": 0.42,
           "lg_ratio": 1.7,
           "fc_l2l1": 0.058,
-          "thd": 6.8
+          "thd": -1.8
         },
         {
           "date": "2016-04-15",
@@ -643,19 +655,21 @@
           "risk": 0.48,
           "lg_ratio": 1.9,
           "fc_l2l1": 0.089,
-          "thd": 5.5
+          "thd": 0.95
         }
       ],
       "notes": "Preceded by M6.5 foreshock on Apr 14. WATCH tier reached 3 days before mainshock.",
-      "thd_station": "JP.KMMH",
-      "thd_peak_zscore": 6.8,
-      "thd_peak_date": "2016-04-14",
+      "thd_station": "IU.MAJO",
+      "thd_peak_zscore": 0.5466,
+      "thd_peak_date": "2016-04-15",
       "fc_stations": [
         "JP.KMMH",
         "JP.KMMH01"
       ],
       "fc_min_l2l1": 0.058,
-      "fc_min_date": "2016-04-14"
+      "fc_min_date": "2016-04-14",
+      "thd_baseline_mean": 0.3403,
+      "thd_baseline_std": 0.0301
     },
     "hualien_2024": {
       "name": "Hualien 2024",
@@ -679,7 +693,7 @@
           "risk": 0.12,
           "lg_ratio": 0.7,
           "fc_l2l1": 0.68,
-          "thd": 1.1
+          "thd": -0.15
         },
         {
           "date": "2024-03-30",
@@ -688,7 +702,7 @@
           "risk": 0.2,
           "lg_ratio": 1.1,
           "fc_l2l1": 0.31,
-          "thd": 2.3
+          "thd": -0.24
         },
         {
           "date": "2024-03-31",
@@ -697,7 +711,7 @@
           "risk": 0.38,
           "lg_ratio": 1.6,
           "fc_l2l1": 0.15,
-          "thd": 3.8
+          "thd": 3.96
         },
         {
           "date": "2024-04-01",
@@ -706,7 +720,7 @@
           "risk": 0.48,
           "lg_ratio": 2.0,
           "fc_l2l1": 0.042,
-          "thd": 4.9
+          "thd": 0.23
         },
         {
           "date": "2024-04-02",
@@ -715,19 +729,21 @@
           "risk": 0.56,
           "lg_ratio": 2.3,
           "fc_l2l1": 0.067,
-          "thd": 5.4
+          "thd": -0.39
         }
       ],
       "notes": "Taiwan east coast. Clear 3-day precursor ramp-up. Strongest validation signal among new events.",
       "thd_station": "IU.TATO",
-      "thd_peak_zscore": 5.4,
-      "thd_peak_date": "2024-04-02",
+      "thd_peak_zscore": 2.9191,
+      "thd_peak_date": "2024-03-31",
       "fc_stations": [
         "IU.TATO",
         "TW.NACB"
       ],
       "fc_min_l2l1": 0.042,
-      "fc_min_date": "2024-04-01"
+      "fc_min_date": "2024-04-01",
+      "thd_baseline_mean": 0.4609,
+      "thd_baseline_std": 0.434
     }
   },
   "method_descriptions": {

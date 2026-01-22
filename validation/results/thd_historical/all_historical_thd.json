@@ -13,7 +13,7 @@
     },
     "data_source": {
       "station": "IU.MAJO",
-      "fetch_date": "2026-01-14T15:26:36.688717",
+      "fetch_date": "2026-01-22T12:24:39.718245",
       "window_hours": 24,
       "step_hours": 6
     },
@@ -427,16 +427,16 @@
       "region": "turkey_kahramanmaras"
     },
     "data_source": {
-      "station": "GE.ISP",
-      "fetch_date": "2026-01-14T15:27:24.358885",
+      "station": "IU.ANTO",
+      "fetch_date": "2026-01-22T12:24:52.634202",
       "window_hours": 24,
       "step_hours": 6
     },
     "statistics": {
-      "baseline_mean": 1.5976,
-      "baseline_std": 1.0102,
-      "peak_thd": 5.6393,
-      "peak_date": "2023-01-26T01:17:35",
+      "baseline_mean": 0.3289,
+      "baseline_std": 0.078,
+      "peak_thd": 1.8787,
+      "peak_date": "2023-02-05T19:17:35",
       "n_elevated": 55,
       "n_critical": 55
     },
@@ -444,386 +444,386 @@
       {
         "date": "2023-01-23",
         "days_before_event": 13.5,
-        "thd": 1.5138,
-        "z_score": -0.08,
+        "thd": 0.4637,
+        "z_score": 1.73,
         "tier": "CRITICAL"
       },
       {
         "date": "2023-01-23",
         "days_before_event": 13.25,
-        "thd": 0.9407,
-        "z_score": -0.65,
+        "thd": 0.2568,
+        "z_score": -0.93,
         "tier": "CRITICAL"
       },
       {
         "date": "2023-01-24",
         "days_before_event": 13.0,
-        "thd": 0.7418,
-        "z_score": -0.85,
+        "thd": 0.275,
+        "z_score": -0.69,
         "tier": "CRITICAL"
       },
       {
         "date": "2023-01-24",
         "days_before_event": 12.75,
-        "thd": 0.7359,
-        "z_score": -0.85,
+        "thd": 0.3891,
+        "z_score": 0.77,
         "tier": "CRITICAL"
       },
       {
         "date": "2023-01-24",
         "days_before_event": 12.5,
-        "thd": 2.671,
-        "z_score": 1.06,
+        "thd": 0.4427,
+        "z_score": 1.46,
         "tier": "CRITICAL"
       },
       {
         "date": "2023-01-24",
         "days_before_event": 12.25,
-        "thd": 1.6962,
-        "z_score": 0.1,
+        "thd": 0.2748,
+        "z_score": -0.69,
         "tier": "CRITICAL"
       },
       {
         "date": "2023-01-25",
         "days_before_event": 12.0,
-        "thd": 1.4264,
-        "z_score": -0.17,
+        "thd": 0.2718,
+        "z_score": -0.73,
         "tier": "CRITICAL"
       },
       {
         "date": "2023-01-25",
         "days_before_event": 11.75,
-        "thd": 1.4228,
-        "z_score": -0.17,
+        "thd": 0.3214,
+        "z_score": -0.1,
         "tier": "CRITICAL"
       },
       {
         "date": "2023-01-25",
         "days_before_event": 11.5,
-        "thd": 1.1209,
-        "z_score": -0.47,
+        "thd": 0.4068,
+        "z_score": 1.0,
         "tier": "CRITICAL"
       },
       {
         "date": "2023-01-25",
         "days_before_event": 11.25,
-        "thd": 1.7698,
-        "z_score": 0.17,
+        "thd": 0.3145,
+        "z_score": -0.18,
         "tier": "CRITICAL"
       },
       {
         "date": "2023-01-26",
         "days_before_event": 11.0,
-        "thd": 5.6393,
-        "z_score": 4.0,
+        "thd": 0.2693,
+        "z_score": -0.76,
         "tier": "CRITICAL"
       },
       {
         "date": "2023-01-26",
         "days_before_event": 10.75,
-        "thd": 3.5025,
-        "z_score": 1.89,
+        "thd": 0.2776,
+        "z_score": -0.66,
         "tier": "CRITICAL"
       },
       {
         "date": "2023-01-26",
         "days_before_event": 10.5,
-        "thd": 1.744,
-        "z_score": 0.14,
+        "thd": 0.3711,
+        "z_score": 0.54,
         "tier": "CRITICAL"
       },
       {
         "date": "2023-01-26",
         "days_before_event": 10.25,
-        "thd": 1.1483,
-        "z_score": -0.44,
+        "thd": 0.3598,
+        "z_score": 0.4,
         "tier": "CRITICAL"
       },
       {
         "date": "2023-01-27",
         "days_before_event": 10.0,
-        "thd": 1.6367,
-        "z_score": 0.04,
+        "thd": 0.282,
+        "z_score": -0.6,
         "tier": "CRITICAL"
       },
       {
         "date": "2023-01-27",
         "days_before_event": 9.75,
-        "thd": 1.9162,
-        "z_score": 0.32,
+        "thd": 0.2658,
+        "z_score": -0.81,
         "tier": "CRITICAL"
       },
       {
         "date": "2023-01-27",
         "days_before_event": 9.5,
-        "thd": 1.5033,
-        "z_score": -0.09,
+        "thd": 0.3186,
+        "z_score": -0.13,
         "tier": "CRITICAL"
       },
       {
         "date": "2023-01-27",
         "days_before_event": 9.25,
-        "thd": 0.875,
-        "z_score": -0.72,
+        "thd": 0.4166,
+        "z_score": 1.12,
         "tier": "CRITICAL"
       },
       {
         "date": "2023-01-28",
         "days_before_event": 9.0,
-        "thd": 0.7641,
-        "z_score": -0.83,
+        "thd": 0.3431,
+        "z_score": 0.18,
         "tier": "CRITICAL"
       },
       {
         "date": "2023-01-28",
         "days_before_event": 8.75,
-        "thd": 0.8708,
-        "z_score": -0.72,
+        "thd": 0.2278,
+        "z_score": -1.3,
         "tier": "CRITICAL"
       },
       {
         "date": "2023-01-28",
         "days_before_event": 8.5,
-        "thd": 0.8911,
-        "z_score": -0.7,
+        "thd": 0.2121,
+        "z_score": -1.5,
         "tier": "CRITICAL"
       },
       {
         "date": "2023-01-28",
         "days_before_event": 8.25,
-        "thd": 1.2062,
-        "z_score": -0.39,
+        "thd": 0.383,
+        "z_score": 0.69,
         "tier": "CRITICAL"
       },
       {
         "date": "2023-01-29",
         "days_before_event": 8.0,
-        "thd": 1.2347,
-        "z_score": -0.36,
+        "thd": 0.5169,
+        "z_score": 2.41,
         "tier": "CRITICAL"
       },
       {
         "date": "2023-01-29",
         "days_before_event": 7.75,
-        "thd": 1.8326,
-        "z_score": 0.23,
+        "thd": 0.2502,
+        "z_score": -1.01,
         "tier": "CRITICAL"
       },
       {
         "date": "2023-01-29",
         "days_before_event": 7.5,
-        "thd": 1.0937,
-        "z_score": -0.5,
+        "thd": 0.2462,
+        "z_score": -1.06,
         "tier": "CRITICAL"
       },
       {
         "date": "2023-01-29",
         "days_before_event": 7.25,
-        "thd": 1.6407,
-        "z_score": 0.04,
+        "thd": 0.3951,
+        "z_score": 0.85,
         "tier": "CRITICAL"
       },
       {
         "date": "2023-01-30",
         "days_before_event": 7.0,
-        "thd": 2.0864,
-        "z_score": 0.48,
+        "thd": 0.3064,
+        "z_score": -0.29,
         "tier": "CRITICAL"
       },
       {
         "date": "2023-01-30",
         "days_before_event": 6.75,
-        "thd": 0.7309,
-        "z_score": -0.86,
+        "thd": 0.4397,
+        "z_score": 1.42,
         "tier": "CRITICAL"
       },
       {
         "date": "2023-01-30",
         "days_before_event": 6.5,
-        "thd": 0.831,
-        "z_score": -0.76,
+        "thd": 0.228,
+        "z_score": -1.29,
         "tier": "CRITICAL"
       },
       {
         "date": "2023-01-30",
         "days_before_event": 6.25,
-        "thd": 0.909,
-        "z_score": -0.68,
+        "thd": 0.2312,
+        "z_score": -1.25,
         "tier": "CRITICAL"
       },
       {
         "date": "2023-01-31",
         "days_before_event": 6.0,
-        "thd": 0.8759,
-        "z_score": -0.71,
+        "thd": 0.28,
+        "z_score": -0.63,
         "tier": "CRITICAL"
       },
       {
         "date": "2023-01-31",
         "days_before_event": 5.75,
-        "thd": 1.6511,
-        "z_score": 0.05,
+        "thd": 0.469,
+        "z_score": 1.8,
         "tier": "CRITICAL"
       },
       {
         "date": "2023-01-31",
         "days_before_event": 5.5,
-        "thd": 1.8758,
-        "z_score": 0.28,
+        "thd": 0.2443,
+        "z_score": -1.09,
         "tier": "CRITICAL"
       },
       {
         "date": "2023-01-31",
         "days_before_event": 5.25,
-        "thd": 1.6416,
-        "z_score": 0.04,
+        "thd": 0.2326,
+        "z_score": -1.24,
         "tier": "CRITICAL"
       },
       {
         "date": "2023-02-01",
         "days_before_event": 5.0,
-        "thd": 0.9817,
-        "z_score": -0.61,
+        "thd": 0.2513,
+        "z_score": -1.0,
         "tier": "CRITICAL"
       },
       {
         "date": "2023-02-01",
         "days_before_event": 4.75,
-        "thd": 1.1014,
-        "z_score": -0.49,
+        "thd": 0.4984,
+        "z_score": 2.17,
         "tier": "CRITICAL"
       },
       {
         "date": "2023-02-01",
         "days_before_event": 4.5,
-        "thd": 2.3023,
-        "z_score": 0.7,
+        "thd": 0.3072,
+        "z_score": -0.28,
         "tier": "CRITICAL"
       },
       {
         "date": "2023-02-01",
         "days_before_event": 4.25,
-        "thd": 2.103,
-        "z_score": 0.5,
+        "thd": 0.2324,
+        "z_score": -1.24,
         "tier": "CRITICAL"
       },
       {
         "date": "2023-02-02",
         "days_before_event": 4.0,
-        "thd": 2.8313,
-        "z_score": 1.22,
+        "thd": 0.2609,
+        "z_score": -0.87,
         "tier": "CRITICAL"
       },
       {
         "date": "2023-02-02",
         "days_before_event": 3.75,
-        "thd": 1.6581,
-        "z_score": 0.06,
+        "thd": 0.479,
+        "z_score": 1.93,
         "tier": "CRITICAL"
       },
       {
         "date": "2023-02-02",
         "days_before_event": 3.5,
-        "thd": 1.122,
-        "z_score": -0.47,
+        "thd": 0.3403,
+        "z_score": 0.15,
         "tier": "CRITICAL"
       },
       {
         "date": "2023-02-02",
         "days_before_event": 3.25,
-        "thd": 0.6585,
-        "z_score": -0.93,
+        "thd": 0.2606,
+        "z_score": -0.88,
         "tier": "CRITICAL"
       },
       {
         "date": "2023-02-03",
         "days_before_event": 3.0,
-        "thd": 0.7688,
-        "z_score": -0.82,
+        "thd": 0.2828,
+        "z_score": -0.59,
         "tier": "CRITICAL"
       },
       {
         "date": "2023-02-03",
         "days_before_event": 2.75,
-        "thd": 1.2432,
-        "z_score": -0.35,
+        "thd": 0.5254,
+        "z_score": 2.52,
         "tier": "CRITICAL"
       },
       {
         "date": "2023-02-03",
         "days_before_event": 2.5,
-        "thd": 1.282,
-        "z_score": -0.31,
+        "thd": 0.3601,
+        "z_score": 0.4,
         "tier": "CRITICAL"
       },
       {
         "date": "2023-02-03",
         "days_before_event": 2.25,
-        "thd": 1.1144,
-        "z_score": -0.48,
+        "thd": 0.2599,
+        "z_score": -0.89,
         "tier": "CRITICAL"
       },
       {
         "date": "2023-02-04",
         "days_before_event": 2.0,
-        "thd": 0.9127,
-        "z_score": -0.68,
+        "thd": 0.2926,
+        "z_score": -0.47,
         "tier": "CRITICAL"
       },
       {
         "date": "2023-02-04",
         "days_before_event": 1.75,
-        "thd": 0.9634,
-        "z_score": -0.63,
+        "thd": 0.5005,
+        "z_score": 2.2,
         "tier": "CRITICAL"
       },
       {
         "date": "2023-02-04",
         "days_before_event": 1.5,
-        "thd": 1.6301,
-        "z_score": 0.03,
+        "thd": 0.4301,
+        "z_score": 1.3,
         "tier": "CRITICAL"
       },
       {
         "date": "2023-02-04",
         "days_before_event": 1.25,
-        "thd": 3.097,
-        "z_score": 1.48,
+        "thd": 0.2817,
+        "z_score": -0.61,
         "tier": "CRITICAL"
       },
       {
         "date": "2023-02-05",
         "days_before_event": 1.0,
-        "thd": 1.3126,
-        "z_score": -0.28,
+        "thd": 0.2906,
+        "z_score": -0.49,
         "tier": "CRITICAL"
       },
       {
         "date": "2023-02-05",
         "days_before_event": 0.75,
-        "thd": 0.8504,
-        "z_score": -0.74,
+        "thd": 0.5256,
+        "z_score": 2.52,
         "tier": "CRITICAL"
       },
       {
         "date": "2023-02-05",
         "days_before_event": 0.5,
-        "thd": 1.8314,
-        "z_score": 0.23,
+        "thd": 0.4422,
+        "z_score": 1.45,
         "tier": "CRITICAL"
       },
       {
         "date": "2023-02-05",
         "days_before_event": 0.25,
-        "thd": 3.0199,
-        "z_score": 1.41,
+        "thd": 1.8787,
+        "z_score": 19.88,
         "tier": "CRITICAL"
       },
       {
         "date": "2023-02-06",
         "days_before_event": 0.0,
-        "thd": 1.4418,
-        "z_score": -0.15,
+        "thd": 2.4354,
+        "z_score": 27.02,
         "tier": "CRITICAL"
       }
     ],
@@ -843,7 +843,7 @@
     },
     "data_source": {
       "station": "IU.LVC",
-      "fetch_date": "2026-01-14T15:27:33.941316",
+      "fetch_date": "2026-01-22T12:25:04.386410",
       "window_hours": 24,
       "step_hours": 6
     },
@@ -1258,7 +1258,7 @@
     },
     "data_source": {
       "station": "IU.PAB",
-      "fetch_date": "2026-01-14T15:27:46.631503",
+      "fetch_date": "2026-01-22T12:25:19.243056",
       "window_hours": 24,
       "step_hours": 6
     },
@@ -1658,5 +1658,1665 @@
       }
     ],
     "notes": "High Atlas M6.8 - largest Morocco earthquake since 1960"
+  },
+  "kaikoura_2016": {
+    "event_key": "kaikoura_2016",
+    "event": {
+      "name": "Kaikoura 2016",
+      "date": "2016-11-13T11:02:56",
+      "magnitude": 7.8,
+      "location": [
+        -42.69,
+        173.02
+      ],
+      "region": "new_zealand_south"
+    },
+    "data_source": {
+      "station": "IU.SNZO",
+      "fetch_date": "2026-01-22T12:25:30.213378",
+      "window_hours": 24,
+      "step_hours": 6
+    },
+    "statistics": {
+      "baseline_mean": 0.3593,
+      "baseline_std": 0.0868,
+      "peak_thd": 2.3595,
+      "peak_date": "2016-11-13T05:02:56",
+      "n_elevated": 55,
+      "n_critical": 55
+    },
+    "timeseries": [
+      {
+        "date": "2016-10-30",
+        "days_before_event": 13.5,
+        "thd": 0.3051,
+        "z_score": -0.62,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-10-31",
+        "days_before_event": 13.25,
+        "thd": 0.3166,
+        "z_score": -0.49,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-10-31",
+        "days_before_event": 13.0,
+        "thd": 0.4269,
+        "z_score": 0.78,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-10-31",
+        "days_before_event": 12.75,
+        "thd": 0.3836,
+        "z_score": 0.28,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-10-31",
+        "days_before_event": 12.5,
+        "thd": 0.3207,
+        "z_score": -0.44,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-11-01",
+        "days_before_event": 12.25,
+        "thd": 0.3206,
+        "z_score": -0.44,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-11-01",
+        "days_before_event": 12.0,
+        "thd": 0.4525,
+        "z_score": 1.07,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-11-01",
+        "days_before_event": 11.75,
+        "thd": 0.4426,
+        "z_score": 0.96,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-11-01",
+        "days_before_event": 11.5,
+        "thd": 0.3095,
+        "z_score": -0.57,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-11-02",
+        "days_before_event": 11.25,
+        "thd": 0.3031,
+        "z_score": -0.65,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-11-02",
+        "days_before_event": 11.0,
+        "thd": 0.4773,
+        "z_score": 1.36,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-11-02",
+        "days_before_event": 10.75,
+        "thd": 0.4487,
+        "z_score": 1.03,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-11-02",
+        "days_before_event": 10.5,
+        "thd": 0.2867,
+        "z_score": -0.84,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-11-03",
+        "days_before_event": 10.25,
+        "thd": 0.3063,
+        "z_score": -0.61,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-11-03",
+        "days_before_event": 10.0,
+        "thd": 0.4914,
+        "z_score": 1.52,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-11-03",
+        "days_before_event": 9.75,
+        "thd": 0.4603,
+        "z_score": 1.16,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-11-03",
+        "days_before_event": 9.5,
+        "thd": 0.2765,
+        "z_score": -0.95,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-11-04",
+        "days_before_event": 9.25,
+        "thd": 0.2944,
+        "z_score": -0.75,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-11-04",
+        "days_before_event": 9.0,
+        "thd": 0.3962,
+        "z_score": 0.43,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-11-04",
+        "days_before_event": 8.75,
+        "thd": 0.4739,
+        "z_score": 1.32,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-11-04",
+        "days_before_event": 8.5,
+        "thd": 0.2812,
+        "z_score": -0.9,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-11-05",
+        "days_before_event": 8.25,
+        "thd": 0.2605,
+        "z_score": -1.14,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-11-05",
+        "days_before_event": 8.0,
+        "thd": 0.3177,
+        "z_score": -0.48,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-11-05",
+        "days_before_event": 7.75,
+        "thd": 0.5263,
+        "z_score": 1.92,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-11-05",
+        "days_before_event": 7.5,
+        "thd": 0.2418,
+        "z_score": -1.35,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-11-06",
+        "days_before_event": 7.25,
+        "thd": 0.2204,
+        "z_score": -1.6,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-11-06",
+        "days_before_event": 7.0,
+        "thd": 0.2485,
+        "z_score": -1.28,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-11-06",
+        "days_before_event": 6.75,
+        "thd": 0.4206,
+        "z_score": 0.71,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-11-06",
+        "days_before_event": 6.5,
+        "thd": 0.2673,
+        "z_score": -1.06,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-11-07",
+        "days_before_event": 6.25,
+        "thd": 0.246,
+        "z_score": -1.3,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-11-07",
+        "days_before_event": 6.0,
+        "thd": 0.2093,
+        "z_score": -1.73,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-11-07",
+        "days_before_event": 5.75,
+        "thd": 0.3202,
+        "z_score": -0.45,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-11-07",
+        "days_before_event": 5.5,
+        "thd": 0.4338,
+        "z_score": 0.86,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-11-08",
+        "days_before_event": 5.25,
+        "thd": 0.3082,
+        "z_score": -0.59,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-11-08",
+        "days_before_event": 5.0,
+        "thd": 0.2526,
+        "z_score": -1.23,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-11-08",
+        "days_before_event": 4.75,
+        "thd": 0.3611,
+        "z_score": 0.02,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-11-08",
+        "days_before_event": 4.5,
+        "thd": 0.4842,
+        "z_score": 1.44,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-11-09",
+        "days_before_event": 4.25,
+        "thd": 0.3862,
+        "z_score": 0.31,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-11-09",
+        "days_before_event": 4.0,
+        "thd": 0.2872,
+        "z_score": -0.83,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-11-09",
+        "days_before_event": 3.75,
+        "thd": 0.3032,
+        "z_score": -0.65,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-11-09",
+        "days_before_event": 3.5,
+        "thd": 0.3837,
+        "z_score": 0.28,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-11-10",
+        "days_before_event": 3.25,
+        "thd": 0.4109,
+        "z_score": 0.59,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-11-10",
+        "days_before_event": 3.0,
+        "thd": 0.3213,
+        "z_score": -0.44,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-11-10",
+        "days_before_event": 2.75,
+        "thd": 0.3081,
+        "z_score": -0.59,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-11-10",
+        "days_before_event": 2.5,
+        "thd": 0.3249,
+        "z_score": -0.4,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-11-11",
+        "days_before_event": 2.25,
+        "thd": 0.3798,
+        "z_score": 0.24,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-11-11",
+        "days_before_event": 2.0,
+        "thd": 0.3599,
+        "z_score": 0.01,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-11-11",
+        "days_before_event": 1.75,
+        "thd": 0.2792,
+        "z_score": -0.92,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-11-11",
+        "days_before_event": 1.5,
+        "thd": 0.3025,
+        "z_score": -0.65,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-11-12",
+        "days_before_event": 1.25,
+        "thd": 0.3492,
+        "z_score": -0.12,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-11-12",
+        "days_before_event": 1.0,
+        "thd": 0.3771,
+        "z_score": 0.21,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-11-12",
+        "days_before_event": 0.75,
+        "thd": 0.2974,
+        "z_score": -0.71,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-11-12",
+        "days_before_event": 0.5,
+        "thd": 0.2819,
+        "z_score": -0.89,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-11-13",
+        "days_before_event": 0.25,
+        "thd": 2.3595,
+        "z_score": 23.04,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-11-13",
+        "days_before_event": 0.0,
+        "thd": 2.4028,
+        "z_score": 23.54,
+        "tier": "CRITICAL"
+      }
+    ],
+    "notes": "South Island M7.8 - Complex multi-fault rupture"
+  },
+  "anchorage_2018": {
+    "event_key": "anchorage_2018",
+    "event": {
+      "name": "Anchorage 2018",
+      "date": "2018-11-30T17:29:29",
+      "magnitude": 7.1,
+      "location": [
+        61.35,
+        -149.96
+      ],
+      "region": "alaska_cook_inlet"
+    },
+    "data_source": {
+      "station": "IU.COLA",
+      "fetch_date": "2026-01-22T12:25:42.866661",
+      "window_hours": 24,
+      "step_hours": 6
+    },
+    "statistics": {
+      "baseline_mean": 1.1633,
+      "baseline_std": 2.2801,
+      "peak_thd": 8.2092,
+      "peak_date": "2018-11-21T17:29:29",
+      "n_elevated": 55,
+      "n_critical": 51
+    },
+    "timeseries": [
+      {
+        "date": "2018-11-17",
+        "days_before_event": 13.5,
+        "thd": 0.22,
+        "z_score": -0.41,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2018-11-17",
+        "days_before_event": 13.25,
+        "thd": 0.5643,
+        "z_score": -0.26,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2018-11-17",
+        "days_before_event": 13.0,
+        "thd": 0.3055,
+        "z_score": -0.38,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2018-11-17",
+        "days_before_event": 12.75,
+        "thd": 0.2502,
+        "z_score": -0.4,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2018-11-18",
+        "days_before_event": 12.5,
+        "thd": 0.248,
+        "z_score": -0.4,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2018-11-18",
+        "days_before_event": 12.25,
+        "thd": 0.4667,
+        "z_score": -0.31,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2018-11-18",
+        "days_before_event": 12.0,
+        "thd": 0.4073,
+        "z_score": -0.33,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2018-11-18",
+        "days_before_event": 11.75,
+        "thd": 0.3041,
+        "z_score": -0.38,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2018-11-19",
+        "days_before_event": 11.5,
+        "thd": 0.2538,
+        "z_score": -0.4,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2018-11-19",
+        "days_before_event": 11.25,
+        "thd": 0.3319,
+        "z_score": -0.36,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2018-11-19",
+        "days_before_event": 11.0,
+        "thd": 0.5642,
+        "z_score": -0.26,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2018-11-19",
+        "days_before_event": 10.75,
+        "thd": 0.3704,
+        "z_score": -0.35,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2018-11-20",
+        "days_before_event": 10.5,
+        "thd": 0.2419,
+        "z_score": -0.4,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2018-11-20",
+        "days_before_event": 10.25,
+        "thd": 0.2725,
+        "z_score": -0.39,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2018-11-20",
+        "days_before_event": 10.0,
+        "thd": 0.5638,
+        "z_score": -0.26,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2018-11-20",
+        "days_before_event": 9.75,
+        "thd": 0.4425,
+        "z_score": -0.32,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2018-11-21",
+        "days_before_event": 9.5,
+        "thd": 0.2286,
+        "z_score": -0.41,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2018-11-21",
+        "days_before_event": 9.25,
+        "thd": 6.2224,
+        "z_score": 2.22,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2018-11-21",
+        "days_before_event": 9.0,
+        "thd": 8.2092,
+        "z_score": 3.09,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2018-11-21",
+        "days_before_event": 8.75,
+        "thd": 7.8159,
+        "z_score": 2.92,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2018-11-22",
+        "days_before_event": 8.5,
+        "thd": 0.4264,
+        "z_score": -0.32,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2018-11-22",
+        "days_before_event": 8.25,
+        "thd": 0.2169,
+        "z_score": -0.42,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2018-11-22",
+        "days_before_event": 8.0,
+        "thd": 0.3432,
+        "z_score": -0.36,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2018-11-22",
+        "days_before_event": 7.75,
+        "thd": 0.5815,
+        "z_score": -0.26,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2018-11-23",
+        "days_before_event": 7.5,
+        "thd": 0.1894,
+        "z_score": -0.43,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2018-11-23",
+        "days_before_event": 7.25,
+        "thd": 0.2042,
+        "z_score": -0.42,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2018-11-23",
+        "days_before_event": 7.0,
+        "thd": 0.26,
+        "z_score": -0.4,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2018-11-23",
+        "days_before_event": 6.75,
+        "thd": 0.6384,
+        "z_score": -0.23,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2018-11-24",
+        "days_before_event": 6.5,
+        "thd": 0.1722,
+        "z_score": -0.43,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2018-11-24",
+        "days_before_event": 6.25,
+        "thd": 0.201,
+        "z_score": -0.42,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2018-11-24",
+        "days_before_event": 6.0,
+        "thd": 0.2073,
+        "z_score": -0.42,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2018-11-24",
+        "days_before_event": 5.75,
+        "thd": 0.6653,
+        "z_score": -0.22,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2018-11-25",
+        "days_before_event": 5.5,
+        "thd": 0.1636,
+        "z_score": -0.44,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2018-11-25",
+        "days_before_event": 5.25,
+        "thd": 0.1907,
+        "z_score": -0.43,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2018-11-25",
+        "days_before_event": 5.0,
+        "thd": 0.1639,
+        "z_score": -0.44,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2018-11-25",
+        "days_before_event": 4.75,
+        "thd": 0.6505,
+        "z_score": -0.22,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2018-11-26",
+        "days_before_event": 4.5,
+        "thd": 0.1665,
+        "z_score": -0.44,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2018-11-26",
+        "days_before_event": 4.25,
+        "thd": 0.1806,
+        "z_score": -0.43,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2018-11-26",
+        "days_before_event": 4.0,
+        "thd": 0.1294,
+        "z_score": -0.45,
+        "tier": "ELEVATED"
+      },
+      {
+        "date": "2018-11-26",
+        "days_before_event": 3.75,
+        "thd": 0.4793,
+        "z_score": -0.3,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2018-11-27",
+        "days_before_event": 3.5,
+        "thd": 0.1572,
+        "z_score": -0.44,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2018-11-27",
+        "days_before_event": 3.25,
+        "thd": 0.1621,
+        "z_score": -0.44,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2018-11-27",
+        "days_before_event": 3.0,
+        "thd": 0.1057,
+        "z_score": -0.46,
+        "tier": "ELEVATED"
+      },
+      {
+        "date": "2018-11-27",
+        "days_before_event": 2.75,
+        "thd": 0.2661,
+        "z_score": -0.39,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2018-11-28",
+        "days_before_event": 2.5,
+        "thd": 0.1778,
+        "z_score": -0.43,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2018-11-28",
+        "days_before_event": 2.25,
+        "thd": 0.1537,
+        "z_score": -0.44,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2018-11-28",
+        "days_before_event": 2.0,
+        "thd": 0.1087,
+        "z_score": -0.46,
+        "tier": "ELEVATED"
+      },
+      {
+        "date": "2018-11-28",
+        "days_before_event": 1.75,
+        "thd": 0.1986,
+        "z_score": -0.42,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2018-11-29",
+        "days_before_event": 1.5,
+        "thd": 0.1772,
+        "z_score": -0.43,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2018-11-29",
+        "days_before_event": 1.25,
+        "thd": 0.1861,
+        "z_score": -0.43,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2018-11-29",
+        "days_before_event": 1.0,
+        "thd": 0.1261,
+        "z_score": -0.45,
+        "tier": "ELEVATED"
+      },
+      {
+        "date": "2018-11-29",
+        "days_before_event": 0.75,
+        "thd": 0.178,
+        "z_score": -0.43,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2018-11-30",
+        "days_before_event": 0.5,
+        "thd": 0.2084,
+        "z_score": -0.42,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2018-11-30",
+        "days_before_event": 0.25,
+        "thd": 0.4114,
+        "z_score": -0.33,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2018-11-30",
+        "days_before_event": 0.0,
+        "thd": 0.1984,
+        "z_score": -0.42,
+        "tier": "CRITICAL"
+      }
+    ],
+    "notes": "Cook Inlet M7.1 - Deep intraslab event (47km depth)"
+  },
+  "kumamoto_2016": {
+    "event_key": "kumamoto_2016",
+    "event": {
+      "name": "Kumamoto 2016",
+      "date": "2016-04-16T01:25:06",
+      "magnitude": 7.0,
+      "location": [
+        32.78,
+        130.73
+      ],
+      "region": "japan_kyushu"
+    },
+    "data_source": {
+      "station": "IU.MAJO",
+      "fetch_date": "2026-01-22T12:25:57.178401",
+      "window_hours": 24,
+      "step_hours": 6
+    },
+    "statistics": {
+      "baseline_mean": 0.3403,
+      "baseline_std": 0.0301,
+      "peak_thd": 0.5466,
+      "peak_date": "2016-04-15T01:25:06",
+      "n_elevated": 55,
+      "n_critical": 55
+    },
+    "timeseries": [
+      {
+        "date": "2016-04-02",
+        "days_before_event": 13.5,
+        "thd": 0.3035,
+        "z_score": -1.22,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-04-02",
+        "days_before_event": 13.25,
+        "thd": 0.3836,
+        "z_score": 1.43,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-04-03",
+        "days_before_event": 13.0,
+        "thd": 0.3948,
+        "z_score": 1.81,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-04-03",
+        "days_before_event": 12.75,
+        "thd": 0.3047,
+        "z_score": -1.18,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-04-03",
+        "days_before_event": 12.5,
+        "thd": 0.2877,
+        "z_score": -1.75,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-04-03",
+        "days_before_event": 12.25,
+        "thd": 0.3531,
+        "z_score": 0.42,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-04-04",
+        "days_before_event": 12.0,
+        "thd": 0.3946,
+        "z_score": 1.8,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-04-04",
+        "days_before_event": 11.75,
+        "thd": 0.3086,
+        "z_score": -1.05,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-04-04",
+        "days_before_event": 11.5,
+        "thd": 0.3002,
+        "z_score": -1.33,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-04-04",
+        "days_before_event": 11.25,
+        "thd": 0.3302,
+        "z_score": -0.34,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-04-05",
+        "days_before_event": 11.0,
+        "thd": 0.3375,
+        "z_score": -0.09,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-04-05",
+        "days_before_event": 10.75,
+        "thd": 0.3258,
+        "z_score": -0.48,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-04-05",
+        "days_before_event": 10.5,
+        "thd": 0.3156,
+        "z_score": -0.82,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-04-05",
+        "days_before_event": 10.25,
+        "thd": 0.3249,
+        "z_score": -0.51,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-04-06",
+        "days_before_event": 10.0,
+        "thd": 0.3383,
+        "z_score": -0.07,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-04-06",
+        "days_before_event": 9.75,
+        "thd": 0.3306,
+        "z_score": -0.32,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-04-06",
+        "days_before_event": 9.5,
+        "thd": 0.3307,
+        "z_score": -0.32,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-04-06",
+        "days_before_event": 9.25,
+        "thd": 0.3519,
+        "z_score": 0.38,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-04-07",
+        "days_before_event": 9.0,
+        "thd": 0.3338,
+        "z_score": -0.22,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-04-07",
+        "days_before_event": 8.75,
+        "thd": 0.3296,
+        "z_score": -0.36,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-04-07",
+        "days_before_event": 8.5,
+        "thd": 0.3346,
+        "z_score": -0.19,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-04-07",
+        "days_before_event": 8.25,
+        "thd": 0.3644,
+        "z_score": 0.8,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-04-08",
+        "days_before_event": 8.0,
+        "thd": 0.3465,
+        "z_score": 0.2,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-04-08",
+        "days_before_event": 7.75,
+        "thd": 0.34,
+        "z_score": -0.01,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-04-08",
+        "days_before_event": 7.5,
+        "thd": 0.3892,
+        "z_score": 1.62,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-04-08",
+        "days_before_event": 7.25,
+        "thd": 0.3946,
+        "z_score": 1.8,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-04-09",
+        "days_before_event": 7.0,
+        "thd": 0.3379,
+        "z_score": -0.08,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-04-09",
+        "days_before_event": 6.75,
+        "thd": 0.3362,
+        "z_score": -0.14,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-04-09",
+        "days_before_event": 6.5,
+        "thd": 0.4152,
+        "z_score": 2.48,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-04-09",
+        "days_before_event": 6.25,
+        "thd": 0.4139,
+        "z_score": 2.44,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-04-10",
+        "days_before_event": 6.0,
+        "thd": 0.3133,
+        "z_score": -0.9,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-04-10",
+        "days_before_event": 5.75,
+        "thd": 0.3102,
+        "z_score": -1.0,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-04-10",
+        "days_before_event": 5.5,
+        "thd": 0.429,
+        "z_score": 2.94,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-04-10",
+        "days_before_event": 5.25,
+        "thd": 0.4192,
+        "z_score": 2.62,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-04-11",
+        "days_before_event": 5.0,
+        "thd": 0.2888,
+        "z_score": -1.71,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-04-11",
+        "days_before_event": 4.75,
+        "thd": 0.3104,
+        "z_score": -0.99,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-04-11",
+        "days_before_event": 4.5,
+        "thd": 0.378,
+        "z_score": 1.25,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-04-11",
+        "days_before_event": 4.25,
+        "thd": 0.4477,
+        "z_score": 3.56,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-04-12",
+        "days_before_event": 4.0,
+        "thd": 0.2676,
+        "z_score": -2.42,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-04-12",
+        "days_before_event": 3.75,
+        "thd": 0.2561,
+        "z_score": -2.8,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-04-12",
+        "days_before_event": 3.5,
+        "thd": 0.2993,
+        "z_score": -1.36,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-04-12",
+        "days_before_event": 3.25,
+        "thd": 0.3587,
+        "z_score": 0.61,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-04-13",
+        "days_before_event": 3.0,
+        "thd": 0.2631,
+        "z_score": -2.56,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-04-13",
+        "days_before_event": 2.75,
+        "thd": 0.2124,
+        "z_score": -4.25,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-04-13",
+        "days_before_event": 2.5,
+        "thd": 0.2372,
+        "z_score": -3.42,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-04-13",
+        "days_before_event": 2.25,
+        "thd": 0.3707,
+        "z_score": 1.01,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-04-14",
+        "days_before_event": 2.0,
+        "thd": 0.3222,
+        "z_score": -0.6,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-04-14",
+        "days_before_event": 1.75,
+        "thd": 0.269,
+        "z_score": -2.37,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-04-14",
+        "days_before_event": 1.5,
+        "thd": 0.2121,
+        "z_score": -4.26,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-04-14",
+        "days_before_event": 1.25,
+        "thd": 0.3415,
+        "z_score": 0.04,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-04-15",
+        "days_before_event": 1.0,
+        "thd": 0.5466,
+        "z_score": 6.85,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-04-15",
+        "days_before_event": 0.75,
+        "thd": 0.35,
+        "z_score": 0.32,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-04-15",
+        "days_before_event": 0.5,
+        "thd": 0.2555,
+        "z_score": -2.82,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-04-15",
+        "days_before_event": 0.25,
+        "thd": 0.3244,
+        "z_score": -0.53,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-04-16",
+        "days_before_event": 0.0,
+        "thd": 0.4022,
+        "z_score": 2.05,
+        "tier": "CRITICAL"
+      }
+    ],
+    "notes": "Kyushu M7.0 - Preceded by M6.5 foreshock on Apr 14"
+  },
+  "hualien_2024": {
+    "event_key": "hualien_2024",
+    "event": {
+      "name": "Hualien 2024",
+      "date": "2024-04-03T07:58:11",
+      "magnitude": 7.4,
+      "location": [
+        23.82,
+        121.56
+      ],
+      "region": "taiwan_east_coast"
+    },
+    "data_source": {
+      "station": "IU.TATO",
+      "fetch_date": "2026-01-22T12:26:09.277280",
+      "window_hours": 24,
+      "step_hours": 6
+    },
+    "statistics": {
+      "baseline_mean": 0.4609,
+      "baseline_std": 0.434,
+      "peak_thd": 2.9191,
+      "peak_date": "2024-03-31T13:58:11",
+      "n_elevated": 54,
+      "n_critical": 53
+    },
+    "timeseries": [
+      {
+        "date": "2024-03-20",
+        "days_before_event": 13.5,
+        "thd": 0.2561,
+        "z_score": -0.47,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2024-03-21",
+        "days_before_event": 13.25,
+        "thd": 0.3325,
+        "z_score": -0.3,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2024-03-21",
+        "days_before_event": 13.0,
+        "thd": 0.3761,
+        "z_score": -0.2,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2024-03-21",
+        "days_before_event": 12.75,
+        "thd": 0.2615,
+        "z_score": -0.46,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2024-03-21",
+        "days_before_event": 12.5,
+        "thd": 0.2582,
+        "z_score": -0.47,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2024-03-22",
+        "days_before_event": 12.25,
+        "thd": 0.4031,
+        "z_score": -0.13,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2024-03-22",
+        "days_before_event": 12.0,
+        "thd": 0.3691,
+        "z_score": -0.21,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2024-03-22",
+        "days_before_event": 11.75,
+        "thd": 0.2869,
+        "z_score": -0.4,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2024-03-22",
+        "days_before_event": 11.5,
+        "thd": 0.2706,
+        "z_score": -0.44,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2024-03-23",
+        "days_before_event": 11.25,
+        "thd": 0.3174,
+        "z_score": -0.33,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2024-03-23",
+        "days_before_event": 11.0,
+        "thd": 0.4576,
+        "z_score": -0.01,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2024-03-23",
+        "days_before_event": 10.75,
+        "thd": 0.3432,
+        "z_score": -0.27,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2024-03-23",
+        "days_before_event": 10.5,
+        "thd": 0.2958,
+        "z_score": -0.38,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2024-03-24",
+        "days_before_event": 10.25,
+        "thd": 0.2966,
+        "z_score": -0.38,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2024-03-24",
+        "days_before_event": 10.0,
+        "thd": 0.4399,
+        "z_score": -0.05,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2024-03-24",
+        "days_before_event": 9.75,
+        "thd": 0.4303,
+        "z_score": -0.07,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2024-03-24",
+        "days_before_event": 9.5,
+        "thd": 0.3256,
+        "z_score": -0.31,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2024-03-25",
+        "days_before_event": 9.25,
+        "thd": 0.3057,
+        "z_score": -0.36,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2024-03-25",
+        "days_before_event": 9.0,
+        "thd": 0.438,
+        "z_score": -0.05,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2024-03-25",
+        "days_before_event": 8.75,
+        "thd": 0.4302,
+        "z_score": -0.07,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2024-03-25",
+        "days_before_event": 8.5,
+        "thd": 0.3313,
+        "z_score": -0.3,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2024-03-26",
+        "days_before_event": 8.25,
+        "thd": 0.3983,
+        "z_score": -0.14,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2024-03-26",
+        "days_before_event": 8.0,
+        "thd": 0.319,
+        "z_score": -0.33,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2024-03-26",
+        "days_before_event": 7.75,
+        "thd": 0.4169,
+        "z_score": -0.1,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2024-03-26",
+        "days_before_event": 7.5,
+        "thd": 1.1605,
+        "z_score": 1.61,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2024-03-27",
+        "days_before_event": 7.25,
+        "thd": 2.4622,
+        "z_score": 4.61,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2024-03-27",
+        "days_before_event": 7.0,
+        "thd": 2.4541,
+        "z_score": 4.59,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2024-03-27",
+        "days_before_event": 6.75,
+        "thd": 1.2834,
+        "z_score": 1.9,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2024-03-27",
+        "days_before_event": 6.5,
+        "thd": 0.406,
+        "z_score": -0.13,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2024-03-28",
+        "days_before_event": 6.25,
+        "thd": 0.3188,
+        "z_score": -0.33,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2024-03-28",
+        "days_before_event": 6.0,
+        "thd": 0.3944,
+        "z_score": -0.15,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2024-03-28",
+        "days_before_event": 5.75,
+        "thd": 0.5564,
+        "z_score": 0.22,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2024-03-28",
+        "days_before_event": 5.5,
+        "thd": 0.315,
+        "z_score": -0.34,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2024-03-29",
+        "days_before_event": 5.25,
+        "thd": 0.2712,
+        "z_score": -0.44,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2024-03-29",
+        "days_before_event": 5.0,
+        "thd": 0.263,
+        "z_score": -0.46,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2024-03-29",
+        "days_before_event": 4.75,
+        "thd": 0.4946,
+        "z_score": 0.08,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2024-03-29",
+        "days_before_event": 4.5,
+        "thd": 0.3776,
+        "z_score": -0.19,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2024-03-30",
+        "days_before_event": 4.25,
+        "thd": 0.2207,
+        "z_score": -0.55,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2024-03-30",
+        "days_before_event": 4.0,
+        "thd": 0.2564,
+        "z_score": -0.47,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2024-03-30",
+        "days_before_event": 3.75,
+        "thd": 0.4258,
+        "z_score": -0.08,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2024-03-30",
+        "days_before_event": 3.5,
+        "thd": 0.521,
+        "z_score": 0.14,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2024-03-31",
+        "days_before_event": 3.25,
+        "thd": 0.8936,
+        "z_score": 1.0,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2024-03-31",
+        "days_before_event": 3.0,
+        "thd": 2.5862,
+        "z_score": 4.9,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2024-03-31",
+        "days_before_event": 2.75,
+        "thd": 2.9191,
+        "z_score": 5.66,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2024-03-31",
+        "days_before_event": 2.5,
+        "thd": 2.3279,
+        "z_score": 4.3,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2024-04-01",
+        "days_before_event": 2.25,
+        "thd": 1.4111,
+        "z_score": 2.19,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2024-04-01",
+        "days_before_event": 2.0,
+        "thd": 0.1585,
+        "z_score": -0.7,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2024-04-01",
+        "days_before_event": 1.75,
+        "thd": 0.1687,
+        "z_score": -0.67,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2024-04-01",
+        "days_before_event": 1.5,
+        "thd": 0.5069,
+        "z_score": 0.11,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2024-04-02",
+        "days_before_event": 1.25,
+        "thd": 0.2284,
+        "z_score": -0.54,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2024-04-02",
+        "days_before_event": 1.0,
+        "thd": 0.1154,
+        "z_score": -0.8,
+        "tier": "ELEVATED"
+      },
+      {
+        "date": "2024-04-02",
+        "days_before_event": 0.75,
+        "thd": 0.0668,
+        "z_score": -0.91,
+        "tier": "NORMAL"
+      },
+      {
+        "date": "2024-04-02",
+        "days_before_event": 0.5,
+        "thd": 0.7708,
+        "z_score": 0.71,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2024-04-03",
+        "days_before_event": 0.25,
+        "thd": 0.6945,
+        "z_score": 0.54,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2024-04-03",
+        "days_before_event": 0.0,
+        "thd": 0.4221,
+        "z_score": -0.09,
+        "tier": "CRITICAL"
+      }
+    ],
+    "notes": "East coast Taiwan M7.4 - Strongest Taiwan quake since 1999"
   }
 }

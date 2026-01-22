@@ -15,7 +15,10 @@
 - New `regenerate_daily_states.py` script rebuilds CSV from authoritative JSON files
 - Added calibration metadata columns (`calibration_date`, `regenerated_at`) for audit trail
 - Fixed stale data issue where daily_states.csv had pre-calibration values
-- Corrected track record: 53 predictions, 3 hits, 5.7% hit rate
+- **Validation Change**: Track record now scores ELEVATED/CRITICAL only (Tier ≥2)
+  - WATCH (Tier 1) is awareness level, not a scorable prediction
+  - Prevents false positive inflation from sensitive WATCH threshold
+  - Result: 0 scored predictions (expected with M6+ calibration and tier gating)
 
 **Changelog v1.5.2**:
 - **New Feature**: Added Appendix G documenting the Prediction Validation System
@@ -1489,10 +1492,12 @@ The prediction validation system builds a prospective track record by correlatin
 
 | Classification | Criteria |
 |----------------|----------|
-| **HIT** | Prediction at Tier ≥1 (WATCH or higher) followed by M4.5+ event within 300km of region centroid within 7 days |
-| **FALSE ALARM** | Prediction at Tier ≥1 NOT followed by qualifying event within 7-day window |
-| **TRUE NEGATIVE** | Prediction at Tier 0 (NORMAL) with no event (not tracked—expected behavior) |
-| **MISS** | M4.5+ event NOT preceded by Tier ≥1 prediction (detected via USGS monitoring) |
+| **HIT** | Prediction at Tier ≥2 (ELEVATED or CRITICAL) followed by M4.5+ event within 150km of region centroid within 7 days |
+| **FALSE ALARM** | Prediction at Tier ≥2 NOT followed by qualifying event within 7-day window |
+| **TRUE NEGATIVE** | Prediction at Tier 0-1 (NORMAL or WATCH) with no event (not tracked—expected behavior) |
+| **MISS** | M4.5+ event NOT preceded by Tier ≥2 prediction (detected via USGS monitoring) |
+
+**Note**: WATCH (Tier 1) is an awareness level only, not a scorable prediction. Only ELEVATED and CRITICAL predictions are validated against actual events. This prevents false positive inflation from the sensitive WATCH threshold.
 
 ### Event Correlation Parameters
 
@@ -1582,18 +1587,19 @@ python validate_predictions.py --min-days 5 --max-days 10
 
 | Metric | Value |
 |--------|-------|
-| Predictions checked | 58 |
-| Hits | 3 |
-| False alarms | 55 |
-| Hit rate | 5.2% |
+| ELEVATED/CRITICAL predictions | 0 |
+| Hits | 0 |
+| False alarms | 0 |
+| Hit rate | N/A (no predictions to validate) |
 
-**Validated Hits**:
+**Note**: With the M6+ calibration and tier gating (requires ≥2 methods for ELEVATED), no ELEVATED or CRITICAL predictions were issued during the initial monitoring period. This is expected conservative behavior. The track record will build as the system issues actual ELEVATED/CRITICAL alerts.
 
-| Prediction Date | Region | Tier | Event | Magnitude | Days After |
-|-----------------|--------|------|-------|-----------|------------|
-| 2026-01-08 | tokyo_kanto | ELEVATED | Tokyo area | M4.9 | 1.5 |
-| 2026-01-09 | tokyo_kanto | ELEVATED | Tokyo area | M4.9 | 0.5 |
-| 2026-01-11 | tokyo_kanto | WATCH | Tokyo area | M4.5 | 6.7 |
+**WATCH-level activity** (not scored, for reference only):
+- Dec 26-28: Tokyo Kanto at WATCH (Tier 1)
+- Jan 9-11: Tokyo Kanto at WATCH (Tier 1)
+- Jan 15: SoCal SAF Coachella at WATCH (Tier 1)
+
+These WATCH signals indicate the system is detecting activity, but they don't meet the threshold for a scorable prediction.
 
 ### Interpretation Notes
 

@@ -72,6 +72,13 @@ except ImportError:
     NGL_LAMBDA_GEO_AVAILABLE = False
     FAULT_POLYGONS = {}
 
+# Prediction validation (track record building)
+try:
+    from validate_predictions import run_validation
+    VALIDATION_AVAILABLE = True
+except ImportError:
+    VALIDATION_AVAILABLE = False
+
 # === EXPERIMENTAL: Trans-Pacific Correlation Research ===
 # Disabled by default via config/experimental.yaml
 # Reference: docs/TRANS_PACIFIC_CORRELATION_PAPER_SKELETON.md
@@ -1129,12 +1136,32 @@ def main():
     # Otherwise return the confirmed max tier
     if confirmed_max_tier > 0:
         logger.info(f"Exit code: {confirmed_max_tier} (confirmed tier)")
-        return confirmed_max_tier
+        exit_code = confirmed_max_tier
     else:
         max_tier = max(r.tier for r in results.values())
         if max_tier > 0:
             logger.info(f"Exit code: 0 (tier {max_tier} is preliminary, not confirmed)")
-        return 0  # Preliminary alerts don't trigger exit codes
+        exit_code = 0  # Preliminary alerts don't trigger exit codes
+
+    # Run prediction validation (builds track record)
+    # Validates predictions from 7-14 days ago against actual events
+    if VALIDATION_AVAILABLE:
+        try:
+            logger.info("Running prediction validation (7-14 day lookback)...")
+            validated, stats = run_validation(
+                lookback_start_days=7,
+                lookback_end_days=14,
+                min_tier=1,  # WATCH or higher
+                min_magnitude=4.5,  # M4.5+ for regional significance
+            )
+            if stats.get('hits', 0) > 0:
+                logger.info(f"Validation: {stats['hits']} hits, {stats['false_alarms']} false alarms")
+            else:
+                logger.info(f"Validation: No new hits in lookback window")
+        except Exception as e:
+            logger.warning(f"Prediction validation failed (non-critical): {e}")
+
+    return exit_code
 
 
 if __name__ == "__main__":

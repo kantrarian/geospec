@@ -747,59 +747,56 @@
                 `Last update: ${ensembleData.date || 'Unknown'}`;
         }
 
-        // Region bounding boxes for USGS event matching [minLat, maxLat, minLon, maxLon]
-        const REGION_BOUNDS = {
-            ridgecrest: [35.0, 36.5, -118.5, -117.0],
-            socal_saf_mojave: [34.0, 35.5, -118.5, -116.5],
-            socal_saf_coachella: [33.0, 34.5, -117.0, -115.0],
-            norcal_hayward: [37.0, 38.5, -123.0, -121.5],
-            cascadia: [42.0, 49.0, -128.0, -122.0],
-            tokyo_kanto: [34.0, 37.0, 138.0, 142.0],
-            istanbul_marmara: [40.0, 41.5, 27.0, 30.0],
-            turkey_kahramanmaras: [36.5, 38.5, 36.0, 38.5],
-            campi_flegrei: [40.5, 41.0, 13.8, 14.5],
-            kaikoura: [-43.5, -41.5, 172.0, 175.0],
-            anchorage: [60.0, 62.5, -152.0, -148.0],
-            kumamoto: [32.0, 34.0, 129.5, 131.5],
-            hualien: [23.0, 25.0, 120.5, 122.5]
-        };
+        // Extract M6.5+ events from ensemble_latest.json earthquake_events
+        // This uses pre-fetched data from the daily ensemble run (single source of truth)
+        function extractM65PlusEvents(earthquakeEvents) {
+            const events = [];
+            if (!earthquakeEvents) return events;
 
-        // Fetch M6.5+ earthquakes from USGS for past 30 days
-        async function fetchUSGSEvents() {
-            try {
-                const endDate = new Date();
-                const startDate = new Date();
-                startDate.setDate(startDate.getDate() - 30);
-
-                const url = `https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&starttime=${startDate.toISOString().split('T')[0]}&endtime=${endDate.toISOString().split('T')[0]}&minmagnitude=6.5`;
-
-                const response = await fetch(url);
-                if (!response.ok) return [];
-
-                const data = await response.json();
-                return data.features.map(f => ({
-                    mag: f.properties.mag,
-                    place: f.properties.place,
-                    time: new Date(f.properties.time).toISOString().split('T')[0],
-                    lat: f.geometry.coordinates[1],
-                    lon: f.geometry.coordinates[0]
-                }));
-            } catch (e) {
-                console.log('Could not fetch USGS events:', e);
-                return [];
-            }
-        }
-
-        // Check if an event falls within any monitored region
-        function matchEventToRegion(event) {
-            for (const [region, bounds] of Object.entries(REGION_BOUNDS)) {
-                const [minLat, maxLat, minLon, maxLon] = bounds;
-                if (event.lat >= minLat && event.lat <= maxLat &&
-                    event.lon >= minLon && event.lon <= maxLon) {
-                    return region;
+            for (const [region, data] of Object.entries(earthquakeEvents)) {
+                // Use m65_plus_events array if available (new format)
+                if (data.m65_plus_events && Array.isArray(data.m65_plus_events)) {
+                    data.m65_plus_events.forEach(e => {
+                        events.push({
+                            region: region,
+                            time: e.time,
+                            mag: e.magnitude,
+                            place: e.place
+                        });
+                    });
+                } else if (data.events && Array.isArray(data.events)) {
+                    // Fallback: filter M6.5+ from events array
+                    data.events.filter(e => e.magnitude >= 6.5).forEach(e => {
+                        // Handle full datetime format from events array
+                        const eventDate = e.time ? e.time.split('T')[0] : null;
+                        if (eventDate) {
+                            events.push({
+                                region: region,
+                                time: eventDate,
+                                mag: e.magnitude,
+                                place: e.place
+                            });
+                        }
+                    });
+                }
+                // Also check largest_event if M6.5+
+                if (data.largest_event && data.largest_event.magnitude >= 6.5) {
+                    const eventDate = data.largest_event.time ? data.largest_event.time.split('T')[0] : null;
+                    // Avoid duplicates - check if already in events
+                    const isDuplicate = events.some(e =>
+                        e.region === region && e.time === eventDate && e.mag === data.largest_event.magnitude
+                    );
+                    if (eventDate && !isDuplicate) {
+                        events.push({
+                            region: region,
+                            time: eventDate,
+                            mag: data.largest_event.magnitude,
+                            place: data.largest_event.place
+                        });
+                    }
                 }
             }
-            return null;
+            return events;
         }
 
         // Render history chart with optional earthquake events
@@ -859,12 +856,13 @@
             });
 
             // Build shapes and annotations for M6.5+ events in monitored regions
+            // Events now come from ensemble_latest.json with region already assigned
             const shapes = [];
             const annotations = [];
 
             earthquakeEvents.forEach(event => {
-                const region = matchEventToRegion(event);
-                if (region && dates.includes(event.time)) {
+                // Events already have region from extractM65PlusEvents()
+                if (event.region && dates.includes(event.time)) {
                     // Vertical line for the event
                     shapes.push({
                         type: 'line',
@@ -915,31 +913,28 @@
         // Load and render data
         async function loadData() {
             try {
-                // Fetch USGS M6.5+ events in parallel
-                const usgsPromise = fetchUSGSEvents();
-
-                // Try ensemble JSON first
+                // Try ensemble JSON first (includes earthquake events)
                 const ensembleResponse = await fetch('ensemble_latest.json');
                 if (ensembleResponse.ok) {
                     const ensembleData = await ensembleResponse.json();
                     renderCards(ensembleData);
+
+                    // Extract M6.5+ events from ensemble JSON (single source of truth)
+                    const m65Events = extractM65PlusEvents(ensembleData.earthquake_events);
+
                     // Try CSV for history chart
                     try {
                         const csvResponse = await fetch('data.csv');
                         if (csvResponse.ok) {
                             const csvData = parseCSV(await csvResponse.text());
-                            const usgsEvents = await usgsPromise;
-                            if (csvData.length > 0) renderChart(csvData, usgsEvents);
+                            if (csvData.length > 0) renderChart(csvData, m65Events);
                         }
                     } catch (e) { /* No history data */ }
                     return;
                 }
 
-                // Fallback to CSV only
-                const [response, usgsEvents] = await Promise.all([
-                    fetch('data.csv'),
-                    fetchUSGSEvents()
-                ]);
+                // Fallback to CSV only (no earthquake events available)
+                const response = await fetch('data.csv');
                 if (!response.ok) {
                     throw new Error('Data not available');
                 }
@@ -968,7 +963,7 @@
                         )
                     };
                     renderCards(fakeEnsemble);
-                    renderChart(data, usgsEvents);
+                    renderChart(data, []); // No earthquake events in CSV-only mode
                 } else {
                     document.getElementById('status-grid').innerHTML =
                         '<div class="region-card"><p>No monitoring data available yet.</p></div>';

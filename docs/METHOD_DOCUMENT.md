@@ -1,7 +1,7 @@
 # GeoSpec Three-Method Ensemble: Technical Methods Document
 
-**Version**: 1.5.3
-**Date**: January 22, 2026
+**Version**: 1.5.4
+**Date**: January 23, 2026
 **Author**: R.J. Mathews
 **Status**: Operational
 - THD: Operational (all 9 regions via IU/BK/GE/HINET networks)
@@ -9,6 +9,12 @@
 - Lambda_geo: **Pilot operational** (3 SoCal stations via IGS-IP NTRIP + RTKLIB pipeline)
 - **Hi-net: OPERATIONAL** (Tokyo/Kanto via NIED Hi-net - 128 stations @ 100Hz)
 - **Historical Backtests: ALL 3 METHODS** for Ridgecrest, Tohoku, Turkey (FC/THD fetched from IRIS/FDSN January 2026)
+
+**Changelog v1.5.4**:
+- **New Feature**: Added Appendix I documenting Dashboard Earthquake Events Architecture
+- Documented canonical region bounding boxes (single source of truth)
+- Identified data flow inconsistency: cards use pre-fetched JSON, chart markers used live USGS fetch
+- Created DASHBOARD_DATA_ARCHITECTURE.md with unified architecture proposal
 
 **Changelog v1.5.3**:
 - **New Feature**: Added Appendix H documenting Data Regeneration and Calibration Tracking
@@ -98,6 +104,7 @@
     - [Appendix F: RTCM Pipeline Data Structure](#appendix-f-rtcm-pipeline-data-structure-v14)
     - [Appendix G: Prediction Validation System (Track Record)](#appendix-g-prediction-validation-system-track-record)
     - [Appendix H: Data Regeneration and Calibration Tracking](#appendix-h-data-regeneration-and-calibration-tracking)
+    - [Appendix I: Dashboard Earthquake Events Architecture](#appendix-i-dashboard-earthquake-events-architecture)
 
 ---
 
@@ -1789,6 +1796,124 @@ When calibration parameters change:
 | Validation Rebuild | `monitoring/src/validate_predictions.py --rebuild` | Rebuild track record |
 | Baseline Files | `monitoring/data/baselines/*.json` | Raw calibration data |
 | Ensemble JSONs | `monitoring/data/ensemble_results/ensemble_*.json` | Authoritative daily results |
+
+---
+
+## Appendix I: Dashboard Earthquake Events Architecture
+
+### Purpose
+
+This appendix documents how earthquake event data flows to the dashboard and ensures all components display consistent information.
+
+### Data Flow
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    EARTHQUAKE EVENTS DATA FLOW                           │
+│                                                                          │
+│  Source: USGS FDSN Event Web Service                                     │
+│  https://earthquake.usgs.gov/fdsnws/event/1/                             │
+│                                                                          │
+│         ┌──────────────────────────────────────────────────────────┐    │
+│         │  Python: earthquake_events.py (Daily Ensemble Run)        │    │
+│         │  • Fetches M4+ events for each monitored region           │    │
+│         │  • Uses REGION_BOUNDS (canonical source)                   │    │
+│         │  • Lookback: 90 days                                       │    │
+│         └──────────────────────┬───────────────────────────────────┘    │
+│                                │                                         │
+│                                ▼                                         │
+│         ┌──────────────────────────────────────────────────────────┐    │
+│         │  ensemble_latest.json                                     │    │
+│         │  └── earthquake_events: {                                 │    │
+│         │        "region_name": {                                   │    │
+│         │          "event_count": N,                                │    │
+│         │          "largest_event": {...},                          │    │
+│         │          "most_recent_event": {...},                      │    │
+│         │          "events": [top 5 recent],                        │    │
+│         │          "m65_plus_events": [M6.5+ for chart markers]     │    │
+│         │        }                                                  │    │
+│         │      }                                                    │    │
+│         └──────────────────────┬───────────────────────────────────┘    │
+│                                │                                         │
+│                ┌───────────────┴───────────────┐                        │
+│                ▼                               ▼                        │
+│    ┌─────────────────────┐        ┌─────────────────────────┐          │
+│    │  Region Cards       │        │  30-Day History Chart    │          │
+│    │  • Event count      │        │  • M6.5+ vertical lines  │          │
+│    │  • Largest event    │        │  • Red dotted markers    │          │
+│    │  • Most recent      │        │  • Magnitude labels      │          │
+│    └─────────────────────┘        └─────────────────────────┘          │
+│                                                                          │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### Canonical Region Bounding Boxes
+
+**Source File**: `monitoring/src/earthquake_events.py`
+
+All earthquake event fetching uses these bounds. Dashboard JavaScript should NOT define separate bounds.
+
+| Region Key | Min Lat | Max Lat | Min Lon | Max Lon |
+|------------|---------|---------|---------|---------|
+| ridgecrest | 35.0 | 36.5 | -118.5 | -116.5 |
+| socal_saf_mojave | 34.0 | 36.5 | -118.5 | -115.5 |
+| socal_saf_coachella | 33.0 | 34.5 | -117.0 | -115.0 |
+| norcal_hayward | 37.0 | 38.5 | -123.0 | -121.5 |
+| cascadia | 42.0 | 49.0 | -130.0 | -122.0 |
+| anchorage | 59.0 | 63.0 | -152.0 | -147.0 |
+| tokyo_kanto | 34.5 | 37.0 | 138.5 | 141.5 |
+| kumamoto | 31.5 | 34.0 | 129.5 | 132.0 |
+| hualien | 23.0 | 25.5 | 120.5 | 122.5 |
+| kaikoura | -43.5 | -41.5 | 172.0 | 175.0 |
+| istanbul_marmara | 40.0 | 41.5 | 27.5 | 30.5 |
+| turkey_kahramanmaras | 36.5 | 38.5 | 36.0 | 38.5 |
+| campi_flegrei | 40.5 | 41.0 | 13.8 | 14.5 |
+
+### Dashboard Components
+
+#### Region Cards (Events Section)
+
+**Data Source**: `ensemble_latest.json` → `earthquake_events[region]`
+
+Displays:
+- Event count (M4+ in 90 days)
+- Largest event (magnitude, location, date)
+- Most recent event (if different from largest)
+
+**Code Reference**: `index.html` → `renderEventsSection()`
+
+#### 30-Day History Chart (M6.5+ Markers)
+
+**Data Source**: `ensemble_latest.json` → `earthquake_events[region].m65_plus_events`
+
+Displays:
+- Vertical red dotted lines on event dates
+- Magnitude labels (e.g., "M6.6")
+
+**Design Note**: The chart markers should use pre-fetched data from the JSON, NOT live USGS API calls. This ensures:
+1. Consistent bounding boxes with card data
+2. No silent failures from CORS/network issues
+3. Faster page load (no additional API calls)
+
+### Code References
+
+| Component | File | Key Functions |
+|-----------|------|---------------|
+| Event Fetching | `monitoring/src/earthquake_events.py` | `fetch_region_events()`, `REGION_BOUNDS` |
+| Ensemble Integration | `monitoring/src/run_ensemble_daily.py` | `fetch_earthquake_events()` |
+| Dashboard Cards | `monitoring/dashboard/index.html` | `renderEventsSection()` |
+| Dashboard Chart | `monitoring/dashboard/index.html` | `renderChart()` |
+
+### Troubleshooting
+
+**Problem**: Card shows M6.6 event but chart has no vertical line
+
+**Root Causes**:
+1. Chart uses different bounding boxes than card data source
+2. Chart fetches live from USGS while card uses pre-fetched JSON
+3. Region not included in `earthquake_events` section of JSON
+
+**Solution**: Ensure chart markers read from same JSON source as cards.
 
 ---
 

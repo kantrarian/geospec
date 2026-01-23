@@ -122,6 +122,20 @@ class RegionEvents:
             key=lambda e: (e.time, e.magnitude),
             reverse=True
         )
+
+        # Filter M6.5+ events for chart markers (30-day window)
+        thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+        m65_plus_events = [
+            {
+                'event_id': e.event_id,
+                'time': e.time.strftime('%Y-%m-%d'),  # Date only for chart matching
+                'magnitude': e.magnitude,
+                'place': e.place,
+            }
+            for e in self.events
+            if e.magnitude >= 6.5 and e.time >= thirty_days_ago
+        ]
+
         return {
             'region': self.region,
             'bounds': {
@@ -135,6 +149,7 @@ class RegionEvents:
             'largest_event': self.largest_event.to_dict() if self.largest_event else None,
             'most_recent_event': self.most_recent_event.to_dict() if self.most_recent_event else None,
             'events': [e.to_dict() for e in sorted_events[:5]],  # Top 5 most recent
+            'm65_plus_events': m65_plus_events,  # M6.5+ events for chart markers
         }
 
 

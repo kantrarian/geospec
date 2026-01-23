@@ -767,7 +767,6 @@
       "ratio": 2.1,
       "lead_time_days": 4.0,
       "methods_available": [
-        "LG",
         "THD",
         "FC"
       ],
@@ -778,7 +777,7 @@
           "tier": 0,
           "tier_name": "NORMAL",
           "risk": 0.08,
-          "lg_ratio": 0.5,
+          "lg_ratio": null,
           "fc_l2l1": 0.699,
           "thd": -0.34
         },
@@ -787,7 +786,7 @@
           "tier": 0,
           "tier_name": "NORMAL",
           "risk": 0.12,
-          "lg_ratio": 0.8,
+          "lg_ratio": null,
           "fc_l2l1": 0.4836,
           "thd": -0.37
         },
@@ -796,7 +795,7 @@
           "tier": 1,
           "tier_name": "WATCH",
           "risk": 0.22,
-          "lg_ratio": 1.5,
+          "lg_ratio": null,
           "fc_l2l1": 0.9405,
           "thd": -0.41
         },
@@ -805,7 +804,7 @@
           "tier": 2,
           "tier_name": "ELEVATED",
           "risk": 0.3,
-          "lg_ratio": 1.9,
+          "lg_ratio": null,
           "fc_l2l1": 0.7968,
           "thd": -0.44
         },
@@ -814,7 +813,7 @@
           "tier": 2,
           "tier_name": "ELEVATED",
           "risk": 0.32,
-          "lg_ratio": 2.1,
+          "lg_ratio": null,
           "fc_l2l1": 0.563,
           "thd": -0.43
         },
@@ -859,7 +858,7 @@
           "post_event": true
         }
       ],
-      "notes": "Deep intraslab event (47km). Attenuated THD signal. FC not available due to sparse network.",
+      "notes": "Deep intraslab event (47km). Attenuated THD signal. Lambda_geo unavailable - NGL GPS data not available for Alaska PBO stations.",
       "thd_station": "IU.COLA",
       "thd_peak_zscore": 8.2092,
       "thd_peak_date": "2018-11-21",
@@ -994,7 +993,6 @@
       "ratio": 2.3,
       "lead_time_days": 3.0,
       "methods_available": [
-        "LG",
         "THD",
         "FC"
       ],
@@ -1005,7 +1003,7 @@
           "tier": 0,
           "tier_name": "NORMAL",
           "risk": 0.12,
-          "lg_ratio": 0.7,
+          "lg_ratio": null,
           "fc_l2l1": 0.8954,
           "thd": -0.15
         },
@@ -1014,7 +1012,7 @@
           "tier": 0,
           "tier_name": "NORMAL",
           "risk": 0.2,
-          "lg_ratio": 1.1,
+          "lg_ratio": null,
           "fc_l2l1": 0.5785,
           "thd": -0.24
         },
@@ -1023,7 +1021,7 @@
           "tier": 1,
           "tier_name": "WATCH",
           "risk": 0.38,
-          "lg_ratio": 1.6,
+          "lg_ratio": null,
           "fc_l2l1": 0.7595,
           "thd": 3.96
         },
@@ -1032,7 +1030,7 @@
           "tier": 1,
           "tier_name": "WATCH",
           "risk": 0.48,
-          "lg_ratio": 2.0,
+          "lg_ratio": null,
           "fc_l2l1": 0.3038,
           "thd": 0.23
         },
@@ -1041,7 +1039,7 @@
           "tier": 1,
           "tier_name": "WATCH",
           "risk": 0.56,
-          "lg_ratio": 2.3,
+          "lg_ratio": null,
           "fc_l2l1": 0.067,
           "thd": -0.39
         },
@@ -1066,7 +1064,7 @@
           "post_event": true
         }
       ],
-      "notes": "Taiwan east coast. Clear 3-day precursor ramp-up. Strongest validation signal among new events.",
+      "notes": "Taiwan east coast. Lambda_geo unavailable - NGL GPS data not available for Taiwan stations. THD/FC show validation signal.",
       "thd_station": "IU.TATO",
       "thd_peak_zscore": 2.9191,
       "thd_peak_date": "2024-03-31",

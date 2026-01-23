@@ -113,15 +113,25 @@ GPS_STATIONS = {
         'event_date': '2018-11-30',
         'location': (61.35, -149.93),
         'stations': [
-            # PBO Alaska stations
-            'AB01',  # Anchorage area
-            'AB02',
-            'AB06',
-            'AB07',
-            'AB11',
-            'AC59',  # Near Anchorage
-            'AC60',
-            'FAIR',  # Fairbanks IGS
+            # PBO/NOTA Alaska stations - use 4-char codes
+            'AV01',  # Anchorage area
+            'AV02',
+            'AV06',
+            'AV08',
+            'AV09',
+            'AV10',
+            'AV13',
+            'AV14',
+            'AV15',
+            'AV17',
+            'AV26',
+            'AV27',
+            'AV29',
+            'AV30',
+            'PRIOR',  # Prior Island
+            'AC17',
+            'AC27',
+            'AC37',
         ],
     },
     'kumamoto_2016': {
@@ -140,12 +150,19 @@ GPS_STATIONS = {
         'event_date': '2024-04-03',
         'location': (23.77, 121.67),
         'stations': [
-            # IGS stations in Taiwan region
-            'TWTF',  # Taiwan
-            'TNML',  # Taoyuan
-            'TCMS',  # Taiwan CMS
-            'SHAO',  # Shanghai
-            'BJFS',  # Beijing
+            # Taiwan CWB/IGS stations
+            'FLNM',  # Hualien area
+            'HUAL',  # Hualien
+            'YULI',  # Yuli
+            'CHEN',  # Chengong
+            'DULI',  # Dulan
+            'S101',  # Taiwan
+            'S104',
+            'S105',
+            'TASI',
+            'PKGM',
+            'TAIW',  # Taiwan IGS
+            'TWTF',  # Taiwan time/freq
         ],
     },
 }

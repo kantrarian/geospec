@@ -1458,15 +1458,15 @@
                 anchorage_2018: {
                     name: "Anchorage 2018", magnitude: 7.1, event_date: "2018-11-30T17:29:29",
                     classification: "HIT", tier_at_event: "ELEVATED", ratio: 2.1, lead_time_days: 4.0,
-                    methods_available: ["LG", "THD", "FC"],
+                    methods_available: ["THD", "FC"],
                     timeseries: [
-                        {date: "2018-11-22", tier: 0, tier_name: "NORMAL", risk: 0.08, lg_ratio: 0.5, fc_l2l1: 0.699, thd: -0.34},
-                        {date: "2018-11-24", tier: 0, tier_name: "NORMAL", risk: 0.12, lg_ratio: 0.8, fc_l2l1: 0.484, thd: -0.37},
-                        {date: "2018-11-26", tier: 1, tier_name: "WATCH", risk: 0.22, lg_ratio: 1.5, fc_l2l1: 0.941, thd: -0.41},
-                        {date: "2018-11-28", tier: 2, tier_name: "ELEVATED", risk: 0.30, lg_ratio: 1.9, fc_l2l1: 0.797, thd: -0.44},
-                        {date: "2018-11-29", tier: 2, tier_name: "ELEVATED", risk: 0.32, lg_ratio: 2.1, fc_l2l1: 0.563, thd: -0.43}
+                        {date: "2018-11-22", tier: 0, tier_name: "NORMAL", risk: 0.08, lg_ratio: null, fc_l2l1: 0.699, thd: -0.34},
+                        {date: "2018-11-24", tier: 0, tier_name: "NORMAL", risk: 0.12, lg_ratio: null, fc_l2l1: 0.484, thd: -0.37},
+                        {date: "2018-11-26", tier: 1, tier_name: "WATCH", risk: 0.22, lg_ratio: null, fc_l2l1: 0.941, thd: -0.41},
+                        {date: "2018-11-28", tier: 2, tier_name: "ELEVATED", risk: 0.30, lg_ratio: null, fc_l2l1: 0.797, thd: -0.44},
+                        {date: "2018-11-29", tier: 2, tier_name: "ELEVATED", risk: 0.32, lg_ratio: null, fc_l2l1: 0.563, thd: -0.43}
                     ],
-                    notes: "Full 3-method ensemble. Deep intraslab event (47km)."
+                    notes: "Deep intraslab event (47km). Lambda_geo unavailable - NGL GPS data not available."
                 },
                 kumamoto_2016: {
                     name: "Kumamoto 2016", magnitude: 7.0, event_date: "2016-04-16T01:25:06",
@@ -1484,15 +1484,15 @@
                 hualien_2024: {
                     name: "Hualien 2024", magnitude: 7.4, event_date: "2024-04-03T07:58:11",
                     classification: "HIT", tier_at_event: "WATCH", ratio: 2.3, lead_time_days: 3.0,
-                    methods_available: ["LG", "THD", "FC"],
+                    methods_available: ["THD", "FC"],
                     timeseries: [
-                        {date: "2024-03-28", tier: 0, tier_name: "NORMAL", risk: 0.12, lg_ratio: 0.7, fc_l2l1: 0.895, thd: -0.15},
-                        {date: "2024-03-30", tier: 0, tier_name: "NORMAL", risk: 0.20, lg_ratio: 1.1, fc_l2l1: 0.579, thd: -0.24},
-                        {date: "2024-03-31", tier: 1, tier_name: "WATCH", risk: 0.38, lg_ratio: 1.6, fc_l2l1: 0.760, thd: 3.96},
-                        {date: "2024-04-01", tier: 1, tier_name: "WATCH", risk: 0.48, lg_ratio: 2.0, fc_l2l1: 0.304, thd: 0.23},
-                        {date: "2024-04-02", tier: 1, tier_name: "WATCH", risk: 0.56, lg_ratio: 2.3, fc_l2l1: 0.067, thd: -0.39}
+                        {date: "2024-03-28", tier: 0, tier_name: "NORMAL", risk: 0.12, lg_ratio: null, fc_l2l1: 0.895, thd: -0.15},
+                        {date: "2024-03-30", tier: 0, tier_name: "NORMAL", risk: 0.20, lg_ratio: null, fc_l2l1: 0.579, thd: -0.24},
+                        {date: "2024-03-31", tier: 1, tier_name: "WATCH", risk: 0.38, lg_ratio: null, fc_l2l1: 0.760, thd: 3.96},
+                        {date: "2024-04-01", tier: 1, tier_name: "WATCH", risk: 0.48, lg_ratio: null, fc_l2l1: 0.304, thd: 0.23},
+                        {date: "2024-04-02", tier: 1, tier_name: "WATCH", risk: 0.56, lg_ratio: null, fc_l2l1: 0.067, thd: -0.39}
                     ],
-                    notes: "Full 3-method ensemble. Taiwan east coast."
+                    notes: "Taiwan east coast. Lambda_geo unavailable - NGL GPS data not available."
                 }
             }
         };

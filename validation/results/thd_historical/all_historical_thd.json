@@ -1,4 +1,517 @@
 {
+  "ridgecrest_2019": {
+    "event_key": "ridgecrest_2019",
+    "event": {
+      "name": "Ridgecrest 2019",
+      "date": "2019-07-06T03:19:53",
+      "magnitude": 7.1,
+      "location": [
+        35.77,
+        -117.6
+      ],
+      "region": "california_mojave"
+    },
+    "data_source": {
+      "station": "CI.SLA",
+      "fetch_date": "2026-01-22T23:07:34.702505",
+      "window_hours": 24,
+      "step_hours": 6
+    },
+    "statistics": {
+      "baseline_mean": 0.3849,
+      "baseline_std": 0.1606,
+      "peak_thd": 2.8106,
+      "peak_date": "2019-07-04T15:19:53",
+      "n_elevated": 68,
+      "n_critical": 65
+    },
+    "timeseries": [
+      {
+        "date": "2019-06-22",
+        "days_before_event": 13.5,
+        "thd": 0.539,
+        "z_score": 0.96,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2019-06-22",
+        "days_before_event": 13.25,
+        "thd": 0.3667,
+        "z_score": -0.11,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2019-06-23",
+        "days_before_event": 13.0,
+        "thd": 0.4751,
+        "z_score": 0.56,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2019-06-23",
+        "days_before_event": 12.75,
+        "thd": 0.6312,
+        "z_score": 1.53,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2019-06-23",
+        "days_before_event": 12.5,
+        "thd": 0.4803,
+        "z_score": 0.59,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2019-06-23",
+        "days_before_event": 12.25,
+        "thd": 0.5213,
+        "z_score": 0.85,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2019-06-24",
+        "days_before_event": 12.0,
+        "thd": 0.5479,
+        "z_score": 1.01,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2019-06-24",
+        "days_before_event": 11.75,
+        "thd": 0.365,
+        "z_score": -0.12,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2019-06-24",
+        "days_before_event": 11.5,
+        "thd": 0.2922,
+        "z_score": -0.58,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2019-06-24",
+        "days_before_event": 11.25,
+        "thd": 0.542,
+        "z_score": 0.98,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2019-06-25",
+        "days_before_event": 11.0,
+        "thd": 0.369,
+        "z_score": -0.1,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2019-06-25",
+        "days_before_event": 10.75,
+        "thd": 0.3358,
+        "z_score": -0.31,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2019-06-25",
+        "days_before_event": 10.5,
+        "thd": 0.1271,
+        "z_score": -1.61,
+        "tier": "ELEVATED"
+      },
+      {
+        "date": "2019-06-25",
+        "days_before_event": 10.25,
+        "thd": 0.6363,
+        "z_score": 1.57,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2019-06-26",
+        "days_before_event": 10.0,
+        "thd": 0.3141,
+        "z_score": -0.44,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2019-06-26",
+        "days_before_event": 9.75,
+        "thd": 0.273,
+        "z_score": -0.7,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2019-06-26",
+        "days_before_event": 9.5,
+        "thd": 0.1304,
+        "z_score": -1.59,
+        "tier": "ELEVATED"
+      },
+      {
+        "date": "2019-06-26",
+        "days_before_event": 9.25,
+        "thd": 0.6661,
+        "z_score": 1.75,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2019-06-27",
+        "days_before_event": 9.0,
+        "thd": 0.3421,
+        "z_score": -0.27,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2019-06-27",
+        "days_before_event": 8.75,
+        "thd": 0.1947,
+        "z_score": -1.18,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2019-06-27",
+        "days_before_event": 8.5,
+        "thd": 0.0905,
+        "z_score": -1.83,
+        "tier": "NORMAL"
+      },
+      {
+        "date": "2019-06-27",
+        "days_before_event": 8.25,
+        "thd": 0.2858,
+        "z_score": -0.62,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2019-06-28",
+        "days_before_event": 8.0,
+        "thd": 0.3152,
+        "z_score": -0.43,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2019-06-28",
+        "days_before_event": 7.75,
+        "thd": 0.5711,
+        "z_score": 1.16,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2019-06-28",
+        "days_before_event": 7.5,
+        "thd": 0.2407,
+        "z_score": -0.9,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2019-06-28",
+        "days_before_event": 7.25,
+        "thd": 0.3554,
+        "z_score": -0.18,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2019-06-29",
+        "days_before_event": 7.0,
+        "thd": 0.2027,
+        "z_score": -1.13,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2019-06-29",
+        "days_before_event": 6.75,
+        "thd": 0.3089,
+        "z_score": -0.47,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2019-06-29",
+        "days_before_event": 6.5,
+        "thd": 0.198,
+        "z_score": -1.16,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2019-06-29",
+        "days_before_event": 6.25,
+        "thd": 0.4023,
+        "z_score": 0.11,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2019-06-30",
+        "days_before_event": 6.0,
+        "thd": 0.3281,
+        "z_score": -0.35,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2019-06-30",
+        "days_before_event": 5.75,
+        "thd": 0.2151,
+        "z_score": -1.06,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2019-06-30",
+        "days_before_event": 5.5,
+        "thd": 0.1178,
+        "z_score": -1.66,
+        "tier": "ELEVATED"
+      },
+      {
+        "date": "2019-06-30",
+        "days_before_event": 5.25,
+        "thd": 0.2643,
+        "z_score": -0.75,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2019-07-01",
+        "days_before_event": 5.0,
+        "thd": 0.3794,
+        "z_score": -0.03,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2019-07-01",
+        "days_before_event": 4.75,
+        "thd": 0.5473,
+        "z_score": 1.01,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2019-07-01",
+        "days_before_event": 4.5,
+        "thd": 0.3174,
+        "z_score": -0.42,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2019-07-01",
+        "days_before_event": 4.25,
+        "thd": 0.3111,
+        "z_score": -0.46,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2019-07-02",
+        "days_before_event": 4.0,
+        "thd": 0.4701,
+        "z_score": 0.53,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2019-07-02",
+        "days_before_event": 3.75,
+        "thd": 0.7338,
+        "z_score": 2.17,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2019-07-02",
+        "days_before_event": 3.5,
+        "thd": 0.2147,
+        "z_score": -1.06,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2019-07-02",
+        "days_before_event": 3.25,
+        "thd": 0.1937,
+        "z_score": -1.19,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2019-07-03",
+        "days_before_event": 3.0,
+        "thd": 0.2429,
+        "z_score": -0.88,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2019-07-03",
+        "days_before_event": 2.75,
+        "thd": 0.4224,
+        "z_score": 0.23,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2019-07-03",
+        "days_before_event": 2.5,
+        "thd": 0.3462,
+        "z_score": -0.24,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2019-07-03",
+        "days_before_event": 2.25,
+        "thd": 0.2635,
+        "z_score": -0.76,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2019-07-04",
+        "days_before_event": 2.0,
+        "thd": 0.3556,
+        "z_score": -0.18,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2019-07-04",
+        "days_before_event": 1.75,
+        "thd": 0.5383,
+        "z_score": 0.96,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2019-07-04",
+        "days_before_event": 1.5,
+        "thd": 2.8106,
+        "z_score": 15.11,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2019-07-04",
+        "days_before_event": 1.25,
+        "thd": 1.3063,
+        "z_score": 5.74,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2019-07-05",
+        "days_before_event": 1.0,
+        "thd": 0.3301,
+        "z_score": -0.34,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2019-07-05",
+        "days_before_event": 0.75,
+        "thd": 0.3952,
+        "z_score": 0.06,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2019-07-05",
+        "days_before_event": 0.5,
+        "thd": 0.3347,
+        "z_score": -0.31,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2019-07-05",
+        "days_before_event": 0.25,
+        "thd": 1.3076,
+        "z_score": 5.75,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2019-07-06",
+        "days_before_event": 0.0,
+        "thd": 2.7827,
+        "z_score": 14.93,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2019-07-06",
+        "days_before_event": -0.25,
+        "thd": 2.1706,
+        "z_score": 11.12,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2019-07-06",
+        "days_before_event": -0.5,
+        "thd": 0.3965,
+        "z_score": 0.07,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2019-07-06",
+        "days_before_event": -0.75,
+        "thd": 0.2935,
+        "z_score": -0.57,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2019-07-07",
+        "days_before_event": -1.0,
+        "thd": 0.1615,
+        "z_score": -1.39,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2019-07-07",
+        "days_before_event": -1.25,
+        "thd": 0.2925,
+        "z_score": -0.58,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2019-07-07",
+        "days_before_event": -1.5,
+        "thd": 0.2854,
+        "z_score": -0.62,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2019-07-07",
+        "days_before_event": -1.75,
+        "thd": 0.3335,
+        "z_score": -0.32,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2019-07-08",
+        "days_before_event": -2.0,
+        "thd": 0.2823,
+        "z_score": -0.64,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2019-07-08",
+        "days_before_event": -2.25,
+        "thd": 0.3528,
+        "z_score": -0.2,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2019-07-08",
+        "days_before_event": -2.5,
+        "thd": 0.155,
+        "z_score": -1.43,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2019-07-08",
+        "days_before_event": -2.75,
+        "thd": 0.5546,
+        "z_score": 1.06,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2019-07-09",
+        "days_before_event": -3.0,
+        "thd": 0.435,
+        "z_score": 0.31,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2019-07-09",
+        "days_before_event": -3.25,
+        "thd": 0.2282,
+        "z_score": -0.98,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2019-07-09",
+        "days_before_event": -3.5,
+        "thd": 0.1744,
+        "z_score": -1.31,
+        "tier": "CRITICAL"
+      }
+    ],
+    "notes": "Eastern California Shear Zone M7.1 - preceded by M6.4 foreshock on July 4"
+  },
   "tohoku_2011": {
     "event_key": "tohoku_2011",
     "event": {
@@ -13,7 +526,7 @@
     },
     "data_source": {
       "station": "IU.MAJO",
-      "fetch_date": "2026-01-22T14:06:59.374752",
+      "fetch_date": "2026-01-22T23:07:50.079275",
       "window_hours": 24,
       "step_hours": 6
     },
@@ -22,8 +535,8 @@
       "baseline_std": 0.1049,
       "peak_thd": 1.5708,
       "peak_date": "2011-03-09T05:46:24",
-      "n_elevated": 65,
-      "n_critical": 65
+      "n_elevated": 69,
+      "n_critical": 69
     },
     "timeseries": [
       {
@@ -477,8 +990,36 @@
       {
         "date": "2011-03-13",
         "days_before_event": -2.5,
-        "thd": 0.2513,
+        "thd": 0.2512,
         "z_score": -1.06,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2011-03-13",
+        "days_before_event": -2.75,
+        "thd": 0.5909,
+        "z_score": 2.18,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2011-03-14",
+        "days_before_event": -3.0,
+        "thd": 0.3561,
+        "z_score": -0.06,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2011-03-14",
+        "days_before_event": -3.25,
+        "thd": 0.2698,
+        "z_score": -0.88,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2011-03-14",
+        "days_before_event": -3.5,
+        "thd": 0.3296,
+        "z_score": -0.31,
         "tier": "CRITICAL"
       }
     ],
@@ -498,7 +1039,7 @@
     },
     "data_source": {
       "station": "IU.ANTO",
-      "fetch_date": "2026-01-22T14:07:13.106221",
+      "fetch_date": "2026-01-22T23:08:05.519179",
       "window_hours": 24,
       "step_hours": 6
     },
@@ -507,8 +1048,8 @@
       "baseline_std": 0.078,
       "peak_thd": 1.8787,
       "peak_date": "2023-02-05T19:17:35",
-      "n_elevated": 65,
-      "n_critical": 65
+      "n_elevated": 69,
+      "n_critical": 69
     },
     "timeseries": [
       {
@@ -965,6 +1506,34 @@
         "thd": 0.379,
         "z_score": 0.64,
         "tier": "CRITICAL"
+      },
+      {
+        "date": "2023-02-08",
+        "days_before_event": -2.75,
+        "thd": 0.3165,
+        "z_score": -0.16,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2023-02-09",
+        "days_before_event": -3.0,
+        "thd": 0.3282,
+        "z_score": -0.01,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2023-02-09",
+        "days_before_event": -3.25,
+        "thd": 0.384,
+        "z_score": 0.71,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2023-02-09",
+        "days_before_event": -3.5,
+        "thd": 0.3762,
+        "z_score": 0.61,
+        "tier": "CRITICAL"
       }
     ],
     "notes": "East Anatolian Fault M7.8 - deadliest 2023 earthquake"
@@ -983,7 +1552,7 @@
     },
     "data_source": {
       "station": "IU.LVC",
-      "fetch_date": "2026-01-22T14:07:24.332055",
+      "fetch_date": "2026-01-22T23:08:20.142611",
       "window_hours": 24,
       "step_hours": 6
     },
@@ -992,8 +1561,8 @@
       "baseline_std": 0.0157,
       "peak_thd": 0.5697,
       "peak_date": "2010-02-21T18:34:14",
-      "n_elevated": 64,
-      "n_critical": 64
+      "n_elevated": 68,
+      "n_critical": 68
     },
     "timeseries": [
       {
@@ -1398,36 +1967,36 @@
       {
         "date": "2010-02-28",
         "days_before_event": -0.75,
-        "thd": 7.1851,
-        "z_score": 436.58,
+        "thd": 7.177,
+        "z_score": 436.06,
         "tier": "CRITICAL"
       },
       {
         "date": "2010-02-28",
         "days_before_event": -1.0,
-        "thd": 4.2074,
-        "z_score": 246.44,
+        "thd": 4.2068,
+        "z_score": 246.4,
         "tier": "CRITICAL"
       },
       {
         "date": "2010-02-28",
         "days_before_event": -1.25,
-        "thd": 4.9555,
-        "z_score": 294.21,
+        "thd": 4.9604,
+        "z_score": 294.52,
         "tier": "CRITICAL"
       },
       {
         "date": "2010-02-28",
         "days_before_event": -1.5,
-        "thd": 6.1117,
-        "z_score": 368.04,
+        "thd": 6.1138,
+        "z_score": 368.17,
         "tier": "CRITICAL"
       },
       {
         "date": "2010-03-01",
         "days_before_event": -1.75,
-        "thd": 5.8424,
-        "z_score": 350.84,
+        "thd": 5.8444,
+        "z_score": 350.97,
         "tier": "CRITICAL"
       },
       {
@@ -1450,6 +2019,34 @@
         "thd": 0.1698,
         "z_score": -11.39,
         "tier": "CRITICAL"
+      },
+      {
+        "date": "2010-03-02",
+        "days_before_event": -2.75,
+        "thd": 0.1532,
+        "z_score": -12.45,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2010-03-02",
+        "days_before_event": -3.0,
+        "thd": 0.3097,
+        "z_score": -2.46,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2010-03-02",
+        "days_before_event": -3.25,
+        "thd": 0.328,
+        "z_score": -1.28,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2010-03-02",
+        "days_before_event": -3.5,
+        "thd": 0.3225,
+        "z_score": -1.63,
+        "tier": "CRITICAL"
       }
     ],
     "notes": "Maule M8.8 - sixth largest recorded earthquake"
@@ -1468,7 +2065,7 @@
     },
     "data_source": {
       "station": "IU.PAB",
-      "fetch_date": "2026-01-22T14:07:39.298752",
+      "fetch_date": "2026-01-22T23:08:37.984173",
       "window_hours": 24,
       "step_hours": 6
     },
@@ -1477,8 +2074,8 @@
       "baseline_std": 0.0906,
       "peak_thd": 0.5795,
       "peak_date": "2023-08-26T22:11:01",
-      "n_elevated": 65,
-      "n_critical": 63
+      "n_elevated": 69,
+      "n_critical": 67
     },
     "timeseries": [
       {
@@ -1935,6 +2532,34 @@
         "thd": 0.2866,
         "z_score": -0.56,
         "tier": "CRITICAL"
+      },
+      {
+        "date": "2023-09-11",
+        "days_before_event": -2.75,
+        "thd": 0.2929,
+        "z_score": -0.49,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2023-09-11",
+        "days_before_event": -3.0,
+        "thd": 0.4007,
+        "z_score": 0.7,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2023-09-12",
+        "days_before_event": -3.25,
+        "thd": 0.3454,
+        "z_score": 0.09,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2023-09-12",
+        "days_before_event": -3.5,
+        "thd": 0.3044,
+        "z_score": -0.36,
+        "tier": "CRITICAL"
       }
     ],
     "notes": "High Atlas M6.8 - largest Morocco earthquake since 1960"
@@ -1953,7 +2578,7 @@
     },
     "data_source": {
       "station": "IU.SNZO",
-      "fetch_date": "2026-01-22T14:07:50.774448",
+      "fetch_date": "2026-01-22T23:08:51.289291",
       "window_hours": 24,
       "step_hours": 6
     },
@@ -1962,8 +2587,8 @@
       "baseline_std": 0.0868,
       "peak_thd": 2.3595,
       "peak_date": "2016-11-13T05:02:56",
-      "n_elevated": 64,
-      "n_critical": 64
+      "n_elevated": 68,
+      "n_critical": 68
     },
     "timeseries": [
       {
@@ -2420,6 +3045,34 @@
         "thd": 0.2662,
         "z_score": -1.07,
         "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-11-16",
+        "days_before_event": -2.75,
+        "thd": 0.2844,
+        "z_score": -0.86,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-11-16",
+        "days_before_event": -3.0,
+        "thd": 0.4854,
+        "z_score": 1.45,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-11-16",
+        "days_before_event": -3.25,
+        "thd": 0.4668,
+        "z_score": 1.24,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-11-16",
+        "days_before_event": -3.5,
+        "thd": 0.273,
+        "z_score": -0.99,
+        "tier": "CRITICAL"
       }
     ],
     "notes": "South Island M7.8 - Complex multi-fault rupture"
@@ -2438,7 +3091,7 @@
     },
     "data_source": {
       "station": "IU.COLA",
-      "fetch_date": "2026-01-22T14:08:03.836980",
+      "fetch_date": "2026-01-22T23:09:06.840437",
       "window_hours": 24,
       "step_hours": 6
     },
@@ -2447,8 +3100,8 @@
       "baseline_std": 2.2801,
       "peak_thd": 8.2092,
       "peak_date": "2018-11-21T17:29:29",
-      "n_elevated": 65,
-      "n_critical": 61
+      "n_elevated": 69,
+      "n_critical": 65
     },
     "timeseries": [
       {
@@ -2905,6 +3558,34 @@
         "thd": 0.2006,
         "z_score": -0.42,
         "tier": "CRITICAL"
+      },
+      {
+        "date": "2018-12-03",
+        "days_before_event": -2.75,
+        "thd": 0.2386,
+        "z_score": -0.41,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2018-12-03",
+        "days_before_event": -3.0,
+        "thd": 0.591,
+        "z_score": -0.25,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2018-12-03",
+        "days_before_event": -3.25,
+        "thd": 0.3672,
+        "z_score": -0.35,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2018-12-04",
+        "days_before_event": -3.5,
+        "thd": 0.1928,
+        "z_score": -0.43,
+        "tier": "CRITICAL"
       }
     ],
     "notes": "Cook Inlet M7.1 - Deep intraslab event (47km depth)"
@@ -2923,7 +3604,7 @@
     },
     "data_source": {
       "station": "IU.MAJO",
-      "fetch_date": "2026-01-22T14:08:18.751085",
+      "fetch_date": "2026-01-22T23:09:26.769465",
       "window_hours": 24,
       "step_hours": 6
     },
@@ -2932,8 +3613,8 @@
       "baseline_std": 0.0301,
       "peak_thd": 0.5466,
       "peak_date": "2016-04-15T01:25:06",
-      "n_elevated": 65,
-      "n_critical": 65
+      "n_elevated": 69,
+      "n_critical": 69
     },
     "timeseries": [
       {
@@ -3390,6 +4071,34 @@
         "thd": 0.3503,
         "z_score": 0.33,
         "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-04-18",
+        "days_before_event": -2.75,
+        "thd": 0.3329,
+        "z_score": -0.25,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-04-19",
+        "days_before_event": -3.0,
+        "thd": 0.3132,
+        "z_score": -0.9,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-04-19",
+        "days_before_event": -3.25,
+        "thd": 0.3285,
+        "z_score": -0.39,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2016-04-19",
+        "days_before_event": -3.5,
+        "thd": 0.357,
+        "z_score": 0.55,
+        "tier": "CRITICAL"
       }
     ],
     "notes": "Kyushu M7.0 - Preceded by M6.5 foreshock on Apr 14"
@@ -3408,7 +4117,7 @@
     },
     "data_source": {
       "station": "IU.TATO",
-      "fetch_date": "2026-01-22T14:08:31.325560",
+      "fetch_date": "2026-01-22T23:09:42.942454",
       "window_hours": 24,
       "step_hours": 6
     },
@@ -3417,8 +4126,8 @@
       "baseline_std": 0.434,
       "peak_thd": 2.9191,
       "peak_date": "2024-03-31T13:58:11",
-      "n_elevated": 64,
-      "n_critical": 62
+      "n_elevated": 68,
+      "n_critical": 66
     },
     "timeseries": [
       {
@@ -3872,8 +4581,36 @@
       {
         "date": "2024-04-05",
         "days_before_event": -2.5,
-        "thd": 0.3294,
+        "thd": 0.3295,
         "z_score": -0.3,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2024-04-06",
+        "days_before_event": -2.75,
+        "thd": 0.3221,
+        "z_score": -0.32,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2024-04-06",
+        "days_before_event": -3.0,
+        "thd": 0.3645,
+        "z_score": -0.22,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2024-04-06",
+        "days_before_event": -3.25,
+        "thd": 0.3193,
+        "z_score": -0.33,
+        "tier": "CRITICAL"
+      },
+      {
+        "date": "2024-04-06",
+        "days_before_event": -3.5,
+        "thd": 0.3175,
+        "z_score": -0.33,
         "tier": "CRITICAL"
       }
     ],

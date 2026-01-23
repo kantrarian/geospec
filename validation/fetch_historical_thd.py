@@ -41,6 +41,20 @@ from seismic_thd import (
 
 # Historical earthquake events configuration
 HISTORICAL_EVENTS = {
+    'ridgecrest_2019': {
+        'name': 'Ridgecrest 2019',
+        'date': datetime(2019, 7, 6, 3, 19, 53),  # UTC
+        'magnitude': 7.1,
+        'location': (35.77, -117.60),
+        'region': 'california_mojave',
+        'lead_days': 14,
+        'stations': [
+            {'network': 'CI', 'code': 'WBS', 'channel': 'BHZ', 'priority': 1},
+            {'network': 'CI', 'code': 'CCC', 'channel': 'BHZ', 'priority': 2},
+            {'network': 'CI', 'code': 'SLA', 'channel': 'BHZ', 'priority': 3},
+        ],
+        'notes': 'Eastern California Shear Zone M7.1 - preceded by M6.4 foreshock on July 4'
+    },
     'tohoku_2011': {
         'name': 'Tohoku 2011',
         'date': datetime(2011, 3, 11, 5, 46, 24),  # UTC
@@ -191,7 +205,7 @@ def fetch_event_thd(
     event_date = event['date']
     lead_days = event['lead_days']
     start_time = event_date - timedelta(days=lead_days)
-    end_time = event_date + timedelta(days=3)  # Include 3 days post-event data
+    end_time = event_date + timedelta(days=4)  # Include 4 days post-event data (3 full days after window calc)
 
     if verbose:
         print(f"Analysis window: {start_time.strftime('%Y-%m-%d')} to {end_time.strftime('%Y-%m-%d')}")

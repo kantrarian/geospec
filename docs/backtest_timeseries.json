@@ -1,6 +1,6 @@
 {
   "generated": "2026-01-22",
-  "data_integrity": "Real data from: FC. Updated on 2026-01-22. Includes 3 days post-event data.",
+  "data_integrity": "Real data from: THD. Updated on 2026-01-22. Includes 3 days post-event data.",
   "events": {
     "ridgecrest_2019": {
       "name": "Ridgecrest 2019",
@@ -22,8 +22,8 @@
           "tier_name": "WATCH",
           "risk": 0.336,
           "lg_ratio": 0.8,
-          "fc_l2l1": 0.058,
-          "thd": 0.086
+          "fc_l2l1": 0.0175,
+          "thd": -0.11
         },
         {
           "date": "2019-06-26",
@@ -31,8 +31,8 @@
           "tier_name": "WATCH",
           "risk": 0.327,
           "lg_ratio": 0.6,
-          "fc_l2l1": 0.133,
-          "thd": 0.121
+          "fc_l2l1": 0.1115,
+          "thd": -0.24
         },
         {
           "date": "2019-06-27",
@@ -40,8 +40,8 @@
           "tier_name": "WATCH",
           "risk": 0.302,
           "lg_ratio": 1.2,
-          "fc_l2l1": 0.068,
-          "thd": 0.05
+          "fc_l2l1": 0.2698,
+          "thd": -0.98
         },
         {
           "date": "2019-06-28",
@@ -49,8 +49,8 @@
           "tier_name": "NORMAL",
           "risk": 0.196,
           "lg_ratio": 1.8,
-          "fc_l2l1": 0.1018,
-          "thd": null
+          "fc_l2l1": 0.28,
+          "thd": -0.09
         },
         {
           "date": "2019-06-29",
@@ -58,8 +58,8 @@
           "tier_name": "WATCH",
           "risk": 0.377,
           "lg_ratio": 0.49,
-          "fc_l2l1": 0.235,
-          "thd": 0.109
+          "fc_l2l1": 0.9104,
+          "thd": -0.66
         },
         {
           "date": "2019-06-30",
@@ -67,8 +67,8 @@
           "tier_name": "NORMAL",
           "risk": 0.243,
           "lg_ratio": 1.76,
-          "fc_l2l1": 0.921,
-          "thd": null
+          "fc_l2l1": 0.5471,
+          "thd": -0.96
         },
         {
           "date": "2019-07-01",
@@ -76,8 +76,8 @@
           "tier_name": "WATCH",
           "risk": 0.443,
           "lg_ratio": 0.14,
-          "fc_l2l1": 0.734,
-          "thd": 0.041
+          "fc_l2l1": 0.2418,
+          "thd": 0.03
         },
         {
           "date": "2019-07-02",
@@ -85,8 +85,8 @@
           "tier_name": "ELEVATED",
           "risk": 0.665,
           "lg_ratio": 1.61,
-          "fc_l2l1": 0.394,
-          "thd": 0.024
+          "fc_l2l1": 0.6291,
+          "thd": 0.11
         },
         {
           "date": "2019-07-03",
@@ -94,8 +94,8 @@
           "tier_name": "ELEVATED",
           "risk": 0.548,
           "lg_ratio": 1.81,
-          "fc_l2l1": 0.389,
-          "thd": 0.085
+          "fc_l2l1": 0.2368,
+          "thd": -0.41
         },
         {
           "date": "2019-07-04",
@@ -103,8 +103,8 @@
           "tier_name": "CRITICAL",
           "risk": 0.975,
           "lg_ratio": 0.14,
-          "fc_l2l1": 0.044,
-          "thd": 0.313
+          "fc_l2l1": 0.0621,
+          "thd": 5.41
         },
         {
           "date": "2019-07-05",
@@ -112,8 +112,8 @@
           "tier_name": "CRITICAL",
           "risk": 1.0,
           "lg_ratio": 30.22,
-          "fc_l2l1": 0.096,
-          "thd": 1.478
+          "fc_l2l1": 0.0464,
+          "thd": 1.29
         },
         {
           "date": "2019-07-06",
@@ -122,7 +122,7 @@
           "risk": 0.713,
           "lg_ratio": 221.16,
           "fc_l2l1": 0.116,
-          "thd": 0.101
+          "thd": 6.39
         },
         {
           "date": "2019-07-07",
@@ -131,7 +131,7 @@
           "risk": null,
           "lg_ratio": 207.18,
           "fc_l2l1": null,
-          "thd": null,
+          "thd": -0.73,
           "post_event": true
         },
         {
@@ -141,7 +141,7 @@
           "risk": null,
           "lg_ratio": 191.76,
           "fc_l2l1": null,
-          "thd": null,
+          "thd": -0.3,
           "post_event": true
         },
         {
@@ -151,7 +151,7 @@
           "risk": null,
           "lg_ratio": 123.39,
           "fc_l2l1": null,
-          "thd": null,
+          "thd": -0.66,
           "post_event": true
         }
       ],
@@ -161,7 +161,9 @@
       "fc_min_date": "2019-06-27",
       "lg_n_stations": 14,
       "lg_peak_ratio": 221.16,
-      "lg_peak_date": "2019-07-06"
+      "lg_peak_date": "2019-07-06",
+      "thd_station": "CI.SLA",
+      "thd_peak_zscore": 2.8106
     },
     "tohoku_2011": {
       "name": "Tohoku 2011",
@@ -245,9 +247,9 @@
           "tier": null,
           "tier_name": "POST_EVENT",
           "risk": null,
-          "lg_ratio": null,
+          "lg_ratio": 390.96,
           "fc_l2l1": 0.8475,
-          "thd": null,
+          "thd": 0.39,
           "post_event": true
         },
         {
@@ -267,7 +269,7 @@
           "risk": null,
           "lg_ratio": 158.55,
           "fc_l2l1": 0.255,
-          "thd": -0.6,
+          "thd": 0.1,
           "post_event": true
         },
         {
@@ -277,7 +279,7 @@
           "risk": null,
           "lg_ratio": 194370.2,
           "fc_l2l1": null,
-          "thd": null,
+          "thd": -0.42,
           "post_event": true
         }
       ],
@@ -367,9 +369,9 @@
           "tier": null,
           "tier_name": "POST_EVENT",
           "risk": null,
-          "lg_ratio": null,
+          "lg_ratio": 2.08,
           "fc_l2l1": 0.2883,
-          "thd": null,
+          "thd": 14.65,
           "post_event": true
         },
         {
@@ -389,7 +391,7 @@
           "risk": null,
           "lg_ratio": 11515.44,
           "fc_l2l1": 0.6616,
-          "thd": 0.78,
+          "thd": 0.55,
           "post_event": true
         },
         {
@@ -399,7 +401,7 @@
           "risk": null,
           "lg_ratio": 10451.39,
           "fc_l2l1": null,
-          "thd": null,
+          "thd": 0.44,
           "post_event": true
         }
       ],
@@ -490,7 +492,7 @@
           "risk": null,
           "lg_ratio": 1868.76,
           "fc_l2l1": null,
-          "thd": 336.32,
+          "thd": 336.29,
           "post_event": true
         },
         {
@@ -500,7 +502,7 @@
           "risk": null,
           "lg_ratio": 782359.21,
           "fc_l2l1": null,
-          "thd": 78.85,
+          "thd": 78.89,
           "post_event": true
         },
         {
@@ -510,7 +512,7 @@
           "risk": null,
           "lg_ratio": 922722.89,
           "fc_l2l1": null,
-          "thd": null,
+          "thd": -4.46,
           "post_event": true
         }
       ],
@@ -627,7 +629,17 @@
           "risk": null,
           "lg_ratio": 0.26,
           "fc_l2l1": null,
-          "thd": -0.35,
+          "thd": -0.12,
+          "post_event": true
+        },
+        {
+          "date": "2023-09-12",
+          "tier": null,
+          "tier_name": "POST_EVENT",
+          "risk": null,
+          "lg_ratio": null,
+          "fc_l2l1": null,
+          "thd": -0.14,
           "post_event": true
         }
       ],
@@ -706,9 +718,9 @@
           "tier": null,
           "tier_name": "POST_EVENT",
           "risk": null,
-          "lg_ratio": null,
+          "lg_ratio": 0.18,
           "fc_l2l1": 0.727,
-          "thd": null,
+          "thd": 16.56,
           "post_event": true
         },
         {
@@ -738,7 +750,7 @@
           "risk": null,
           "lg_ratio": 0.51,
           "fc_l2l1": null,
-          "thd": null,
+          "thd": 0.21,
           "post_event": true
         }
       ],
@@ -824,7 +836,7 @@
           "risk": null,
           "lg_ratio": null,
           "fc_l2l1": 0.0397,
-          "thd": null,
+          "thd": -0.4,
           "post_event": true
         },
         {
@@ -854,7 +866,17 @@
           "risk": null,
           "lg_ratio": null,
           "fc_l2l1": null,
-          "thd": -0.42,
+          "thd": -0.36,
+          "post_event": true
+        },
+        {
+          "date": "2018-12-04",
+          "tier": null,
+          "tier_name": "POST_EVENT",
+          "risk": null,
+          "lg_ratio": null,
+          "fc_l2l1": null,
+          "thd": -0.43,
           "post_event": true
         }
       ],
@@ -932,9 +954,9 @@
           "tier": null,
           "tier_name": "POST_EVENT",
           "risk": null,
-          "lg_ratio": null,
+          "lg_ratio": 7.63,
           "fc_l2l1": 0.0345,
-          "thd": null,
+          "thd": 0.42,
           "post_event": true
         },
         {
@@ -954,7 +976,7 @@
           "risk": null,
           "lg_ratio": 70.87,
           "fc_l2l1": 0.5663,
-          "thd": -0.11,
+          "thd": -0.14,
           "post_event": true
         },
         {
@@ -964,7 +986,7 @@
           "risk": null,
           "lg_ratio": 59.21,
           "fc_l2l1": null,
-          "thd": null,
+          "thd": -0.25,
           "post_event": true
         }
       ],
@@ -1062,6 +1084,16 @@
           "fc_l2l1": null,
           "thd": -0.32,
           "post_event": true
+        },
+        {
+          "date": "2024-04-06",
+          "tier": null,
+          "tier_name": "POST_EVENT",
+          "risk": null,
+          "lg_ratio": null,
+          "fc_l2l1": null,
+          "thd": -0.3,
+          "post_event": true
         }
       ],
       "notes": "Taiwan east coast. Lambda_geo unavailable - NGL GPS data not available for Taiwan stations. THD/FC show validation signal.",
@@ -1131,6 +1163,6 @@
     }
   },
   "methods_updated": [
-    "FC"
+    "THD"
   ]
 }

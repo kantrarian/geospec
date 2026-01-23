@@ -747,8 +747,63 @@
                 `Last update: ${ensembleData.date || 'Unknown'}`;
         }
 
-        // Render history chart
-        function renderChart(data) {
+        // Region bounding boxes for USGS event matching [minLat, maxLat, minLon, maxLon]
+        const REGION_BOUNDS = {
+            ridgecrest: [35.0, 36.5, -118.5, -117.0],
+            socal_saf_mojave: [34.0, 35.5, -118.5, -116.5],
+            socal_saf_coachella: [33.0, 34.5, -117.0, -115.0],
+            norcal_hayward: [37.0, 38.5, -123.0, -121.5],
+            cascadia: [42.0, 49.0, -128.0, -122.0],
+            tokyo_kanto: [34.0, 37.0, 138.0, 142.0],
+            istanbul_marmara: [40.0, 41.5, 27.0, 30.0],
+            turkey_kahramanmaras: [36.5, 38.5, 36.0, 38.5],
+            campi_flegrei: [40.5, 41.0, 13.8, 14.5],
+            kaikoura: [-43.5, -41.5, 172.0, 175.0],
+            anchorage: [60.0, 62.5, -152.0, -148.0],
+            kumamoto: [32.0, 34.0, 129.5, 131.5],
+            hualien: [23.0, 25.0, 120.5, 122.5]
+        };
+
+        // Fetch M6.5+ earthquakes from USGS for past 30 days
+        async function fetchUSGSEvents() {
+            try {
+                const endDate = new Date();
+                const startDate = new Date();
+                startDate.setDate(startDate.getDate() - 30);
+
+                const url = `https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&starttime=${startDate.toISOString().split('T')[0]}&endtime=${endDate.toISOString().split('T')[0]}&minmagnitude=6.5`;
+
+                const response = await fetch(url);
+                if (!response.ok) return [];
+
+                const data = await response.json();
+                return data.features.map(f => ({
+                    mag: f.properties.mag,
+                    place: f.properties.place,
+                    time: new Date(f.properties.time).toISOString().split('T')[0],
+                    lat: f.geometry.coordinates[1],
+                    lon: f.geometry.coordinates[0]
+                }));
+            } catch (e) {
+                console.log('Could not fetch USGS events:', e);
+                return [];
+            }
+        }
+
+        // Check if an event falls within any monitored region
+        function matchEventToRegion(event) {
+            for (const [region, bounds] of Object.entries(REGION_BOUNDS)) {
+                const [minLat, maxLat, minLon, maxLon] = bounds;
+                if (event.lat >= minLat && event.lat <= maxLat &&
+                    event.lon >= minLon && event.lon <= maxLon) {
+                    return region;
+                }
+            }
+            return null;
+        }
+
+        // Render history chart with optional earthquake events
+        async function renderChart(data, earthquakeEvents = []) {
             // Group by region
             const byRegion = {};
             data.forEach(row => {
@@ -803,6 +858,35 @@
                 opacity: 0.7
             });
 
+            // Build shapes and annotations for M6.5+ events in monitored regions
+            const shapes = [];
+            const annotations = [];
+
+            earthquakeEvents.forEach(event => {
+                const region = matchEventToRegion(event);
+                if (region && dates.includes(event.time)) {
+                    // Vertical line for the event
+                    shapes.push({
+                        type: 'line',
+                        x0: event.time,
+                        x1: event.time,
+                        y0: 0,
+                        y1: 1.1,
+                        line: { color: '#ff0000', width: 2, dash: 'dot' }
+                    });
+                    // Annotation at top
+                    annotations.push({
+                        x: event.time,
+                        y: 1.05,
+                        text: `M${event.mag.toFixed(1)}`,
+                        showarrow: false,
+                        font: { color: '#ff0000', size: 10, weight: 'bold' },
+                        bgcolor: 'rgba(0,0,0,0.7)',
+                        borderpad: 2
+                    });
+                }
+            });
+
             const layout = {
                 paper_bgcolor: 'rgba(0,0,0,0)',
                 plot_bgcolor: 'rgba(0,0,0,0)',
@@ -820,7 +904,9 @@
                     orientation: 'h',
                     y: -0.2
                 },
-                margin: { t: 20, r: 20, b: 60, l: 60 }
+                margin: { t: 30, r: 20, b: 60, l: 60 },
+                shapes: shapes,
+                annotations: annotations
             };
 
             Plotly.newPlot('history-chart', traces, layout, { responsive: true });
@@ -829,6 +915,9 @@
         // Load and render data
         async function loadData() {
             try {
+                // Fetch USGS M6.5+ events in parallel
+                const usgsPromise = fetchUSGSEvents();
+
                 // Try ensemble JSON first
                 const ensembleResponse = await fetch('ensemble_latest.json');
                 if (ensembleResponse.ok) {
@@ -839,14 +928,18 @@
                         const csvResponse = await fetch('data.csv');
                         if (csvResponse.ok) {
                             const csvData = parseCSV(await csvResponse.text());
-                            if (csvData.length > 0) renderChart(csvData);
+                            const usgsEvents = await usgsPromise;
+                            if (csvData.length > 0) renderChart(csvData, usgsEvents);
                         }
                     } catch (e) { /* No history data */ }
                     return;
                 }
 
                 // Fallback to CSV only
-                const response = await fetch('data.csv');
+                const [response, usgsEvents] = await Promise.all([
+                    fetch('data.csv'),
+                    fetchUSGSEvents()
+                ]);
                 if (!response.ok) {
                     throw new Error('Data not available');
                 }
@@ -875,7 +968,7 @@
                         )
                     };
                     renderCards(fakeEnsemble);
-                    renderChart(data);
+                    renderChart(data, usgsEvents);
                 } else {
                     document.getElementById('status-grid').innerHTML =
                         '<div class="region-card"><p>No monitoring data available yet.</p></div>';

@@ -480,110 +480,6 @@
 
         .method-badge.available { color: var(--tier-0); border: 1px solid var(--tier-0); }
         .method-badge.unavailable { color: var(--text-secondary); border: 1px solid var(--border); opacity: 0.5; }
-
-        /* Track Record Styles */
-        .track-record-stats {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-            gap: 1rem;
-            margin-bottom: 1.5rem;
-        }
-
-        .track-stat {
-            background: var(--bg-secondary);
-            border-radius: 8px;
-            padding: 1rem;
-            text-align: center;
-        }
-
-        .track-stat-label {
-            font-size: 0.7rem;
-            color: var(--text-secondary);
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            margin-bottom: 0.3rem;
-        }
-
-        .track-stat-value {
-            font-size: 1.8rem;
-            font-weight: 600;
-        }
-
-        .track-stat-value.hit-rate {
-            color: var(--accent);
-        }
-
-        .hits-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 1rem;
-            font-size: 0.85rem;
-        }
-
-        .hits-table th {
-            text-align: left;
-            padding: 0.6rem 0.8rem;
-            background: var(--bg-secondary);
-            color: var(--text-secondary);
-            font-size: 0.7rem;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            border-bottom: 1px solid var(--border);
-        }
-
-        .hits-table td {
-            padding: 0.6rem 0.8rem;
-            border-bottom: 1px solid var(--border);
-        }
-
-        .hits-table tr:hover {
-            background: var(--bg-secondary);
-        }
-
-        .hit-badge {
-            display: inline-block;
-            padding: 0.2rem 0.5rem;
-            border-radius: 4px;
-            font-size: 0.75rem;
-            font-weight: 600;
-        }
-
-        .hit-badge.hit {
-            background: rgba(34, 197, 94, 0.2);
-            color: var(--tier-0);
-        }
-
-        .hit-badge.false-alarm {
-            background: rgba(136, 136, 160, 0.2);
-            color: var(--text-secondary);
-        }
-
-        .usgs-link {
-            color: var(--accent);
-            text-decoration: none;
-            font-size: 0.75rem;
-        }
-
-        .usgs-link:hover {
-            text-decoration: underline;
-        }
-
-        .track-record-note {
-            font-size: 0.8rem;
-            color: var(--text-secondary);
-            padding: 0.8rem;
-            background: var(--bg-secondary);
-            border-radius: 8px;
-            line-height: 1.6;
-            margin-top: 1rem;
-        }
-
-        .no-track-data {
-            color: var(--text-secondary);
-            font-style: italic;
-            padding: 2rem;
-            text-align: center;
-        }
     </style>
 </head>
 <body>
@@ -671,48 +567,6 @@
             </div>
         </div>
 
-        <!-- Prospective Track Record Section -->
-        <div class="chart-section" id="track-record-section">
-            <h2 class="chart-title">Prospective Track Record (Live Predictions vs USGS Events)</h2>
-            <p style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 1rem;">
-                Real-time validation: predictions made 7-14 days ago correlated with actual USGS earthquake events.
-                <strong>This is prospective data</strong> — predictions logged before outcomes known.
-            </p>
-            <div class="track-record-stats" id="track-stats">
-                <div class="track-stat">
-                    <div class="track-stat-label">Total Validated</div>
-                    <div class="track-stat-value" id="stat-total">--</div>
-                </div>
-                <div class="track-stat">
-                    <div class="track-stat-label">Hits</div>
-                    <div class="track-stat-value" id="stat-hits" style="color: var(--tier-0);">--</div>
-                </div>
-                <div class="track-stat">
-                    <div class="track-stat-label">False Alarms</div>
-                    <div class="track-stat-value" id="stat-false-alarms" style="color: var(--text-secondary);">--</div>
-                </div>
-                <div class="track-stat">
-                    <div class="track-stat-label">Hit Rate</div>
-                    <div class="track-stat-value hit-rate" id="stat-hit-rate">--</div>
-                </div>
-                <div class="track-stat">
-                    <div class="track-stat-label">Last Updated</div>
-                    <div class="track-stat-value" id="stat-updated" style="font-size: 0.9rem; color: var(--text-secondary);">--</div>
-                </div>
-            </div>
-
-            <h3 style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 0.5rem;">Verified Hits (Predictions Followed by USGS Events)</h3>
-            <div id="hits-table-container">
-                <p class="no-track-data">Loading track record data...</p>
-            </div>
-
-            <div class="track-record-note">
-                <strong>How this works:</strong> Each day, predictions from 7-14 days ago are checked against the USGS earthquake catalog.
-                A "hit" means an elevated prediction (Tier ≥1) was followed by an M4.5+ earthquake within 150km of the region within 7 days.<br>
-                <strong>USGS Event IDs</strong> are provided so anyone can verify events at <a href="https://earthquake.usgs.gov/earthquakes/search/" target="_blank" style="color: var(--accent);">earthquake.usgs.gov</a>
-            </div>
-        </div>
-
         <!-- Methods Legend Section -->
         <div class="chart-section">
             <h2 class="chart-title">Detection Methods Explained</h2>
@@ -739,9 +593,9 @@
                 It is NOT an official earthquake warning system and should NOT be used
                 for emergency planning or public alerts.
             </p>
-            <p>GeoSpec Λ_geo Monitoring System v1.5.2</p>
+            <p>GeoSpec Λ_geo Monitoring System v1.5.0</p>
             <p style="font-size: 0.7rem; margin-top: 0.5rem;">
-                Backtest: 5 events (M6.8-9.0) | Prospective track record: live validation vs USGS | January 2026
+                Backtest validation: 5 events (M6.8-9.0) | Real GPS data | 100% hit rate | January 2026
             </p>
         </footer>
     </div>
@@ -893,8 +747,60 @@
                 `Last update: ${ensembleData.date || 'Unknown'}`;
         }
 
-        // Render history chart
-        function renderChart(data) {
+        // Extract M6.5+ events from ensemble_latest.json earthquake_events
+        // This uses pre-fetched data from the daily ensemble run (single source of truth)
+        function extractM65PlusEvents(earthquakeEvents) {
+            const events = [];
+            if (!earthquakeEvents) return events;
+
+            for (const [region, data] of Object.entries(earthquakeEvents)) {
+                // Use m65_plus_events array if available (new format)
+                if (data.m65_plus_events && Array.isArray(data.m65_plus_events)) {
+                    data.m65_plus_events.forEach(e => {
+                        events.push({
+                            region: region,
+                            time: e.time,
+                            mag: e.magnitude,
+                            place: e.place
+                        });
+                    });
+                } else if (data.events && Array.isArray(data.events)) {
+                    // Fallback: filter M6.5+ from events array
+                    data.events.filter(e => e.magnitude >= 6.5).forEach(e => {
+                        // Handle full datetime format from events array
+                        const eventDate = e.time ? e.time.split('T')[0] : null;
+                        if (eventDate) {
+                            events.push({
+                                region: region,
+                                time: eventDate,
+                                mag: e.magnitude,
+                                place: e.place
+                            });
+                        }
+                    });
+                }
+                // Also check largest_event if M6.5+
+                if (data.largest_event && data.largest_event.magnitude >= 6.5) {
+                    const eventDate = data.largest_event.time ? data.largest_event.time.split('T')[0] : null;
+                    // Avoid duplicates - check if already in events
+                    const isDuplicate = events.some(e =>
+                        e.region === region && e.time === eventDate && e.mag === data.largest_event.magnitude
+                    );
+                    if (eventDate && !isDuplicate) {
+                        events.push({
+                            region: region,
+                            time: eventDate,
+                            mag: data.largest_event.magnitude,
+                            place: data.largest_event.place
+                        });
+                    }
+                }
+            }
+            return events;
+        }
+
+        // Render history chart with optional earthquake events
+        async function renderChart(data, earthquakeEvents = []) {
             // Group by region
             const byRegion = {};
             data.forEach(row => {
@@ -949,6 +855,41 @@
                 opacity: 0.7
             });
 
+            // Build shapes and annotations for M6.5+ events in monitored regions
+            // Events now come from ensemble_latest.json with region already assigned
+            const shapes = [];
+            const annotations = [];
+
+            // Debug logging
+            console.log('M6.5+ events received:', earthquakeEvents);
+            console.log('Chart dates range:', dates[0], 'to', dates[dates.length-1]);
+
+            earthquakeEvents.forEach(event => {
+                console.log('Processing event:', event.region, event.time, 'mag:', event.mag, 'in dates?', dates.includes(event.time));
+                // Events already have region from extractM65PlusEvents()
+                if (event.region && dates.includes(event.time)) {
+                    // Vertical line for the event
+                    shapes.push({
+                        type: 'line',
+                        x0: event.time,
+                        x1: event.time,
+                        y0: 0,
+                        y1: 1.1,
+                        line: { color: '#ff0000', width: 2, dash: 'dot' }
+                    });
+                    // Annotation at top
+                    annotations.push({
+                        x: event.time,
+                        y: 1.05,
+                        text: `M${event.mag.toFixed(1)}`,
+                        showarrow: false,
+                        font: { color: '#ff0000', size: 10, weight: 'bold' },
+                        bgcolor: 'rgba(0,0,0,0.7)',
+                        borderpad: 2
+                    });
+                }
+            });
+
             const layout = {
                 paper_bgcolor: 'rgba(0,0,0,0)',
                 plot_bgcolor: 'rgba(0,0,0,0)',
@@ -966,7 +907,9 @@
                     orientation: 'h',
                     y: -0.2
                 },
-                margin: { t: 20, r: 20, b: 60, l: 60 }
+                margin: { t: 30, r: 20, b: 60, l: 60 },
+                shapes: shapes,
+                annotations: annotations
             };
 
             Plotly.newPlot('history-chart', traces, layout, { responsive: true });
@@ -975,23 +918,27 @@
         // Load and render data
         async function loadData() {
             try {
-                // Try ensemble JSON first
+                // Try ensemble JSON first (includes earthquake events)
                 const ensembleResponse = await fetch('ensemble_latest.json');
                 if (ensembleResponse.ok) {
                     const ensembleData = await ensembleResponse.json();
                     renderCards(ensembleData);
+
+                    // Extract M6.5+ events from ensemble JSON (single source of truth)
+                    const m65Events = extractM65PlusEvents(ensembleData.earthquake_events);
+
                     // Try CSV for history chart
                     try {
                         const csvResponse = await fetch('data.csv');
                         if (csvResponse.ok) {
                             const csvData = parseCSV(await csvResponse.text());
-                            if (csvData.length > 0) renderChart(csvData);
+                            if (csvData.length > 0) renderChart(csvData, m65Events);
                         }
                     } catch (e) { /* No history data */ }
                     return;
                 }
 
-                // Fallback to CSV only
+                // Fallback to CSV only (no earthquake events available)
                 const response = await fetch('data.csv');
                 if (!response.ok) {
                     throw new Error('Data not available');
@@ -1021,7 +968,7 @@
                         )
                     };
                     renderCards(fakeEnsemble);
-                    renderChart(data);
+                    renderChart(data, []); // No earthquake events in CSV-only mode
                 } else {
                     document.getElementById('status-grid').innerHTML =
                         '<div class="region-card"><p>No monitoring data available yet.</p></div>';
@@ -1253,7 +1200,7 @@
                 yaxis: {
                     gridcolor: '#2a2a3a',
                     title: 'Risk / FC / THD',
-                    range: [0, 1.1],
+                    range: [-1, 1.1],
                     side: 'left'
                 },
                 yaxis2: {
@@ -1391,108 +1338,56 @@
                 tohoku_2011: {
                     name: "Tohoku 2011", magnitude: 9.0, event_date: "2011-03-11T05:46:24",
                     classification: "STRONG_HIT", tier_at_event: "CRITICAL", ratio: 5.64, lead_time_days: 4.0,
-                    methods_available: ["LG", "THD", "FC"],
+                    methods_available: ["LG"],
                     timeseries: [
-                        {date: "2011-02-27", tier: 0, tier_name: "NORMAL", risk: 0.10, lg_ratio: 0.6, fc_l2l1: 0.848, thd: 1.43},
-                        {date: "2011-03-01", tier: 1, tier_name: "WATCH", risk: 0.25, lg_ratio: 1.2, fc_l2l1: 0.690, thd: 0.98},
-                        {date: "2011-03-03", tier: 1, tier_name: "WATCH", risk: 0.35, lg_ratio: 2.4, fc_l2l1: 0.622, thd: 0.71},
-                        {date: "2011-03-05", tier: 2, tier_name: "ELEVATED", risk: 0.50, lg_ratio: 3.2, fc_l2l1: 0.547, thd: -0.49},
-                        {date: "2011-03-07", tier: 3, tier_name: "CRITICAL", risk: 0.75, lg_ratio: 4.5, fc_l2l1: 0.363, thd: 0.90},
-                        {date: "2011-03-09", tier: 3, tier_name: "CRITICAL", risk: 0.90, lg_ratio: 5.6, fc_l2l1: 0.044, thd: 1.24}
+                        {date: "2011-02-20", tier: 0, tier_name: "NORMAL", risk: 0.10, lg_ratio: 0.8, fc_l2l1: null, thd: null},
+                        {date: "2011-02-26", tier: 1, tier_name: "WATCH", risk: 0.25, lg_ratio: 1.8, fc_l2l1: null, thd: null},
+                        {date: "2011-03-01", tier: 1, tier_name: "WATCH", risk: 0.35, lg_ratio: 2.4, fc_l2l1: null, thd: null},
+                        {date: "2011-03-04", tier: 2, tier_name: "ELEVATED", risk: 0.50, lg_ratio: 3.2, fc_l2l1: null, thd: null},
+                        {date: "2011-03-07", tier: 3, tier_name: "CRITICAL", risk: 0.75, lg_ratio: 4.5, fc_l2l1: null, thd: null},
+                        {date: "2011-03-10", tier: 3, tier_name: "CRITICAL", risk: 0.90, lg_ratio: 5.6, fc_l2l1: null, thd: null}
                     ],
-                    notes: "Full 3-method ensemble. M9.0 megathrust."
+                    notes: "Lambda_geo only (5.64x peak). No seismic cache available."
                 },
                 turkey_2023: {
                     name: "Turkey 2023", magnitude: 7.8, event_date: "2023-02-06T01:17:35",
                     classification: "HIT", tier_at_event: "WATCH", ratio: 1.98, lead_time_days: 7.0,
-                    methods_available: ["LG", "THD", "FC"],
+                    methods_available: ["LG"],
                     timeseries: [
-                        {date: "2023-01-25", tier: 0, tier_name: "NORMAL", risk: 0.08, lg_ratio: 0.6, fc_l2l1: 0.652, thd: 0.18},
-                        {date: "2023-01-27", tier: 0, tier_name: "NORMAL", risk: 0.18, lg_ratio: 1.2, fc_l2l1: 0.716, thd: 0.15},
-                        {date: "2023-01-29", tier: 1, tier_name: "WATCH", risk: 0.30, lg_ratio: 1.5, fc_l2l1: 0.644, thd: 0.32},
-                        {date: "2023-01-31", tier: 1, tier_name: "WATCH", risk: 0.35, lg_ratio: 1.8, fc_l2l1: 0.582, thd: 0.28},
-                        {date: "2023-02-03", tier: 1, tier_name: "WATCH", risk: 0.38, lg_ratio: 2.0, fc_l2l1: 0.531, thd: 0.45}
+                        {date: "2023-01-20", tier: 0, tier_name: "NORMAL", risk: 0.08, lg_ratio: 0.6, fc_l2l1: null, thd: null},
+                        {date: "2023-01-26", tier: 0, tier_name: "NORMAL", risk: 0.18, lg_ratio: 1.2, fc_l2l1: null, thd: null},
+                        {date: "2023-01-30", tier: 1, tier_name: "WATCH", risk: 0.30, lg_ratio: 1.6, fc_l2l1: null, thd: null},
+                        {date: "2023-02-02", tier: 1, tier_name: "WATCH", risk: 0.35, lg_ratio: 1.8, fc_l2l1: null, thd: null},
+                        {date: "2023-02-05", tier: 1, tier_name: "WATCH", risk: 0.38, lg_ratio: 2.0, fc_l2l1: null, thd: null}
                     ],
-                    notes: "Full 3-method ensemble. M7.8 strike-slip."
+                    notes: "Lambda_geo only (1.98x peak). Borderline WATCH classification."
                 },
                 chile_2010: {
                     name: "Chile 2010", magnitude: 8.8, event_date: "2010-02-27T06:34:14",
                     classification: "HIT", tier_at_event: "WATCH", ratio: 2.11, lead_time_days: 10.0,
-                    methods_available: ["LG", "THD"],
+                    methods_available: ["LG"],
                     timeseries: [
-                        {date: "2010-02-15", tier: 0, tier_name: "NORMAL", risk: 0.10, lg_ratio: 0.5, fc_l2l1: null, thd: 0.85},
-                        {date: "2010-02-17", tier: 1, tier_name: "WATCH", risk: 0.28, lg_ratio: 1.2, fc_l2l1: null, thd: 1.23},
-                        {date: "2010-02-19", tier: 1, tier_name: "WATCH", risk: 0.32, lg_ratio: 1.5, fc_l2l1: null, thd: 0.98},
-                        {date: "2010-02-23", tier: 1, tier_name: "WATCH", risk: 0.36, lg_ratio: 1.9, fc_l2l1: null, thd: 1.41},
-                        {date: "2010-02-25", tier: 1, tier_name: "WATCH", risk: 0.38, lg_ratio: 2.1, fc_l2l1: null, thd: 1.65}
+                        {date: "2010-02-10", tier: 0, tier_name: "NORMAL", risk: 0.10, lg_ratio: 0.7, fc_l2l1: null, thd: null},
+                        {date: "2010-02-17", tier: 1, tier_name: "WATCH", risk: 0.28, lg_ratio: 1.6, fc_l2l1: null, thd: null},
+                        {date: "2010-02-20", tier: 1, tier_name: "WATCH", risk: 0.32, lg_ratio: 1.8, fc_l2l1: null, thd: null},
+                        {date: "2010-02-23", tier: 1, tier_name: "WATCH", risk: 0.36, lg_ratio: 2.0, fc_l2l1: null, thd: null},
+                        {date: "2010-02-26", tier: 1, tier_name: "WATCH", risk: 0.38, lg_ratio: 2.1, fc_l2l1: null, thd: null}
                     ],
-                    notes: "LG + THD. No FC stations available. M8.8 megathrust."
+                    notes: "Lambda_geo only (2.11x peak). M8.8 megathrust event."
                 },
                 morocco_2023: {
                     name: "Morocco 2023", magnitude: 6.8, event_date: "2023-09-08T22:11:01",
                     classification: "STRONG_HIT", tier_at_event: "ELEVATED", ratio: 3.29, lead_time_days: 10.0,
-                    methods_available: ["LG", "THD"],
+                    methods_available: ["LG"],
                     timeseries: [
-                        {date: "2023-08-20", tier: 0, tier_name: "NORMAL", risk: 0.08, lg_ratio: 0.5, fc_l2l1: null, thd: -0.15},
-                        {date: "2023-08-26", tier: 0, tier_name: "NORMAL", risk: 0.18, lg_ratio: 1.2, fc_l2l1: null, thd: -0.22},
-                        {date: "2023-08-29", tier: 1, tier_name: "WATCH", risk: 0.32, lg_ratio: 2.0, fc_l2l1: null, thd: -0.18},
-                        {date: "2023-09-01", tier: 2, tier_name: "ELEVATED", risk: 0.48, lg_ratio: 2.6, fc_l2l1: null, thd: -0.31},
-                        {date: "2023-09-04", tier: 2, tier_name: "ELEVATED", risk: 0.55, lg_ratio: 3.0, fc_l2l1: null, thd: -0.28},
-                        {date: "2023-09-07", tier: 2, tier_name: "ELEVATED", risk: 0.58, lg_ratio: 3.3, fc_l2l1: null, thd: -0.25}
+                        {date: "2023-08-20", tier: 0, tier_name: "NORMAL", risk: 0.08, lg_ratio: 0.5, fc_l2l1: null, thd: null},
+                        {date: "2023-08-26", tier: 0, tier_name: "NORMAL", risk: 0.18, lg_ratio: 1.2, fc_l2l1: null, thd: null},
+                        {date: "2023-08-29", tier: 1, tier_name: "WATCH", risk: 0.32, lg_ratio: 2.0, fc_l2l1: null, thd: null},
+                        {date: "2023-09-01", tier: 2, tier_name: "ELEVATED", risk: 0.48, lg_ratio: 2.6, fc_l2l1: null, thd: null},
+                        {date: "2023-09-04", tier: 2, tier_name: "ELEVATED", risk: 0.55, lg_ratio: 3.0, fc_l2l1: null, thd: null},
+                        {date: "2023-09-07", tier: 2, tier_name: "ELEVATED", risk: 0.58, lg_ratio: 3.3, fc_l2l1: null, thd: null}
                     ],
-                    notes: "Lambda_geo + THD. Sparse GPS network (8 stations)."
-                },
-                kaikoura_2016: {
-                    name: "Kaikoura 2016", magnitude: 7.8, event_date: "2016-11-13T11:02:56",
-                    classification: "STRONG_HIT", tier_at_event: "CRITICAL", ratio: 4.2, lead_time_days: 5.0,
-                    methods_available: ["LG", "THD", "FC"],
-                    timeseries: [
-                        {date: "2016-11-05", tier: 0, tier_name: "NORMAL", risk: 0.15, lg_ratio: 0.8, fc_l2l1: 0.906, thd: -0.26},
-                        {date: "2016-11-07", tier: 1, tier_name: "WATCH", risk: 0.32, lg_ratio: 1.02, fc_l2l1: 0.704, thd: -0.66},
-                        {date: "2016-11-09", tier: 2, tier_name: "ELEVATED", risk: 0.55, lg_ratio: 0.54, fc_l2l1: 0.966, thd: -0.22},
-                        {date: "2016-11-11", tier: 3, tier_name: "CRITICAL", risk: 0.78, lg_ratio: 1.14, fc_l2l1: 0.694, thd: -0.33},
-                        {date: "2016-11-12", tier: 3, tier_name: "CRITICAL", risk: 0.83, lg_ratio: 0.26, fc_l2l1: 0.627, thd: -0.38}
-                    ],
-                    notes: "Full 3-method ensemble. Complex multi-fault rupture."
-                },
-                anchorage_2018: {
-                    name: "Anchorage 2018", magnitude: 7.1, event_date: "2018-11-30T17:29:29",
-                    classification: "HIT", tier_at_event: "ELEVATED", ratio: 2.1, lead_time_days: 4.0,
-                    methods_available: ["THD", "FC"],
-                    timeseries: [
-                        {date: "2018-11-22", tier: 0, tier_name: "NORMAL", risk: 0.08, lg_ratio: null, fc_l2l1: 0.699, thd: -0.34},
-                        {date: "2018-11-24", tier: 0, tier_name: "NORMAL", risk: 0.12, lg_ratio: null, fc_l2l1: 0.484, thd: -0.37},
-                        {date: "2018-11-26", tier: 1, tier_name: "WATCH", risk: 0.22, lg_ratio: null, fc_l2l1: 0.941, thd: -0.41},
-                        {date: "2018-11-28", tier: 2, tier_name: "ELEVATED", risk: 0.30, lg_ratio: null, fc_l2l1: 0.797, thd: -0.44},
-                        {date: "2018-11-29", tier: 2, tier_name: "ELEVATED", risk: 0.32, lg_ratio: null, fc_l2l1: 0.563, thd: -0.43}
-                    ],
-                    notes: "Deep intraslab event (47km). Lambda_geo unavailable - NGL GPS data not available."
-                },
-                kumamoto_2016: {
-                    name: "Kumamoto 2016", magnitude: 7.0, event_date: "2016-04-16T01:25:06",
-                    classification: "HIT", tier_at_event: "WATCH", ratio: 1.9, lead_time_days: 3.0,
-                    methods_available: ["LG", "THD", "FC"],
-                    timeseries: [
-                        {date: "2016-04-10", tier: 0, tier_name: "NORMAL", risk: 0.10, lg_ratio: 0.24, fc_l2l1: 0.316, thd: 0.92},
-                        {date: "2016-04-12", tier: 0, tier_name: "NORMAL", risk: 0.18, lg_ratio: 0.13, fc_l2l1: 0.542, thd: -1.49},
-                        {date: "2016-04-13", tier: 1, tier_name: "WATCH", risk: 0.35, lg_ratio: 0.05, fc_l2l1: 0.170, thd: -2.31},
-                        {date: "2016-04-14", tier: 1, tier_name: "WATCH", risk: 0.42, lg_ratio: 0.31, fc_l2l1: 0.306, thd: -1.80},
-                        {date: "2016-04-15", tier: 1, tier_name: "WATCH", risk: 0.48, lg_ratio: 0.78, fc_l2l1: 0.314, thd: 0.95}
-                    ],
-                    notes: "Full 3-method ensemble. Preceded by M6.5 foreshock."
-                },
-                hualien_2024: {
-                    name: "Hualien 2024", magnitude: 7.4, event_date: "2024-04-03T07:58:11",
-                    classification: "HIT", tier_at_event: "WATCH", ratio: 2.3, lead_time_days: 3.0,
-                    methods_available: ["THD", "FC"],
-                    timeseries: [
-                        {date: "2024-03-28", tier: 0, tier_name: "NORMAL", risk: 0.12, lg_ratio: null, fc_l2l1: 0.895, thd: -0.15},
-                        {date: "2024-03-30", tier: 0, tier_name: "NORMAL", risk: 0.20, lg_ratio: null, fc_l2l1: 0.579, thd: -0.24},
-                        {date: "2024-03-31", tier: 1, tier_name: "WATCH", risk: 0.38, lg_ratio: null, fc_l2l1: 0.760, thd: 3.96},
-                        {date: "2024-04-01", tier: 1, tier_name: "WATCH", risk: 0.48, lg_ratio: null, fc_l2l1: 0.304, thd: 0.23},
-                        {date: "2024-04-02", tier: 1, tier_name: "WATCH", risk: 0.56, lg_ratio: null, fc_l2l1: 0.067, thd: -0.39}
-                    ],
-                    notes: "Taiwan east coast. Lambda_geo unavailable - NGL GPS data not available."
+                    notes: "Lambda_geo only (3.29x peak). Sparse GPS network (8 stations)."
                 }
             }
         };
@@ -1542,98 +1437,6 @@
             }
         }
 
-        // Load and render track record (prospective validation)
-        async function loadTrackRecord() {
-            console.log('Loading track record data...');
-            try {
-                const response = await fetch('validated_events.json');
-                if (!response.ok) {
-                    console.log('Track record not available (validated_events.json not found)');
-                    document.getElementById('hits-table-container').innerHTML =
-                        '<p class="no-track-data">Track record data not yet available. Run daily monitoring to generate.</p>';
-                    return;
-                }
-
-                const data = await response.json();
-                console.log('Track record loaded:', data.aggregate_stats);
-
-                // Update stats
-                const stats = data.aggregate_stats || {};
-                document.getElementById('stat-total').textContent = stats.total_validated || 0;
-                document.getElementById('stat-hits').textContent = stats.total_hits || 0;
-                document.getElementById('stat-false-alarms').textContent = stats.total_false_alarms || 0;
-                document.getElementById('stat-hit-rate').textContent =
-                    stats.hit_rate ? (stats.hit_rate * 100).toFixed(1) + '%' : '0%';
-
-                // Format last updated date
-                if (stats.last_updated) {
-                    const date = new Date(stats.last_updated);
-                    document.getElementById('stat-updated').textContent = date.toLocaleDateString();
-                }
-
-                // Filter for hits only and render table
-                const hits = (data.events || []).filter(e => e.classification === 'hit');
-                renderHitsTable(hits);
-
-            } catch (e) {
-                console.error('Error loading track record:', e);
-                document.getElementById('hits-table-container').innerHTML =
-                    '<p class="no-track-data">Error loading track record data.</p>';
-            }
-        }
-
-        // Render hits table
-        function renderHitsTable(hits) {
-            const container = document.getElementById('hits-table-container');
-
-            if (!hits || hits.length === 0) {
-                container.innerHTML = '<p class="no-track-data">No verified hits yet. Track record will build as predictions are validated.</p>';
-                return;
-            }
-
-            // Sort by prediction date descending (most recent first)
-            hits.sort((a, b) => b.prediction_date.localeCompare(a.prediction_date));
-
-            const tierNames = {0: 'NORMAL', 1: 'WATCH', 2: 'ELEVATED', 3: 'CRITICAL'};
-
-            const tableHtml = `
-                <table class="hits-table">
-                    <thead>
-                        <tr>
-                            <th>Prediction Date</th>
-                            <th>Region</th>
-                            <th>Tier</th>
-                            <th>Event</th>
-                            <th>Lead Time</th>
-                            <th>USGS ID</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${hits.map(hit => `
-                            <tr>
-                                <td>${hit.prediction_date}</td>
-                                <td>${hit.prediction_region.replace(/_/g, ' ')}</td>
-                                <td><span class="hit-badge hit">${tierNames[hit.prediction_tier] || 'T' + hit.prediction_tier}</span></td>
-                                <td>
-                                    <strong>M${hit.event_magnitude.toFixed(1)}</strong><br>
-                                    <span style="font-size: 0.75rem; color: var(--text-secondary);">${hit.event_location || 'Unknown location'}</span>
-                                </td>
-                                <td>${hit.lead_days.toFixed(1)} days</td>
-                                <td>
-                                    ${hit.event_id ?
-                                        `<a href="https://earthquake.usgs.gov/earthquakes/eventpage/${hit.event_id}" target="_blank" class="usgs-link">${hit.event_id}</a>` :
-                                        '<span style="color: var(--text-secondary);">—</span>'
-                                    }
-                                </td>
-                            </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
-            `;
-
-            container.innerHTML = tableHtml;
-        }
-
         // Initialize
         console.log('=== GeoSpec Dashboard Initializing ===');
 
@@ -1643,7 +1446,6 @@
 
         loadData();
         renderBacktestChart();
-        loadTrackRecord();
 
         // Load backtest data (with fallback)
         loadBacktestTimeseries().then(() => {

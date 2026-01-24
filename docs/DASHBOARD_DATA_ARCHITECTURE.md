@@ -216,16 +216,34 @@ No changes required - continues to store daily risk scores.
 
 ---
 
+## Deployment Notes
+
+**IMPORTANT**: GitHub Pages serves from the `docs/` folder, NOT `monitoring/dashboard/`.
+
+After making changes to dashboard files:
+```powershell
+# Sync files from development to deployment folder
+cp monitoring/dashboard/index.html docs/index.html
+cp monitoring/dashboard/ensemble_latest.json docs/ensemble_latest.json
+cp monitoring/dashboard/data.csv docs/data.csv
+
+# Commit and push
+git add docs/
+git commit -m "Sync dashboard to docs/"
+git push
+```
+
 ## Migration Checklist
 
-- [ ] Archive current data (DONE: `archive_2026-01-23/`)
-- [ ] Update `earthquake_events.py` to include all regions
-- [ ] Add `m65_plus_events` field to Python output
-- [ ] Update `run_ensemble_daily.py` to fetch events for all REGIONS
-- [ ] Remove JavaScript `fetchUSGSEvents()` function
-- [ ] Update JavaScript `renderChart()` to use JSON data
-- [ ] Test dashboard with new architecture
-- [ ] Update METHOD_DOCUMENT.md with new architecture
+- [x] Archive current data (DONE: `archive_2026-01-23/`)
+- [x] Update `earthquake_events.py` to include all regions
+- [x] Add `m65_plus_events` field to Python output
+- [x] Update `run_ensemble_daily.py` to fetch events for all REGIONS
+- [x] Remove JavaScript `fetchUSGSEvents()` function
+- [x] Update JavaScript `renderChart()` to use JSON data
+- [x] Test dashboard with new architecture
+- [x] Update METHOD_DOCUMENT.md with new architecture
+- [x] Sync files to docs/ folder for GitHub Pages
 
 ---
 

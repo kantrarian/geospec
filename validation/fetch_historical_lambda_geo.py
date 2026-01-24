@@ -426,8 +426,8 @@ def compute_lg_timeseries(event_key: str, verbose: bool = True) -> Optional[Dict
                 'lambda_geo': round(float(lg), 8),
             }
 
-            # Mark post-event entries
-            if date_str > event_date_str:
+            # Mark post-event entries (>= because event day is co-seismic, not precursor)
+            if date_str >= event_date_str:
                 entry['post_event'] = True
 
             timeseries.append(entry)

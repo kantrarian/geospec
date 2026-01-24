@@ -95,13 +95,13 @@ def update_thd(backtest: Dict, thd_data: Dict) -> Dict:
             else:
                 entry['thd'] = None
 
-            # Mark post-event
-            if date > event_date_str:
+            # Mark post-event (>= because event day is co-seismic, not precursor)
+            if date >= event_date_str:
                 entry['post_event'] = True
 
         # Add post-event entries not in backtest
         thd_dates = sorted(set(e['date'] for e in thd_ts))
-        post_dates = [d for d in thd_dates if d > event_date_str and d not in existing_dates]
+        post_dates = [d for d in thd_dates if d >= event_date_str and d not in existing_dates]
 
         added = 0
         for post_date in post_dates[:3]:

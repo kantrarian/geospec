@@ -1,6 +1,6 @@
 {
-  "generated": "2026-01-22",
-  "data_integrity": "Real data from: THD. Updated on 2026-01-22. Includes 3 days post-event data.",
+  "generated": "2026-01-23",
+  "data_integrity": "Fixed on 2026-01-23: Event day now correctly marked as POST_EVENT. Pre-event peaks recalculated excluding co-seismic data.",
   "events": {
     "ridgecrest_2019": {
       "name": "Ridgecrest 2019",
@@ -117,12 +117,13 @@
         },
         {
           "date": "2019-07-06",
-          "tier": 2,
-          "tier_name": "ELEVATED",
-          "risk": 0.713,
+          "tier": null,
+          "tier_name": "POST_EVENT",
+          "risk": null,
           "lg_ratio": 221.16,
           "fc_l2l1": 0.116,
-          "thd": 6.39
+          "thd": 6.39,
+          "post_event": true
         },
         {
           "date": "2019-07-07",
@@ -160,8 +161,8 @@
       "fc_min_l2l1": 0.002,
       "fc_min_date": "2019-06-27",
       "lg_n_stations": 14,
-      "lg_peak_ratio": 221.16,
-      "lg_peak_date": "2019-07-06",
+      "lg_peak_ratio": 30.22,
+      "lg_peak_date": "2019-07-05",
       "thd_station": "CI.SLA",
       "thd_peak_zscore": 2.8106
     },
@@ -225,6 +226,24 @@
           "thd": 0.24
         },
         {
+          "date": "2011-03-05",
+          "tier": 0,
+          "tier_name": "NORMAL",
+          "risk": 0.006,
+          "lg_ratio": 0.06,
+          "fc_l2l1": null,
+          "thd": null
+        },
+        {
+          "date": "2011-03-06",
+          "tier": 2,
+          "tier_name": "ELEVATED",
+          "risk": 0.507,
+          "lg_ratio": 3.07,
+          "fc_l2l1": null,
+          "thd": null
+        },
+        {
           "date": "2011-03-07",
           "tier": 3,
           "tier_name": "CRITICAL",
@@ -232,6 +251,24 @@
           "lg_ratio": 0.79,
           "fc_l2l1": 0.4559,
           "thd": 0.13
+        },
+        {
+          "date": "2011-03-08",
+          "tier": 0,
+          "tier_name": "NORMAL",
+          "risk": 0.021,
+          "lg_ratio": 0.21,
+          "fc_l2l1": null,
+          "thd": null
+        },
+        {
+          "date": "2011-03-09",
+          "tier": 0,
+          "tier_name": "NORMAL",
+          "risk": 0.119,
+          "lg_ratio": 1.19,
+          "fc_l2l1": null,
+          "thd": null
         },
         {
           "date": "2011-03-10",
@@ -293,8 +330,8 @@
       "thd_baseline_mean": 0.3624,
       "thd_baseline_std": 0.1049,
       "lg_n_stations": 20,
-      "lg_peak_ratio": 390.96,
-      "lg_peak_date": "2011-03-11"
+      "lg_peak_ratio": 2.4,
+      "lg_peak_date": "2011-03-01"
     },
     "turkey_2023": {
       "name": "Turkey 2023",
@@ -347,6 +384,24 @@
           "thd": -0.35
         },
         {
+          "date": "2023-01-31",
+          "tier": 0,
+          "tier_name": "NORMAL",
+          "risk": 0.08100000000000002,
+          "lg_ratio": 0.81,
+          "fc_l2l1": null,
+          "thd": null
+        },
+        {
+          "date": "2023-02-01",
+          "tier": 0,
+          "tier_name": "NORMAL",
+          "risk": 0.05600000000000001,
+          "lg_ratio": 0.56,
+          "fc_l2l1": null,
+          "thd": null
+        },
+        {
           "date": "2023-02-02",
           "tier": 1,
           "tier_name": "WATCH",
@@ -354,6 +409,24 @@
           "lg_ratio": 0.3,
           "fc_l2l1": 0.945,
           "thd": 0.08
+        },
+        {
+          "date": "2023-02-03",
+          "tier": 0,
+          "tier_name": "NORMAL",
+          "risk": 0.09100000000000001,
+          "lg_ratio": 0.91,
+          "fc_l2l1": null,
+          "thd": null
+        },
+        {
+          "date": "2023-02-04",
+          "tier": 1,
+          "tier_name": "WATCH",
+          "risk": 0.39699999999999996,
+          "lg_ratio": 1.97,
+          "fc_l2l1": null,
+          "thd": null
         },
         {
           "date": "2023-02-05",
@@ -468,6 +541,24 @@
           "thd": 0.16
         },
         {
+          "date": "2010-02-21",
+          "tier": 0,
+          "tier_name": "NORMAL",
+          "risk": 0.065,
+          "lg_ratio": 0.65,
+          "fc_l2l1": null,
+          "thd": null
+        },
+        {
+          "date": "2010-02-22",
+          "tier": 0,
+          "tier_name": "NORMAL",
+          "risk": 0.145,
+          "lg_ratio": 1.45,
+          "fc_l2l1": null,
+          "thd": null
+        },
+        {
           "date": "2010-02-23",
           "tier": 1,
           "tier_name": "WATCH",
@@ -475,6 +566,24 @@
           "lg_ratio": 0.95,
           "fc_l2l1": null,
           "thd": -1.66
+        },
+        {
+          "date": "2010-02-24",
+          "tier": 0,
+          "tier_name": "NORMAL",
+          "risk": 0.063,
+          "lg_ratio": 0.63,
+          "fc_l2l1": null,
+          "thd": null
+        },
+        {
+          "date": "2010-02-25",
+          "tier": 2,
+          "tier_name": "ELEVATED",
+          "risk": 0.519,
+          "lg_ratio": 3.19,
+          "fc_l2l1": null,
+          "thd": null
         },
         {
           "date": "2010-02-26",
@@ -523,8 +632,8 @@
       "thd_baseline_mean": 0.3481,
       "thd_baseline_std": 0.0157,
       "lg_n_stations": 15,
-      "lg_peak_ratio": 3.19,
-      "lg_peak_date": "2010-02-25"
+      "lg_peak_ratio": 1.6,
+      "lg_peak_date": "2010-02-17"
     },
     "morocco_2023": {
       "name": "Morocco 2023",
@@ -585,6 +694,24 @@
           "thd": 0.39
         },
         {
+          "date": "2023-09-02",
+          "tier": 0,
+          "tier_name": "NORMAL",
+          "risk": 0.08100000000000002,
+          "lg_ratio": 0.81,
+          "fc_l2l1": null,
+          "thd": null
+        },
+        {
+          "date": "2023-09-03",
+          "tier": 1,
+          "tier_name": "WATCH",
+          "risk": 0.365,
+          "lg_ratio": 1.65,
+          "fc_l2l1": null,
+          "thd": null
+        },
+        {
           "date": "2023-09-04",
           "tier": 2,
           "tier_name": "ELEVATED",
@@ -592,6 +719,24 @@
           "lg_ratio": 1.35,
           "fc_l2l1": null,
           "thd": 0.06
+        },
+        {
+          "date": "2023-09-05",
+          "tier": 0,
+          "tier_name": "NORMAL",
+          "risk": 0.07800000000000001,
+          "lg_ratio": 0.78,
+          "fc_l2l1": null,
+          "thd": null
+        },
+        {
+          "date": "2023-09-06",
+          "tier": 0,
+          "tier_name": "NORMAL",
+          "risk": 0.067,
+          "lg_ratio": 0.67,
+          "fc_l2l1": null,
+          "thd": null
         },
         {
           "date": "2023-09-07",
@@ -650,8 +795,8 @@
       "thd_baseline_mean": 0.3369,
       "thd_baseline_std": 0.0906,
       "lg_n_stations": 8,
-      "lg_peak_ratio": 1.65,
-      "lg_peak_date": "2023-09-03"
+      "lg_peak_ratio": 2.0,
+      "lg_peak_date": "2023-08-29"
     },
     "kaikoura_2016": {
       "name": "Kaikoura 2016",
@@ -678,6 +823,15 @@
           "thd": -0.26
         },
         {
+          "date": "2016-11-06",
+          "tier": 0,
+          "tier_name": "NORMAL",
+          "risk": 0.036,
+          "lg_ratio": 0.36,
+          "fc_l2l1": null,
+          "thd": null
+        },
+        {
           "date": "2016-11-07",
           "tier": 1,
           "tier_name": "WATCH",
@@ -687,6 +841,15 @@
           "thd": -0.66
         },
         {
+          "date": "2016-11-08",
+          "tier": 1,
+          "tier_name": "WATCH",
+          "risk": 0.408,
+          "lg_ratio": 2.08,
+          "fc_l2l1": null,
+          "thd": null
+        },
+        {
           "date": "2016-11-09",
           "tier": 2,
           "tier_name": "ELEVATED",
@@ -694,6 +857,15 @@
           "lg_ratio": 0.54,
           "fc_l2l1": 0.9658,
           "thd": -0.22
+        },
+        {
+          "date": "2016-11-10",
+          "tier": 0,
+          "tier_name": "NORMAL",
+          "risk": 0.03900000000000001,
+          "lg_ratio": 0.39,
+          "fc_l2l1": null,
+          "thd": null
         },
         {
           "date": "2016-11-11",
@@ -767,8 +939,8 @@
       "thd_baseline_mean": 0.3593,
       "thd_baseline_std": 0.0868,
       "lg_n_stations": 45,
-      "lg_peak_ratio": 2.08,
-      "lg_peak_date": "2016-11-08"
+      "lg_peak_ratio": 1.14,
+      "lg_peak_date": "2016-11-11"
     },
     "anchorage_2018": {
       "name": "Anchorage 2018",
@@ -905,6 +1077,15 @@
       "detection_result": 0.48,
       "timeseries": [
         {
+          "date": "2016-04-09",
+          "tier": 2,
+          "tier_name": "ELEVATED",
+          "risk": 0.5549999999999999,
+          "lg_ratio": 3.55,
+          "fc_l2l1": null,
+          "thd": null
+        },
+        {
           "date": "2016-04-10",
           "tier": 0,
           "tier_name": "NORMAL",
@@ -912,6 +1093,15 @@
           "lg_ratio": 0.24,
           "fc_l2l1": 0.3157,
           "thd": 0.92
+        },
+        {
+          "date": "2016-04-11",
+          "tier": 0,
+          "tier_name": "NORMAL",
+          "risk": 0.008,
+          "lg_ratio": 0.08,
+          "fc_l2l1": null,
+          "thd": null
         },
         {
           "date": "2016-04-12",
@@ -1003,8 +1193,8 @@
       "thd_baseline_mean": 0.3403,
       "thd_baseline_std": 0.0301,
       "lg_n_stations": 50,
-      "lg_peak_ratio": 7.63,
-      "lg_peak_date": "2016-04-16"
+      "lg_peak_ratio": 0.78,
+      "lg_peak_date": "2016-04-15"
     },
     "hualien_2024": {
       "name": "Hualien 2024",

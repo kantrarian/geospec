@@ -88,6 +88,16 @@ stations:
     channel: HHZ
     notes: "Direct Campi Flegrei station - INGV network"
 
+  # Mexico - MX.TLIG (Guerrero)
+  mexico_guerrero:
+    network: MX
+    station: TLIG
+    sample_rate: 40
+    channel: BHZ
+    fallback_network: G
+    fallback_station: UNM
+    notes: "Tlapa, Guerrero - Guerrero subduction zone. G.UNM (UNAM) fallback."
+
 # =============================================================================
 # KNOWN STATION SUBSTITUTIONS
 # =============================================================================

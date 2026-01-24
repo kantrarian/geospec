@@ -121,6 +121,11 @@ REGION_DEFINITIONS = {
         'center': (23.9, 121.6),
         'bounds': {'lat': (23.0, 24.5), 'lon': (121.0, 122.0)},
     },
+    'mexico_guerrero': {
+        'name': 'Mexico Guerrero',
+        'center': (17.0, -99.0),
+        'bounds': {'lat': (15.5, 18.5), 'lon': (-101.0, -97.0)},
+    },
 }
 
 

@@ -956,6 +956,29 @@ HUALIEN_SEGMENTS = [
     )
 ]
 
+MEXICO_GUERRERO_SEGMENTS = [
+    FaultSegment(
+        name="guerrero_subduction",
+        region="mexico_guerrero",
+        stations=[
+            SeismicStation("MX", "TLIG", 17.563, -98.566, "Tlapa, Guerrero"),
+            SeismicStation("G", "UNM", 19.330, -99.178, "UNAM, Mexico City"),
+            SeismicStation("MU", "OXNC", 17.400, -97.218, "Oaxaca Norte"),
+            SeismicStation("MU", "OXPL", 17.031, -97.861, "Oaxaca Pluma"),
+        ],
+        polygon=[
+            (15.5, -101.0),
+            (15.5, -97.0),
+            (18.5, -97.0),
+            (18.5, -101.0),
+        ],
+        strike=290,  # NW-SE trending subduction
+        dip=15,      # Shallow subduction angle
+        rake=90,     # Thrust/reverse
+        notes="Guerrero Gap - Middle America Trench subduction (Cocos-North America)"
+    )
+]
+
 
 # =============================================================================
 # FAULT SEGMENT REGISTRY
@@ -976,6 +999,7 @@ FAULT_SEGMENTS: Dict[str, List[FaultSegment]] = {
     'anchorage': ANCHORAGE_SEGMENTS,
     'kumamoto': KUMAMOTO_SEGMENTS,
     'hualien': HUALIEN_SEGMENTS,
+    'mexico_guerrero': MEXICO_GUERRERO_SEGMENTS,
 }
 
 

@@ -89,6 +89,17 @@ regions:
       - [42.0, -122.0]
     notes: "M9 potential, lower background rate"
 
+  mexico_guerrero:
+    name: "Mexico - Guerrero Subduction Zone"
+    enabled: true
+    priority: 2
+    polygon:
+      - [15.5, -101.0]
+      - [18.5, -101.0]
+      - [18.5, -97.0]
+      - [15.5, -97.0]
+    notes: "Guerrero Gap, M7-8 potential, Jan 2026 M6.5 event"
+
 # Data sources
 data_sources:
   ngl:

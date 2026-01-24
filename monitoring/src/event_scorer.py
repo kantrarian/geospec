@@ -50,6 +50,11 @@ REGION_BOUNDS = {
     'istanbul_marmara': {'lat': (40.4, 41.2), 'lon': (28.5, 30.0)},
     'turkey_kahramanmaras': {'lat': (36.5, 38.5), 'lon': (36.0, 38.0)},
     'campi_flegrei': {'lat': (40.7, 40.9), 'lon': (14.0, 14.3)},
+    'kaikoura': {'lat': (-43.0, -41.5), 'lon': (172.5, 174.5)},
+    'anchorage': {'lat': (59.5, 62.5), 'lon': (-152.0, -148.0)},
+    'kumamoto': {'lat': (32.0, 33.5), 'lon': (130.0, 131.5)},
+    'hualien': {'lat': (23.0, 24.5), 'lon': (121.0, 122.0)},
+    'mexico_guerrero': {'lat': (15.5, 18.5), 'lon': (-101.0, -97.0)},
 }
 
 

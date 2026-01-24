@@ -214,6 +214,16 @@ REGIONS = {
         'seismic_available': True,
         'latency_days': 0,
     },
+    'mexico_guerrero': {
+        'name': 'Mexico (Guerrero)',
+        'thd_station': 'TLIG',     # MX.TLIG Tlapa, Guerrero - closest to subduction zone
+        'thd_network': 'MX',
+        'seismic_available': True,
+        'latency_days': 0,
+        'fallback_station': 'UNM', # G.UNM UNAM Mexico City - IDA global network
+        'fallback_network': 'G',
+        'notes': 'Guerrero subduction zone - Jan 2026 M6.5 event region',
+    },
 }
 
 

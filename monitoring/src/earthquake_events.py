@@ -65,6 +65,9 @@ REGION_BOUNDS = {
 
     # South America
     'chile_maule': (-37.0, -34.0, -73.5, -70.5),
+
+    # Mexico
+    'mexico_guerrero': (15.5, 18.5, -101.0, -97.0),  # Guerrero subduction zone
 }
 
 # Minimum magnitude to fetch (lower = more events but more noise)

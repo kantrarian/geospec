@@ -498,6 +498,16 @@ FAULT_POLYGONS = {
         ],
         "expected_m7_rate": 0.1,  # Highly active
     },
+    "mexico_guerrero": {
+        "name": "Mexico - Guerrero Subduction Zone",
+        "polygon": [
+            (15.5, -101.0),  # SW (Acapulco coast)
+            (18.5, -101.0),  # NW (Michoacan border)
+            (18.5, -97.0),   # NE (Oaxaca)
+            (15.5, -97.0),   # SE (Coast)
+        ],
+        "expected_m7_rate": 0.05,  # Guerrero Gap - high hazard
+    },
 }
 
 

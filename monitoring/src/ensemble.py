@@ -67,6 +67,8 @@ REGION_KEY_MAP = {
     'anchorage': 'anchorage',
     'kumamoto': 'kumamoto',
     'hualien': 'hualien',
+    # Mexico
+    'mexico_guerrero': 'mexico_guerrero',
 }
 
 

@@ -860,7 +860,12 @@
             const shapes = [];
             const annotations = [];
 
+            // Debug logging
+            console.log('M6.5+ events received:', earthquakeEvents);
+            console.log('Chart dates range:', dates[0], 'to', dates[dates.length-1]);
+
             earthquakeEvents.forEach(event => {
+                console.log('Processing event:', event.region, event.time, 'mag:', event.mag, 'in dates?', dates.includes(event.time));
                 // Events already have region from extractM65PlusEvents()
                 if (event.region && dates.includes(event.time)) {
                     // Vertical line for the event

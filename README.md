@@ -1,21 +1,21 @@
 ﻿# GeoSpec Ensemble Monitoring
 
-**Last Update**: 2026-01-22
+**Last Update**: 2026-01-23
 
 ## Current Status
 
 | Metric | Value |
 |--------|-------|
-| Highest Risk Region | socal_saf_mojave |
-| Risk Score | 0.390 |
+| Highest Risk Region | norcal_hayward |
+| Risk Score | 0.321 |
 | Regions Monitored | 14 |
 
 ### Tier Distribution
 
 | Tier | Count |
 |------|-------|
-| NORMAL (0) | 8 |
-| WATCH (1) | 6 |
+| NORMAL (0) | 12 |
+| WATCH (1) | 2 |
 | ELEVATED (2) | 0 |
 | CRITICAL (3) | 0 |
 

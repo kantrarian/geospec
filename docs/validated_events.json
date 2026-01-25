@@ -9,7 +9,7 @@
       "lookback_end_days": 14,
       "region_buffer_km": 150
     },
-    "last_validation_run": "2026-01-24T06:04:41.367808",
+    "last_validation_run": "2026-01-25T06:03:12.862539",
     "last_run_stats": {
       "total_predictions": 27,
       "hits": 4,
@@ -21,14 +21,84 @@
     }
   },
   "aggregate_stats": {
-    "total_validated": 31,
-    "total_hits": 4,
-    "total_false_alarms": 27,
-    "hit_rate": 0.129,
+    "total_validated": 36,
+    "total_hits": 5,
+    "total_false_alarms": 31,
+    "hit_rate": 0.1389,
     "unique_events_predicted": 2,
-    "last_updated": "2026-01-24T06:04:41.367808"
+    "last_updated": "2026-01-25T06:03:12.862539"
   },
   "events": [
+    {
+      "prediction_date": "2026-01-18",
+      "prediction_region": "cascadia",
+      "prediction_tier": 1,
+      "prediction_risk": 0.3371,
+      "event_id": "",
+      "event_time": "",
+      "event_magnitude": 0.0,
+      "event_location": "",
+      "lead_days": 0.0,
+      "classification": "false_alarm",
+      "validated_date": "2026-01-25",
+      "notes": "Tier 1 with no M4.5+ event within 7 days"
+    },
+    {
+      "prediction_date": "2026-01-18",
+      "prediction_region": "norcal_hayward",
+      "prediction_tier": 1,
+      "prediction_risk": 0.4673,
+      "event_id": "",
+      "event_time": "",
+      "event_magnitude": 0.0,
+      "event_location": "",
+      "lead_days": 0.0,
+      "classification": "false_alarm",
+      "validated_date": "2026-01-25",
+      "notes": "Tier 1 with no M4.5+ event within 7 days"
+    },
+    {
+      "prediction_date": "2026-01-18",
+      "prediction_region": "ridgecrest",
+      "prediction_tier": 2,
+      "prediction_risk": 0.5282,
+      "event_id": "",
+      "event_time": "",
+      "event_magnitude": 0.0,
+      "event_location": "",
+      "lead_days": 0.0,
+      "classification": "false_alarm",
+      "validated_date": "2026-01-25",
+      "notes": "Tier 2 with no M4.5+ event within 7 days"
+    },
+    {
+      "prediction_date": "2026-01-18",
+      "prediction_region": "socal_saf_coachella",
+      "prediction_tier": 1,
+      "prediction_risk": 0.3907,
+      "event_id": "ci41162719",
+      "event_time": "2026-01-20T01:56:14.390000",
+      "event_magnitude": 4.92255584370382,
+      "event_location": "20 km NNE of Indio, CA",
+      "lead_days": 2.08,
+      "classification": "hit",
+      "validated_date": "2026-01-25",
+      "notes": "Tier 1 prediction 2.1 days before M4.9"
+    },
+    {
+      "prediction_date": "2026-01-18",
+      "prediction_region": "socal_saf_mojave",
+      "prediction_tier": 1,
+      "prediction_risk": 0.3907,
+      "event_id": "",
+      "event_time": "",
+      "event_magnitude": 0.0,
+      "event_location": "",
+      "lead_days": 0.0,
+      "classification": "false_alarm",
+      "validated_date": "2026-01-25",
+      "notes": "Tier 1 with no M4.5+ event within 7 days"
+    },
     {
       "prediction_date": "2026-01-17",
       "prediction_region": "cascadia",

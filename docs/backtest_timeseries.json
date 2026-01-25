@@ -1,5 +1,5 @@
 {
-  "generated": "2026-01-23",
+  "generated": "2026-01-24T22:02:46.684576",
   "data_integrity": "Fixed on 2026-01-23: Event day now correctly marked as POST_EVENT. Pre-event peaks recalculated excluding co-seismic data.",
   "events": {
     "ridgecrest_2019": {
@@ -1298,6 +1298,170 @@
       "fc_min_date": "2024-03-23",
       "thd_baseline_mean": 0.4609,
       "thd_baseline_std": 0.434
+    },
+    "mexico_guerrero_2026": {
+      "name": "Mexico Guerrero M6.5",
+      "magnitude": 6.5,
+      "event_date": "2026-01-02",
+      "classification": "HIT",
+      "tier_at_event": 1,
+      "ratio": 1.3,
+      "lead_time_days": 5,
+      "methods_available": [
+        "lambda_geo",
+        "seismic_thd"
+      ],
+      "timeseries": [
+        {
+          "date": "2025-12-26",
+          "tier": 1,
+          "tier_name": "WATCH",
+          "risk": 0.259,
+          "lg_ratio": 0.5,
+          "fc_l2l1": null,
+          "thd": 0.0
+        },
+        {
+          "date": "2025-12-27",
+          "tier": 0,
+          "tier_name": "NORMAL",
+          "risk": 0.168,
+          "lg_ratio": 0.2,
+          "fc_l2l1": null,
+          "thd": 0.0
+        },
+        {
+          "date": "2025-12-28",
+          "tier": 1,
+          "tier_name": "WATCH",
+          "risk": 0.32,
+          "lg_ratio": 1.3,
+          "fc_l2l1": null,
+          "thd": 0.0
+        },
+        {
+          "date": "2025-12-29",
+          "tier": 1,
+          "tier_name": "WATCH",
+          "risk": 0.272,
+          "lg_ratio": 0.2,
+          "fc_l2l1": null,
+          "thd": 0.0
+        },
+        {
+          "date": "2025-12-30",
+          "tier": 0,
+          "tier_name": "NORMAL",
+          "risk": 0.168,
+          "lg_ratio": 0.9,
+          "fc_l2l1": null,
+          "thd": 0.0
+        },
+        {
+          "date": "2025-12-31",
+          "tier": 0,
+          "tier_name": "NORMAL",
+          "risk": 0.186,
+          "lg_ratio": 0.7,
+          "fc_l2l1": null,
+          "thd": 0.0
+        },
+        {
+          "date": "2026-01-01",
+          "tier": 1,
+          "tier_name": "WATCH",
+          "risk": 0.34,
+          "lg_ratio": 0.6,
+          "fc_l2l1": null,
+          "thd": 0.0
+        },
+        {
+          "date": "2026-01-02",
+          "tier": null,
+          "tier_name": "POST_EVENT",
+          "risk": null,
+          "lg_ratio": 0.4,
+          "fc_l2l1": null,
+          "thd": 0.0,
+          "post_event": true
+        },
+        {
+          "date": "2026-01-03",
+          "tier": null,
+          "tier_name": "POST_EVENT",
+          "risk": null,
+          "lg_ratio": 0.1,
+          "fc_l2l1": null,
+          "thd": 0.0,
+          "post_event": true
+        },
+        {
+          "date": "2026-01-04",
+          "tier": null,
+          "tier_name": "POST_EVENT",
+          "risk": null,
+          "lg_ratio": 0.1,
+          "fc_l2l1": null,
+          "thd": 0.0,
+          "post_event": true
+        },
+        {
+          "date": "2026-01-05",
+          "tier": null,
+          "tier_name": "POST_EVENT",
+          "risk": null,
+          "lg_ratio": 0.2,
+          "fc_l2l1": null,
+          "thd": 0.0,
+          "post_event": true
+        },
+        {
+          "date": "2026-01-06",
+          "tier": null,
+          "tier_name": "POST_EVENT",
+          "risk": null,
+          "lg_ratio": 0.1,
+          "fc_l2l1": null,
+          "thd": 0.0,
+          "post_event": true
+        },
+        {
+          "date": "2026-01-07",
+          "tier": null,
+          "tier_name": "POST_EVENT",
+          "risk": null,
+          "lg_ratio": 0.1,
+          "fc_l2l1": null,
+          "thd": 0.0,
+          "post_event": true
+        },
+        {
+          "date": "2026-01-08",
+          "tier": null,
+          "tier_name": "POST_EVENT",
+          "risk": null,
+          "lg_ratio": 0.3,
+          "fc_l2l1": null,
+          "thd": 0.0,
+          "post_event": true
+        },
+        {
+          "date": "2026-01-09",
+          "tier": null,
+          "tier_name": "POST_EVENT",
+          "risk": null,
+          "lg_ratio": 0.5,
+          "fc_l2l1": null,
+          "thd": 0.0,
+          "post_event": true
+        }
+      ],
+      "notes": "M6.5 Guerrero subduction zone event near Acapulco",
+      "lg_n_stations": 6,
+      "lg_peak_ratio": 1.3,
+      "lg_peak_date": "2025-12-28",
+      "thd_station": "MX.TLIG",
+      "thd_peak_zscore": 0.0
     }
   },
   "method_descriptions": {

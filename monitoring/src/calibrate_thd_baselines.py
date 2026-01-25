@@ -126,6 +126,22 @@ CALIBRATION_STATIONS = {
         'channel': 'HHZ',
         'notes': 'Primary for Anchorage region',
     },
+
+    # Mexico - Added January 2026
+    'MX.TLIG': {
+        'region': 'Mexico/Guerrero',
+        'location': 'Tlapa, Guerrero, Mexico',
+        'sample_rate': 40,
+        'channel': 'BHZ',
+        'notes': 'Primary for Guerrero subduction zone',
+    },
+    'G.UNM': {
+        'region': 'Mexico/Guerrero',
+        'location': 'UNAM, Mexico City',
+        'sample_rate': 40,
+        'channel': 'BHZ',
+        'notes': 'Fallback for Mexico Guerrero region',
+    },
 }
 
 

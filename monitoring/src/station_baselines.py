@@ -143,6 +143,16 @@ STATION_BASELINES: Dict[str, StationBaseline] = {
         calibration_period='UNCALIBRATED',
         notes='UNCALIBRATED. South Sled, AK. Primary for Anchorage.'
     ),
+
+    # MX Network (Mexico) - Added January 2026
+    'MX.TLIG': StationBaseline(
+        station='MX.TLIG',
+        mean_thd=0.135859,
+        std_thd=0.04906,
+        n_samples=87,
+        calibration_period='2025-10-19 to 2026-01-17',
+        notes='Auto-calibrated. QA=acceptable. Guerrero subduction zone. P95=0.2025'
+    ),
 }
 
 

@@ -1171,7 +1171,7 @@
             const eventDate = eventData.event_date.split('T')[0];
             const eventMarker = {
                 x: [eventDate, eventDate],
-                y: [0, 1],
+                y: [-1, 1],
                 name: 'Event',
                 type: 'scatter',
                 mode: 'lines',
@@ -1215,7 +1215,7 @@
                     type: 'line',
                     x0: eventDate,
                     x1: eventDate,
-                    y0: 0,
+                    y0: -1,
                     y1: 1,
                     line: { color: '#ef4444', width: 2, dash: 'dot' }
                 }],

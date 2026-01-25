@@ -1,5 +1,5 @@
 {
-  "generated": "2026-01-24T22:02:46.684576",
+  "generated": "2026-01-24T23:31:08.598281",
   "data_integrity": "Fixed on 2026-01-23: Event day now correctly marked as POST_EVENT. Pre-event peaks recalculated excluding co-seismic data.",
   "events": {
     "ridgecrest_2019": {
@@ -1314,66 +1314,66 @@
       "timeseries": [
         {
           "date": "2025-12-26",
-          "tier": 1,
-          "tier_name": "WATCH",
-          "risk": 0.259,
+          "tier": 0,
+          "tier_name": "NORMAL",
+          "risk": 0.067,
           "lg_ratio": 0.5,
           "fc_l2l1": null,
-          "thd": 0.0
+          "thd": 0.38
         },
         {
           "date": "2025-12-27",
           "tier": 0,
           "tier_name": "NORMAL",
-          "risk": 0.168,
+          "risk": 0.031,
           "lg_ratio": 0.2,
           "fc_l2l1": null,
-          "thd": 0.0
+          "thd": -0.56
         },
         {
           "date": "2025-12-28",
-          "tier": 1,
-          "tier_name": "WATCH",
-          "risk": 0.32,
+          "tier": 0,
+          "tier_name": "NORMAL",
+          "risk": 0.131,
           "lg_ratio": 1.3,
           "fc_l2l1": null,
-          "thd": 0.0
+          "thd": 0.42
         },
         {
           "date": "2025-12-29",
-          "tier": 1,
-          "tier_name": "WATCH",
-          "risk": 0.272,
+          "tier": 0,
+          "tier_name": "NORMAL",
+          "risk": 0.117,
           "lg_ratio": 0.2,
           "fc_l2l1": null,
-          "thd": 0.0
+          "thd": 1.09
         },
         {
           "date": "2025-12-30",
           "tier": 0,
           "tier_name": "NORMAL",
-          "risk": 0.168,
+          "risk": 0.031,
           "lg_ratio": 0.9,
           "fc_l2l1": null,
-          "thd": 0.0
+          "thd": -0.56
         },
         {
           "date": "2025-12-31",
           "tier": 0,
           "tier_name": "NORMAL",
-          "risk": 0.186,
+          "risk": 0.035,
           "lg_ratio": 0.7,
           "fc_l2l1": null,
-          "thd": 0.0
+          "thd": -0.39
         },
         {
           "date": "2026-01-01",
-          "tier": 1,
-          "tier_name": "WATCH",
-          "risk": 0.34,
+          "tier": 0,
+          "tier_name": "NORMAL",
+          "risk": 0.018,
           "lg_ratio": 0.6,
           "fc_l2l1": null,
-          "thd": 0.0
+          "thd": -1.17
         },
         {
           "date": "2026-01-02",
@@ -1382,7 +1382,7 @@
           "risk": null,
           "lg_ratio": 0.4,
           "fc_l2l1": null,
-          "thd": 0.0,
+          "thd": -1.15,
           "post_event": true
         },
         {
@@ -1461,7 +1461,7 @@
       "lg_peak_ratio": 1.3,
       "lg_peak_date": "2025-12-28",
       "thd_station": "MX.TLIG",
-      "thd_peak_zscore": 0.0
+      "thd_peak_zscore": 1.09
     }
   },
   "method_descriptions": {

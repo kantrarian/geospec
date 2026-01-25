@@ -747,51 +747,37 @@
                 `Last update: ${ensembleData.date || 'Unknown'}`;
         }
 
-        // Extract M6.5+ events from ensemble_latest.json earthquake_events
-        // This uses pre-fetched data from the daily ensemble run (single source of truth)
-        function extractM65PlusEvents(earthquakeEvents) {
+        // Extract events shown on region cards (largest + most recent)
+        // This matches what's displayed on each region card for consistency
+        function extractCardEvents(earthquakeEvents) {
             const events = [];
             if (!earthquakeEvents) return events;
 
             for (const [region, data] of Object.entries(earthquakeEvents)) {
-                // Use m65_plus_events array if available (new format)
-                if (data.m65_plus_events && Array.isArray(data.m65_plus_events)) {
-                    data.m65_plus_events.forEach(e => {
-                        events.push({
-                            region: region,
-                            time: e.time,
-                            mag: e.magnitude,
-                            place: e.place
-                        });
-                    });
-                } else if (data.events && Array.isArray(data.events)) {
-                    // Fallback: filter M6.5+ from events array
-                    data.events.filter(e => e.magnitude >= 6.5).forEach(e => {
-                        // Handle full datetime format from events array
-                        const eventDate = e.time ? e.time.split('T')[0] : null;
-                        if (eventDate) {
-                            events.push({
-                                region: region,
-                                time: eventDate,
-                                mag: e.magnitude,
-                                place: e.place
-                            });
-                        }
+                // Extract largest_event (shown on card)
+                if (data.largest_event && data.largest_event.time) {
+                    const eventDate = data.largest_event.time.split('T')[0];
+                    events.push({
+                        region: region,
+                        time: eventDate,
+                        mag: data.largest_event.magnitude,
+                        place: data.largest_event.place,
+                        event_id: data.largest_event.event_id
                     });
                 }
-                // Also check largest_event if M6.5+
-                if (data.largest_event && data.largest_event.magnitude >= 6.5) {
-                    const eventDate = data.largest_event.time ? data.largest_event.time.split('T')[0] : null;
-                    // Avoid duplicates - check if already in events
-                    const isDuplicate = events.some(e =>
-                        e.region === region && e.time === eventDate && e.mag === data.largest_event.magnitude
-                    );
-                    if (eventDate && !isDuplicate) {
+
+                // Extract most_recent_event if different from largest
+                if (data.most_recent_event && data.most_recent_event.time) {
+                    const isDifferent = !data.largest_event ||
+                        data.most_recent_event.event_id !== data.largest_event.event_id;
+                    if (isDifferent) {
+                        const eventDate = data.most_recent_event.time.split('T')[0];
                         events.push({
                             region: region,
                             time: eventDate,
-                            mag: data.largest_event.magnitude,
-                            place: data.largest_event.place
+                            mag: data.most_recent_event.magnitude,
+                            place: data.most_recent_event.place,
+                            event_id: data.most_recent_event.event_id
                         });
                     }
                 }
@@ -813,7 +799,15 @@
                 '#4a9eff', '#22c55e', '#f97316', '#a855f7', '#ef4444',
                 '#14b8a6', '#f43f5e', '#8b5cf6', '#eab308'
             ];
+
+            // Build region-to-color mapping for event markers
+            const regionColors = {};
             let colorIdx = 0;
+            for (const region of Object.keys(byRegion)) {
+                regionColors[region] = colors[colorIdx % colors.length];
+                colorIdx++;
+            }
+            colorIdx = 0;
 
             for (const [region, rows] of Object.entries(byRegion)) {
                 rows.sort((a, b) => a.date.localeCompare(b.date));
@@ -861,8 +855,11 @@
             const annotations = [];
 
             earthquakeEvents.forEach(event => {
-                // Events already have region from extractM65PlusEvents()
+                // Events already have region from extractCardEvents()
                 if (event.region && dates.includes(event.time)) {
+                    // Use region color for the event marker (matches chart line color)
+                    const eventColor = regionColors[event.region] || '#ff0000';
+
                     // Vertical line for the event
                     shapes.push({
                         type: 'line',
@@ -870,7 +867,7 @@
                         x1: event.time,
                         y0: 0,
                         y1: 1.1,
-                        line: { color: '#ff0000', width: 2, dash: 'dot' }
+                        line: { color: eventColor, width: 2, dash: 'dot' }
                     });
                     // Annotation at top
                     annotations.push({
@@ -878,7 +875,7 @@
                         y: 1.05,
                         text: `M${event.mag.toFixed(1)}`,
                         showarrow: false,
-                        font: { color: '#ff0000', size: 10, weight: 'bold' },
+                        font: { color: eventColor, size: 10, weight: 'bold' },
                         bgcolor: 'rgba(0,0,0,0.7)',
                         borderpad: 2
                     });
@@ -920,14 +917,14 @@
                     renderCards(ensembleData);
 
                     // Extract M6.5+ events from ensemble JSON (single source of truth)
-                    const m65Events = extractM65PlusEvents(ensembleData.earthquake_events);
+                    const cardEvents = extractCardEvents(ensembleData.earthquake_events);
 
                     // Try CSV for history chart
                     try {
                         const csvResponse = await fetch('data.csv');
                         if (csvResponse.ok) {
                             const csvData = parseCSV(await csvResponse.text());
-                            if (csvData.length > 0) renderChart(csvData, m65Events);
+                            if (csvData.length > 0) renderChart(csvData, cardEvents);
                         }
                     } catch (e) { /* No history data */ }
                     return;

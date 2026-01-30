@@ -9,26 +9,68 @@
       "lookback_end_days": 14,
       "region_buffer_km": 150
     },
-    "last_validation_run": "2026-01-29T06:11:29.207137",
+    "last_validation_run": "2026-01-30T07:18:38.486897",
     "last_run_stats": {
-      "total_predictions": 39,
-      "hits": 6,
-      "false_alarms": 33,
+      "total_predictions": 36,
+      "hits": 5,
+      "false_alarms": 31,
       "pending": 0,
-      "events_matched": 6,
-      "hit_rate": 0.1538,
-      "precision": 0.1538
+      "events_matched": 5,
+      "hit_rate": 0.1389,
+      "precision": 0.1389
     }
   },
   "aggregate_stats": {
-    "total_validated": 59,
+    "total_validated": 62,
     "total_hits": 8,
-    "total_false_alarms": 51,
-    "hit_rate": 0.1356,
+    "total_false_alarms": 54,
+    "hit_rate": 0.129,
     "unique_events_predicted": 3,
-    "last_updated": "2026-01-29T06:11:29.207137"
+    "last_updated": "2026-01-30T07:18:38.486897"
   },
   "events": [
+    {
+      "prediction_date": "2026-01-23",
+      "prediction_region": "norcal_hayward",
+      "prediction_tier": 1,
+      "prediction_risk": 0.45,
+      "event_id": "",
+      "event_time": "",
+      "event_magnitude": 0.0,
+      "event_location": "",
+      "lead_days": 0.0,
+      "classification": "false_alarm",
+      "validated_date": "2026-01-30",
+      "notes": "Tier 1 with no M4.5+ event within 7 days"
+    },
+    {
+      "prediction_date": "2026-01-23",
+      "prediction_region": "kumamoto",
+      "prediction_tier": 1,
+      "prediction_risk": 0.267,
+      "event_id": "",
+      "event_time": "",
+      "event_magnitude": 0.0,
+      "event_location": "",
+      "lead_days": 0.0,
+      "classification": "false_alarm",
+      "validated_date": "2026-01-30",
+      "notes": "Tier 1 with no M4.5+ event within 7 days"
+    },
+    {
+      "prediction_date": "2026-01-23",
+      "prediction_region": "hualien",
+      "prediction_tier": 1,
+      "prediction_risk": 0.478,
+      "event_id": "",
+      "event_time": "",
+      "event_magnitude": 0.0,
+      "event_location": "",
+      "lead_days": 0.0,
+      "classification": "false_alarm",
+      "validated_date": "2026-01-30",
+      "notes": "Tier 1 with no M4.5+ event within 7 days"
+    },
     {
       "prediction_date": "2026-01-22",
       "prediction_region": "ridgecrest",

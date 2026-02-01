@@ -9,26 +9,96 @@
       "lookback_end_days": 14,
       "region_buffer_km": 150
     },
-    "last_validation_run": "2026-01-31T06:13:08.223281",
+    "last_validation_run": "2026-02-01T06:31:28.864203",
     "last_run_stats": {
-      "total_predictions": 34,
+      "total_predictions": 33,
       "hits": 4,
-      "false_alarms": 30,
+      "false_alarms": 29,
       "pending": 0,
-      "events_matched": 4,
-      "hit_rate": 0.1176,
-      "precision": 0.1176
+      "events_matched": 5,
+      "hit_rate": 0.1212,
+      "precision": 0.1212
     }
   },
   "aggregate_stats": {
-    "total_validated": 65,
-    "total_hits": 8,
-    "total_false_alarms": 57,
-    "hit_rate": 0.1231,
-    "unique_events_predicted": 3,
-    "last_updated": "2026-01-31T06:13:08.223281"
+    "total_validated": 70,
+    "total_hits": 10,
+    "total_false_alarms": 60,
+    "hit_rate": 0.1429,
+    "unique_events_predicted": 5,
+    "last_updated": "2026-02-01T06:31:28.864203"
   },
   "events": [
+    {
+      "prediction_date": "2026-01-25",
+      "prediction_region": "norcal_hayward",
+      "prediction_tier": 1,
+      "prediction_risk": 0.265,
+      "event_id": "",
+      "event_time": "",
+      "event_magnitude": 0.0,
+      "event_location": "",
+      "lead_days": 0.0,
+      "classification": "false_alarm",
+      "validated_date": "2026-02-01",
+      "notes": "Tier 1 with no M4.5+ event within 7 days"
+    },
+    {
+      "prediction_date": "2026-01-25",
+      "prediction_region": "tokyo_kanto",
+      "prediction_tier": 1,
+      "prediction_risk": 0.27,
+      "event_id": "us6000s54g",
+      "event_time": "2026-01-29T01:25:11.683000",
+      "event_magnitude": 4.6,
+      "event_location": "1 km S of Wada, Japan",
+      "lead_days": 4.06,
+      "classification": "hit",
+      "validated_date": "2026-02-01",
+      "notes": "Tier 1 prediction 4.1 days before M4.6"
+    },
+    {
+      "prediction_date": "2026-01-25",
+      "prediction_region": "tokyo_kanto",
+      "prediction_tier": 1,
+      "prediction_risk": 0.27,
+      "event_id": "us6000s54w",
+      "event_time": "2026-01-29T02:47:51.827000",
+      "event_magnitude": 4.6,
+      "event_location": "4 km SSE of Tateyama, Japan",
+      "lead_days": 4.12,
+      "classification": "hit",
+      "validated_date": "2026-02-01",
+      "notes": "Tier 1 prediction 4.1 days before M4.6"
+    },
+    {
+      "prediction_date": "2026-01-25",
+      "prediction_region": "kumamoto",
+      "prediction_tier": 1,
+      "prediction_risk": 0.307,
+      "event_id": "",
+      "event_time": "",
+      "event_magnitude": 0.0,
+      "event_location": "",
+      "lead_days": 0.0,
+      "classification": "false_alarm",
+      "validated_date": "2026-02-01",
+      "notes": "Tier 1 with no M4.5+ event within 7 days"
+    },
+    {
+      "prediction_date": "2026-01-25",
+      "prediction_region": "hualien",
+      "prediction_tier": 1,
+      "prediction_risk": 0.749,
+      "event_id": "",
+      "event_time": "",
+      "event_magnitude": 0.0,
+      "event_location": "",
+      "lead_days": 0.0,
+      "classification": "false_alarm",
+      "validated_date": "2026-02-01",
+      "notes": "Tier 1 with no M4.5+ event within 7 days"
+    },
     {
       "prediction_date": "2026-01-24",
       "prediction_region": "norcal_hayward",

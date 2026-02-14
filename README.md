@@ -1,21 +1,21 @@
 ﻿# GeoSpec Ensemble Monitoring
 
-**Last Update**: 2026-02-11
+**Last Update**: 2026-02-12
 
 ## Current Status
 
 | Metric | Value |
 |--------|-------|
-| Highest Risk Region | ridgecrest |
-| Risk Score | 0.236 |
+| Highest Risk Region | socal_saf_coachella |
+| Risk Score | 0.486 |
 | Regions Monitored | 14 |
 
 ### Tier Distribution
 
 | Tier | Count |
 |------|-------|
-| NORMAL (0) | 14 |
-| WATCH (1) | 0 |
+| NORMAL (0) | 9 |
+| WATCH (1) | 5 |
 | ELEVATED (2) | 0 |
 | CRITICAL (3) | 0 |
 

@@ -9,26 +9,68 @@
       "lookback_end_days": 14,
       "region_buffer_km": 150
     },
-    "last_validation_run": "2026-02-13T06:41:08.124170",
+    "last_validation_run": "2026-02-14T06:43:50.144903",
     "last_run_stats": {
-      "total_predictions": 44,
-      "hits": 3,
-      "false_alarms": 41,
+      "total_predictions": 41,
+      "hits": 4,
+      "false_alarms": 37,
       "pending": 0,
-      "events_matched": 3,
-      "hit_rate": 0.0682,
-      "precision": 0.0682
+      "events_matched": 4,
+      "hit_rate": 0.0976,
+      "precision": 0.0976
     }
   },
   "aggregate_stats": {
-    "total_validated": 138,
-    "total_hits": 17,
-    "total_false_alarms": 121,
-    "hit_rate": 0.1232,
+    "total_validated": 141,
+    "total_hits": 18,
+    "total_false_alarms": 123,
+    "hit_rate": 0.1277,
     "unique_events_predicted": 6,
-    "last_updated": "2026-02-13T06:41:08.124170"
+    "last_updated": "2026-02-14T06:43:50.144903"
   },
   "events": [
+    {
+      "prediction_date": "2026-02-07",
+      "prediction_region": "anchorage",
+      "prediction_tier": 1,
+      "prediction_risk": 0.327,
+      "event_id": "ak2026cxafty",
+      "event_time": "2026-02-10T20:42:22.931000",
+      "event_magnitude": 4.6,
+      "event_location": "8 km NNW of Meadow Lakes, Alaska",
+      "lead_days": 3.86,
+      "classification": "hit",
+      "validated_date": "2026-02-14",
+      "notes": "Tier 1 prediction 3.9 days before M4.6"
+    },
+    {
+      "prediction_date": "2026-02-07",
+      "prediction_region": "kumamoto",
+      "prediction_tier": 1,
+      "prediction_risk": 0.307,
+      "event_id": "",
+      "event_time": "",
+      "event_magnitude": 0.0,
+      "event_location": "",
+      "lead_days": 0.0,
+      "classification": "false_alarm",
+      "validated_date": "2026-02-14",
+      "notes": "Tier 1 with no M4.5+ event within 7 days"
+    },
+    {
+      "prediction_date": "2026-02-07",
+      "prediction_region": "hualien",
+      "prediction_tier": 1,
+      "prediction_risk": 0.567,
+      "event_id": "",
+      "event_time": "",
+      "event_magnitude": 0.0,
+      "event_location": "",
+      "lead_days": 0.0,
+      "classification": "false_alarm",
+      "validated_date": "2026-02-14",
+      "notes": "Tier 1 with no M4.5+ event within 7 days"
+    },
     {
       "prediction_date": "2026-02-06",
       "prediction_region": "ridgecrest",

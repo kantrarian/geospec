@@ -1,21 +1,21 @@
 ﻿# GeoSpec Ensemble Monitoring
 
-**Last Update**: 2026-02-20
+**Last Update**: 2026-02-21
 
 ## Current Status
 
 | Metric | Value |
 |--------|-------|
-| Highest Risk Region | norcal_hayward |
-| Risk Score | 0.429 |
+| Highest Risk Region | anchorage |
+| Risk Score | 0.332 |
 | Regions Monitored | 14 |
 
 ### Tier Distribution
 
 | Tier | Count |
 |------|-------|
-| NORMAL (0) | 12 |
-| WATCH (1) | 2 |
+| NORMAL (0) | 13 |
+| WATCH (1) | 1 |
 | ELEVATED (2) | 0 |
 | CRITICAL (3) | 0 |
 

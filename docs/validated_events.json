@@ -9,26 +9,54 @@
       "lookback_end_days": 14,
       "region_buffer_km": 150
     },
-    "last_validation_run": "2026-02-26T06:28:02.593601",
+    "last_validation_run": "2026-02-27T06:22:56.867293",
     "last_run_stats": {
-      "total_predictions": 42,
+      "total_predictions": 39,
       "hits": 1,
-      "false_alarms": 41,
+      "false_alarms": 38,
       "pending": 0,
       "events_matched": 1,
-      "hit_rate": 0.0238,
-      "precision": 0.0238
+      "hit_rate": 0.0256,
+      "precision": 0.0256
     }
   },
   "aggregate_stats": {
-    "total_validated": 195,
+    "total_validated": 197,
     "total_hits": 19,
-    "total_false_alarms": 176,
-    "hit_rate": 0.0974,
+    "total_false_alarms": 178,
+    "hit_rate": 0.0964,
     "unique_events_predicted": 7,
-    "last_updated": "2026-02-26T06:28:02.593601"
+    "last_updated": "2026-02-27T06:22:56.867293"
   },
   "events": [
+    {
+      "prediction_date": "2026-02-20",
+      "prediction_region": "norcal_hayward",
+      "prediction_tier": 1,
+      "prediction_risk": 0.429,
+      "event_id": "",
+      "event_time": "",
+      "event_magnitude": 0.0,
+      "event_location": "",
+      "lead_days": 0.0,
+      "classification": "false_alarm",
+      "validated_date": "2026-02-27",
+      "notes": "Tier 1 with no M4.5+ event within 7 days"
+    },
+    {
+      "prediction_date": "2026-02-20",
+      "prediction_region": "anchorage",
+      "prediction_tier": 1,
+      "prediction_risk": 0.335,
+      "event_id": "",
+      "event_time": "",
+      "event_magnitude": 0.0,
+      "event_location": "",
+      "lead_days": 0.0,
+      "classification": "false_alarm",
+      "validated_date": "2026-02-27",
+      "notes": "Tier 1 with no M4.5+ event within 7 days"
+    },
     {
       "prediction_date": "2026-02-19",
       "prediction_region": "ridgecrest",

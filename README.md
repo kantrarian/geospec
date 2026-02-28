@@ -1,21 +1,21 @@
 ﻿# GeoSpec Ensemble Monitoring
 
-**Last Update**: 2026-02-25
+**Last Update**: 2026-02-26
 
 ## Current Status
 
 | Metric | Value |
 |--------|-------|
-| Highest Risk Region | kumamoto |
-| Risk Score | 0.156 |
+| Highest Risk Region | socal_saf_coachella |
+| Risk Score | 0.429 |
 | Regions Monitored | 14 |
 
 ### Tier Distribution
 
 | Tier | Count |
 |------|-------|
-| NORMAL (0) | 14 |
-| WATCH (1) | 0 |
+| NORMAL (0) | 9 |
+| WATCH (1) | 5 |
 | ELEVATED (2) | 0 |
 | CRITICAL (3) | 0 |
 

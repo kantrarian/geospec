@@ -9,26 +9,82 @@
       "lookback_end_days": 14,
       "region_buffer_km": 150
     },
-    "last_validation_run": "2026-03-01T06:23:52.330821",
+    "last_validation_run": "2026-03-02T06:17:39.744125",
     "last_run_stats": {
-      "total_predictions": 32,
-      "hits": 1,
-      "false_alarms": 31,
+      "total_predictions": 30,
+      "hits": 2,
+      "false_alarms": 28,
       "pending": 0,
-      "events_matched": 1,
-      "hit_rate": 0.0312,
-      "precision": 0.0312
+      "events_matched": 2,
+      "hit_rate": 0.0667,
+      "precision": 0.0667
     }
   },
   "aggregate_stats": {
-    "total_validated": 202,
-    "total_hits": 19,
-    "total_false_alarms": 183,
-    "hit_rate": 0.0941,
-    "unique_events_predicted": 7,
-    "last_updated": "2026-03-01T06:23:52.330821"
+    "total_validated": 206,
+    "total_hits": 20,
+    "total_false_alarms": 186,
+    "hit_rate": 0.0971,
+    "unique_events_predicted": 8,
+    "last_updated": "2026-03-02T06:17:39.744125"
   },
   "events": [
+    {
+      "prediction_date": "2026-02-23",
+      "prediction_region": "tokyo_kanto",
+      "prediction_tier": 1,
+      "prediction_risk": 0.327,
+      "event_id": "",
+      "event_time": "",
+      "event_magnitude": 0.0,
+      "event_location": "",
+      "lead_days": 0.0,
+      "classification": "false_alarm",
+      "validated_date": "2026-03-02",
+      "notes": "Tier 1 with no M4.5+ event within 7 days"
+    },
+    {
+      "prediction_date": "2026-02-23",
+      "prediction_region": "turkey_kahramanmaras",
+      "prediction_tier": 1,
+      "prediction_risk": 0.32,
+      "event_id": "us7000s0ij",
+      "event_time": "2026-02-26T17:17:09.570000",
+      "event_magnitude": 4.6,
+      "event_location": "11 km NW of Nurhak, Turkey",
+      "lead_days": 3.72,
+      "classification": "hit",
+      "validated_date": "2026-03-02",
+      "notes": "Tier 1 prediction 3.7 days before M4.6"
+    },
+    {
+      "prediction_date": "2026-02-23",
+      "prediction_region": "kumamoto",
+      "prediction_tier": 1,
+      "prediction_risk": 0.37,
+      "event_id": "",
+      "event_time": "",
+      "event_magnitude": 0.0,
+      "event_location": "",
+      "lead_days": 0.0,
+      "classification": "false_alarm",
+      "validated_date": "2026-03-02",
+      "notes": "Tier 1 with no M4.5+ event within 7 days"
+    },
+    {
+      "prediction_date": "2026-02-23",
+      "prediction_region": "hualien",
+      "prediction_tier": 1,
+      "prediction_risk": 0.779,
+      "event_id": "",
+      "event_time": "",
+      "event_magnitude": 0.0,
+      "event_location": "",
+      "lead_days": 0.0,
+      "classification": "false_alarm",
+      "validated_date": "2026-03-02",
+      "notes": "Tier 1 with no M4.5+ event within 7 days"
+    },
     {
       "prediction_date": "2026-02-22",
       "prediction_region": "ridgecrest",

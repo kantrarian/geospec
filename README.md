@@ -1,21 +1,21 @@
 ﻿# GeoSpec Ensemble Monitoring
 
-**Last Update**: 2026-02-28
+**Last Update**: 2026-03-01
 
 ## Current Status
 
 | Metric | Value |
 |--------|-------|
 | Highest Risk Region | anchorage |
-| Risk Score | 0.394 |
+| Risk Score | 0.398 |
 | Regions Monitored | 14 |
 
 ### Tier Distribution
 
 | Tier | Count |
 |------|-------|
-| NORMAL (0) | 9 |
-| WATCH (1) | 5 |
+| NORMAL (0) | 10 |
+| WATCH (1) | 4 |
 | ELEVATED (2) | 0 |
 | CRITICAL (3) | 0 |
 

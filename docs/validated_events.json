@@ -9,26 +9,68 @@
       "lookback_end_days": 14,
       "region_buffer_km": 150
     },
-    "last_validation_run": "2026-03-02T06:17:39.744125",
+    "last_validation_run": "2026-03-03T06:31:10.332497",
     "last_run_stats": {
-      "total_predictions": 30,
+      "total_predictions": 28,
       "hits": 2,
-      "false_alarms": 28,
+      "false_alarms": 26,
       "pending": 0,
       "events_matched": 2,
-      "hit_rate": 0.0667,
-      "precision": 0.0667
+      "hit_rate": 0.0714,
+      "precision": 0.0714
     }
   },
   "aggregate_stats": {
-    "total_validated": 206,
+    "total_validated": 209,
     "total_hits": 20,
-    "total_false_alarms": 186,
-    "hit_rate": 0.0971,
+    "total_false_alarms": 189,
+    "hit_rate": 0.0957,
     "unique_events_predicted": 8,
-    "last_updated": "2026-03-02T06:17:39.744125"
+    "last_updated": "2026-03-03T06:31:10.332497"
   },
   "events": [
+    {
+      "prediction_date": "2026-02-24",
+      "prediction_region": "tokyo_kanto",
+      "prediction_tier": 1,
+      "prediction_risk": 0.349,
+      "event_id": "",
+      "event_time": "",
+      "event_magnitude": 0.0,
+      "event_location": "",
+      "lead_days": 0.0,
+      "classification": "false_alarm",
+      "validated_date": "2026-03-03",
+      "notes": "Tier 1 with no M4.5+ event within 7 days"
+    },
+    {
+      "prediction_date": "2026-02-24",
+      "prediction_region": "kumamoto",
+      "prediction_tier": 1,
+      "prediction_risk": 0.429,
+      "event_id": "",
+      "event_time": "",
+      "event_magnitude": 0.0,
+      "event_location": "",
+      "lead_days": 0.0,
+      "classification": "false_alarm",
+      "validated_date": "2026-03-03",
+      "notes": "Tier 1 with no M4.5+ event within 7 days"
+    },
+    {
+      "prediction_date": "2026-02-24",
+      "prediction_region": "hualien",
+      "prediction_tier": 1,
+      "prediction_risk": 0.969,
+      "event_id": "",
+      "event_time": "",
+      "event_magnitude": 0.0,
+      "event_location": "",
+      "lead_days": 0.0,
+      "classification": "false_alarm",
+      "validated_date": "2026-03-03",
+      "notes": "Tier 1 with no M4.5+ event within 7 days"
+    },
     {
       "prediction_date": "2026-02-23",
       "prediction_region": "tokyo_kanto",

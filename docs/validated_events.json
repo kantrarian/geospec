@@ -9,15 +9,15 @@
       "lookback_end_days": 14,
       "region_buffer_km": 150
     },
-    "last_validation_run": "2026-03-03T06:31:10.332497",
+    "last_validation_run": "2026-03-04T06:29:35.083708",
     "last_run_stats": {
-      "total_predictions": 28,
-      "hits": 2,
-      "false_alarms": 26,
+      "total_predictions": 20,
+      "hits": 1,
+      "false_alarms": 19,
       "pending": 0,
-      "events_matched": 2,
-      "hit_rate": 0.0714,
-      "precision": 0.0714
+      "events_matched": 1,
+      "hit_rate": 0.05,
+      "precision": 0.05
     }
   },
   "aggregate_stats": {
@@ -26,7 +26,7 @@
     "total_false_alarms": 189,
     "hit_rate": 0.0957,
     "unique_events_predicted": 8,
-    "last_updated": "2026-03-03T06:31:10.332497"
+    "last_updated": "2026-03-04T06:29:35.083708"
   },
   "events": [
     {

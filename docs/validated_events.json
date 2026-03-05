@@ -9,26 +9,96 @@
       "lookback_end_days": 14,
       "region_buffer_km": 150
     },
-    "last_validation_run": "2026-03-04T06:29:35.083708",
+    "last_validation_run": "2026-03-05T06:21:38.404060",
     "last_run_stats": {
-      "total_predictions": 20,
+      "total_predictions": 19,
       "hits": 1,
-      "false_alarms": 19,
+      "false_alarms": 18,
       "pending": 0,
       "events_matched": 1,
-      "hit_rate": 0.05,
-      "precision": 0.05
+      "hit_rate": 0.0526,
+      "precision": 0.0526
     }
   },
   "aggregate_stats": {
-    "total_validated": 209,
+    "total_validated": 214,
     "total_hits": 20,
-    "total_false_alarms": 189,
-    "hit_rate": 0.0957,
+    "total_false_alarms": 194,
+    "hit_rate": 0.0935,
     "unique_events_predicted": 8,
-    "last_updated": "2026-03-04T06:29:35.083708"
+    "last_updated": "2026-03-05T06:21:38.404060"
   },
   "events": [
+    {
+      "prediction_date": "2026-02-26",
+      "prediction_region": "ridgecrest",
+      "prediction_tier": 1,
+      "prediction_risk": 0.327,
+      "event_id": "",
+      "event_time": "",
+      "event_magnitude": 0.0,
+      "event_location": "",
+      "lead_days": 0.0,
+      "classification": "false_alarm",
+      "validated_date": "2026-03-05",
+      "notes": "Tier 1 with no M4.5+ event within 7 days"
+    },
+    {
+      "prediction_date": "2026-02-26",
+      "prediction_region": "socal_saf_mojave",
+      "prediction_tier": 1,
+      "prediction_risk": 0.322,
+      "event_id": "",
+      "event_time": "",
+      "event_magnitude": 0.0,
+      "event_location": "",
+      "lead_days": 0.0,
+      "classification": "false_alarm",
+      "validated_date": "2026-03-05",
+      "notes": "Tier 1 with no M4.5+ event within 7 days"
+    },
+    {
+      "prediction_date": "2026-02-26",
+      "prediction_region": "socal_saf_coachella",
+      "prediction_tier": 1,
+      "prediction_risk": 0.429,
+      "event_id": "",
+      "event_time": "",
+      "event_magnitude": 0.0,
+      "event_location": "",
+      "lead_days": 0.0,
+      "classification": "false_alarm",
+      "validated_date": "2026-03-05",
+      "notes": "Tier 1 with no M4.5+ event within 7 days"
+    },
+    {
+      "prediction_date": "2026-02-26",
+      "prediction_region": "norcal_hayward",
+      "prediction_tier": 1,
+      "prediction_risk": 0.429,
+      "event_id": "",
+      "event_time": "",
+      "event_magnitude": 0.0,
+      "event_location": "",
+      "lead_days": 0.0,
+      "classification": "false_alarm",
+      "validated_date": "2026-03-05",
+      "notes": "Tier 1 with no M4.5+ event within 7 days"
+    },
+    {
+      "prediction_date": "2026-02-26",
+      "prediction_region": "cascadia",
+      "prediction_tier": 1,
+      "prediction_risk": 0.31,
+      "event_id": "",
+      "event_time": "",
+      "event_magnitude": 0.0,
+      "event_location": "",
+      "lead_days": 0.0,
+      "classification": "false_alarm",
+      "validated_date": "2026-03-05",
+      "notes": "Tier 1 with no M4.5+ event within 7 days"
+    },
     {
       "prediction_date": "2026-02-24",
       "prediction_region": "tokyo_kanto",

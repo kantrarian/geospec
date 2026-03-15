@@ -1,21 +1,21 @@
 ﻿# GeoSpec Ensemble Monitoring
 
-**Last Update**: 2026-03-12
+**Last Update**: 2026-03-13
 
 ## Current Status
 
 | Metric | Value |
 |--------|-------|
-| Highest Risk Region | mexico_guerrero |
-| Risk Score | 0.197 |
+| Highest Risk Region | norcal_hayward |
+| Risk Score | 0.365 |
 | Regions Monitored | 14 |
 
 ### Tier Distribution
 
 | Tier | Count |
 |------|-------|
-| NORMAL (0) | 14 |
-| WATCH (1) | 0 |
+| NORMAL (0) | 9 |
+| WATCH (1) | 5 |
 | ELEVATED (2) | 0 |
 | CRITICAL (3) | 0 |
 

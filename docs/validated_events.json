@@ -9,26 +9,96 @@
       "lookback_end_days": 14,
       "region_buffer_km": 150
     },
-    "last_validation_run": "2026-03-17T07:17:27.846425",
+    "last_validation_run": "2026-03-18T08:07:03.530384",
     "last_run_stats": {
-      "total_predictions": 49,
-      "hits": 7,
-      "false_alarms": 42,
+      "total_predictions": 45,
+      "hits": 9,
+      "false_alarms": 36,
       "pending": 0,
-      "events_matched": 8,
-      "hit_rate": 0.1429,
-      "precision": 0.1429
+      "events_matched": 11,
+      "hit_rate": 0.2,
+      "precision": 0.2
     }
   },
   "aggregate_stats": {
-    "total_validated": 294,
-    "total_hits": 28,
-    "total_false_alarms": 266,
-    "hit_rate": 0.0952,
+    "total_validated": 299,
+    "total_hits": 31,
+    "total_false_alarms": 268,
+    "hit_rate": 0.1037,
     "unique_events_predicted": 11,
-    "last_updated": "2026-03-17T07:17:27.846425"
+    "last_updated": "2026-03-18T08:07:03.530384"
   },
   "events": [
+    {
+      "prediction_date": "2026-03-11",
+      "prediction_region": "tokyo_kanto",
+      "prediction_tier": 1,
+      "prediction_risk": 0.262,
+      "event_id": "us6000sgeb",
+      "event_time": "2026-03-15T05:06:06.727000",
+      "event_magnitude": 4.8,
+      "event_location": "1 km SW of Kiry\u016b, Japan",
+      "lead_days": 4.21,
+      "classification": "hit",
+      "validated_date": "2026-03-18",
+      "notes": "Tier 1 prediction 4.2 days before M4.8"
+    },
+    {
+      "prediction_date": "2026-03-11",
+      "prediction_region": "tokyo_kanto",
+      "prediction_tier": 1,
+      "prediction_risk": 0.262,
+      "event_id": "us6000sgkn",
+      "event_time": "2026-03-16T11:37:49.386000",
+      "event_magnitude": 4.6,
+      "event_location": "37 km SE of It\u014d, Japan",
+      "lead_days": 5.48,
+      "classification": "hit",
+      "validated_date": "2026-03-18",
+      "notes": "Tier 1 prediction 5.5 days before M4.6"
+    },
+    {
+      "prediction_date": "2026-03-11",
+      "prediction_region": "kumamoto",
+      "prediction_tier": 1,
+      "prediction_risk": 0.335,
+      "event_id": "",
+      "event_time": "",
+      "event_magnitude": 0.0,
+      "event_location": "",
+      "lead_days": 0.0,
+      "classification": "false_alarm",
+      "validated_date": "2026-03-18",
+      "notes": "Tier 1 with no M4.5+ event within 7 days"
+    },
+    {
+      "prediction_date": "2026-03-11",
+      "prediction_region": "hualien",
+      "prediction_tier": 1,
+      "prediction_risk": 0.962,
+      "event_id": "us6000sftk",
+      "event_time": "2026-03-12T12:14:13.058000",
+      "event_magnitude": 5.2,
+      "event_location": "26 km S of Hualien City, Taiwan",
+      "lead_days": 1.51,
+      "classification": "hit",
+      "validated_date": "2026-03-18",
+      "notes": "Tier 1 prediction 1.5 days before M5.2"
+    },
+    {
+      "prediction_date": "2026-03-11",
+      "prediction_region": "mexico_guerrero",
+      "prediction_tier": 1,
+      "prediction_risk": 0.263,
+      "event_id": "",
+      "event_time": "",
+      "event_magnitude": 0.0,
+      "event_location": "",
+      "lead_days": 0.0,
+      "classification": "false_alarm",
+      "validated_date": "2026-03-18",
+      "notes": "Tier 1 with no M4.5+ event within 7 days"
+    },
     {
       "prediction_date": "2026-03-10",
       "prediction_region": "tokyo_kanto",

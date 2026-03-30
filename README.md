@@ -1,22 +1,22 @@
 ﻿# GeoSpec Ensemble Monitoring
 
-**Last Update**: 2026-03-27
+**Last Update**: 2026-03-28
 
 ## Current Status
 
 | Metric | Value |
 |--------|-------|
-| Highest Risk Region | socal_saf_mojave |
-| Risk Score | 0.509 |
+| Highest Risk Region | anchorage |
+| Risk Score | 0.429 |
 | Regions Monitored | 14 |
 
 ### Tier Distribution
 
 | Tier | Count |
 |------|-------|
-| NORMAL (0) | 7 |
+| NORMAL (0) | 8 |
 | WATCH (1) | 6 |
-| ELEVATED (2) | 1 |
+| ELEVATED (2) | 0 |
 | CRITICAL (3) | 0 |
 
 ## Dashboard

@@ -1,6 +1,6 @@
 ﻿# GeoSpec Ensemble Monitoring
 
-**Last Update**: 2026-03-28
+**Last Update**: 2026-03-29
 
 ## Current Status
 
@@ -14,8 +14,8 @@
 
 | Tier | Count |
 |------|-------|
-| NORMAL (0) | 8 |
-| WATCH (1) | 6 |
+| NORMAL (0) | 9 |
+| WATCH (1) | 5 |
 | ELEVATED (2) | 0 |
 | CRITICAL (3) | 0 |
 

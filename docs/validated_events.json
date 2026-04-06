@@ -9,26 +9,68 @@
       "lookback_end_days": 14,
       "region_buffer_km": 150
     },
-    "last_validation_run": "2026-04-05T07:33:27.317206",
+    "last_validation_run": "2026-04-06T07:31:28.423547",
     "last_run_stats": {
-      "total_predictions": 38,
-      "hits": 1,
-      "false_alarms": 37,
+      "total_predictions": 34,
+      "hits": 2,
+      "false_alarms": 32,
       "pending": 0,
-      "events_matched": 1,
-      "hit_rate": 0.0263,
-      "precision": 0.0263
+      "events_matched": 2,
+      "hit_rate": 0.0588,
+      "precision": 0.0588
     }
   },
   "aggregate_stats": {
-    "total_validated": 386,
-    "total_hits": 35,
-    "total_false_alarms": 351,
-    "hit_rate": 0.0907,
-    "unique_events_predicted": 13,
-    "last_updated": "2026-04-05T07:33:27.317206"
+    "total_validated": 389,
+    "total_hits": 36,
+    "total_false_alarms": 353,
+    "hit_rate": 0.0925,
+    "unique_events_predicted": 14,
+    "last_updated": "2026-04-06T07:31:28.423547"
   },
   "events": [
+    {
+      "prediction_date": "2026-03-30",
+      "prediction_region": "cascadia",
+      "prediction_tier": 1,
+      "prediction_risk": 0.279,
+      "event_id": "",
+      "event_time": "",
+      "event_magnitude": 0.0,
+      "event_location": "",
+      "lead_days": 0.0,
+      "classification": "false_alarm",
+      "validated_date": "2026-04-06",
+      "notes": "Tier 1 with no M4.5+ event within 7 days"
+    },
+    {
+      "prediction_date": "2026-03-30",
+      "prediction_region": "anchorage",
+      "prediction_tier": 1,
+      "prediction_risk": 0.429,
+      "event_id": "",
+      "event_time": "",
+      "event_magnitude": 0.0,
+      "event_location": "",
+      "lead_days": 0.0,
+      "classification": "false_alarm",
+      "validated_date": "2026-04-06",
+      "notes": "Tier 1 with no M4.5+ event within 7 days"
+    },
+    {
+      "prediction_date": "2026-03-30",
+      "prediction_region": "hualien",
+      "prediction_tier": 1,
+      "prediction_risk": 0.294,
+      "event_id": "us6000smlu",
+      "event_time": "2026-04-04T17:14:57.460000",
+      "event_magnitude": 5.5,
+      "event_location": "4 km ENE of Hualien City, Taiwan",
+      "lead_days": 5.72,
+      "classification": "hit",
+      "validated_date": "2026-04-06",
+      "notes": "Tier 1 prediction 5.7 days before M5.5"
+    },
     {
       "prediction_date": "2026-03-29",
       "prediction_region": "ridgecrest",

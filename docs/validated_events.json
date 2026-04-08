@@ -9,26 +9,82 @@
       "lookback_end_days": 14,
       "region_buffer_km": 150
     },
-    "last_validation_run": "2026-04-07T07:35:57.800605",
+    "last_validation_run": "2026-04-08T07:44:04.410734",
     "last_run_stats": {
-      "total_predictions": 36,
-      "hits": 3,
-      "false_alarms": 33,
+      "total_predictions": 37,
+      "hits": 5,
+      "false_alarms": 32,
       "pending": 0,
-      "events_matched": 3,
-      "hit_rate": 0.0833,
-      "precision": 0.0833
+      "events_matched": 5,
+      "hit_rate": 0.1351,
+      "precision": 0.1351
     }
   },
   "aggregate_stats": {
-    "total_validated": 399,
-    "total_hits": 37,
-    "total_false_alarms": 362,
-    "hit_rate": 0.0927,
+    "total_validated": 403,
+    "total_hits": 39,
+    "total_false_alarms": 364,
+    "hit_rate": 0.0968,
     "unique_events_predicted": 14,
-    "last_updated": "2026-04-07T07:35:57.800605"
+    "last_updated": "2026-04-08T07:44:04.410734"
   },
   "events": [
+    {
+      "prediction_date": "2026-04-01",
+      "prediction_region": "tokyo_kanto",
+      "prediction_tier": 1,
+      "prediction_risk": 0.274,
+      "event_id": "us7000s999",
+      "event_time": "2026-04-01T01:06:18.554000",
+      "event_magnitude": 4.9,
+      "event_location": "2 km E of Ishige, Japan",
+      "lead_days": 0.05,
+      "classification": "hit",
+      "validated_date": "2026-04-08",
+      "notes": "Tier 1 prediction 0.0 days before M4.9"
+    },
+    {
+      "prediction_date": "2026-04-01",
+      "prediction_region": "anchorage",
+      "prediction_tier": 1,
+      "prediction_risk": 0.404,
+      "event_id": "",
+      "event_time": "",
+      "event_magnitude": 0.0,
+      "event_location": "",
+      "lead_days": 0.0,
+      "classification": "false_alarm",
+      "validated_date": "2026-04-08",
+      "notes": "Tier 1 with no M4.5+ event within 7 days"
+    },
+    {
+      "prediction_date": "2026-04-01",
+      "prediction_region": "kumamoto",
+      "prediction_tier": 1,
+      "prediction_risk": 0.472,
+      "event_id": "",
+      "event_time": "",
+      "event_magnitude": 0.0,
+      "event_location": "",
+      "lead_days": 0.0,
+      "classification": "false_alarm",
+      "validated_date": "2026-04-08",
+      "notes": "Tier 1 with no M4.5+ event within 7 days"
+    },
+    {
+      "prediction_date": "2026-04-01",
+      "prediction_region": "hualien",
+      "prediction_tier": 1,
+      "prediction_risk": 0.708,
+      "event_id": "us6000smlu",
+      "event_time": "2026-04-04T17:14:58.646000",
+      "event_magnitude": 5.2,
+      "event_location": "4 km NE of Hualien City, Taiwan",
+      "lead_days": 3.72,
+      "classification": "hit",
+      "validated_date": "2026-04-08",
+      "notes": "Tier 1 prediction 3.7 days before M5.2"
+    },
     {
       "prediction_date": "2026-03-31",
       "prediction_region": "ridgecrest",

@@ -9,26 +9,68 @@
       "lookback_end_days": 14,
       "region_buffer_km": 150
     },
-    "last_validation_run": "2026-04-10T07:41:26.156372",
+    "last_validation_run": "2026-04-11T07:48:02.442427",
     "last_run_stats": {
-      "total_predictions": 43,
-      "hits": 6,
-      "false_alarms": 37,
+      "total_predictions": 40,
+      "hits": 7,
+      "false_alarms": 33,
       "pending": 0,
-      "events_matched": 6,
-      "hit_rate": 0.1395,
-      "precision": 0.1395
+      "events_matched": 7,
+      "hit_rate": 0.175,
+      "precision": 0.175
     }
   },
   "aggregate_stats": {
-    "total_validated": 418,
-    "total_hits": 41,
-    "total_false_alarms": 377,
-    "hit_rate": 0.0981,
+    "total_validated": 421,
+    "total_hits": 42,
+    "total_false_alarms": 379,
+    "hit_rate": 0.0998,
     "unique_events_predicted": 14,
-    "last_updated": "2026-04-10T07:41:26.156372"
+    "last_updated": "2026-04-11T07:48:02.442427"
   },
   "events": [
+    {
+      "prediction_date": "2026-04-04",
+      "prediction_region": "tokyo_kanto",
+      "prediction_tier": 1,
+      "prediction_risk": 0.327,
+      "event_id": "",
+      "event_time": "",
+      "event_magnitude": 0.0,
+      "event_location": "",
+      "lead_days": 0.0,
+      "classification": "false_alarm",
+      "validated_date": "2026-04-11",
+      "notes": "Tier 1 with no M4.5+ event within 7 days"
+    },
+    {
+      "prediction_date": "2026-04-04",
+      "prediction_region": "kumamoto",
+      "prediction_tier": 2,
+      "prediction_risk": 0.565,
+      "event_id": "",
+      "event_time": "",
+      "event_magnitude": 0.0,
+      "event_location": "",
+      "lead_days": 0.0,
+      "classification": "false_alarm",
+      "validated_date": "2026-04-11",
+      "notes": "Tier 2 with no M4.5+ event within 7 days"
+    },
+    {
+      "prediction_date": "2026-04-04",
+      "prediction_region": "hualien",
+      "prediction_tier": 1,
+      "prediction_risk": 0.795,
+      "event_id": "us6000smlu",
+      "event_time": "2026-04-04T17:14:58.646000",
+      "event_magnitude": 5.2,
+      "event_location": "4 km NE of Hualien City, Taiwan",
+      "lead_days": 0.72,
+      "classification": "hit",
+      "validated_date": "2026-04-11",
+      "notes": "Tier 1 prediction 0.7 days before M5.2"
+    },
     {
       "prediction_date": "2026-04-03",
       "prediction_region": "tokyo_kanto",

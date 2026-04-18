@@ -9,26 +9,68 @@
       "lookback_end_days": 14,
       "region_buffer_km": 150
     },
-    "last_validation_run": "2026-04-17T07:10:58.351167",
+    "last_validation_run": "2026-04-18T07:00:27.212287",
     "last_run_stats": {
       "total_predictions": 19,
-      "hits": 1,
-      "false_alarms": 18,
+      "hits": 0,
+      "false_alarms": 19,
       "pending": 0,
-      "events_matched": 1,
-      "hit_rate": 0.0526,
-      "precision": 0.0526
+      "events_matched": 0,
+      "hit_rate": 0.0,
+      "precision": 0.0
     }
   },
   "aggregate_stats": {
-    "total_validated": 437,
+    "total_validated": 440,
     "total_hits": 42,
-    "total_false_alarms": 395,
-    "hit_rate": 0.0961,
+    "total_false_alarms": 398,
+    "hit_rate": 0.0955,
     "unique_events_predicted": 14,
-    "last_updated": "2026-04-17T07:10:58.351167"
+    "last_updated": "2026-04-18T07:00:27.212287"
   },
   "events": [
+    {
+      "prediction_date": "2026-04-11",
+      "prediction_region": "ridgecrest",
+      "prediction_tier": 1,
+      "prediction_risk": 0.265,
+      "event_id": "",
+      "event_time": "",
+      "event_magnitude": 0.0,
+      "event_location": "",
+      "lead_days": 0.0,
+      "classification": "false_alarm",
+      "validated_date": "2026-04-18",
+      "notes": "Tier 1 with no M4.5+ event within 7 days"
+    },
+    {
+      "prediction_date": "2026-04-11",
+      "prediction_region": "socal_saf_mojave",
+      "prediction_tier": 1,
+      "prediction_risk": 0.255,
+      "event_id": "",
+      "event_time": "",
+      "event_magnitude": 0.0,
+      "event_location": "",
+      "lead_days": 0.0,
+      "classification": "false_alarm",
+      "validated_date": "2026-04-18",
+      "notes": "Tier 1 with no M4.5+ event within 7 days"
+    },
+    {
+      "prediction_date": "2026-04-11",
+      "prediction_region": "socal_saf_coachella",
+      "prediction_tier": 1,
+      "prediction_risk": 0.266,
+      "event_id": "",
+      "event_time": "",
+      "event_magnitude": 0.0,
+      "event_location": "",
+      "lead_days": 0.0,
+      "classification": "false_alarm",
+      "validated_date": "2026-04-18",
+      "notes": "Tier 1 with no M4.5+ event within 7 days"
+    },
     {
       "prediction_date": "2026-04-09",
       "prediction_region": "tokyo_kanto",

@@ -254,7 +254,11 @@ def thd_to_risk_with_baseline(
     if baseline_std <= 0:
         return thd_to_risk(thd_value), 0.0
 
-    z_score = (thd_value - baseline_mean) / baseline_std
+    # Floor std at 20% of mean to prevent tight baselines from producing
+    # unstable z-scores (e.g., single-station regions like Hualien/TATO)
+    effective_std = max(baseline_std, baseline_mean * 0.20)
+
+    z_score = (thd_value - baseline_mean) / effective_std
 
     if z_score < 0:
         risk = max(0.0, 0.05 + z_score * 0.03)

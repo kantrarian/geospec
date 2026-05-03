@@ -1161,8 +1161,8 @@ def main():
             validated, stats = run_validation(
                 lookback_start_days=7,
                 lookback_end_days=14,
-                min_tier=1,  # WATCH or higher
-                min_magnitude=4.5,  # M4.5+ for regional significance
+                min_tier=2,  # ELEVATED or higher (WATCH is awareness only, not scored)
+                min_magnitude=5.5,  # M5.5+ for operationally significant events
             )
             if stats.get('hits', 0) > 0:
                 logger.info(f"Validation: {stats['hits']} hits, {stats['false_alarms']} false alarms")

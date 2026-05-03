@@ -900,13 +900,13 @@ Implement automated monitoring to detect:
 | Chile 2010 | M8.8 | 2.1x | WATCH |
 | Turkey 2023 | M7.8 | 2.0x | WATCH |
 
-*With recalibrated thresholds (Critical > 4.0x)
+*With recalibrated thresholds (noise floor at 1.5x, Critical > 4.0x)
 
-**Calibrated Thresholds** (from real GPS data):
-- NORMAL: ratio < 1.5x
-- WATCH: 1.5x - 2.5x
-- ELEVATED: 2.5x - 4.0x
-- CRITICAL: > 4.0x
+**Calibrated Thresholds** (from real GPS data, updated May 2026):
+- NOISE FLOOR: ratio ≤ 1.5x (risk = 0.0; no calibration event below 2.0x)
+- TRANSITION: ratio 1.5x - 2.5x (risk 0.0-0.35)
+- ELEVATED: ratio 2.5x - 4.0x (risk 0.35-0.70)
+- CRITICAL: ratio > 4.0x (risk 0.70-1.00)
 
 **Region-Specific Baselines** (computed January 14, 2026):
 

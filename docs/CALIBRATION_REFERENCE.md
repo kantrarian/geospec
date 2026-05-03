@@ -91,22 +91,21 @@ RISK_TIERS = {
 ```
 Raw Input: Lambda_geo ratio (current / baseline mean)
 
-ratio < 1.0  → risk = 0.00
-ratio 1.0-1.5 → risk = 0.00-0.20 (linear)
-ratio 1.5-2.5 → risk = 0.20-0.45 (WATCH zone)
-ratio 2.5-4.0 → risk = 0.45-0.70 (ELEVATED zone)
+ratio ≤ 1.5   → risk = 0.00 (noise floor; no calibration event below 2.0x)
+ratio 1.5-2.5 → risk = 0.00-0.35 (transition zone)
+ratio 2.5-4.0 → risk = 0.35-0.70 (ELEVATED zone)
 ratio 4.0-8.0 → risk = 0.70-1.00 (CRITICAL zone, saturates at 8x)
 ```
 
 ### Calibration Events (Observed Ratios)
 
-| Event | Magnitude | Observed Ratio | Mapped Tier |
-|-------|-----------|----------------|-------------|
-| Tohoku 2011 | M9.0 | 5.6x | CRITICAL |
-| Morocco 2023 | M6.8 | 3.3x | ELEVATED |
-| Ridgecrest 2019 | M7.1 | 2.3x | WATCH |
-| Chile 2010 | M8.8 | 2.1x | WATCH |
-| Turkey 2023 | M7.8 | 2.0x | WATCH |
+| Event | Magnitude | Observed Ratio | Risk Score | Mapped Tier |
+|-------|-----------|----------------|------------|-------------|
+| Tohoku 2011 | M9.0 | 5.6x | 0.82 | CRITICAL |
+| Morocco 2023 | M6.8 | 3.3x | 0.54 | ELEVATED |
+| Ridgecrest 2019 | M7.1 | 2.3x | 0.28 | WATCH |
+| Chile 2010 | M8.8 | 2.1x | 0.21 | LOW |
+| Turkey 2023 | M7.8 | 2.0x | 0.18 | LOW |
 
 ### Per-Region Baseline Statistics
 
@@ -178,12 +177,12 @@ Raw Input: THD value (Total Harmonic Distortion of seismic signal)
 
 z-score = (THD - baseline_mean) / baseline_std
 
-Z-score to risk mapping:
-  z < 0   → risk = 0.05-0.10 (below baseline)
-  z 0-1   → risk = 0.10-0.25 (normal variation)
-  z 1-2   → risk = 0.25-0.50 (WATCH)
-  z 2-3   → risk = 0.50-0.75 (ELEVATED)
-  z > 3   → risk = 0.75-1.00 (CRITICAL)
+Z-score to risk mapping (updated May 2026):
+  z < 0     → risk = 0.02-0.05 (below baseline)
+  z 0-1.5   → risk = 0.05-0.25 (normal variation)
+  z 1.5-2.5 → risk = 0.25-0.50 (WATCH)
+  z 2.5-3.5 → risk = 0.50-0.75 (ELEVATED)
+  z > 3.5   → risk = 0.75-1.00 (CRITICAL)
 ```
 
 ### Station-to-Region Mapping

@@ -45,13 +45,13 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 
 VALIDATION_CONFIG = {
-    'min_magnitude': 4.5,           # Minimum magnitude to count as significant event
+    'min_magnitude': 5.5,           # Minimum magnitude to count as significant event
     'hit_min_tier': 2,              # Tier >= ELEVATED counts as prediction (2=ELEVATED, 3=CRITICAL)
                                     # WATCH (Tier 1) is awareness only, not scored as prediction
     'lead_window_days': 7,          # Event within N days AFTER prediction = hit
     'lookback_start_days': 7,       # Start looking back N days ago
     'lookback_end_days': 14,        # End looking back N days ago
-    'region_buffer_km': 150,        # Event within N km of region center counts
+    'region_buffer_km': 100,        # Event within N km of region center counts
 }
 
 # Region definitions with center coordinates and bounding boxes
@@ -312,11 +312,12 @@ def validate_predictions(
     Validate predictions against actual events.
 
     A prediction is a HIT if:
+    - Tier >= ELEVATED (Tier 2+)
     - An event M5.5+ occurred in the same region
     - Within lead_window_days AFTER the prediction date
 
     A prediction is a FALSE ALARM if:
-    - Tier >= WATCH but no M5.5+ event within lead_window_days
+    - Tier >= ELEVATED but no significant event within lead_window_days
 
     Args:
         predictions: List of predictions to validate

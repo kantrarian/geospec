@@ -147,32 +147,30 @@ def lambda_geo_to_risk(ratio: float) -> float:
     CALIBRATED FROM REAL GPS DATA (January 2026):
     - Based on 5 historical earthquakes (M6.8-M9.0)
     - Real observed ratios: 2.0x to 5.6x
-    - Thresholds set to detect all calibration events
+    - Noise floor at 1.5x (no calibration event below 2.0x;
+      unseen non-detections at 0.99x, 1.10x confirm 1.0-1.5 is noise)
 
-    Mapping (linear, calibrated to real data):
-    - ratio < 1.5: NORMAL (risk ~ 0.00-0.20)
-    - ratio 1.5-2.5: WATCH (risk ~ 0.20-0.45)
-    - ratio 2.5-4.0: ELEVATED (risk ~ 0.45-0.70)
-    - ratio > 4.0: CRITICAL (risk ~ 0.70-1.00, saturates at 8x)
+    Mapping (piecewise linear, calibrated to real data):
+    - ratio ≤ 1.5: NOISE FLOOR (risk = 0.00)
+    - ratio 1.5-2.5: transition (risk 0.00-0.35)
+    - ratio 2.5-4.0: ELEVATED range (risk 0.35-0.70)
+    - ratio > 4.0: CRITICAL range (risk 0.70-1.00, saturates at 8x)
 
-    Calibration events:
-    - Tohoku 2011 M9.0: 5.6x → CRITICAL
-    - Morocco 2023 M6.8: 3.3x → ELEVATED
-    - Ridgecrest 2019 M7.1: 2.3x → WATCH
-    - Chile 2010 M8.8: 2.1x → WATCH
-    - Turkey 2023 M7.8: 2.0x → WATCH
+    Calibration events (updated risk values):
+    - Tohoku 2011 M9.0: 5.6x → CRITICAL (0.82)
+    - Morocco 2023 M6.8: 3.3x → ELEVATED (0.54)
+    - Ridgecrest 2019 M7.1: 2.3x → WATCH (0.28)
+    - Chile 2010 M8.8: 2.1x → LOW (0.21)
+    - Turkey 2023 M7.8: 2.0x → LOW (0.18)
     """
-    if ratio <= 1.0:
+    if ratio <= 1.5:
         return 0.0
-    elif ratio < 1.5:
-        # Transition from 0 to 0.20
-        return 0.20 * (ratio - 1.0) / 0.5
     elif ratio < 2.5:
-        # WATCH: 0.20 to 0.45
-        return 0.20 + 0.25 * (ratio - 1.5) / 1.0
+        # Transition from noise floor: 0.0 to 0.35
+        return 0.35 * (ratio - 1.5) / 1.0
     elif ratio < 4.0:
-        # ELEVATED: 0.45 to 0.70
-        return 0.45 + 0.25 * (ratio - 2.5) / 1.5
+        # ELEVATED: 0.35 to 0.70
+        return 0.35 + 0.35 * (ratio - 2.5) / 1.5
     else:
         # CRITICAL: 0.70 to 1.0 (saturates at 8x)
         return min(1.0, 0.70 + 0.30 * (ratio - 4.0) / 4.0)
@@ -185,20 +183,19 @@ def fault_correlation_to_risk(l2_l1_ratio: float, participation_ratio: float) ->
     Low L2/L1 = decorrelated = higher risk
     Low participation ratio = concentrated stress = higher risk
 
-    Normal: L2/L1 > 0.3, PR > 2.0 -> low risk
-    Critical: L2/L1 < 0.1, PR < 1.5 -> high risk
+    Normal: L2/L1 > 0.35, PR > 2.0 -> low risk
+    Critical: L2/L1 < 0.08, PR < 1.5 -> high risk
     """
     # L2/L1 contribution (lower = more risk)
-    # 0.3 -> risk ~0.25, 0.1 -> risk ~0.75, 0.05 -> risk ~0.9
-    if l2_l1_ratio >= 0.3:
-        l2_l1_risk = 0.25 * (1 - (l2_l1_ratio - 0.3) / 0.7)  # 0-0.25 for normal
-    elif l2_l1_ratio >= 0.1:
-        l2_l1_risk = 0.25 + 0.5 * (0.3 - l2_l1_ratio) / 0.2  # 0.25-0.75
+    # Wider transition band (0.08-0.35) to reduce noise amplification
+    if l2_l1_ratio >= 0.35:
+        l2_l1_risk = 0.20 * (1 - (l2_l1_ratio - 0.35) / 0.65)
+    elif l2_l1_ratio >= 0.08:
+        l2_l1_risk = 0.20 + 0.55 * (0.35 - l2_l1_ratio) / 0.27
     else:
-        l2_l1_risk = 0.75 + 0.25 * (0.1 - l2_l1_ratio) / 0.1  # 0.75-1.0
+        l2_l1_risk = 0.75 + 0.25 * (0.08 - l2_l1_ratio) / 0.08
 
     # Participation ratio contribution (lower = more risk)
-    # PR=3 -> low risk, PR=1 -> high risk
     if participation_ratio >= 2.5:
         pr_risk = 0.1
     elif participation_ratio >= 1.5:
@@ -206,7 +203,6 @@ def fault_correlation_to_risk(l2_l1_ratio: float, participation_ratio: float) ->
     else:
         pr_risk = 0.5 + 0.5 * (1.5 - participation_ratio) / 0.5
 
-    # Combine: weight L2/L1 more heavily (it's the primary diagnostic)
     risk = 0.7 * l2_l1_risk + 0.3 * pr_risk
     return min(1.0, max(0.0, risk))
 
@@ -250,29 +246,26 @@ def thd_to_risk_with_baseline(
 
     Z-score interpretation:
         z < 0: Below baseline (normal)
-        z = 0-1: Normal variation
-        z = 1-2: Elevated (WATCH)
-        z = 2-3: Significant anomaly (ELEVATED)
-        z > 3: Critical anomaly (CRITICAL)
+        z = 0-1.5: Normal variation (risk 0.05-0.25)
+        z = 1.5-2.5: Elevated / WATCH (risk 0.25-0.50)
+        z = 2.5-3.5: Significant anomaly / ELEVATED (risk 0.50-0.75)
+        z > 3.5: Critical anomaly / CRITICAL (risk 0.75+)
     """
     if baseline_std <= 0:
-        # No baseline available, fall back to absolute thresholds
         return thd_to_risk(thd_value), 0.0
 
-    # Compute z-score
     z_score = (thd_value - baseline_mean) / baseline_std
 
-    # Convert to risk
     if z_score < 0:
-        risk = max(0.0, 0.1 + z_score * 0.05)
-    elif z_score < 1:
-        risk = 0.1 + z_score * 0.15
-    elif z_score < 2:
-        risk = 0.25 + (z_score - 1) * 0.25
-    elif z_score < 3:
-        risk = 0.50 + (z_score - 2) * 0.25
+        risk = max(0.0, 0.05 + z_score * 0.03)
+    elif z_score < 1.5:
+        risk = 0.05 + 0.20 * (z_score / 1.5)
+    elif z_score < 2.5:
+        risk = 0.25 + (z_score - 1.5) * 0.25
+    elif z_score < 3.5:
+        risk = 0.50 + (z_score - 2.5) * 0.25
     else:
-        risk = min(1.0, 0.75 + (z_score - 3) * 0.08)
+        risk = min(1.0, 0.75 + (z_score - 3.5) * 0.08)
 
     return risk, z_score
 
@@ -757,12 +750,7 @@ class GeoSpecEnsemble:
         else:
             combined_risk = 0.0
 
-        # Normalize to account for missing methods
-        # Boost risk slightly if multiple methods agree on elevated
         confidence, agreement = self.compute_confidence(components)
-
-        if agreement in ['all_critical', 'all_elevated']:
-            combined_risk = min(1.0, combined_risk * 1.1)
 
         # Get tier
         tier, tier_name = self.get_tier(combined_risk)

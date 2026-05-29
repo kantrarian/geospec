@@ -1,21 +1,21 @@
 ﻿# GeoSpec Ensemble Monitoring
 
-**Last Update**: 2026-05-26
+**Last Update**: 2026-05-27
 
 ## Current Status
 
 | Metric | Value |
 |--------|-------|
-| Highest Risk Region | campi_flegrei |
-| Risk Score | 0.368 |
+| Highest Risk Region | kaikoura |
+| Risk Score | 0.324 |
 | Regions Monitored | 14 |
 
 ### Tier Distribution
 
 | Tier | Count |
 |------|-------|
-| NORMAL (0) | 10 |
-| WATCH (1) | 4 |
+| NORMAL (0) | 13 |
+| WATCH (1) | 1 |
 | ELEVATED (2) | 0 |
 | CRITICAL (3) | 0 |
 

@@ -1,13 +1,13 @@
 ﻿# GeoSpec Ensemble Monitoring
 
-**Last Update**: 2026-05-30
+**Last Update**: 2026-05-31
 
 ## Current Status
 
 | Metric | Value |
 |--------|-------|
-| Highest Risk Region | istanbul_marmara |
-| Risk Score | 0.132 |
+| Highest Risk Region | kumamoto |
+| Risk Score | 0.186 |
 | Regions Monitored | 14 |
 
 ### Tier Distribution

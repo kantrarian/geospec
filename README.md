@@ -1,21 +1,21 @@
 ﻿# GeoSpec Ensemble Monitoring
 
-**Last Update**: 2026-06-02
+**Last Update**: 2026-06-03
 
 ## Current Status
 
 | Metric | Value |
 |--------|-------|
-| Highest Risk Region | campi_flegrei |
-| Risk Score | 0.362 |
+| Highest Risk Region | kumamoto |
+| Risk Score | 0.351 |
 | Regions Monitored | 14 |
 
 ### Tier Distribution
 
 | Tier | Count |
 |------|-------|
-| NORMAL (0) | 9 |
-| WATCH (1) | 4 |
+| NORMAL (0) | 12 |
+| WATCH (1) | 2 |
 | ELEVATED (2) | 0 |
 | CRITICAL (3) | 0 |
 

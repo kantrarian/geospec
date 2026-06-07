@@ -1,23 +1,23 @@
 ﻿# GeoSpec Ensemble Monitoring
 
-**Last Update**: 2026-06-04
+**Last Update**: 
 
 ## Current Status
 
 | Metric | Value |
 |--------|-------|
-| Highest Risk Region | hualien |
-| Risk Score | 0.401 |
-| Regions Monitored | 14 |
+| Highest Risk Region |  |
+| Risk Score | 0 |
+| Regions Monitored |  |
 
 ### Tier Distribution
 
 | Tier | Count |
 |------|-------|
-| NORMAL (0) | 11 |
-| WATCH (1) | 3 |
-| ELEVATED (2) | 0 |
-| CRITICAL (3) | 0 |
+| NORMAL (0) |  |
+| WATCH (1) |  |
+| ELEVATED (2) |  |
+| CRITICAL (3) |  |
 
 ## Dashboard
 

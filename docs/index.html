@@ -613,8 +613,12 @@
                 <span>Tier 3: High</span>
             </div>
             <div class="legend-item">
-                <span style="color: #eab308; font-size: 1.1rem; line-height: 12px;">&#9670;</span>
-                <span>Stress-Release Drop</span>
+                <span style="color: #eab308; font-size: 1rem; line-height: 12px;">◆╌╌○</span>
+                <span>Drop (pending)</span>
+            </div>
+            <div class="legend-item">
+                <span style="color: #f97316; font-size: 1rem; line-height: 12px;">◆——●</span>
+                <span>Drop (confirmed)</span>
             </div>
         </div>
 
@@ -631,7 +635,9 @@
             <div class="drop-explainer">
                 <strong>Physical basis:</strong> Strain eigenframe rotation completes as stress transfers to the locked asperity.
                 The surrounding crust relaxes (commutator &rarr; 0), but the fault is at maximum stress.
-                Pattern: elevation (WATCH+) &rarr; abrupt drop to NORMAL (&Delta;z &gt; 1.5) &rarr; rupture within 1&ndash;3 days.
+                Pattern: elevation (WATCH+) &rarr; abrupt drop to NORMAL (&Delta;z &gt; 1.5) &rarr; rupture within 1&ndash;3 days.<br>
+                <strong>On the chart:</strong> ◆ marks the drop. A <span style="color:#eab308">dotted line</span> extends 3 days into the watch window (pending).
+                If an M5+ event occurs, the line becomes <span style="color:#f97316">solid</span> and terminates at the event (● confirmed).
             </div>
         </div>
 
@@ -993,7 +999,7 @@
             });
 
             // Add stress-release drop overlays
-            const dropOverlays = getDropOverlays(stressDrops, regionColors);
+            const dropOverlays = getDropOverlays(stressDrops, regionColors, earthquakeEvents);
             shapes.push(...dropOverlays.shapes);
             annotations.push(...dropOverlays.annotations);
 
@@ -1008,13 +1014,13 @@
                 yaxis: {
                     gridcolor: '#2a2a3a',
                     title: 'Risk Score',
-                    range: [0, 1.1]
+                    range: [0, 1.15]
                 },
                 legend: {
                     orientation: 'h',
                     y: -0.2
                 },
-                margin: { t: 30, r: 20, b: 60, l: 60 },
+                margin: { t: 40, r: 20, b: 60, l: 60 },
                 shapes: shapes,
                 annotations: annotations
             };
@@ -1125,33 +1131,127 @@
             `).join('');
         }
 
-        // Add stress-release drop markers to the history chart
-        function getDropOverlays(drops, regionColors) {
+        // Add stress-release drop overlays to the history chart:
+        // - Diamond marker at the drop point
+        // - Horizontal line extending into the watch window (1-3 days)
+        //   Dashed = pending (no confirmed event), Solid = confirmed (event occurred)
+        function getDropOverlays(drops, regionColors, earthquakeEvents) {
             const shapes = [];
             const annotations = [];
 
-            if (!drops) return { shapes, annotations };
+            if (!drops || drops.length === 0) return { shapes, annotations };
 
+            // Build a lookup of M5+ events by date for matching
+            const eventsByDate = {};
+            if (earthquakeEvents) {
+                earthquakeEvents.forEach(ev => {
+                    if (ev.mag >= 5.0 && ev.time) {
+                        const d = ev.time.split('T')[0];
+                        if (!eventsByDate[d]) eventsByDate[d] = [];
+                        eventsByDate[d].push(ev);
+                    }
+                });
+            }
+
+            // Helper: add N days to a YYYY-MM-DD string
+            function addDays(dateStr, n) {
+                const d = new Date(dateStr + 'T00:00:00Z');
+                d.setUTCDate(d.getUTCDate() + n);
+                return d.toISOString().split('T')[0];
+            }
+
+            // De-duplicate drops: keep only the highest-confidence per date
+            const bestByDate = {};
             drops.forEach(d => {
-                const color = regionColors[d.region] || '#eab308';
-                // Diamond marker via annotation
+                const key = d.dropDate;
+                const confRank = { high: 3, moderate: 2, low: 1 };
+                if (!bestByDate[key] || (confRank[d.confidence] || 0) > (confRank[bestByDate[key].confidence] || 0)) {
+                    bestByDate[key] = d;
+                }
+            });
+            const uniqueDrops = Object.values(bestByDate);
+
+            uniqueDrops.forEach(d => {
+                const watchWindowDays = 3;
+                const dropColor = d.confidence === 'high' ? '#f97316' : '#eab308';
+                const yLevel = 1.03; // fixed y near top so lines don't overlap data
+
+                // Check if any M5+ event occurred within the watch window
+                let confirmed = false;
+                let eventDate = null;
+                let eventMag = null;
+                for (let offset = 1; offset <= watchWindowDays; offset++) {
+                    const checkDate = addDays(d.dropDate, offset);
+                    if (eventsByDate[checkDate]) {
+                        confirmed = true;
+                        eventDate = checkDate;
+                        eventMag = Math.max(...eventsByDate[checkDate].map(e => e.mag));
+                        break;
+                    }
+                }
+
+                const endDate = confirmed ? eventDate : addDays(d.dropDate, watchWindowDays);
+
+                // Diamond at the drop point
                 annotations.push({
                     x: d.dropDate,
-                    y: d.currRisk,
-                    text: '◆', // diamond
-                    showarrow: true,
-                    arrowhead: 0,
-                    arrowcolor: 'rgba(234, 179, 8, 0.5)',
-                    ax: 0,
-                    ay: -25,
-                    font: {
-                        color: d.confidence === 'high' ? '#f97316' : '#eab308',
-                        size: d.confidence === 'high' ? 16 : 12
-                    },
+                    y: yLevel,
+                    text: '◆',
+                    showarrow: false,
+                    font: { color: dropColor, size: d.confidence === 'high' ? 14 : 11 },
                     bgcolor: 'rgba(0,0,0,0)',
-                    borderpad: 0,
-                    hovertext: `Stress-release drop: ${d.region.replace(/_/g, ' ')}\n${d.priorTierName} -> NORMAL\n${d.consecutive}d elevated`,
+                    borderpad: 0
                 });
+
+                // Horizontal watch-window line: dashed if pending, solid if confirmed
+                shapes.push({
+                    type: 'line',
+                    x0: d.dropDate,
+                    x1: endDate,
+                    y0: yLevel,
+                    y1: yLevel,
+                    line: {
+                        color: dropColor,
+                        width: confirmed ? 2.5 : 1.5,
+                        dash: confirmed ? 'solid' : 'dot'
+                    },
+                    opacity: confirmed ? 1.0 : 0.6
+                });
+
+                if (confirmed) {
+                    // Solid circle at the event end
+                    annotations.push({
+                        x: eventDate,
+                        y: yLevel,
+                        text: '●',
+                        showarrow: false,
+                        font: { color: '#ef4444', size: 12 },
+                        bgcolor: 'rgba(0,0,0,0)',
+                        borderpad: 0
+                    });
+                    // Event label
+                    annotations.push({
+                        x: eventDate,
+                        y: yLevel + 0.04,
+                        text: 'M' + eventMag.toFixed(1),
+                        showarrow: false,
+                        font: { color: '#ef4444', size: 9, weight: 'bold' },
+                        bgcolor: 'rgba(10,10,15,0.8)',
+                        borderpad: 2
+                    });
+                } else {
+                    // Open circle at the end of the watch window (pending)
+                    annotations.push({
+                        x: endDate,
+                        y: yLevel,
+                        text: '○',
+                        showarrow: false,
+                        font: { color: dropColor, size: 10 },
+                        bgcolor: 'rgba(0,0,0,0)',
+                        borderpad: 0,
+                        opacity: 0.6
+                    });
+                }
             });
 
             return { shapes, annotations };

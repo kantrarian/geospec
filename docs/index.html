@@ -1030,6 +1030,10 @@
 
         // Stress-release drop detection (client-side from CSV history)
         function detectStressReleaseDrops(csvData, minDeltaZ = 1.5) {
+            // Trans-Pacific correlation groups (Section 9.6: r>0.92 same-day)
+            const MIN_ELEVATED_DAYS = 3;
+            const MIN_SYNC_REGIONS = 2;
+
             // Group by region, sorted by date
             const byRegion = {};
             csvData.forEach(row => {
@@ -1037,7 +1041,7 @@
                 byRegion[row.region].push(row);
             });
 
-            const drops = [];
+            const rawDrops = [];
             const tierNames = { 0: 'NORMAL', 1: 'WATCH', 2: 'ELEVATED', 3: 'CRITICAL' };
 
             for (const [region, rows] of Object.entries(byRegion)) {
@@ -1057,21 +1061,20 @@
                         if ((parseInt(rows[j].tier) || 0) >= 1) consecutive++;
                         else break;
                     }
-                    if (consecutive < 1) continue;
+                    if (consecutive < MIN_ELEVATED_DAYS) continue;
 
                     // Compute delta-z from risk scores as proxy
                     const prevRisk = parseFloat(prev.risk) || 0;
                     const currRisk = parseFloat(curr.risk) || 0;
-                    const deltaZ = Math.abs(prevRisk - currRisk) * 10; // scale risk diff to approximate z
+                    const deltaZ = Math.abs(prevRisk - currRisk) * 10;
 
-                    // Use tier drop magnitude if z unavailable
                     const tierDrop = prevTier;
 
                     let confidence = 'low';
                     if ((deltaZ >= 2.0 || tierDrop >= 2) && consecutive >= 2) confidence = 'high';
                     else if (deltaZ >= 1.5 || tierDrop >= 2 || consecutive >= 2) confidence = 'moderate';
 
-                    drops.push({
+                    rawDrops.push({
                         region: region,
                         dropDate: curr.date,
                         priorTier: prevTier,
@@ -1086,6 +1089,26 @@
                 }
             }
 
+            // Multi-region sync filter: keep drops only when >=2 regions
+            // dropped on the same date, or solo drops with strong evidence
+            const dropsByDate = {};
+            rawDrops.forEach(d => {
+                if (!dropsByDate[d.dropDate]) dropsByDate[d.dropDate] = [];
+                dropsByDate[d.dropDate].push(d);
+            });
+
+            const drops = [];
+            for (const [date, dateDrops] of Object.entries(dropsByDate)) {
+                if (dateDrops.length >= MIN_SYNC_REGIONS) {
+                    drops.push(...dateDrops);
+                } else {
+                    // Keep solo drops only if very strong signal
+                    dateDrops.forEach(d => {
+                        if (d.consecutive >= 5 || d.priorTier >= 2) drops.push(d);
+                    });
+                }
+            }
+
             // Sort by date desc, then confidence
             const confOrder = { high: 0, moderate: 1, low: 2 };
             drops.sort((a, b) => {
@@ -1094,7 +1117,7 @@
                 return (confOrder[a.confidence] || 9) - (confOrder[b.confidence] || 9);
             });
 
-            return drops.slice(0, 12); // Last 12 at most
+            return drops.slice(0, 12);
         }
 
         function renderDropCards(drops) {

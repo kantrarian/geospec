@@ -37,13 +37,22 @@ class StressReleaseDrop:
     confidence: str
 
 
+CORRELATION_GROUPS = {
+    'western_pacific': {'hualien', 'tokyo_kanto', 'kumamoto'},
+    'cascadia_norcal': {'cascadia', 'norcal_hayward'},
+    'socal': {'socal_san_andreas', 'socal_mojave', 'socal_coachella', 'ridgecrest'},
+}
+
+
 def detect_stress_release_drops(
     ensemble_dir: Path,
     target_date: datetime,
     lookback_days: int = 7,
     min_prior_tier: int = 1,
     min_delta_z: float = 1.5,
-    min_elevated_days: int = 1,
+    min_elevated_days: int = 3,
+    require_multi_region: bool = True,
+    min_sync_regions: int = 2,
 ) -> List[StressReleaseDrop]:
     """
     Scan recent ensemble results for the stress-release drop pattern.
@@ -52,6 +61,10 @@ def detect_stress_release_drops(
     1. A region was at tier >= min_prior_tier for >= min_elevated_days
     2. It dropped to tier 0 (NORMAL) in a single day
     3. The z-score swing (delta_z) exceeds min_delta_z
+    4. (If require_multi_region) at least min_sync_regions dropped on
+       the same date within the same correlation group or across groups.
+       Grounded in trans-Pacific correlation study (Section 9.6): Western
+       Pacific regions show r>0.92 same-day correlation.
 
     Args:
         ensemble_dir: Path to ensemble_results directory
@@ -60,6 +73,8 @@ def detect_stress_release_drops(
         min_prior_tier: Minimum tier before the drop (default: WATCH=1)
         min_delta_z: Minimum z-score swing to flag (default: 1.5)
         min_elevated_days: Minimum consecutive days at elevation before drop
+        require_multi_region: Require synchronized drops across regions
+        min_sync_regions: Minimum regions dropping on same date
 
     Returns:
         List of detected stress-release drops, newest first
@@ -169,6 +184,32 @@ def detect_stress_release_drops(
                 f"confidence={confidence})"
             )
 
+    if require_multi_region and detections:
+        drops_by_date: Dict[str, List[StressReleaseDrop]] = {}
+        for d in detections:
+            drops_by_date.setdefault(d.drop_date, []).append(d)
+
+        filtered = []
+        for date_str, date_drops in drops_by_date.items():
+            if len(date_drops) >= min_sync_regions:
+                filtered.extend(date_drops)
+            else:
+                for d in date_drops:
+                    if d.consecutive_elevated_days >= 5 or d.prior_tier >= 2:
+                        filtered.append(d)
+                        logger.info(
+                            f"SOLO DROP KEPT: {d.region} on {d.drop_date} "
+                            f"(tier {d.prior_tier}, {d.consecutive_elevated_days}d elevated)"
+                        )
+
+        dropped_count = len(detections) - len(filtered)
+        if dropped_count > 0:
+            logger.info(
+                f"Multi-region sync filter: {dropped_count} isolated drops removed, "
+                f"{len(filtered)} retained"
+            )
+        detections = filtered
+
     detections.sort(key=lambda d: d.drop_date, reverse=True)
     return detections
 
@@ -193,6 +234,8 @@ if __name__ == '__main__':
     parser.add_argument('--date', type=str, default=None, help='Target date YYYY-MM-DD (default: today)')
     parser.add_argument('--lookback', type=int, default=7, help='Days to look back (default: 7)')
     parser.add_argument('--min-delta-z', type=float, default=1.5, help='Minimum z-score swing (default: 1.5)')
+    parser.add_argument('--min-elevated-days', type=int, default=3, help='Min consecutive elevated days (default: 3)')
+    parser.add_argument('--no-sync-filter', action='store_true', help='Disable multi-region sync filter')
     parser.add_argument('--ensemble-dir', type=str, default=None, help='Ensemble results directory')
     args = parser.parse_args()
 
@@ -211,6 +254,8 @@ if __name__ == '__main__':
         target_date=target,
         lookback_days=args.lookback,
         min_delta_z=args.min_delta_z,
+        min_elevated_days=args.min_elevated_days,
+        require_multi_region=not args.no_sync_filter,
     )
 
     if drops:

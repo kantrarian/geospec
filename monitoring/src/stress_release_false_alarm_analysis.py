@@ -5,9 +5,12 @@ False-alarm-rate analysis for the stress-release drop detector.
 
 Runs the *actual* detector (stress_release_detector.detect_stress_release_drops)
 over the full committed tier history, then scores every firing against the USGS
-event catalog: a drop is a HIT if an event of magnitude >= --min-magnitude
-occurred in the dropping region within --forward-days after the drop, otherwise
-a FALSE ALARM.
+event catalog using a tectonic-domain association rule (grassmann 2026-06-09):
+a drop in a correlation group is a HIT if a qualifying event occurred anywhere
+on that group's plate-boundary domain within the domain window; solo monitors
+fall back to region-local scoring (an event within the dropping region's bounds
++ --buffer-deg at >= --min-magnitude within --forward-days). Otherwise a FALSE
+ALARM.
 
 This answers the grassmann 2026-06-08 handoff item:
   "Run the detector across the full daily_states.csv history to estimate how
@@ -70,6 +73,52 @@ logger = logging.getLogger(__name__)
 TIER_NAMES = {0: 'NORMAL', 1: 'WATCH', 2: 'ELEVATED', 3: 'CRITICAL'}
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_CSV = REPO_ROOT / 'docs' / 'data.csv'
+
+# --- Tectonic-domain association (grassmann 2026-06-09 domain-mapping note) ----
+# A stress-release drop is a plate-boundary signal, not a point source: a
+# correlation group sits on one plate-boundary system and should be scored
+# against events anywhere on that boundary, not just inside the monitor's own
+# region bounds. Drops whose region is in a domain use the domain's bounds /
+# min_magnitude / forward window; solo monitors keep region-local + buffer.
+# bounds = (minlat, maxlat, minlon, maxlon).
+TECTONIC_DOMAINS = {
+    'western_pacific': {
+        'regions': {'hualien', 'tokyo_kanto', 'kumamoto'},
+        'bounds': (5.0, 50.0, 120.0, 155.0),
+        'min_magnitude': 6.5,
+        'forward_days': 7,
+    },
+    'cascadia_norcal': {
+        'regions': {'cascadia', 'norcal_hayward'},
+        'bounds': (35.0, 52.0, -132.0, -118.0),
+        'min_magnitude': 6.0,
+        'forward_days': 7,
+    },
+    'socal': {
+        'regions': {'ridgecrest', 'socal_saf_mojave', 'socal_saf_coachella'},
+        'bounds': (30.0, 37.0, -122.0, -114.0),
+        'min_magnitude': 6.0,
+        'forward_days': 7,
+    },
+}
+
+# region -> (domain_name, domain_spec), built once from TECTONIC_DOMAINS.
+_REGION_TO_DOMAIN = {
+    region: (name, spec)
+    for name, spec in TECTONIC_DOMAINS.items()
+    for region in spec['regions']
+}
+
+
+def domain_for_region(region):
+    """Return (domain_name, domain_spec) for a region, or (None, None) if solo."""
+    return _REGION_TO_DOMAIN.get(region, (None, None))
+
+
+def event_in_bounds(ev, bounds):
+    """True if event lat/lon falls within bounds = (minlat, maxlat, minlon, maxlon)."""
+    minlat, maxlat, minlon, maxlon = bounds
+    return minlat <= ev['lat'] <= maxlat and minlon <= ev['lon'] <= maxlon
 
 
 def load_tier_history(csv_path: Path):
@@ -148,9 +197,17 @@ def assign_region(lat: float, lon: float, buffer_deg: float):
     return None
 
 
-def score_drops(drops, events, forward_days: int, buffer_deg: float):
-    """Classify each drop as hit/false_alarm against the event catalog."""
-    # Index events by assigned region
+def score_drops(drops, events, forward_days: int, buffer_deg: float, min_magnitude: float):
+    """
+    Classify each drop as hit/false_alarm against the event catalog.
+
+    Domain-aware (grassmann 2026-06-09): if the dropping region belongs to a
+    tectonic domain, the drop is scored against ANY event on that plate-boundary
+    domain, using the domain's bounds / min_magnitude / forward window. Solo
+    monitors keep the region-local + buffer behaviour: an event assigned to the
+    drop's own region within `forward_days` at >= `min_magnitude`.
+    """
+    # Index events by assigned region for the solo / fallback path.
     events_by_region = defaultdict(list)
     for ev in events:
         region = assign_region(ev['lat'], ev['lon'], buffer_deg)
@@ -160,9 +217,27 @@ def score_drops(drops, events, forward_days: int, buffer_deg: float):
     results = []
     for d in drops:
         drop_dt = datetime.strptime(d.drop_date, '%Y-%m-%d')
-        window_end = drop_dt + timedelta(days=forward_days)
+        domain_name, spec = domain_for_region(d.region)
+
+        if spec is not None:
+            # Domain path: any event on the plate boundary, domain thresholds.
+            window_end = drop_dt + timedelta(days=spec['forward_days'])
+            candidates = [
+                ev for ev in events
+                if ev['mag'] >= spec['min_magnitude'] and event_in_bounds(ev, spec['bounds'])
+            ]
+            assoc = domain_name
+        else:
+            # Solo path: region-local + buffer, CLI thresholds (existing behaviour).
+            window_end = drop_dt + timedelta(days=forward_days)
+            candidates = [
+                ev for ev in events_by_region.get(d.region, [])
+                if ev['mag'] >= min_magnitude
+            ]
+            assoc = 'solo'
+
         matched = None
-        for ev in events_by_region.get(d.region, []):
+        for ev in candidates:
             if drop_dt <= ev['time'] <= window_end:
                 if matched is None or ev['mag'] > matched['mag']:
                     matched = ev
@@ -170,6 +245,7 @@ def score_drops(drops, events, forward_days: int, buffer_deg: float):
             'drop': d,
             'classification': 'hit' if matched else 'false_alarm',
             'event': matched,
+            'association': assoc,
         })
     return results
 
@@ -234,10 +310,16 @@ def main():
     scored = None
     if not args.offline and drops:
         try:
+            # Widen the fetch to cover every domain's window/magnitude as well as
+            # the CLI solo-path values, so both scoring paths see all candidates.
+            fetch_min_mag = min([s['min_magnitude'] for s in TECTONIC_DOMAINS.values()]
+                                + [args.min_magnitude])
+            fetch_fwd_days = max([s['forward_days'] for s in TECTONIC_DOMAINS.values()]
+                                 + [args.forward_days])
             events = fetch_usgs_events(first_date - timedelta(days=1),
-                                       last_date + timedelta(days=args.forward_days),
-                                       args.min_magnitude)
-            scored = score_drops(drops, events, args.forward_days, args.buffer_deg)
+                                       last_date + timedelta(days=fetch_fwd_days),
+                                       fetch_min_mag)
+            scored = score_drops(drops, events, args.forward_days, args.buffer_deg, args.min_magnitude)
         except Exception as e:
             print(f'WARNING: USGS scoring failed ({type(e).__name__}: {e}); reporting firing rate only',
                   file=sys.stderr)
@@ -270,37 +352,43 @@ def main():
         n_fa = sum(1 for s in scored if s['classification'] == 'false_alarm')
         total = n_hit + n_fa
         fa_rate = n_fa / total if total else 0.0
-        lines.append('## ⚠️ Methodological caveat: region-local scoring vs. a teleseismic hypothesis')
+        lines.append('## Hit / false-alarm split (domain-aware association)')
         lines.append('')
-        lines.append('This scorer marks a drop a HIT only if an event fell **inside the dropping region\'s '
-                     'own bounds**. But the stress-release hypothesis is *teleseismic*: the motivating case '
-                     'is the western-Pacific monitors (Hualien, Tokyo Kanto, Kumamoto) signalling the M7.8 '
-                     '**Mindanao** rupture ~2000 km away. Under region-local scoring that very event — the '
-                     'finding\'s headline success — scores as a **false alarm** (see the 2026-06-05 tokyo_kanto / '
-                     'kumamoto rows). So the false-alarm rate below is inflated by the scoring geometry on top '
-                     'of the tier-proxy permissiveness. A faithful analysis needs a monitor→tectonic-domain '
-                     'association rule (e.g. a correlation group maps to a plate-boundary magnitude/forward '
-                     'window), which is a modelling decision for the hypothesis owner — deliberately NOT '
-                     'invented here. Treat the number below as a loose upper bound under the strictest '
-                     '(local-only) association.')
+        lines.append('Drops are scored with the tectonic-domain association rule (grassmann '
+                     '2026-06-09): a drop in a correlation group is a HIT if a qualifying event '
+                     'occurred **anywhere on that group\'s plate-boundary domain** within the domain '
+                     'window. This captures the teleseismic case — the western-Pacific monitors '
+                     '(Hualien, Tokyo Kanto, Kumamoto) → the M7.8 **Mindanao** rupture ~2000 km away, '
+                     'which region-local scoring scored as a false alarm. Solo monitors keep '
+                     'region-local + buffer scoring.')
         lines.append('')
-        lines.append('## Hit / false-alarm split (region-local association)')
-        lines.append('')
-        lines.append(f'- **Scoring:** event M≥{args.min_magnitude} within {args.forward_days}d, '
+        for name, spec in TECTONIC_DOMAINS.items():
+            b = spec['bounds']
+            lines.append(f'- **{name}** {{{", ".join(sorted(spec["regions"]))}}}: '
+                         f'M≥{spec["min_magnitude"]} within {spec["forward_days"]}d, '
+                         f'bounds lat[{b[0]}, {b[1]}] lon[{b[2]}, {b[3]}]')
+        lines.append(f'- **solo monitors:** M≥{args.min_magnitude} within {args.forward_days}d, '
                      f'region bounds +{args.buffer_deg}° buffer')
+        if proxy:
+            lines.append('')
+            lines.append('> ⚠️ Domain association removes the region-local scoring distortion, but the '
+                         'tier-proxy permissiveness (caveat above) still applies on a CSV run — the '
+                         'faithful number needs `--ensemble-dir`.')
+        lines.append('')
         lines.append(f'- **Hits:** {n_hit}')
         lines.append(f'- **False alarms:** {n_fa}')
         lines.append(f'- **False-alarm rate:** {fa_rate:.1%}  (precision {1 - fa_rate:.1%})')
         lines.append('')
         lines.append('### Per-firing detail')
         lines.append('')
-        lines.append('| region | drop_date | conf | class | matched event |')
-        lines.append('|---|---|---|---|---|')
+        lines.append('| region | drop_date | conf | assoc | class | matched event |')
+        lines.append('|---|---|---|---|---|---|')
         for s in sorted(scored, key=lambda x: x['drop'].drop_date):
             d = s['drop']
             ev = s['event']
             evtxt = f"M{ev['mag']:.1f} {ev['place']} ({ev['time'].date()})" if ev else '—'
-            lines.append(f"| {d.region} | {d.drop_date} | {d.confidence} | {s['classification']} | {evtxt} |")
+            lines.append(f"| {d.region} | {d.drop_date} | {d.confidence} | {s['association']} | "
+                         f"{s['classification']} | {evtxt} |")
         lines.append('')
 
     report = '\n'.join(lines)

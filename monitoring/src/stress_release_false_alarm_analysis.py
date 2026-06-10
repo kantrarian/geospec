@@ -273,9 +273,11 @@ def main():
     proxy = args.ensemble_dir is None
     if args.ensemble_dir:
         ensemble_dir = Path(args.ensemble_dir)
-        files = sorted(ensemble_dir.glob('ensemble_*.json'))
+        import re
+        files = sorted(f for f in ensemble_dir.glob('ensemble_*.json')
+                       if re.match(r'ensemble_\d{4}-\d{2}-\d{2}\.json$', f.name))
         if not files:
-            print(f'No ensemble_*.json in {ensemble_dir}', file=sys.stderr)
+            print(f'No ensemble_YYYY-MM-DD.json in {ensemble_dir}', file=sys.stderr)
             return 1
         dates = [f.stem.replace('ensemble_', '') for f in files]
         n_region_days = '(from real ensemble files)'

@@ -79,6 +79,14 @@ try:
 except ImportError:
     VALIDATION_AVAILABLE = False
 
+# Stress-release drop detector (pre-rupture quiescence signature, v1.6+)
+try:
+    from dataclasses import asdict
+    from stress_release_detector import detect_stress_release_drops
+    STRESS_RELEASE_AVAILABLE = True
+except ImportError:
+    STRESS_RELEASE_AVAILABLE = False
+
 # Trans-Pacific correlation findings (Jan 2026) have been consolidated into
 # the stress-release drop detector's multi-region sync filter.
 # See: monitoring/src/stress_release_detector.py CORRELATION_GROUPS
@@ -951,6 +959,67 @@ def append_to_dashboard_csv(
     return csv_file
 
 
+def run_stress_release_detection(
+    output_dir: Path,
+    target_date: datetime,
+    lookback_days: int = 7,
+) -> List[Dict]:
+    """
+    Run the stress-release drop detector against the just-saved ensemble
+    history and persist its verdict into ensemble_<date>.json.
+
+    The GitHub Pages dashboard recomputes drops client-side from data.csv; this
+    writes the authoritative *server-side* record so logging, alerting, and the
+    audit trail are driven by the Python detector (single source of truth)
+    rather than only the JS recompute, which can silently drift from it.
+
+    Non-critical: any failure is logged and swallowed so it never blocks the
+    daily run. Returns the detected drops as dicts, newest first.
+    """
+    if not STRESS_RELEASE_AVAILABLE:
+        logger.debug("Stress-release detector unavailable; skipping")
+        return []
+
+    try:
+        drops = detect_stress_release_drops(
+            ensemble_dir=output_dir,
+            target_date=target_date,
+            lookback_days=lookback_days,
+        )
+    except Exception as e:
+        logger.warning(f"Stress-release detection failed (non-critical): {e}")
+        return []
+
+    drop_dicts = [asdict(d) for d in drops]
+
+    if drops:
+        logger.info(f"Stress-release detector: {len(drops)} drop(s) flagged")
+        for d in drops:
+            logger.info(
+                f"  {d.region} {d.drop_date}: tier {d.prior_tier}->0, "
+                f"dz={d.delta_z:.2f}, {d.consecutive_elevated_days}d elevated "
+                f"[{d.confidence}]"
+            )
+    else:
+        logger.info("Stress-release detector: no drops in lookback window")
+
+    # Persist into the authoritative ensemble JSON for this date.
+    date_str = target_date.strftime('%Y-%m-%d')
+    output_file = output_dir / f'ensemble_{date_str}.json'
+    if output_file.exists():
+        try:
+            with open(output_file, 'r') as f:
+                data = json.load(f)
+            data['stress_release_drops'] = drop_dicts
+            with open(output_file, 'w') as f:
+                json.dump(data, f, indent=2)
+            logger.info(f"Stress-release verdict written to {output_file.name}")
+        except (IOError, json.JSONDecodeError) as e:
+            logger.warning(f"Could not write stress-release verdict to JSON: {e}")
+
+    return drop_dicts
+
+
 def print_summary(results: Dict[str, EnsembleResult], persistence: Optional[Dict[str, Dict]] = None):
     """Print summary table to console."""
     print("\n" + "=" * 90)
@@ -1108,6 +1177,10 @@ def main():
 
     # Append to dashboard CSV (authoritative source for 30-day history chart)
     append_to_dashboard_csv(results, target_date)
+
+    # Run the stress-release drop detector and persist its verdict into the
+    # authoritative ensemble JSON (the dashboard recomputes it client-side).
+    run_stress_release_detection(output_dir, target_date)
 
     # Print summary
     if not args.quiet:

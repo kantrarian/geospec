@@ -82,9 +82,20 @@ if ($LatestFile) {
 # IMPORTANT: Use monitoring/dashboard/data.csv NOT ensemble_results/daily_states.csv
 # The dashboard CSV has the correct schema and complete 30-day history
 $CsvFile = Join-Path $RepoRoot "monitoring\dashboard\data.csv"
+$DocsCSV = Join-Path $DocsDir "data.csv"
 if (Test-Path $CsvFile) {
-    Copy-Item $CsvFile (Join-Path $DocsDir "data.csv") -Force
-    Write-Host "  Copied: monitoring/dashboard/data.csv -> docs/data.csv" -ForegroundColor Green
+    $SrcRows = (Get-Content $CsvFile | Measure-Object -Line).Lines
+    if (Test-Path $DocsCSV) {
+        $DstRows = (Get-Content $DocsCSV | Measure-Object -Line).Lines
+    } else {
+        $DstRows = 0
+    }
+    if ($SrcRows -lt $DstRows) {
+        Write-Host "  ABORT: monitoring/dashboard/data.csv ($SrcRows rows) is smaller than docs/data.csv ($DstRows rows) — would destroy history. Fix the source before re-running." -ForegroundColor Red
+        exit 11
+    }
+    Copy-Item $CsvFile $DocsCSV -Force
+    Write-Host "  Copied: monitoring/dashboard/data.csv -> docs/data.csv ($SrcRows rows)" -ForegroundColor Green
 } else {
     Write-Host "  WARNING: Dashboard data.csv not found at $CsvFile" -ForegroundColor Red
 }

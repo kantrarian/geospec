@@ -909,14 +909,17 @@ def append_to_dashboard_csv(
     # Check if file exists to determine if we need header
     file_exists = csv_file.exists()
 
-    # Check which regions already have entries for this date (avoid duplicates per region)
+    # Guard: row count must never decrease (prevents silent history truncation)
+    pre_append_rows = 0
     existing_regions = set()
     if file_exists:
         with open(csv_file, 'r', newline='') as f:
             reader = csv.reader(f)
-            for row in reader:
+            rows = list(reader)
+            pre_append_rows = len(rows)
+            for row in rows:
                 if len(row) >= 2 and row[0] == date_str:
-                    existing_regions.add(row[1])  # row[1] is region
+                    existing_regions.add(row[1])
 
         # Ensure file ends with newline before appending
         with open(csv_file, 'rb') as f:
@@ -955,7 +958,15 @@ def append_to_dashboard_csv(
                 result.agreement or ''
             ])
 
-    logger.info(f"Appended {len(regions_to_add)} rows to dashboard CSV: {csv_file}")
+    # Post-write guard: verify row count never decreased
+    with open(csv_file, 'r', newline='') as f:
+        post_append_rows = sum(1 for _ in f)
+    if post_append_rows < pre_append_rows:
+        raise RuntimeError(
+            f"Dashboard CSV history shrank from {pre_append_rows} to {post_append_rows} rows — aborting"
+        )
+
+    logger.info(f"Appended {len(regions_to_add)} rows to dashboard CSV: {csv_file} ({pre_append_rows} -> {post_append_rows})")
     return csv_file
 
 

@@ -928,6 +928,18 @@ def append_to_dashboard_csv(
                 with open(csv_file, 'a') as f2:
                     f2.write('\n')
 
+        # Date-continuity guard: warn if appending date isn't consecutive to last date in CSV
+        dates_in_csv = sorted({row[0] for row in rows if len(row) >= 2 and row[0] >= '2026'})
+        if dates_in_csv:
+            last_csv_date = datetime.strptime(dates_in_csv[-1], '%Y-%m-%d')
+            expected_next = last_csv_date + timedelta(days=1)
+            if target_date.date() > expected_next.date():
+                gap_days = (target_date.date() - last_csv_date.date()).days - 1
+                logger.warning(
+                    f"DATE GAP: {gap_days} day(s) missing between {dates_in_csv[-1]} and {date_str} "
+                    f"— dashboard chart will interpolate across the gap"
+                )
+
     # Filter to only regions not already in CSV for this date
     regions_to_add = {r: res for r, res in results.items() if r not in existing_regions}
 

@@ -929,7 +929,7 @@ def append_to_dashboard_csv(
                     f2.write('\n')
 
         # Date-continuity guard: warn if appending date isn't consecutive to last date in CSV
-        dates_in_csv = sorted({row[0] for row in rows if len(row) >= 2 and row[0] >= '2026'})
+        dates_in_csv = sorted({row[0] for row in rows if len(row) >= 2 and row[0][:4].isdigit()})
         if dates_in_csv:
             last_csv_date = datetime.strptime(dates_in_csv[-1], '%Y-%m-%d')
             expected_next = last_csv_date + timedelta(days=1)

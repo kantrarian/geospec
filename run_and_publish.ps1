@@ -91,7 +91,7 @@ if (Test-Path $CsvFile) {
         $DstRows = 0
     }
     if ($SrcRows -lt $DstRows) {
-        Write-Host "  ABORT: monitoring/dashboard/data.csv ($SrcRows rows) is smaller than docs/data.csv ($DstRows rows) — would destroy history. Fix the source before re-running." -ForegroundColor Red
+        Write-Host "  ABORT: monitoring/dashboard/data.csv ($SrcRows rows) is smaller than docs/data.csv ($DstRows rows) -- would destroy history. Fix the source before re-running." -ForegroundColor Red
         exit 11
     }
     Copy-Item $CsvFile $DocsCSV -Force

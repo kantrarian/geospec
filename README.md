@@ -1,13 +1,13 @@
 ﻿# GeoSpec Ensemble Monitoring
 
-**Last Update**: 2026-06-13
+**Last Update**: 2026-06-14
 
 ## Current Status
 
 | Metric | Value |
 |--------|-------|
-| Highest Risk Region | norcal_hayward |
-| Risk Score | 0.429 |
+| Highest Risk Region | hualien |
+| Risk Score | 0.352 |
 | Regions Monitored | 14 |
 
 ### Tier Distribution

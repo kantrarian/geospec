@@ -1,11 +1,11 @@
 {
-  "date": "2026-06-16",
-  "timestamp": "2026-06-18T07:12:13.099915",
+  "date": "2026-06-17",
+  "timestamp": "2026-06-19T07:08:17.488019",
   "regions": {
     "ridgecrest": {
       "region": "ridgecrest",
-      "date": "2026-06-16T07:00:11.141787",
-      "combined_risk": 0.28181093922462436,
+      "date": "2026-06-17T07:00:11.146158",
+      "combined_risk": 0.2821592129524632,
       "tier": 1,
       "tier_name": "WATCH",
       "components": {
@@ -22,22 +22,22 @@
         "fault_correlation": {
           "name": "fault_correlation",
           "available": true,
-          "raw_value": 0.03205351369892815,
-          "raw_secondary": 1.09425504956492,
-          "risk_score": 0.9016064239141186,
+          "raw_value": 0.03378292987572376,
+          "raw_secondary": 1.0873478153019396,
+          "risk_score": 0.8998954963062724,
           "is_elevated": true,
           "is_critical": true,
-          "notes": "L2/L1=0.0321, PR=1.09, 3/3 segments"
+          "notes": "L2/L1=0.0338, PR=1.09, 3/3 segments"
         },
         "seismic_thd": {
           "name": "seismic_thd",
           "available": true,
-          "raw_value": 0.312874397558793,
-          "raw_secondary": 1201355.9357650909,
-          "risk_score": 0.03776337350129585,
+          "raw_value": 0.31939663345995556,
+          "raw_secondary": 1006196.9289402983,
+          "risk_score": 0.040635213535271705,
           "is_elevated": false,
           "is_critical": false,
-          "notes": "sta=IU.TUC, THD=0.3129, z=-0.41, baseline_mean=0.3407, baseline_std=0.0400, n=31, rate=40Hz",
+          "notes": "sta=IU.TUC, THD=0.3194, z=-0.31, baseline_mean=0.3407, baseline_std=0.0400, n=31, rate=40Hz",
           "baseline": {
             "mean": 0.340665,
             "std": 0.039952,
@@ -45,7 +45,7 @@
             "window": "2025-12-10 to 2026-01-09",
             "quality": "acceptable"
           },
-          "z_score": -0.40788754995680526,
+          "z_score": -0.3121595488242766,
           "sample_rate_hz": 40.0
         }
       },
@@ -70,22 +70,22 @@
       },
       "persistence": {
         "current_tier": 1,
-        "consecutive_days": 1,
-        "is_confirmed": false,
+        "consecutive_days": 2,
+        "is_confirmed": true,
         "tier_history": [
           0,
           0,
-          0,
+          1,
           1
         ]
       }
     },
     "socal_saf_mojave": {
       "region": "socal_saf_mojave",
-      "date": "2026-06-16T07:00:11.141787",
-      "combined_risk": 0.24759564751939228,
-      "tier": 0,
-      "tier_name": "NORMAL",
+      "date": "2026-06-17T07:00:11.146158",
+      "combined_risk": 0.2709235148256902,
+      "tier": 1,
+      "tier_name": "WATCH",
       "components": {
         "lambda_geo": {
           "name": "lambda_geo",
@@ -100,22 +100,22 @@
         "fault_correlation": {
           "name": "fault_correlation",
           "available": true,
-          "raw_value": 0.06574366909681684,
-          "raw_secondary": 1.2287675742912265,
-          "risk_score": 0.7875554515633452,
+          "raw_value": 0.04230286635893878,
+          "raw_secondary": 1.1500643687426408,
+          "risk_score": 0.8624431692170291,
           "is_elevated": true,
           "is_critical": true,
-          "notes": "L2/L1=0.0657, PR=1.23, 4/4 segments"
+          "notes": "L2/L1=0.0423, PR=1.15, 4/4 segments"
         },
         "seismic_thd": {
           "name": "seismic_thd",
           "available": true,
-          "raw_value": 0.312874397558793,
-          "raw_secondary": 1201355.9357650909,
-          "risk_score": 0.03776337350129585,
+          "raw_value": 0.31939663345995556,
+          "raw_secondary": 1006196.9289402983,
+          "risk_score": 0.040635213535271705,
           "is_elevated": false,
           "is_critical": false,
-          "notes": "sta=IU.TUC, THD=0.3129, z=-0.41, baseline_mean=0.3407, baseline_std=0.0400, n=31, rate=40Hz",
+          "notes": "sta=IU.TUC, THD=0.3194, z=-0.31, baseline_mean=0.3407, baseline_std=0.0400, n=31, rate=40Hz",
           "baseline": {
             "mean": 0.340665,
             "std": 0.039952,
@@ -123,7 +123,7 @@
             "window": "2025-12-10 to 2026-01-09",
             "quality": "acceptable"
           },
-          "z_score": -0.40788754995680526,
+          "z_score": -0.3121595488242766,
           "sample_rate_hz": 40.0
         }
       },
@@ -148,23 +148,23 @@
         "seismic_thd": 0.3
       },
       "persistence": {
-        "current_tier": 0,
-        "consecutive_days": 0,
+        "current_tier": 1,
+        "consecutive_days": 1,
         "is_confirmed": false,
         "tier_history": [
           0,
           0,
           0,
-          0
+          1
         ]
       }
     },
     "socal_saf_coachella": {
       "region": "socal_saf_coachella",
-      "date": "2026-06-16T07:00:11.141787",
-      "combined_risk": 0.25886982532365604,
-      "tier": 1,
-      "tier_name": "WATCH",
+      "date": "2026-06-17T07:00:11.146158",
+      "combined_risk": 0.22129765796874215,
+      "tier": 0,
+      "tier_name": "NORMAL",
       "components": {
         "lambda_geo": {
           "name": "lambda_geo",
@@ -179,22 +179,22 @@
         "fault_correlation": {
           "name": "fault_correlation",
           "available": true,
-          "raw_value": 0.06278452619799471,
-          "raw_secondary": 1.125076015658874,
-          "risk_score": 0.8251360442442244,
+          "raw_value": 0.11998070528881837,
+          "raw_secondary": 1.236556098104448,
+          "risk_score": 0.6970236463605355,
           "is_elevated": true,
-          "is_critical": true,
-          "notes": "L2/L1=0.0628, PR=1.13, 2/3 segments"
+          "is_critical": false,
+          "notes": "L2/L1=0.1200, PR=1.24, 2/3 segments"
         },
         "seismic_thd": {
           "name": "seismic_thd",
           "available": true,
-          "raw_value": 0.312874397558793,
-          "raw_secondary": 1201355.9357650909,
-          "risk_score": 0.03776337350129585,
+          "raw_value": 0.31939663345995556,
+          "raw_secondary": 1006196.9289402983,
+          "risk_score": 0.040635213535271705,
           "is_elevated": false,
           "is_critical": false,
-          "notes": "sta=IU.TUC, THD=0.3129, z=-0.41, baseline_mean=0.3407, baseline_std=0.0400, n=31, rate=40Hz",
+          "notes": "sta=IU.TUC, THD=0.3194, z=-0.31, baseline_mean=0.3407, baseline_std=0.0400, n=31, rate=40Hz",
           "baseline": {
             "mean": 0.340665,
             "std": 0.039952,
@@ -202,7 +202,7 @@
             "window": "2025-12-10 to 2026-01-09",
             "quality": "acceptable"
           },
-          "z_score": -0.40788754995680526,
+          "z_score": -0.3121595488242766,
           "sample_rate_hz": 40.0
         }
       },
@@ -225,21 +225,21 @@
         "seismic_thd": 0.3
       },
       "persistence": {
-        "current_tier": 1,
-        "consecutive_days": 1,
+        "current_tier": 0,
+        "consecutive_days": 0,
         "is_confirmed": false,
         "tier_history": [
           0,
           0,
-          0,
-          1
+          1,
+          0
         ]
       }
     },
     "norcal_hayward": {
       "region": "norcal_hayward",
-      "date": "2026-06-16T07:00:11.141787",
-      "combined_risk": 0.019850757699166773,
+      "date": "2026-06-17T07:00:11.146158",
+      "combined_risk": 0.019606456643490706,
       "tier": 0,
       "tier_name": "NORMAL",
       "components": {
@@ -266,12 +266,12 @@
         "seismic_thd": {
           "name": "seismic_thd",
           "available": true,
-          "raw_value": 0.2980135840073664,
-          "raw_secondary": 235485.67138934068,
-          "risk_score": 0.046318434631389134,
+          "raw_value": 0.2968525654988065,
+          "raw_secondary": 174052.9357400625,
+          "risk_score": 0.045748398834811646,
           "is_elevated": false,
           "is_critical": false,
-          "notes": "sta=BK.BKS, THD=0.2980, z=-0.12, baseline_mean=0.3055, baseline_std=0.0497, n=31, rate=40Hz",
+          "notes": "sta=BK.BKS, THD=0.2969, z=-0.14, baseline_mean=0.3055, baseline_std=0.0497, n=31, rate=40Hz",
           "baseline": {
             "mean": 0.305512,
             "std": 0.049728,
@@ -279,7 +279,7 @@
             "window": "2025-12-10 to 2026-01-09",
             "quality": "acceptable"
           },
-          "z_score": -0.12271884562036225,
+          "z_score": -0.14172003883961182,
           "sample_rate_hz": 40.0
         }
       },
@@ -302,7 +302,7 @@
         "consecutive_days": 0,
         "is_confirmed": false,
         "tier_history": [
-          1,
+          0,
           0,
           0,
           0
@@ -311,10 +311,10 @@
     },
     "cascadia": {
       "region": "cascadia",
-      "date": "2026-06-16T07:00:11.141787",
-      "combined_risk": 0.23700027878151805,
-      "tier": 0,
-      "tier_name": "NORMAL",
+      "date": "2026-06-17T07:00:11.146158",
+      "combined_risk": 0.25326167420882933,
+      "tier": 1,
+      "tier_name": "WATCH",
       "components": {
         "lambda_geo": {
           "name": "lambda_geo",
@@ -329,22 +329,22 @@
         "fault_correlation": {
           "name": "fault_correlation",
           "available": true,
-          "raw_value": 0.09586770845319618,
-          "raw_secondary": 1.189989297935402,
-          "risk_score": 0.7453770337509328,
+          "raw_value": 0.07158717112005529,
+          "raw_secondary": 1.1424443543712195,
+          "risk_score": 0.800669756863513,
           "is_elevated": true,
-          "is_critical": false,
-          "notes": "L2/L1=0.0959, PR=1.19, 2/4 segments"
+          "is_critical": true,
+          "notes": "L2/L1=0.0716, PR=1.14, 2/4 segments"
         },
         "seismic_thd": {
           "name": "seismic_thd",
           "available": true,
-          "raw_value": 0.272644967835801,
-          "raw_secondary": 54929.17052416112,
-          "risk_score": 0.0446238955207941,
+          "raw_value": 0.2705937350891889,
+          "raw_secondary": 39808.940041811686,
+          "risk_score": 0.04353582383258482,
           "is_elevated": false,
           "is_critical": false,
-          "notes": "sta=IU.COR, THD=0.2726, z=-0.18, baseline_mean=0.2828, baseline_std=0.0464, n=31, rate=40Hz",
+          "notes": "sta=IU.COR, THD=0.2706, z=-0.22, baseline_mean=0.2828, baseline_std=0.0464, n=31, rate=40Hz",
           "baseline": {
             "mean": 0.28278,
             "std": 0.046364,
@@ -352,7 +352,7 @@
             "window": "2025-12-10 to 2026-01-09",
             "quality": "acceptable"
           },
-          "z_score": -0.17920348264019692,
+          "z_score": -0.21547253891383933,
           "sample_rate_hz": 40.0
         }
       },
@@ -375,21 +375,21 @@
         "seismic_thd": 0.3
       },
       "persistence": {
-        "current_tier": 0,
-        "consecutive_days": 0,
+        "current_tier": 1,
+        "consecutive_days": 1,
         "is_confirmed": false,
         "tier_history": [
           0,
           0,
           0,
-          0
+          1
         ]
       }
     },
     "tokyo_kanto": {
       "region": "tokyo_kanto",
-      "date": "2026-06-16T07:00:11.141787",
-      "combined_risk": 0.2993932300864861,
+      "date": "2026-06-17T07:00:11.146158",
+      "combined_risk": 0.3156382344164065,
       "tier": 1,
       "tier_name": "WATCH",
       "components": {
@@ -406,22 +406,22 @@
         "fault_correlation": {
           "name": "fault_correlation",
           "available": true,
-          "raw_value": 0.32900018257261815,
-          "raw_secondary": 1.5937339385732043,
-          "risk_score": 0.30869611148063036,
+          "raw_value": 0.3899621606945463,
+          "raw_secondary": 1.676976218333061,
+          "risk_score": 0.2601556191888996,
           "is_elevated": false,
           "is_critical": false,
-          "notes": "L2/L1=0.3290, PR=1.59, 2/3 segments"
+          "notes": "L2/L1=0.3900, PR=1.68, 2/3 segments"
         },
         "seismic_thd": {
           "name": "seismic_thd",
           "available": true,
-          "raw_value": 0.5100211605488455,
-          "raw_secondary": 40207.84464251533,
-          "risk_score": 0.6892813221409899,
+          "raw_value": 0.5574290342785589,
+          "raw_secondary": 4427.601892460187,
+          "risk_score": 0.7919718288657888,
           "is_elevated": true,
-          "is_critical": false,
-          "notes": "sta=IU.MAJO, THD=0.5100, z=3.26, baseline_mean=0.3088, baseline_std=0.0302, n=31, rate=40Hz",
+          "is_critical": true,
+          "notes": "sta=IU.MAJO, THD=0.5574, z=4.02, baseline_mean=0.3088, baseline_std=0.0302, n=31, rate=40Hz",
           "baseline": {
             "mean": 0.308837,
             "std": 0.030176,
@@ -429,7 +429,7 @@
             "window": "2025-12-10 to 2026-01-09",
             "quality": "acceptable"
           },
-          "z_score": 3.2571252885639597,
+          "z_score": 4.024647860822359,
           "sample_rate_hz": 40.0
         }
       },
@@ -453,20 +453,20 @@
       },
       "persistence": {
         "current_tier": 1,
-        "consecutive_days": 1,
-        "is_confirmed": false,
+        "consecutive_days": 2,
+        "is_confirmed": true,
         "tier_history": [
           0,
           0,
-          0,
+          1,
           1
         ]
       }
     },
     "istanbul_marmara": {
       "region": "istanbul_marmara",
-      "date": "2026-06-16T07:00:11.141787",
-      "combined_risk": 0.05344827467575946,
+      "date": "2026-06-17T07:00:11.146158",
+      "combined_risk": 0.2253890098903428,
       "tier": 0,
       "tier_name": "NORMAL",
       "components": {
@@ -483,22 +483,22 @@
         "fault_correlation": {
           "name": "fault_correlation",
           "available": true,
-          "raw_value": 0.9235071813442673,
-          "raw_secondary": 1.9968421068546498,
-          "risk_score": 0.10685432350329215,
-          "is_elevated": false,
+          "raw_value": 0.1138451711686393,
+          "raw_secondary": 1.2247770690094508,
+          "risk_score": 0.7093061722604013,
+          "is_elevated": true,
           "is_critical": false,
-          "notes": "L2/L1=0.9235, PR=2.00, 2/3 segments"
+          "notes": "L2/L1=0.1138, PR=1.22, 2/3 segments"
         },
         "seismic_thd": {
           "name": "seismic_thd",
           "available": true,
-          "raw_value": 0.4374031918961635,
-          "raw_secondary": 245748.0866637285,
-          "risk_score": 0.07130659208257273,
+          "raw_value": 0.3720150893345581,
+          "raw_secondary": 401243.86735947477,
+          "risk_score": 0.04199052737407477,
           "is_elevated": false,
           "is_critical": false,
-          "notes": "sta=IU.ANTO, THD=0.4374, z=0.16, baseline_mean=0.4129, baseline_std=0.1532, n=30, rate=40Hz",
+          "notes": "sta=IU.ANTO, THD=0.3720, z=-0.27, baseline_mean=0.4129, baseline_std=0.1532, n=30, rate=40Hz",
           "baseline": {
             "mean": 0.41292,
             "std": 0.153212,
@@ -506,12 +506,12 @@
             "window": "2025-12-10 to 2026-01-09",
             "quality": "acceptable"
           },
-          "z_score": 0.15979944061929544,
+          "z_score": -0.2669824208641744,
           "sample_rate_hz": 40.0
         }
       },
-      "confidence": 0.8,
-      "agreement": "all_normal",
+      "confidence": 0.6,
+      "agreement": "mixed",
       "methods_available": 3,
       "notes": "",
       "coverage": {
@@ -542,8 +542,8 @@
     },
     "turkey_kahramanmaras": {
       "region": "turkey_kahramanmaras",
-      "date": "2026-06-16T07:00:11.141787",
-      "combined_risk": 0.33478816189727617,
+      "date": "2026-06-17T07:00:11.146158",
+      "combined_risk": 0.3063454915145527,
       "tier": 1,
       "tier_name": "WATCH",
       "components": {
@@ -560,22 +560,22 @@
         "fault_correlation": {
           "name": "fault_correlation",
           "available": true,
-          "raw_value": 0.13362153195111676,
-          "raw_secondary": 1.502249464092146,
-          "risk_score": 0.5982697317119796,
+          "raw_value": 0.15922010201455017,
+          "raw_secondary": 1.4711251567597516,
+          "risk_score": 0.5707004556550307,
           "is_elevated": true,
           "is_critical": false,
-          "notes": "L2/L1=0.1336, PR=1.50, 3/3 segments"
+          "notes": "L2/L1=0.1592, PR=1.47, 3/3 segments"
         },
         "seismic_thd": {
           "name": "seismic_thd",
           "available": true,
-          "raw_value": 0.4374031918961635,
-          "raw_secondary": 245748.0866637285,
-          "risk_score": 0.07130659208257273,
+          "raw_value": 0.3720150893345581,
+          "raw_secondary": 401243.86735947477,
+          "risk_score": 0.04199052737407477,
           "is_elevated": false,
           "is_critical": false,
-          "notes": "sta=IU.ANTO, THD=0.4374, z=0.16, baseline_mean=0.4129, baseline_std=0.1532, n=30, rate=40Hz",
+          "notes": "sta=IU.ANTO, THD=0.3720, z=-0.27, baseline_mean=0.4129, baseline_std=0.1532, n=30, rate=40Hz",
           "baseline": {
             "mean": 0.41292,
             "std": 0.153212,
@@ -583,7 +583,7 @@
             "window": "2025-12-10 to 2026-01-09",
             "quality": "acceptable"
           },
-          "z_score": 0.15979944061929544,
+          "z_score": -0.2669824208641744,
           "sample_rate_hz": 40.0
         }
       },
@@ -607,19 +607,19 @@
       },
       "persistence": {
         "current_tier": 1,
-        "consecutive_days": 1,
-        "is_confirmed": false,
+        "consecutive_days": 2,
+        "is_confirmed": true,
         "tier_history": [
           0,
           0,
-          0,
+          1,
           1
         ]
       }
     },
     "campi_flegrei": {
       "region": "campi_flegrei",
-      "date": "2026-06-16T07:00:11.141787",
+      "date": "2026-06-17T07:00:11.146158",
       "combined_risk": 0.0,
       "tier": 0,
       "tier_name": "NORMAL",
@@ -682,8 +682,8 @@
     },
     "kaikoura": {
       "region": "kaikoura",
-      "date": "2026-06-16T07:00:11.141787",
-      "combined_risk": 0.018249857527663824,
+      "date": "2026-06-17T07:00:11.146158",
+      "combined_risk": 0.01542310426387392,
       "tier": 0,
       "tier_name": "NORMAL",
       "components": {
@@ -710,12 +710,12 @@
         "seismic_thd": {
           "name": "seismic_thd",
           "available": true,
-          "raw_value": 0.28269366876172525,
-          "raw_secondary": 4443.679318667893,
-          "risk_score": 0.04258300089788226,
+          "raw_value": 0.2673035676588691,
+          "raw_secondary": 10523.262243652649,
+          "risk_score": 0.035987243282372475,
           "is_elevated": false,
           "is_critical": false,
-          "notes": "sta=IU.SNZO, THD=0.2827, z=-0.25, baseline_mean=0.3000, baseline_std=0.0700, n=0, rate=40Hz",
+          "notes": "sta=IU.SNZO, THD=0.2673, z=-0.47, baseline_mean=0.3000, baseline_std=0.0700, n=0, rate=40Hz",
           "baseline": {
             "mean": 0.3,
             "std": 0.07,
@@ -723,7 +723,7 @@
             "window": "UNCALIBRATED",
             "quality": "poor"
           },
-          "z_score": -0.24723330340392485,
+          "z_score": -0.4670918905875842,
           "sample_rate_hz": 40.0
         }
       },
@@ -755,8 +755,8 @@
     },
     "anchorage": {
       "region": "anchorage",
-      "date": "2026-06-16T07:00:11.141787",
-      "combined_risk": 0.01389540406249466,
+      "date": "2026-06-17T07:00:11.146158",
+      "combined_risk": 0.011975748627950533,
       "tier": 0,
       "tier_name": "NORMAL",
       "components": {
@@ -783,12 +783,12 @@
         "seismic_thd": {
           "name": "seismic_thd",
           "available": true,
-          "raw_value": 0.16066969512016066,
-          "raw_secondary": 106033.98723050946,
-          "risk_score": 0.03242260947915421,
+          "raw_value": 0.15476297933658287,
+          "raw_secondary": 108235.39517373568,
+          "risk_score": 0.027943413465217913,
           "is_elevated": false,
           "is_critical": false,
-          "notes": "sta=IU.COLA, THD=0.1607, z=-0.59, baseline_mean=0.1838, baseline_std=0.0396, n=32, rate=40Hz",
+          "notes": "sta=IU.COLA, THD=0.1548, z=-0.74, baseline_mean=0.1838, baseline_std=0.0396, n=32, rate=40Hz",
           "baseline": {
             "mean": 0.183849,
             "std": 0.039561,
@@ -796,7 +796,7 @@
             "window": "2025-12-09 to 2026-01-09",
             "quality": "acceptable"
           },
-          "z_score": -0.5859130173615266,
+          "z_score": -0.7352195511594031,
           "sample_rate_hz": 40.0
         }
       },
@@ -828,8 +828,8 @@
     },
     "kumamoto": {
       "region": "kumamoto",
-      "date": "2026-06-16T07:00:11.141787",
-      "combined_risk": 0.2954062809175671,
+      "date": "2026-06-17T07:00:11.146158",
+      "combined_risk": 0.339416498085338,
       "tier": 1,
       "tier_name": "WATCH",
       "components": {
@@ -856,12 +856,12 @@
         "seismic_thd": {
           "name": "seismic_thd",
           "available": true,
-          "raw_value": 0.5100211605488455,
-          "raw_secondary": 40207.84464251533,
-          "risk_score": 0.6892813221409899,
+          "raw_value": 0.5574290342785589,
+          "raw_secondary": 4427.601892460187,
+          "risk_score": 0.7919718288657888,
           "is_elevated": true,
-          "is_critical": false,
-          "notes": "sta=IU.MAJO, THD=0.5100, z=3.26, baseline_mean=0.3088, baseline_std=0.0302, n=31, rate=40Hz",
+          "is_critical": true,
+          "notes": "sta=IU.MAJO, THD=0.5574, z=4.02, baseline_mean=0.3088, baseline_std=0.0302, n=31, rate=40Hz",
           "baseline": {
             "mean": 0.308837,
             "std": 0.030176,
@@ -869,7 +869,7 @@
             "window": "2025-12-10 to 2026-01-09",
             "quality": "acceptable"
           },
-          "z_score": 3.2571252885639597,
+          "z_score": 4.024647860822359,
           "sample_rate_hz": 40.0
         }
       },
@@ -889,20 +889,20 @@
       },
       "persistence": {
         "current_tier": 1,
-        "consecutive_days": 1,
-        "is_confirmed": false,
+        "consecutive_days": 2,
+        "is_confirmed": true,
         "tier_history": [
           0,
           0,
-          0,
+          1,
           1
         ]
       }
     },
     "hualien": {
       "region": "hualien",
-      "date": "2026-06-16T07:00:11.141787",
-      "combined_risk": 0.46310622358721076,
+      "date": "2026-06-17T07:00:11.146158",
+      "combined_risk": 0.3590682507741497,
       "tier": 1,
       "tier_name": "WATCH",
       "components": {
@@ -929,12 +929,12 @@
         "seismic_thd": {
           "name": "seismic_thd",
           "available": true,
-          "raw_value": 0.4981606077466481,
-          "raw_secondary": 2147.8914876957874,
-          "risk_score": 0.46310622358721076,
+          "raw_value": 0.4699644028156088,
+          "raw_secondary": 1772.0102437964622,
+          "risk_score": 0.3590682507741497,
           "is_elevated": false,
           "is_critical": false,
-          "notes": "sta=IU.TATO, THD=0.4982, z=2.35, baseline_mean=0.3388, baseline_std=0.0373, n=32, rate=40Hz",
+          "notes": "sta=IU.TATO, THD=0.4700, z=1.94, baseline_mean=0.3388, baseline_std=0.0373, n=32, rate=40Hz",
           "baseline": {
             "mean": 0.338773,
             "std": 0.037314,
@@ -942,7 +942,7 @@
             "window": "2025-12-09 to 2026-01-09",
             "quality": "acceptable"
           },
-          "z_score": 2.352424894348843,
+          "z_score": 1.9362730030965989,
           "sample_rate_hz": 40.0
         }
       },
@@ -961,10 +961,10 @@
       },
       "persistence": {
         "current_tier": 1,
-        "consecutive_days": 3,
+        "consecutive_days": 4,
         "is_confirmed": true,
         "tier_history": [
-          0,
+          1,
           1,
           1,
           1
@@ -973,8 +973,8 @@
     },
     "mexico_guerrero": {
       "region": "mexico_guerrero",
-      "date": "2026-06-16T07:00:11.141787",
-      "combined_risk": 0.07179747679744822,
+      "date": "2026-06-17T07:00:11.146158",
+      "combined_risk": 0.08136834620883508,
       "tier": 0,
       "tier_name": "NORMAL",
       "components": {
@@ -1001,12 +1001,12 @@
         "seismic_thd": {
           "name": "seismic_thd",
           "available": true,
-          "raw_value": 0.17910322370444917,
-          "raw_secondary": 248568.98438587424,
-          "risk_score": 0.1675274458607125,
+          "raw_value": 0.18732029363759536,
+          "raw_secondary": 155703.93997129888,
+          "risk_score": 0.18985947448728185,
           "is_elevated": false,
           "is_critical": false,
-          "notes": "sta=MX.TLIG, THD=0.1791, z=0.88, baseline_mean=0.1359, baseline_std=0.0491, n=87, rate=20Hz",
+          "notes": "sta=MX.TLIG, THD=0.1873, z=1.05, baseline_mean=0.1359, baseline_std=0.0491, n=87, rate=20Hz",
           "baseline": {
             "mean": 0.135859,
             "std": 0.04906,
@@ -1014,7 +1014,7 @@
             "window": "2025-10-19 to 2026-01-17",
             "quality": "good"
           },
-          "z_score": 0.8814558439553437,
+          "z_score": 1.048946058654614,
           "sample_rate_hz": 20.0
         }
       },
@@ -1049,16 +1049,16 @@
     "total_regions": 14,
     "tier_counts": {
       "-1": 0,
-      "0": 8,
-      "1": 6,
+      "0": 7,
+      "1": 7,
       "2": 0,
       "3": 0
     },
-    "confirmed_watch_count": 1,
-    "preliminary_watch_count": 5,
+    "confirmed_watch_count": 5,
+    "preliminary_watch_count": 2,
     "degraded_count": 0,
     "max_risk_region": "hualien",
-    "max_risk": 0.46310622358721076
+    "max_risk": 0.3590682507741497
   },
   "earthquake_events": {
     "ridgecrest": {
@@ -1069,7 +1069,7 @@
         "minlon": -118.5,
         "maxlon": -116.5
       },
-      "last_updated": "2026-06-18T11:12:08.118887",
+      "last_updated": "2026-06-19T11:08:13.163475",
       "event_count": 1,
       "largest_event": {
         "event_id": "ci41478192",
@@ -1116,7 +1116,7 @@
         "minlon": -118.5,
         "maxlon": -115.5
       },
-      "last_updated": "2026-06-18T11:12:08.576404",
+      "last_updated": "2026-06-19T11:08:13.638343",
       "event_count": 2,
       "largest_event": {
         "event_id": "ci41426656",
@@ -1174,7 +1174,7 @@
         "minlon": -117.0,
         "maxlon": -115.0
       },
-      "last_updated": "2026-06-18T11:12:09.057754",
+      "last_updated": "2026-06-19T11:08:13.901012",
       "event_count": 0,
       "largest_event": null,
       "most_recent_event": null,
@@ -1189,7 +1189,7 @@
         "minlon": -123.0,
         "maxlon": -121.5
       },
-      "last_updated": "2026-06-18T11:12:09.295752",
+      "last_updated": "2026-06-19T11:08:14.125013",
       "event_count": 1,
       "largest_event": {
         "event_id": "nc75337442",
@@ -1236,8 +1236,8 @@
         "minlon": -130.0,
         "maxlon": -122.0
       },
-      "last_updated": "2026-06-18T11:12:09.537584",
-      "event_count": 7,
+      "last_updated": "2026-06-19T11:08:14.539012",
+      "event_count": 8,
       "largest_event": {
         "event_id": "us6000ssvc",
         "time": "2026-04-25T19:20:38.624000",
@@ -1250,17 +1250,28 @@
         "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us6000ssvc"
       },
       "most_recent_event": {
-        "event_id": "us6000sz0r",
-        "time": "2026-05-12T11:36:59.387000",
-        "latitude": 47.7315,
-        "longitude": -128.9996,
+        "event_id": "us6000syfl",
+        "time": "2026-05-17T23:07:56.074000",
+        "latitude": 43.6876,
+        "longitude": -128.5184,
         "depth_km": 10,
-        "magnitude": 4,
+        "magnitude": 4.1,
         "mag_type": "mb",
-        "place": "278 km SW of Tofino, Canada",
-        "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us6000sz0r"
+        "place": "off the coast of Oregon",
+        "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us6000syfl"
       },
       "events": [
+        {
+          "event_id": "us6000syfl",
+          "time": "2026-05-17T23:07:56.074000",
+          "latitude": 43.6876,
+          "longitude": -128.5184,
+          "depth_km": 10,
+          "magnitude": 4.1,
+          "mag_type": "mb",
+          "place": "off the coast of Oregon",
+          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us6000syfl"
+        },
         {
           "event_id": "us6000sz0r",
           "time": "2026-05-12T11:36:59.387000",
@@ -1304,17 +1315,6 @@
           "mag_type": "mb",
           "place": "off the coast of Washington",
           "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us6000sphz"
-        },
-        {
-          "event_id": "us6000sph8",
-          "time": "2026-04-12T11:48:35.479000",
-          "latitude": 46.787,
-          "longitude": -129.096,
-          "depth_km": 10,
-          "magnitude": 4.1,
-          "mag_type": "mb",
-          "place": "off the coast of Washington",
-          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us6000sph8"
         }
       ],
       "m65_plus_events": []
@@ -1327,7 +1327,7 @@
         "minlon": 138.5,
         "maxlon": 141.5
       },
-      "last_updated": "2026-06-18T11:12:09.964437",
+      "last_updated": "2026-06-19T11:08:14.934453",
       "event_count": 13,
       "largest_event": {
         "event_id": "us7000std7",
@@ -1418,7 +1418,7 @@
         "minlon": 27.5,
         "maxlon": 30.5
       },
-      "last_updated": "2026-06-18T11:12:10.428259",
+      "last_updated": "2026-06-19T11:08:15.381507",
       "event_count": 0,
       "largest_event": null,
       "most_recent_event": null,
@@ -1433,7 +1433,7 @@
         "minlon": 36.0,
         "maxlon": 38.5
       },
-      "last_updated": "2026-06-18T11:12:10.873260",
+      "last_updated": "2026-06-19T11:08:15.613512",
       "event_count": 3,
       "largest_event": {
         "event_id": "us6000szud",
@@ -1502,7 +1502,7 @@
         "minlon": 13.8,
         "maxlon": 14.5
       },
-      "last_updated": "2026-06-18T11:12:11.093260",
+      "last_updated": "2026-06-19T11:08:15.825918",
       "event_count": 1,
       "largest_event": {
         "event_id": "us6000sz5g",
@@ -1549,7 +1549,7 @@
         "minlon": 172.0,
         "maxlon": 175.0
       },
-      "last_updated": "2026-06-18T11:12:11.536088",
+      "last_updated": "2026-06-19T11:08:16.206918",
       "event_count": 2,
       "largest_event": {
         "event_id": "us7000spft",
@@ -1607,7 +1607,7 @@
         "minlon": -152.0,
         "maxlon": -147.0
       },
-      "last_updated": "2026-06-18T11:12:11.806117",
+      "last_updated": "2026-06-19T11:08:16.460431",
       "event_count": 0,
       "largest_event": null,
       "most_recent_event": null,
@@ -1622,7 +1622,7 @@
         "minlon": 129.5,
         "maxlon": 132.0
       },
-      "last_updated": "2026-06-18T11:12:12.044118",
+      "last_updated": "2026-06-19T11:08:16.702430",
       "event_count": 0,
       "largest_event": null,
       "most_recent_event": null,
@@ -1637,8 +1637,8 @@
         "minlon": 120.5,
         "maxlon": 122.5
       },
-      "last_updated": "2026-06-18T11:12:12.596403",
-      "event_count": 20,
+      "last_updated": "2026-06-19T11:08:17.181666",
+      "event_count": 19,
       "largest_event": {
         "event_id": "us7000shjp",
         "time": "2026-05-01T12:39:55.952000",
@@ -1708,13 +1708,13 @@
         },
         {
           "event_id": "us6000syaw",
-          "time": "2026-05-17T00:46:13.747000",
-          "latitude": 24.0257,
-          "longitude": 120.9448,
-          "depth_km": 10,
+          "time": "2026-05-17T00:46:14.443000",
+          "latitude": 24.0173,
+          "longitude": 120.9449,
+          "depth_km": 15.832,
           "magnitude": 4.4,
           "mag_type": "mwr",
-          "place": "7 km NNW of Puli, Taiwan",
+          "place": "6 km NNW of Puli, Taiwan",
           "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us6000syaw"
         }
       ],
@@ -1728,7 +1728,7 @@
         "minlon": -101.0,
         "maxlon": -97.0
       },
-      "last_updated": "2026-06-18T11:12:13.031914",
+      "last_updated": "2026-06-19T11:08:17.411689",
       "event_count": 14,
       "largest_event": {
         "event_id": "us7000si51",

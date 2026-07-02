@@ -1,4 +1,4 @@
-﻿# GeoSpec Ensemble Monitoring
+# GeoSpec Ensemble Monitoring
 
 **Last Update**: 2026-06-29
 
@@ -6,16 +6,16 @@
 
 | Metric | Value |
 |--------|-------|
-| Highest Risk Region | socal_saf_mojave |
-| Risk Score | 0.395 |
+| Highest Risk Region | hualien |
+| Risk Score | 0.397 |
 | Regions Monitored | 14 |
 
 ### Tier Distribution
 
 | Tier | Count |
 |------|-------|
-| NORMAL (0) | 9 |
-| WATCH (1) | 5 |
+| NORMAL (0) | 6 |
+| WATCH (1) | 8 |
 | ELEVATED (2) | 0 |
 | CRITICAL (3) | 0 |
 

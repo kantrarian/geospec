@@ -1,13 +1,13 @@
 ﻿# GeoSpec Ensemble Monitoring
 
-**Last Update**: 2026-07-03
+**Last Update**: 2026-07-04
 
 ## Current Status
 
 | Metric | Value |
 |--------|-------|
-| Highest Risk Region | kumamoto |
-| Risk Score | 0.348 |
+| Highest Risk Region | mexico_guerrero |
+| Risk Score | 0.345 |
 | Regions Monitored | 14 |
 
 ### Tier Distribution

@@ -1,21 +1,21 @@
 ﻿# GeoSpec Ensemble Monitoring
 
-**Last Update**: 2026-07-09
+**Last Update**: 2026-07-10
 
 ## Current Status
 
 | Metric | Value |
 |--------|-------|
-| Highest Risk Region | mexico_guerrero |
-| Risk Score | 0.313 |
+| Highest Risk Region | kaikoura |
+| Risk Score | 0.363 |
 | Regions Monitored | 14 |
 
 ### Tier Distribution
 
 | Tier | Count |
 |------|-------|
-| NORMAL (0) | 13 |
-| WATCH (1) | 1 |
+| NORMAL (0) | 12 |
+| WATCH (1) | 2 |
 | ELEVATED (2) | 0 |
 | CRITICAL (3) | 0 |
 

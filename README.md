@@ -1,13 +1,13 @@
 ﻿# GeoSpec Ensemble Monitoring
 
-**Last Update**: 2026-07-11
+**Last Update**: 2026-07-12
 
 ## Current Status
 
 | Metric | Value |
 |--------|-------|
-| Highest Risk Region | kaikoura |
-| Risk Score | 0.314 |
+| Highest Risk Region | kumamoto |
+| Risk Score | 0.356 |
 | Regions Monitored | 14 |
 
 ### Tier Distribution

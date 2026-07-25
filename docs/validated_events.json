@@ -9,11 +9,11 @@
       "lookback_end_days": 14,
       "region_buffer_km": 100
     },
-    "last_validation_run": "2026-07-24T07:05:35.947820",
+    "last_validation_run": "2026-07-25T07:09:09.241331",
     "last_run_stats": {
-      "total_predictions": 4,
+      "total_predictions": 5,
       "hits": 0,
-      "false_alarms": 4,
+      "false_alarms": 5,
       "pending": 0,
       "events_matched": 0,
       "hit_rate": 0.0,
@@ -21,14 +21,28 @@
     }
   },
   "aggregate_stats": {
-    "total_validated": 21,
+    "total_validated": 22,
     "total_hits": 0,
-    "total_false_alarms": 21,
+    "total_false_alarms": 22,
     "hit_rate": 0.0,
     "unique_events_predicted": 0,
-    "last_updated": "2026-07-24T07:05:35.947820"
+    "last_updated": "2026-07-25T07:09:09.241331"
   },
   "events": [
+    {
+      "prediction_date": "2026-07-18",
+      "prediction_region": "kumamoto",
+      "prediction_tier": 2,
+      "prediction_risk": 0.532,
+      "event_id": "",
+      "event_time": "",
+      "event_magnitude": 0.0,
+      "event_location": "",
+      "lead_days": 0.0,
+      "classification": "false_alarm",
+      "validated_date": "2026-07-25",
+      "notes": "Tier 2 with no M5.5+ event within 7 days"
+    },
     {
       "prediction_date": "2026-07-17",
       "prediction_region": "kumamoto",

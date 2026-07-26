@@ -1,21 +1,21 @@
 ﻿# GeoSpec Ensemble Monitoring
 
-**Last Update**: 2026-07-23
+**Last Update**: 2026-07-24
 
 ## Current Status
 
 | Metric | Value |
 |--------|-------|
-| Highest Risk Region | kumamoto |
-| Risk Score | 0.333 |
+| Highest Risk Region | anchorage |
+| Risk Score | 0.429 |
 | Regions Monitored | 14 |
 
 ### Tier Distribution
 
 | Tier | Count |
 |------|-------|
-| NORMAL (0) | 11 |
-| WATCH (1) | 3 |
+| NORMAL (0) | 10 |
+| WATCH (1) | 4 |
 | ELEVATED (2) | 0 |
 | CRITICAL (3) | 0 |
 

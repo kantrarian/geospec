@@ -30,6 +30,28 @@ Write-Host "[2/5] Running ensemble monitoring..." -ForegroundColor Yellow
 $MonitoringDir = Join-Path $RepoRoot "monitoring"
 Push-Location $MonitoringDir
 
+# 2a. Rolling baseline recalibration (amendment R3, registered 2026-07-29 -- see
+# docs/AMENDMENT_2026-07-29_rolling_baseline.md). The lambda_geo baseline was previously a
+# manual one-shot and went stale (static winter baseline -> full seasonal drift carried into
+# the live ratio). Now: recalibrate weekly from a 90-day window LAGGED 30 days (end = today-30d)
+# so a genuine precursory buildup cannot be absorbed into its own baseline.
+$BaselineFile = Join-Path $MonitoringDir "data\baselines\lambda_geo_baselines.json"
+$NeedsRecal = $true
+if (Test-Path $BaselineFile) {
+    $AgeDays = ((Get-Date) - (Get-Item $BaselineFile).LastWriteTime).TotalDays
+    $NeedsRecal = $AgeDays -gt 7
+}
+if ($NeedsRecal) {
+    $LagEnd = (Get-Date).AddDays(-30).ToString('yyyy-MM-dd')
+    Write-Host "  [2a] Recalibrating lambda_geo baselines (90d window ending $LagEnd, R3)..." -ForegroundColor Yellow
+    python -m src.calibrate_lambda_geo_baselines --days 90 --end-date $LagEnd
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "  Recalibration failed; continuing with existing baselines" -ForegroundColor Red
+    }
+} else {
+    Write-Host "  [2a] Baselines fresh (<7d), skipping recalibration" -ForegroundColor Green
+}
+
 try {
     if ($Date -eq "auto") {
         python -m src.run_ensemble_daily

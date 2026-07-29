@@ -574,6 +574,10 @@
 <body>
     <div class="container">
         <header>
+            <div id="staleness-banner" style="display:none; background:#7f1d1d; color:#fff;
+                 padding:0.6rem 1rem; border-radius:6px; margin-bottom:0.8rem; font-weight:600;"></div>
+            <div id="r4-exclusions" style="display:none; background:#78350f; color:#fde68a;
+                 padding:0.45rem 1rem; border-radius:6px; margin-bottom:0.8rem; font-size:0.85rem;"></div>
             <h1><span class="lambda">Λ</span>_geo Three-Method Ensemble Monitor</h1>
             <p class="subtitle">GPS + Fault Correlation + Seismic THD</p>
             <p class="last-update" id="last-update">Loading data...</p>
@@ -719,6 +723,12 @@
         </div>
 
         <footer>
+            <p style="font-size:0.75rem; opacity:0.8;">Registered method amendments:
+                <a href="AMENDMENT_2026-07-29_scoring_window.md">R2 scoring window</a> \u00b7
+                <a href="AMENDMENT_2026-07-29_rolling_baseline.md">R3 rolling baseline</a> \u00b7
+                <a href="AMENDMENT_2026-07-29_prospective_arm.md">R4 prospective arm</a> \u00b7
+                <a href="AMENDMENT_2026-07-29_precip_residual.md">R5 precip residual</a>
+                \u2014 all prospective-only; historical classifications never rewritten.</p>
             <p class="disclaimer">
                 <strong>⚠️ Research System</strong><br>
                 This is an experimental monitoring system for research purposes only.
@@ -1297,12 +1307,48 @@
         }
 
         // Load and render data
+        function checkStaleness(dataDate) {
+            // W4 hygiene: a silent monitor outage must be VISIBLE (the 2026-06/07 freeze lesson).
+            try {
+                const d = new Date(String(dataDate).slice(0, 10) + 'T00:00:00Z');
+                const ageDays = Math.floor((Date.now() - d.getTime()) / 86400000);
+                const el = document.getElementById('staleness-banner');
+                if (ageDays > 3) {
+                    el.textContent = '\u26a0 DATA STALE \u2014 last update ' +
+                        String(dataDate).slice(0, 10) + ' (' + ageDays +
+                        ' days ago). The monitor may not be running; treat all tiers as unknown.';
+                    el.style.display = 'block';
+                }
+            } catch (e) { /* never break the page */ }
+        }
+
+        async function renderR4Exclusions() {
+            // W4 hygiene: regions in R4 post-event exclusion are UNSCOREABLE and their
+            // elevation is expected (postseismic) -- say so on the page, honestly.
+            try {
+                const r = await fetch('r4_prospective_record.json');
+                if (!r.ok) return;
+                const rec = await r.json();
+                const now = new Date().toISOString().slice(0, 10);
+                const active = (rec.exclusions || []).filter(x => x.start <= now && now <= x.end);
+                if (!active.length) return;
+                const el = document.getElementById('r4-exclusions');
+                el.innerHTML = 'R4 post-event exclusion (unscoreable; elevation expected): ' +
+                    active.map(x => '<b>' + x.region + '</b> until ' + x.end +
+                                    ' (M' + x.mag.toFixed(1) + ' ' + x.start + ')').join(' \u00b7 ') +
+                    ' \u2014 <a href="AMENDMENT_2026-07-29_prospective_arm.md" style="color:#fde68a">rules</a>';
+                el.style.display = 'block';
+            } catch (e) { /* never break the page */ }
+        }
+
         async function loadData() {
             try {
                 // Try ensemble JSON first (includes earthquake events)
                 const ensembleResponse = await fetch('ensemble_latest.json');
                 if (ensembleResponse.ok) {
                     const ensembleData = await ensembleResponse.json();
+                    checkStaleness(ensembleData.date);
+                    renderR4Exclusions();
                     renderCards(ensembleData);
 
                     // Extract M6.5+ events from ensemble JSON (single source of truth)

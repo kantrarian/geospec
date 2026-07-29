@@ -72,3 +72,9 @@ Thumbs.db
 !README.md
 !LICENSE
 !.gitignore
+
+# W4 hygiene (2026-07-29): legacy dashboard ensemble copies untracked (nothing writes them;
+# the committed copies froze 2026-06-13 and misled analysis). monitoring/dashboard/data.csv
+# STAYS tracked and is now committed daily by the publish flow (freshness + clean tree).
+monitoring/dashboard/ensemble_latest.json
+monitoring/dashboard/ensemble_latest.json.bak

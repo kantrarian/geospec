@@ -186,7 +186,7 @@ Write-Host "[5/5] Committing and pushing to GitHub..." -ForegroundColor Yellow
 Push-Location $RepoRoot
 
 try {
-    git add docs/ensemble_latest.json docs/data.csv docs/validated_events.json docs/r4_prospective_record.json README.md 2>$null
+    git add docs/ensemble_latest.json docs/data.csv docs/validated_events.json docs/r4_prospective_record.json docs/r5_daily.json README.md 2>$null
 
     $HasChanges = git diff --cached --quiet; $HasChanges = $LASTEXITCODE -ne 0
 

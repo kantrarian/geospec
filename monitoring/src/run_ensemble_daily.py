@@ -456,6 +456,8 @@ def fetch_ngl_lambda_geo(
     if not baselines:
         logger.warning("No Lambda_geo baselines available - ratios will be unreliable")
 
+    _r5_dual = {}   # Amendment R5 dual-publication collector
+
     for region in regions:
         # Skip regions without polygon definitions
         if region not in FAULT_POLYGONS:
@@ -494,7 +496,31 @@ def fetch_ngl_lambda_geo(
                 # Clamp to reasonable range (0.1x to 50x)
                 ratio = max(0.1, min(50.0, ratio))
 
-                lambda_geo_data[region] = ratio
+                # Amendment R5 (registered 2026-07-29, owner-signed): precip-regressed
+                # residual, rank-remapped onto the training ratio distribution so the
+                # downstream risk mapping is unchanged. FAIL-OPEN: on ANY failure the
+                # raw R3 ratio stands. Dual record collected for docs/r5_daily.json.
+                r5 = None
+                try:
+                    try:
+                        from src.precip_residual import r5_transform
+                        from src.validate_predictions import REGION_DEFINITIONS as _r5_rd
+                    except ImportError:
+                        from precip_residual import r5_transform
+                        from validate_predictions import REGION_DEFINITIONS as _r5_rd
+                    _c = _r5_rd.get(region, {}).get('center')
+                    if _c:
+                        r5 = r5_transform(region, _c[0], _c[1], ratio,
+                                          target_date.strftime('%Y-%m-%d'))
+                except Exception as _e:
+                    logger.warning(f"  {region}: R5 unavailable ({_e}); using R3 ratio")
+                if r5:
+                    lambda_geo_data[region] = max(0.1, min(50.0, r5['stat']))
+                    logger.info(f"  {region}: R5 ACTIVE residual=p{100*r5['residual_percentile']:.0f} "
+                                f"stat={r5['stat']:.2f}x (raw {ratio:.2f}x, fit n={r5['n_fit']})")
+                else:
+                    lambda_geo_data[region] = ratio
+                _r5_dual[region] = r5
                 logger.info(f"  {region}: Lambda_geo ratio = {ratio:.1f}x "
                            f"(baseline={baseline:.4f}, {baseline_quality}, "
                            f"{result.n_stations} stations, {result.data_quality})")
@@ -505,6 +531,16 @@ def fetch_ngl_lambda_geo(
 
         except Exception as e:
             logger.warning(f"Failed to compute Lambda_geo for {region}: {e}")
+
+    # Amendment R5 dual publication (fail-open)
+    try:
+        try:
+            from src.precip_residual import publish_r5_daily
+        except ImportError:
+            from precip_residual import publish_r5_daily
+        publish_r5_daily(target_date.strftime('%Y-%m-%d'), _r5_dual)
+    except Exception as _e:
+        logger.warning(f"R5 dual publication skipped ({_e})")
 
     return lambda_geo_data
 

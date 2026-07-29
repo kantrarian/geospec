@@ -6,7 +6,7 @@ Automatically correlates past predictions with actual earthquake events to build
 a track record of validated hits, misses, and false alarms.
 
 Runs as part of daily monitoring or standalone to:
-1. Look back at predictions from 7-14 days ago (configurable)
+1. Look back at predictions from 14-21 days ago (configurable; R2 2026-07-29)
 2. Fetch actual M5.5+ earthquakes from USGS for those regions
 3. Classify as hit/miss/false alarm
 4. Append validated events to monitoring/data/validated_events.json
@@ -14,8 +14,8 @@ Runs as part of daily monitoring or standalone to:
 This builds an ongoing track record without manual intervention.
 
 Usage:
-    python validate_predictions.py                    # Default 7-14 day lookback
-    python validate_predictions.py --lookback-start 7 --lookback-end 14
+    python validate_predictions.py                    # Default 14-21 day lookback (R2)
+    python validate_predictions.py --lookback-start 14 --lookback-end 21
     python validate_predictions.py --rebuild          # Rebuild from all historical data
 
 Author: R.J. Mathews / Claude
@@ -48,9 +48,15 @@ VALIDATION_CONFIG = {
     'min_magnitude': 5.5,           # Minimum magnitude to count as significant event
     'hit_min_tier': 2,              # Tier >= ELEVATED counts as prediction (2=ELEVATED, 3=CRITICAL)
                                     # WATCH (Tier 1) is awareness only, not scored as prediction
-    'lead_window_days': 7,          # Event within N days AFTER prediction = hit
-    'lookback_start_days': 7,       # Start looking back N days ago
-    'lookback_end_days': 14,        # End looking back N days ago
+    # --- SCORING RULE R2, registered 2026-07-29 (see docs/AMENDMENT_2026-07-29_scoring_window.md) ---
+    # R1 (through 2026-07-28) used lead_window_days=7, inconsistent with the system's stated
+    # 7-14 day lead mechanism. R2 extends the hit window to 14 days, PROSPECTIVELY: R1
+    # classifications already written to validated_events.json STAND unchanged. The 2026-07
+    # Kumamoto episode is dual-reported in the amendment note and is NOT counted as a
+    # prospective hit (the rule changed after the event).
+    'lead_window_days': 14,         # R2: event within N days AFTER prediction = hit (was 7)
+    'lookback_start_days': 14,      # R2: never classify before the full hit window has closed (was 7)
+    'lookback_end_days': 21,        # R2: (was 14)
     'region_buffer_km': 100,        # Event within N km of region center counts
 }
 
@@ -306,7 +312,7 @@ def assign_region_to_event(event: EarthquakeEvent) -> Optional[str]:
 def validate_predictions(
     predictions: List[Prediction],
     events: List[EarthquakeEvent],
-    lead_window_days: int = 7,
+    lead_window_days: int = 14,
 ) -> Tuple[List[ValidatedEvent], Dict]:
     """
     Validate predictions against actual events.

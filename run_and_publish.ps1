@@ -157,6 +157,10 @@ try {
 
     if ($HasChanges) {
         git commit -m "Daily monitoring $AssessmentDate"
+        # Sync before pushing: remote may have advanced (e.g. registered amendments).
+        # Rebase keeps the daily data commit on top; without this, the push is rejected
+        # and the daily update silently fails. (Added 2026-07-29 with amendment R2.)
+        git pull --rebase origin master
         git push origin master
         Write-Host "  Pushed to GitHub" -ForegroundColor Green
     } else {

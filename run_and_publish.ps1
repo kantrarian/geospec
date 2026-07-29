@@ -182,7 +182,11 @@ try {
         # Sync before pushing: remote may have advanced (e.g. registered amendments).
         # Rebase keeps the daily data commit on top; without this, the push is rejected
         # and the daily update silently fails. (Added 2026-07-29 with amendment R2.)
-        git pull --rebase origin master
+        # --autostash: the runner's tree is chronically dirty (tracked
+        # monitoring/dashboard/data.csv is written but never committed by this flow), and a
+        # plain pull --rebase ABORTS on unstaged changes (exit 128) without stopping the
+        # script -- making the sync silently inert (grassmann, empirical, 2026-07-29).
+        git pull --rebase --autostash origin master
         git push origin master
         Write-Host "  Pushed to GitHub" -ForegroundColor Green
     } else {

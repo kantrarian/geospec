@@ -63,6 +63,19 @@ try {
     Pop-Location
 }
 
+# 2b. Amendment R4 prospective scorer (registered 2026-07-29; fail-open -- an R4
+# scoring failure must never stop the daily monitoring publish)
+Write-Host "  [2b] R4 prospective scorer..." -ForegroundColor Yellow
+Push-Location $MonitoringDir
+try {
+    python -m src.r4_prospective_scorer
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "  R4 scorer failed (exit $LASTEXITCODE); continuing without R4 update" -ForegroundColor Red
+    }
+} finally {
+    Pop-Location
+}
+
 # Exit codes: 0=normal, 1=preliminary, 2=elevated, 3=confirmed (all valid)
 # Only fail on actual errors (exit code > 10)
 if ($MonitoringExitCode -gt 10) {
@@ -173,7 +186,7 @@ Write-Host "[5/5] Committing and pushing to GitHub..." -ForegroundColor Yellow
 Push-Location $RepoRoot
 
 try {
-    git add docs/ensemble_latest.json docs/data.csv docs/validated_events.json README.md 2>$null
+    git add docs/ensemble_latest.json docs/data.csv docs/validated_events.json docs/r4_prospective_record.json README.md 2>$null
 
     $HasChanges = git diff --cached --quiet; $HasChanges = $LASTEXITCODE -ne 0
 

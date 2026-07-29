@@ -1,0 +1,93 @@
+{
+ "generated": "2026-07-29T01:27:07.482542",
+ "config": {
+  "spec": "AMENDMENT_2026-07-29_prospective_arm (R4)",
+  "start_date": "2026-07-29",
+  "min_magnitude": 5.5,
+  "hit_window_days": 14,
+  "alarm_min_tier": 2,
+  "episode_gap_days": 3,
+  "alarm_reset_days": 14,
+  "exclusion_cap_days": 365,
+  "region_buffer_km": 100.0,
+  "min_mainshocks_for_skill": 10
+ },
+ "period": {
+  "start": "2026-07-29",
+  "end": "2026-07-29"
+ },
+ "molchan": {
+  "per_region": {},
+  "pooled": {
+   "scoreable_days": 0,
+   "alarm_days": 0,
+   "tau": null,
+   "admissible_mainshocks": 0,
+   "hits": 0,
+   "misses": 0,
+   "nu": null
+  },
+  "descriptive_only": true
+ },
+ "episodes": [],
+ "event_outcomes": [],
+ "exclusions": [
+  {
+   "region": "anchorage",
+   "mainshock_id": "ak2025xjbvhj",
+   "mag": 6,
+   "lat": 61.56951904296875,
+   "lon": -150.75079345703125,
+   "start": "2025-11-27",
+   "end": "2026-11-27"
+  },
+  {
+   "region": "hualien",
+   "mainshock_id": "us7000rl2n",
+   "mag": 6.6,
+   "lat": 24.6841,
+   "lon": 122.0354,
+   "start": "2025-12-27",
+   "end": "2026-12-27"
+  },
+  {
+   "region": "mexico_guerrero",
+   "mainshock_id": "us7000rm3k",
+   "mag": 6.5,
+   "lat": 16.798,
+   "lon": -99.3939,
+   "start": "2026-01-02",
+   "end": "2027-01-02"
+  },
+  {
+   "region": "campi_flegrei",
+   "mainshock_id": "us7000s39n",
+   "mag": 6,
+   "lat": 40.57,
+   "lon": 13.9841,
+   "start": "2026-03-09",
+   "end": "2027-03-09"
+  },
+  {
+   "region": "tokyo_kanto",
+   "mainshock_id": "us6000t8cy",
+   "mag": 5.8,
+   "lat": 35.6907,
+   "lon": 140.5771,
+   "start": "2026-06-26",
+   "end": "2027-06-26"
+  },
+  {
+   "region": "kumamoto",
+   "mainshock_id": "us6000tgb9",
+   "mag": 6.8,
+   "lat": 32.6817,
+   "lon": 130.7217,
+   "start": "2026-07-28",
+   "end": "2027-07-28"
+  }
+ ],
+ "n_events_fetched": 36,
+ "n_clustered_removed": 6,
+ "note": "DESCRIPTIVE ONLY - below the pre-registered minimum sample (10 pooled mainshocks); no skill claims."
+}

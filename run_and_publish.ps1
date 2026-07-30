@@ -14,6 +14,27 @@ Write-Host "  GeoSpec Ensemble Monitoring - Run & Publish" -ForegroundColor Cyan
 Write-Host "=" * 60 -ForegroundColor Cyan
 Write-Host ""
 
+# 0. Self-heal FIRST: pull latest source BEFORE any generation, so this run uses current remote
+#    code. Fix 2026-07-30 (cayley, per grassmann diagnosis e313db2): the generators (r4 scorer at
+#    step 3, etc.) previously ran on whatever src was on disk, while the ONLY pull was the step-5
+#    push block AFTER generation -- so code landing on the remote between a runner's last manual
+#    pull and the run (e.g. R4 v3, 98b44f7) lagged one full run (v3 source pulled at step 5, but
+#    the step-3 record already generated on v2 -> published commit had v3 source + v2 record).
+#    Pulling here closes that same-run code-freshness gap. The step-5 pull is KEPT for
+#    post-generation push-safety. A transient failure here is non-fatal (native git exit does not
+#    trip Stop) -> degrades to "run on current src", which self-heals next run, rather than aborting.
+Write-Host "[0/5] Self-heal: pull latest source before run..." -ForegroundColor Yellow
+Push-Location $RepoRoot
+try {
+    # --autostash: the runner's tree is chronically dirty (tracked monitoring/dashboard/data.csv
+    # is written but not committed until step 5); a plain pull --rebase aborts (exit 128) on
+    # unstaged changes. Mirrors the step-5 pull invocation.
+    git pull --rebase --autostash origin master
+} finally {
+    Pop-Location
+}
+Write-Host ""
+
 # 1. Activate virtual environment
 Write-Host "[1/5] Activating Python environment..." -ForegroundColor Yellow
 $VenvPath = Join-Path $RepoRoot ".venv\Scripts\Activate.ps1"

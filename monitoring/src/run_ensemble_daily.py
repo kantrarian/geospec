@@ -514,12 +514,17 @@ def fetch_ngl_lambda_geo(
                                           target_date.strftime('%Y-%m-%d'))
                 except Exception as _e:
                     logger.warning(f"  {region}: R5 unavailable ({_e}); using R3 ratio")
+                # SHADOW MODE (codex red-team 2026-07-30, findings R5-1..R5-5 verified by
+                # executable counterexample): the R5 statistic is COMPUTED and dual-published
+                # but does NOT replace the operational ratio until the bounded correction
+                # (raw-ratio lineage, stale-model policy, leverage gates, exact rank
+                # convention) lands and activation is registered at a pre-fixed timestamp.
+                # This is the R5-5/A-5 shadow-first discipline.
+                lambda_geo_data[region] = ratio
                 if r5:
-                    lambda_geo_data[region] = max(0.1, min(50.0, r5['stat']))
-                    logger.info(f"  {region}: R5 ACTIVE residual=p{100*r5['residual_percentile']:.0f} "
-                                f"stat={r5['stat']:.2f}x (raw {ratio:.2f}x, fit n={r5['n_fit']})")
-                else:
-                    lambda_geo_data[region] = ratio
+                    logger.info(f"  {region}: R5 SHADOW residual=p{100*r5['residual_percentile']:.0f} "
+                                f"stat={r5['stat']:.2f}x (raw {ratio:.2f}x, fit n={r5['n_fit']}) "
+                                f"[NOT substituted]")
                 _r5_dual[region] = r5
                 logger.info(f"  {region}: Lambda_geo ratio = {ratio:.1f}x "
                            f"(baseline={baseline:.4f}, {baseline_quality}, "

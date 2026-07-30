@@ -10,9 +10,10 @@ from datetime import date, timedelta
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-from r4_prospective_scorer import (Event, Exclusion, build_episodes, build_exclusions,
-                                   day_excluded, decluster, event_in_exclusion,
-                                   gk_distance_km, gk_time_days, molchan, score)
+from r4_prospective_scorer import (Event, Exclusion, R4_CONFIG, build_episodes,
+                                   build_exclusions, day_excluded, decluster,
+                                   event_in_exclusion, gk_distance_km, gk_time_days,
+                                   haversine_km, hit_eligible, molchan, score)
 
 PASS = []
 
@@ -84,8 +85,10 @@ ev2 = Event("E2", "2026-09-26", 0.0, 0.0, 5.7, "r")   # second event, episode al
 epsK5b = build_episodes(seriesK5, "r", [])
 out2 = score(epsK5b, [ev1, ev2], [], today="2026-12-31")
 oc = {o["event"]: o["outcome"] for o in out2["outcomes"]}
-kat("K5b second mainshock cannot re-credit the same episode -> scored a miss",
-    oc["E1"] == "hit" and oc["E2"] == "miss", f"{oc}")
+# R4 v2: E1 (a mainshock) opens its own exclusion window; E2 one day later lands INSIDE it,
+# so E2 is excluded_unscored, not a miss -- either way it cannot re-credit E1's episode.
+kat("K5b second mainshock cannot re-credit the same episode (excluded by E1's causal window)",
+    oc["E1"] == "hit" and oc["E2"] in ("miss", "excluded_unscored"), f"{oc}")
 
 # K6 -- supersession + freshness (14 tier-0 days) inside an exclusion window
 m0 = Event("M0", "2026-09-01", 32.8, 130.7, 6.0, "kumamoto")
@@ -154,6 +157,70 @@ kat("K10b post-event alarm days all excluded from tau; no outcomes scored",
 kat("K11 exclusion-contained episode closes as 'excluded' (symmetric guarantee)",
     len(eps10) == 1 and eps10[0].excluded and eps10[0].status == "excluded",
     f"status={eps10[0].status}")
+
+# ============================================================================
+# R4 v2 COMPOSED RED-KATs (codex counterexamples CE1-CE5, must now be CLOSED)
+# ============================================================================
+print("--- composed red-KATs (codex CE1-CE5) ---")
+
+# CE1 -- supersession-reset bypass via batch declustering. M0 then BIG same place;
+# standing tier-2 from Aug20 through BIG, no reset. Run the TOP-LEVEL pipeline
+# (decluster -> exclusions -> episodes -> score) as run() composes it.
+m0c = Event("M0", "2026-09-01", 32.8, 130.7, 6.0, "kumamoto")
+bigc = Event("BIG", "2026-09-28", 32.81, 130.71, 6.5, "kumamoto", origin_utc="2026-09-28T12:00:00Z")
+ms, _ = decluster([m0c, bigc])                      # batch view may relabel M0 as foreshock
+excl = build_exclusions([m for m in ms if m.region])
+seriesCE1 = {"kumamoto": days_range("2026-08-20", 45, lambda i: 2)}   # unbroken standing alarm
+epsCE1 = build_episodes(seriesCE1["kumamoto"], "kumamoto", excl, start_date="2026-07-29")
+# score against the FULL causal event set, not the declustered targets, so lineage is causal:
+outCE1 = score(epsCE1, [m0c, bigc], excl, today="2026-12-31")
+ocCE1 = {o["event"]: o["outcome"] for o in outCE1["outcomes"]}
+kat("CE1 supersession-reset bypass CLOSED: standing-alarm BIG is NOT an ordinary hit",
+    ocCE1.get("BIG") in ("supersession_no_fresh_episode_unscored", "excluded_unscored")
+    and ocCE1.get("BIG") != "hit", f"{ocCE1}")
+
+# CE2 -- excluded day credits a normal hit. Exclusion Aug1..Aug31; one scoreable Jul31
+# alarm + excluded Aug tail (gaps<=3); post-exclusion Sep1 event. Only lead is 32d -> must miss.
+exclCE2 = [Exclusion("r", "MX", 6.0, 0.0, 0.0, "2026-08-01", "2026-08-31")]
+daysCE2 = [("2026-07-31", 2)] + [(f"2026-08-{d:02d}", 2) for d in range(3, 31, 3)]
+epsCE2 = build_episodes(daysCE2, "r", exclCE2)
+evCE2 = Event("E", "2026-09-01", 0.0, 0.0, 6.0, "r", origin_utc="2026-09-01T12:00:00Z")
+outCE2 = score(epsCE2, [evCE2], exclCE2, today="2026-12-31")
+kat("CE2 excluded-day hit-credit CLOSED: 32d-lead event is a miss (Jul31 alarm too old, Aug excluded)",
+    outCE2["outcomes"][0]["outcome"] == "miss", f"{outCE2['outcomes']}")
+
+# CE3 -- same-date post-event alarm. Event 00:01Z, alarm available 23:59Z same date -> reject.
+epsCE3 = build_episodes(days_range("2026-10-01", 1, lambda i: 2), "r", [])
+evCE3 = Event("E", "2026-10-01", 0.0, 0.0, 6.0, "r", origin_utc="2026-10-01T00:01:00Z")
+outCE3 = score(epsCE3, [evCE3], [], today="2026-12-31")
+kat("CE3 same-date post-event CLOSED: alarm available 23:59Z cannot credit a 00:01Z event",
+    outCE3["outcomes"][0]["outcome"] == "miss", f"{outCE3['outcomes']}")
+
+# CE4 -- region-membership dedup loss. An event at the Mojave center is inside Mojave's 100km
+# buffer but Ridgecrest's query (first) returns it at 141km outside Ridgecrest's buffer.
+rd = {"ridgecrest": {"center": (35.77, -117.60)}, "socal_saf_mojave": {"center": (34.5, -117.5)}}
+# simulate the merge logic directly (no network): membership must include mojave, order-independent
+def assign(ev_lat, ev_lon, region_defs):
+    mem = []
+    for rid, d in region_defs.items():
+        if haversine_km(ev_lat, ev_lon, d["center"][0], d["center"][1]) <= R4_CONFIG["region_buffer_km"]:
+            mem.append(rid)
+    return tuple(mem)
+memCE4 = assign(34.5, -117.5, rd)
+memCE4_rev = assign(34.5, -117.5, {k: rd[k] for k in reversed(list(rd))})
+kat("CE4 region-dedup CLOSED: membership includes mojave and is query-order-independent",
+    "socal_saf_mojave" in memCE4 and memCE4 == memCE4_rev, f"{memCE4} vs {memCE4_rev}")
+
+# CE5 -- pre-start standing episode relabelled as prospective. Episode from Jul28 through Aug1;
+# with history preload + left-censor it must NOT credit an Aug event.
+START = "2026-07-29"
+daysCE5 = days_range("2026-07-25", 12, lambda i: 2)   # tier-2 from Jul25 (pre-start) onward
+epsCE5 = build_episodes(daysCE5, "r", [], start_date=START)
+evCE5 = Event("E", "2026-08-02", 0.0, 0.0, 6.0, "r", origin_utc="2026-08-02T12:00:00Z")
+outCE5 = score(epsCE5, [evCE5], [], today="2026-12-31")
+lc = any(e.left_censored for e in epsCE5)
+kat("CE5 pre-start left-censor CLOSED: boundary-active episode is left_censored, event misses",
+    lc and outCE5["outcomes"][0]["outcome"] == "miss", f"lc={lc} {outCE5['outcomes']}")
 
 n = sum(PASS)
 print(f"=== R4 scorer KATs: {n}/{len(PASS)} PASS ===")

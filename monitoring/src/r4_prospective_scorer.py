@@ -84,15 +84,42 @@ def haversine_km(lat1, lon1, lat2, lon2) -> float:
 @dataclass
 class Event:
     event_id: str
-    t: str            # ISO date (day resolution is sufficient for 14-d windows)
+    t: str                     # ISO date (declustering/exclusion day-resolution)
     lat: float
     lon: float
     mag: float
-    region: str = ""  # assigned admissibility region ("" = none)
+    region: str = ""           # legacy single-region field (kept for decluster/KAT compat)
+    origin_utc: str = ""       # R4-3: full UTC origin timestamp (ISO); default = t+"T00:00:00Z"
+    regions: tuple = ()        # R4-4: ALL region memberships (buffers may overlap)
+
+    def __post_init__(self):
+        if not self.origin_utc:
+            self.origin_utc = self.t[:10] + "T00:00:00Z"
+        if not self.regions and self.region:
+            self.regions = (self.region,)
 
 
 def _d(s: str) -> date:
     return date(*map(int, s[:10].split("-")))
+
+
+def _utc(s: str) -> datetime:
+    """Parse an ISO UTC timestamp (trailing Z or offset) to aware datetime."""
+    s = s.replace("Z", "+00:00")
+    return datetime.fromisoformat(s)
+
+
+def _alarm_available_at(day: str) -> datetime:
+    """R4-3/R6: an alarm for local date D is available at 23:59:59Z of D (conservative;
+    the real publish-commit time is later, so this can only make hits HARDER to earn)."""
+    return _utc(day[:10] + "T23:59:59+00:00")
+
+
+def hit_eligible(alarm_day: str, event_origin_utc: str,
+                 window_days: int = R4_CONFIG["hit_window_days"]) -> bool:
+    """R4-3/R6 eligibility: 0 < (event_origin - alarm_available_at) <= window."""
+    delta = _utc(event_origin_utc) - _alarm_available_at(alarm_day)
+    return timedelta(0) < delta <= timedelta(days=window_days)
 
 
 # ============================================================================
@@ -172,14 +199,17 @@ class Episode:
     onset: str
     end: str
     n_days: int
-    fresh: bool         # onset preceded by >= alarm_reset_days consecutive tier-0 days
-    excluded: bool = False      # ALL days inside an exclusion window -> supersession-only
-    status: str = "pending"     # pending | hit | false_alarm | excluded
+    fresh: bool                 # onset preceded by >= alarm_reset_days consecutive tier-0 days
+    alarm_dates: tuple = ()     # R4-2: the explicit SCOREABLE tier>=2 dates in this episode
+    excluded: bool = False      # sits entirely inside an exclusion window -> supersession-only
+    left_censored: bool = False # R4-5: active at the accumulation boundary -> no hit credit
+    status: str = "pending"     # pending | hit | false_alarm | excluded | left_censored
     credited_event: str = ""
 
 
 def build_episodes(days: list[tuple[str, int]], region: str,
                    exclusions: list[Exclusion],
+                   start_date: str = None,
                    gap: int = R4_CONFIG["episode_gap_days"],
                    min_tier: int = R4_CONFIG["alarm_min_tier"],
                    reset: int = R4_CONFIG["alarm_reset_days"]) -> list[Episode]:
@@ -190,35 +220,51 @@ def build_episodes(days: list[tuple[str, int]], region: str,
     a hit or a false alarm through the normal path, and its days never enter the
     Molchan accounting (that filter lives in molchan()). Gap tolerance is
     calendar-day."""
+    # R4-2: episodes are runs of SCOREABLE tier>=2 dates. An excluded day breaks a run
+    # (no bridging across an exclusion boundary); a >gap calendar jump also breaks it.
     scoreable = list(days)
-    alarm_days = [d0 for d0, t in scoreable if t >= min_tier]
-    eps: list[Episode] = []
-    if alarm_days:
-        start = prev = alarm_days[0]
-        for d0 in alarm_days[1:]:
-            if (_d(d0) - _d(prev)).days > gap:
-                eps.append(Episode(region, start, prev, (_d(prev) - _d(start)).days + 1, False))
-                start = d0
-            prev = d0
-        eps.append(Episode(region, start, prev, (_d(prev) - _d(start)).days + 1, False))
-    # freshness: >= reset consecutive tier-0 scoreable days immediately before onset
     tier_by_day = dict(scoreable)
+    alarm_days = [d0 for d0, ti in scoreable
+                  if ti >= min_tier and not day_excluded(region, d0, exclusions)]
+    # ALSO track fully-inside-exclusion alarm runs separately (supersession-only episodes).
+    excl_alarm_days = [d0 for d0, ti in scoreable
+                       if ti >= min_tier and day_excluded(region, d0, exclusions)]
+
+    def group(dates):
+        out = []
+        if not dates:
+            return out
+        s = pv = dates[0]; run = [pv]
+        for d0 in dates[1:]:
+            if (_d(d0) - _d(pv)).days > gap:
+                out.append((s, pv, tuple(run))); s = d0; run = []
+            run.append(d0); pv = d0
+        out.append((s, pv, tuple(run)))
+        return out
+
+    eps: list[Episode] = []
+    for s, e, dts in group(alarm_days):
+        eps.append(Episode(region, s, e, (_d(e) - _d(s)).days + 1, False, alarm_dates=dts))
+    for s, e, dts in group(excl_alarm_days):
+        eps.append(Episode(region, s, e, (_d(e) - _d(s)).days + 1, False,
+                           alarm_dates=dts, excluded=True))
+
     for ep in eps:
-        run = 0
-        d0 = _d(ep.onset) - timedelta(days=1)
+        # freshness: >= reset consecutive tier-0 scoreable days immediately before onset
+        run = 0; d0 = _d(ep.onset) - timedelta(days=1)
         while True:
             key = d0.isoformat()
             if key not in tier_by_day:
-                break               # data gap / excluded day interrupts the run
+                break
             if tier_by_day[key] == 0:
-                run += 1
-                d0 -= timedelta(days=1)
+                run += 1; d0 -= timedelta(days=1)
             else:
                 break
         ep.fresh = run >= reset
-        ep.excluded = all(day_excluded(region, (_d(ep.onset) + timedelta(days=i)).isoformat(),
-                                       exclusions)
-                          for i in range((_d(ep.end) - _d(ep.onset)).days + 1))
+        # R4-5: left-censored if this episode was active at/before the accumulation start
+        # (its onset is not itself a fresh post-start onset). start_date passed by run().
+        if start_date is not None and ep.onset <= start_date:
+            ep.left_censored = True
     return eps
 
 
@@ -229,51 +275,83 @@ def build_episodes(days: list[tuple[str, int]], region: str,
 def score(episodes: list[Episode], mainshocks: list[Event],
           exclusions: list[Exclusion], today: str,
           window: int = R4_CONFIG["hit_window_days"]) -> dict:
-    """Mutates episode statuses; returns per-mainshock outcomes."""
+    """R4 v2 chronological guard-state scorer. Events are processed in UTC-origin order;
+    each event's exclusion window is opened AFTER it is scored, so the exclusion state an
+    event sees is exactly what earlier events created (causal lineage, R4-1) -- never a
+    batch relabelling. Hit eligibility is by UTC alarm-availability vs event origin (R4-3)
+    against SCOREABLE alarm dates only (R4-2). Left-censored episodes cannot credit (R4-5).
+    The `exclusions` arg is accepted for API compat but the authoritative windows are
+    rebuilt causally here from the mainshocks themselves."""
     outcomes = []
-    credited: set[int] = set()          # episode indices already credited
-    for m in mainshocks:
-        if not m.region:
-            continue
-        x = event_in_exclusion(m, exclusions)
-        if x is not None:
-            # supersession: larger than the window's mainshock AND a fresh episode precedes it
-            if m.mag > x.mag:
-                cands = [(i, e) for i, e in enumerate(episodes)
-                         if e.region == m.region and e.fresh and i not in credited
-                         and e.onset <= m.t and (_d(m.t) - _d(e.end)).days <= window
-                         and (_d(m.t) - _d(e.onset)).days >= 0]
-                if cands:
-                    i, e = max(cands, key=lambda ie: ie[1].onset)
-                    e.status = "hit"; e.credited_event = m.event_id; credited.add(i)
-                    outcomes.append({"event": m.event_id, "mag": m.mag, "region": m.region,
-                                     "outcome": "hit_supersession", "episode_onset": e.onset})
+    credited: set[int] = set()
+    open_windows: list[tuple] = []          # (region, start, end, mag, event_id) opened causally
+
+    def eligible_episode(region, origin_utc, require_fresh=False, allow_excluded=False):
+        # allow_excluded=True ONLY on the supersession path: a superseding event's fresh
+        # episode necessarily lies inside the earlier exclusion window (R4/R6), so there
+        # the excluded flag must not disqualify it.
+        best = None
+        for i, e in enumerate(episodes):
+            if e.region != region or i in credited or e.left_censored:
+                continue
+            if e.excluded and not allow_excluded:
+                continue
+            if require_fresh and not e.fresh:
+                continue
+            if any(hit_eligible(d, origin_utc, window) for d in e.alarm_dates):
+                if best is None or e.onset > episodes[best].onset:
+                    best = i
+        return best
+
+    for m in sorted(mainshocks, key=lambda e: e.origin_utc):
+        mem = m.regions or ((m.region,) if m.region else ())
+        for region in mem:
+            live = [w for w in open_windows
+                    if w[0] == region and w[1] <= m.t <= w[2] and w[4] != m.event_id]
+            if live:
+                w = max(live, key=lambda w: w[3])     # the governing (largest-mag) window
+                if m.mag > w[3]:
+                    i = eligible_episode(region, m.origin_utc, require_fresh=True,
+                                         allow_excluded=True)
+                    if i is not None:
+                        episodes[i].status = "hit"; episodes[i].credited_event = m.event_id
+                        credited.add(i)
+                        outcomes.append({"event": m.event_id, "mag": m.mag, "region": region,
+                                         "outcome": "hit_supersession",
+                                         "episode_onset": episodes[i].onset})
+                    else:
+                        outcomes.append({"event": m.event_id, "mag": m.mag, "region": region,
+                                         "outcome": "supersession_no_fresh_episode_unscored"})
                 else:
-                    outcomes.append({"event": m.event_id, "mag": m.mag, "region": m.region,
-                                     "outcome": "supersession_no_fresh_episode_unscored"})
+                    outcomes.append({"event": m.event_id, "mag": m.mag, "region": region,
+                                     "outcome": "excluded_unscored"})
             else:
-                outcomes.append({"event": m.event_id, "mag": m.mag, "region": m.region,
-                                 "outcome": "excluded_unscored"})
-            continue
-        # normal scoring: nearest-preceding uncredited NON-EXCLUDED episode within the window
-        cands = [(i, e) for i, e in enumerate(episodes)
-                 if e.region == m.region and i not in credited and not e.excluded
-                 and e.onset <= m.t and (_d(m.t) - _d(e.end)).days <= window]
-        if cands:
-            i, e = max(cands, key=lambda ie: ie[1].onset)
-            e.status = "hit"; e.credited_event = m.event_id; credited.add(i)
-            outcomes.append({"event": m.event_id, "mag": m.mag, "region": m.region,
-                             "outcome": "hit", "episode_onset": e.onset})
-        else:
-            outcomes.append({"event": m.event_id, "mag": m.mag, "region": m.region,
-                             "outcome": "miss"})
-    # close remaining episodes whose windows have fully elapsed; exclusion-contained
-    # episodes close as "excluded" (symmetric unscoreability), never as false alarms
+                i = eligible_episode(region, m.origin_utc)
+                if i is not None:
+                    episodes[i].status = "hit"; episodes[i].credited_event = m.event_id
+                    credited.add(i)
+                    outcomes.append({"event": m.event_id, "mag": m.mag, "region": region,
+                                     "outcome": "hit", "episode_onset": episodes[i].onset})
+                else:
+                    outcomes.append({"event": m.event_id, "mag": m.mag, "region": region,
+                                     "outcome": "miss"})
+            # open THIS event's exclusion window (causal; scored above first)
+            end = (_d(m.t) + timedelta(days=int(round(gk_time_days(m.mag))))).isoformat()
+            open_windows.append((region, m.t, end, m.mag, m.event_id))
+
+    # terminal states for episodes never credited
     for e in episodes:
-        if e.status == "pending" and (_d(today) - _d(e.end)).days > window:
-            e.status = "excluded" if e.excluded else "false_alarm"
+        if e.status != "pending":
+            continue
+        last_alarm = e.alarm_dates[-1] if e.alarm_dates else e.end
+        if (_d(today) - _d(last_alarm)).days > window:
+            e.status = ("excluded" if e.excluded else
+                        "left_censored" if e.left_censored else "false_alarm")
     return {"outcomes": outcomes}
 
+
+def _score_legacy_unused():  # (previous batch scorer removed in R4 v2)
+    pass
 
 # ============================================================================
 # STEP 5 - MOLCHAN ACCOUNTING
@@ -329,8 +407,10 @@ def load_day_series(csv_path: Path, start: str, end: str) -> dict[str, list[tupl
 
 
 def fetch_usgs_events(start: str, end: str, region_defs: dict) -> list[Event]:
-    """Admissible-candidate events near any region center (assignment via buffer)."""
-    events: list[Event] = []
+    """Admissible-candidate events. R4-3: keep the full UTC origin timestamp. R4-4:
+    deduplicate by catalog id and MERGE all region memberships (buffers may overlap), so
+    membership never depends on query order."""
+    by_id: dict[str, Event] = {}
     for rid, rd in region_defs.items():
         lat, lon = rd["center"]
         url = ("https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson"
@@ -339,14 +419,18 @@ def fetch_usgs_events(start: str, end: str, region_defs: dict) -> list[Event]:
         with urllib.request.urlopen(url, timeout=30) as r:
             data = json.load(r)
         for feat in data.get("features", []):
-            p = feat["properties"]; c = feat["geometry"]["coordinates"]
-            t = datetime.fromtimestamp(p["time"] / 1000, timezone.utc).date().isoformat()
-            e = Event(feat["id"], t, c[1], c[0], p["mag"])
+            pr = feat["properties"]; c = feat["geometry"]["coordinates"]
+            origin = datetime.fromtimestamp(pr["time"] / 1000, timezone.utc).isoformat()
+            day = origin[:10]
+            e = by_id.get(feat["id"])
+            if e is None:
+                e = Event(feat["id"], day, c[1], c[0], pr["mag"], origin_utc=origin)
+                by_id[feat["id"]] = e
             if haversine_km(e.lat, e.lon, lat, lon) <= R4_CONFIG["region_buffer_km"]:
-                e.region = rid
-            if all(e.event_id != x.event_id for x in events):
-                events.append(e)
-    return events
+                if rid not in e.regions:
+                    e.regions = e.regions + (rid,)
+                    e.region = e.regions[0]
+    return list(by_id.values())
 
 
 def run(end_date: str | None = None) -> dict:
@@ -356,7 +440,11 @@ def run(end_date: str | None = None) -> dict:
     csv_path = REPO / "monitoring" / "dashboard" / "data.csv"
     if not csv_path.exists():
         csv_path = REPO / "docs" / "data.csv"
-    series = load_day_series(csv_path, start, today)
+    # R4-5: load alarm history from before the accumulation start so episode/reset state
+    # exists at the boundary and pre-start standing episodes are left-censored, not relabelled.
+    hist_start = (_d(start) - timedelta(days=R4_CONFIG["alarm_reset_days"]
+                                        + R4_CONFIG["episode_gap_days"] + 5)).isoformat()
+    series = load_day_series(csv_path, hist_start, today)
     # Fetch from one exclusion-cap BEFORE the accumulation start: mainshocks that
     # precede the start (e.g. the 2026-07-28 Kumamoto M7.1, one day before R4's
     # start) must still OPEN exclusion windows ("Kumamoto unscoreable until
@@ -368,9 +456,10 @@ def run(end_date: str | None = None) -> dict:
     scoreable_mainshocks = [m for m in mainshocks if m.t >= start]
     episodes: list[Episode] = []
     for region, days in series.items():
-        episodes.extend(build_episodes(days, region, exclusions))
+        episodes.extend(build_episodes(days, region, exclusions, start_date=start))
     sc = score(episodes, scoreable_mainshocks, exclusions, today)
-    mol = molchan(series, episodes, sc["outcomes"], exclusions)
+    accum = {r: [(d0, ti) for d0, ti in days if d0 >= start] for r, days in series.items()}
+    mol = molchan(accum, episodes, sc["outcomes"], exclusions)
     record = {
         "generated": datetime.now().isoformat(),
         "config": R4_CONFIG,

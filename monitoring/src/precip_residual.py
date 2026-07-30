@@ -46,6 +46,10 @@ R5_CONFIG = {
     "trim_frac": 0.02,
     "min_fit_days": 90,
     "r5_daily_keep_days": 400,
+    "max_condition": 1e6,        # R5-4: normal-equations condition-number ceiling
+    "max_leverage": 0.5,         # R5-4: max hat-matrix diagonal in the fit
+    "envelope_factor": 1.5,      # R5-4: reject transform if today's predictors exceed
+                                 #        fit range by > this factor (extrapolation guard)
 }
 
 
@@ -113,7 +117,14 @@ def load_ratio_history(region: str) -> Dict[str, float]:
             d = json.loads(f.read_text())
             day = str(d.get("date", ""))[:10]
             lg = d.get("regions", {}).get(region, {}).get("components", {}).get("lambda_geo", {})
-            v = lg.get("raw_value")
+            # R5-1 fix: the fitter must see the RAW R3 ratio, never the operational
+            # value (which post-activation is the R5 stat -> recursion). Prefer the
+            # immutable lineage field; fall back to raw_value only for pre-activation
+            # dates that predate R5 (method_epoch absent or 'r3'/'r5_shadow').
+            epoch = lg.get("method_epoch", "r3")
+            v = lg.get("raw_r3_ratio")
+            if v is None and epoch in ("r3", "r5_shadow"):
+                v = lg.get("raw_value")
             if day and lg.get("available") and v is not None and v > 0:
                 out[day] = float(v)
         except Exception:
@@ -148,8 +159,28 @@ def fit_region(region: str, ratios: Dict[str, float], precip: Dict[str, float],
     # single trim pass: drop the largest trim_frac |residuals|, refit
     k = max(1, int(len(rows) * R5_CONFIG["trim_frac"]))
     keep = sorted(range(len(rows)), key=lambda i: abs(resid[i]))[:-k]
-    beta, resid = ols([rows[i] for i in keep])
+    kept = [rows[i] for i in keep]
+    beta, resid = ols(kept)
+    # R5-4 fix: trimming residuals is NOT a leverage guard. Fail closed to R3 when the
+    # design is ill-conditioned or dominated by high-leverage points, rather than emit
+    # an extreme residual percentile from a degenerate fit.
+    import numpy as np
+    Xk = np.array([[1.0, a, r] for _, _, a, r in kept])
+    try:
+        cond = float(np.linalg.cond(Xk.T @ Xk))
+    except Exception:
+        return None
+    XtX_inv = np.linalg.pinv(Xk.T @ Xk)
+    lev = np.array([float(x @ XtX_inv @ x) for x in Xk])   # hat-matrix diagonal
+    max_lev = float(lev.max())
+    if cond > R5_CONFIG["max_condition"] or max_lev > R5_CONFIG["max_leverage"]:
+        logger.warning(f"R5 fit for {region} fails leverage/condition gate "
+                       f"(cond={cond:.1f}, max_lev={max_lev:.3f}); staying on R3")
+        return None
     return {
+        "cond": cond, "max_leverage": max_lev,
+        "api7_range": [min(a for _, _, a, _ in kept), max(a for _, _, a, _ in kept)],
+        "r30_range": [min(r for _, _, _, r in kept), max(r for _, _, _, r in kept)],
         "region": region, "fitted_date": today, "n": len(keep), "beta": beta,
         "resid_sorted": sorted(resid),
         "ratio_sorted": sorted(math.exp(v) for _, v, _, _ in (rows[i] for i in keep)),
@@ -166,38 +197,50 @@ def load_models() -> dict:
     return {}
 
 
-def get_model(region: str, lat: float, lon: float, today: str) -> Optional[dict]:
-    """Weekly-refit model store (R3 pattern)."""
+def get_model(region: str, lat: float, lon: float, today: str):
+    """Weekly-refit model store. Returns (model|None, reason).
+
+    R5-2 fix: NEVER serve a model whose age exceeds refit_age_days. A fresh model that
+    is still within age is served directly. When a refit is due, ANY failure
+    (precip/fit/eligibility) returns None with a reason code -> the caller falls back to
+    the R3 ratio path for that run (the signed rule). No unbounded stale-model service."""
     models = load_models()
     m = models.get(region)
     if m and (_d(today) - _d(m["fitted_date"])).days <= R5_CONFIG["refit_age_days"]:
-        return m
+        return m, "fresh"
+    # refit is due (or no model): a fresh fit must succeed or we fall back to R3
     precip = fetch_precip(region, lat, lon, today)
     if not precip:
-        return m                     # stale model beats no model (fail-open ladder)
+        return None, "fallback_r3:precip_unavailable"
     ratios = load_ratio_history(region)
     fresh = fit_region(region, ratios, precip, today)
     if fresh is None:
-        return m
+        return None, "fallback_r3:fit_ineligible"
     models[region] = fresh
     MODEL_FILE.parent.mkdir(parents=True, exist_ok=True)
     MODEL_FILE.write_text(json.dumps(models, indent=1))
-    return fresh
+    return fresh, "refit"
 
 
 # ---------------------------------------------------------------- the transform
 
 def percentile_of(sorted_vals, v) -> float:
+    """Rank of v: (# strictly-less) / n, in [0, 1). R5-5: paired with rank_index/
+    quantile_at so that mapping each training residual back yields its own ratio
+    exactly (sorted composed mapping == ratio_sorted; verified by KAT)."""
     import bisect
     if not sorted_vals:
         return 0.5
-    return bisect.bisect_right(sorted_vals, v) / len(sorted_vals)
+    return bisect.bisect_left(sorted_vals, v) / len(sorted_vals)
 
 
 def quantile_at(sorted_vals, p) -> float:
+    """Inverse of percentile_of on the training grid: index floor(p*n), clamped."""
     if not sorted_vals:
         return 1.0
-    i = min(len(sorted_vals) - 1, max(0, int(p * len(sorted_vals))))
+    # +1e-9 absorbs float round-trip error (k/n * n can be k-epsilon), so
+    # quantile_at(percentile_of(v)) == v exactly for unique training values (R5-5).
+    i = min(len(sorted_vals) - 1, max(0, int(p * len(sorted_vals) + 1e-9)))
     return sorted_vals[i]
 
 
@@ -205,8 +248,9 @@ def r5_transform(region: str, lat: float, lon: float, ratio: float,
                  today: str) -> Optional[dict]:
     """The R5 statistic for today's ratio. None on ANY failure (caller stays on R3 path)."""
     try:
-        model = get_model(region, lat, lon, today)
+        model, reason = get_model(region, lat, lon, today)
         if model is None:
+            logger.info(f"R5 {region}: {reason}")
             return None
         precip = fetch_precip(region, lat, lon, today)
         if not precip:
@@ -215,6 +259,15 @@ def r5_transform(region: str, lat: float, lon: float, ratio: float,
         if ix is None:
             return None
         api7, r30 = ix
+        # R5-4: extrapolation guard -- if today's predictors are far outside the fit
+        # envelope, the linear residual is unreliable; stay on R3.
+        ar = model.get("api7_range"); rr = model.get("r30_range")
+        if ar and rr:
+            ef = R5_CONFIG["envelope_factor"]
+            if (api7 > ar[1] * ef or r30 > rr[1] * ef):
+                logger.warning(f"R5 {region}: predictors outside fit envelope "
+                               f"(api7={api7:.0f}/{ar[1]:.0f}, r30={r30:.0f}/{rr[1]:.0f}); R3")
+                return None
         b = model["beta"]
         resid = math.log(max(ratio, 1e-3)) - (b[0] + b[1] * api7 + b[2] * r30)
         p = percentile_of(model["resid_sorted"], resid)

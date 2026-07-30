@@ -106,13 +106,13 @@ r = pr.r5_transform("synth", 0.0, 0.0, 2.0, today)
 pr.fetch_precip = orig
 kat("K3 precip-fetch failure -> None (caller stays on R3 ratio path)", r is None)
 
-# K4 -- rank-remap is monotone and distribution-matched to the training ratios
-ps = [i / 50 for i in range(51)]
-stats = [pr.quantile_at(model["ratio_sorted"], p) for p in ps]
-mono = all(stats[i] <= stats[i+1] for i in range(len(stats)-1))
-match = (abs(stats[0] - model["ratio_sorted"][0]) < 1e-12
-         and abs(stats[-1] - model["ratio_sorted"][-1]) < 1e-12)
-kat("K4 rank-remap monotone + endpoints match the training ratio distribution", mono and match)
+# K4 -- R5-5: composed mapping is the IDENTITY on the training distribution (each training
+# residual maps back to its own ratio). This is the property the amendment claims and the
+# old endpoint-only test missed.
+rs, rt = model["resid_sorted"], model["ratio_sorted"]
+composed = [pr.quantile_at(rt, pr.percentile_of(rs, r)) for r in rs]
+kat("K4 composed rank-remap == identity on training dist (sorted composed == ratio_sorted)",
+    composed == rt, f"n={len(rt)} mismatches={sum(1 for a,b in zip(composed,rt) if a!=b)}")
 
 # K5 -- activation discontinuity measured (raw stat vs R5 stat on the last day)
 ix = pr.indices(precip, today)

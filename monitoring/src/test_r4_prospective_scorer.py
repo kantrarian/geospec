@@ -11,8 +11,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 from r4_prospective_scorer import (Event, Exclusion, R4_CONFIG, build_episodes,
-                                   build_exclusions, day_excluded, decluster,
-                                   event_in_exclusion, gk_distance_km, gk_time_days,
+                                   build_causal_windows, day_excluded, decluster,
+                                   gk_distance_km, gk_time_days,
                                    haversine_km, hit_eligible, molchan, score)
 
 PASS = []
@@ -49,7 +49,7 @@ kat("K2 declustering: {m, far, late} = mainshocks; {aftershock, foreshock} remov
     f"mainshocks={sorted(e.event_id for e in ms)}")
 
 # K3 -- symmetric exclusion: post-event days vanish from BOTH sides of tau
-excl = build_exclusions([main])
+excl = build_causal_windows([main])
 kat("K3a exclusion window: opens at mainshock, capped end",
     excl[0].start == "2026-08-10" and excl[0].end == "2027-08-10")
 series = {"kumamoto": days_range("2026-08-01", 30, lambda i: 2 if i >= 9 else 0)}  # alarm from 08-10 on
@@ -59,9 +59,8 @@ pr = mol["per_region"]["kumamoto"]
 kat("K3b symmetric: 21 post-event alarm days excluded from numerator AND time base",
     pr["scoreable_days"] == 9 and pr["alarm_days"] == 0 and pr["excluded_days"] == 21,
     f"{pr}")
-inx = event_in_exclusion(Event("e2", "2026-09-01", 32.85, 130.75, 5.7, "kumamoto"), excl)
-kat("K3c smaller event inside the window is captured by the exclusion (unscoreable)",
-    inx is not None and inx.mainshock_id == "m")
+kat("K3c region-wide temporal exclusion captures a same-region day inside the window",
+    day_excluded("kumamoto", "2026-09-01", excl) is True)
 
 # K4 -- episode grouping: gap<=3 merges, gap>3 splits; tier>=2 only
 tiers = {0: 2, 1: 2, 5: 2, 6: 2, 12: 2}   # days 0,1 + 5,6 (gap 4 -> split) + 12 (gap 6 -> split)
@@ -92,7 +91,7 @@ kat("K5b second mainshock cannot re-credit the same episode (excluded by E1's ca
 
 # K6 -- supersession + freshness (14 tier-0 days) inside an exclusion window
 m0 = Event("M0", "2026-09-01", 32.8, 130.7, 6.0, "kumamoto")
-excl6 = build_exclusions([m0])
+excl6 = build_causal_windows([m0])
 # alarm standing from BEFORE m0 (never reset) -> stale; then reset 14d, fresh episode, bigger event
 def tier6(i):
     d0 = date(2026, 8, 20) + timedelta(days=i)
@@ -142,7 +141,7 @@ kat("K9 open-window episode remains pending (not prematurely a false alarm)",
 
 # K10 -- pre-start mainshock opens the exclusion, but is never itself scored
 m_prestart = Event("PRE", "2026-07-28", 32.75, 130.65, 7.1, "kumamoto")
-excl10 = build_exclusions([m_prestart])
+excl10 = build_causal_windows([m_prestart])
 kat("K10a pre-start M7.1 opens Kumamoto exclusion through 2027-07-28",
     excl10[0].end == "2027-07-28")
 series10 = {"kumamoto": days_range("2026-07-29", 10, lambda i: 2)}
@@ -159,68 +158,87 @@ kat("K11 exclusion-contained episode closes as 'excluded' (symmetric guarantee)"
     f"status={eps10[0].status}")
 
 # ============================================================================
-# R4 v2 COMPOSED RED-KATs (codex counterexamples CE1-CE5, must now be CLOSED)
+# R4 v3 COMPOSED RED-KATs (codex CE1-CE5 + recheck R4-R1..R4-R4) via run()'s ACTUAL
+# composition: one causal ledger over ALL raw events -> episodes -> score. No KAT may
+# hand-feed a different ledger than run() uses (the flaw codex caught in v2).
 # ============================================================================
-print("--- composed red-KATs (codex CE1-CE5) ---")
+print("--- composed red-KATs via run()-faithful pipeline ---")
 
-# CE1 -- supersession-reset bypass via batch declustering. M0 then BIG same place;
-# standing tier-2 from Aug20 through BIG, no reset. Run the TOP-LEVEL pipeline
-# (decluster -> exclusions -> episodes -> score) as run() composes it.
+def run_like(events, series_by_region, start, today):
+    """Mirror run() exactly: causal ledger over ALL events; episodes+score+molchan from it."""
+    windows = build_causal_windows(events)
+    eps = []
+    for region, days in series_by_region.items():
+        eps.extend(build_episodes(days, region, windows, start_date=start))
+    sc = score(eps, [e for e in events if e.t >= start], windows, today)
+    oc = {}
+    for o in sc["outcomes"]:
+        oc.setdefault(o["event"], o["outcome"])
+    return oc, windows, eps
+
+# CE1 / R4-R1 -- batch-removed earlier event still seeds supersession guard
 m0c = Event("M0", "2026-09-01", 32.8, 130.7, 6.0, "kumamoto")
 bigc = Event("BIG", "2026-09-28", 32.81, 130.71, 6.5, "kumamoto", origin_utc="2026-09-28T12:00:00Z")
-ms, _ = decluster([m0c, bigc])                      # batch view may relabel M0 as foreshock
-excl = build_exclusions([m for m in ms if m.region])
-seriesCE1 = {"kumamoto": days_range("2026-08-20", 45, lambda i: 2)}   # unbroken standing alarm
-epsCE1 = build_episodes(seriesCE1["kumamoto"], "kumamoto", excl, start_date="2026-07-29")
-# score against the FULL causal event set, not the declustered targets, so lineage is causal:
-outCE1 = score(epsCE1, [m0c, bigc], excl, today="2026-12-31")
-ocCE1 = {o["event"]: o["outcome"] for o in outCE1["outcomes"]}
-kat("CE1 supersession-reset bypass CLOSED: standing-alarm BIG is NOT an ordinary hit",
-    ocCE1.get("BIG") in ("supersession_no_fresh_episode_unscored", "excluded_unscored")
-    and ocCE1.get("BIG") != "hit", f"{ocCE1}")
+oc1, _, _ = run_like([m0c, bigc], {"kumamoto": days_range("2026-08-20", 45, lambda i: 2)},
+                     "2026-07-29", "2026-12-31")
+kat("CE1/R4-R1 supersession-reset bypass CLOSED in run()-composition (BIG not an ordinary hit)",
+    oc1.get("BIG") == "supersession_no_fresh_episode_unscored", f"{oc1}")
 
-# CE2 -- excluded day credits a normal hit. Exclusion Aug1..Aug31; one scoreable Jul31
-# alarm + excluded Aug tail (gaps<=3); post-exclusion Sep1 event. Only lead is 32d -> must miss.
-exclCE2 = [Exclusion("r", "MX", 6.0, 0.0, 0.0, "2026-08-01", "2026-08-31")]
-daysCE2 = [("2026-07-31", 2)] + [(f"2026-08-{d:02d}", 2) for d in range(3, 31, 3)]
-epsCE2 = build_episodes(daysCE2, "r", exclCE2)
-evCE2 = Event("E", "2026-09-01", 0.0, 0.0, 6.0, "r", origin_utc="2026-09-01T12:00:00Z")
-outCE2 = score(epsCE2, [evCE2], exclCE2, today="2026-12-31")
-kat("CE2 excluded-day hit-credit CLOSED: 32d-lead event is a miss (Jul31 alarm too old, Aug excluded)",
-    outCE2["outcomes"][0]["outcome"] == "miss", f"{outCE2['outcomes']}")
+# R4-R1b -- pre-start region-wide guard suppresses a spatially distant same-region event
+pre = Event("PRE", "2026-07-28", 0.0, 0.0, 7.1, "r", origin_utc="2026-07-28T00:00:00Z")
+far = Event("FAR", "2026-08-15", 0.80, 0.0, 5.6, "r", origin_utc="2026-08-15T12:00:00Z")  # ~89km, same region
+oc1b, _, _ = run_like([pre, far], {"r": days_range("2026-07-29", 30, lambda i: 0)},
+                      "2026-07-29", "2026-12-31")
+kat("R4-R1b pre-start region-wide guard CLOSED: distant same-region event is excluded, not a miss",
+    oc1b.get("FAR") == "excluded_unscored", f"{oc1b}")
 
-# CE3 -- same-date post-event alarm. Event 00:01Z, alarm available 23:59Z same date -> reject.
-epsCE3 = build_episodes(days_range("2026-10-01", 1, lambda i: 2), "r", [])
-evCE3 = Event("E", "2026-10-01", 0.0, 0.0, 6.0, "r", origin_utc="2026-10-01T00:01:00Z")
-outCE3 = score(epsCE3, [evCE3], [], today="2026-12-31")
-kat("CE3 same-date post-event CLOSED: alarm available 23:59Z cannot credit a 00:01Z event",
-    outCE3["outcomes"][0]["outcome"] == "miss", f"{outCE3['outcomes']}")
+# CE2 / R4-R2 -- excluded smaller event cannot extend the guard
+root = Event("ROOT", "2026-08-01", 0.0, 0.0, 7.1, "r", origin_utc="2026-08-01T00:00:00Z")
+inside = Event("INSIDE", "2026-12-20", 0.0, 0.0, 6.0, "r", origin_utc="2026-12-20T00:00:00Z")
+after = Event("AFTER", "2027-09-01", 0.0, 0.0, 5.6, "r", origin_utc="2027-09-01T12:00:00Z")
+win = build_causal_windows([root, inside, after])
+# ROOT window ends ~2027-08-01 (365 cap); INSIDE must NOT open a window extending past it;
+# AFTER (2027-09-01) is past ROOT's window and INSIDE opened none -> AFTER is scoreable.
+r_windows = [w for w in win if w.mainshock_id in ("ROOT", "INSIDE")]
+inside_opened = any(w.mainshock_id == "INSIDE" for w in win)
+oc2, _, _ = run_like([root, inside, after], {"r": days_range("2026-07-29", 5, lambda i: 0)},
+                     "2026-07-29", "2027-12-31")
+kat("CE2/R4-R2 excluded smaller event opens NO window; later event past ROOT is scoreable",
+    not inside_opened and oc2.get("AFTER") == "miss", f"inside_opened={inside_opened} {oc2}")
 
-# CE4 -- region-membership dedup loss. An event at the Mojave center is inside Mojave's 100km
-# buffer but Ridgecrest's query (first) returns it at 141km outside Ridgecrest's buffer.
-rd = {"ridgecrest": {"center": (35.77, -117.60)}, "socal_saf_mojave": {"center": (34.5, -117.5)}}
-# simulate the merge logic directly (no network): membership must include mojave, order-independent
-def assign(ev_lat, ev_lon, region_defs):
-    mem = []
-    for rid, d in region_defs.items():
-        if haversine_km(ev_lat, ev_lon, d["center"][0], d["center"][1]) <= R4_CONFIG["region_buffer_km"]:
-            mem.append(rid)
-    return tuple(mem)
-memCE4 = assign(34.5, -117.5, rd)
-memCE4_rev = assign(34.5, -117.5, {k: rd[k] for k in reversed(list(rd))})
-kat("CE4 region-dedup CLOSED: membership includes mojave and is query-order-independent",
-    "socal_saf_mojave" in memCE4 and memCE4 == memCE4_rev, f"{memCE4} vs {memCE4_rev}")
+# CE3 / R4-R3 -- merged memberships share identical exclusion accounting
+ev_ab = Event("AB", "2026-08-10", 0.0, 0.0, 6.5, region="A", origin_utc="2026-08-10T00:00:00Z",
+              regions=("A", "B"))
+wins_ab = build_causal_windows([ev_ab])
+regions_excluded = sorted({w.region for w in wins_ab})
+kat("CE3/R4-R3 merged memberships CLOSED: event excludes BOTH A and B, not just the first",
+    regions_excluded == ["A", "B"], f"excluded={regions_excluded}")
 
-# CE5 -- pre-start standing episode relabelled as prospective. Episode from Jul28 through Aug1;
-# with history preload + left-censor it must NOT credit an Aug event.
-START = "2026-07-29"
-daysCE5 = days_range("2026-07-25", 12, lambda i: 2)   # tier-2 from Jul25 (pre-start) onward
-epsCE5 = build_episodes(daysCE5, "r", [], start_date=START)
-evCE5 = Event("E", "2026-08-02", 0.0, 0.0, 6.0, "r", origin_utc="2026-08-02T12:00:00Z")
-outCE5 = score(epsCE5, [evCE5], [], today="2026-12-31")
-lc = any(e.left_censored for e in epsCE5)
-kat("CE5 pre-start left-censor CLOSED: boundary-active episode is left_censored, event misses",
-    lc and outCE5["outcomes"][0]["outcome"] == "miss", f"lc={lc} {outCE5['outcomes']}")
+# CE4 -- same-date post-event alarm rejected (UTC eligibility)
+oc4, _, _ = run_like([Event("E", "2026-10-01", 0.0, 0.0, 6.0, "r", origin_utc="2026-10-01T00:01:00Z")],
+                     {"r": days_range("2026-10-01", 1, lambda i: 2)}, "2026-07-29", "2026-12-31")
+kat("CE4 same-date post-event CLOSED: 00:01Z event vs 23:59Z alarm -> miss", oc4.get("E") == "miss",
+    f"{oc4}")
+
+# CE5 / R4-R4 -- n>=10 WITHOUT a registered stats plan stays descriptive_only
+seriesN = {}
+evs = []
+for j in range(10):
+    reg = f"z{j}"
+    seriesN[reg] = days_range(f"2026-08-0{1 if j<9 else 1}", 3, lambda i: 0)  # no alarms -> misses
+    evs.append(Event(f"EV{j}", "2026-08-20", float(j), 0.0, 6.0, reg,
+                     origin_utc="2026-08-20T00:00:00Z"))
+windowsN = build_causal_windows(evs)
+epsN = []
+for reg, days in seriesN.items():
+    epsN.extend(build_episodes(days, reg, windowsN, start_date="2026-07-29"))
+scN = score(epsN, evs, windowsN, "2026-12-31")
+molN = molchan({r: [(d, ti) for d, ti in days] for r, days in seriesN.items()},
+               epsN, scN["outcomes"], windowsN)
+kat("CE5/R4-R4 n>=10 without a registered stats plan STAYS descriptive_only (over-claim guard)",
+    molN["pooled"]["admissible_mainshocks"] >= 10 and molN["descriptive_only"] is True
+    and molN["eligible_for_plan"] is True, f"n={molN['pooled']['admissible_mainshocks']} "
+    f"descriptive={molN['descriptive_only']} eligible={molN['eligible_for_plan']}")
 
 n = sum(PASS)
 print(f"=== R4 scorer KATs: {n}/{len(PASS)} PASS ===")

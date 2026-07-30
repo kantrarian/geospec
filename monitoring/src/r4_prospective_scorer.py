@@ -47,7 +47,9 @@ R4_CONFIG = {
     "alarm_reset_days": 14,            # consecutive tier-0 days for a "fresh" episode
     "exclusion_cap_days": 365,         # disclosed G-K deviation
     "region_buffer_km": 100.0,         # admissibility buffer (current config)
-    "min_mainshocks_for_skill": 10,    # pre-registered minimum sample
+    "min_mainshocks_for_skill": 10,    # pre-registered minimum sample (eligibility only)
+    "stats_plan_amendment": None,      # R4-R4/R6 §5: descriptive_only lifts ONLY when a
+                                       # statistical-plan amendment id is registered here.
 }
 
 
@@ -162,31 +164,33 @@ class Exclusion:
     lon: float
     start: str          # mainshock date
     end: str            # start + min(gk_time, cap)
+    origin_utc: str = ""  # opener's full UTC origin (causal ordering for scoring)
 
 
-def build_exclusions(mainshocks: list[Event]) -> list[Exclusion]:
-    out = []
-    for m in mainshocks:
-        if not m.region:
-            continue
-        end = _d(m.t) + timedelta(days=int(round(gk_time_days(m.mag))))
-        out.append(Exclusion(m.region, m.event_id, m.mag, m.lat, m.lon, m.t, end.isoformat()))
-    return out
+# NOTE: build_exclusions() + event_in_exclusion() were REMOVED (R4 v3, codex recheck):
+# they were spatial/first-region footguns that composed the pre-v3 bypass. The single
+# causal ledger below is the only exclusion authority.
+def build_causal_windows(events: list[Event]) -> list[Exclusion]:
+    """The single causal exclusion ledger (R4 v3, codex recheck R4-R1/R2/R3). Chronological
+    over ALL admissible events INCLUDING pre-start (which seed guard state); per region
+    MEMBERSHIP; a window opens ONLY on the no-live-window path or a strictly-larger
+    supersession -- a smaller/equal event inside a live window causes NO transition.
+    Region-wide + temporal (R6 §2); spatial G-K is for target declustering, not scoreability."""
+    windows: list[Exclusion] = []
+    for m in sorted(events, key=lambda e: e.origin_utc):
+        for region in (m.regions or ((m.region,) if m.region else ())):
+            live = [w for w in windows if w.region == region
+                    and w.start <= m.t <= w.end and w.origin_utc < m.origin_utc]
+            gov = max(live, key=lambda w: w.mag) if live else None
+            if gov is None or m.mag > gov.mag:
+                end = (_d(m.t) + timedelta(days=int(round(gk_time_days(m.mag))))).isoformat()
+                windows.append(Exclusion(region, m.event_id, m.mag, m.lat, m.lon,
+                                         m.t, end, m.origin_utc))
+    return windows
 
 
 def day_excluded(region: str, day: str, exclusions: list[Exclusion]) -> bool:
     return any(x.region == region and x.start <= day <= x.end for x in exclusions)
-
-
-def event_in_exclusion(e: Event, exclusions: list[Exclusion]) -> Exclusion | None:
-    """The exclusion window (if any) containing event e spatially+temporally,
-    opened by an EARLIER mainshock. Same-day parent does not exclude itself."""
-    for x in exclusions:
-        if x.mainshock_id == e.event_id:
-            continue
-        if x.start <= e.t <= x.end and haversine_km(e.lat, e.lon, x.lat, x.lon) <= gk_distance_km(x.mag):
-            return x
-    return None
 
 
 # ============================================================================
@@ -273,7 +277,7 @@ def build_episodes(days: list[tuple[str, int]], region: str,
 # ============================================================================
 
 def score(episodes: list[Episode], mainshocks: list[Event],
-          exclusions: list[Exclusion], today: str,
+          exclusions: list[Exclusion] = None, today: str = None,
           window: int = R4_CONFIG["hit_window_days"]) -> dict:
     """R4 v2 chronological guard-state scorer. Events are processed in UTC-origin order;
     each event's exclusion window is opened AFTER it is scored, so the exclusion state an
@@ -284,7 +288,9 @@ def score(episodes: list[Episode], mainshocks: list[Event],
     rebuilt causally here from the mainshocks themselves."""
     outcomes = []
     credited: set[int] = set()
-    open_windows: list[tuple] = []          # (region, start, end, mag, event_id) opened causally
+    # R4 v3: the causal ledger is PRECOMPUTED (build_causal_windows over all events) and
+    # passed in. If omitted, build it from the given events (back-compat for stage KATs).
+    ledger = exclusions if exclusions is not None else build_causal_windows(mainshocks)
 
     def eligible_episode(region, origin_utc, require_fresh=False, allow_excluded=False):
         # allow_excluded=True ONLY on the supersession path: a superseding event's fresh
@@ -306,11 +312,12 @@ def score(episodes: list[Episode], mainshocks: list[Event],
     for m in sorted(mainshocks, key=lambda e: e.origin_utc):
         mem = m.regions or ((m.region,) if m.region else ())
         for region in mem:
-            live = [w for w in open_windows
-                    if w[0] == region and w[1] <= m.t <= w[2] and w[4] != m.event_id]
+            live = [w for w in ledger if w.region == region
+                    and w.start <= m.t <= w.end and w.mainshock_id != m.event_id
+                    and (not w.origin_utc or w.origin_utc < m.origin_utc)]
             if live:
-                w = max(live, key=lambda w: w[3])     # the governing (largest-mag) window
-                if m.mag > w[3]:
+                w = max(live, key=lambda w: w.mag)     # the governing (largest-mag) window
+                if m.mag > w.mag:
                     i = eligible_episode(region, m.origin_utc, require_fresh=True,
                                          allow_excluded=True)
                     if i is not None:
@@ -335,9 +342,7 @@ def score(episodes: list[Episode], mainshocks: list[Event],
                 else:
                     outcomes.append({"event": m.event_id, "mag": m.mag, "region": region,
                                      "outcome": "miss"})
-            # open THIS event's exclusion window (causal; scored above first)
-            end = (_d(m.t) + timedelta(days=int(round(gk_time_days(m.mag))))).isoformat()
-            open_windows.append((region, m.t, end, m.mag, m.event_id))
+            # R4-R2: score() opens NO windows; the ledger is authoritative and precomputed.
 
     # terminal states for episodes never credited
     for e in episodes:
@@ -383,7 +388,10 @@ def molchan(day_series: dict[str, list[tuple[str, int]]], episodes: list[Episode
             "admissible_mainshocks": n_main, "hits": hits, "misses": misses,
             "nu": (misses / n_main) if n_main else None,
         },
-        "descriptive_only": n_main < R4_CONFIG["min_mainshocks_for_skill"],
+        # R4-R4/R6 §5: sample count NEVER lifts descriptive_only; only a registered
+        # statistical-plan amendment does. n>=min is mere eligibility to run it.
+        "eligible_for_plan": n_main >= R4_CONFIG["min_mainshocks_for_skill"],
+        "descriptive_only": R4_CONFIG.get("stats_plan_amendment") is None,
     }
 
 
@@ -451,13 +459,16 @@ def run(end_date: str | None = None) -> dict:
     # 2027-07-28"), even though pre-start events are never themselves scored.
     fetch_start = (_d(start) - timedelta(days=R4_CONFIG["exclusion_cap_days"])).isoformat()
     events = fetch_usgs_events(fetch_start, today, REGION_DEFINITIONS)
-    mainshocks, clustered = decluster(events)
-    exclusions = build_exclusions([m for m in mainshocks if m.region])
-    scoreable_mainshocks = [m for m in mainshocks if m.t >= start]
+    # R4 v3: ONE causal ledger over ALL admissible events (pre-start seeds guard state);
+    # batch decluster is diagnostic-only (R6). Episodes, scoring, and Molchan all read the
+    # SAME ledger, so no composition can bypass the guard.
+    exclusions = build_causal_windows(events)
+    _, clustered = decluster(events)        # diagnostic cluster count only
+    scoreable_events = [m for m in events if m.t >= start]
     episodes: list[Episode] = []
     for region, days in series.items():
         episodes.extend(build_episodes(days, region, exclusions, start_date=start))
-    sc = score(episodes, scoreable_mainshocks, exclusions, today)
+    sc = score(episodes, scoreable_events, exclusions, today)
     accum = {r: [(d0, ti) for d0, ti in days if d0 >= start] for r, days in series.items()}
     mol = molchan(accum, episodes, sc["outcomes"], exclusions)
     record = {
@@ -469,10 +480,10 @@ def run(end_date: str | None = None) -> dict:
         "event_outcomes": sc["outcomes"],
         "exclusions": [asdict(x) for x in exclusions],
         "n_events_fetched": len(events), "n_clustered_removed": len(clustered),
-        "note": ("DESCRIPTIVE ONLY - below the pre-registered minimum sample "
-                 f"({R4_CONFIG['min_mainshocks_for_skill']} pooled mainshocks); no skill claims."
-                 if mol["descriptive_only"] else
-                 "Minimum sample reached; skill assessment per R4 statistical plan."),
+        "note": ("DESCRIPTIVE ONLY - no registered statistical-plan amendment "
+                 f"(R6 §5); eligible_for_plan={mol['pooled']['admissible_mainshocks']}>="
+                 f"{R4_CONFIG['min_mainshocks_for_skill']}={mol.get('eligible_for_plan')}. "
+                 "No skill claim is made."),
     }
     out = REPO / "docs" / "r4_prospective_record.json"
     out.write_text(json.dumps(record, indent=1), encoding="utf-8")

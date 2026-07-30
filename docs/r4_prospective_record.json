@@ -1,5 +1,5 @@
 {
- "generated": "2026-07-29T07:12:56.492058",
+ "generated": "2026-07-30T07:07:56.330187",
  "config": {
   "spec": "AMENDMENT_2026-07-29_prospective_arm (R4)",
   "start_date": "2026-07-29",
@@ -14,10 +14,95 @@
  },
  "period": {
   "start": "2026-07-29",
-  "end": "2026-07-29"
+  "end": "2026-07-30"
  },
  "molchan": {
-  "per_region": {},
+  "per_region": {
+   "ridgecrest": {
+    "scoreable_days": 0,
+    "alarm_days": 0,
+    "excluded_days": 0,
+    "tau": null
+   },
+   "socal_saf_mojave": {
+    "scoreable_days": 0,
+    "alarm_days": 0,
+    "excluded_days": 0,
+    "tau": null
+   },
+   "socal_saf_coachella": {
+    "scoreable_days": 0,
+    "alarm_days": 0,
+    "excluded_days": 0,
+    "tau": null
+   },
+   "norcal_hayward": {
+    "scoreable_days": 0,
+    "alarm_days": 0,
+    "excluded_days": 0,
+    "tau": null
+   },
+   "cascadia": {
+    "scoreable_days": 0,
+    "alarm_days": 0,
+    "excluded_days": 0,
+    "tau": null
+   },
+   "tokyo_kanto": {
+    "scoreable_days": 0,
+    "alarm_days": 0,
+    "excluded_days": 0,
+    "tau": null
+   },
+   "istanbul_marmara": {
+    "scoreable_days": 0,
+    "alarm_days": 0,
+    "excluded_days": 0,
+    "tau": null
+   },
+   "turkey_kahramanmaras": {
+    "scoreable_days": 0,
+    "alarm_days": 0,
+    "excluded_days": 0,
+    "tau": null
+   },
+   "campi_flegrei": {
+    "scoreable_days": 0,
+    "alarm_days": 0,
+    "excluded_days": 0,
+    "tau": null
+   },
+   "kaikoura": {
+    "scoreable_days": 0,
+    "alarm_days": 0,
+    "excluded_days": 0,
+    "tau": null
+   },
+   "anchorage": {
+    "scoreable_days": 0,
+    "alarm_days": 0,
+    "excluded_days": 0,
+    "tau": null
+   },
+   "kumamoto": {
+    "scoreable_days": 0,
+    "alarm_days": 0,
+    "excluded_days": 0,
+    "tau": null
+   },
+   "hualien": {
+    "scoreable_days": 0,
+    "alarm_days": 0,
+    "excluded_days": 0,
+    "tau": null
+   },
+   "mexico_guerrero": {
+    "scoreable_days": 0,
+    "alarm_days": 0,
+    "excluded_days": 0,
+    "tau": null
+   }
+  },
   "pooled": {
    "scoreable_days": 0,
    "alarm_days": 0,
@@ -29,7 +114,26 @@
   },
   "descriptive_only": true
  },
- "episodes": [],
+ "episodes": [
+  {
+   "region": "kumamoto",
+   "onset": "2026-07-14",
+   "end": "2026-07-18",
+   "n_days": 5,
+   "fresh": false,
+   "alarm_dates": [
+    "2026-07-14",
+    "2026-07-15",
+    "2026-07-16",
+    "2026-07-17",
+    "2026-07-18"
+   ],
+   "excluded": false,
+   "left_censored": true,
+   "status": "pending",
+   "credited_event": ""
+  }
+ ],
  "event_outcomes": [],
  "exclusions": [
   {

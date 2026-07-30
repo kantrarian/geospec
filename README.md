@@ -1,13 +1,13 @@
 ﻿# GeoSpec Ensemble Monitoring
 
-**Last Update**: 2026-07-27
+**Last Update**: 2026-07-28
 
 ## Current Status
 
 | Metric | Value |
 |--------|-------|
-| Highest Risk Region | anchorage |
-| Risk Score | 0.429 |
+| Highest Risk Region | hualien |
+| Risk Score | 0.556 |
 | Regions Monitored | 14 |
 
 ### Tier Distribution

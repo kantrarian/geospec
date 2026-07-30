@@ -206,8 +206,14 @@ def get_model(region: str, lat: float, lon: float, today: str):
     the R3 ratio path for that run (the signed rule). No unbounded stale-model service."""
     models = load_models()
     m = models.get(region)
-    if m and (_d(today) - _d(m["fitted_date"])).days <= R5_CONFIG["refit_age_days"]:
-        return m, "fresh"
+    if m:
+        age = (_d(today) - _d(m["fitted_date"])).days
+        win_ok = m.get("window", ["", ""])[1] <= (_d(today) - timedelta(
+            days=R5_CONFIG["fit_window_lag_days"])).isoformat()
+        # R5-R1: reject future-dated models (age<0, e.g. a replay date before the fit)
+        # and models whose fit window is not fully lagged before today.
+        if 0 <= age <= R5_CONFIG["refit_age_days"] and win_ok:
+            return m, "fresh"
     # refit is due (or no model): a fresh fit must succeed or we fall back to R3
     precip = fetch_precip(region, lat, lon, today)
     if not precip:
@@ -262,19 +268,27 @@ def r5_transform(region: str, lat: float, lon: float, ratio: float,
         # R5-4: extrapolation guard -- if today's predictors are far outside the fit
         # envelope, the linear residual is unreliable; stay on R3.
         ar = model.get("api7_range"); rr = model.get("r30_range")
-        if ar and rr:
-            ef = R5_CONFIG["envelope_factor"]
-            if (api7 > ar[1] * ef or r30 > rr[1] * ef):
-                logger.warning(f"R5 {region}: predictors outside fit envelope "
-                               f"(api7={api7:.0f}/{ar[1]:.0f}, r30={r30:.0f}/{rr[1]:.0f}); R3")
-                return None
+        if not ar or not rr:
+            logger.warning(f"R5 {region}: model lacks predictor ranges; R3 (R5-R2)")
+            return None
+        ef = R5_CONFIG["envelope_factor"]
+        # R5-R3: guard BOTH sides. Predictors are nonnegative; lower bound = min/ef
+        # (0 stays 0). Outside [min/ef, max*ef] on either predictor -> extrapolation -> R3.
+        def out(v, lo, hi):
+            return v > hi * ef or v < lo / ef
+        if out(api7, ar[0], ar[1]) or out(r30, rr[0], rr[1]):
+            logger.warning(f"R5 {region}: predictors outside fit envelope "
+                           f"(api7={api7:.0f} in [{ar[0]:.0f},{ar[1]:.0f}], "
+                           f"r30={r30:.0f} in [{rr[0]:.0f},{rr[1]:.0f}]); R3")
+            return None
         b = model["beta"]
         resid = math.log(max(ratio, 1e-3)) - (b[0] + b[1] * api7 + b[2] * r30)
         p = percentile_of(model["resid_sorted"], resid)
         stat = quantile_at(model["ratio_sorted"], p)
         return {"stat": stat, "residual_percentile": p, "raw_ratio": ratio,
                 "api7": api7, "r30": r30, "beta": b, "n_fit": model["n"],
-                "fitted_date": model["fitted_date"], "r5_active": True}
+                "fitted_date": model["fitted_date"], "r5_computed": True,
+                "r5_active": False}   # R5-R5: shadow -- computed, NOT operational
     except Exception as e:                                     # FAIL-OPEN, always
         logger.warning(f"R5 transform failed for {region} ({e}); falling back to R3 ratio path")
         return None

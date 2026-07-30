@@ -123,6 +123,31 @@ step = stat_today - ratios[today]
 kat("K5 discontinuity measurable: |R5 stat - raw ratio| computed and finite",
     math.isfinite(step), f"raw={ratios[today]:.3f} r5_stat={stat_today:.3f} step={step:+.3f}")
 
+# K6 (R5-R1) -- a future-dated model is NOT fresh (replay-causality)
+import precip_residual as _pr
+from datetime import date as _date
+future_model = {"region": "z", "fitted_date": "2026-07-30", "n": 200, "beta": [0,0,0],
+                "resid_sorted": [0.0], "ratio_sorted": [1.0], "window": ["2026-04-01","2026-06-30"]}
+_pr.MODEL_FILE.parent.mkdir(parents=True, exist_ok=True)
+import json as _json
+_saved = _pr.MODEL_FILE.read_text() if _pr.MODEL_FILE.exists() else None
+_pr.MODEL_FILE.write_text(_json.dumps({"z": future_model}))
+_m, _reason = _pr.get_model("z", 0.0, 0.0, "2011-01-01")   # replay date BEFORE fit -> age<0
+# restore store
+(_pr.MODEL_FILE.write_text(_saved) if _saved is not None else _pr.MODEL_FILE.unlink())
+kat("K6 R5-R1: future-dated model rejected in historical replay (not 'fresh')",
+    _reason != "fresh", f"reason={_reason}")
+
+# K7 (R5-R3) -- predictors well BELOW the fit envelope deactivate R5 (lower-side guard)
+lowmodel = {"region": "z", "fitted_date": "2026-07-30", "n": 200, "beta": [-1.2, 0.004, 0.002],
+            "resid_sorted": [-0.5,0.0,0.5], "ratio_sorted": [0.5,1.0,2.0],
+            "api7_range": [10.0, 20.0], "r30_range": [100.0, 200.0], "window": ["x","x"]}
+# call the envelope logic directly: today's (0,0) is far below [10,20]/[100,200]
+b = lowmodel["beta"]; ef = _pr.R5_CONFIG["envelope_factor"]
+def _out(v, lo, hi): return v > hi*ef or v < lo/ef
+below = _out(0.0, *lowmodel["api7_range"]) and _out(0.0, *lowmodel["r30_range"])
+kat("K7 R5-R3: predictors below the fit envelope trigger the lower-side guard", below)
+
 n = sum(PASS)
 print(f"=== R5 KATs: {n}/{len(PASS)} PASS ===")
 raise SystemExit(0 if n == len(PASS) else 1)

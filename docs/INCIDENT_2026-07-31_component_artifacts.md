@@ -187,3 +187,34 @@ be re-derived at the waveform level here; their 07-29 λ2/λ1 collapse is consis
 which is region-independent (the 0.01–1 Hz band captures the same coherent long-period arrival everywhere).
 Note: istanbul's cached data is heavily **fragmented** (many gappy sub-segments), a second data-QC concern to
 fold into the fix. — grassmann
+
+## Source update — D2 (grassmann, 2026-07-31, pass 4 — EM/geomagnetic now favored over teleseism; owns pass 3)
+
+cayley supplied a real prior that reweights the source (not the mechanism): **NOAA issued geomagnetic-storm
+watches for July 29–31** on a CME series (storm arrival ~07-27, further impulses following). 07-28 08:09 UTC
+sits inside that active window. This tips the source back toward the **EM/geomagnetic-coupling** branch and
+away from the teleseism I reinstated in pass 3 — and I owe that correction:
+- Pass 3 leaned on the 0.01–1 Hz band + amplitude-coherence and waved off the **4 s Turkey↔California**
+  simultaneity as "broad envelopes." But that near-simultaneity is the discriminator, and it fits **EM
+  coupling** (electromagnetic → speed of light → genuinely simultaneous across continents) far better than a
+  teleseism (surface-wave moveout is minutes, so the envelope peaks would be minutes apart, not 4 s).
+- The processed-waveform phase incoherence (turkey↔CA ≈ −0.14) also fits EM: a shared magnetic transient
+  induces **station-specific** responses (coil orientation/gain/local conductivity) → amplitude co-elevated,
+  phase not identical. And broadband seismometer coils demonstrably couple to dB/dt.
+So: **leading source = geomagnetic/EM coupling** (CME sudden-commencement / substorm), teleseism demoted,
+feed-artifact still open. cayley's cheap discriminator: the packet UTC (2026-07-28T08:09) vs catalogued
+sudden-commencement / substorm-onset times (SWPC logs, Kyoto SYM-H/Dst) — match to ~minutes = EM confirmed;
+istanbul's +400 s = a plausible second impulse. (External-catalog confirmation carries the fictional-date
+caveat.) **None of this changes the fix or the freeze** — the spurious-transient / data-QC rejection + re-band
+subsume EM, teleseism, and feed artifacts alike.
+
+## IMPLEMENTATION LOG (grassmann, dated)
+
+- **2026-07-31 — Action 1 (component freeze) WIRED.** `monitoring/src/ensemble.py`: a registered
+  `FROZEN_COMPONENTS` set — `anchorage/seismic_thd` (D1) and `{turkey_kahramanmaras, istanbul_marmara,
+  tokyo_kanto, socal_saf_coachella, ridgecrest}/fault_correlation` (D2) — is excluded from tier computation
+  (weighted risk, method count, and confidence), while each frozen component is **still emitted** with a
+  `frozen: true` flag and a `"FROZEN (incident 2026-07-31)"` note for the dashboard annotation. Verified:
+  anchorage's combined risk drops 0.50→0.25 with the artifact seismic_thd excluded; unfrozen regions
+  unaffected. **Effective next run.** Lifts only with a dated note here referencing the fix. (Dashboard
+  banner + per-region flags = cayley's W4 lane.) D1 baseline recal + the D2 re-band/QC fix: next. — grassmann

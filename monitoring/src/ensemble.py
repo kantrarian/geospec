@@ -112,6 +112,24 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
+# INCIDENT 2026-07-31 component freeze (docs/INCIDENT_2026-07-31_component_artifacts.md).
+# (region, component) pairs are COMPUTED but EXCLUDED from tier computation (still emitted + annotated,
+# never deleted) because they were driven by pipeline artifacts, not tectonics. Each entry lifts ONLY with a
+# dated fix note referencing the incident (prospective-record discipline; no retroactive edits).
+#   D1: anchorage / seismic_thd  -- IU.COLA scored against a 6.5-month-stale baseline (z=26 on a noise sawtooth).
+#   D2: 5 regions / fault_correlation -- a shared long-period arrival (0.01-1 Hz band) collapsed lambda2/lambda1
+#       across regions at once; the component is mis-banded (captures coherent long-period energy, not local
+#       stress). Frozen pending the re-band + spurious-transient/data-QC rejection fix.
+FROZEN_COMPONENTS = {
+    ("anchorage", "seismic_thd"),
+    ("turkey_kahramanmaras", "fault_correlation"),
+    ("istanbul_marmara", "fault_correlation"),
+    ("tokyo_kanto", "fault_correlation"),
+    ("socal_saf_coachella", "fault_correlation"),
+    ("ridgecrest", "fault_correlation"),
+}
+
+
 # =============================================================================
 # RISK TIERS
 # =============================================================================
@@ -297,6 +315,7 @@ class MethodResult:
     baseline_quality: str = "unknown"  # good, acceptable, poor, missing
     z_score: float = 0.0           # Standard deviations above baseline
     sample_rate_hz: float = 0.0    # Native sample rate of station
+    frozen: bool = False           # INCIDENT freeze: computed but EXCLUDED from tier (visible + annotated)
 
     def to_dict(self) -> Dict:
         result = {
@@ -307,6 +326,7 @@ class MethodResult:
             'risk_score': float(self.risk_score),
             'is_elevated': bool(self.is_elevated),
             'is_critical': bool(self.is_critical),
+            'frozen': bool(self.frozen),
             'notes': self.notes,
         }
         # Include baseline fields only for THD method
@@ -666,7 +686,7 @@ class GeoSpecEnsemble:
         Returns:
             Tuple of (confidence, agreement_type)
         """
-        available = [c for c in components.values() if c.available]
+        available = [c for c in components.values() if c.available and not c.frozen]  # frozen excluded (incident 2026-07-31)
         n_available = len(available)
 
         if n_available == 0:
@@ -734,13 +754,21 @@ class GeoSpecEnsemble:
             station_code=thd_station
         )
 
-        # Compute weighted risk and track effective weights
+        # INCIDENT 2026-07-31 freeze: mark registered artifact-driven components EXCLUDED from tier computation
+        # (still emitted + annotated for transparency; lifts only with a dated fix note). See FROZEN_COMPONENTS.
+        for cname, result in components.items():
+            if (self.region, cname) in FROZEN_COMPONENTS:
+                result.frozen = True
+                result.notes = (result.notes + " | " if result.notes else "") + \
+                    "FROZEN (incident 2026-07-31): excluded from tier pending fix"
+
+        # Compute weighted risk and track effective weights (frozen components excluded from the tier)
         total_weight = 0.0
         weighted_risk = 0.0
         effective_weights = {}
 
         for name, result in components.items():
-            if result.available:
+            if result.available and not result.frozen:
                 weight = self.weights.get(name, 0.0)
                 weighted_risk += weight * result.risk_score
                 total_weight += weight
@@ -759,7 +787,7 @@ class GeoSpecEnsemble:
         # Get tier
         tier, tier_name = self.get_tier(combined_risk)
 
-        methods_available = sum(1 for c in components.values() if c.available)
+        methods_available = sum(1 for c in components.values() if c.available and not c.frozen)  # frozen excluded (incident 2026-07-31)
 
         # DEGRADED STATE: No methods available = cannot assess
         # This prevents "NORMAL" being displayed when we actually have no data

@@ -99,3 +99,37 @@ known artifact class distinct from a feed bug.
 both mean the 07-29 fault_correlation "decorrelation" signals are **not local stress precursors**. If the
 teleseism check confirms, the durable fix is a teleseismic-rejection/regression step in the component (not
 just a baseline refresh). — grassmann
+
+## Root-cause update — D2 (grassmann, 2026-07-31, pass 2 — SUPERSEDES the teleseism lead)
+
+The global-event check (cross-region envelope coherence) came back and it **rules out a real seismic source**,
+teleseism or eruption. Revised conclusion, with the decisive evidence:
+
+- **Windows are UTC-aligned.** The ensemble derives one common correlation window from the run `date` for
+  ALL regions (`src/ensemble.py:546`), so identical sample indices are identical absolute UTC times.
+- **Cross-region coherence jumped** from mean inter-region envelope correlation ≈ **+0.02 (07-28) → +0.75
+  (07-29)** across turkey / ridgecrest(California) / istanbul.
+- The driver is a **broad high-amplitude packet** (FWHM ~60–180 s, 25–65× the daily median) appearing at
+  **nearly the same absolute UTC time** in all three: turkey @ 4147 s, ridgecrest @ 4151 s (**4 s** later),
+  istanbul @ 4547 s.
+- **This cannot be a propagating seismic source.** 4 s between Turkey and California is physically impossible
+  (surface-wave differential travel time is ~15–45 min); and Turkey ≈ California (4 s) while Turkey ≠ Istanbul
+  (400 s, adjacent regions) is geometrically impossible for ANY single source. The broad shape rules out a
+  1-sample injection, but the near-simultaneity across continents rules out a real earthquake/eruption.
+
+**Revised leading cause: a shared NON-TECTONIC transient at a common UTC time on 07-29** (new — 07-28 was
+clean at 0.02). Candidate origins, both non-seismic and both consistent with "no code changed + full-length
+distinct envelopes":
+1. an **upstream data-feed / processing artifact** — a corrupted or duplicated data block, or a network-wide
+   telemetry gap + gap-fill/deconvolution transient, served at a common UTC window; or
+2. a **global instrument-coupled disturbance** (e.g., a geomagnetic/EM event inducing a simultaneous response
+   in seismometer electronics worldwide — genuinely simultaneous across continents, unlike a seismic wave).
+
+**Revised fix implication:** the durable fix is a **spurious-transient / data-quality rejection** step in the
+component (outlier-reject anomalous high-amplitude transients and add a data-QC gate before the correlation),
+which subsumes teleseismic rejection — NOT a teleseism-specific regression, and NOT (for D2) a baseline
+refresh. The freeze stands.
+
+**Still open:** the exact upstream origin. Next: pull the raw traces at ~sample 4147 of the 07-29 window
+(≈1.15 h into the common window) to characterize the transient (seismic-shaped vs telemetry glitch vs EM)
+and check station/telemetry logs at that UTC. — grassmann

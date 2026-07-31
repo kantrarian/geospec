@@ -133,3 +133,42 @@ refresh. The freeze stands.
 **Still open:** the exact upstream origin. Next: pull the raw traces at ~sample 4147 of the 07-29 window
 (≈1.15 h into the common window) to characterize the transient (seismic-shaped vs telemetry glitch vs EM)
 and check station/telemetry logs at that UTC. — grassmann
+
+## Root-cause update — D2 (grassmann, 2026-07-31, pass 3 — reconciles; CORRECTS pass 2's "non-tectonic")
+
+Pulled the raw traces. Pass 3 supersedes pass 2 and **restores a real seismic source as the leading cause** —
+pass 2's "physically impossible / non-tectonic" verdict rested on a flawed argument, owned below.
+
+**The confirmed mechanism — a component-band design flaw:**
+- `process_waveforms` bandpasses to **0.01–1.0 Hz** (`src/seismic_data.py:79-80`, 100 s–1 s period) and the
+  activity/correlation is built from the Hilbert-envelope **amplitude** of that band.
+- The transient at ~sample 4147 (abs UTC ≈ 2026-07-28T08:09Z, on KO/Turkey among others) is, **in the
+  component's 0.01–1.0 Hz band, the single largest minute of the day** (36.9× median, RANK 1 of 1440). In the
+  local micro-seismic band (0.5–10 Hz) the same minute is unremarkable (1.8× median, rank 124/1440) and the
+  day's real local burst is elsewhere (bin 574, 09:34). So the driver is a **long-period** signal the
+  component's band is tuned to and the local band excludes.
+
+**Why pass 2 was wrong (owned):** I read the envelope-amplitude peak as a *phase arrival* and called the 4 s
+Turkey–California alignment impossible. But the component correlates **amplitude envelopes, not phase.** A
+large teleseism's long-period surface-wave energy **co-elevates amplitude** across continents over a broad
+(minutes-wide) window — near-simultaneous at envelope/activity resolution — even though the waveforms are
+**not** phase-coherent (measured processed-waveform correlation turkey↔California ≈ −0.14). Amplitude
+co-elevation without phase coherence is exactly the teleseismic signature; my phase argument did not apply.
+
+**Reconciled leading cause:** a **large long-period signal — most consistent with a teleseismic earthquake**
+(surface waves dominant at 0.01–0.1 Hz) — co-elevated the 0.01–1.0 Hz envelope activity across all five
+regions' segments at once → correlation rose → λ2/λ1 collapsed → false "decorrelation precursor." (A large
+long-period *coherent-noise* event is the only alternative; a global M≈7+ catalog check for 2026-07-28
+~08:09 UTC would confirm which — the fictional-date caveat still applies to external catalogs.)
+
+**Durable fix (revised, and this is the real lesson):** the component is **mis-banded** for its stated purpose.
+Local fault-segment stress decorrelation lives in the **local band (≈1–10 Hz)**, which is spatially *incoherent*
+between distant regions (good — genuine local signal); the current **0.01–1.0 Hz** band is dominated by
+spatially *coherent* long-period energy (teleseisms, microseism, atmospheric), so any large long-period arrival
+fires false decorrelation everywhere. Fix: (1) move the analysis band to the local ~1–10 Hz range; (2) add a
+long-period/teleseism-transient rejection (flag+exclude windows with anomalous 0.01–1 Hz energy); (3) a
+data-QC gate. This is a design correction, not a baseline refresh. **Freeze stands.**
+
+**Meta:** three passes, two self-corrections (pass 1 "identical envelopes" → pass 2 "non-tectonic" → pass 3
+"long-period teleseism + mis-banding"). The invariant that held throughout: **the 07-29 fault_correlation
+signals are not local stress precursors,** so the freeze and the §5 conservatism were right from the start. — grassmann

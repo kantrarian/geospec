@@ -228,7 +228,17 @@ subsume EM, teleseism, and feed artifacts alike.
   alert, independent of recal cadence. **R3-extension registered** (cayley Action 2): the rolling recal is
   `python calibrate_thd_baselines.py --days 90 --exclude-recent 14` (R3's 90 d lookback / 14 d exclude), run
   weekly to a dated `thd_baselines_<date>.json`.
-- **Part B — remaining (to LIFT the D1 freeze, operational):** (i) make the THD baseline load **newest-first**
-  (currently hardcoded in `station_baselines.py` / `glob()[0]`); (ii) a **weekly recal job** invoking the
-  command above; (iii) the **first fresh IU.COLA recal run** (a 90-day waveform fetch — network-bound). Until
-  those land, the staleness guard keeps IU.COLA fail-safe on absolute thresholds and the freeze holds. — grassmann
+- **2026-07-31 — Action 2, part B: newest-first load + weekly recal WIRED.**
+  - **Newest-first load** — `station_baselines._load_newest_baseline_file()` runs at import: the freshest dated
+    `data/baselines/thd_baselines_*.json` overrides the hardcoded 2026-01 defaults (tolerant of both the flat
+    and calibration formats, skips malformed entries — it already correctly skips the malformed legacy
+    `thd_baselines_20260112.json` and falls back). Verified: a fresh file flips IU.COLA 0.1838 → the new value.
+  - **Weekly recal job** — `monitoring/src/run_thd_recal.py`: R3-consistent recal (90-day window ending
+    **today−30 d**, matching the *production* lambda_geo R3 recal — corrected from my part-A note's 14 d), a
+    weekly cadence gate (`--if-due`), writes a dated flat file. Wired into `run_and_publish.ps1` step **[2b]**,
+    mirroring the lambda_geo **[2a]** block (weekly, non-fatal). `MAX_BASELINE_AGE_DAYS` raised 35 → **50** to
+    match the 30-day lag (a healthy window-end is 30–44 d old; 201 d = grossly stale).
+  - **Remaining:** only the **first live recal execution** (a 90-day waveform fetch, network-bound) — the daily
+    run's [2b] block triggers it automatically on the next fresh run, or `python -m src.run_thd_recal --force`.
+    On a successful fresh baseline, the D1 freeze lifts with a dated note here. Until then the staleness guard
+    keeps IU.COLA fail-safe and the freeze holds. — grassmann

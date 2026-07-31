@@ -73,6 +73,29 @@ if ($NeedsRecal) {
     Write-Host "  [2a] Baselines fresh (<7d), skipping recalibration" -ForegroundColor Green
 }
 
+# [2b] seismic_thd baseline rolling recal (INCIDENT 2026-07-31, D1): extend R3 rolling-recalibration to the
+# THD component baselines. The THD baselines were a frozen 2026-01 one-shot (IU.COLA z=26-on-noise artifact);
+# now recalibrated weekly on the same R3 terms (90d window ending today-30d) to a dated file that
+# station_baselines.py loads newest-first. Non-fatal: a recal failure must never stop the daily publish (the
+# ensemble staleness guard keeps any stale baseline fail-safe on absolute thresholds meanwhile).
+$ThdBaselineDir = Join-Path $MonitoringDir "data\baselines"
+$ThdNewest = Get-ChildItem -Path $ThdBaselineDir -Filter "thd_baselines_*.json" -ErrorAction SilentlyContinue |
+    Sort-Object Name -Descending | Select-Object -First 1
+$ThdNeedsRecal = $true
+if ($ThdNewest) {
+    $ThdAge = ((Get-Date) - $ThdNewest.LastWriteTime).TotalDays
+    $ThdNeedsRecal = $ThdAge -gt 7
+}
+if ($ThdNeedsRecal) {
+    Write-Host "  [2b] Recalibrating seismic_thd baselines (90d window ending today-30d, R3, incident 2026-07-31)..." -ForegroundColor Yellow
+    python -m src.run_thd_recal --force
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "  THD recalibration failed; continuing (staleness guard keeps stale baselines fail-safe)" -ForegroundColor Red
+    }
+} else {
+    Write-Host "  [2b] THD baselines fresh (<7d), skipping recalibration" -ForegroundColor Green
+}
+
 try {
     if ($Date -eq "auto") {
         python -m src.run_ensemble_daily

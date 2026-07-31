@@ -156,6 +156,56 @@ STATION_BASELINES: Dict[str, StationBaseline] = {
 }
 
 
+def _load_newest_baseline_file() -> Optional[str]:
+    """INCIDENT 2026-07-31 (D1) newest-first load: override the hardcoded (2026-01) defaults above with the
+    freshest dated rolling-recal file `data/baselines/thd_baselines_*.json`, so the weekly R3 recal is picked
+    up automatically without editing this module. Fully defensive: tries files newest-first, accepts either
+    the flat `{key:{...}}` or the calibration `{baselines:[{station,...}]}` format, skips malformed/None
+    entries, and if nothing loads it leaves the built-in defaults in place (the ensemble staleness guard then
+    catches those). Never raises. Returns the filename used, or None."""
+    try:
+        bdir = Path(__file__).resolve().parent.parent / 'data' / 'baselines'
+        files = sorted(bdir.glob('thd_baselines_*.json'), key=lambda p: p.name, reverse=True)  # newest name first
+    except Exception:
+        return None
+    for f in files:
+        try:
+            with open(f) as fh:
+                data = json.load(fh)
+        except Exception as e:
+            logger.warning(f"THD baseline file {f.name} unreadable ({e}); trying older / built-in defaults")
+            continue
+        if isinstance(data, dict) and isinstance(data.get('baselines'), list):
+            entries = data['baselines']
+        elif isinstance(data, dict):
+            entries = [v for v in data.values() if isinstance(v, dict) and 'station' in v]
+        else:
+            entries = []
+        loaded = 0
+        for e in entries:
+            try:
+                if e.get('mean_thd') is None or e.get('std_thd') is None:
+                    continue
+                key = e['station']
+                STATION_BASELINES[key] = StationBaseline(
+                    station=key, mean_thd=float(e['mean_thd']), std_thd=float(e['std_thd']),
+                    n_samples=int(e.get('n_samples') or e.get('n_days_valid') or 0),
+                    calibration_period=e.get('calibration_period', 'unknown'),
+                    notes=f"Rolling recal, loaded newest-first from {f.name}")
+                loaded += 1
+            except Exception:
+                continue
+        if loaded:
+            logger.info(f"Loaded {loaded} THD baselines from {f.name} (newest-first, incident 2026-07-31)")
+            return f.name
+    logger.info("No loadable dated THD baseline file; using built-in defaults (staleness guard applies)")
+    return None
+
+
+# Apply newest-first load at import: the freshest rolling recal overrides the built-in 2026-01 defaults.
+_NEWEST_BASELINE_FILE = _load_newest_baseline_file()
+
+
 def get_baseline(station_code: str, network: str) -> Optional[StationBaseline]:
     """
     Get baseline for a station.

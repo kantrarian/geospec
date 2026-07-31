@@ -136,10 +136,10 @@ FROZEN_COMPONENTS = {
 # ordinary noise sawtooth. Fail-safe: if a baseline's calibration window ends more than MAX_BASELINE_AGE_DAYS
 # before the scored date, DO NOT z-score against it -- fall back to absolute thresholds, flagged 'stale', so a
 # stale baseline can never again manufacture a high-z alert. R3-extension (cayley 2026-07-31 Action 2): a
-# rolling recal on R3's terms (90-day lookback, 14-day exclude-recent, weekly cadence) keeps the window-end age
-# ~14-21 d, comfortably under this bound; recal command: `python calibrate_thd_baselines.py --days 90
-# --exclude-recent 14` written weekly to a dated thd_baselines_<date>.json, loaded newest-first.
-MAX_BASELINE_AGE_DAYS = 35
+# rolling recal on the SAME terms as the production lambda_geo R3 recal (run_and_publish.ps1) -- 90-day window
+# ending today-30d (30-day lag), refreshed weekly -- keeps a healthy window-end age at ~30-37 d, so the bound
+# is set well above that (50 d) yet far below the 201 d that produced the artifact. Recal: run_thd_recal.py.
+MAX_BASELINE_AGE_DAYS = 50
 
 
 def _baseline_age_days(calibration_period, target_date):

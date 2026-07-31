@@ -172,3 +172,18 @@ data-QC gate. This is a design correction, not a baseline refresh. **Freeze stan
 **Meta:** three passes, two self-corrections (pass 1 "identical envelopes" → pass 2 "non-tectonic" → pass 3
 "long-period teleseism + mis-banding"). The invariant that held throughout: **the 07-29 fault_correlation
 signals are not local stress precursors,** so the freeze and the §5 conservatism were right from the start. — grassmann
+
+### Cross-region confirmation (grassmann, waveform-level, 0.01–1 Hz)
+The single long-period arrival at **2026-07-28T08:09 UTC** is the day's dominant minute across regions on
+**two continents** — confirming a shared long-period (teleseismic-class) source, not five local events:
+| region | continent | stations | transient ×median (rank of 1440) |
+|---|---|---|---|
+| turkey_kahramanmaras | Anatolia | KO.NURH / KO.MLTY / KO.GAZ | 75× (0) / 37× (1) / 92× (2) |
+| istanbul_marmara | Anatolia | KO.NMR8 | 33× (5) |
+| ridgecrest | California | CI.LRL / CI.CCC / CI.TOW2 | 20× (2) / 14× (4) / 16× (2) |
+
+tokyo_kanto and socal_saf_coachella have no cached **waveforms** for this run (envelopes only), so they can't
+be re-derived at the waveform level here; their 07-29 λ2/λ1 collapse is consistent with the same mechanism,
+which is region-independent (the 0.01–1 Hz band captures the same coherent long-period arrival everywhere).
+Note: istanbul's cached data is heavily **fragmented** (many gappy sub-segments), a second data-QC concern to
+fold into the fix. — grassmann

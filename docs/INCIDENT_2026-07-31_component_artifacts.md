@@ -48,6 +48,28 @@ artifacts, not tectonics**:
    for any future skill claim (more alarm days = a worse Molchan score, never a better one). No
    retroactive R4 edits.
 
+## IMPLEMENTATION LOG — D2 durable fix (grassmann, dated)
+
+- **2026-07-31 — D2 re-band WIRED.** `monitoring/src/seismic_data.py`: `get_segment_envelopes`
+  (fault_correlation's only envelope source) now processes in a new `FAULT_CORR_FILTER` = **1–10 Hz** local
+  micro-seismic band instead of the 0.01–1.0 Hz `DEFAULT_FILTER`. Local fault-segment decorrelation lives in
+  1–10 Hz and is spatially INCOHERENT between distant regions (a genuine local signal); the old 0.01–1 Hz band
+  is dominated by spatially COHERENT long-period energy (teleseism/microseism/EM), which is exactly what
+  co-collapsed all regions on 07-29. **Empirically validated** (faithful replication of the pipeline's
+  process→envelope→correlation on the cached 07-29 waveforms): turkey λ2/λ1 **0.128 (collapsed, matches the
+  reported 0.123) → 0.594 (healthy)** — the false decorrelation is removed. The envelope cache key is
+  band-tagged (`_1-10Hz`) so no stale 0.01–1 Hz envelope is reused. `seismic_thd` fetches on a separate path
+  and is **unaffected**; `DEFAULT_FILTER` is untouched for any other caller.
+- **Review items before the D2 freeze lifts (NOT self-clearing):**
+  1. **Threshold recal for the new band.** The re-band raises the *normal* λ2/λ1 operating range (local
+     seismicity is incoherent), so the decorrelation risk threshold (0.3) and any per-region baseline must be
+     re-examined for 1–10 Hz before the component scores again — a rolling recal like D1, not a frozen number.
+  2. **Complementary spurious-transient / data-QC gate** (cayley's fix also named this): the re-band removes
+     the long-period-coherent class; a residual outlier gate (reject/flag windows with anomalous per-segment
+     activity) would also catch a broadband transient carrying 1–10 Hz energy. Recommended hardening.
+  3. **codex §5 / cayley review** of the re-banded component (it is a methodology change to a scoring
+     component). The freeze stays until (1)+(3) land with a dated lift note.
+
 ## What this incident is NOT
 
 - NOT a change to any registered scoring rule, threshold, or amendment (R2–R6 untouched).

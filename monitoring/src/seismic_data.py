@@ -82,6 +82,22 @@ DEFAULT_FILTER = {
     'zerophase': True,
 }
 
+# INCIDENT 2026-07-31 (D2) — fault_correlation LOCAL band. The 0.01-1.0 Hz DEFAULT_FILTER captures spatially
+# COHERENT long-period energy (teleseismic surface waves, microseism, geomagnetic/EM coupling), so any large
+# long-period arrival co-elevated segment activity across ALL regions at once -> lambda2/lambda1 collapse ->
+# false "decorrelation precursor" (the 07-29 artifact: turkey lambda2/lambda1 0.128 in this band). Local
+# fault-segment stress decorrelation lives in the ~1-10 Hz micro-seismic band, which is spatially INCOHERENT
+# between distant regions -- a genuine local signal. Re-banding here restores a healthy correlation structure
+# (turkey 07-29: lambda2/lambda1 0.128 -> 0.594). Only get_segment_envelopes (fault_correlation) uses this;
+# seismic_thd fetches separately and is unaffected.
+FAULT_CORR_FILTER = {
+    'freqmin': 1.0,    # 1 Hz  -- above the microseism / long-period coherent band
+    'freqmax': 10.0,   # 10 Hz -- local micro-seismicity
+    'corners': 4,
+    'zerophase': True,
+}
+_FAULT_CORR_BAND_TAG = "1-10Hz"   # cache version tag: re-banded envelopes cache separately from 0.01-1Hz
+
 DEFAULT_DECIMATE_FACTOR = 40  # 40 Hz -> 1 Hz
 
 
@@ -367,8 +383,9 @@ class SeismicDataFetcher:
         Returns:
             Dictionary mapping station NSLC -> envelope array
         """
-        # Check envelope cache
-        cache_key = f"{segment.name}_envelopes"
+        # Check envelope cache. INCIDENT 2026-07-31 (D2): tag the cache key with the band so re-banded
+        # (1-10 Hz) envelopes never reuse a stale 0.01-1 Hz cache entry.
+        cache_key = f"{segment.name}_envelopes_{_FAULT_CORR_BAND_TAG}"
         cache_path = self._cache_path(segment.region, start, cache_key)
 
         if use_cache:
@@ -382,7 +399,8 @@ class SeismicDataFetcher:
 
         envelopes = {}
         for nslc, stream in waveforms.items():
-            processed = self.process_waveforms(stream)
+            # INCIDENT 2026-07-31 (D2): local 1-10 Hz band (not the 0.01-1 Hz default) -- see FAULT_CORR_FILTER.
+            processed = self.process_waveforms(stream, filter_params=FAULT_CORR_FILTER)
             if processed is not None:
                 envelope = self.compute_envelope(processed)
                 envelopes[nslc] = envelope

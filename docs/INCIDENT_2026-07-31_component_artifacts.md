@@ -218,3 +218,17 @@ subsume EM, teleseism, and feed artifacts alike.
   anchorage's combined risk drops 0.50→0.25 with the artifact seismic_thd excluded; unfrozen regions
   unaffected. **Effective next run.** Lifts only with a dated note here referencing the fix. (Dashboard
   banner + per-region flags = cayley's W4 lane.) D1 baseline recal + the D2 re-band/QC fix: next. — grassmann
+
+- **2026-07-31 — Action 2 (D1 baseline recal), part A: STALENESS FAIL-SAFE wired.** `monitoring/src/ensemble.py`:
+  `compute_thd_risk` now rejects a stale baseline before z-scoring — if the baseline's calibration window ends
+  more than `MAX_BASELINE_AGE_DAYS = 35` before the scored date, it drops to absolute thresholds and flags
+  `baseline_quality="stale"` (with a logged warning). Verified: IU.COLA's `2025-12-09 to 2026-01-09` window
+  scored on 2026-07-29 = **201 d → stale → no z=26**; a fresh R3 baseline (14 d) passes; unparseable periods
+  no-op safely. This **closes the D1 failure class** — a stale baseline can never again manufacture a high-z
+  alert, independent of recal cadence. **R3-extension registered** (cayley Action 2): the rolling recal is
+  `python calibrate_thd_baselines.py --days 90 --exclude-recent 14` (R3's 90 d lookback / 14 d exclude), run
+  weekly to a dated `thd_baselines_<date>.json`.
+- **Part B — remaining (to LIFT the D1 freeze, operational):** (i) make the THD baseline load **newest-first**
+  (currently hardcoded in `station_baselines.py` / `glob()[0]`); (ii) a **weekly recal job** invoking the
+  command above; (iii) the **first fresh IU.COLA recal run** (a 90-day waveform fetch — network-bound). Until
+  those land, the staleness guard keeps IU.COLA fail-safe on absolute thresholds and the freeze holds. — grassmann

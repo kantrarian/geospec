@@ -130,6 +130,31 @@ FROZEN_COMPONENTS = {
 }
 
 
+# INCIDENT 2026-07-31 (D1) — seismic_thd baseline STALENESS guard + R3-extension.
+# The THD baselines are hardcoded (station_baselines.py) from a one-off 2026-01 calibration and were never
+# refreshed, so IU.COLA was z-scored against a 6.5-month-stale window (tight std) -> spurious z=26 on an
+# ordinary noise sawtooth. Fail-safe: if a baseline's calibration window ends more than MAX_BASELINE_AGE_DAYS
+# before the scored date, DO NOT z-score against it -- fall back to absolute thresholds, flagged 'stale', so a
+# stale baseline can never again manufacture a high-z alert. R3-extension (cayley 2026-07-31 Action 2): a
+# rolling recal on R3's terms (90-day lookback, 14-day exclude-recent, weekly cadence) keeps the window-end age
+# ~14-21 d, comfortably under this bound; recal command: `python calibrate_thd_baselines.py --days 90
+# --exclude-recent 14` written weekly to a dated thd_baselines_<date>.json, loaded newest-first.
+MAX_BASELINE_AGE_DAYS = 35
+
+
+def _baseline_age_days(calibration_period, target_date):
+    """Age in days of a THD baseline's window END vs target_date. `calibration_period` is
+    'YYYY-MM-DD to YYYY-MM-DD'. Returns None if unparseable (guard then no-ops, never fails closed on a
+    parse error)."""
+    try:
+        end_str = str(calibration_period).split(' to ')[-1].strip()
+        end = datetime.strptime(end_str, '%Y-%m-%d')
+        td = target_date.replace(tzinfo=None) if getattr(target_date, 'tzinfo', None) else target_date
+        return (td - end).days
+    except Exception:
+        return None
+
+
 # =============================================================================
 # RISK TIERS
 # =============================================================================
@@ -612,6 +637,20 @@ class GeoSpecEnsemble:
             # Get station baseline if available
             baseline = get_baseline(station_code, station_network) if get_baseline else None
 
+            # INCIDENT 2026-07-31 (D1): baseline STALENESS fail-safe. If the baseline window ends more than
+            # MAX_BASELINE_AGE_DAYS before the scored date, do NOT z-score against it -- drop to absolute
+            # thresholds and flag 'stale' (prevents the IU.COLA z=26-on-noise recurrence).
+            baseline_stale = False
+            if baseline is not None:
+                _bl_age = _baseline_age_days(baseline.calibration_period, date)
+                if _bl_age is not None and _bl_age > MAX_BASELINE_AGE_DAYS:
+                    logger.warning(
+                        f"THD baseline for {station_network}.{station_code} is STALE: window "
+                        f"'{baseline.calibration_period}' ends {_bl_age}d before {date} "
+                        f"(> {MAX_BASELINE_AGE_DAYS}d); dropping to absolute thresholds (incident 2026-07-31)")
+                    baseline_stale = True
+                    baseline = None
+
             # Default baseline context (for structured output)
             baseline_mean = 0.0
             baseline_std = 0.0
@@ -646,10 +685,16 @@ class GeoSpecEnsemble:
                         f'baseline_mean={baseline.mean_thd:.4f}, baseline_std={baseline.std_thd:.4f}, '
                         f'n={baseline.n_samples}, rate={native_sample_rate:.0f}Hz')
             else:
-                # Fall back to absolute thresholds
+                # Fall back to absolute thresholds (no baseline, OR baseline rejected as stale)
                 risk = thd_to_risk(thd_result.thd_value)
                 z_score = 0.0
-                notes = f'sta={station_network}.{station_code}, THD={thd_result.thd_value:.4f}, rate={native_sample_rate:.0f}Hz (no baseline)'
+                if baseline_stale:
+                    baseline_quality = "stale"
+                    notes = (f'sta={station_network}.{station_code}, THD={thd_result.thd_value:.4f}, '
+                             f'rate={native_sample_rate:.0f}Hz (baseline STALE >{MAX_BASELINE_AGE_DAYS}d -> '
+                             f'absolute thresholds, incident 2026-07-31)')
+                else:
+                    notes = f'sta={station_network}.{station_code}, THD={thd_result.thd_value:.4f}, rate={native_sample_rate:.0f}Hz (no baseline)'
 
             return MethodResult(
                 name='seismic_thd',

@@ -578,6 +578,15 @@
                  padding:0.6rem 1rem; border-radius:6px; margin-bottom:0.8rem; font-weight:600;"></div>
             <div id="r4-exclusions" style="display:none; background:#78350f; color:#fde68a;
                  padding:0.45rem 1rem; border-radius:6px; margin-bottom:0.8rem; font-size:0.85rem;"></div>
+            <div id="incident-banner" style="background:#7c2d12; color:#fed7aa; border:1px solid #ea580c;
+                 padding:0.6rem 1rem; border-radius:6px; margin-bottom:0.8rem; font-size:0.85rem;">
+                <strong>&#9888; OPEN INCIDENT (2026-07-31):</strong> two component-pipeline artifacts inflated
+                the 2026-07-29 WATCH count (6 of 8 rows: anchorage seismic-THD stale baseline; a shared
+                non-tectonic transient in fault_correlation across 5 regions). Affected components are
+                <strong>FROZEN</strong> (excluded from tier computation, shown per-region below) until a dated
+                fix note. Tiers displayed for the 2026-07-29 run predate the freeze.
+                <a href="INCIDENT_2026-07-31_component_artifacts.md" style="color:#fdba74">Full incident record &rarr;</a>
+            </div>
             <h1><span class="lambda">Λ</span>_geo Three-Method Ensemble Monitor</h1>
             <p class="subtitle">GPS + Fault Correlation + Seismic THD</p>
             <p class="last-update" id="last-update">Loading data...</p>
@@ -727,7 +736,9 @@
                 <a href="AMENDMENT_2026-07-29_scoring_window.md">R2 scoring window</a> \u00b7
                 <a href="AMENDMENT_2026-07-29_rolling_baseline.md">R3 rolling baseline</a> \u00b7
                 <a href="AMENDMENT_2026-07-29_prospective_arm.md">R4 prospective arm</a> \u00b7
-                <a href="AMENDMENT_2026-07-29_precip_residual.md">R5 precip residual</a>
+                <a href="AMENDMENT_2026-07-29_precip_residual.md">R5 precip residual</a> &#183;
+                <a href="AMENDMENT_2026-07-30_r6_clarification.md">R6 clarification</a> &#183;
+                <a href="INCIDENT_2026-07-31_component_artifacts.md">Incident 2026-07-31</a>
                 \u2014 all prospective-only; historical classifications never rewritten.</p>
             <p class="disclaimer">
                 <strong>⚠️ Research System</strong><br>
@@ -846,13 +857,26 @@
                     const methods = data.methods_available || 0;
                     const agreement = data.agreement || 'unknown';
 
-                    // Build method names from components
+                    // Build method names from components (frozen components flagged, incident 2026-07-31)
                     const components = data.components || {};
                     const methodNames = [];
-                    if (components.lambda_geo && components.lambda_geo.available) methodNames.push('LG');
-                    if (components.fault_correlation && components.fault_correlation.available) methodNames.push('FC');
-                    if (components.seismic_thd && components.seismic_thd.available) methodNames.push('THD');
+                    const frozenNames = [];
+                    const compMap = { lambda_geo: 'LG', fault_correlation: 'FC', seismic_thd: 'THD' };
+                    for (const [cname, abbr] of Object.entries(compMap)) {
+                        const c = components[cname];
+                        if (!c || !c.available) continue;
+                        if (c.frozen) { frozenNames.push(abbr); methodNames.push(abbr + '&#10052;'); }
+                        else methodNames.push(abbr);
+                    }
                     const methodsDisplay = methodNames.length > 0 ? methodNames.join(', ') : 'None';
+                    const frozenBadge = frozenNames.length > 0 ? `
+                            <div style="background:#7c2d12; color:#fed7aa; border:1px solid #ea580c;
+                                 padding:0.25rem 0.6rem; border-radius:5px; margin:0.4rem 0 0;
+                                 font-size:0.72rem; font-weight:600;">
+                                &#9888; ${frozenNames.join(' + ')} FROZEN &mdash; excluded from tier
+                                (<a href="INCIDENT_2026-07-31_component_artifacts.md"
+                                    style="color:#fdba74">incident 2026-07-31</a>)
+                            </div>` : '';
 
                     return `
                         <div class="region-card tier-${tier}">
@@ -861,6 +885,7 @@
                                 <span>●</span>
                                 <span>TIER ${tier}: ${getTierDesc(String(tier))}</span>
                             </div>
+                            ${frozenBadge}
                             <div class="metrics">
                                 <div class="metric">
                                     <div class="metric-label">Risk Score</div>

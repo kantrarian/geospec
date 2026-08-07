@@ -32,7 +32,23 @@ _RECEIPT_KEYS = frozenset({"schema", "day", "artifact_hashes", "commit_sha", "de
                            "availability_utc", "built_utc"})
 _40HEX = re.compile(r"[0-9a-f]{40}\Z")
 _64HEX = re.compile(r"[0-9a-f]{64}\Z")
+_PAGES_ID_RE = re.compile(r"\Ahttps://api\.github\.com/repos/kantrarian/geospec/pages/builds/(\d+)\Z")
 _MINT_TOKEN = object()                                                          # module-private admission token
+
+
+def _server_error_free(rec):
+    """The LIVE GitHub Pages success shape: a reopened record is error-free IFF `error` is absent, None, '',
+    or a dict whose `message` is None/empty. A nonempty message, a nonempty string, or any other carrier shape
+    (e.g. an int) is an error → reject."""
+    if "error" not in rec:
+        return True
+    err = rec["error"]
+    if err is None or err == "":
+        return True
+    if isinstance(err, dict):
+        msg = err.get("message")
+        return msg is None or msg == ""
+    return False
 
 
 def _api_url_for(build_id):
@@ -205,11 +221,15 @@ def admit_receipt(receipt, day, artifact_loader, server_record_loader):
         raise ValueError(f"server record not reopenable at {dep['api_url']}: {exc}")
     if not isinstance(rec, dict):
         raise ValueError("server record must be a dict")
-    if rec.get("id") != dep["id"]:
-        raise ValueError("server record id != deployment.id")
+    # LIVE Pages shape (codex 2257): the reopened record has NO `id` field — identity binds by
+    # record.url == the pinned deployment.api_url AND the numeric build id parsed from that URL == deployment.id.
+    rec_url = rec.get("url")
+    m = _PAGES_ID_RE.match(rec_url) if isinstance(rec_url, str) else None
+    if not (m and rec_url == dep["api_url"] and m.group(1) == dep["id"]):
+        raise ValueError("server record url/id != deployment.api_url/id (live Pages shape)")
     if rec.get("status") != "built":
         raise ValueError("server record status != 'built'")
-    if rec.get("error") not in (None, ""):
+    if not _server_error_free(rec):
         raise ValueError("server record carries an error")
     if rec.get("commit") != receipt["commit_sha"]:
         raise ValueError("server record commit != receipt.commit_sha")

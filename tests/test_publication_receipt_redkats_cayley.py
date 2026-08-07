@@ -42,15 +42,29 @@ INTERFACE (grassmann implements src/publication_receipt.py REV 3 to THIS, unedit
       allowlist, every value lowercase 64-hex, EVERY recorded artifact re-hashed from loader bytes
       (missing/extra/unloadable => raise); the reopened ensemble bytes parse with ["date"] ==
       receipt.day == requested day (the CARRIER binds the day — a mutable receipt field never does);
-      server record reopened at receipt.deployment.api_url and matched (id, status built, error empty,
-      commit == receipt.commit_sha, record.created_at <= record.updated_at == receipt.availability_utc
-      == receipt.deployment.updated_at); availability parseable.
+      server record reopened at receipt.deployment.api_url and matched by the LIVE Pages shape:
+      record.url == receipt.deployment.api_url AND the numeric build id parsed from that URL ==
+      receipt.deployment.id (NEVER a record.id field — the live record has none); error-free IFF
+      record.error is absent/None/"" or a dict whose message is None/empty (a nonempty message or
+      any other carrier shape rejects); status built; commit == receipt.commit_sha;
+      record.created_at <= record.updated_at == receipt.availability_utc
+      == receipt.deployment.updated_at; availability parseable.
 * day_eligible_for_hit(x) -> bool   — True IFF x is an ADMISSION-minted VerifiedReceipt. Every dict is
     False; a directly-constructed instance is impossible (construction raises) or rejected.
 * alarm_available_at_utc(day, verified: VerifiedReceipt | None) -> str
     - VerifiedReceipt => its availability_utc EXACTLY; None => f"{day}T23:59:59Z"; never anything else.
 
-RED AS AUTHORED (rev-3 interface absent from the landed rev-1 module).
+REV 3.1 (codex 2257 WORKS-WITH-ONE-LIVE-SHAPE-FIX): the frozen fixtures synthesized a server
+record with `id="..."` and `error=""`, but the LIVE Pages API returns **no id field** (the build
+id exists only in the URL) and `error={"message": null}` on success. Fixtures now carry the REAL
+shape. Admission contract amended (the ONLY reopened-record change): bind server identity by
+`record.url == receipt.deployment.api_url` AND the numeric build id parsed from that pinned URL
+== receipt.deployment.id — never require a `record.id` field; the record is error-free IFF its
+`error` is absent/None/"" OR a dict whose `message` is None/empty — a nonempty message or any
+other error-carrier shape rejects. NO TEST MAY ADD AN `id` FIELD to a reopened Pages fixture.
+
+RED AS AUTHORED against `aaea74d` at the live-shape KATs (the current admission requires
+`record.id` and treats the live error dict as an error); the rest of the suite stays green.
 """
 import copy
 import hashlib
@@ -100,12 +114,19 @@ _EXTRA_BYTES = b"{\"anything\": true}"
 _DEFAULT_RECORD = object()
 
 
+def _live_record():
+    """The REAL GitHub Pages build-record shape (codex live reproduction 2257): NO id field —
+    the build id exists only in the URL — and success carries error={"message": None}."""
+    return {"url": API_URL, "status": "built", "error": {"message": None}, "commit": COMMIT,
+            "created_at": DEP["created_at"], "updated_at": DEP["updated_at"]}
+
+
 def _loaders(ens=PAYLOAD_ENS, csvb=PAYLOAD_CSV, record=_DEFAULT_RECORD, extra_paths=None):
     """Deterministic injected evidence: git-object bytes + the reopened server record.
     `_loaders()` = the valid case; `_loaders(record=None)` = the absent-record negative."""
-    rec = ({"id": DEP["id"], "status": "built", "error": "", "commit": COMMIT,
-            "created_at": DEP["created_at"], "updated_at": DEP["updated_at"]}
-           if record is _DEFAULT_RECORD else record)
+    rec = _live_record() if record is _DEFAULT_RECORD else record
+    if isinstance(rec, dict):
+        assert "id" not in rec, "no test may add an `id` field to a reopened Pages fixture"
     blobs = {}
     if ens is not None:
         blobs[REL_ENS] = ens
@@ -211,7 +232,16 @@ def main():
 
         # -- ADMISSION (the standing-bearing step) --
         al, sl = _loaders()
-        vr = PR.admit_receipt(rc, DAY, al, sl)
+        try:
+            vr = PR.admit_receipt(rc, DAY, al, sl)
+        except Exception as exc:
+            check("P2R-9a LIVE-SHAPE GATE: the real Pages record admits (NO id field; "
+                  "error={'message': None}; identity = record.url + id parsed from it)",
+                  False, f"{type(exc).__name__}: {exc} -- AWAITING the narrow live-shape fix "
+                         "(red-first as authored)")
+            return
+        check("P2R-9a LIVE-SHAPE GATE: the real Pages record admits (NO id field; "
+              "error={'message': None}; identity = record.url + id parsed from it)", True)
         check("P2R-3a valid receipt + loaders admit to a VerifiedReceipt with the completion stamp",
               isinstance(vr, PR.VerifiedReceipt) and vr.availability_utc == DEP["updated_at"]
               and vr.day == DAY)
@@ -253,14 +283,40 @@ def main():
         # codex B2: server-record reopening — relabelled client dicts + mismatches fail
         check("P2R-4a codex-B2 relabel attack CLOSED: no server record at the named URL -> no admission",
               raises(lambda: PR.admit_receipt(rc, DAY, al, _loaders(record=None)[1])))
-        for field, val in (("status", "building"), ("error", "failed"), ("commit", "f" * 40),
-                           ("updated_at", "2026-08-07T99:99:99Z"), ("id", "999"),
+        for field, val in (("status", "building"), ("error", {"message": "failed"}),
+                           ("commit", "f" * 40), ("updated_at", "2026-08-07T99:99:99Z"),
+                           ("url", "https://api.github.com/repos/kantrarian/geospec/pages/builds/999"),
                            ("created_at", "2026-08-07T12:00:00Z")):   # record's created > updated
-            bad_rec = {"id": DEP["id"], "status": "built", "error": "", "commit": COMMIT,
-                       "created_at": DEP["created_at"], "updated_at": DEP["updated_at"]}
+            bad_rec = _live_record()
             bad_rec[field] = val
             check(f"P2R-4b server-record mismatch on {field} fails admission",
                   raises(lambda r=bad_rec: PR.admit_receipt(rc, DAY, al, _loaders(record=r)[1])))
+
+        # LIVE PAGES SHAPE (codex 2257 attached repair; probe parity)
+        no_url = _live_record()
+        del no_url["url"]
+        check("P2R-9b record MISSING url rejects (identity has nothing to bind)",
+              raises(lambda: PR.admit_receipt(rc, DAY, al, _loaders(record=no_url)[1])))
+        for desc, err_val, want_admit in (
+                ("error absent", "__ABSENT__", True),
+                ("error None", None, True),
+                ("error ''", "", True),
+                ("error {'message': ''}", {"message": ""}, True),
+                ("error {'message': 'boom'}", {"message": "boom"}, False),
+                ("error 'boom' (nonempty string)", "boom", False),
+                ("error 5 (malformed carrier)", 5, False)):
+            r9 = _live_record()
+            if err_val == "__ABSENT__":
+                del r9["error"]
+            else:
+                r9["error"] = err_val
+            if want_admit:
+                ok9 = isinstance(PR.admit_receipt(rc, DAY, al, _loaders(record=r9)[1]),
+                                 PR.VerifiedReceipt)
+            else:
+                ok9 = raises(lambda rr=r9: PR.admit_receipt(rc, DAY, al, _loaders(record=rr)[1]))
+            check(f"P2R-9c live error-shape rule: {desc} -> "
+                  f"{'admits' if want_admit else 'rejects'}", ok9)
 
         # day binding: transplant detection — BOTH forms
         check("P2R-5 day-transplant CLOSED: admitting a day-D receipt for day E fails",

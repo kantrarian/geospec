@@ -38,7 +38,9 @@ CONTRACT (grassmann implements src/build_daily_receipt.py REV 2 to THIS, unedite
 * main() stays fail-open for the DAILY PUBLISH (an exception => no receipt this run, exit 0) — fail-open
   applies to the pipeline, never to evidence: no admission, no write.
 
-RED AS AUTHORED (the landed producer has none of these seams; PB-0 gates).
+REV 2.1 (codex 2257): the server-record fixture now carries the REAL Pages shape (no id field;
+error={"message": None}); PB-0d gates the publication path on live-shape admission. Red-first at
+PB-0d against `aaea74d`; the build path (already live-shaped) stays green.
 """
 import hashlib
 import json
@@ -96,8 +98,11 @@ def _artifact_loader(ens=PAYLOAD_ENS, csvb=PAYLOAD_CSV):
 
 
 def _server_record_loader():
-    rec = {"id": BUILD_ID, "status": "built", "error": "", "commit": COMMIT,
+    # The REAL Pages record shape (codex 2257): NO id field (the id exists only in the URL);
+    # success carries error={"message": None}. No test may add an `id` field to this fixture.
+    rec = {"url": API_URL, "status": "built", "error": {"message": None}, "commit": COMMIT,
            "created_at": BUILD["created_at"], "updated_at": BUILD["updated_at"]}
+    assert "id" not in rec
 
     def loader(api_url):
         if api_url == API_URL:
@@ -176,6 +181,16 @@ def main():
 
     # -- publication path --
     pkw = dict(artifact_loader=al, server_record_loader=sl)
+
+    # PB-0d LIVE-SHAPE GATE (codex 2257): publish admits against the REAL Pages record shape.
+    import publication_receipt as PR
+    try:
+        PR.admit_receipt(rc, DAY, al, sl)
+    except Exception as exc:
+        check("PB-0d LIVE-SHAPE GATE: the produced receipt admits against the real Pages record",
+              False, f"{type(exc).__name__}: {exc} -- AWAITING the narrow live-shape fix (red-first)")
+        return
+    check("PB-0d LIVE-SHAPE GATE: the produced receipt admits against the real Pages record", True)
 
     with tempfile.TemporaryDirectory() as td:
         rdir = os.path.join(td, "receipts")

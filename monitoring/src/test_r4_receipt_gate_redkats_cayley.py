@@ -45,7 +45,9 @@ CONTRACT (grassmann implements in r4_prospective_scorer.py, UNEDITED bar)
     (its subjects are episode/exclusion logic, not standing) — the resolver appears in the test file,
     NEVER as a production default.
 
-RED AS AUTHORED (rev-3 module interface + scorer integration seams absent).
+REV 3.1 (codex 2257): reopened-record fixtures now carry the REAL Pages shape (no id field;
+error={"message": None}); RG-0d gates the suite on live-shape admission. Red-first at RG-0d
+against `aaea74d` (whose admission requires record.id); everything else re-greens on the fix.
 """
 import json
 import os
@@ -107,10 +109,16 @@ def _mk(tmp, day=DAY, mutate=None, raw=None):
     return rdir
 
 
-def _loaders(ens=PAYLOAD_ENS, csvb=PAYLOAD_CSV, record=_DEFAULT_RECORD):
-    rec = ({"id": DEP["id"], "status": "built", "error": "", "commit": COMMIT,
+def _live_record():
+    """The REAL Pages record shape (codex 2257): no id field; error={"message": None}."""
+    return {"url": API_URL, "status": "built", "error": {"message": None}, "commit": COMMIT,
             "created_at": DEP["created_at"], "updated_at": DEP["updated_at"]}
-           if record is _DEFAULT_RECORD else record)
+
+
+def _loaders(ens=PAYLOAD_ENS, csvb=PAYLOAD_CSV, record=_DEFAULT_RECORD):
+    rec = _live_record() if record is _DEFAULT_RECORD else record
+    if isinstance(rec, dict):
+        assert "id" not in rec, "no test may add an `id` field to a reopened Pages fixture"
     blobs = {REL_ENS: ens, REL_CSV: csvb}
 
     def al(commit_sha, relpath):
@@ -154,6 +162,25 @@ def main():
         return
 
     al, sl = _loaders()
+    # RG-0d LIVE-SHAPE GATE (codex 2257): admission must accept the real Pages record
+    # (no id field; error={"message": None}) or the whole verified-standing chain is inert.
+    with tempfile.TemporaryDirectory() as td0:
+        _mk(td0)
+        try:
+            paths0 = {}
+            for rel, data in ((REL_ENS, PAYLOAD_ENS), (REL_CSV, PAYLOAD_CSV)):
+                f0 = os.path.join(td0, "g_" + rel.replace("/", "__"))
+                with open(f0, "wb") as fh:
+                    fh.write(data)
+                paths0[rel] = f0
+            rc0 = PR.build_publication_receipt(DAY, paths0, COMMIT, dict(DEP))
+            PR.admit_receipt(rc0, DAY, al, sl)
+        except Exception as exc:
+            check("RG-0d LIVE-SHAPE GATE: the real Pages record admits", False,
+                  f"{type(exc).__name__}: {exc} -- AWAITING the narrow live-shape fix (red-first)")
+            return
+    check("RG-0d LIVE-SHAPE GATE: the real Pages record admits", True)
+
     with tempfile.TemporaryDirectory() as td:
         rdir = _mk(td)
         kw = dict(receipts_dir=rdir, artifact_loader=al, server_record_loader=sl)

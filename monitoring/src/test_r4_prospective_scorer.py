@@ -6,7 +6,7 @@ Run:  python monitoring/src/test_r4_prospective_scorer.py   -> N/N PASS expected
 from __future__ import annotations
 
 import sys
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
@@ -28,7 +28,35 @@ def days_range(start, n, tier_fn):
     return [((d0 + timedelta(days=i)).isoformat(), tier_fn(i)) for i in range(n)]
 
 
+def deterministic_standing(day):
+    """Explicit KAT-battery standing resolver (receipt-gate rev-3 contract; codex 2026-08-07T21:05Z
+    narrow fix): legacy ceiling availability + credit True, injected at EVERY legacy score() call
+    site below. This battery's subjects are episode/exclusion logic, not standing; the production
+    default standing_resolver=None stays FAIL-CLOSED (RG-11 is the proof that omission credits
+    nothing). Never give production this resolver as a default."""
+    return datetime.fromisoformat(day + "T23:59:59+00:00"), True
+
+
+import inspect  # noqa: E402
+if "standing_resolver" not in inspect.signature(score).parameters:
+    print("    [FAIL] K0-gate: score() standing_resolver seam absent -- AWAITING grassmann's rev-3 "
+          "implementation (red-first; bars frozen at 97bb154 + this battery)")
+    print("=== R4 scorer KATs: 0/1 PASS (gated) ===")
+    raise SystemExit(1)
+
+# codex 2105 freeze check: every legacy score() call in THIS file must inject the explicit
+# resolver. A real call has arguments after the opening paren; bare prose mentions are not calls.
+import re  # noqa: E402
+_SRC_TEXT = Path(__file__).read_text(encoding="utf-8")
+_RESOLVER_TAG = "standing_resolver=deterministic_standing"
+_call_re = re.compile(r"(?<![\w.])score\([^)]")
+_unresolved = [ln.strip() for ln in _SRC_TEXT.splitlines()
+               if _call_re.search(ln) and "def " not in ln and "import" not in ln
+               and _RESOLVER_TAG not in ln]
+
 print("=== R4 scorer KATs ===")
+kat("K0 every legacy score() call injects the explicit deterministic resolver (codex 2105 freeze)",
+    not _unresolved, f"unresolved={_unresolved}")
 
 # K1 -- G-K windows + cap
 L71, T71 = gk_distance_km(7.1), gk_time_days(7.1)
@@ -74,7 +102,7 @@ kat("K4 episode grouping: gap 4 and 6 split -> 3 episodes; tier-1 days never gro
 seriesK5 = days_range("2026-09-01", 40, lambda i: 2 if i in (0, 1, 20, 21) else 0)
 epsK5 = build_episodes(seriesK5, "r", [])
 ev1 = Event("E1", "2026-09-25", 0.0, 0.0, 6.0, "r")   # within 14d of episode-2 (ends 09-22)
-out = score(epsK5, [ev1], [], today="2026-12-31")
+out = score(epsK5, [ev1], [], today="2026-12-31", standing_resolver=deterministic_standing)
 hit_eps = [e for e in epsK5 if e.status == "hit"]
 fa_eps = [e for e in epsK5 if e.status == "false_alarm"]
 kat("K5a nearest-preceding episode credited once; earlier episode becomes FA after window closes",
@@ -82,7 +110,7 @@ kat("K5a nearest-preceding episode credited once; earlier episode becomes FA aft
     f"outcomes={[o['outcome'] for o in out['outcomes']]}")
 ev2 = Event("E2", "2026-09-26", 0.0, 0.0, 5.7, "r")   # second event, episode already credited
 epsK5b = build_episodes(seriesK5, "r", [])
-out2 = score(epsK5b, [ev1, ev2], [], today="2026-12-31")
+out2 = score(epsK5b, [ev1, ev2], [], today="2026-12-31", standing_resolver=deterministic_standing)
 oc = {o["event"]: o["outcome"] for o in out2["outcomes"]}
 # R4 v2: E1 (a mainshock) opens its own exclusion window; E2 one day later lands INSIDE it,
 # so E2 is excluded_unscored, not a miss -- either way it cannot re-credit E1's episode.
@@ -102,7 +130,7 @@ def tier6(i):
 series6 = {"kumamoto": days_range("2026-08-20", 45, lambda i: tier6(i))}
 eps6 = build_episodes(series6["kumamoto"], "kumamoto", excl6)
 big = Event("BIG", "2026-09-28", 32.82, 130.72, 6.5, "kumamoto")   # larger, inside M0's window
-out6 = score(eps6, [m0, big], excl6, today="2026-12-31")
+out6 = score(eps6, [m0, big], excl6, today="2026-12-31", standing_resolver=deterministic_standing)
 oc6 = {o["event"]: o["outcome"] for o in out6["outcomes"]}
 fresh_eps = [e for e in eps6 if e.fresh]
 kat("K6a freshness: only the post-reset episode is fresh",
@@ -112,7 +140,7 @@ kat("K6b supersession: larger in-window event scored as hit via the FRESH episod
     oc6["BIG"] == "hit_supersession", f"{oc6}")
 stale = Event("BIG2", "2026-09-04", 32.82, 130.72, 6.5, "kumamoto")  # larger but only stale alarm up
 eps6b = build_episodes(series6["kumamoto"], "kumamoto", excl6)
-out6b = score(eps6b, [m0, stale], excl6, today="2026-12-31")
+out6b = score(eps6b, [m0, stale], excl6, today="2026-12-31", standing_resolver=deterministic_standing)
 oc6b = {o["event"]: o["outcome"] for o in out6b["outcomes"]}
 kat("K6c supersession without a fresh episode -> unscored (standing alarm cannot claim it)",
     oc6b["BIG2"] == "supersession_no_fresh_episode_unscored", f"{oc6b}")
@@ -123,7 +151,7 @@ seriesK7 = {"A": days_range("2026-08-01", 20, lambda i: 2 if i < 5 else 0),   # 
 epsK7 = build_episodes(seriesK7["A"], "A", []) + build_episodes(seriesK7["B"], "B", [])
 evh = Event("H", "2026-08-10", 0.0, 0.0, 6.0, "A")    # within 14d of episode end 08-05 -> hit
 evm = Event("Miss", "2026-08-15", 0.0, 0.0, 6.0, "B") # region B never alarmed -> miss
-outK7 = score(epsK7, [evh, evm], [], today="2026-12-31")
+outK7 = score(epsK7, [evh, evm], [], today="2026-12-31", standing_resolver=deterministic_standing)
 molK7 = molchan(seriesK7, epsK7, outK7["outcomes"], [])
 p = molK7["pooled"]
 kat("K7 Molchan: tau=5/40, nu=1/2, hits=1, misses=1",
@@ -135,7 +163,7 @@ kat("K8 descriptive_only=True below 10 pooled mainshocks", molK7["descriptive_on
 
 # K9 -- pending episodes stay pending while their window is open
 epsK9 = build_episodes(days_range("2026-12-20", 5, lambda i: 2), "r", [])
-score(epsK9, [], [], today="2026-12-26")   # window (14d past 12-24) NOT yet elapsed
+score(epsK9, [], [], today="2026-12-26", standing_resolver=deterministic_standing)   # window (14d past 12-24) NOT yet elapsed
 kat("K9 open-window episode remains pending (not prematurely a false alarm)",
     epsK9[0].status == "pending")
 
@@ -146,7 +174,7 @@ kat("K10a pre-start M7.1 opens Kumamoto exclusion through 2027-07-28",
     excl10[0].end == "2027-07-28")
 series10 = {"kumamoto": days_range("2026-07-29", 10, lambda i: 2)}
 eps10 = build_episodes(series10["kumamoto"], "kumamoto", excl10)
-out10 = score(eps10, [], excl10, today="2026-12-31")   # PRE filtered out before score()
+out10 = score(eps10, [], excl10, today="2026-12-31", standing_resolver=deterministic_standing)   # PRE filtered out before score()
 mol10 = molchan(series10, eps10, out10["outcomes"], excl10)
 kat("K10b post-event alarm days all excluded from tau; no outcomes scored",
     mol10["per_region"]["kumamoto"]["scoreable_days"] == 0
@@ -170,7 +198,7 @@ def run_like(events, series_by_region, start, today):
     eps = []
     for region, days in series_by_region.items():
         eps.extend(build_episodes(days, region, windows, start_date=start))
-    sc = score(eps, [e for e in events if e.t >= start], windows, today)
+    sc = score(eps, [e for e in events if e.t >= start], windows, today, standing_resolver=deterministic_standing)  # noqa: E501
     oc = {}
     for o in sc["outcomes"]:
         oc.setdefault(o["event"], o["outcome"])
@@ -232,7 +260,7 @@ windowsN = build_causal_windows(evs)
 epsN = []
 for reg, days in seriesN.items():
     epsN.extend(build_episodes(days, reg, windowsN, start_date="2026-07-29"))
-scN = score(epsN, evs, windowsN, "2026-12-31")
+scN = score(epsN, evs, windowsN, "2026-12-31", standing_resolver=deterministic_standing)
 molN = molchan({r: [(d, ti) for d, ti in days] for r, days in seriesN.items()},
                epsN, scN["outcomes"], windowsN)
 kat("CE5/R4-R4 n>=10 without a registered stats plan STAYS descriptive_only (over-claim guard)",

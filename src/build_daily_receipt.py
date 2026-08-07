@@ -1,20 +1,23 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Build the daily SERVER-stamped publication receipt from the GitHub Pages build record (R6 §1 wiring, P2 item 1).
+"""Daily SERVER-stamped publication-receipt producer — REV 2 (R6 §1, P2 item 1).
 
-Invoked by run_and_publish.ps1 POST-PUSH. Consumes `publication_receipt.build_publication_receipt`.
+Implements the contract fixed by `tests/test_build_daily_receipt_redkats_cayley.py` (cayley, geospec 216780a),
+UNEDITED, under codex finding #4. Rev-1 defects repaired: id comes ONLY from the pinned Pages build URL (the
+`commit[:12]` fallback is DEAD); availability is the COMPLETION stamp (`updated_at`); the subject day must equal
+the reopened canonical artifact day; publication ADMITS the receipt (verify-then-admit) BEFORE any write, writes
+ATOMICALLY (temp + fsync + os.replace), and surfaces + repairs an invalid existing file instead of silently
+accepting it or blocking self-heal.
 
-Honest timing model: GitHub Pages builds the site a few minutes AFTER the daily push, so the currently-"built"
-pages build usually corresponds to a PRIOR daily commit. Each run therefore writes the receipt for whatever daily
-commit Pages has *actually built* (read from the build's commit subject), hashing that commit's published docs —
-so day D's receipt naturally lands on a later run once Pages has genuinely deployed day D. This is cayley's
-"committed on the next run is fine", done without ever backfilling a fake receipt.
+Evidence flows through the SAME loader seams `publication_receipt` admits (one path, no parallel logic):
+  artifact_loader(commit, relpath) -> bytes    (production: git cat-file blob <commit>:<relpath>)
+  server_record_loader(api_url)    -> dict      (production: gh api <url>)
+  commit_subject_loader(commit)    -> str       (production: git log -1 --format=%s <commit>)
 
-FAIL-OPEN + NEVER-BACKFILL: any error, a non-built pages build, a non-daily commit, or an already-present receipt
-=> no write. A receipt-less day degrades conservatively (23:59:59Z ceiling, hit-ineligible) and self-heals when a
-real built pages build for that commit exists. A receipt is written ONLY from a real, built, server-side pages
-build for a real daily-monitoring commit.
+FAIL-OPEN applies to the daily pipeline (an error => no receipt this run, exit 0), NEVER to evidence
+(no admission, no write). NEVER backfills.
 """
+import datetime
 import json
 import os
 import re
@@ -25,94 +28,171 @@ import tempfile
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.normpath(os.path.join(HERE, ".."))
 if HERE not in sys.path:
-    sys.path.insert(0, HERE)                       # repo-root src/ -> import the R6 §1 module directly
-import publication_receipt as PR                   # noqa: E402
+    sys.path.insert(0, HERE)
+import publication_receipt as PR   # noqa: E402  (verify-then-admit; the ONLY standing-bearing path)
 
-OWNER_REPO = "kantrarian/geospec"
 RECEIPTS_DIR = os.path.join(REPO, "monitoring", "receipts")
-# The published artifact set the daily push git-adds to docs/ (an artifact absent at a given commit is skipped).
-ARTIFACTS = ["docs/ensemble_latest.json", "docs/data.csv", "docs/validated_events.json",
-             "docs/r4_prospective_record.json", "docs/r5_daily.json"]
-_DAILY_RE = re.compile(r"^Daily monitoring (\d{4}-\d{2}-\d{2})")
+_PAGES_URL_RE = re.compile(r"\Ahttps://api\.github\.com/repos/kantrarian/geospec/pages/builds/(\d+)\Z")
+_DAILY_RE = re.compile(r"\ADaily monitoring (\d{4}-\d{2}-\d{2})")
+_40HEX = re.compile(r"[0-9a-f]{40}\Z")
 
 
-def _run(args, **kw):
-    return subprocess.run(args, capture_output=True, timeout=90, **kw)
+def _parse_utc(ts):
+    if not isinstance(ts, str) or not ts:
+        raise ValueError("timestamp")
+    return datetime.datetime.fromisoformat(ts[:-1] + "+00:00" if ts.endswith("Z") else ts)
 
 
-def gh_pages_latest():
-    """The latest GitHub Pages build record (server-side), or raise."""
-    out = _run(["gh", "api", f"repos/{OWNER_REPO}/pages/builds/latest"], text=True)
+def build_receipt_for_pages_build(build, *, commit_subject_loader, artifact_loader):
+    """Map a Pages build API object to `(day, receipt)`, or `(None, None)` to skip. NEVER raises (fail-open
+    pipeline). A receipt is produced ONLY from a built, error-free, daily-monitoring build whose pinned-URL id,
+    40-hex commit, ordered completion timestamps, and reopened mandatory carriers (with carrier-day == subject
+    day) all hold — no synthetic id, no fallback."""
+    try:
+        if not isinstance(build, dict) or build.get("status") != "built":
+            return None, None
+        if (build.get("error") or {}).get("message"):                 # errored build
+            return None, None
+        commit = build.get("commit")
+        if not (isinstance(commit, str) and _40HEX.match(commit)):     # lowercase 40-hex only
+            return None, None
+        created, updated = build.get("created_at"), build.get("updated_at")
+        if not (created and updated):                                  # both required; created_at alone is not it
+            return None, None
+        if _parse_utc(created) > _parse_utc(updated):                  # ordered completion chain
+            return None, None
+        m = _PAGES_URL_RE.match(str(build.get("url", "")))             # id ONLY from the pinned repo URL
+        if not m:
+            return None, None
+        build_id = m.group(1)
+        dm = _DAILY_RE.match(str(commit_subject_loader(commit)).strip())
+        if not dm:                                                     # non-daily commit -> no receipt
+            return None, None
+        day = dm.group(1)
+        td = tempfile.mkdtemp()
+        try:
+            paths = {}
+            for rel in PR.MANDATORY_ARTIFACTS:                         # reopen carriers AT the commit (raise -> None)
+                data = artifact_loader(commit, rel)
+                tmp = os.path.join(td, rel.replace("/", "__"))
+                with open(tmp, "wb") as fh:
+                    fh.write(data)
+                paths[rel] = tmp
+            deployment = {"id": build_id, "api_url": build["url"], "status": "built", "error": "",
+                          "created_at": created, "updated_at": updated, "source": "github-pages-build"}
+            # build_publication_receipt enforces carrier-day == subject day (codex #4) + completion-stamp availability
+            receipt = PR.build_publication_receipt(day, paths, commit, deployment)
+            return day, receipt
+        finally:
+            _rmtree(td)
+    except Exception:
+        return None, None
+
+
+def _rmtree(path):
+    try:
+        import shutil
+        shutil.rmtree(path, ignore_errors=True)
+    except Exception:
+        pass
+
+
+def _atomic_write(dst, data):
+    """Write `data` bytes to `dst` atomically: temp in the SAME dir + flush + fsync + os.replace. If os.replace
+    is blocked, `dst` is never created and the temp is cleaned (no partial destination bytes)."""
+    d = os.path.dirname(dst) or "."
+    os.makedirs(d, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=d, prefix=".receipt-", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "wb") as fh:
+            fh.write(data)
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.replace(tmp, dst)
+    except Exception:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
+
+
+def publish_receipt(day, receipt, receipts_dir, *, artifact_loader, server_record_loader):
+    """ADMIT the receipt (verify-then-admit) BEFORE any write, then publish atomically. Returns 'written' (fresh),
+    'valid_existing_noop' (existing admits — byte-preserving), or 'repaired' (existing FAILS admission — surfaced
+    and healed from the freshly admitted receipt). Raises on a receipt that fails admission (fail closed — never
+    written)."""
+    day = day[:10]
+    PR.admit_receipt(receipt, day, artifact_loader, server_record_loader)      # fail-closed BEFORE any write
+    os.makedirs(receipts_dir, exist_ok=True)
+    dst = os.path.join(receipts_dir, f"{day}.json")
+    new_bytes = (json.dumps(receipt, sort_keys=True, indent=2) + "\n").encode("utf-8")
+    if os.path.exists(dst):
+        try:
+            with open(dst, encoding="utf-8") as fh:
+                existing = json.load(fh)
+            PR.admit_receipt(existing, day, artifact_loader, server_record_loader)
+            return "valid_existing_noop"                                       # existing admits -> leave it
+        except Exception:
+            _atomic_write(dst, new_bytes)                                      # invalid existing -> repair
+            return "repaired"
+    _atomic_write(dst, new_bytes)
+    return "written"
+
+
+# --------------------------------------------------------------------------------------------------------------
+# Production loaders + fail-open daily entrypoint.
+# --------------------------------------------------------------------------------------------------------------
+def _git_commit_subject_loader(commit_sha):
+    out = subprocess.run(["git", "-C", REPO, "log", "-1", "--format=%s", commit_sha],
+                         capture_output=True, text=True, timeout=60)
     if out.returncode != 0:
-        raise RuntimeError(f"gh api pages/builds/latest failed: {out.stderr.strip()[:200]}")
+        raise ValueError(f"git log {commit_sha[:8]} failed")
+    return out.stdout.strip()
+
+
+def _git_artifact_loader(commit_sha, relpath):
+    out = subprocess.run(["git", "-C", REPO, "cat-file", "blob", f"{commit_sha}:{relpath}"],
+                         capture_output=True, timeout=60)
+    if out.returncode != 0:
+        raise ValueError(f"git blob {commit_sha[:8]}:{relpath} unavailable")
+    return out.stdout
+
+
+def _gh_server_record_loader(api_url):
+    path = api_url.replace("https://api.github.com/", "")
+    out = subprocess.run(["gh", "api", path], capture_output=True, text=True, timeout=60)
+    if out.returncode != 0:
+        raise ValueError(f"gh api {path} failed")
     return json.loads(out.stdout)
 
 
-def _blob_at(commit, relpath):
-    """Raw bytes of `relpath` as committed at `commit`, or None if absent there."""
-    out = _run(["git", "-C", REPO, "cat-file", "blob", f"{commit}:{relpath}"])
-    return out.stdout if out.returncode == 0 else None
-
-
-def build_receipt_for_pages_build(build):
-    """Map a Pages build API object to (day, receipt), or (None, None) to skip (fail-open).
-
-    Writes nothing. A receipt is producible only when the build is BUILT + error-free, its commit is a
-    daily-monitoring commit, and at least one published artifact exists at that commit; the receipt hashes the
-    docs AS COMMITTED AT that commit (not the current tree, which has since advanced)."""
-    if build.get("status") != "built" or (build.get("error") or {}).get("message"):
-        return None, None
-    commit, created_at = build.get("commit"), build.get("created_at")
-    if not (isinstance(commit, str) and commit and isinstance(created_at, str) and created_at):
-        return None, None
-    subj = _run(["git", "-C", REPO, "log", "-1", "--format=%s", commit], text=True)
-    if subj.returncode != 0:
-        return None, None
-    m = _DAILY_RE.match(subj.stdout.strip())
-    if not m:
-        return None, None                          # not a daily publish commit -> nothing to receipt
-    day = m.group(1)
-    build_id = str(build.get("url", "")).rstrip("/").split("/")[-1] or commit[:12]
-    deployment = {"id": build_id, "created_at": created_at, "source": "github-pages-build"}
-    with tempfile.TemporaryDirectory() as td:
-        paths, artifact_bytes = {}, {}
-        for rel in ARTIFACTS:
-            data = _blob_at(commit, rel)
-            if data is None:
-                continue
-            tmp = os.path.join(td, rel.replace("/", "__"))
-            with open(tmp, "wb") as fh:
-                fh.write(data)
-            paths[rel], artifact_bytes[rel] = tmp, data
-        if not paths:
-            return None, None
-        receipt = PR.build_publication_receipt(paths, commit, deployment)
-        # self-check: the receipt must round-trip + be a valid server receipt before we ever write it
-        PR.verify_publication_receipt(receipt, artifact_bytes)
-        if not PR.day_eligible_for_hit({"publication_receipt": receipt}):
-            return None, None
-    return day, receipt
+def _gh_pages_latest():
+    out = subprocess.run(["gh", "api", "repos/kantrarian/geospec/pages/builds/latest"],
+                         capture_output=True, text=True, timeout=90)
+    if out.returncode != 0:
+        raise ValueError(f"gh api pages/builds/latest failed: {out.stderr.strip()[:200]}")
+    return json.loads(out.stdout)
 
 
 def main():
     try:
-        day, receipt = build_receipt_for_pages_build(gh_pages_latest())
-    except Exception as exc:                        # fail-open: never break the daily publish
+        build = _gh_pages_latest()
+        day, receipt = build_receipt_for_pages_build(
+            build, commit_subject_loader=_git_commit_subject_loader, artifact_loader=_git_artifact_loader)
+    except Exception as exc:
         print(f"[receipt] fail-open ({type(exc).__name__}: {exc}) — no receipt this run", flush=True)
         return 0
     if not (day and receipt):
         print("[receipt] no built daily pages-build to receipt this run (conservative; self-heals)", flush=True)
         return 0
-    os.makedirs(RECEIPTS_DIR, exist_ok=True)
-    dst = os.path.join(RECEIPTS_DIR, f"{day}.json")
-    if os.path.exists(dst):
-        print(f"[receipt] {day} already receipted; leaving it (never overwrite/backfill)", flush=True)
-        return 0
-    with open(dst, "w", encoding="utf-8") as fh:
-        json.dump(receipt, fh, indent=2, sort_keys=True)
-        fh.write("\n")
-    print(f"[receipt] wrote monitoring/receipts/{day}.json — server stamp "
-          f"{receipt['deployment']['created_at']} (pages build {receipt['deployment']['id']})", flush=True)
+    try:
+        status = publish_receipt(day, receipt, RECEIPTS_DIR,
+                                 artifact_loader=_git_artifact_loader,
+                                 server_record_loader=_gh_server_record_loader)
+        print(f"[receipt] {day}.json -> {status} (server completion stamp {receipt['availability_utc']})", flush=True)
+    except Exception as exc:
+        print(f"[receipt] admission/publish refused ({type(exc).__name__}: {exc}) — no write", flush=True)
     return 0
 
 

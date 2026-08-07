@@ -29,9 +29,18 @@ import csv
 import json
 import math
 import urllib.request
+import os
+import subprocess
+import sys
 from dataclasses import dataclass, asdict
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
+
+# R6 §1 receipt admission module lives at the REPO-ROOT src/ (a different package than this monitoring/src/).
+_REPO_ROOT = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
+if os.path.join(_REPO_ROOT, "src") not in sys.path:
+    sys.path.insert(0, os.path.join(_REPO_ROOT, "src"))
+import publication_receipt as PR   # noqa: E402  (verify-then-admit; the ONLY standing-bearing path)
 
 # ============================================================================
 # R4 REGISTERED PARAMETERS (docs/AMENDMENT_2026-07-29_prospective_arm.md)
@@ -111,16 +120,94 @@ def _utc(s: str) -> datetime:
     return datetime.fromisoformat(s)
 
 
-def _alarm_available_at(day: str) -> datetime:
-    """R4-3/R6: an alarm for local date D is available at 23:59:59Z of D (conservative;
-    the real publish-commit time is later, so this can only make hits HARDER to earn)."""
+_DEFAULT_RECEIPTS_DIR = os.path.join(_REPO_ROOT, "monitoring", "receipts")
+
+
+def _git_artifact_loader(commit_sha, relpath):
+    """PRODUCTION artifact evidence: the exact committed bytes at <commit>:<relpath> (never the moved worktree)."""
+    out = subprocess.run(["git", "-C", _REPO_ROOT, "cat-file", "blob", f"{commit_sha}:{relpath}"],
+                         capture_output=True, timeout=60)
+    if out.returncode != 0:
+        raise ValueError(f"git blob {commit_sha[:8]}:{relpath} unavailable")
+    return out.stdout
+
+
+def _gh_server_record_loader(api_url):
+    """PRODUCTION server-record evidence: reopen the named GitHub Pages build via `gh api`."""
+    path = api_url.replace("https://api.github.com/", "")
+    out = subprocess.run(["gh", "api", path], capture_output=True, text=True, timeout=60)
+    if out.returncode != 0:
+        raise ValueError(f"gh api {path} failed")
+    return json.loads(out.stdout)
+
+
+def _admit_day_receipt(day, receipts_dir, artifact_loader, server_record_loader):
+    """Try to admit <receipts_dir>/<day>.json to a VerifiedReceipt; return it or None. NEVER raises (a live
+    monitor degrades, never dies). Fail-closed on absent file, unparseable JSON, unavailable loaders, or any
+    admission rejection."""
+    if artifact_loader is None or server_record_loader is None:
+        return None
+    rdir = _DEFAULT_RECEIPTS_DIR if receipts_dir is None else receipts_dir
+    try:
+        with open(os.path.join(rdir, f"{day[:10]}.json"), encoding="utf-8") as fh:
+            rc = json.load(fh)
+        vr = PR.admit_receipt(rc, day[:10], artifact_loader, server_record_loader)
+        return vr if PR.day_eligible_for_hit(vr) else None
+    except Exception:
+        return None
+
+
+def _alarm_available_at(day: str, receipts_dir=None, artifact_loader=None,
+                        server_record_loader=None) -> datetime:
+    """R4-3/R6 §1: alarm availability for local date D. A VERIFIED server receipt => its completion-stamp
+    availability EXACTLY (before OR after the ceiling — honesty, not flattery). Absent / invalid / unverifiable /
+    loaders-unavailable => the conservative `D 23:59:59Z` ceiling, NEVER earlier. Never raises."""
+    vr = _admit_day_receipt(day, receipts_dir, artifact_loader, server_record_loader)
+    if vr is not None:
+        try:
+            return _utc(vr.availability_utc)
+        except Exception:
+            pass
     return _utc(day[:10] + "T23:59:59+00:00")
+
+
+def hit_credit_allowed(day: str, receipts_dir=None, artifact_loader=None,
+                       server_record_loader=None) -> bool:
+    """R6 §1: hit credit for date D requires a schema-valid, server-verified, day-bound receipt (an
+    admission-minted VerifiedReceipt). False on any failure. False-alarm accounting is NOT gated by this."""
+    return _admit_day_receipt(day, receipts_dir, artifact_loader, server_record_loader) is not None
+
+
+def receipt_standing_resolver(receipts_dir=None, artifact_loader=None, server_record_loader=None):
+    """Return `resolver(day) -> (availability: aware datetime, credit_allowed: bool)` — both routed through the
+    single admission path. This is the ONE seam score()/run() consume."""
+    def resolver(day):
+        return (_alarm_available_at(day, receipts_dir, artifact_loader, server_record_loader),
+                hit_credit_allowed(day, receipts_dir, artifact_loader, server_record_loader))
+    return resolver
+
+
+def _fail_closed_resolver(day):
+    """The DEFAULT standing resolver: every day => (ceiling, no credit). Never an implicit allow (codex #2)."""
+    return _utc(day[:10] + "T23:59:59+00:00"), False
 
 
 def hit_eligible(alarm_day: str, event_origin_utc: str,
                  window_days: int = R4_CONFIG["hit_window_days"]) -> bool:
-    """R4-3/R6 eligibility: 0 < (event_origin - alarm_available_at) <= window."""
+    """R4-3/R6 ceiling-based timing eligibility — retained for API/back-compat. Standing-bearing hit crediting
+    now flows through score()'s injected resolver via _hit_on_date()."""
     delta = _utc(event_origin_utc) - _alarm_available_at(alarm_day)
+    return timedelta(0) < delta <= timedelta(days=window_days)
+
+
+def _hit_on_date(alarm_day: str, event_origin_utc: str, window_days: int, resolver) -> bool:
+    """A single alarm date d credits a hit ONLY if, ON THE SAME d, the resolver grants credit AND the event is
+    timing-eligible measured from that d's resolver availability (0 < origin - availability <= window). No
+    cross-date composition of timing and credit (codex #2)."""
+    availability, credit_allowed = resolver(alarm_day)
+    if credit_allowed is not True:
+        return False
+    delta = _utc(event_origin_utc) - availability
     return timedelta(0) < delta <= timedelta(days=window_days)
 
 
@@ -278,7 +365,7 @@ def build_episodes(days: list[tuple[str, int]], region: str,
 
 def score(episodes: list[Episode], mainshocks: list[Event],
           exclusions: list[Exclusion] = None, today: str = None,
-          window: int = R4_CONFIG["hit_window_days"]) -> dict:
+          window: int = R4_CONFIG["hit_window_days"], standing_resolver=None) -> dict:
     """R4 v2 chronological guard-state scorer. Events are processed in UTC-origin order;
     each event's exclusion window is opened AFTER it is scored, so the exclusion state an
     event sees is exactly what earlier events created (causal lineage, R4-1) -- never a
@@ -291,6 +378,9 @@ def score(episodes: list[Episode], mainshocks: list[Event],
     # R4 v3: the causal ledger is PRECOMPUTED (build_causal_windows over all events) and
     # passed in. If omitted, build it from the given events (back-compat for stage KATs).
     ledger = exclusions if exclusions is not None else build_causal_windows(mainshocks)
+    # R6 §1: standing_resolver=None is FAIL-CLOSED (ceiling + no credit for every day). Passing a resolver
+    # (production: receipt_standing_resolver with git/gh loaders) is the ONLY way any day earns hit credit.
+    resolver = standing_resolver if standing_resolver is not None else _fail_closed_resolver
 
     def eligible_episode(region, origin_utc, require_fresh=False, allow_excluded=False):
         # allow_excluded=True ONLY on the supersession path: a superseding event's fresh
@@ -304,7 +394,7 @@ def score(episodes: list[Episode], mainshocks: list[Event],
                 continue
             if require_fresh and not e.fresh:
                 continue
-            if any(hit_eligible(d, origin_utc, window) for d in e.alarm_dates):
+            if any(_hit_on_date(d, origin_utc, window, resolver) for d in e.alarm_dates):
                 if best is None or e.onset > episodes[best].onset:
                     best = i
         return best
@@ -441,7 +531,7 @@ def fetch_usgs_events(start: str, end: str, region_defs: dict) -> list[Event]:
     return list(by_id.values())
 
 
-def run(end_date: str | None = None) -> dict:
+def run(end_date: str | None = None, standing_resolver=None) -> dict:
     from src.validate_predictions import REGION_DEFINITIONS   # single source of truth
     today = end_date or date.today().isoformat()
     start = R4_CONFIG["start_date"]
@@ -468,7 +558,12 @@ def run(end_date: str | None = None) -> dict:
     episodes: list[Episode] = []
     for region, days in series.items():
         episodes.extend(build_episodes(days, region, exclusions, start_date=start))
-    sc = score(episodes, scoreable_events, exclusions, today)
+    # Production standing: receipt-gated via git/gh loaders, per-day fail-closed. Receipt-less historical days
+    # take the ceiling path (no backfill, no synthesis). A test/caller may inject a resolver instead.
+    if standing_resolver is None:
+        standing_resolver = receipt_standing_resolver(
+            artifact_loader=_git_artifact_loader, server_record_loader=_gh_server_record_loader)
+    sc = score(episodes, scoreable_events, exclusions, today, standing_resolver=standing_resolver)
     accum = {r: [(d0, ti) for d0, ti in days if d0 >= start] for r, days in series.items()}
     mol = molchan(accum, episodes, sc["outcomes"], exclusions)
     record = {

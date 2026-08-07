@@ -1,159 +1,234 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""R6 §1 publication receipt — the SERVER-stamped hit-clock (GeoSpec Forward Plan P2 item 1).
+"""R6 §1 publication receipt — REV 3: verify-then-admit, carrier-bound day, sealed standing.
 
-Implements the contract fixed by `tests/test_publication_receipt_redkats_cayley.py` (cayley, geospec 6280b1c),
-UNEDITED (the Iberia decouple applied to GeoSpec: cayley authors the red bar, grassmann implements to it).
+Implements the contract fixed by `tests/test_publication_receipt_redkats_cayley.py` (cayley, geospec 216780a),
+UNEDITED, under codex's rev-2/rev-3 WORKS-WITH-FIX findings (the decouple).
 
-Why a server stamp: the hit-clock (when an alarm actually became publicly available) must be bound to a durable,
-SERVER-side deployment record — a GitHub Pages build / Actions run whose `created_at` the client cannot forge. A
-git commit timestamp is client-controlled and therefore insufficient; a client-stamped receipt is *worse than
-none* because it looks durable. A day without a schema-valid server receipt is INELIGIBLE for hit credit, and an
-availability earlier than the server stamp is NEVER synthesized — absence degrades conservatively to the
-23:59:59Z ceiling of the day, hit-ineligible, never to any earlier time.
-
-Interface (consumed by run_and_publish + the R4 prospective scorer):
-    build_publication_receipt(artifact_paths, commit_sha, deployment) -> receipt dict
-    verify_publication_receipt(receipt, artifact_bytes)               -> True | raise ValueError
-    alarm_available_at_utc(day_iso, receipt|None)                     -> ISO-8601 UTC str
-    day_eligible_for_hit(day_record)                                  -> bool
+Standing requires VERIFICATION, not structure (codex B1). `day_eligible_for_hit` is True ONLY for a typed
+`VerifiedReceipt`, which is SEALED behind admission: `admit_receipt` is the only minting path. Admission (a)
+re-hashes every recorded artifact from INDEPENDENTLY loaded bytes (git-object seam), (b) binds the day by the
+REOPENED canonical carrier's `["date"]` (not the mutable receipt field), and (c) reopens the named GitHub Pages
+server record and matches id/status=built/no-error/commit/completion-stamp (codex B2). Availability is the
+COMPLETION stamp `updated_at` (codex HIGH clock, per docs/CORRECTION_2026-08-07_receipt_availability_completion_stamp.md).
+Everything fails closed; no synthetic deployments, no fallbacks, no backfill.
 """
 import datetime
 import hashlib
+import json
+import re
 
-SCHEMA = "geospec-publication-receipt-v1"
+SCHEMA = "geospec-publication-receipt-v2"
+MANDATORY_ARTIFACTS = ("docs/ensemble_latest.json", "docs/data.csv")           # alarm carrier + scoring carrier
+ARTIFACT_ALLOWLIST = MANDATORY_ARTIFACTS + ("docs/validated_events.json",
+                                            "docs/r4_prospective_record.json", "docs/r5_daily.json")
+_CARRIER = "docs/ensemble_latest.json"                                          # binds the day via its ["date"]
 
-# The R6 §1 gate: ONLY a source that names a recognized SERVER deployment API grants the hit-clock. This is an
-# allowlist, not a denylist — an unknown/arbitrary source is not *proven* server-side, so it is refused
-# conservatively (a denylist would admit `source="anything"` as durable, exactly the "looks durable but isn't"
-# failure R6 §1 exists to prevent). The named client-side sources (git-commit-timestamp, local-clock, "",
-# missing) are simply the canonical non-server cases. Extend this set deliberately when a new *server* deployment
-# API is genuinely wired.
+# Only a recognized SERVER deployment API label is a build-time sanity gate; the AUTHORITATIVE check is the
+# server-record reopen in admit_receipt (a label alone is not an attestation — codex B2).
 _SERVER_SOURCES = frozenset({"github-pages-build", "github-actions-run"})
+_DEPLOYMENT_KEYS = frozenset({"id", "api_url", "status", "error", "created_at", "updated_at", "source"})
+_RECEIPT_KEYS = frozenset({"schema", "day", "artifact_hashes", "commit_sha", "deployment",
+                           "availability_utc", "built_utc"})
+_40HEX = re.compile(r"[0-9a-f]{40}\Z")
+_64HEX = re.compile(r"[0-9a-f]{64}\Z")
+_MINT_TOKEN = object()                                                          # module-private admission token
+
+
+def _api_url_for(build_id):
+    return f"https://api.github.com/repos/kantrarian/geospec/pages/builds/{build_id}"
+
+
+def _parse_day(s):
+    if not isinstance(s, str):
+        raise ValueError(f"day must be a YYYY-MM-DD string, got {s!r}")
+    return datetime.datetime.strptime(s, "%Y-%m-%d").date()                     # strict; "08/05/2026" raises
 
 
 def _parse_utc(ts):
-    """Parse an ISO-8601 UTC timestamp; raise ValueError on empty/non-string/unparseable/non-UTC. UTC means a
-    trailing `Z` or an explicit `+00:00` offset — a naive or non-zero-offset stamp is refused."""
     if not isinstance(ts, str) or not ts:
-        raise ValueError(f"server created_at must be a non-empty ISO-8601 UTC string, got {ts!r}")
+        raise ValueError(f"timestamp must be a non-empty ISO-8601 UTC string, got {ts!r}")
     norm = ts[:-1] + "+00:00" if ts.endswith("Z") else ts
-    try:
-        dt = datetime.datetime.fromisoformat(norm)
-    except ValueError as exc:
-        raise ValueError(f"server created_at {ts!r} is not parseable ISO-8601: {exc}") from exc
+    dt = datetime.datetime.fromisoformat(norm)                                  # raises ValueError on garbage
     if dt.tzinfo is None or dt.utcoffset() != datetime.timedelta(0):
-        raise ValueError(f"server created_at {ts!r} must be UTC (trailing Z or +00:00)")
+        raise ValueError(f"timestamp {ts!r} must be UTC (Z / +00:00)")
     return dt
 
 
-def _validate_deployment(deployment):
-    """Enforce that `deployment` is a SERVER-side record and return its canonical {id, created_at, source}.
-    Raises ValueError if it is not a dict, lacks a non-empty id, carries a client-side/unknown/missing source,
-    or has an empty/missing/unparseable/non-UTC created_at."""
-    if not isinstance(deployment, dict):
-        raise ValueError("deployment must be a server-side record dict")
-    dep_id = deployment.get("id")
-    if not (isinstance(dep_id, str) and dep_id):
-        raise ValueError("deployment.id must be a non-empty server deployment id")
-    source = deployment.get("source")
-    if source not in _SERVER_SOURCES:
-        raise ValueError(
-            f"deployment.source {source!r} does not name a recognized server API "
-            f"{sorted(_SERVER_SOURCES)} — a client-stamped receipt "
-            "(git-commit-timestamp / local-clock / '' / missing) is refused: it looks durable but is not")
-    _parse_utc(deployment.get("created_at"))            # raises on empty / missing / unparseable / non-UTC
-    return {"id": dep_id, "created_at": deployment["created_at"], "source": source}
+def _require_commit(sha):
+    if not (isinstance(sha, str) and _40HEX.match(sha)):
+        raise ValueError(f"commit_sha must be lowercase 40-hex, got {sha!r}")
 
 
-def build_publication_receipt(artifact_paths, commit_sha, deployment):
-    """Build a durable publication receipt binding {artifact sha256 hashes, commit SHA, server deployment record}.
+def _validate_deployment(dep):
+    """Exact server-deployment record: EXACT keyset, built + error-free, created<=updated, allowlisted source,
+    api_url pinned to this repo AND consistent with id. Raises ValueError on any defect. Returns the record."""
+    if not isinstance(dep, dict) or frozenset(dep) != _DEPLOYMENT_KEYS:
+        raise ValueError("deployment must carry EXACTLY {id,api_url,status,error,created_at,updated_at,source}")
+    if dep["status"] != "built":
+        raise ValueError(f"deployment.status {dep['status']!r} != 'built'")
+    if dep["error"] not in (None, ""):
+        raise ValueError(f"deployment.error must be empty, got {dep['error']!r}")
+    if dep["source"] not in _SERVER_SOURCES:
+        raise ValueError(f"deployment.source {dep['source']!r} not a recognized server API {sorted(_SERVER_SOURCES)}")
+    if not (isinstance(dep["id"], str) and dep["id"]):
+        raise ValueError("deployment.id must be a non-empty string")
+    if dep["api_url"] != _api_url_for(dep["id"]):
+        raise ValueError("deployment.api_url must be the pinned kantrarian/geospec builds/<id> URL")
+    if _parse_utc(dep["created_at"]) > _parse_utc(dep["updated_at"]):
+        raise ValueError("deployment.created_at must be <= updated_at")
+    return dep
 
-    artifact_paths: {repo_relpath: abs_path} — every file is read and sha256-hashed into receipt.artifact_hashes.
-    deployment: a SERVER-side record; a client-side / unknown / incomplete deployment raises ValueError (refuse to
-    build — better no receipt than a forgeable one). `built_utc` is the (informational) build wall-clock; the
-    AUTHORITATIVE hit-clock is deployment.created_at.
-    """
-    dep = _validate_deployment(deployment)              # fail-closed BEFORE hashing anything
-    if not (isinstance(commit_sha, str) and commit_sha):
-        raise ValueError("commit_sha must be a non-empty string")
-    if not (isinstance(artifact_paths, dict) and artifact_paths):
+
+def build_publication_receipt(day, artifact_paths, commit_sha, deployment):
+    """Build a schema-v2 receipt binding {day, artifact sha256s, commit, server deployment}. The day is bound at
+    build by the canonical carrier's ["date"]; availability = the deployment COMPLETION stamp (updated_at). Fails
+    closed on a bad day/commit, a non-server/incomplete deployment, or an artifact set that violates the
+    mandatory/allowlist policy or whose carrier date != day."""
+    _parse_day(day)
+    _require_commit(commit_sha)
+    _validate_deployment(deployment)
+    if not isinstance(artifact_paths, dict) or not artifact_paths:
         raise ValueError("artifact_paths must be a non-empty {repo_relpath: abs_path} mapping")
+    for rel in artifact_paths:
+        if rel not in ARTIFACT_ALLOWLIST:
+            raise ValueError(f"artifact {rel!r} is not in the allowlist {ARTIFACT_ALLOWLIST}")
+    for m in MANDATORY_ARTIFACTS:
+        if m not in artifact_paths:
+            raise ValueError(f"mandatory carrier {m!r} missing from artifact_paths")
     artifact_hashes = {}
-    for relpath, abs_path in artifact_paths.items():
-        with open(abs_path, "rb") as fh:
-            artifact_hashes[relpath] = hashlib.sha256(fh.read()).hexdigest()
+    for rel, path in artifact_paths.items():
+        with open(path, "rb") as fh:
+            artifact_hashes[rel] = hashlib.sha256(fh.read()).hexdigest()
+    with open(artifact_paths[_CARRIER], "rb") as fh:
+        carrier = json.loads(fh.read().decode("utf-8"))
+    if carrier.get("date") != day:
+        raise ValueError(f"carrier {_CARRIER} date {carrier.get('date')!r} != day {day!r}")
     return {
         "schema": SCHEMA,
+        "day": day,
         "artifact_hashes": artifact_hashes,
         "commit_sha": commit_sha,
-        "deployment": dep,
+        "deployment": {k: deployment[k] for k in _DEPLOYMENT_KEYS},
+        "availability_utc": deployment["updated_at"],
         "built_utc": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
     }
 
 
-def _validate_receipt_structure(receipt):
-    """Structural + server-side validity of a receipt (NO byte re-hash — that is verify's job). Raises ValueError
-    on any defect. Returns the receipt on success."""
+def verify_publication_receipt(receipt, artifact_bytes):
+    """Byte binding (rev-1 role): recompute every recorded hash from the supplied bytes; exact keyset. True or
+    ValueError."""
     if not isinstance(receipt, dict):
         raise ValueError("receipt must be a dict")
-    if receipt.get("schema") != SCHEMA:
-        raise ValueError(f"receipt schema {receipt.get('schema')!r} != {SCHEMA!r}")
     ah = receipt.get("artifact_hashes")
-    if not (isinstance(ah, dict) and ah
-            and all(isinstance(k, str) and isinstance(v, str) and v for k, v in ah.items())):
-        raise ValueError("receipt.artifact_hashes must be a non-empty {relpath: sha256hex} mapping")
-    if not (isinstance(receipt.get("commit_sha"), str) and receipt.get("commit_sha")):
-        raise ValueError("receipt.commit_sha must be a non-empty string")
-    if not (isinstance(receipt.get("built_utc"), str) and receipt.get("built_utc")):
-        raise ValueError("receipt.built_utc must be a non-empty string")
-    _validate_deployment(receipt.get("deployment"))     # server source + parseable UTC created_at
-    return receipt
-
-
-def _is_valid_server_receipt(receipt):
-    """Boolean form of _validate_receipt_structure — True iff `receipt` is a schema-valid server-side receipt."""
-    try:
-        _validate_receipt_structure(receipt)
-        return True
-    except ValueError:
-        return False
-
-
-def verify_publication_receipt(receipt, artifact_bytes):
-    """Re-verify a receipt against the actual artifact bytes. Returns True, or raises ValueError on any
-    structural defect, artifact-set mismatch (missing/extra), or hash mismatch."""
-    _validate_receipt_structure(receipt)
-    if not isinstance(artifact_bytes, dict):
-        raise ValueError("artifact_bytes must be a {repo_relpath: bytes} mapping")
-    recorded = receipt["artifact_hashes"]
-    if set(recorded) != set(artifact_bytes):
-        missing = sorted(set(recorded) - set(artifact_bytes))
-        extra = sorted(set(artifact_bytes) - set(recorded))
-        raise ValueError(f"artifact set mismatch: missing bytes for {missing}, unexpected bytes for {extra}")
-    for relpath, want in recorded.items():
-        got = hashlib.sha256(artifact_bytes[relpath]).hexdigest()
-        if got != want:
-            raise ValueError(f"artifact hash mismatch for {relpath}: recomputed {got} != receipt {want}")
+    if not (isinstance(ah, dict) and ah) or not isinstance(artifact_bytes, dict):
+        raise ValueError("artifact_hashes and artifact_bytes must be non-empty dicts")
+    if set(ah) != set(artifact_bytes):
+        raise ValueError(f"artifact set mismatch: hashes {sorted(ah)} vs bytes {sorted(artifact_bytes)}")
+    for rel, want in ah.items():
+        if hashlib.sha256(artifact_bytes[rel]).hexdigest() != want:
+            raise ValueError(f"artifact hash mismatch for {rel}")
     return True
 
 
-def alarm_available_at_utc(day_iso, receipt):
-    """When alarms published on `day_iso` (YYYY-MM-DD) became publicly available.
+class VerifiedReceipt:
+    """A receipt that has PASSED admission — the only standing-bearing type. SEALED: direct construction raises;
+    instances exist only via `admit_receipt` (which supplies the module-private mint token)."""
+    __slots__ = ("day", "availability_utc", "receipt", "_minted")
 
-    A schema-valid server receipt => EXACTLY its server stamp (deployment.created_at) — never adjusted earlier.
-    No receipt (or a receipt that is not a valid server record) => the conservative 23:59:59Z ceiling of the day,
-    NEVER any earlier value. Availability is thus never synthesized to an unprovable earlier time.
-    """
-    if receipt is not None and _is_valid_server_receipt(receipt):
-        return receipt["deployment"]["created_at"]
-    return f"{day_iso}T23:59:59Z"
+    def __init__(self, day, availability_utc, receipt, _token=None):
+        if _token is not _MINT_TOKEN:
+            raise ValueError("VerifiedReceipt is sealed — mint only via admit_receipt()")
+        self.day = day
+        self.availability_utc = availability_utc
+        self.receipt = receipt
+        self._minted = True
 
 
-def day_eligible_for_hit(day_record):
-    """True IFF day_record carries a schema-valid server-side publication receipt. The R4 prospective scorer uses
-    this: receipt-less (or client-stamped) days may still be scored for FALSE-ALARM accounting but can never earn
-    HIT credit."""
-    if not isinstance(day_record, dict):
-        return False
-    return _is_valid_server_receipt(day_record.get("publication_receipt"))
+def _is_minted(x):
+    return isinstance(x, VerifiedReceipt) and getattr(x, "_minted", False) is True
+
+
+def admit_receipt(receipt, day, artifact_loader, server_record_loader):
+    """Mint a VerifiedReceipt IFF every fail-closed check passes; else raise ValueError. `artifact_loader(commit,
+    relpath)->bytes` and `server_record_loader(api_url)->dict` are the independent evidence seams (production:
+    git cat-file blob, gh api). No check may be skipped; a raise from a loader is a fail-closed rejection."""
+    # structure + exact keyset + schema
+    if not isinstance(receipt, dict) or frozenset(receipt) != _RECEIPT_KEYS:
+        raise ValueError("receipt must carry EXACTLY the schema-v2 keyset")
+    if receipt["schema"] != SCHEMA:
+        raise ValueError(f"receipt schema {receipt['schema']!r} != {SCHEMA!r}")
+    # day: the receipt field must match the request (carrier re-binds it below)
+    _parse_day(day)
+    _parse_day(receipt["day"])
+    if receipt["day"] != day:
+        raise ValueError(f"receipt.day {receipt['day']!r} != requested day {day!r}")
+    _require_commit(receipt["commit_sha"])
+    # deployment + availability == completion stamp
+    dep = _validate_deployment(receipt["deployment"])
+    if receipt["availability_utc"] != dep["updated_at"]:
+        raise ValueError("receipt.availability_utc != deployment.updated_at (completion stamp)")
+    _parse_utc(receipt["availability_utc"])
+    # artifact policy: non-empty, allowlist, mandatory carriers, lowercase-64hex
+    ah = receipt["artifact_hashes"]
+    if not (isinstance(ah, dict) and ah):
+        raise ValueError("artifact_hashes must be a non-empty mapping (a receipt must attest something)")
+    for rel, h in ah.items():
+        if rel not in ARTIFACT_ALLOWLIST:
+            raise ValueError(f"artifact {rel!r} not in allowlist")
+        if not (isinstance(h, str) and _64HEX.match(h)):
+            raise ValueError(f"artifact hash for {rel!r} is not lowercase 64-hex")
+    for m in MANDATORY_ARTIFACTS:
+        if m not in ah:
+            raise ValueError(f"mandatory carrier {m!r} missing from receipt")
+    # re-hash EVERY recorded artifact from independently loaded bytes
+    loaded = {}
+    for rel, want in ah.items():
+        try:
+            data = artifact_loader(receipt["commit_sha"], rel)
+        except Exception as exc:
+            raise ValueError(f"artifact {rel!r} not loadable: {exc}")
+        if not isinstance(data, (bytes, bytearray)) or hashlib.sha256(data).hexdigest() != want:
+            raise ValueError(f"artifact {rel!r} bytes do not match the recorded hash")
+        loaded[rel] = bytes(data)
+    # the CARRIER binds the day — reopen and parse ["date"]; a mutable receipt field never binds it
+    try:
+        carrier = json.loads(loaded[_CARRIER].decode("utf-8"))
+    except Exception as exc:
+        raise ValueError(f"carrier {_CARRIER} not parseable JSON: {exc}")
+    if carrier.get("date") != receipt["day"] or carrier.get("date") != day:
+        raise ValueError(f"carrier date {carrier.get('date')!r} != receipt.day/requested day")
+    # reopen the named server record and match it
+    try:
+        rec = server_record_loader(dep["api_url"])
+    except Exception as exc:
+        raise ValueError(f"server record not reopenable at {dep['api_url']}: {exc}")
+    if not isinstance(rec, dict):
+        raise ValueError("server record must be a dict")
+    if rec.get("id") != dep["id"]:
+        raise ValueError("server record id != deployment.id")
+    if rec.get("status") != "built":
+        raise ValueError("server record status != 'built'")
+    if rec.get("error") not in (None, ""):
+        raise ValueError("server record carries an error")
+    if rec.get("commit") != receipt["commit_sha"]:
+        raise ValueError("server record commit != receipt.commit_sha")
+    if _parse_utc(rec.get("created_at")) > _parse_utc(rec.get("updated_at")):
+        raise ValueError("server record created_at > updated_at")
+    if rec.get("updated_at") != receipt["availability_utc"] or rec.get("updated_at") != dep["updated_at"]:
+        raise ValueError("server record updated_at != availability_utc/deployment.updated_at")
+    return VerifiedReceipt(receipt["day"], receipt["availability_utc"], receipt, _token=_MINT_TOKEN)
+
+
+def day_eligible_for_hit(x):
+    """True IFF x is an ADMISSION-minted VerifiedReceipt. Every dict (valid-looking or forged) is False; a
+    directly-constructed instance cannot exist (construction raises) and would be rejected anyway."""
+    return _is_minted(x)
+
+
+def alarm_available_at_utc(day, verified):
+    """A minted VerifiedReceipt => its completion-stamp availability EXACTLY (before OR after the ceiling). None
+    (or anything not admission-minted) => the conservative `{day}T23:59:59Z` ceiling, never earlier."""
+    if _is_minted(verified):
+        return verified.availability_utc
+    return f"{day}T23:59:59Z"

@@ -116,12 +116,14 @@ logger = logging.getLogger(__name__)
 # (region, component) pairs are COMPUTED but EXCLUDED from tier computation (still emitted + annotated,
 # never deleted) because they were driven by pipeline artifacts, not tectonics. Each entry lifts ONLY with a
 # dated fix note referencing the incident (prospective-record discipline; no retroactive edits).
-#   D1: anchorage / seismic_thd  -- IU.COLA scored against a 6.5-month-stale baseline (z=26 on a noise sawtooth).
+#   D1: anchorage / seismic_thd -- LIFTED 2026-08-07 (dated note in docs/INCIDENT_2026-07-31_component_artifacts.md).
+#       Was frozen for a 6.5-month-stale baseline (z=26 on a noise sawtooth); lifted after the R3-correct THD recal
+#       (staleness guard + fresh R3-lagged baseline thd_baselines_20260806): IU.COLA reads z=2.24, not-elevated on
+#       the sawtooth-excluded window, so the stale-baseline artifact is corrected and the component scores honestly.
 #   D2: 5 regions / fault_correlation -- a shared long-period arrival (0.01-1 Hz band) collapsed lambda2/lambda1
 #       across regions at once; the component is mis-banded (captures coherent long-period energy, not local
-#       stress). Frozen pending the re-band + spurious-transient/data-QC rejection fix.
+#       stress). STILL FROZEN pending the re-band + spurious-transient/data-QC rejection fix + codex §5 review.
 FROZEN_COMPONENTS = {
-    ("anchorage", "seismic_thd"),
     ("turkey_kahramanmaras", "fault_correlation"),
     ("istanbul_marmara", "fault_correlation"),
     ("tokyo_kanto", "fault_correlation"),

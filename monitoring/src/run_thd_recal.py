@@ -78,8 +78,12 @@ def run_recal(stations, end_date=None, dry_run=False):
     for key in stations:
         net, sta = key.split(".", 1)
         try:
+            # Pass the R3-lagged window_end (= end_date - EXCLUDE_RECENT_DAYS) EXPLICITLY. calibrate_station only
+            # self-applies exclude_recent_days when end_date is None; passing end_date=end_date here silently
+            # bypassed the 30-day R3 lag (window ended today, contaminating the baseline with the recent window).
+            # (INCIDENT 2026-07-31 D1 lag-fix, grassmann 2026-08-07, cayley-confirmed option-1.)
             r = calibrate_station(network=net, station=sta, days_back=LOOKBACK_DAYS,
-                                  exclude_recent_days=EXCLUDE_RECENT_DAYS, end_date=end_date)
+                                  exclude_recent_days=EXCLUDE_RECENT_DAYS, end_date=window_end)
         except Exception as e:
             logger.error(f"recal {key} failed: {e}")
             continue

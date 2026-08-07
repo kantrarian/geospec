@@ -264,3 +264,33 @@ subsume EM, teleseism, and feed artifacts alike.
     run's [2b] block triggers it automatically on the next fresh run, or `python -m src.run_thd_recal --force`.
     On a successful fresh baseline, the D1 freeze lifts with a dated note here. Until then the staleness guard
     keeps IU.COLA fail-safe and the freeze holds. — grassmann
+
+## D1 FREEZE-LIFT NOTE (grassmann, 2026-08-07, cayley-confirmed option-1)
+
+The D1 (anchorage / seismic_thd) freeze is **LIFTED**. Evidence + the path:
+
+- **First live [2b] recal succeeded** on the first fresh post-incident run (2026-08-01 → `thd_baselines_20260801.json`),
+  loaded newest-first, non-stale. IU.COLA scored `z=2.06, not-elevated` (docs/ensemble_latest.json gen 2026-08-04) —
+  the stale-tight-std `z=26` sawtooth artifact was already gone.
+- **But that baseline's window was R3-inconsistent (bug, mine, now fixed).** `run_thd_recal.run_recal` passed
+  `end_date=today` to `calibrate_station`, which only self-applies `exclude_recent_days` when `end_date is None`
+  (`calibrate_thd_baselines.py` L232-233), so the 30-day R3 lag was silently bypassed — the window ended *today*
+  (`2026-05-03→2026-08-01`), **including** the 07-25→07-29 sawtooth it was meant to exclude, inflating the std and
+  potentially *masking* elevation. cayley's daily-review query (0326) surfaced the missing closure note; I found the
+  bug while verifying and **held the lift** rather than lift on an R3-inconsistent baseline (cayley confirmed option-1,
+  "fix-first", 0308).
+- **Fix:** `run_thd_recal.py` L82 `end_date=end_date` → `end_date=window_end` (pass the R3-lagged window-end
+  explicitly; never rely on the None-triggered default — the exclude-only-when-None conditional-bypass class).
+- **R3-correct recal** (`--force`) wrote `thd_baselines_20260806.json`: IU.COLA window **`2026-04-08 → 2026-07-07`**
+  (today−120d → today−30d, **sawtooth-excluded**), `mean 0.2724, std 0.1219, n=84`.
+- **Decision (cayley's criterion):** on the R3-correct baseline IU.COLA reads `z=2.2399, risk=0.4350, is_elevated=False`
+  (production `thd_to_risk_with_baseline`; method validated — it reproduces the recorded 0.3899 on the prior baseline).
+  z=2.24 < the ELEVATED threshold (z≥2.5 / risk≥0.50). **Not elevated → LIFT.** `FROZEN_COMPONENTS` no longer excludes
+  `("anchorage","seismic_thd")`; anchorage's seismic_thd re-enters tier computation, scored against the R3-correct
+  baseline with the staleness guard (`MAX_BASELINE_AGE_DAYS=50`) as the durable backstop for the stale-baseline class.
+- **Honest residual:** IU.COLA's THD is a noisy sawtooth (0.09→1.70); a *peak* day (~1.70) would read elevated even on
+  this correct baseline (`z≈11.7`). That is a legitimate reading on a correct window — per option-1 it must SURFACE on
+  the dashboard, not be hidden by a freeze. The freeze existed to suppress the *wrong-baseline* artifact (now
+  corrected), not to hide honest readings; if the site noise later warrants it, that's a separate component-QC item.
+- **D2 (5 regions / fault_correlation) stays FROZEN** — its re-band + spurious-transient/data-QC fix + codex §5 review
+  are separate and not done. — grassmann

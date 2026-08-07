@@ -1,44 +1,56 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""R6 §1 PUBLICATION-RECEIPT red-KATs — REV 2 (cayley, 2026-08-07) under codex NO-GO `f5296dc`.
+"""R6 §1 PUBLICATION-RECEIPT red-KATs — REV 3 (cayley, 2026-08-07) under codex WORKS-WITH-FIX `d76842a`.
 
-REV 2 (all three codex findings):
-  B1  standing-requires-verification: `day_eligible_for_hit` confers eligibility ONLY on a typed
-      `VerifiedReceipt` minted by `admit_receipt` after BYTE verification against independently loaded
-      artifacts AND server-record reopening. Any bare dict — including one that fails byte verification —
-      is False. The exact composed bypass codex reproduced is a named negative here.
-  B2  a `source` string is not an attestation: `admit_receipt` reopens the named server record via an injected
-      `server_record_loader(api_url)` and matches id / status==built / no error / commit / timestamp.
-      Relabelled client dicts fail admission. `commit_sha` must be 40-hex at BUILD.
-  HIGH availability = the server COMPLETION stamp (`updated_at` of a built, error-free build), never
-      `created_at` — per the dated prospective correction
-      docs/CORRECTION_2026-08-07_receipt_availability_completion_stamp.md. Receipts BIND their day
-      (transplant-detectable).
+REV 3 repairs (codex rev-2 contract review, five findings):
+  #1 BLOCKER  _loaders sentinel: `record=None` now means EXPLICITLY ABSENT (raises), the omitted arg
+      means the valid default — P2R-3a and P2R-4a are jointly satisfiable (codex's attached diff, verbatim).
+  #3 HIGH     day binding by the CARRIER, not the mutable field: the v2 artifact policy names MANDATORY
+      alarm carriers (docs/ensemble_latest.json + docs/data.csv) inside an exact ALLOWLIST; admission
+      re-parses the REOPENED ensemble bytes and requires ensemble["date"] == receipt.day == requested day.
+      New negatives: edited receipt.day over day-D bytes (P2R-7a), omitted mandatory carrier (P2R-7b/3g),
+      unknown-but-loadable extra path (P2R-7c/3h).
+  #5 HIGH     sealed proof capsule: direct VerifiedReceipt construction is rejected (P2R-8a); exact
+      receipt/deployment keysets (P2R-8b/1h); receipt-side availability_utc mutated earlier fails against
+      the intact record (P2R-8c); shape + timestamp-chain contract created_at <= updated_at ==
+      availability_utc == reopened.updated_at, lowercase-hex, pinned repo URL (P2R-8d/1h).
 
-INTERFACE (grassmann implements src/publication_receipt.py REV 2 to THIS, unedited — the decouple)
+INTERFACE (grassmann implements src/publication_receipt.py REV 3 to THIS, unedited — the decouple)
 ---------------------------------------------------------------------------------------------------
-* SCHEMA = "geospec-publication-receipt-v2"
+* SCHEMA = "geospec-publication-receipt-v2"                     (schema id unchanged; policy tightened)
+* MANDATORY_ARTIFACTS = ("docs/ensemble_latest.json", "docs/data.csv")   # alarm carrier + scoring carrier
+* ARTIFACT_ALLOWLIST  = MANDATORY_ARTIFACTS + ("docs/validated_events.json",
+                        "docs/r4_prospective_record.json", "docs/r5_daily.json")
 * build_publication_receipt(day, artifact_paths, commit_sha, deployment) -> dict
-    - day: "YYYY-MM-DD", bound INSIDE the receipt; commit_sha: full 40-hex (else ValueError);
-    - deployment REQUIRES: id, api_url, status=="built", error in (None, ""), created_at, updated_at
-      (parseable UTC, updated_at >= created_at), source in the server allowlist; anything else => ValueError
-      (fail closed — no synthetic deployments, no commit[:12] fallbacks);
-    - receipt: {schema, day, artifact_hashes, commit_sha, deployment{...}, availability_utc == deployment
-      updated_at, built_utc}.
+    - day "YYYY-MM-DD" (parseable, else ValueError); commit_sha lowercase 40-hex (else ValueError);
+    - artifact_paths: MANDATORY_ARTIFACTS all present; every key in ARTIFACT_ALLOWLIST; the ensemble
+      payload must parse as JSON with ["date"] == day (the carrier binds the day at build);
+    - deployment EXACT keyset {id, api_url, status, error, created_at, updated_at, source}: status=="built",
+      error in (None, ""), created_at <= updated_at (parseable UTC), source in the server allowlist,
+      api_url == f"https://api.github.com/repos/kantrarian/geospec/pages/builds/{id}" (pinned repo/shape);
+      anything missing/extra/mismatched => ValueError (fail closed — no synthetic deployments, no fallbacks);
+    - receipt EXACT keyset {schema, day, artifact_hashes, commit_sha, deployment, availability_utc,
+      built_utc}; availability_utc == deployment.updated_at (the COMPLETION stamp).
 * verify_publication_receipt(receipt, artifact_bytes) -> True | raise      (byte binding, as rev 1)
-* class VerifiedReceipt  — typed result carrying (day, availability_utc, receipt); constructable in practice
-    only via admit_receipt (soft convention; eligibility type-checks it).
+* class VerifiedReceipt — typed result (day, availability_utc, receipt) SEALED behind admission: direct
+    construction raises (module-private minting token/factory); only admit_receipt mints instances.
 * admit_receipt(receipt, day, artifact_loader, server_record_loader) -> VerifiedReceipt | raise
     - artifact_loader(commit_sha, relpath) -> bytes    (production: git cat-file blob <commit>:<relpath>)
     - server_record_loader(api_url) -> dict            (production: gh api <url>)
-    - checks: schema v2; receipt.day == day; EVERY recorded artifact re-hashed from loader bytes (missing or
-      extra => raise); server record matches (id, status built, error empty, commit == receipt.commit_sha,
-      updated_at == receipt.availability_utc); availability parseable.
-* day_eligible_for_hit(x) -> bool   — True IFF isinstance(x, VerifiedReceipt). EVERY dict is False.
+    - checks, ALL fail-closed: schema v2; EXACT receipt keyset (no extra/missing top-level fields);
+      receipt.day == requested day; artifact_hashes: mandatory carriers present, no key outside the
+      allowlist, every value lowercase 64-hex, EVERY recorded artifact re-hashed from loader bytes
+      (missing/extra/unloadable => raise); the reopened ensemble bytes parse with ["date"] ==
+      receipt.day == requested day (the CARRIER binds the day — a mutable receipt field never does);
+      server record reopened at receipt.deployment.api_url and matched (id, status built, error empty,
+      commit == receipt.commit_sha, record.created_at <= record.updated_at == receipt.availability_utc
+      == receipt.deployment.updated_at); availability parseable.
+* day_eligible_for_hit(x) -> bool   — True IFF x is an ADMISSION-minted VerifiedReceipt. Every dict is
+    False; a directly-constructed instance is impossible (construction raises) or rejected.
 * alarm_available_at_utc(day, verified: VerifiedReceipt | None) -> str
     - VerifiedReceipt => its availability_utc EXACTLY; None => f"{day}T23:59:59Z"; never anything else.
 
-RED AS AUTHORED (rev-2 interface absent from the landed rev-1 module).
+RED AS AUTHORED (rev-3 interface absent from the landed rev-1 module).
 """
 import copy
 import hashlib
@@ -76,19 +88,34 @@ API_URL = "https://api.github.com/repos/kantrarian/geospec/pages/builds/11373914
 DEP = {"id": "1137391428", "api_url": API_URL, "status": "built", "error": "",
        "created_at": "2026-08-07T11:08:05Z", "updated_at": "2026-08-07T11:08:33Z",
        "source": "github-pages-build"}
-REL = "docs/ensemble_latest.json"
-PAYLOAD = json.dumps({"day": DAY, "regions": {}}).encode()
+REL_ENS = "docs/ensemble_latest.json"
+REL_CSV = "docs/data.csv"
+# The canonical alarm carrier: field name matches the REAL published artifact ("date").
+PAYLOAD_ENS = json.dumps({"date": DAY, "regions": {}}).encode()
+PAYLOAD_CSV = b"date,region,tier,risk,confidence,methods,agreement\n2026-08-05,kumamoto,2,0.61,0.8,4,0.75\n"
+_EXTRA_REL = "docs/unlisted_extra.json"
+_EXTRA_BYTES = b"{\"anything\": true}"
+
+# codex fix #1, verbatim: distinguish OMITTED (valid default) from EXPLICITLY ABSENT (None).
+_DEFAULT_RECORD = object()
 
 
-def _loaders(payload=PAYLOAD, record=None):
-    """Deterministic injected evidence: git-object bytes + the reopened server record."""
-    rec = record if record is not None else {"id": DEP["id"], "status": "built", "error": "",
-                                             "commit": COMMIT, "created_at": DEP["created_at"],
-                                             "updated_at": DEP["updated_at"]}
+def _loaders(ens=PAYLOAD_ENS, csvb=PAYLOAD_CSV, record=_DEFAULT_RECORD, extra_paths=None):
+    """Deterministic injected evidence: git-object bytes + the reopened server record.
+    `_loaders()` = the valid case; `_loaders(record=None)` = the absent-record negative."""
+    rec = ({"id": DEP["id"], "status": "built", "error": "", "commit": COMMIT,
+            "created_at": DEP["created_at"], "updated_at": DEP["updated_at"]}
+           if record is _DEFAULT_RECORD else record)
+    blobs = {}
+    if ens is not None:
+        blobs[REL_ENS] = ens
+    if csvb is not None:
+        blobs[REL_CSV] = csvb
+    blobs.update(extra_paths or {})
 
     def artifact_loader(commit_sha, relpath):
-        if commit_sha == COMMIT and relpath == REL and payload is not None:
-            return payload
+        if commit_sha == COMMIT and relpath in blobs:
+            return blobs[relpath]
         raise ValueError(f"no blob {commit_sha[:8]}:{relpath}")
 
     def server_record_loader(api_url):
@@ -99,6 +126,18 @@ def _loaders(payload=PAYLOAD, record=None):
     return artifact_loader, server_record_loader
 
 
+def _write_paths(td, ens=PAYLOAD_ENS, csvb=PAYLOAD_CSV, extra=None):
+    paths = {}
+    for rel, data in [(REL_ENS, ens), (REL_CSV, csvb)] + list((extra or {}).items()):
+        if data is None:
+            continue
+        tmp = os.path.join(td, rel.replace("/", "__"))
+        with open(tmp, "wb") as fh:
+            fh.write(data)
+        paths[rel] = tmp
+    return paths
+
+
 def main():
     try:
         import publication_receipt as PR
@@ -106,26 +145,29 @@ def main():
         check("P2R-0 module import", False, "src/publication_receipt.py missing")
         return
     needed = ("build_publication_receipt", "verify_publication_receipt", "admit_receipt",
-              "VerifiedReceipt", "day_eligible_for_hit", "alarm_available_at_utc")
+              "VerifiedReceipt", "day_eligible_for_hit", "alarm_available_at_utc",
+              "MANDATORY_ARTIFACTS", "ARTIFACT_ALLOWLIST")
     if not all(hasattr(PR, n) for n in needed) or getattr(PR, "SCHEMA", "") != "geospec-publication-receipt-v2":
-        check("P2R-0 rev-2 interface present (admit_receipt/VerifiedReceipt/schema v2)",
-              False, "AWAITING grassmann's rev-2 -- red-first as authored")
+        check("P2R-0 rev-3 interface present (admission + carrier policy + schema v2)",
+              False, "AWAITING grassmann's rev-3 -- red-first as authored")
         return
+    check("P2R-0p carrier policy constants",
+          tuple(PR.MANDATORY_ARTIFACTS) == (REL_ENS, REL_CSV)
+          and set(PR.MANDATORY_ARTIFACTS) <= set(PR.ARTIFACT_ALLOWLIST))
 
     with tempfile.TemporaryDirectory() as td:
-        art = os.path.join(td, "ensemble_latest.json")
-        with open(art, "wb") as fh:
-            fh.write(PAYLOAD)
-        paths = {REL: art}
+        paths = _write_paths(td)
         rc = PR.build_publication_receipt(DAY, paths, COMMIT, dict(DEP))
 
         # -- build-time contract --
         check("P2R-1a schema v2 + day bound + availability == COMPLETION stamp (updated_at, NOT created_at)",
               rc["schema"] == "geospec-publication-receipt-v2" and rc["day"] == DAY
               and rc["availability_utc"] == DEP["updated_at"]
-              and rc["artifact_hashes"][REL] == hashlib.sha256(PAYLOAD).hexdigest())
-        check("P2R-1b non-40hex commit refuses to build",
-              raises(lambda: PR.build_publication_receipt(DAY, paths, "abc123", dict(DEP))))
+              and rc["artifact_hashes"][REL_ENS] == hashlib.sha256(PAYLOAD_ENS).hexdigest()
+              and rc["artifact_hashes"][REL_CSV] == hashlib.sha256(PAYLOAD_CSV).hexdigest())
+        check("P2R-1b non-40hex / non-lowercase commit refuses to build",
+              raises(lambda: PR.build_publication_receipt(DAY, paths, "abc123", dict(DEP)))
+              and raises(lambda: PR.build_publication_receipt(DAY, paths, COMMIT.upper(), dict(DEP))))
         check("P2R-1c non-built / errored / missing-updated_at deployments refuse to build",
               raises(lambda: PR.build_publication_receipt(DAY, paths, COMMIT, {**DEP, "status": "building"}))
               and raises(lambda: PR.build_publication_receipt(DAY, paths, COMMIT, {**DEP, "error": "boom"}))
@@ -138,11 +180,34 @@ def main():
         check("P2R-1e missing api_url refuses to build (fail closed, no synthetic deployment)",
               raises(lambda: PR.build_publication_receipt(
                   DAY, paths, COMMIT, {k: v for k, v in DEP.items() if k != "api_url"})))
+        check("P2R-1f mandatory-carrier policy at build: omit ensemble OR data.csv refuses; unknown key refuses",
+              raises(lambda: PR.build_publication_receipt(
+                  DAY, {k: v for k, v in paths.items() if k != REL_ENS}, COMMIT, dict(DEP)))
+              and raises(lambda: PR.build_publication_receipt(
+                  DAY, {k: v for k, v in paths.items() if k != REL_CSV}, COMMIT, dict(DEP)))
+              and raises(lambda: PR.build_publication_receipt(
+                  DAY, {**paths, **_write_paths(td, ens=None, csvb=None, extra={_EXTRA_REL: _EXTRA_BYTES})},
+                  COMMIT, dict(DEP))))
+        wrong_day_ens = json.dumps({"date": "2026-08-04", "regions": {}}).encode()
+        check("P2R-1g carrier-day mismatch at build: ensemble['date'] != day refuses",
+              raises(lambda: PR.build_publication_receipt(
+                  DAY, _write_paths(td, ens=wrong_day_ens), COMMIT, dict(DEP))))
+        check("P2R-1h exact deployment keyset + pinned repo URL + timestamp order at build",
+              raises(lambda: PR.build_publication_receipt(DAY, paths, COMMIT, {**DEP, "extra_field": 1}))
+              and raises(lambda: PR.build_publication_receipt(
+                  DAY, paths, COMMIT,
+                  {**DEP, "api_url": "https://api.github.com/repos/evil/geospec/pages/builds/1137391428"}))
+              and raises(lambda: PR.build_publication_receipt(
+                  DAY, paths, COMMIT,
+                  {**DEP, "api_url": f"https://api.github.com/repos/kantrarian/geospec/pages/builds/999"}))
+              and raises(lambda: PR.build_publication_receipt(
+                  DAY, paths, COMMIT, {**DEP, "created_at": "2026-08-07T12:00:00Z"})))  # created > updated
 
         # -- byte verifier (rev-1 role intact) --
         check("P2R-2 verify passes on exact bytes; mutation fails",
-              PR.verify_publication_receipt(rc, {REL: PAYLOAD}) is True
-              and raises(lambda: PR.verify_publication_receipt(rc, {REL: PAYLOAD + b" "})))
+              PR.verify_publication_receipt(rc, {REL_ENS: PAYLOAD_ENS, REL_CSV: PAYLOAD_CSV}) is True
+              and raises(lambda: PR.verify_publication_receipt(
+                  rc, {REL_ENS: PAYLOAD_ENS + b" ", REL_CSV: PAYLOAD_CSV})))
 
         # -- ADMISSION (the standing-bearing step) --
         al, sl = _loaders()
@@ -153,7 +218,7 @@ def main():
 
         # codex B1 composed bypass, verbatim: hash-invalid receipt must fail admission AND eligibility
         forged = copy.deepcopy(rc)
-        forged["artifact_hashes"][REL] = "0" * 64
+        forged["artifact_hashes"][REL_ENS] = "0" * 64
         check("P2R-3b codex-B1 composed bypass CLOSED: hash-invalid receipt fails admission",
               raises(lambda: PR.admit_receipt(forged, DAY, al, sl)))
         check("P2R-3c ...and day_eligible_for_hit(dict) is False for ANY dict (valid or forged)",
@@ -161,32 +226,75 @@ def main():
               and PR.day_eligible_for_hit(vr) is True)
 
         rand = copy.deepcopy(rc)
-        rand["artifact_hashes"][REL] = hashlib.sha256(b"other").hexdigest()
+        rand["artifact_hashes"][REL_ENS] = hashlib.sha256(b"other").hexdigest()
         check("P2R-3d random (nonzero) wrong hash fails admission",
               raises(lambda: PR.admit_receipt(rand, DAY, al, sl)))
         missing = copy.deepcopy(rc)
-        missing["artifact_hashes"]["docs/absent.json"] = hashlib.sha256(b"x").hexdigest()
+        missing["artifact_hashes"]["docs/r5_daily.json"] = hashlib.sha256(b"x").hexdigest()
         check("P2R-3e recorded artifact with no loadable bytes fails admission",
               raises(lambda: PR.admit_receipt(missing, DAY, al, sl)))
         empty = copy.deepcopy(rc)
         empty["artifact_hashes"] = {}
         check("P2R-3f empty artifact set fails admission (a receipt must attest something)",
               raises(lambda: PR.admit_receipt(empty, DAY, al, sl)))
+        no_carrier = copy.deepcopy(rc)
+        del no_carrier["artifact_hashes"][REL_ENS]
+        no_csv = copy.deepcopy(rc)
+        del no_csv["artifact_hashes"][REL_CSV]
+        check("P2R-3g omitting a MANDATORY carrier fails admission (ensemble; data.csv)",
+              raises(lambda: PR.admit_receipt(no_carrier, DAY, al, sl))
+              and raises(lambda: PR.admit_receipt(no_csv, DAY, al, sl)))
+        al_extra, sl_extra = _loaders(extra_paths={_EXTRA_REL: _EXTRA_BYTES})
+        unknown = copy.deepcopy(rc)
+        unknown["artifact_hashes"][_EXTRA_REL] = hashlib.sha256(_EXTRA_BYTES).hexdigest()
+        check("P2R-3h unknown-but-LOADABLE (hash-valid) extra path fails admission (allowlist, not loadability)",
+              raises(lambda: PR.admit_receipt(unknown, DAY, al_extra, sl_extra)))
 
         # codex B2: server-record reopening — relabelled client dicts + mismatches fail
         check("P2R-4a codex-B2 relabel attack CLOSED: no server record at the named URL -> no admission",
               raises(lambda: PR.admit_receipt(rc, DAY, al, _loaders(record=None)[1])))
         for field, val in (("status", "building"), ("error", "failed"), ("commit", "f" * 40),
-                           ("updated_at", "2026-08-07T99:99:99Z"), ("id", "999")):
+                           ("updated_at", "2026-08-07T99:99:99Z"), ("id", "999"),
+                           ("created_at", "2026-08-07T12:00:00Z")):   # record's created > updated
             bad_rec = {"id": DEP["id"], "status": "built", "error": "", "commit": COMMIT,
                        "created_at": DEP["created_at"], "updated_at": DEP["updated_at"]}
             bad_rec[field] = val
             check(f"P2R-4b server-record mismatch on {field} fails admission",
                   raises(lambda r=bad_rec: PR.admit_receipt(rc, DAY, al, _loaders(record=r)[1])))
 
-        # day binding: transplant detection
+        # day binding: transplant detection — BOTH forms
         check("P2R-5 day-transplant CLOSED: admitting a day-D receipt for day E fails",
               raises(lambda: PR.admit_receipt(rc, "2026-08-06", al, sl)))
+        stronger = copy.deepcopy(rc)
+        stronger["day"] = "2026-08-06"        # codex #3: mutate the receipt field to MATCH the request;
+        check("P2R-7a codex stronger transplant CLOSED: edited receipt.day over day-D bytes fails admission "
+              "(the reopened carrier date binds the day, not the mutable field)",
+              raises(lambda: PR.admit_receipt(stronger, "2026-08-06", al, sl)))
+
+        # sealed capsule (codex #5)
+        sealed_ok = False
+        try:
+            obj = PR.VerifiedReceipt(DAY, DEP["updated_at"], copy.deepcopy(rc))   # forged direct mint
+        except Exception:
+            sealed_ok = True                   # construction refused: sealed
+        else:
+            sealed_ok = PR.day_eligible_for_hit(obj) is False   # or the unminted instance is rejected
+        check("P2R-8a direct VerifiedReceipt construction cannot confer standing (sealed minting)", sealed_ok)
+        extra_top = copy.deepcopy(rc)
+        extra_top["grants_standing"] = True
+        check("P2R-8b extra top-level receipt field fails admission (exact keyset)",
+              raises(lambda: PR.admit_receipt(extra_top, DAY, al, sl)))
+        early = copy.deepcopy(rc)
+        early["availability_utc"] = "2026-08-07T11:08:05Z"      # rolled back to build START; record intact
+        check("P2R-8c receipt-side availability_utc mutated EARLIER fails against the intact record",
+              raises(lambda: PR.admit_receipt(early, DAY, al, sl)))
+        bad_shape = copy.deepcopy(rc)
+        bad_shape["artifact_hashes"][REL_ENS] = ("0" * 63) + "G"   # not lowercase 64-hex
+        bad_day = copy.deepcopy(rc)
+        bad_day["day"] = "08/05/2026"
+        check("P2R-8d shape contract: non-64hex hash and unparseable day fail admission",
+              raises(lambda: PR.admit_receipt(bad_shape, DAY, al, sl))
+              and raises(lambda: PR.admit_receipt(bad_day, "08/05/2026", al, sl)))
 
         # availability semantics
         check("P2R-6a with VerifiedReceipt: availability == the completion stamp exactly",
@@ -198,6 +306,6 @@ def main():
 main()
 print()
 if FAILS:
-    print(f"R6-S1 PUBLICATION-RECEIPT REV-2 RED-KAT FAILURES: {FAILS}")
+    print(f"R6-S1 PUBLICATION-RECEIPT REV-3 RED-KAT FAILURES: {FAILS}")
     sys.exit(1)
-print("ALL R6-S1 PUBLICATION-RECEIPT REV-2 RED-KATs PASS (verified-standing hit-clock enforced)")
+print("ALL R6-S1 PUBLICATION-RECEIPT REV-3 RED-KATs PASS (carrier-bound day + sealed admission standing)")

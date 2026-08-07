@@ -232,7 +232,10 @@ Push-Location $RepoRoot
 try {
     # W4: monitoring/dashboard/data.csv (the authoritative source) is committed daily --
     # keeps the public copy fresh AND the tree clean (kills the chronic-dirty condition).
-    git add docs/ensemble_latest.json docs/data.csv docs/validated_events.json docs/r4_prospective_record.json docs/r5_daily.json monitoring/dashboard/data.csv README.md 2>$null
+    # monitoring/receipts holds the R6 §1 server-stamped publication receipts (P2 item 1). They are written
+    # POST-PUSH (step 5b) so each lands in git on the NEXT run -- intended (the GitHub-side build record is
+    # independently queryable meanwhile). A missing dir on the first run is tolerated by 2>$null.
+    git add docs/ensemble_latest.json docs/data.csv docs/validated_events.json docs/r4_prospective_record.json docs/r5_daily.json monitoring/dashboard/data.csv monitoring/receipts README.md 2>$null
 
     $HasChanges = git diff --cached --quiet; $HasChanges = $LASTEXITCODE -ne 0
 
@@ -251,6 +254,23 @@ try {
     } else {
         Write-Host "  No changes to commit" -ForegroundColor Yellow
     }
+} finally {
+    Pop-Location
+}
+
+# 5b. R6 §1 server-stamped publication receipt (P2 item 1). POST-PUSH: query the GitHub Pages build record and,
+# if it is a BUILT build for a daily-monitoring commit, write monitoring/receipts/<day>.json (committed next run).
+# Fail-open -- a receipt failure must NEVER break the daily publish; a receipt-less day degrades conservatively
+# (23:59:59Z ceiling, hit-ineligible) and self-heals when Pages has genuinely deployed that commit. Never backfills.
+Write-Host "[5b] Publication receipt (R6 §1 server-stamped hit-clock)..." -ForegroundColor Yellow
+Push-Location $RepoRoot
+try {
+    python src\build_daily_receipt.py
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "  Receipt step exited $LASTEXITCODE; continuing (fail-open)" -ForegroundColor Red
+    }
+} catch {
+    Write-Host "  Receipt step error (fail-open): $_" -ForegroundColor Red
 } finally {
     Pop-Location
 }

@@ -17,6 +17,15 @@ REV 3 closure deltas (codex 0207):
   #3 MODERATE D2R-3p uses a wholly in-carrier gap (coverage-consistency isolated); D2R-3q
       aware-non-UTC (+09:00) start rejects; D2R-3r/3s zero and NaN dt reject.
 
+REV 3.1 fixture correction (codex 0426 ruling; grassmann's hold caught MY defective fixture):
+  D2R-3k's old "permitted" gap (02:00Z) sat OUTSIDE its own 1000 s carrier — the same class the
+  membership rule `series_start <= gap_start < gap_end <= series_start + n*dt` must reject, so no
+  implementation could satisfy both. Corrected per the ruling: D2R-3k = honest IN-carrier 60 s gap
+  at 00:05Z with consistent coverage 0.94 (stays available + QC recorded); D2R-3o = codex's exact
+  00:30Z same-day/outside-carrier counterexample at coverage 1.0 (unavailable). Two fixture edits,
+  no new surface, test count unchanged. Expected on `1121f64` (align tightening still held):
+  D2R-3o is the SINGLE red-first failure; all else green.
+
 REV 2 repairs (codex 2324):
   #1 BLOCKER  production COMPOSITION frozen, not helpers/source-text: D2R-1f spies on the core
       through the ACTUAL get_segment_envelopes shell (core called once per stream; NO DSP on the
@@ -550,11 +559,15 @@ def main():
                 {"a": _mk_series(SD, vals, UTC0, coverage=0.5), "b": sA})
     align_fails("D2R-3j a gap beyond max_gap fails closed",
                 {"a": _mk_series(SD, vals, UTC0, gaps=[("2026-08-01T02:00:00Z", 3600)]), "b": sA})
+    # codex 0426 ruling: the old 02:00Z fixture was OUTSIDE its own 1000 s carrier (my defect,
+    # caught by grassmann's hold) — the honest permitted gap lies wholly IN-carrier with
+    # consistent declared coverage (940/1000 = 0.94).
     A4, _, qc4 = FC.align_activity_series(
-        {"a": _mk_series(SD, vals, UTC0, gaps=[("2026-08-01T02:00:00Z", 60)]), "b": sA},
+        {"a": _mk_series(SD, vals, UTC0, coverage=0.94,
+                         gaps=[("2026-08-01T00:05:00Z", 60)]), "b": sA},
         max_gap_seconds=600, min_coverage=0.9)
-    check("D2R-3k a short permitted gap stays available AND records its QC flag",
-          A4 is not None and len(qc4) > 0, f"qc={qc4}")
+    check("D2R-3k an honest IN-CARRIER permitted gap (60 s at 00:05Z, coverage 0.94) stays "
+          "available AND records its QC flag", A4 is not None and len(qc4) > 0, f"qc={qc4}")
     align_fails("D2R-3l mismatched sample intervals fail unavailable (dt 1.0 vs 2.0 -- never "
                 "interpolated)", {"a": sA, "b": _mk_series(SD, vals[:500], UTC0, dt_seconds=2.0)})
     align_fails("D2R-3m a half-sample phase offset fails unavailable (starts must lie on ONE "
@@ -562,8 +575,13 @@ def main():
                 {"a": sA, "b": _mk_series(SD, vals, UTC0 + timedelta(seconds=360.5))})
     align_fails("D2R-3n a NAIVE (timezone-less) start fails unavailable",
                 {"a": sA, "b": _mk_series(SD, vals, datetime(2026, 8, 1, 0, 6, 0))})
-    align_fails("D2R-3o a gap OUTSIDE the carrier interval fails unavailable",
-                {"a": _mk_series(SD, vals, UTC0, gaps=[("2026-09-15T00:00:00Z", 60)]), "b": sA})
+    # codex 0426 ruling: same-day metadata OUTSIDE the typed carrier must be rejected on
+    # MEMBERSHIP (series_start <= gap_start < gap_end <= series_start + n*dt), not day bounds —
+    # this is codex's exact 00:30Z-on-a-1000 s-carrier counterexample.
+    align_fails("D2R-3o a gap OUTSIDE the carrier interval (00:30Z on the 1000 s carrier, inside "
+                "the UTC day) fails unavailable",
+                {"a": _mk_series(SD, vals, UTC0, coverage=1.0,
+                                 gaps=[("2026-08-01T00:30:00Z", 60)]), "b": sA})
     align_fails("D2R-3p declared coverage contradicting the declared gaps fails unavailable "
                 "(a wholly IN-carrier 100 s gap at sample 300 with coverage=1.0 on the 1000 s "
                 "carrier -- isolates the consistency check, codex 0207 delta 3)",

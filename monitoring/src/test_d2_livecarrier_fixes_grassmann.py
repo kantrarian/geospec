@@ -11,8 +11,12 @@ Covered here (green after the repairs):
         start 00:01:40Z, n=900, values == x[100:1000] (no element-zero index truncation).
   LC-3 (codex #3, MODERATE): a non-integer native rate produces the correct 1 Hz carrier. 40.5 Hz x
         600 s -> a 1 Hz carrier of 600 samples (within one-sample tolerance), realized dt ~ 1.0 s.
-  LC-2b (codex #2, HIGH — shell half): a raw ObsPy data gap is NEVER interpolated. A gappy stream
-        through get_segment_envelopes mints NO coverage=1.0/gaps=[] capsule (station skipped).
+  LC-2b(rev3) (codex 1906 ruling, option A — supersedes the fix-#2 any-gap-skip): a real
+        MULTI-TRACE stream (contiguous raw spans) through get_segment_envelopes mints ONE truthful
+        SEGMENTED envelope — no stream method calls, no cross-gap DSP, gap bins invalid, truthful
+        mask/gaps/coverage. The clean contrast carries the EXACT 90 s edge-trim mask/coverage
+        (never coverage=1.0/gaps=[]). Updated by cayley per codex 1906 (bar rev 3); the interim
+        skip-on-gap expectation was retired by phase codex-d2-segmented-support-2026-08-08-v1.
   LC-2a (codex #2, HIGH — align half): align_activity_series rejects a gap whose end lies past the
         SAMPLE carrier [start, start+n*dt] (codex's 00:30Z-on-a-1000 s-carrier counterexample ->
         unavailable), while an honest IN-carrier gap (00:05Z, coverage 0.94) stays available + QC,
@@ -75,43 +79,41 @@ def _install_obspy_stub():
 UTC0 = datetime(2026, 8, 1, 0, 0, 0, tzinfo=timezone.utc)
 
 
-# --- doubles for the live-stream gap KAT (LC-2b) ------------------------------
+# --- doubles for the live-stream segmented KAT (LC-2b rev3) -------------------
 class _Stats:
-    def __init__(self, rate):
+    def __init__(self, rate, start):
         self.sampling_rate = rate
+        self.starttime = start
 
 
 class _Trace:
-    def __init__(self, data, rate):
+    def __init__(self, data, rate, start):
         self.data = data
-        self.stats = _Stats(rate)
+        self.stats = _Stats(rate, start)
 
 
-class _GappyStream:
-    """Stream double whose get_gaps() reports a real ObsPy gap; the shell must skip it and mint
-    no envelope (no interpolation, no coverage=1.0/gaps=[] capsule)."""
+class _RecStream:
+    """Recording multi-trace stream double: each contiguous raw span is ONE trace; any method
+    call on the stream object is recorded (the rev-3 shell must make none)."""
 
-    def __init__(self, data, rate, gaps):
-        self._trace = _Trace(data, rate)
-        self._gaps = gaps
+    def __init__(self, frags):
+        self.calls = []
+        self._traces = [_Trace(d, r, s) for d, r, s in frags]
 
-    def get_gaps(self):
-        return self._gaps
-
-    def copy(self):
-        return self
-
-    def merge(self, *a, **k):
-        return self
-
-    def detrend(self, *a, **k):
-        return self
+    def __getattr__(self, name):
+        def _rec(*a, **k):
+            self.calls.append(name)
+            return self
+        return _rec
 
     def __getitem__(self, i):
-        return self._trace
+        return self._traces[i]
 
     def __len__(self):
-        return 1
+        return len(self._traces)
+
+    def __iter__(self):
+        return iter(self._traces)
 
 
 def _mk_series(SD, values, start_utc, *, dt_seconds=1.0, rate_pre=40.0, coverage=1.0, gaps=()):
@@ -184,26 +186,37 @@ def main():
                        polygon=[(0, 0), (0, 1), (1, 1), (1, 0)], strike=0.0, dip=90.0, rake=0.0)
     fetcher = SD.SeismicDataFetcher.__new__(SD.SeismicDataFetcher)
     fetcher.cache_dir = __import__("pathlib").Path(tempfile.mkdtemp())
-    # one raw ObsPy-style gap entry -> the station must be skipped
-    gappy = _GappyStream(xr, fs, gaps=[["XX", "AAA", "", "HHZ", "t0", "t1", 4.0, 160]])
-    fetcher.fetch_segment_waveforms = lambda *a, **k: {"XX.AAA": gappy}
+    # rev3: a real gap = MULTIPLE contiguous traces; the shell segments and mints truthfully.
+    n300 = int(round(300 * fs))
+    n240 = int(round(240 * fs))
+    gstream = _RecStream([(xr[:n300], fs, UTC0),
+                          (xr[:n240], fs, UTC0 + timedelta(seconds=360))])   # 60 s raw gap
+    fetcher.fetch_segment_waveforms = lambda *a, **k: {"XX.AAA": gstream}
     out = fetcher.get_segment_envelopes(seg, UTC0, UTC0 + timedelta(seconds=t_sec), use_cache=False)
     minted = out.get("XX.AAA")
-    check("LC-2b a raw data gap mints NO coverage=1.0/gaps=[] capsule (gappy station skipped, never "
-          "interpolated)", isinstance(out, dict) and minted is None,
-          f"out_keys={list(out.keys()) if isinstance(out, dict) else out}")
+    exp_lc2b = np.zeros(t_sec, dtype=bool)
+    exp_lc2b[90:210] = True                      # span [0,300)   -> valid [90,210)
+    exp_lc2b[450:510] = True                     # span [360,600) -> valid [450,510)
+    ok_lc2b = (minted is not None and gstream.calls == []
+               and np.array_equal(np.asarray(minted.valid_mask), exp_lc2b)
+               and minted.coverage == 180 / 600 and len(minted.gaps) == 3)
+    check("LC-2b(rev3) a multi-trace gappy stream mints ONE truthful SEGMENTED envelope (mask "
+          "[90,210)+[450,510), coverage 0.30, 3 gap records, ZERO stream method calls, no "
+          "cross-gap DSP)", ok_lc2b,
+          f"minted={'None' if minted is None else (minted.coverage, len(minted.gaps))} "
+          f"calls={gstream.calls}")
 
-    # contrast: a GAPLESS stream through the same shell DOES mint an honest full-coverage capsule
-    class _CleanStream(_GappyStream):
-        def get_gaps(self):
-            return []
-
-    fetcher.fetch_segment_waveforms = lambda *a, **k: {"XX.AAA": _CleanStream(xr, fs, [])}
+    # contrast: a GAPLESS full-session span mints the EXACT edge-trimmed capsule, never 1.0/[]
+    fetcher.fetch_segment_waveforms = lambda *a, **k: {"XX.AAA": _RecStream([(xr, fs, UTC0)])}
     out2 = fetcher.get_segment_envelopes(seg, UTC0, UTC0 + timedelta(seconds=t_sec), use_cache=False)
     good = out2.get("XX.AAA")
-    check("LC-2b(contrast) a gapless stream still mints an honest envelope (coverage=1.0, gaps=[])",
-          good is not None and good.coverage == 1.0 and list(good.gaps) == [],
-          f"good={'None' if good is None else (good.coverage, good.gaps)}")
+    exp_clean = np.zeros(t_sec, dtype=bool)
+    exp_clean[90:510] = True
+    check("LC-2b(rev3-contrast) a gapless 600 s span carries the EXACT 90 s edge-trim mask "
+          "([90,510), coverage 0.70, 2 trim-gap records) — never coverage=1.0/gaps=[]",
+          good is not None and np.array_equal(np.asarray(good.valid_mask), exp_clean)
+          and good.coverage == 0.70 and len(good.gaps) == 2,
+          f"good={'None' if good is None else (good.coverage, len(good.gaps))}")
 
     # =====================================================================
     # LC-2a (codex #2, align half) — gap membership is the TYPED sample carrier, not the UTC day

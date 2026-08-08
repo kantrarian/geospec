@@ -1,10 +1,31 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""D2 SEGMENTED-SUPPORT red-KATs — REV 2 (cayley, 2026-08-08) — phase
-`codex-d2-segmented-support-2026-08-08-v1`; codex assignment `27e227b`, codex bar review 1732
-(`873c8d5`, WORKS-WITH-FOUR-FIXES). Pinned start GeoSpec `54cea7b`. Grassmann implements UNEDITED
+"""D2 SEGMENTED-SUPPORT red-KATs — REV 3 (cayley, 2026-08-08) — phase
+`codex-d2-segmented-support-2026-08-08-v1`; codex assignment `27e227b`, bar review 1732, bounded
+correction 1747, closing PASS 1812, and the LC-2b/fractional-phase RULING 1906 (`8e44378`).
+Pinned start GeoSpec `54cea7b`; interim implementation `7d169ec`. Grassmann implements UNEDITED
 after codex passes THIS revision. Nothing here lifts a freeze / admits calibration / supports a
 claim; the historical incident/control replay through this enhancement is a LATER diagnostic run.
+
+REV 3 (codex 1906 ruling): the rev-2 "fractional phase contributes ZERO bins" rule was MY defect —
+internally inconsistent with SS-7b's fractional-span fixtures and mission-breaking on real archives
+(published sessions start at microsecond-fractional instants; gap durations are not integer
+seconds). FROZEN PHASE SEMANTICS now: for output grid index k the claimed timestamp is EXACTLY
+t_k = session_start_utc + k/out_rate_hz; a fragment may contribute at ANY fractional phase; its
+value at t_k is derived from that fragment's independently processed native carrier and evaluated
+AT that same t_k through an EXPLICIT interpolation/resampling operator — the fragment start is
+never rounded, shifted, or rewritten; nearest-OUTPUT-grid placement AND nearest-NATIVE-sample
+selection are both FORBIDDEN; no interpolation/filter support crosses a gap. The valid mask is
+TIMESTAMP-DERIVED, never length-rounded: t_k is valid exactly when
+fragment_start + EDGE_TRIM_SECONDS <= t_k < fragment_exclusive_end - EDGE_TRIM_SECONDS and the raw
+span meets MIN_CONTIGUOUS_SPAN_SECONDS. support_sha256 keeps binding the ORIGINAL fragment phase,
+session grid, and resulting mask. The single-span sentinel/identity return is allowed ONLY for an
+exact-phase (fragment_start == session_start) full-session span with the exact edge-trimmed mask
+attached; a fractional-phase span MUST take the general exact-time path (SS-11d/e are the
+executable guard). SS-11d is reworked from zero-contribution to ANTI-RELABEL; SS-11e adds the
+published-style microfractional fixture (+0.948447 s at 40.5 Hz). The companion live-carrier bar's
+LC-2b pair is updated to segmented semantics in the same commit (codex option A; LC-1/1b/3/2a
+byte-semantically unchanged).
 
 REV 2 closures (codex 1732):
   #1 BLOCKER  SS-10 drives the PRODUCTION monitor (`FaultCorrelationMonitor.
@@ -64,14 +85,15 @@ seismic_data.py rev-3 (segmented support):
 * compute_band_envelope_supported(fragments, *, session_start_utc, session_seconds=86400,
   out_rate_hz=1.0, freqmin=1.0, freqmax=10.0, min_rate_hz=25.0, source_id) -> EnvelopeSeries
     - fragments: ascending non-overlapping (data, rate_hz, aware-UTC start) raw spans; overlap /
-      naive start / rate < min_rate_hz -> DataUnavailable; a fragment whose start is NOT an
-      integer number of output-grid samples from session_start_utc (fractional phase) contributes
-      ZERO bins or raises DataUnavailable — NEVER rounded/shifted onto the grid;
+      naive start / rate < min_rate_hz -> DataUnavailable; a fragment may sit at ANY fractional
+      phase and contributes under the FROZEN PHASE SEMANTICS above (exact-time evaluation at t_k;
+      timestamp-derived mask; never rounded/shifted/relabeled; no nearest-sample selection);
     - bandpass -> Hilbert envelope -> anti-aliased resample INDEPENDENTLY per span; NO operation
       of any kind across a gap; spans < MIN_CONTIGUOUS_SPAN contribute nothing;
-    - EXACT half-open validity: an integer-aligned span [t0, t0+L) yields valid output bins
-      [t0+90, t0+L-90) on the session grid (gapless 86,400 s session -> [90, 86310), 86,220 bins;
-      240 s span at t0=0 -> [90, 150), 60 bins);
+    - EXACT timestamp-derived validity: t_k valid iff fragment_start + 90 <= t_k <
+      fragment_exclusive_end - 90 (span >= 240 s). Integer-aligned examples: gapless 86,400 s
+      session -> [90, 86310), 86,220 bins; 240 s span at t0=0 -> [90, 150), 60 bins; fractional
+      example: span [300.5, 900.5) -> t_k in {391..810}, 420 bins;
     - "valid" is an APPROXIMATION CONTRACT: on the operator-reference suite (SS-9) the trimmed
       interior of a span processed alone matches the same interior processed inside a longer
       carrier within EDGE_EFFECT_REL_TOL (max abs diff / max abs reference), at native rates
@@ -623,12 +645,40 @@ def main():
           "each -> unavailable (never index-aligned)", not agg_fails, f"passed_bad={agg_fails}")
     check("SS-11c FRAME GUARD at correlation: same six mismatches each -> (None, reasons)",
           not corr_fails, f"passed_bad={corr_fails}")
-    frac = SD.compute_band_envelope_supported(
-        [(am_sig(600, FS), FS, UTC0 + timedelta(microseconds=500000))],
-        session_start_utc=UTC0, session_seconds=1200, source_id="XX.AAA..BHZ")
-    check("SS-11d a FRACTIONAL-PHASE raw fragment contributes ZERO bins (never rounded onto "
-          "the session grid)", int(frac.valid_mask.sum()) == 0,
-          f"valid={int(frac.valid_mask.sum())}")
+    def _cont_sig(t):
+        """Shared continuous synthetic signal (5 Hz carrier, 0.02 Hz AM) sampled at times t."""
+        return (1.0 + 0.5 * np.sin(2 * np.pi * 0.02 * t + 1.234)) * np.sin(2 * np.pi * 5.0 * t)
+
+    def _anti_relabel(rate, frac_off, lock_id):
+        long_sec = 1200
+        t_ref = np.arange(int(round(long_sec * rate))) / rate
+        ref = SD.compute_band_envelope_supported(
+            [(_cont_sig(t_ref), rate, UTC0)], session_start_utc=UTC0,
+            session_seconds=long_sec, source_id="XX.AAA..BHZ")
+        f_start = 300.0 + frac_off
+        n_frag = int(round(600 * rate))
+        t_frag = f_start + np.arange(n_frag) / rate
+        frag = SD.compute_band_envelope_supported(
+            [(_cont_sig(t_frag), rate, UTC0 + timedelta(seconds=f_start))],
+            session_start_utc=UTC0, session_seconds=long_sec, source_id="XX.AAA..BHZ")
+        exp_m = np.zeros(long_sec, dtype=bool)
+        exp_m[391:811] = True                    # 300+off+90 <= t_k < 900+off-90, off in (0,1)
+        mask_ok = np.array_equal(frag.valid_mask, exp_m)
+        both = exp_m & ref.valid_mask
+        if mask_ok and int(both.sum()) == 420:
+            r = ref.values[both]
+            rel = float(np.max(np.abs(frag.values[both] - r)) / max(np.max(np.abs(r)), 1e-12))
+        else:
+            rel = float("inf")
+        tol = float(K["edge_effect_rel_tol"])
+        check(f"{lock_id} ANTI-RELABEL @ +{frac_off} s, {rate} Hz: timestamp-derived mask EXACTLY "
+              f"{{391..810}} (420 bins) and exact-time values match the full-carrier reference at "
+              f"IDENTICAL grid instants within {tol:g} (nearest-grid rounding fails visibly)",
+              mask_ok and rel <= tol,
+              f"mask_ok={mask_ok} valid={int(frag.valid_mask.sum())} rel={rel:.2e}")
+
+    _anti_relabel(40.0, 0.5, "SS-11d")           # the ambiguous half-second phase
+    _anti_relabel(40.5, 0.948447, "SS-11e")      # published-style microfractional phase
 
     # ---- LOCK 9 (codex #4): operator-reference edge-error contract --------
     TOL = float(K["edge_effect_rel_tol"])

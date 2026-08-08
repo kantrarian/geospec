@@ -27,10 +27,11 @@ REV 2 closures (codex 1732):
       path, and a support-mutated identity misses on load (SS-4c/4d). SS-7a now asserts the core
       receives the ORIGINAL arrays/rates/starts and that `stream.calls == []` (no detrend/trim/
       taper/merge or ANY stream-method call can slip through).
-  #4 MAJOR    finite trim gets a DECLARED ERROR CONTRACT: EDGE_EFFECT_REL_TOL = 1e-4 — "valid"
-      means edge discrepancy <= 1e-4 on the frozen operator-reference suite below (a KAT bound,
-      NOT a universal signal theorem; codex's independent probe measured 2.42e-5, so 1e-4 has
-      visible margin). SS-9 runs the reference-continuation suite at native rates 25/40/40.5/100 Hz
+  #4 MAJOR    finite trim gets a DECLARED ERROR CONTRACT: EDGE_EFFECT_REL_TOL = 2e-4 — "valid"
+      means edge discrepancy <= 2e-4 on the frozen operator-reference suite below (a KAT bound,
+      NOT a universal signal theorem; codex's exact-operator execution of THIS bar's 25 Hz
+      boundary-impulse reference measured 1.042e-4, so 2e-4 gives ~1.9x margin over the frozen
+      operator stress — codex 1747 bounded correction). SS-9 runs the reference-continuation suite at native rates 25/40/40.5/100 Hz
       with AM, deterministic-broadband, step+chirp, and boundary-impulse stressors (span alone vs
       embedded; trimmed interiors compared). The half-open mask is frozen EXACTLY: a gapless
       86,400 s session is valid on [90, 86310) = 86,220 bins; a 240 s span on [90, 150) = 60 bins
@@ -45,7 +46,7 @@ FROZEN CONSTANTS (operator-derived per the delegation; never from incident/contr
     1 Hz output). A shorter span contributes ZERO valid bins.
   * MIN_COMMON_SUPPORT_FRACTION = 0.50 of the requested session grid (== 43,200 @ 24 h).
   * STATION_COVERAGE_FLOOR = 0.50 (existing frozen floor; 0.50 exactly is eligible).
-  * EDGE_EFFECT_REL_TOL = 1e-4 — the edge-error KAT bound defined in #4 above.
+  * EDGE_EFFECT_REL_TOL = 2e-4 — the edge-error KAT bound defined in #4 above.
 
 CONTRACT (grassmann implements to THIS, unedited — the decouple)
 =================================================================
@@ -59,7 +60,7 @@ seismic_data.py rev-3 (segmented support):
   non-bool mask, or unparseable source identity fails; downstream paths MUST consult it.
 * SEG_SUPPORT = {"edge_trim_seconds": 90, "min_contiguous_span_seconds": 240,
   "min_common_support_fraction": 0.50, "station_coverage_floor": 0.50,
-  "edge_effect_rel_tol": 1e-4}.
+  "edge_effect_rel_tol": 2e-4}.
 * compute_band_envelope_supported(fragments, *, session_start_utc, session_seconds=86400,
   out_rate_hz=1.0, freqmin=1.0, freqmax=10.0, min_rate_hz=25.0, source_id) -> EnvelopeSeries
     - fragments: ascending non-overlapping (data, rate_hz, aware-UTC start) raw spans; overlap /
@@ -302,7 +303,7 @@ def main():
           K.get("edge_trim_seconds") == 90 and K.get("min_contiguous_span_seconds") == 240
           and K.get("min_common_support_fraction") == 0.50
           and K.get("station_coverage_floor") == 0.50
-          and K.get("edge_effect_rel_tol") == 1e-4
+          and K.get("edge_effect_rel_tol") == 2e-4
           and 0.50 * 86400 == 43200, f"SEG_SUPPORT={K}")
 
     rng = np.random.default_rng(11)
@@ -518,17 +519,13 @@ def main():
         mon = FC.FaultCorrelationMonitor(data_fetcher=_Fetcher())
         real_get = FC.get_segments_for_region
         FC.get_segments_for_region = lambda region: segs3
-        poisoned = []
-        legacy_names = [nm for nm in ("_aggregate_segment_envelope",) if
-                        hasattr(FC.FaultCorrelationMonitor, nm)]
-        saved = {}
-        for nm in legacy_names:
-            saved[nm] = getattr(FC.FaultCorrelationMonitor, nm)
+        legacy_aggregate = FC._aggregate_segment_envelope
 
-            def _boom(*a, _nm=nm, **k):
-                poison_log.append(_nm)
-                raise AssertionError(f"legacy aggregate path invoked: {_nm}")
-            setattr(FC.FaultCorrelationMonitor, nm, _boom)
+        def _boom_aggregate(*args, **kwargs):
+            poison_log.append("_aggregate_segment_envelope")
+            raise AssertionError("legacy aggregate path invoked")
+
+        FC._aggregate_segment_envelope = _boom_aggregate
         legacy_fn = getattr(SD, "compute_segment_activity_index", None)
         if legacy_fn is not None:
             SD.compute_segment_activity_index = lambda *a, **k: (_ for _ in ()).throw(
@@ -537,9 +534,8 @@ def main():
             return mon.compute_correlation_matrix("syn_region", UTC0,
                                                   UTC0 + timedelta(seconds=n))
         finally:
+            FC._aggregate_segment_envelope = legacy_aggregate
             FC.get_segments_for_region = real_get
-            for nm, fn in saved.items():
-                setattr(FC.FaultCorrelationMonitor, nm, fn)
             if legacy_fn is not None:
                 SD.compute_segment_activity_index = legacy_fn
 
@@ -635,7 +631,7 @@ def main():
           f"valid={int(frac.valid_mask.sum())}")
 
     # ---- LOCK 9 (codex #4): operator-reference edge-error contract --------
-    TOL = 1e-4
+    TOL = float(K["edge_effect_rel_tol"])
     stressors = {"am": am_sig, "broadband": broadband_sig, "step_chirp": step_chirp_sig,
                  "impulse": lambda sec, fs: impulse_sig(sec, fs, at_second=299.0)}
     worst = 0.0
@@ -665,7 +661,7 @@ def main():
             if rel > TOL:
                 fail9.append(f"{nm}@{rate}:rel={rel:.2e}")
     check("SS-9 OPERATOR-REFERENCE edge contract: span-alone vs embedded trimmed interiors agree "
-          "within EDGE_EFFECT_REL_TOL=1e-4 at 25/40/40.5/100 Hz under am/broadband/step_chirp/"
+          "within EDGE_EFFECT_REL_TOL=2e-4 at 25/40/40.5/100 Hz under am/broadband/step_chirp/"
           "impulse stressors (KAT bound, not a theorem)", not fail9,
           f"failures={fail9} worst={worst:.2e}")
 

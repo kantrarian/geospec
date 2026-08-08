@@ -13,15 +13,14 @@ Covered here (green after the repairs):
         600 s -> a 1 Hz carrier of 600 samples (within one-sample tolerance), realized dt ~ 1.0 s.
   LC-2b (codex #2, HIGH — shell half): a raw ObsPy data gap is NEVER interpolated. A gappy stream
         through get_segment_envelopes mints NO coverage=1.0/gaps=[] capsule (station skipped).
-
-HELD pending cayley's frozen-bar revision (NOT in this file — surfaced to cayley 0409-followup):
-  LC-2a (codex #2, align half): align_activity_series must reject a gap whose end lies past the
-        SAMPLE carrier [start, start+n*dt] (codex's 00:30Z-on-a-1000 s-carrier counterexample -> the
-        gap membership window is `gap_end <= start + n*dt`, not `< start + 1 day`). This is
-        IRRECONCILABLE with the frozen bar's D2R-3k (a 02:00Z gap on the same 1000 s carrier that
-        D2R-3k requires to stay AVAILABLE) — same class, opposite expectations. Tightening
-        align_activity_series's gap membership breaks D2R-3k, which is cayley's (bar author's) call
-        to revise. The 00:30Z lock lands with that revision; not authored here.
+  LC-2a (codex #2, HIGH — align half): align_activity_series rejects a gap whose end lies past the
+        SAMPLE carrier [start, start+n*dt] (codex's 00:30Z-on-a-1000 s-carrier counterexample ->
+        unavailable), while an honest IN-carrier gap (00:05Z, coverage 0.94) stays available + QC,
+        and a zero/non-finite duration is rejected. Membership rule:
+        series_start <= gap_start < gap_end <= series_start + n*dt (finite-positive duration +
+        aware-UTC start). Landed after cayley's frozen-bar D2R-3k/3o fixture correction (geospec
+        f6da210, codex 0426 ruling) — the frozen bar's old 02:00Z "permitted" gap that had conflicted
+        was itself the defective fixture.
 """
 import os
 import sys
@@ -115,9 +114,9 @@ class _GappyStream:
         return 1
 
 
-def _mk_series(SD, values, start_utc, *, dt_seconds=1.0, rate_pre=40.0):
+def _mk_series(SD, values, start_utc, *, dt_seconds=1.0, rate_pre=40.0, coverage=1.0, gaps=()):
     return SD.EnvelopeSeries(values=np.asarray(values, dtype=float), start_utc=start_utc,
-                             dt_seconds=dt_seconds, coverage=1.0, gaps=[],
+                             dt_seconds=dt_seconds, coverage=coverage, gaps=list(gaps),
                              source_ids=["XX.AAA"],
                              band_tag=getattr(SD, "_FAULT_CORR_BAND_TAG", "1-10Hz"),
                              processing_version=SD.PROCESSING_VERSION,
@@ -206,6 +205,32 @@ def main():
           good is not None and good.coverage == 1.0 and list(good.gaps) == [],
           f"good={'None' if good is None else (good.coverage, good.gaps)}")
 
+    # =====================================================================
+    # LC-2a (codex #2, align half) — gap membership is the TYPED sample carrier, not the UTC day
+    # (landed after cayley's frozen D2R-3k/3o fixture correction, geospec f6da210)
+    # =====================================================================
+    valsg = rng.normal(0.0, 1.0, 1000)                        # 1000 s carrier from 00:00Z
+    sB = _mk_series(SD, valsg, UTC0)
+    a_out = _mk_series(SD, valsg, UTC0, coverage=1.0, gaps=[("2026-08-01T00:30:00Z", 60)])
+    Ao, _no, qco = FC.align_activity_series({"a": a_out, "b": sB},
+                                            max_gap_seconds=600, min_coverage=0.9)
+    check("LC-2a align rejects a gap whose end lies past the sample carrier [start, start+n*dt] "
+          "(00:30Z on a 1000 s carrier, inside the UTC day -> UNAVAILABLE, never mere QC)",
+          Ao is None and len(qco) > 0, f"A={'None' if Ao is None else 'ok'} qc={qco}")
+
+    a_in = _mk_series(SD, valsg, UTC0, coverage=0.94, gaps=[("2026-08-01T00:05:00Z", 60)])
+    Ai, _ni, qci = FC.align_activity_series({"a": a_in, "b": sB},
+                                            max_gap_seconds=600, min_coverage=0.9)
+    check("LC-2a(contrast) an honest IN-carrier gap (00:05Z, 60 s, coverage 0.94) stays AVAILABLE "
+          "and records its QC flag", Ai is not None and len(qci) > 0,
+          f"A={'ok' if Ai is not None else None} qc={qci}")
+
+    a_zero = _mk_series(SD, valsg, UTC0, gaps=[("2026-08-01T00:05:00Z", 0)])
+    Az, _nz, qcz = FC.align_activity_series({"a": a_zero, "b": sB},
+                                            max_gap_seconds=600, min_coverage=0.9)
+    check("LC-2a(dur) a zero-duration gap is rejected (finite positive gap duration required)",
+          Az is None and len(qcz) > 0, f"A={'None' if Az is None else 'ok'} qc={qcz}")
+
 
 main()
 print()
@@ -213,4 +238,4 @@ if FAILS:
     print(f"D2 LIVE-CARRIER FIX FAILURES: {FAILS}")
     sys.exit(1)
 print("ALL D2 LIVE-CARRIER FIX LOCKS PASS (station UTC-align + non-integer-rate carrier + "
-      "no-interpolation gap skip) -- LC-2a (00:30Z align lock) HELD for cayley's D2R-3k revision")
+      "no-interpolation gap skip + typed-sample-carrier gap membership)")

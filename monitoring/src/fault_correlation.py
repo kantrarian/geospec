@@ -149,9 +149,10 @@ def _parse_date(s):
 def align_activity_series(series, *, max_gap_seconds, min_coverage):
     """Exact-UTC-grid alignment. Returns (A | None, names, qc). Fails closed (A=None) on:
     naive/aware-non-UTC start; non-finite/non-positive/unequal dt; off-grid start (half-sample
-    phase offset -- NEVER interpolate); a gap outside the carrier's UTC day; declared coverage
+    phase offset -- NEVER interpolate); a gap lying outside the typed sample carrier
+    [start, start+n*dt] (finite-positive duration + aware-UTC start required); declared coverage
     inconsistent with the in-span gaps + sample count; empty/short overlap; coverage <
-    min_coverage; or a gap > max_gap_seconds. A short permitted gap keeps ok but records qc."""
+    min_coverage; or a gap > max_gap_seconds. A short IN-carrier gap keeps ok but records qc."""
     names = list(series.keys())
     reasons = []
     if len(names) < 2:
@@ -178,7 +179,6 @@ def align_activity_series(series, *, max_gap_seconds, min_coverage):
         dts.append(dt)
         span = n * dt
         carrier_end = st + timedelta(seconds=span)
-        day_end = st + timedelta(days=1)
         cov = float(getattr(s, "coverage", 1.0))
         in_span_gap = 0.0
         for g in list(getattr(s, "gaps", [])):
@@ -187,23 +187,28 @@ def align_activity_series(series, *, max_gap_seconds, min_coverage):
             except Exception:
                 reasons.append(f"{name}: malformed gap {g!r}")
                 continue
+            if not np.isfinite(gsec) or gsec <= 0:
+                reasons.append(f"{name}: gap duration must be finite positive (got {gsec})")
+                continue
             try:
                 gstart = SD._parse_iso_utc(giso)
             except Exception:
                 reasons.append(f"{name}: unparseable gap start {giso!r}")
                 continue
-            if gstart.tzinfo is None:
-                gstart = gstart.replace(tzinfo=timezone.utc)
-            if gstart < st or gstart >= day_end:
-                reasons.append(f"{name}: gap {giso} outside carrier interval")
+            # codex 0409/0426 #2: aware-UTC gap start + the gap must lie WHOLLY inside the typed
+            # sample carrier [start, start + n*dt]. Same-day metadata outside the carrier is
+            # REJECTED (never recorded as mere QC) -- the honest carrier is n*dt seconds, not a day.
+            if gstart.tzinfo is None or gstart.utcoffset() != timedelta(0):
+                reasons.append(f"{name}: gap start {giso} must be aware UTC")
+                continue
+            gend = gstart + timedelta(seconds=gsec)
+            if not (st <= gstart < gend <= carrier_end):
+                reasons.append(f"{name}: gap {giso} (+{gsec}s) outside the sample carrier "
+                               f"[start, start+n*dt]")
                 continue
             if gsec > float(max_gap_seconds):
                 reasons.append(f"{name}: gap {gsec}s exceeds max_gap {max_gap_seconds}s")
-            gend = gstart + timedelta(seconds=gsec)
-            ov_start = max(gstart, st)
-            ov_end = min(gend, carrier_end)
-            if ov_end > ov_start:
-                in_span_gap += (ov_end - ov_start).total_seconds()
+            in_span_gap += gsec
         expected_cov = max(0.0, 1.0 - in_span_gap / span) if span > 0 else 0.0
         if abs(cov - expected_cov) > _COVERAGE_TOL:
             reasons.append(f"{name}: declared coverage {cov} inconsistent with gaps "

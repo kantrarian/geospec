@@ -122,6 +122,24 @@ PROCESSING_VERSION = "d2-reband-v2"
 # Correlated-station topology revision that the cache identity is keyed to.
 _TOPOLOGY_VERSION = "t1"
 
+# =============================================================================
+# D2 SEGMENTED-SUPPORT rev-3 (phase codex-d2-segmented-support-2026-08-08-v1, on cayley's
+# UNEDITED bar c2982e4). Real archive days are gappy; the rev-2 fix-#2 interim rule skipped
+# ANY gapped stream, which blocked every incident carrier. rev-3 replaces that with an
+# explicit valid-support carrier: each contiguous raw span is band-processed INDEPENDENTLY
+# (never across a gap), an edge guard is trimmed, and only bins whose complete DSP support
+# lies inside a >= MIN_CONTIGUOUS_SPAN span become valid. Every downstream operation honors
+# the valid_mask. Constants are operator-derived (bar docstring), never from incident/control
+# data; none of this lifts a freeze / admits calibration / supports a claim.
+# =============================================================================
+SEG_SUPPORT = {
+    "edge_trim_seconds": 90,            # per-stage zerophase settle, summed (bar docstring): 90 s
+    "min_contiguous_span_seconds": 240,  # 2*edge_trim + 60 s minimum valid interior
+    "min_common_support_fraction": 0.50,  # of the requested session grid (== 43,200 @ 24 h)
+    "station_coverage_floor": 0.50,      # existing frozen floor; 0.50 exactly is eligible
+    "edge_effect_rel_tol": 2e-4,         # edge-error KAT bound on the operator-reference suite
+}
+
 
 class DataUnavailable(Exception):
     """Raised when a segment/stream cannot be honestly turned into a rev-2 envelope
@@ -134,7 +152,15 @@ class DataUnavailable(Exception):
 
 @dataclass
 class EnvelopeSeries:
-    """A 1 Hz activity envelope with the provenance the observability gate depends on."""
+    """A 1 Hz activity envelope with the provenance the observability gate depends on.
+
+    rev-3 (segmented support): `values` is DENSE over a requested session grid and
+    `valid_mask` (bool, len == values) marks which bins carry a trustworthy, edge-trimmed,
+    within-a-contiguous-span envelope value. Invalid bins carry meaningless filler.
+    `coverage == count(valid_mask)/requested_grid_count` EXACTLY and `gaps` is the exact
+    run-length complement of `valid_mask`. The two rev-3 fields default to None so every
+    rev-2 construction (the pinned core, the legacy aggregate, the verify-on-load cache) is
+    unchanged; validate_support() is the seam that consults them downstream."""
     values: np.ndarray            # envelope samples at out_rate (1 Hz)
     start_utc: datetime           # AWARE UTC start of sample 0
     dt_seconds: float             # 1 / out_rate_hz
@@ -144,6 +170,8 @@ class EnvelopeSeries:
     band_tag: str                 # e.g. "1-10Hz"
     processing_version: str       # PROCESSING_VERSION at compute time
     pre_envelope_rate_hz: float   # NATIVE rate the envelope was taken at (anti-alias witness)
+    valid_mask: Optional[np.ndarray] = None      # rev-3: bool, len == values (None on rev-2 paths)
+    requested_grid_count: Optional[int] = None   # rev-3: declared session grid length
 
 
 @dataclass
@@ -161,6 +189,10 @@ class EnvelopeCacheIdentity:
     processing_version: str
     topology_version: str
     input_sha256: str
+    # rev-3 11th field: the segmented-support digest (timing/valid-mask structure). Defaults
+    # None so every rev-2 identity keeps its exact ten-field behavior; when present it moves
+    # the cache key (a changed gap endpoint => cache miss).
+    support_sha256: Optional[str] = None
 
 
 def _iso(v):
@@ -178,7 +210,8 @@ def _parse_iso_utc(s):
 
 
 def _identity_to_dict(identity: "EnvelopeCacheIdentity") -> Dict:
-    """Deterministic dict of ALL ten identity fields (datetimes -> ISO)."""
+    """Deterministic dict of ALL identity fields (datetimes -> ISO). rev-3 adds
+    support_sha256 as an 11th key; the ten rev-2 fields keep participating unchanged."""
     return {
         "region": identity.region,
         "segment": identity.segment,
@@ -190,20 +223,24 @@ def _identity_to_dict(identity: "EnvelopeCacheIdentity") -> Dict:
         "processing_version": identity.processing_version,
         "topology_version": identity.topology_version,
         "input_sha256": identity.input_sha256,
+        "support_sha256": identity.support_sha256,
     }
 
 
 def build_envelope_cache_identity(*, region, segment, source_id, start_utc, end_utc,
                                   band_tag, processing_version, topology_version,
-                                  native_rate_hz, input_sha256) -> EnvelopeCacheIdentity:
+                                  native_rate_hz, input_sha256,
+                                  support_sha256=None) -> EnvelopeCacheIdentity:
     """Assemble the canonical identity. The SHELL derives native_rate_hz from the actual
-    trace and input_sha256 from the exact input sample bytes before calling this."""
+    trace, input_sha256 from the exact input sample bytes, and (rev-3) support_sha256 from
+    support_digest over the fragment set before calling this. support_sha256 defaults None so
+    rev-2 callers are unchanged."""
     return EnvelopeCacheIdentity(
         region=region, segment=segment, source_id=source_id,
         start_utc=start_utc, end_utc=end_utc,
         native_rate_hz=float(native_rate_hz), band_tag=band_tag,
         processing_version=processing_version, topology_version=topology_version,
-        input_sha256=input_sha256,
+        input_sha256=input_sha256, support_sha256=support_sha256,
     )
 
 
@@ -259,6 +296,252 @@ def compute_band_envelope_from_array(data, rate_hz, *, freqmin=1.0, freqmax=10.0
         processing_version=PROCESSING_VERSION,
         pre_envelope_rate_hz=rate_hz,
     )
+
+
+# ============================ D2 SEGMENTED-SUPPORT rev-3 ============================
+
+def _parse_net_sta(source_id):
+    """The NET.STA station key of an NSLC[.channel] source id, or None if unparseable.
+    'XX.AAA..BHZ' -> 'XX.AAA'; 'XX.AAA' -> 'XX.AAA'. Two channels/locations of one NET.STA
+    share a key (they are ONE station)."""
+    if not isinstance(source_id, str):
+        return None
+    parts = source_id.split(".")
+    if len(parts) < 2 or not parts[0] or not parts[1]:
+        return None
+    return f"{parts[0]}.{parts[1]}"
+
+
+def _mask_to_gaps(valid_mask, start_utc, dt_seconds):
+    """The EXACT run-length complement of a boolean valid-mask as [(iso_utc_start, seconds)].
+    Formatting matches the EnvelopeSeries gap convention (%Y-%m-%dT%H:%M:%SZ; duration in
+    seconds), so a series produced here round-trips through validate_support()."""
+    mask = np.asarray(valid_mask, dtype=bool).ravel()
+    n = mask.size
+    dt = float(dt_seconds)
+    gaps = []
+    i = 0
+    while i < n:
+        if not mask[i]:
+            j = i
+            while j < n and not mask[j]:
+                j += 1
+            gaps.append(((start_utc + timedelta(seconds=i * dt)).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                         (j - i) * dt))
+            i = j
+        else:
+            i += 1
+    return gaps
+
+
+def validate_support(series):
+    """(ok, reasons) for a supported EnvelopeSeries. FAILS on: missing/non-bool valid_mask;
+    mask length != values; bad requested_grid_count; empty/unparseable source identity;
+    coverage != count(valid_mask)/requested_grid_count; or gaps that are not the exact
+    run-length complement of valid_mask. Downstream paths MUST consult this before trusting a
+    series' mask."""
+    reasons = []
+    values = np.asarray(getattr(series, "values", []), dtype=float).ravel()
+    mask = getattr(series, "valid_mask", None)
+    grid = getattr(series, "requested_grid_count", None)
+    if mask is None:
+        reasons.append("no valid_mask")
+    else:
+        mask_arr = np.asarray(mask)
+        if mask_arr.dtype != np.bool_:
+            reasons.append(f"valid_mask not bool (dtype {mask_arr.dtype})")
+        elif mask_arr.size != values.size:
+            reasons.append(f"valid_mask length {mask_arr.size} != values {values.size}")
+    if not isinstance(grid, (int, np.integer)) or isinstance(grid, bool) or int(grid) <= 0:
+        reasons.append(f"requested_grid_count must be a positive int (got {grid!r})")
+    srcs = list(getattr(series, "source_ids", []) or [])
+    if not srcs:
+        reasons.append("no source_ids")
+    else:
+        for s in srcs:
+            if _parse_net_sta(s) is None:
+                reasons.append(f"unparseable source identity {s!r}")
+    if reasons:
+        return False, reasons
+    cnt = int(np.asarray(mask, dtype=bool).sum())
+    cov = float(getattr(series, "coverage", float("nan")))
+    exp_cov = cnt / int(grid)
+    if not np.isfinite(cov) or abs(cov - exp_cov) > 1e-9:
+        reasons.append(f"coverage {cov} != count/grid {exp_cov}")
+    declared = []
+    for g in (getattr(series, "gaps", []) or []):
+        try:
+            declared.append((g[0], float(g[1])))
+        except Exception:
+            reasons.append(f"malformed gap {g!r}")
+    expected = _mask_to_gaps(np.asarray(mask, dtype=bool), series.start_utc,
+                             float(series.dt_seconds))
+    if declared != expected:
+        reasons.append("gaps are not the exact run-length complement of valid_mask")
+    return (len(reasons) == 0), reasons
+
+
+def _validate_fragments(fragments, *, min_rate_hz):
+    """Order/overlap/naive-start/rate checks. Returns [(array, rate, start_dt, npts)].
+    Raises DataUnavailable on overlap, a naive/aware-non-UTC start, or rate < min_rate_hz."""
+    frs = []
+    prev_end = None
+    for idx, fr in enumerate(fragments):
+        try:
+            data, rate, start = fr[0], float(fr[1]), fr[2]
+        except Exception:
+            raise DataUnavailable([f"fragment {idx} malformed: {fr!r}"])
+        if not (isinstance(start, datetime) and start.tzinfo is not None
+                and start.utcoffset() == timedelta(0)):
+            raise DataUnavailable([f"fragment {idx} start must be AWARE UTC (got {start!r})"])
+        if not np.isfinite(rate) or rate < float(min_rate_hz):
+            raise DataUnavailable(
+                [f"fragment {idx} native rate {rate} Hz below minimum {min_rate_hz} Hz"])
+        arr = np.asarray(data, dtype=float).ravel()
+        npts = arr.size
+        end = start + timedelta(seconds=npts / rate)
+        if prev_end is not None and start < prev_end:
+            raise DataUnavailable(
+                [f"fragment {idx} overlaps the previous span (start {start} < prev end {prev_end})"])
+        prev_end = end
+        frs.append((arr, rate, start, npts))
+    return frs
+
+
+def _place_fragments(frs, *, session_start_utc, session_seconds, out_rate_hz):
+    """Geometric placement of each span on the requested session grid. Returns (N, placements)
+    where placement = (frag_index, off, L_out, valid_lo, valid_hi). A span whose start is not
+    an integer number of output-grid samples from session_start (a half-sample-ambiguous
+    phase) contributes NO bins and is NEVER rounded/shifted onto the grid; a span shorter than
+    MIN_CONTIGUOUS_SPAN contributes no valid bins; otherwise the valid interior is the span
+    trimmed by EDGE_TRIM on each end."""
+    N = int(round(float(session_seconds) * float(out_rate_hz)))
+    trim = int(round(SEG_SUPPORT["edge_trim_seconds"] * float(out_rate_hz)))
+    min_span = int(round(SEG_SUPPORT["min_contiguous_span_seconds"] * float(out_rate_hz)))
+    placements = []
+    for idx, (arr, rate, start, npts) in enumerate(frs):
+        off_f = (start - session_start_utc).total_seconds() * float(out_rate_hz)
+        off_r = round(off_f)
+        if abs(off_f - off_r) > 0.5 - 1e-9:
+            continue  # fractional (half-sample-ambiguous) phase -> never shifted onto the grid
+        off = int(off_r)
+        L_out = int(round(npts * float(out_rate_hz) / rate))
+        if L_out < min_span:
+            valid_lo = valid_hi = off  # below MIN_CONTIGUOUS_SPAN -> zero valid bins
+        else:
+            valid_lo = off + trim
+            valid_hi = off + L_out - trim
+        placements.append((idx, off, L_out, valid_lo, valid_hi))
+    return N, placements
+
+
+def compute_band_envelope_supported(fragments, *, session_start_utc, session_seconds=86400,
+                                    out_rate_hz=1.0, freqmin=1.0, freqmax=10.0,
+                                    min_rate_hz=25.0, source_id) -> EnvelopeSeries:
+    """Segmented-support core. Each contiguous raw span is band-processed INDEPENDENTLY by the
+    pinned rev-2 core (bandpass -> Hilbert envelope -> anti-aliased resample) — NO filter /
+    Hilbert / resample / interpolation / padding EVER crosses a gap. Outputs are anchored to
+    the requested session's out_rate UTC grid; each span's valid interior is [t0+trim, t0+L-trim)
+    and only spans >= MIN_CONTIGUOUS_SPAN contribute. Returns a DENSE EnvelopeSeries with a
+    valid_mask, coverage = count(valid)/N, and gaps = the run-length complement. A single span
+    that fills the whole grid IS the pinned core's series with support metadata attached (the
+    composition-frozen shell's sentinel identity is preserved)."""
+    frs = _validate_fragments(fragments, min_rate_hz=min_rate_hz)
+    N, placements = _place_fragments(frs, session_start_utc=session_start_utc,
+                                     session_seconds=session_seconds, out_rate_hz=out_rate_hz)
+    dt = 1.0 / float(out_rate_hz)
+    dense = np.zeros(N, dtype=float)
+    mask = np.zeros(N, dtype=bool)
+    pre_rate = float(frs[0][1]) if frs else float(min_rate_hz)
+    single_core = None
+    for (idx, off, L_out, valid_lo, valid_hi) in placements:
+        arr, rate, start, npts = frs[idx]
+        core = compute_band_envelope_from_array(
+            arr, rate, freqmin=freqmin, freqmax=freqmax, out_rate_hz=out_rate_hz,
+            min_rate_hz=min_rate_hz, start_utc=start, source_id=source_id)
+        env = np.asarray(core.values, dtype=float).ravel()
+        L = min(int(L_out), env.size)
+        lo, hi = max(off, 0), min(off + L, N)
+        if hi > lo:
+            dense[lo:hi] = env[(lo - off):(hi - off)]
+        vlo, vhi = max(valid_lo, 0), min(valid_hi, N)
+        if vhi > vlo:
+            mask[vlo:vhi] = True
+        pre_rate = float(rate)
+        if len(placements) == 1 and off == 0 and int(L_out) == N:
+            single_core = core
+    coverage = float(mask.sum()) / N if N > 0 else 0.0
+    gaps = _mask_to_gaps(mask, session_start_utc, dt)
+    if single_core is not None:
+        single_core.values = dense
+        single_core.start_utc = session_start_utc
+        single_core.dt_seconds = dt
+        single_core.coverage = coverage
+        single_core.gaps = gaps
+        single_core.valid_mask = mask
+        single_core.requested_grid_count = N
+        return single_core
+    return EnvelopeSeries(
+        values=dense, start_utc=session_start_utc, dt_seconds=dt, coverage=coverage,
+        gaps=gaps, source_ids=[source_id], band_tag=_FAULT_CORR_BAND_TAG,
+        processing_version=PROCESSING_VERSION, pre_envelope_rate_hz=pre_rate,
+        valid_mask=mask, requested_grid_count=N)
+
+
+def support_digest(fragments, *, session_start_utc, session_seconds, out_rate_hz, source_id):
+    """Canonical SHA-256 over the ordered fragment records (start_iso, exclusive_end_iso, rate,
+    npts, source_id, raw_sha256) + the session grid identity (start_iso, seconds, out_rate) +
+    the derived valid-mask bytes. Any change to raw bytes, rate, npts, a gap endpoint, the
+    source id, or the session phase changes the digest."""
+    records = []
+    frs_raw = []
+    for fr in fragments:
+        arr = np.asarray(fr[0], dtype=float).ravel()
+        rate = float(fr[1])
+        start = fr[2]
+        npts = int(arr.size)
+        end = start + timedelta(seconds=(npts / rate if rate else 0.0))
+        records.append({
+            "start_iso": _iso(start),
+            "exclusive_end_iso": _iso(end),
+            "rate": rate,
+            "npts": npts,
+            "source_id": source_id,
+            "raw_sha256": hashlib.sha256(arr.tobytes()).hexdigest(),
+        })
+        frs_raw.append((arr, rate, start, npts))
+    N, placements = _place_fragments(frs_raw, session_start_utc=session_start_utc,
+                                     session_seconds=session_seconds, out_rate_hz=out_rate_hz)
+    mask = np.zeros(N, dtype=bool)
+    for (idx, off, L_out, valid_lo, valid_hi) in placements:
+        a, b = max(valid_lo, 0), min(valid_hi, N)
+        if b > a:
+            mask[a:b] = True
+    session_identity = {
+        "start_iso": _iso(session_start_utc),
+        "seconds": float(session_seconds),
+        "out_rate_hz": float(out_rate_hz),
+    }
+    blob = json.dumps({"records": records, "session": session_identity},
+                      sort_keys=True, separators=(",", ":"), allow_nan=False).encode("utf-8")
+    h = hashlib.sha256()
+    h.update(blob)
+    h.update(b"|mask|")
+    h.update(np.packbits(mask).tobytes() if mask.size else b"")
+    return h.hexdigest()
+
+
+def _to_aware_utc(value, *, default=None):
+    """Coerce a trace start to an AWARE-UTC datetime. Accepts an aware/naive datetime or an
+    obspy UTCDateTime (via its .datetime); returns `default` when nothing usable is present."""
+    if value is None:
+        return default
+    if isinstance(value, datetime):
+        return value if value.tzinfo is not None else value.replace(tzinfo=timezone.utc)
+    dt = getattr(value, "datetime", None)
+    if isinstance(dt, datetime):
+        return dt if dt.tzinfo is not None else dt.replace(tzinfo=timezone.utc)
+    return default
 
 
 class SeismicDataFetcher:
@@ -351,6 +634,12 @@ class SeismicDataFetcher:
                 "band_tag": series.band_tag,
                 "processing_version": series.processing_version,
                 "pre_envelope_rate_hz": float(series.pre_envelope_rate_hz),
+                # rev-3 support metadata (None on rev-2 series)
+                "valid_mask": ([bool(b) for b in np.asarray(series.valid_mask, dtype=bool).ravel()]
+                               if getattr(series, "valid_mask", None) is not None else None),
+                "requested_grid_count": (int(series.requested_grid_count)
+                                         if getattr(series, "requested_grid_count", None) is not None
+                                         else None),
             },
         }
         p = Path(path)
@@ -380,6 +669,7 @@ class SeismicDataFetcher:
             json.dumps(values_list, separators=(",", ":")).encode("utf-8")).hexdigest()
         if recomputed != payload.get("output_sha256"):
             return None
+        vm = s.get("valid_mask", None)
         return EnvelopeSeries(
             values=np.asarray(values_list, dtype=float),
             start_utc=_parse_iso_utc(s["start_utc"]),
@@ -390,6 +680,8 @@ class SeismicDataFetcher:
             band_tag=s["band_tag"],
             processing_version=s["processing_version"],
             pre_envelope_rate_hz=float(s["pre_envelope_rate_hz"]),
+            valid_mask=(np.asarray(vm, dtype=bool) if vm is not None else None),
+            requested_grid_count=s.get("requested_grid_count", None),
         )
 
     def _load_cache(self, path: Path) -> Optional[object]:
@@ -607,64 +899,62 @@ class SeismicDataFetcher:
         use_cache: bool = True
     ) -> Dict[str, "EnvelopeSeries"]:
         """
-        rev-2 SHELL. Per stream it may merge/detrend/copy the stream object, but performs
-        NO filter/decimate/resample on it — all band DSP lives in
-        compute_band_envelope_from_array. It extracts (raw native array, actual native
-        rate, NSLC), builds the DERIVED EnvelopeCacheIdentity, consults the verify-on-load
-        cache, calls the core exactly once per cache-missed stream, and RETURNS THE CORE'S
-        EnvelopeSeries OBJECTS. The legacy process_waveforms/compute_envelope helpers are
-        never invoked on the fault-correlation path.
+        rev-3 SEGMENTED-SUPPORT SHELL. Builds ONE fragment per contiguous raw trace, passing
+        the ORIGINAL arrays/rates/starts to compute_band_envelope_supported exactly once per
+        stream, and returns ITS EnvelopeSeries objects. The shell makes NO method call on the
+        stream object — no merge/detrend/trim/taper/filter/decimate/resample; trace data/stats
+        are READ only (len()/[]/.data/.stats). All band DSP + segmentation lives in the core.
+        The cache identity is DERIVED (actual native rate + the raw-byte digest of the first
+        trace + the support digest over the whole fragment set); a support-mutated identity
+        misses on load.
 
         Returns:
             Dictionary mapping station NSLC -> EnvelopeSeries
         """
         waveforms = self.fetch_segment_waveforms(segment, start, end, use_cache)
+        session_seconds = (end - start).total_seconds()
 
         envelopes: Dict[str, "EnvelopeSeries"] = {}
         for nslc, stream in waveforms.items():
-            # Extract the raw native array + rate. Stream-level merge/detrend/copy is
-            # permitted; band DSP (filter/decimate/resample) on the stream is NOT.
-            # codex 0409 #2: TRUTHFUL carrier -- NEVER interpolate over data gaps. Inspect the raw
-            # ObsPy gaps first; ANY real gap => skip the station (the core emits coverage=1.0/gaps=[],
-            # so an interpolated fill would mint a false full-coverage carrier). Supporting partial
-            # coverage later needs segmented DSP + truthful propagated gap metadata.
+            # One fragment per contiguous raw trace. READ-ONLY on the stream (no method call):
+            # iterate by index, read trace.data / trace.stats only.
+            fragments = []
             try:
-                raw_gaps = stream.get_gaps() if hasattr(stream, "get_gaps") else None
-                if isinstance(raw_gaps, (list, tuple)) and len(raw_gaps) > 0:
-                    logger.info(f"{nslc}: {len(raw_gaps)} raw data gap(s) -> skip (no interpolation)")
-                    continue
-                work = stream
-                try:
-                    work = stream.copy()
-                    work.merge(method=1)          # NON-interpolating merge (no fill_value)
-                    work.detrend('demean')
-                    work.detrend('linear')
-                except Exception:
-                    work = stream
-                trace = work[0]
-                data = np.asarray(trace.data, dtype=float).ravel()
-                native_rate = float(trace.stats.sampling_rate)
+                for i in range(len(stream)):
+                    trace = stream[i]
+                    data = np.asarray(trace.data, dtype=float).ravel()
+                    if data.size == 0:
+                        continue
+                    rate = float(trace.stats.sampling_rate)
+                    fstart = _to_aware_utc(getattr(trace.stats, "starttime", None), default=start)
+                    fragments.append((data, rate, fstart))
             except Exception as exc:
-                logger.warning(f"{nslc}: could not extract native trace: {exc}")
+                logger.warning(f"{nslc}: could not read native traces: {exc}")
+                continue
+            if not fragments:
                 continue
 
-            if data.size == 0:
-                continue
-            if not np.all(np.isfinite(data)):
-                logger.info(f"{nslc}: non-finite samples (masked gap) -> skip (no interpolation)")
-                continue
-
-            # DERIVED identity: actual native rate + sha256 of the exact native samples.
-            input_sha = hashlib.sha256(data.tobytes()).hexdigest()
-            identity = build_envelope_cache_identity(
-                region=segment.region, segment=segment.name, source_id=nslc,
-                start_utc=start, end_utc=end,
-                band_tag=_FAULT_CORR_BAND_TAG, processing_version=PROCESSING_VERSION,
-                topology_version=_TOPOLOGY_VERSION,
-                native_rate_hz=native_rate, input_sha256=input_sha)
-
+            # DERIVED identity: native rate + raw digest of the first span + support digest of
+            # the whole fragment set (timing/valid-mask structure).
+            native_rate = float(fragments[0][1])
+            input_sha = hashlib.sha256(
+                np.asarray(fragments[0][0], dtype=float).tobytes()).hexdigest()
             cache_path = None
+            identity = None
             if use_cache:
+                try:
+                    support_sha = support_digest(
+                        fragments, session_start_utc=start, session_seconds=session_seconds,
+                        out_rate_hz=1.0, source_id=nslc)
+                except Exception:
+                    support_sha = None
+                identity = build_envelope_cache_identity(
+                    region=segment.region, segment=segment.name, source_id=nslc,
+                    start_utc=start, end_utc=end,
+                    band_tag=_FAULT_CORR_BAND_TAG, processing_version=PROCESSING_VERSION,
+                    topology_version=_TOPOLOGY_VERSION,
+                    native_rate_hz=native_rate, input_sha256=input_sha,
+                    support_sha256=support_sha)
                 cache_path = self._cache_path(segment.region, start, end, "seg_env", identity)
                 cached = self._load_cached_series(cache_path, identity)
                 if cached is not None:
@@ -672,13 +962,14 @@ class SeismicDataFetcher:
                     continue
 
             try:
-                series = compute_band_envelope_from_array(
-                    data, native_rate, start_utc=start, source_id=nslc)
+                series = compute_band_envelope_supported(
+                    fragments, session_start_utc=start, session_seconds=session_seconds,
+                    source_id=nslc)
             except DataUnavailable as exc:
                 logger.info(f"{nslc}: {exc}")
                 continue
 
-            if use_cache and cache_path is not None:
+            if use_cache and cache_path is not None and identity is not None:
                 try:
                     self._save_cached_series(cache_path, identity, series)
                 except Exception as exc:
@@ -686,7 +977,7 @@ class SeismicDataFetcher:
 
             envelopes[nslc] = series
 
-        logger.info(f"Computed rev-2 envelopes for {len(envelopes)} stations")
+        logger.info(f"Computed rev-3 segmented-support envelopes for {len(envelopes)} stations")
         return envelopes
 
     def get_region_activity(

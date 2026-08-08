@@ -379,6 +379,130 @@ def _aggregate_segment_envelope(env_by_station):
     )
 
 
+# ======================= D2 SEGMENTED-SUPPORT rev-3 (fault side) =======================
+
+def _support_frame_key(series):
+    """The frame a supported series lives on: exact start, dt, grid, band, version. Two series
+    may only be aggregated/correlated when these agree -- NEVER index-aligned across a
+    mismatch."""
+    return (
+        getattr(series, "start_utc", None),
+        float(getattr(series, "dt_seconds", float("nan"))),
+        getattr(series, "requested_grid_count", None),
+        getattr(series, "band_tag", None),
+        getattr(series, "processing_version", None),
+    )
+
+
+def _frames_agree(series_list):
+    keys = [_support_frame_key(s) for s in series_list]
+    first = keys[0]
+    for k in keys[1:]:
+        if (k[0] != first[0] or not (k[1] == first[1]) or k[2] != first[2]
+                or k[3] != first[3] or k[4] != first[4]):
+            return False
+    return True
+
+
+def station_eligible(series):
+    """A station series is eligible iff validate_support passes AND its coverage meets the
+    frozen STATION_COVERAGE_FLOOR (0.50 exactly is eligible)."""
+    ok, _ = SD.validate_support(series)
+    if not ok:
+        return False
+    return float(getattr(series, "coverage", 0.0)) >= SD.SEG_SUPPORT["station_coverage_floor"]
+
+
+def aggregate_segment_supported(station_series_list):
+    """Median-stack station EnvelopeSeries into one per-segment activity series over the
+    valid-support carrier. A per-bin aggregate value is VALID only where >= 2 DISTINCT NET.STA
+    stations are concurrently valid (two channels/locations of one NET.STA are ONE station);
+    median at each valid bin over the stations valid there; truthful derived mask/gaps/coverage
+    (never gaps=[] merely because aggregation succeeded); station order irrelevant; None when
+    no bin has 2-distinct-station support. FRAME GUARD: mismatched start/dt/grid/band/version
+    across inputs -> None (never index-aligned). Invalid bins carry filler 0, so downstream
+    filler changes cannot move the aggregate."""
+    series = [s for s in (station_series_list or []) if s is not None]
+    if len(series) < 2:
+        return None
+    if not _frames_agree(series):
+        return None
+    valid = [s for s in series if SD.validate_support(s)[0]]
+    if len(valid) < 2:
+        return None
+    L = int(np.asarray(valid[0].values, dtype=float).ravel().size)
+    if any(int(np.asarray(s.values, dtype=float).ravel().size) != L for s in valid):
+        return None
+    st_val, st_msk = {}, {}
+    for s in valid:
+        key = SD._parse_net_sta(s.source_ids[0]) if s.source_ids else None
+        if key is None:
+            continue
+        st_val.setdefault(key, []).append(np.asarray(s.values, dtype=float).ravel())
+        st_msk.setdefault(key, []).append(np.asarray(s.valid_mask, dtype=bool).ravel())
+    keys = list(st_val.keys())
+    if len(keys) < 2:
+        return None
+    st_value = {k: np.median(np.vstack(st_val[k]), axis=0) for k in keys}
+    st_valid = {k: np.vstack(st_msk[k]).any(axis=0) for k in keys}
+    valid_stack = np.vstack([st_valid[k] for k in keys])       # (n_stations, L)
+    value_stack = np.vstack([st_value[k] for k in keys])
+    out_mask = valid_stack.sum(axis=0) >= 2                     # >= 2 DISTINCT stations concurrently
+    if not bool(out_mask.any()):
+        return None
+    out_vals = np.zeros(L, dtype=float)
+    for b in np.nonzero(out_mask)[0]:
+        sel = valid_stack[:, b]
+        out_vals[b] = float(np.median(value_stack[sel, b]))
+    ref = valid[0]
+    grid = int(ref.requested_grid_count)
+    coverage = float(out_mask.sum()) / grid if grid > 0 else 0.0
+    gaps = SD._mask_to_gaps(out_mask, ref.start_utc, float(ref.dt_seconds))
+    return SD.EnvelopeSeries(
+        values=out_vals, start_utc=ref.start_utc, dt_seconds=float(ref.dt_seconds),
+        coverage=coverage, gaps=gaps,
+        source_ids=[sid for s in valid for sid in s.source_ids],
+        band_tag=ref.band_tag, processing_version=ref.processing_version,
+        pre_envelope_rate_hz=float(ref.pre_envelope_rate_hz),
+        valid_mask=out_mask, requested_grid_count=grid)
+
+
+def compute_correlation_matrix_supported(segment_series, names):
+    """(C | None, names, qc) over the AND-mask common support of ALL independently eligible
+    segments. Requires >= 2 eligible segments AND common support >= MIN_COMMON_SUPPORT_FRACTION
+    x requested_grid_count. Eligibility is validate_support ALONE (a failing common support
+    FAILS carrying every eligible name -- no result-dependent subset search). Correlation is
+    computed ONLY over common-support bins, so invalid-bin filler changes leave C/names/qc
+    bit-identical. Same FRAME GUARD as aggregation."""
+    pairs = [(s, nm) for s, nm in zip(segment_series, names)
+             if s is not None and SD.validate_support(s)[0]]
+    e_series = [s for s, _ in pairs]
+    e_names = [nm for _, nm in pairs]
+    if len(e_series) < 2:
+        return None, e_names, ["fewer than 2 eligible segments"]
+    if not _frames_agree(e_series):
+        return None, e_names, ["segment frame mismatch (start/dt/grid/band/version)"]
+    L = int(np.asarray(e_series[0].values, dtype=float).ravel().size)
+    if any(int(np.asarray(s.values, dtype=float).ravel().size) != L for s in e_series):
+        return None, e_names, ["segment length mismatch"]
+    grid = int(e_series[0].requested_grid_count)
+    masks = np.vstack([np.asarray(s.valid_mask, dtype=bool).ravel() for s in e_series])
+    common = masks.all(axis=0)
+    min_common = SD.SEG_SUPPORT["min_common_support_fraction"] * grid
+    if int(common.sum()) < min_common:
+        return None, e_names, [f"common support {int(common.sum())} < {min_common:.0f} "
+                               f"(0.5 x requested grid {grid})"]
+    rows = np.vstack([np.asarray(s.values, dtype=float).ravel()[common] for s in e_series])
+    C = np.atleast_2d(np.corrcoef(rows))
+    if not np.all(np.isfinite(C)):
+        return None, e_names, ["correlation matrix non-finite"]
+    if not np.allclose(np.diag(C), 1.0, atol=1e-6):
+        return None, e_names, ["diagonal not unit"]
+    if float(np.min(np.linalg.eigvalsh(C))) < -1e-6:
+        return None, e_names, ["matrix not PSD"]
+    return C, e_names, []
+
+
 @dataclass
 class CorrelationResult:
     """Container for fault correlation analysis results."""
@@ -512,33 +636,29 @@ class FaultCorrelationMonitor:
         except Exception as exc:
             return None, [], [f"unknown region {region}: {exc}"]
 
-        series_by_segment = {}
+        # rev-3: route through the segmented valid-support path. Per segment, the station
+        # EnvelopeSeries are aggregated over their >= 2-distinct-station support
+        # (aggregate_segment_supported); the per-segment activities are then correlated over
+        # their AND-mask common support (compute_correlation_matrix_supported). The legacy
+        # index-truncation aggregate (_aggregate_segment_envelope / compute_segment_activity_index)
+        # is NEVER invoked on this path.
+        seg_series = []
+        seg_names = []
         for segment in segments:
             env = self.data_fetcher.get_segment_envelopes(segment, start, end)
-            agg = _aggregate_segment_envelope(env)
+            stations = list(env.values()) if isinstance(env, dict) else list(env or [])
+            agg = aggregate_segment_supported(stations)
             if agg is not None:
-                series_by_segment[segment.name] = agg
+                seg_series.append(agg)
+                seg_names.append(segment.name)
 
-        ok_gate, qc = observability_gate(series_by_segment)
+        # existing observability gate unchanged (provenance pre_envelope_rate + non-degeneracy)
+        ok_gate, gate_qc = observability_gate(
+            {name: s for name, s in zip(seg_names, seg_series)})
         if not ok_gate:
-            return None, list(series_by_segment.keys()), list(qc)
+            return None, list(seg_names), list(gate_qc)
 
-        A, segment_names, align_qc = align_activity_series(
-            series_by_segment,
-            max_gap_seconds=self.window_hours * 3600,
-            min_coverage=0.5)
-        if A is None:
-            return None, list(segment_names), list(align_qc)
-
-        C = np.atleast_2d(np.corrcoef(A))
-        if not np.all(np.isfinite(C)):
-            return None, list(segment_names), list(align_qc) + ["correlation matrix non-finite"]
-        if not np.allclose(np.diag(C), 1.0, atol=1e-6):
-            return None, list(segment_names), list(align_qc) + ["diagonal not unit"]
-        if float(np.min(np.linalg.eigvalsh(C))) < -1e-6:
-            return None, list(segment_names), list(align_qc) + ["matrix not PSD"]
-
-        return C, list(segment_names), list(align_qc)
+        return compute_correlation_matrix_supported(seg_series, seg_names)
 
     def analyze_eigenvalue_spectrum(
         self,

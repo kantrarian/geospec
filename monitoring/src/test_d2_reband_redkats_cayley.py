@@ -1,8 +1,21 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""D2 RE-BAND red-KATs — REV 2 (cayley, 2026-08-07) under codex D2 §5 review `66b7f79` and codex
-bar-contract review 2324 (`1cdbb81`, WORKS-WITH-FOUR-NARROW-FIXES). Five freezes STAY; grassmann
-implements UNEDITED after codex passes THIS revision; capsule values + any lift = later steps.
+"""D2 RE-BAND red-KATs — REV 3 (cayley, 2026-08-08) under codex reviews `66b7f79` (§5), `1cdbb81`
+(rev-1 contract), and 0207 (`c07ab86`, WORKS-WITH-THREE-CLOSURE-DELTAS — the final bar-only
+convergence turn). Five freezes STAY; grassmann implements UNEDITED after codex passes THIS rev.
+
+REV 3 closure deltas (codex 0207):
+  #1 BLOCKER  D2R-1f now proves the shell USES the core's return (unique EnvelopeSeries sentinel;
+      `out["XX.AAA"] is sentinel`) and trips AssertionError if any legacy
+      process_waveforms/compute_envelope helper runs; D2R-4p/4q/4r freeze the REGISTRY seam: the
+      production default (no injected capsule_loader) resolves capsule_registry_entry() and the
+      REGISTERED digest reaches expected_sha256 — a capsule mutated under the unchanged registered
+      digest fails closed (a default that re-hashes the capsule it loads is self-attestation).
+  #2 HIGH     D2R-3a is now the ALL-TEN-field dataclasses.replace matrix with positional args held
+      identical; D2R-3b tampers a stored values element under an UNCHANGED output_sha256 and
+      requires rejection (the cached payload is JSON-inspectable per the storage contract).
+  #3 MODERATE D2R-3p uses a wholly in-carrier gap (coverage-consistency isolated); D2R-3q
+      aware-non-UTC (+09:00) start rejects; D2R-3r/3s zero and NaN dt reject.
 
 REV 2 repairs (codex 2324):
   #1 BLOCKER  production COMPOSITION frozen, not helpers/source-text: D2R-1f spies on the core
@@ -45,16 +58,21 @@ seismic_data.py rev-2:
 * build_envelope_cache_identity(...) -> EnvelopeCacheIdentity — derives native_rate_hz from the
   ACTUAL trace and input_sha256 from the exact input bytes (sha256 of the raw sample array bytes).
 * _cache_path(self, region, start, end, data_type, identity: EnvelopeCacheIdentity) -> Path —
-  every identity field participates in the key (any field change => different path).
-* _save_cached_series(self, path, identity, series) — stores the series WITH its identity AND an
-  output digest (sha256 over the stored values); _load_cached_series(self, path,
-  expected_identity) -> EnvelopeSeries | None — returns the payload ONLY IF the stored identity
-  equals the expected identity AND the stored output digest recomputes; ANY mismatch (incl. a
-  payload whose stored metadata was relabelled) returns None (cache miss, fail-closed recompute).
+  ALL TEN identity fields participate in the key (any single field change, positional args held
+  identical, yields a different path — D2R-3a matrix via dataclasses.replace).
+* _save_cached_series(self, path, identity, series) — stores a JSON payload with top-level keys
+  {"identity": {…all ten fields, datetimes ISO}, "output_sha256": sha256 over the canonical JSON
+  of the stored values list, "series": {…EnvelopeSeries fields incl. "values": list}}.
+  _load_cached_series(self, path, expected_identity) -> EnvelopeSeries | None — returns the
+  payload ONLY IF the stored identity equals the expected identity AND the stored output digest
+  RECOMPUTES over the stored values; a tampered values element under an unchanged output_sha256
+  returns None (D2R-3b), as does any identity mismatch/relabel (fail-closed recompute).
 * get_segment_envelopes (the SHELL): per stream it may merge/detrend/copy the stream object but
   performs NO filter/decimate/resample on it; it extracts (raw array, actual native rate, nslc),
-  builds the DERIVED EnvelopeCacheIdentity, consults the validated cache, and calls
-  compute_band_envelope_from_array exactly once per cache-missed stream.
+  builds the DERIVED EnvelopeCacheIdentity, consults the validated cache, calls
+  compute_band_envelope_from_array exactly once per cache-missed stream, and RETURNS THE CORE'S
+  EnvelopeSeries OBJECTS as its outputs (out[nslc] IS the core's return — D2R-1f sentinel); any
+  legacy process_waveforms/compute_envelope helpers are never invoked on the fault-corr path.
 
 fault_correlation.py rev-2:
 * class CalibrationUnavailable(Exception) with `.reasons: list[str]`.
@@ -62,9 +80,14 @@ fault_correlation.py rev-2:
   finite; >= 2 segments; minimum effective samples; scale-independent degeneracy (constant /
   near-constant); PROVENANCE: pre_envelope_rate_hz >= 25 and rev-2 band/processing version
   (backed by the identity chain above — labels alone cannot be minted outside the core+cache).
+* capsule_registry_entry(region, registry_path) -> {"capsule_path", "expected_sha256",
+  "topology_version"} — reads the EXTERNAL registry JSON (region-keyed); missing registry/region
+  raises CalibrationUnavailable. The registered digest is the ONLY source of expected_sha256 in
+  production — a loader that hashes the capsule it is about to load is self-attestation.
 * align_activity_series(series, *, max_gap_seconds, min_coverage) -> (A | None, names, qc)
-    - requires: AWARE UTC start_utc on every series (naive/non-UTC => unavailable);
-      finite positive dt_seconds EQUAL across series (mismatch => unavailable); starts lying on
+    - requires: AWARE start_utc with EXACTLY UTC offset on every series (naive OR aware-non-UTC
+      => unavailable); finite positive dt_seconds (zero/NaN => unavailable) EQUAL across series
+      (mismatch => unavailable); starts lying on
       ONE exact common grid (start offsets integer multiples of dt — a half-sample phase offset
       => unavailable; NEVER interpolate); gaps must lie inside their carrier interval
       [start, start + n*dt] (else unavailable); declared coverage must be consistent with the
@@ -91,11 +114,16 @@ fault_correlation.py rev-2:
   (current japan_tohoku + ridgecrest reject; disjoint topologies pass).
 
 ensemble.py rev-2:
-* GeoSpecEnsemble carries an injectable `capsule_loader` seam (production default binds
-  load_calibration_capsule to the repo capsule registry); compute_fault_correlation_risk calls it
-  for the scored day, passes the returned capsule into analyze_region as `calibration`, and
-  returns available=False (zero effective weight) when the loader raises CalibrationUnavailable,
-  when data_quality_ok is False, or when the topology contract fails.
+* GeoSpecEnsemble carries an injectable `capsule_loader` seam AND a `capsule_registry_path`
+  attribute (production default = the repo capsule registry). When `capsule_loader` is NOT
+  injected, compute_fault_correlation_risk builds the production default: it resolves
+  `capsule_registry_entry(region, registry_path=self.capsule_registry_path)` and calls
+  `load_calibration_capsule(region, day, band_tag=<module band>, processing_version=
+  <SD.PROCESSING_VERSION>, topology_version=<registry entry's>, capsule_dir=
+  dirname(entry.capsule_path), expected_sha256=<entry's REGISTERED digest>)` — never a digest
+  computed from the capsule bytes themselves. It passes the returned capsule into analyze_region
+  as `calibration`, and returns available=False (zero effective weight) when the loader raises
+  CalibrationUnavailable, when data_quality_ok is False, or when the topology contract fails.
 * tokyo_kanto: the silent cross-geography remap is REMOVED; unavailable until true Kanto
   segments exist.
 * component_frozen(region, component) -> bool — CARRIER-keyed (both 'tokyo_kanto' and
@@ -281,7 +309,7 @@ def main():
               False, "AWAITING grassmann's rev-2 -- red-first as authored")
         return
     need_fc = ("CalibrationUnavailable", "observability_gate", "align_activity_series",
-               "load_calibration_capsule", "validate_topology")
+               "load_calibration_capsule", "validate_topology", "capsule_registry_entry")
     if not all(hasattr(FC, n) for n in need_fc):
         check("D2R-0b fault_correlation rev-2 seams present (gate/align/capsule/topology)",
               False, "AWAITING grassmann's rev-2 -- red-first as authored")
@@ -328,12 +356,22 @@ def main():
     fetcher.fetch_segment_waveforms = lambda *a, **k: {"XX.AAA": stream}
     core_calls = []
     real_core = SD.compute_band_envelope_from_array
+    sentinel = real_core(x, FS, start_utc=UTC0, source_id="XX.AAA")   # unique object identity
 
     def spy_core(data, rate_hz, **kw):
         core_calls.append((np.asarray(data).size, float(rate_hz)))
-        return real_core(data, rate_hz, **kw)
+        return sentinel
 
+    def _legacy_boom(*a, **k):
+        raise AssertionError("legacy waveform->1Hz->envelope path invoked")
+
+    patched_legacy = []
+    for legacy in ("process_waveforms", "compute_envelope"):
+        if hasattr(SD.SeismicDataFetcher, legacy):
+            patched_legacy.append((legacy, getattr(SD.SeismicDataFetcher, legacy)))
+            setattr(SD.SeismicDataFetcher, legacy, _legacy_boom)
     SD.compute_band_envelope_from_array = spy_core
+    core_err = None
     try:
         out = fetcher.get_segment_envelopes(seg, UTC0, UTC0 + timedelta(seconds=T_SEC),
                                             use_cache=False)
@@ -341,13 +379,18 @@ def main():
         out, core_err = None, e
     finally:
         SD.compute_band_envelope_from_array = real_core
+        for legacy, orig in patched_legacy:
+            setattr(SD.SeismicDataFetcher, legacy, orig)
     dsp_on_stream = [c for c in stream.calls if c in ("filter", "decimate", "resample")]
     check("D2R-1f COMPOSITION: the ACTUAL shell routes each stream through the core exactly once "
-          "at the native rate, with NO filter/decimate/resample on the stream object",
+          "at the native rate, RETURNS the core's own EnvelopeSeries (sentinel identity), never "
+          "invokes a legacy DSP helper, and performs no filter/decimate/resample on the stream",
           out is not None and len(core_calls) == 1 and core_calls[0][1] == FS
-          and core_calls[0][0] == x.size and not dsp_on_stream,
+          and core_calls[0][0] == x.size and not dsp_on_stream
+          and isinstance(out, dict) and out.get("XX.AAA") is sentinel,
           f"core_calls={core_calls} dsp_on_stream={dsp_on_stream} "
-          f"out={'err:' + str(locals().get('core_err')) if out is None else 'ok'}")
+          f"identity_ok={isinstance(out, dict) and out.get('XX.AAA') is sentinel} "
+          f"err={core_err}")
 
     # =====================================================================
     # GROUP 2 — fail-closed observability gate (codex finding 2)
@@ -399,34 +442,33 @@ def main():
     f2.cache_dir = __import__("pathlib").Path(tempfile.mkdtemp())
     p_base = f2._cache_path("ridgecrest", ident_kw["start_utc"], ident_kw["end_utc"],
                             "seg_env", ident)
-    shifted = SD.build_envelope_cache_identity(
-        native_rate_hz=40.0, input_sha256=hashlib.sha256(x.tobytes()).hexdigest(),
-        **{**ident_kw, "start_utc": UTC0 + timedelta(hours=6),
-           "end_utc": UTC0 + timedelta(hours=30)})
-    p_shift = f2._cache_path("ridgecrest", UTC0 + timedelta(hours=6),
-                             UTC0 + timedelta(hours=30), "seg_env", shifted)
-    check("D2R-3a six-hour-offset windows get DISTINCT cache identities", p_base != p_shift)
-    variants = {
-        "native_rate_hz": SD.build_envelope_cache_identity(
-            native_rate_hz=100.0, input_sha256=hashlib.sha256(x.tobytes()).hexdigest(),
-            **ident_kw),
-        "input_sha256": SD.build_envelope_cache_identity(
-            native_rate_hz=40.0, input_sha256="0" * 64, **ident_kw),
-        "source_id": SD.build_envelope_cache_identity(
-            native_rate_hz=40.0, input_sha256=hashlib.sha256(x.tobytes()).hexdigest(),
-            **{**ident_kw, "source_id": "YY.BBB"}),
-        "processing_version": SD.build_envelope_cache_identity(
-            native_rate_hz=40.0, input_sha256=hashlib.sha256(x.tobytes()).hexdigest(),
-            **{**ident_kw, "processing_version": "OLD-V0"}),
+    # codex 0207 delta 2: ALL TEN fields, dataclasses.replace variants, positional args HELD
+    # IDENTICAL for every call — only the identity may cause the key to move.
+    import dataclasses as _dc
+    field_variants = {
+        "region": {"region": "kaikoura"},
+        "segment": {"segment": "other_seg"},
+        "source_id": {"source_id": "YY.BBB"},
+        "start_utc": {"start_utc": UTC0 + timedelta(hours=6)},
+        "end_utc": {"end_utc": ident_kw["end_utc"] + timedelta(hours=6)},
+        "native_rate_hz": {"native_rate_hz": 100.0},
+        "band_tag": {"band_tag": "0.01-1Hz"},
+        "processing_version": {"processing_version": "OLD-V0"},
+        "topology_version": {"topology_version": "t0"},
+        "input_sha256": {"input_sha256": "0" * 64},
     }
-    changed = {k: (f2._cache_path("ridgecrest", ident_kw["start_utc"], ident_kw["end_utc"],
-                                  "seg_env", v) != p_base) for k, v in variants.items()}
-    check("D2R-3b EVERY identity field participates in the key (rate / input digest / source / "
-          "version changes each move the path)", all(changed.values()), f"{changed}")
+    changed = {}
+    for fname, kwv in field_variants.items():
+        v = _dc.replace(ident, **kwv)
+        changed[fname] = (f2._cache_path("ridgecrest", ident_kw["start_utc"],
+                                         ident_kw["end_utc"], "seg_env", v) != p_base)
+    check("D2R-3a ALL TEN identity fields participate in the key (dataclasses.replace variants; "
+          "positional args identical for every call)", all(changed.values()),
+          f"unmoved={[k for k, ok in changed.items() if not ok]}")
 
     # verify-on-load: an old-order payload relabelled as rev-2 is REJECTED (codex 2324 #2)
     series_ok = _mk_series(SD, np.random.default_rng(9).normal(1.0, 0.3, 600), UTC0)
-    f2._save_cached_series(p_base, variants["processing_version"], series_ok)   # stored as OLD-V0
+    f2._save_cached_series(p_base, _dc.replace(ident, processing_version="OLD-V0"), series_ok)
     loaded = f2._load_cached_series(p_base, ident)                              # expected rev-2
     check("D2R-3c verify-on-load: a payload stored under an OLD identity, requested as rev-2, "
           "is REJECTED (None -> fail-closed recompute)", loaded is None, f"loaded={loaded!r}")
@@ -435,6 +477,21 @@ def main():
     check("D2R-3d verify-on-load: the matching identity round-trips the payload",
           loaded_ok is not None
           and np.array_equal(np.asarray(loaded_ok.values), np.asarray(series_ok.values)))
+    # codex 0207 delta 2: OUTPUT-DIGEST verification — tamper one stored values element while
+    # leaving output_sha256 untouched; the load must recompute and refuse.
+    try:
+        with open(p_base, encoding="utf-8") as fh:
+            payload = json.load(fh)
+        payload["series"]["values"][7] = float(payload["series"]["values"][7]) + 1.0
+        with open(p_base, "w", encoding="utf-8") as fh:
+            json.dump(payload, fh)
+        tampered = f2._load_cached_series(p_base, ident)
+        check("D2R-3b OUTPUT DIGEST: a tampered stored value under an UNCHANGED output_sha256 is "
+              "REJECTED (digest recomputed on load)", tampered is None, f"loaded={tampered!r}")
+    except Exception as exc:
+        check("D2R-3b OUTPUT DIGEST: a tampered stored value under an UNCHANGED output_sha256 is "
+              "REJECTED (digest recomputed on load)", False,
+              f"payload not JSON-inspectable per contract: {type(exc).__name__}: {exc}")
 
     # D2R-3g (codex 2324 #1): the SHELL derives the identity — not a caller literal
     f3 = SD.SeismicDataFetcher.__new__(SD.SeismicDataFetcher)
@@ -508,9 +565,18 @@ def main():
     align_fails("D2R-3o a gap OUTSIDE the carrier interval fails unavailable",
                 {"a": _mk_series(SD, vals, UTC0, gaps=[("2026-09-15T00:00:00Z", 60)]), "b": sA})
     align_fails("D2R-3p declared coverage contradicting the declared gaps fails unavailable "
-                "(coverage=1.0 with a 3600 s gap in a 1000 s carrier)",
+                "(a wholly IN-carrier 100 s gap at sample 300 with coverage=1.0 on the 1000 s "
+                "carrier -- isolates the consistency check, codex 0207 delta 3)",
                 {"a": _mk_series(SD, vals, UTC0, coverage=1.0,
-                                 gaps=[("2026-08-01T00:05:00Z", 3600)]), "b": sA})
+                                 gaps=[("2026-08-01T00:05:00Z", 100)]), "b": sA})
+    align_fails("D2R-3q an AWARE NON-UTC start (+09:00) fails unavailable (UTC offset must be "
+                "exactly zero)",
+                {"a": sA, "b": _mk_series(SD, vals, datetime(2026, 8, 1, 9, 6, 0,
+                                          tzinfo=timezone(timedelta(hours=9))))})
+    align_fails("D2R-3r dt_seconds = 0 fails unavailable",
+                {"a": sA, "b": _mk_series(SD, vals, UTC0, dt_seconds=0.0)})
+    align_fails("D2R-3s dt_seconds = NaN fails unavailable",
+                {"a": sA, "b": _mk_series(SD, vals, UTC0, dt_seconds=float("nan"))})
 
     # =====================================================================
     # GROUP 4 — externally pinned calibration capsule (finding 4 + codex-2324 #3)
@@ -622,6 +688,64 @@ def main():
               mr_no.available is False, f"available={mr_no.available}")
     except Exception as exc:
         check("D2R-4o ensemble: CalibrationUnavailable -> available=False (zero effective weight)",
+              False, f"RAISED {exc}")
+
+    # codex 0207 delta 1: the PRODUCTION DEFAULT (no injected capsule_loader) must take
+    # expected_sha256 from the EXTERNAL registry — never from the capsule bytes themselves.
+    reg_home = tempfile.mkdtemp()
+    reg_cap = _capsule_dict(SD)
+    reg_pin = _write_capsule(reg_home, reg_cap)
+    reg_path = os.path.join(reg_home, "capsule_registry.json")
+    with open(reg_path, "w", encoding="utf-8") as fh:
+        json.dump({"ridgecrest": {"capsule_path": os.path.join(reg_home, "ridgecrest.json"),
+                                  "expected_sha256": reg_pin,
+                                  "topology_version": "t1"}}, fh)
+    entry = FC.capsule_registry_entry("ridgecrest", registry_path=reg_path)
+    check("D2R-4p capsule_registry_entry resolves {capsule_path, expected_sha256, "
+          "topology_version} from the external registry",
+          entry.get("expected_sha256") == reg_pin
+          and entry.get("capsule_path", "").endswith("ridgecrest.json")
+          and entry.get("topology_version") == "t1", f"entry={entry}")
+    seen_pin = {}
+    real_loader = FC.load_calibration_capsule
+
+    def spy_loader(region, scored_day, **kw2):
+        seen_pin["expected_sha256"] = kw2.get("expected_sha256")
+        return real_loader(region, scored_day, **kw2)
+
+    mon5 = FC.FaultCorrelationMonitor(data_fetcher=object())
+    mon5.compute_correlation_matrix = lambda *a, **k: (C_fixed, ["s1", "s2"], [])
+    ens5 = EN.GeoSpecEnsemble.__new__(EN.GeoSpecEnsemble)
+    ens5.region = "ridgecrest"
+    ens5.fault_corr_monitor = mon5
+    ens5.capsule_registry_path = reg_path          # production seam; NO capsule_loader assigned
+    FC.load_calibration_capsule = spy_loader
+    if getattr(EN, "load_calibration_capsule", None) is real_loader:
+        EN.load_calibration_capsule = spy_loader   # cover a from-import in ensemble
+    try:
+        mr_reg = ens5.compute_fault_correlation_risk(datetime(2026, 8, 7))[0]
+        check("D2R-4q PRODUCTION DEFAULT: without an injected loader, the ensemble consults the "
+              "registry and the REGISTERED digest reaches expected_sha256 (available=True)",
+              mr_reg.available is True and seen_pin.get("expected_sha256") == reg_pin,
+              f"available={getattr(mr_reg, 'available', 'ERR')} seen={seen_pin}")
+    except Exception as exc:
+        check("D2R-4q PRODUCTION DEFAULT: without an injected loader, the ensemble consults the "
+              "registry and the REGISTERED digest reaches expected_sha256 (available=True)",
+              False, f"RAISED {exc}")
+    finally:
+        FC.load_calibration_capsule = real_loader
+        if getattr(EN, "load_calibration_capsule", None) is spy_loader:
+            EN.load_calibration_capsule = real_loader
+    # mutate the capsule UNDER THE UNCHANGED registered digest -> fail closed, no self-attestation
+    _write_capsule(reg_home, _capsule_dict(SD, threshold=0.999))   # same path, new bytes
+    try:
+        mr_mut = ens5.compute_fault_correlation_risk(datetime(2026, 8, 7))[0]
+        check("D2R-4r a capsule mutated under the UNCHANGED registered digest -> available=False "
+              "(the default never re-hashes the capsule to bless itself)",
+              mr_mut.available is False, f"available={getattr(mr_mut, 'available', 'ERR')}")
+    except Exception as exc:
+        check("D2R-4r a capsule mutated under the UNCHANGED registered digest -> available=False "
+              "(the default never re-hashes the capsule to bless itself)",
               False, f"RAISED {exc}")
 
     # =====================================================================

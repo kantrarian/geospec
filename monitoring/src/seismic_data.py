@@ -20,9 +20,13 @@ from obspy import UTCDateTime, Stream
 from obspy.clients.fdsn import Client
 from obspy.signal.filter import bandpass
 from scipy.signal import hilbert, decimate
-from datetime import datetime, timedelta
+from scipy import signal as sp_signal
+from datetime import datetime, timedelta, timezone
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
+from math import gcd
+import hashlib
 import pickle
 import logging
 import json
@@ -101,6 +105,158 @@ _FAULT_CORR_BAND_TAG = "1-10Hz"   # cache version tag: re-banded envelopes cache
 DEFAULT_DECIMATE_FACTOR = 40  # 40 Hz -> 1 Hz
 
 
+# =============================================================================
+# D2 RE-BAND rev-2 (INCIDENT 2026-07-31) — envelope-order correction + non-forgeable
+# provenance. The fault-correlation activity envelope is now computed by ONE core
+# (compute_band_envelope_from_array): bandpass at the NATIVE rate -> Hilbert envelope
+# WHILE the native carrier still exists -> low-pass + resample the ENVELOPE to 1 Hz.
+# The old waveform->decimate-to-1Hz->envelope order destroyed the AM carrier before the
+# envelope was taken and is never used on this path. Every field of every cached envelope
+# is bound by a canonical EnvelopeCacheIdentity + an output digest, so the provenance
+# labels the observability gate reads (pre_envelope_rate_hz / band / version) cannot be
+# minted outside this core + verify-on-load cache.
+# =============================================================================
+
+# Bumped for rev-2; part of every cache identity + every EnvelopeSeries provenance label.
+PROCESSING_VERSION = "d2-reband-v2"
+# Correlated-station topology revision that the cache identity is keyed to.
+_TOPOLOGY_VERSION = "t1"
+
+
+class DataUnavailable(Exception):
+    """Raised when a segment/stream cannot be honestly turned into a rev-2 envelope
+    (rate below the band Nyquist, empty carrier, etc.). Never coerced through the band."""
+
+    def __init__(self, reasons):
+        self.reasons = list(reasons) if isinstance(reasons, (list, tuple)) else [str(reasons)]
+        super().__init__("; ".join(self.reasons))
+
+
+@dataclass
+class EnvelopeSeries:
+    """A 1 Hz activity envelope with the provenance the observability gate depends on."""
+    values: np.ndarray            # envelope samples at out_rate (1 Hz)
+    start_utc: datetime           # AWARE UTC start of sample 0
+    dt_seconds: float             # 1 / out_rate_hz
+    coverage: float               # fraction of the carrier covered (0..1)
+    gaps: List[Tuple[str, float]] # [(iso_utc_start, seconds), ...]
+    source_ids: List[str]         # NSLC[.channel] contributors
+    band_tag: str                 # e.g. "1-10Hz"
+    processing_version: str       # PROCESSING_VERSION at compute time
+    pre_envelope_rate_hz: float   # NATIVE rate the envelope was taken at (anti-alias witness)
+
+
+@dataclass
+class EnvelopeCacheIdentity:
+    """Canonical, non-forgeable identity for a cached envelope. Every field participates
+    in the cache key (D2R-3a); the payload is only returned on an exact identity match AND
+    an output-digest recompute (D2R-3b/3c)."""
+    region: str
+    segment: str
+    source_id: str
+    start_utc: datetime
+    end_utc: datetime
+    native_rate_hz: float
+    band_tag: str
+    processing_version: str
+    topology_version: str
+    input_sha256: str
+
+
+def _iso(v):
+    return v.isoformat() if hasattr(v, "isoformat") else v
+
+
+def _parse_iso_utc(s):
+    """Parse an ISO-8601 UTC datetime, tolerating a trailing 'Z'."""
+    if isinstance(s, datetime):
+        return s
+    txt = str(s)
+    if txt.endswith("Z"):
+        txt = txt[:-1] + "+00:00"
+    return datetime.fromisoformat(txt)
+
+
+def _identity_to_dict(identity: "EnvelopeCacheIdentity") -> Dict:
+    """Deterministic dict of ALL ten identity fields (datetimes -> ISO)."""
+    return {
+        "region": identity.region,
+        "segment": identity.segment,
+        "source_id": identity.source_id,
+        "start_utc": _iso(identity.start_utc),
+        "end_utc": _iso(identity.end_utc),
+        "native_rate_hz": float(identity.native_rate_hz),
+        "band_tag": identity.band_tag,
+        "processing_version": identity.processing_version,
+        "topology_version": identity.topology_version,
+        "input_sha256": identity.input_sha256,
+    }
+
+
+def build_envelope_cache_identity(*, region, segment, source_id, start_utc, end_utc,
+                                  band_tag, processing_version, topology_version,
+                                  native_rate_hz, input_sha256) -> EnvelopeCacheIdentity:
+    """Assemble the canonical identity. The SHELL derives native_rate_hz from the actual
+    trace and input_sha256 from the exact input sample bytes before calling this."""
+    return EnvelopeCacheIdentity(
+        region=region, segment=segment, source_id=source_id,
+        start_utc=start_utc, end_utc=end_utc,
+        native_rate_hz=float(native_rate_hz), band_tag=band_tag,
+        processing_version=processing_version, topology_version=topology_version,
+        input_sha256=input_sha256,
+    )
+
+
+def compute_band_envelope_from_array(data, rate_hz, *, freqmin=1.0, freqmax=10.0,
+                                     out_rate_hz=1.0, min_rate_hz=25.0,
+                                     start_utc, source_id) -> EnvelopeSeries:
+    """THE rev-2 DSP core. ALL band DSP lives here:
+      1. bandpass [freqmin, freqmax] at the NATIVE rate,
+      2. Hilbert envelope while the native carrier still exists,
+      3. anti-aliased resample of the ENVELOPE to out_rate_hz.
+    pre_envelope_rate_hz records the native rate. A trace whose native rate cannot carry
+    the band (rate < min_rate_hz, or freqmax >= native Nyquist) raises DataUnavailable and
+    is NEVER coerced through the band."""
+    data = np.asarray(data, dtype=float).ravel()
+    rate_hz = float(rate_hz)
+    if not np.isfinite(rate_hz) or rate_hz < float(min_rate_hz):
+        raise DataUnavailable([
+            f"native sampling rate {rate_hz} Hz below minimum {min_rate_hz} Hz for the "
+            f"{freqmin}-{freqmax} Hz band (native Nyquist {rate_hz / 2.0} Hz)"])
+    nyq = rate_hz / 2.0
+    if freqmax >= nyq:
+        raise DataUnavailable([
+            f"band max {freqmax} Hz >= native Nyquist {nyq} Hz at rate {rate_hz} Hz"])
+    if data.size < 4:
+        raise DataUnavailable([f"empty/too-short carrier ({data.size} samples)"])
+
+    # 1) bandpass at the NATIVE rate (zero-phase)
+    b, a = sp_signal.butter(4, [freqmin / nyq, freqmax / nyq], btype="band")
+    bandpassed = sp_signal.filtfilt(b, a, data)
+    # 2) Hilbert envelope at the native rate (before any decimation)
+    envelope = np.abs(hilbert(bandpassed))
+    # 3) anti-aliased resample of the ENVELOPE to out_rate_hz
+    up = int(round(float(out_rate_hz)))
+    down = int(round(rate_hz))
+    if up < 1:
+        up = 1
+    g = gcd(up, down) or 1
+    env_out = sp_signal.resample_poly(envelope, up // g, down // g)
+    env_out = np.asarray(env_out, dtype=float)
+
+    return EnvelopeSeries(
+        values=env_out,
+        start_utc=start_utc,
+        dt_seconds=1.0 / float(out_rate_hz),
+        coverage=1.0,
+        gaps=[],
+        source_ids=[source_id],
+        band_tag=_FAULT_CORR_BAND_TAG,
+        processing_version=PROCESSING_VERSION,
+        pre_envelope_rate_hz=rate_hz,
+    )
+
+
 class SeismicDataFetcher:
     """
     Fetches and processes seismic waveform data for fault correlation analysis.
@@ -152,10 +308,85 @@ class SeismicDataFetcher:
                 return None
         return self.clients['IRIS']
 
-    def _cache_path(self, region: str, date: datetime, data_type: str) -> Path:
-        """Generate cache file path."""
+    def _waveform_cache_path(self, region: str, date: datetime, data_type: str) -> Path:
+        """Generate the legacy pickle cache file path (raw waveform fragments)."""
         date_str = date.strftime('%Y%m%d')
         return self.cache_dir / region / date_str / f'{data_type}.pkl'
+
+    # ---- D2 rev-2 envelope cache (identity-keyed, verify-on-load) ---------------
+    def _cache_path(self, region, start, end, data_type,
+                    identity: "EnvelopeCacheIdentity") -> Path:
+        """Envelope cache path. ALL TEN identity fields participate in the key: with the
+        positional (region, start, end, data_type) held identical, any single identity
+        field change yields a different path (D2R-3a)."""
+        blob = json.dumps(_identity_to_dict(identity), sort_keys=True,
+                          separators=(",", ":")).encode("utf-8")
+        digest = hashlib.sha256(blob).hexdigest()[:32]
+        start_str = start.strftime('%Y%m%dT%H%M%SZ') if hasattr(start, 'strftime') else str(start)
+        end_str = end.strftime('%Y%m%dT%H%M%SZ') if hasattr(end, 'strftime') else str(end)
+        return (Path(self.cache_dir) / region /
+                f'{data_type}_{start_str}_{end_str}_{digest}.json')
+
+    def _save_cached_series(self, path, identity: "EnvelopeCacheIdentity",
+                            series: "EnvelopeSeries"):
+        """Store the envelope with its canonical identity and an output digest over the
+        stored values, so a later load can recompute and refuse a tampered payload."""
+        values_list = [float(v) for v in np.asarray(series.values, dtype=float).ravel()]
+        output_sha = hashlib.sha256(
+            json.dumps(values_list, separators=(",", ":")).encode("utf-8")).hexdigest()
+        payload = {
+            "identity": _identity_to_dict(identity),
+            "output_sha256": output_sha,
+            "series": {
+                "values": values_list,
+                "start_utc": _iso(series.start_utc),
+                "dt_seconds": float(series.dt_seconds),
+                "coverage": float(series.coverage),
+                "gaps": [list(g) for g in series.gaps],
+                "source_ids": list(series.source_ids),
+                "band_tag": series.band_tag,
+                "processing_version": series.processing_version,
+                "pre_envelope_rate_hz": float(series.pre_envelope_rate_hz),
+            },
+        }
+        p = Path(path)
+        p.parent.mkdir(parents=True, exist_ok=True)
+        with open(p, "w", encoding="utf-8") as fh:
+            json.dump(payload, fh)
+
+    def _load_cached_series(self, path, expected_identity: "EnvelopeCacheIdentity"):
+        """Return the cached EnvelopeSeries ONLY IF the stored identity equals the expected
+        identity AND the stored output digest recomputes over the stored values; otherwise
+        None (fail-closed recompute — an old-order relabel or a tampered value is rejected)."""
+        p = Path(path)
+        if not p.exists():
+            return None
+        try:
+            with open(p, encoding="utf-8") as fh:
+                payload = json.load(fh)
+        except Exception:
+            return None
+        if payload.get("identity") != _identity_to_dict(expected_identity):
+            return None
+        s = payload.get("series")
+        if not isinstance(s, dict) or "values" not in s:
+            return None
+        values_list = [float(v) for v in s["values"]]
+        recomputed = hashlib.sha256(
+            json.dumps(values_list, separators=(",", ":")).encode("utf-8")).hexdigest()
+        if recomputed != payload.get("output_sha256"):
+            return None
+        return EnvelopeSeries(
+            values=np.asarray(values_list, dtype=float),
+            start_utc=_parse_iso_utc(s["start_utc"]),
+            dt_seconds=float(s["dt_seconds"]),
+            coverage=float(s["coverage"]),
+            gaps=[tuple(g) for g in s.get("gaps", [])],
+            source_ids=list(s.get("source_ids", [])),
+            band_tag=s["band_tag"],
+            processing_version=s["processing_version"],
+            pre_envelope_rate_hz=float(s["pre_envelope_rate_hz"]),
+        )
 
     def _load_cache(self, path: Path) -> Optional[object]:
         """Load data from cache if valid."""
@@ -253,7 +484,7 @@ class SeismicDataFetcher:
         """
         # Check cache
         cache_key = f"{segment.name}_waveforms"
-        cache_path = self._cache_path(segment.region, start, cache_key)
+        cache_path = self._waveform_cache_path(segment.region, start, cache_key)
 
         if use_cache:
             cached = self._load_cache(cache_path)
@@ -370,47 +601,77 @@ class SeismicDataFetcher:
         start: datetime,
         end: datetime,
         use_cache: bool = True
-    ) -> Dict[str, np.ndarray]:
+    ) -> Dict[str, "EnvelopeSeries"]:
         """
-        Get processed envelopes for all stations in a segment.
-
-        Args:
-            segment: FaultSegment object
-            start: Start datetime
-            end: End datetime
-            use_cache: Whether to use caching
+        rev-2 SHELL. Per stream it may merge/detrend/copy the stream object, but performs
+        NO filter/decimate/resample on it — all band DSP lives in
+        compute_band_envelope_from_array. It extracts (raw native array, actual native
+        rate, NSLC), builds the DERIVED EnvelopeCacheIdentity, consults the verify-on-load
+        cache, calls the core exactly once per cache-missed stream, and RETURNS THE CORE'S
+        EnvelopeSeries OBJECTS. The legacy process_waveforms/compute_envelope helpers are
+        never invoked on the fault-correlation path.
 
         Returns:
-            Dictionary mapping station NSLC -> envelope array
+            Dictionary mapping station NSLC -> EnvelopeSeries
         """
-        # Check envelope cache. INCIDENT 2026-07-31 (D2): tag the cache key with the band so re-banded
-        # (1-10 Hz) envelopes never reuse a stale 0.01-1 Hz cache entry.
-        cache_key = f"{segment.name}_envelopes_{_FAULT_CORR_BAND_TAG}"
-        cache_path = self._cache_path(segment.region, start, cache_key)
-
-        if use_cache:
-            cached = self._load_cache(cache_path)
-            if cached is not None:
-                logger.info(f"Loaded {segment.name} envelopes from cache")
-                return cached
-
-        # Fetch and process waveforms
         waveforms = self.fetch_segment_waveforms(segment, start, end, use_cache)
 
-        envelopes = {}
+        envelopes: Dict[str, "EnvelopeSeries"] = {}
         for nslc, stream in waveforms.items():
-            # INCIDENT 2026-07-31 (D2): local 1-10 Hz band (not the 0.01-1 Hz default) -- see FAULT_CORR_FILTER.
-            processed = self.process_waveforms(stream, filter_params=FAULT_CORR_FILTER)
-            if processed is not None:
-                envelope = self.compute_envelope(processed)
-                envelopes[nslc] = envelope
+            # Extract the raw native array + rate. Stream-level merge/detrend/copy is
+            # permitted; band DSP (filter/decimate/resample) on the stream is NOT.
+            try:
+                work = stream
+                try:
+                    work = stream.copy()
+                    work.merge(method=1, fill_value='interpolate')
+                    work.detrend('demean')
+                    work.detrend('linear')
+                except Exception:
+                    work = stream
+                trace = work[0]
+                data = np.asarray(trace.data, dtype=float).ravel()
+                native_rate = float(trace.stats.sampling_rate)
+            except Exception as exc:
+                logger.warning(f"{nslc}: could not extract native trace: {exc}")
+                continue
 
-        logger.info(f"Computed envelopes for {len(envelopes)} stations")
+            if data.size == 0:
+                continue
 
-        # Cache
-        if use_cache and envelopes:
-            self._save_cache(cache_path, envelopes)
+            # DERIVED identity: actual native rate + sha256 of the exact native samples.
+            input_sha = hashlib.sha256(data.tobytes()).hexdigest()
+            identity = build_envelope_cache_identity(
+                region=segment.region, segment=segment.name, source_id=nslc,
+                start_utc=start, end_utc=end,
+                band_tag=_FAULT_CORR_BAND_TAG, processing_version=PROCESSING_VERSION,
+                topology_version=_TOPOLOGY_VERSION,
+                native_rate_hz=native_rate, input_sha256=input_sha)
 
+            cache_path = None
+            if use_cache:
+                cache_path = self._cache_path(segment.region, start, end, "seg_env", identity)
+                cached = self._load_cached_series(cache_path, identity)
+                if cached is not None:
+                    envelopes[nslc] = cached
+                    continue
+
+            try:
+                series = compute_band_envelope_from_array(
+                    data, native_rate, start_utc=start, source_id=nslc)
+            except DataUnavailable as exc:
+                logger.info(f"{nslc}: {exc}")
+                continue
+
+            if use_cache and cache_path is not None:
+                try:
+                    self._save_cached_series(cache_path, identity, series)
+                except Exception as exc:
+                    logger.warning(f"{nslc}: envelope cache save failed: {exc}")
+
+            envelopes[nslc] = series
+
+        logger.info(f"Computed rev-2 envelopes for {len(envelopes)} stations")
         return envelopes
 
     def get_region_activity(

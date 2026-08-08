@@ -28,6 +28,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
+import os
 import json
 import logging
 
@@ -35,6 +36,8 @@ import logging
 from fault_correlation import FaultCorrelationMonitor, CorrelationResult
 from fault_segments import get_segments_for_region, FAULT_SEGMENTS
 from seismic_thd import SeismicTHDAnalyzer, THDResult, fetch_continuous_data_for_thd
+import seismic_data as SD
+import fault_correlation as FC
 
 
 # =============================================================================
@@ -53,7 +56,10 @@ REGION_KEY_MAP = {
     'norcal_hayward': 'norcal_hayward',
     'cascadia': 'cascadia',
     # International
-    'tokyo_kanto': 'japan_tohoku',  # Runner uses tokyo_kanto, FC uses japan_tohoku
+    # INCIDENT 2026-07-31 (D2): the silent 'tokyo_kanto' -> 'japan_tohoku' cross-geography
+    # remap is REMOVED. tokyo_kanto is Kanto (a different fault system); scoring it on the
+    # Tohoku carrier fabricated coverage. tokyo_kanto stays UNAVAILABLE (unmapped) until true
+    # Kanto segments are defined in fault_segments.py.
     'istanbul_marmara': 'istanbul_marmara',
     'turkey_kahramanmaras': 'turkey_kahramanmaras',
     # Italy - Volcanic pilot
@@ -127,9 +133,24 @@ FROZEN_COMPONENTS = {
     ("turkey_kahramanmaras", "fault_correlation"),
     ("istanbul_marmara", "fault_correlation"),
     ("tokyo_kanto", "fault_correlation"),
+    ("japan_tohoku", "fault_correlation"),      # D2R-5f: canonical (FC) key cannot bypass the freeze
     ("socal_saf_coachella", "fault_correlation"),
+    ("socal_coachella", "fault_correlation"),    # D2R-5f: canonical (FC) key cannot bypass the freeze
     ("ridgecrest", "fault_correlation"),
 }
+
+
+def component_frozen(region: str, component: str) -> bool:
+    """CARRIER-keyed incident freeze. A frozen component stays frozen whether the ensemble is
+    addressed by the runner key (e.g. 'tokyo_kanto', 'socal_saf_coachella') OR the canonical
+    fault_segments key it maps to (e.g. 'japan_tohoku', 'socal_coachella') -- the canonical key
+    cannot be used to slip a frozen component past the tier exclusion."""
+    if (region, component) in FROZEN_COMPONENTS:
+        return True
+    mapped = REGION_KEY_MAP.get(region)
+    if mapped is not None and (mapped, component) in FROZEN_COMPONENTS:
+        return True
+    return False
 
 
 # INCIDENT 2026-07-31 (D1) — seismic_thd baseline STALENESS guard + R3-extension.
@@ -459,6 +480,16 @@ class GeoSpecEnsemble:
         # Cache for Lambda_geo results (loaded from external source)
         self._lambda_geo_cache: Dict[str, float] = {}
 
+        # D2 rev-2 calibration seams. `capsule_loader` is an injectable override (tests /
+        # bespoke wiring); when None, compute_fault_correlation_risk builds the PRODUCTION
+        # default that resolves expected_sha256 from the EXTERNAL capsule registry (never from
+        # the capsule bytes themselves). The registry file need not exist yet -- D2 calibration
+        # values remain frozen, so a missing registry fails closed to available=False.
+        self.capsule_loader = None
+        self.capsule_registry_path = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)),
+            "..", "data", "calibration", "capsule_registry.json")
+
         logger.info(f"GeoSpecEnsemble initialized for {region}")
         logger.info(f"  Weights: {self.weights}")
 
@@ -502,9 +533,36 @@ class GeoSpecEnsemble:
             notes=f'ratio={ratio:.1f}x'
         )
 
+    def _resolve_calibration_capsule(self, region, date):
+        """Resolve the calibration capsule for (region, date). An injected `capsule_loader`
+        wins (tests / bespoke wiring); otherwise the PRODUCTION DEFAULT resolves the external
+        registry entry and takes expected_sha256 from the REGISTERED digest -- never from a
+        hash of the capsule bytes it is about to load (that would be self-attestation). Raises
+        FC.CalibrationUnavailable when no capsule can be honestly admitted."""
+        day_str = date.strftime('%Y-%m-%d') if hasattr(date, 'strftime') else str(date)
+        loader = getattr(self, 'capsule_loader', None)
+        if loader is not None:
+            return loader(region, day_str)
+        entry = FC.capsule_registry_entry(
+            region, registry_path=getattr(self, 'capsule_registry_path', None))
+        return FC.load_calibration_capsule(
+            region, day_str,
+            band_tag=getattr(SD, '_FAULT_CORR_BAND_TAG', '1-10Hz'),
+            processing_version=SD.PROCESSING_VERSION,
+            topology_version=entry['topology_version'],
+            capsule_dir=os.path.dirname(entry['capsule_path']),
+            expected_sha256=entry['expected_sha256'])
+
     def compute_fault_correlation_risk(self, date: datetime) -> Tuple[MethodResult, int, int, List[str]]:
         """
-        Compute fault correlation risk component with coverage tracking.
+        Compute fault correlation risk component with coverage tracking (rev-2).
+
+        Availability is gated on BOTH (a) an honestly-admitted calibration capsule and (b) the
+        fault-correlation data-quality gate (data_quality_ok, backed by the observability +
+        UTC-grid-alignment + station-topology contract inside compute_correlation_matrix). A
+        CalibrationUnavailable, a failed data-quality gate, or any analysis error yields
+        available=False (zero effective weight): the component is never scored on a fabricated
+        carrier or an unpinned threshold.
 
         Returns:
             Tuple of (MethodResult, segments_defined, segments_working, segment_names)
@@ -514,65 +572,58 @@ class GeoSpecEnsemble:
 
         # Get total segments defined for this region
         try:
-            all_segments = get_segments_for_region(fc_region)
-            segments_defined = len(all_segments)
+            segments_defined = len(get_segments_for_region(fc_region))
         except ValueError:
             segments_defined = 0
 
+        # (a) calibration capsule -- fail closed
         try:
-            result = self.fault_corr_monitor.analyze_region(fc_region, date)
-            segments_working = len(result.segment_names)
-            segment_names = result.segment_names
-
-            if not result.segment_names:
-                return (
-                    MethodResult(
-                        name='fault_correlation',
-                        available=False,
-                        raw_value=0.0,
-                        notes='Insufficient segment data'
-                    ),
-                    segments_defined,
-                    0,
-                    []
-                )
-
-            l2_l1 = result.eigenvalue_ratios[0] if len(result.eigenvalue_ratios) > 0 else 1.0
-            pr = result.participation_ratio
-
-            risk = fault_correlation_to_risk(l2_l1, pr)
-
-            coverage_note = f'{segments_working}/{segments_defined} segments'
-
+            calibration = self._resolve_calibration_capsule(fc_region, date)
+        except FC.CalibrationUnavailable as e:
             return (
                 MethodResult(
-                    name='fault_correlation',
-                    available=True,
-                    raw_value=l2_l1,
-                    raw_secondary=pr,
-                    risk_score=risk,
-                    is_elevated=risk >= 0.5,
-                    is_critical=risk >= 0.75,
-                    notes=f'L2/L1={l2_l1:.4f}, PR={pr:.2f}, {coverage_note}'
-                ),
-                segments_defined,
-                segments_working,
-                segment_names
+                    name='fault_correlation', available=False, raw_value=0.0,
+                    notes=f'calibration unavailable: '
+                          f'{"; ".join(getattr(e, "reasons", [str(e)]))}'),
+                segments_defined, 0, []
             )
 
+        # (b) run the analysis with the capsule threshold; gate on data quality
+        try:
+            result = self.fault_corr_monitor.analyze_region(
+                fc_region, date, calibration=calibration)
         except Exception as e:
             logger.warning(f"Fault correlation failed: {e}")
             return (
-                MethodResult(
-                    name='fault_correlation',
-                    available=False,
-                    raw_value=0.0,
-                    notes=f'Error: {str(e)}'
-                ),
-                segments_defined,
-                0,
-                []
+                MethodResult(name='fault_correlation', available=False, raw_value=0.0,
+                             notes=f'Error: {str(e)}'),
+                segments_defined, 0, []
             )
+
+        if not getattr(result, 'data_quality_ok', False):
+            names = list(getattr(result, 'segment_names', []) or [])
+            reasons = "; ".join(getattr(result, 'qc_reasons', []) or ['data quality gate failed'])
+            return (
+                MethodResult(name='fault_correlation', available=False, raw_value=0.0,
+                             notes=f'data quality gate failed: {reasons}'),
+                segments_defined, len(names), names
+            )
+
+        segments_working = len(result.segment_names)
+        segment_names = result.segment_names
+        l2_l1 = result.eigenvalue_ratios[0] if len(result.eigenvalue_ratios) > 0 else 1.0
+        pr = result.participation_ratio
+        risk = fault_correlation_to_risk(l2_l1, pr)
+        coverage_note = f'{segments_working}/{segments_defined} segments'
+
+        return (
+            MethodResult(
+                name='fault_correlation', available=True, raw_value=l2_l1,
+                raw_secondary=pr, risk_score=risk, is_elevated=risk >= 0.5,
+                is_critical=risk >= 0.75,
+                notes=f'L2/L1={l2_l1:.4f}, PR={pr:.2f}, {coverage_note}'),
+            segments_defined, segments_working, segment_names
+        )
 
     def compute_thd_risk(
         self,
@@ -804,7 +855,7 @@ class GeoSpecEnsemble:
         # INCIDENT 2026-07-31 freeze: mark registered artifact-driven components EXCLUDED from tier computation
         # (still emitted + annotated for transparency; lifts only with a dated fix note). See FROZEN_COMPONENTS.
         for cname, result in components.items():
-            if (self.region, cname) in FROZEN_COMPONENTS:
+            if component_frozen(self.region, cname):
                 result.frozen = True
                 result.notes = (result.notes + " | " if result.notes else "") + \
                     "FROZEN (incident 2026-07-31): excluded from tier pending fix"

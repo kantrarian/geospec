@@ -21,17 +21,353 @@ import numpy as np
 from scipy import signal
 from scipy.linalg import eigh
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
+from collections import Counter
+import hashlib
+import os
+import re
 import logging
 import json
 
 from fault_segments import FaultSegment, get_segments_for_region
 from seismic_data import SeismicDataFetcher, compute_segment_activity_index
+import seismic_data as SD
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+
+# =============================================================================
+# D2 RE-BAND rev-2 seams (INCIDENT 2026-07-31): fail-closed observability gate,
+# exact-UTC-grid alignment, externally-pinned calibration capsule, station-topology
+# contract. None of these lift any of the five D2 freezes; they make the honest path
+# expressible so the freeze can eventually be lifted with real calibration values.
+# =============================================================================
+
+_MIN_PRE_ENVELOPE_RATE_HZ = 25.0          # provenance: envelope taken at native rate
+_MIN_EFFECTIVE_SAMPLES = 8
+_DEGENERACY_REL_STD = 1e-6                 # scale-independent constant/near-constant floor
+_COVERAGE_TOL = 1e-3
+_GRID_TOL = 1e-6
+_CALIBRATION_SCHEMA = "geospec-d2-calibration-v1"
+_HEX40 = re.compile(r"^[0-9a-f]{40}$")
+_HEX64 = re.compile(r"^[0-9a-f]{64}$")
+
+
+class CalibrationUnavailable(Exception):
+    """Raised when a calibration capsule cannot be honestly admitted (missing, pin
+    mismatch, schema/binding/date/lag violation). Fail-closed: no capsule -> no score."""
+
+    def __init__(self, reasons):
+        self.reasons = list(reasons) if isinstance(reasons, (list, tuple)) else [str(reasons)]
+        super().__init__("; ".join(self.reasons))
+
+
+def observability_gate(series_by_segment):
+    """Fail-closed BEFORE correlation. Returns (ok, reasons). Requires: >= 2 segments,
+    finite samples, minimum effective length, scale-independent non-degeneracy (constant /
+    near-constant fails -- no std->1.0 pass-through), and PROVENANCE (pre_envelope_rate_hz
+    >= 25 Hz + rev-2 band/processing version -- the labels are non-forgeable via the
+    seismic_data identity chain)."""
+    reasons = []
+    n_valid = 0
+    if len(series_by_segment) < 2:
+        reasons.append(f"need >= 2 observable segments (got {len(series_by_segment)})")
+    band_tag = getattr(SD, "_FAULT_CORR_BAND_TAG", "1-10Hz")
+    version = SD.PROCESSING_VERSION
+    for name, s in series_by_segment.items():
+        v = np.asarray(getattr(s, "values", s), dtype=float).ravel()
+        if v.size < _MIN_EFFECTIVE_SAMPLES:
+            reasons.append(f"{name}: insufficient effective samples ({v.size})")
+            continue
+        if not np.all(np.isfinite(v)):
+            reasons.append(f"{name}: non-finite samples")
+            continue
+        pre_rate = float(getattr(s, "pre_envelope_rate_hz", 0.0))
+        if pre_rate < _MIN_PRE_ENVELOPE_RATE_HZ:
+            reasons.append(f"{name}: pre_envelope_rate_hz {pre_rate} < "
+                           f"{_MIN_PRE_ENVELOPE_RATE_HZ} (anti-alias erased provenance)")
+            continue
+        if getattr(s, "band_tag", None) != band_tag:
+            reasons.append(f"{name}: band_tag {getattr(s, 'band_tag', None)} != {band_tag}")
+            continue
+        if getattr(s, "processing_version", None) != version:
+            reasons.append(f"{name}: processing_version "
+                           f"{getattr(s, 'processing_version', None)} != {version}")
+            continue
+        mean = float(np.mean(v))
+        std = float(np.std(v))
+        rel = std / (abs(mean) + 1e-30)
+        if std <= 0.0 or rel < _DEGENERACY_REL_STD:
+            reasons.append(f"{name}: degenerate (std={std:.3e}, rel={rel:.3e})")
+            continue
+        n_valid += 1
+    if n_valid < 2:
+        if not reasons:
+            reasons.append("fewer than 2 observable segments after QC")
+        return False, reasons
+    return (len(reasons) == 0), reasons
+
+
+def capsule_registry_entry(region, registry_path):
+    """Read the EXTERNAL capsule registry (region-keyed JSON) and return
+    {capsule_path, expected_sha256, topology_version}. The registered digest is the ONLY
+    production source of expected_sha256 -- a loader that hashes the capsule it is about to
+    load is self-attestation. Missing registry/region raises CalibrationUnavailable."""
+    if not registry_path or not os.path.exists(registry_path):
+        raise CalibrationUnavailable([f"capsule registry not found: {registry_path}"])
+    try:
+        with open(registry_path, encoding="utf-8") as fh:
+            registry = json.load(fh)
+    except Exception as exc:
+        raise CalibrationUnavailable([f"capsule registry unreadable: {exc}"])
+    entry = registry.get(region) if isinstance(registry, dict) else None
+    if not isinstance(entry, dict):
+        raise CalibrationUnavailable([f"no registry entry for region {region}"])
+    for k in ("capsule_path", "expected_sha256", "topology_version"):
+        if k not in entry:
+            raise CalibrationUnavailable([f"registry entry for {region} missing {k}"])
+    return {
+        "capsule_path": entry["capsule_path"],
+        "expected_sha256": entry["expected_sha256"],
+        "topology_version": entry["topology_version"],
+    }
+
+
+def _parse_date(s):
+    """Strict YYYY-MM-DD -> date, else None."""
+    if not isinstance(s, str):
+        return None
+    try:
+        return datetime.strptime(s, "%Y-%m-%d").date()
+    except Exception:
+        return None
+
+
+def align_activity_series(series, *, max_gap_seconds, min_coverage):
+    """Exact-UTC-grid alignment. Returns (A | None, names, qc). Fails closed (A=None) on:
+    naive/aware-non-UTC start; non-finite/non-positive/unequal dt; off-grid start (half-sample
+    phase offset -- NEVER interpolate); a gap outside the carrier's UTC day; declared coverage
+    inconsistent with the in-span gaps + sample count; empty/short overlap; coverage <
+    min_coverage; or a gap > max_gap_seconds. A short permitted gap keeps ok but records qc."""
+    names = list(series.keys())
+    reasons = []
+    if len(names) < 2:
+        return None, names, [f"need >= 2 series (got {len(names)})"]
+
+    dts = []
+    starts = {}
+    sizes = {}
+    for name in names:
+        s = series[name]
+        st = getattr(s, "start_utc", None)
+        if (not isinstance(st, datetime) or st.tzinfo is None
+                or st.utcoffset() != timedelta(0)):
+            reasons.append(f"{name}: start_utc must be AWARE UTC (got {st!r})")
+            continue
+        dt = float(getattr(s, "dt_seconds", float("nan")))
+        if not np.isfinite(dt) or dt <= 0.0:
+            reasons.append(f"{name}: dt_seconds must be finite positive (got {dt})")
+            continue
+        v = np.asarray(getattr(s, "values", s), dtype=float).ravel()
+        n = v.size
+        starts[name] = st
+        sizes[name] = n
+        dts.append(dt)
+        span = n * dt
+        carrier_end = st + timedelta(seconds=span)
+        day_end = st + timedelta(days=1)
+        cov = float(getattr(s, "coverage", 1.0))
+        in_span_gap = 0.0
+        for g in list(getattr(s, "gaps", [])):
+            try:
+                giso, gsec = g[0], float(g[1])
+            except Exception:
+                reasons.append(f"{name}: malformed gap {g!r}")
+                continue
+            try:
+                gstart = SD._parse_iso_utc(giso)
+            except Exception:
+                reasons.append(f"{name}: unparseable gap start {giso!r}")
+                continue
+            if gstart.tzinfo is None:
+                gstart = gstart.replace(tzinfo=timezone.utc)
+            if gstart < st or gstart >= day_end:
+                reasons.append(f"{name}: gap {giso} outside carrier interval")
+                continue
+            if gsec > float(max_gap_seconds):
+                reasons.append(f"{name}: gap {gsec}s exceeds max_gap {max_gap_seconds}s")
+            gend = gstart + timedelta(seconds=gsec)
+            ov_start = max(gstart, st)
+            ov_end = min(gend, carrier_end)
+            if ov_end > ov_start:
+                in_span_gap += (ov_end - ov_start).total_seconds()
+        expected_cov = max(0.0, 1.0 - in_span_gap / span) if span > 0 else 0.0
+        if abs(cov - expected_cov) > _COVERAGE_TOL:
+            reasons.append(f"{name}: declared coverage {cov} inconsistent with gaps "
+                           f"(expected {expected_cov:.4f})")
+        if cov < float(min_coverage):
+            reasons.append(f"{name}: coverage {cov} < min_coverage {min_coverage}")
+
+    if reasons:
+        return None, names, reasons
+
+    if len({round(d, 9) for d in dts}) != 1:
+        return None, names, [f"dt mismatch across series: {dts}"]
+    dt = dts[0]
+    base = min(starts.values())
+    for name in names:
+        off = (starts[name] - base).total_seconds() / dt
+        if abs(off - round(off)) > _GRID_TOL:
+            return None, names, [f"{name}: start not on the common {dt}s grid (offset {off})"]
+
+    ov_start = max(starts.values())
+    ov_end = min(starts[name] + timedelta(seconds=sizes[name] * dt) for name in names)
+    overlap_seconds = (ov_end - ov_start).total_seconds()
+    if overlap_seconds <= 0:
+        return None, names, ["empty overlap after UTC alignment"]
+    n_ov = int(round(overlap_seconds / dt))
+    if n_ov < 1:
+        return None, names, ["overlap shorter than one sample"]
+
+    rows = []
+    qc = []
+    for name in names:
+        s = series[name]
+        offset = int(round((ov_start - starts[name]).total_seconds() / dt))
+        v = np.asarray(getattr(s, "values", s), dtype=float).ravel()
+        row = v[offset:offset + n_ov]
+        if row.size != n_ov:
+            return None, names, [f"{name}: overlap slice short ({row.size} != {n_ov})"]
+        rows.append(row)
+        for g in getattr(s, "gaps", []):
+            qc.append(f"{name}: gap {g[0]} ({g[1]}s)")
+
+    return np.vstack(rows), names, qc
+
+
+def load_calibration_capsule(region, scored_day, *, band_tag, processing_version,
+                             topology_version, capsule_dir, expected_sha256,
+                             embargo_days=30):
+    """Load + admit an externally-pinned calibration capsule. The capsule file's EXACT
+    bytes must sha256 to expected_sha256 (the registered pin) -- a self-consistent mutated
+    capsule fails. EXACT schema (no missing/extra keys); band/processing/topology bindings;
+    date well-formedness; window start<=end; threshold finite in (0,1); scored_day <=
+    valid_through; and a LEAKAGE/LAG embargo (>= embargo_days, default 30, per the corrected
+    R3 lag). Any violation raises CalibrationUnavailable."""
+    path = os.path.join(capsule_dir, f"{region}.json")
+    if not os.path.exists(path):
+        raise CalibrationUnavailable([f"no capsule for region {region} in {capsule_dir}"])
+    with open(path, "rb") as fh:
+        raw = fh.read()
+    actual_sha = hashlib.sha256(raw).hexdigest()
+    if actual_sha != expected_sha256:
+        raise CalibrationUnavailable(
+            [f"capsule sha256 {actual_sha} != registered pin {expected_sha256}"])
+    try:
+        cap = json.loads(raw.decode("utf-8"))
+    except Exception as exc:
+        raise CalibrationUnavailable([f"capsule not valid JSON: {exc}"])
+
+    expected_keys = {"schema", "region", "band_tag", "processing_version", "topology_version",
+                     "threshold", "calibration_window", "source_commit",
+                     "input_manifest_sha256", "replay_output_sha256", "issued_utc",
+                     "valid_through"}
+    if not isinstance(cap, dict) or set(cap.keys()) != expected_keys:
+        raise CalibrationUnavailable([
+            f"capsule schema keys mismatch: "
+            f"{sorted(cap.keys()) if isinstance(cap, dict) else type(cap).__name__}"])
+    if cap["schema"] != _CALIBRATION_SCHEMA:
+        raise CalibrationUnavailable([f"schema {cap['schema']} != {_CALIBRATION_SCHEMA}"])
+    if cap["region"] != region:
+        raise CalibrationUnavailable([f"capsule region {cap['region']} != {region}"])
+    if cap["band_tag"] != band_tag:
+        raise CalibrationUnavailable([f"capsule band_tag {cap['band_tag']} != {band_tag}"])
+    if cap["processing_version"] != processing_version:
+        raise CalibrationUnavailable(
+            [f"capsule processing_version {cap['processing_version']} != {processing_version}"])
+    if cap["topology_version"] != topology_version:
+        raise CalibrationUnavailable(
+            [f"capsule topology_version {cap['topology_version']} != {topology_version}"])
+    for k, rx in (("source_commit", _HEX40), ("input_manifest_sha256", _HEX64),
+                  ("replay_output_sha256", _HEX64)):
+        if not (isinstance(cap[k], str) and rx.match(cap[k])):
+            raise CalibrationUnavailable([f"{k} not {rx.pattern}"])
+
+    thr = cap["threshold"]
+    if (isinstance(thr, bool) or not isinstance(thr, (int, float))
+            or not np.isfinite(thr) or not (0.0 < float(thr) < 1.0)):
+        raise CalibrationUnavailable([f"threshold {thr} non-finite or outside (0,1)"])
+
+    win = cap["calibration_window"]
+    if not (isinstance(win, dict) and set(win.keys()) == {"start", "end"}):
+        raise CalibrationUnavailable(["calibration_window must have exactly {start, end}"])
+    w_start = _parse_date(win["start"])
+    w_end = _parse_date(win["end"])
+    valid_through = _parse_date(cap["valid_through"])
+    scored = _parse_date(scored_day)
+    if None in (w_start, w_end, valid_through, scored):
+        raise CalibrationUnavailable(["malformed/unparseable date(s)"])
+    try:
+        SD._parse_iso_utc(cap["issued_utc"])
+    except Exception:
+        raise CalibrationUnavailable([f"issued_utc unparseable: {cap['issued_utc']!r}"])
+    if w_start > w_end:
+        raise CalibrationUnavailable(
+            [f"calibration window start {win['start']} > end {win['end']}"])
+    if scored > valid_through:
+        raise CalibrationUnavailable(
+            [f"scored day {scored_day} past valid_through {cap['valid_through']} (STALE)"])
+    lag_days = (scored - w_end).days
+    if lag_days < int(embargo_days):
+        raise CalibrationUnavailable(
+            [f"calibration ends {lag_days}d before scored day (< embargo {embargo_days}d)"])
+    return cap
+
+
+def validate_topology(region):
+    """(ok, reasons). Rejects a region whose correlated segments SHARE a NET.STA station
+    (the same sensor in two segments trivially inflates their correlation). Disjoint-station
+    topologies pass. Unknown regions fail closed."""
+    try:
+        segments = get_segments_for_region(region)
+    except Exception as exc:
+        return False, [f"unknown/invalid region {region}: {exc}"]
+    counts = Counter()
+    for seg in segments:
+        for nsta in {f"{s.network}.{s.code}" for s in seg.stations}:
+            counts[nsta] += 1
+    shared = sorted([nsta for nsta, c in counts.items() if c >= 2])
+    if shared:
+        return False, [f"shared NET.STA across correlated segments: {shared}"]
+    return True, []
+
+
+def _aggregate_segment_envelope(env_by_station):
+    """Median-stack station EnvelopeSeries into one per-segment activity EnvelopeSeries,
+    preserving rev-2 provenance. Requires >= 2 stations. Returns None if insufficient."""
+    series = [s for s in env_by_station.values() if s is not None]
+    if len(series) < 2:
+        return None
+    lengths = [np.asarray(getattr(s, "values", s)).size for s in series]
+    min_len = min(lengths) if lengths else 0
+    if min_len < 1:
+        return None
+    stacked = np.vstack([np.asarray(s.values, dtype=float).ravel()[:min_len] for s in series])
+    ref = series[0]
+    return SD.EnvelopeSeries(
+        values=np.median(stacked, axis=0),
+        start_utc=ref.start_utc,
+        dt_seconds=ref.dt_seconds,
+        coverage=min(float(s.coverage) for s in series),
+        gaps=[],
+        source_ids=[sid for s in series for sid in s.source_ids],
+        band_tag=ref.band_tag,
+        processing_version=ref.processing_version,
+        pre_envelope_rate_hz=ref.pre_envelope_rate_hz,
+    )
 
 
 @dataclass
@@ -48,6 +384,9 @@ class CorrelationResult:
     is_decorrelated: bool
     decorrelation_threshold: float
     notes: str = ""
+    # D2 rev-2: fail-closed data-quality gate outcome (observability + align + topology)
+    data_quality_ok: bool = True
+    qc_reasons: List[str] = field(default_factory=list)
 
     def to_dict(self) -> Dict:
         """Convert to JSON-serializable dictionary."""
@@ -127,7 +466,12 @@ class FaultCorrelationMonitor:
             logger.warning(f"Insufficient stations for {segment.name}: {len(envelopes)}")
             return None
 
-        activity = compute_segment_activity_index(envelopes)
+        # rev-2: get_segment_envelopes returns EnvelopeSeries; extract the value arrays for the
+        # legacy median activity index (retained for the standalone validation entry points --
+        # the rev-2 correlation path uses observability_gate + align_activity_series instead).
+        value_arrays = {nslc: np.asarray(getattr(s, "values", s), dtype=float)
+                        for nslc, s in envelopes.items()}
+        activity = compute_segment_activity_index(value_arrays)
 
         if len(activity) == 0:
             return None
@@ -139,54 +483,53 @@ class FaultCorrelationMonitor:
         region: str,
         start: datetime,
         end: datetime
-    ) -> Tuple[Optional[np.ndarray], List[str]]:
+    ) -> Tuple[Optional[np.ndarray], List[str], List[str]]:
         """
-        Compute correlation matrix between fault segments.
+        Compute the fault-segment correlation matrix (rev-2, fail-closed).
 
-        Args:
-            region: Region name
-            start: Start datetime
-            end: End datetime
-
-        Returns:
-            Tuple of (correlation_matrix, segment_names) or (None, [])
+        Returns a 3-tuple (C | None, segment_names, qc_reasons). Fails closed to
+        (None, names, reasons) when the station topology is invalid, the observability gate
+        rejects the segments, the UTC-grid alignment fails, or the resulting matrix is not a
+        finite unit-diagonal PSD correlation matrix. There is NO std->1.0 substitution and
+        NO nan_to_num masking -- a degenerate or unalignable input yields None, never a
+        fabricated correlation.
         """
-        segments = get_segments_for_region(region)
+        ok_topo, topo_reasons = validate_topology(region)
+        if not ok_topo:
+            return None, [], list(topo_reasons)
 
-        # Get activity for each segment
-        activities = {}
+        try:
+            segments = get_segments_for_region(region)
+        except Exception as exc:
+            return None, [], [f"unknown region {region}: {exc}"]
+
+        series_by_segment = {}
         for segment in segments:
-            activity = self.compute_segment_activity(segment, start, end)
-            if activity is not None:
-                activities[segment.name] = activity
+            env = self.data_fetcher.get_segment_envelopes(segment, start, end)
+            agg = _aggregate_segment_envelope(env)
+            if agg is not None:
+                series_by_segment[segment.name] = agg
 
-        if len(activities) < 2:
-            logger.warning(f"Insufficient segments with data for {region}: {len(activities)}")
-            return None, []
+        ok_gate, qc = observability_gate(series_by_segment)
+        if not ok_gate:
+            return None, list(series_by_segment.keys()), list(qc)
 
-        # Align to minimum length
-        min_len = min(len(a) for a in activities.values())
-        segment_names = list(activities.keys())
-        n_segments = len(segment_names)
+        A, segment_names, align_qc = align_activity_series(
+            series_by_segment,
+            max_gap_seconds=self.window_hours * 3600,
+            min_coverage=0.5)
+        if A is None:
+            return None, list(segment_names), list(align_qc)
 
-        # Build activity matrix (rows=segments, cols=time)
-        A = np.zeros((n_segments, min_len))
-        for i, name in enumerate(segment_names):
-            A[i, :] = activities[name][:min_len]
+        C = np.atleast_2d(np.corrcoef(A))
+        if not np.all(np.isfinite(C)):
+            return None, list(segment_names), list(align_qc) + ["correlation matrix non-finite"]
+        if not np.allclose(np.diag(C), 1.0, atol=1e-6):
+            return None, list(segment_names), list(align_qc) + ["diagonal not unit"]
+        if float(np.min(np.linalg.eigvalsh(C))) < -1e-6:
+            return None, list(segment_names), list(align_qc) + ["matrix not PSD"]
 
-        # Normalize rows (zero mean, unit variance)
-        A = A - A.mean(axis=1, keepdims=True)
-        std = A.std(axis=1, keepdims=True)
-        std[std < 1e-10] = 1.0  # Avoid division by zero
-        A = A / std
-
-        # Compute correlation matrix
-        C = np.corrcoef(A)
-
-        # Handle NaN (can happen with constant signals)
-        C = np.nan_to_num(C, nan=0.0)
-
-        return C, segment_names
+        return C, list(segment_names), list(align_qc)
 
     def analyze_eigenvalue_spectrum(
         self,
@@ -269,82 +612,88 @@ class FaultCorrelationMonitor:
 
         return is_decorrelated, drop_factor
 
+    def _resolve_threshold(self, calibration) -> float:
+        """The verdict threshold comes FROM the admitted capsule when present; otherwise the
+        instance default (kept for the legacy validation entry points)."""
+        if isinstance(calibration, dict) and "threshold" in calibration:
+            try:
+                return float(calibration["threshold"])
+            except Exception:
+                pass
+        return self.decorrelation_threshold
+
     def analyze_region(
         self,
         region: str,
         target_date: datetime,
+        *,
+        calibration: Optional[dict] = None,
         baseline_days: int = 30,
-        gap_days: int = 7
+        gap_days: int = 7,
+        **kwargs
     ) -> CorrelationResult:
         """
-        Perform full correlation analysis for a region.
+        Perform full correlation analysis for a region (rev-2).
 
-        Args:
-            region: Region name
-            target_date: Date to analyze
-            baseline_days: Days to use for baseline
-            gap_days: Gap between baseline and current (avoid contamination)
-
-        Returns:
-            CorrelationResult with full analysis
+        The decorrelation verdict threshold comes FROM the admitted calibration capsule
+        (kwarg `calibration`), not a hardcoded constant. When the fail-closed data-quality
+        gate rejects the region (compute_correlation_matrix -> None), the result carries
+        data_quality_ok=False, is_decorrelated=False, participation_ratio=0.0, and the qc
+        reasons; no risk values are minted.
         """
         logger.info(f"Analyzing {region} for {target_date.date()}")
 
-        # Current window
         current_start = target_date - timedelta(hours=self.window_hours)
         current_end = target_date
 
-        # Baseline window
-        baseline_end = target_date - timedelta(days=gap_days)
-        baseline_start = baseline_end - timedelta(days=baseline_days)
-
-        # Compute current correlation
-        C_current, segment_names = self.compute_correlation_matrix(
+        C_current, segment_names, qc = self.compute_correlation_matrix(
             region, current_start, current_end
         )
+        threshold = self._resolve_threshold(calibration)
 
         if C_current is None:
             return CorrelationResult(
                 region=region,
                 date=target_date,
-                segment_names=[],
+                segment_names=list(segment_names or []),
                 correlation_matrix=np.array([]),
                 eigenvalues=np.array([]),
                 eigenvalue_ratios=np.array([]),
                 participation_ratio=0.0,
                 dominant_eigenvector=np.array([]),
                 is_decorrelated=False,
-                decorrelation_threshold=self.decorrelation_threshold,
-                notes="Insufficient data for current window"
+                decorrelation_threshold=threshold,
+                notes="data quality gate failed",
+                data_quality_ok=False,
+                qc_reasons=list(qc) if qc else ["insufficient/invalid correlation data"],
             )
 
-        # Analyze eigenvalues
         eigenvalues, ratios, participation_ratio, dominant_eigenvector = \
             self.analyze_eigenvalue_spectrum(C_current)
 
-        # Check for decorrelation
-        # For real-time, we compare against absolute threshold
-        # For validation, we'd compute baseline and compare
-        is_decorrelated = ratios[0] < self.decorrelation_threshold if len(ratios) > 0 else False
+        l2_l1 = float(ratios[0]) if len(ratios) > 0 else 0.0
+        is_decorrelated = bool(l2_l1 < threshold)
 
         result = CorrelationResult(
             region=region,
             date=target_date,
-            segment_names=segment_names,
+            segment_names=list(segment_names),
             correlation_matrix=C_current,
             eigenvalues=eigenvalues,
             eigenvalue_ratios=ratios,
             participation_ratio=participation_ratio,
             dominant_eigenvector=dominant_eigenvector,
             is_decorrelated=is_decorrelated,
-            decorrelation_threshold=self.decorrelation_threshold,
-            notes=""
+            decorrelation_threshold=threshold,
+            notes="",
+            data_quality_ok=True,
+            qc_reasons=list(qc),
         )
 
         logger.info(f"  Segments: {len(segment_names)}")
-        logger.info(f"  L2/L1: {ratios[0]:.4f}" if len(ratios) > 0 else "  L2/L1: N/A")
+        logger.info(f"  L2/L1: {l2_l1:.4f}" if len(ratios) > 0 else "  L2/L1: N/A")
         logger.info(f"  Participation ratio: {participation_ratio:.2f}")
-        logger.info(f"  Decorrelated: {is_decorrelated}")
+        logger.info(f"  Decorrelated: {is_decorrelated} (threshold {threshold})")
 
         return result
 

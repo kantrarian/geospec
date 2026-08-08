@@ -21,6 +21,7 @@ from obspy.clients.fdsn import Client
 from obspy.signal.filter import bandpass
 from scipy.signal import hilbert, decimate
 from scipy import signal as sp_signal
+from scipy.interpolate import CubicSpline
 from datetime import datetime, timedelta, timezone
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -408,67 +409,82 @@ def _validate_fragments(fragments, *, min_rate_hz):
     return frs
 
 
-def _place_fragments(frs, *, session_start_utc, session_seconds, out_rate_hz):
-    """Geometric placement of each span on the requested session grid. Returns (N, placements)
-    where placement = (frag_index, off, L_out, valid_lo, valid_hi). A span whose start is not
-    an integer number of output-grid samples from session_start (a half-sample-ambiguous
-    phase) contributes NO bins and is NEVER rounded/shifted onto the grid; a span shorter than
-    MIN_CONTIGUOUS_SPAN contributes no valid bins; otherwise the valid interior is the span
-    trimmed by EDGE_TRIM on each end."""
+def _timestamp_placements(frs, *, session_start_utc, session_seconds, out_rate_hz):
+    """TIMESTAMP-DERIVED placement (codex 1906 ruling). Grid index k has the exact claimed
+    instant t_k = session_start + k/out_rate_hz. A span contributes at grid instant t_k -- at
+    ANY fractional phase, never rounded/shifted/relabeled -- exactly when
+    `fragment_start + EDGE_TRIM <= t_k < fragment_exclusive_end - EDGE_TRIM` and the raw span
+    duration meets MIN_CONTIGUOUS_SPAN. Returns (N, dt, mask, placements) where placement =
+    (frag_index, frag_off_seconds, k_valid ndarray). No round(offset), no length-rounded mask."""
     N = int(round(float(session_seconds) * float(out_rate_hz)))
-    trim = int(round(SEG_SUPPORT["edge_trim_seconds"] * float(out_rate_hz)))
-    min_span = int(round(SEG_SUPPORT["min_contiguous_span_seconds"] * float(out_rate_hz)))
+    dt = 1.0 / float(out_rate_hz)
+    trim = float(SEG_SUPPORT["edge_trim_seconds"])
+    min_span = float(SEG_SUPPORT["min_contiguous_span_seconds"])
+    grid_t = np.arange(N) * dt                     # session-seconds of each grid instant t_k
+    mask = np.zeros(N, dtype=bool)
     placements = []
     for idx, (arr, rate, start, npts) in enumerate(frs):
-        off_f = (start - session_start_utc).total_seconds() * float(out_rate_hz)
-        off_r = round(off_f)
-        if abs(off_f - off_r) > 0.5 - 1e-9:
-            continue  # fractional (half-sample-ambiguous) phase -> never shifted onto the grid
-        off = int(off_r)
-        L_out = int(round(npts * float(out_rate_hz) / rate))
-        if L_out < min_span:
-            valid_lo = valid_hi = off  # below MIN_CONTIGUOUS_SPAN -> zero valid bins
-        else:
-            valid_lo = off + trim
-            valid_hi = off + L_out - trim
-        placements.append((idx, off, L_out, valid_lo, valid_hi))
-    return N, placements
+        frag_off = (start - session_start_utc).total_seconds()
+        frag_dur = npts / rate
+        if frag_dur < min_span:
+            continue                               # raw span below MIN_CONTIGUOUS_SPAN
+        lo = frag_off + trim
+        hi = frag_off + frag_dur - trim            # (fragment_exclusive_end) - trim
+        k_valid = np.nonzero((grid_t >= lo) & (grid_t < hi))[0]
+        if k_valid.size == 0:
+            continue
+        mask[k_valid] = True
+        placements.append((idx, frag_off, k_valid))
+    return N, dt, mask, placements
 
 
 def compute_band_envelope_supported(fragments, *, session_start_utc, session_seconds=86400,
                                     out_rate_hz=1.0, freqmin=1.0, freqmax=10.0,
                                     min_rate_hz=25.0, source_id) -> EnvelopeSeries:
-    """Segmented-support core. Each contiguous raw span is band-processed INDEPENDENTLY by the
-    pinned rev-2 core (bandpass -> Hilbert envelope -> anti-aliased resample) — NO filter /
-    Hilbert / resample / interpolation / padding EVER crosses a gap. Outputs are anchored to
-    the requested session's out_rate UTC grid; each span's valid interior is [t0+trim, t0+L-trim)
-    and only spans >= MIN_CONTIGUOUS_SPAN contribute. Returns a DENSE EnvelopeSeries with a
-    valid_mask, coverage = count(valid)/N, and gaps = the run-length complement. A single span
-    that fills the whole grid IS the pinned core's series with support metadata attached (the
-    composition-frozen shell's sentinel identity is preserved)."""
+    """Segmented-support core (codex 1906 phase ruling). Each contiguous raw span is
+    band-processed INDEPENDENTLY by the pinned rev-2 core (bandpass -> Hilbert envelope ->
+    anti-aliased resample) — NO filter / Hilbert / resample / interpolation / padding EVER
+    crosses a gap. Each output grid index k has the exact claimed instant
+    t_k = session_start + k/out_rate_hz; a span contributes at ANY fractional phase and its
+    value at t_k is the span's processed envelope EVALUATED at that same t_k through an explicit
+    interpolation operator (CubicSpline) — the fragment start is never rounded/shifted/relabeled
+    and no nearest-sample selection is used. The valid mask is TIMESTAMP-DERIVED:
+    `fragment_start + EDGE_TRIM <= t_k < fragment_exclusive_end - EDGE_TRIM` with the raw span
+    >= MIN_CONTIGUOUS_SPAN. Returns a DENSE EnvelopeSeries with valid_mask, coverage =
+    count(valid)/N, and gaps = the run-length complement. Only an EXACT-PHASE full-session span
+    (fragment_start == session_start) returns the pinned core's series object (sentinel identity
+    for the composition-frozen shell); a fractional-phase span always takes the exact-time path."""
     frs = _validate_fragments(fragments, min_rate_hz=min_rate_hz)
-    N, placements = _place_fragments(frs, session_start_utc=session_start_utc,
-                                     session_seconds=session_seconds, out_rate_hz=out_rate_hz)
-    dt = 1.0 / float(out_rate_hz)
+    N, dt, mask, placements = _timestamp_placements(
+        frs, session_start_utc=session_start_utc, session_seconds=session_seconds,
+        out_rate_hz=out_rate_hz)
     dense = np.zeros(N, dtype=float)
-    mask = np.zeros(N, dtype=bool)
+    grid_t = np.arange(N) * dt                     # session-seconds of each grid instant t_k
     pre_rate = float(frs[0][1]) if frs else float(min_rate_hz)
     single_core = None
-    for (idx, off, L_out, valid_lo, valid_hi) in placements:
+    for (idx, frag_off, k_valid) in placements:
         arr, rate, start, npts = frs[idx]
+        pre_rate = float(rate)
         core = compute_band_envelope_from_array(
             arr, rate, freqmin=freqmin, freqmax=freqmax, out_rate_hz=out_rate_hz,
             min_rate_hz=min_rate_hz, start_utc=start, source_id=source_id)
-        env = np.asarray(core.values, dtype=float).ravel()
-        L = min(int(L_out), env.size)
-        lo, hi = max(off, 0), min(off + L, N)
-        if hi > lo:
-            dense[lo:hi] = env[(lo - off):(hi - off)]
-        vlo, vhi = max(valid_lo, 0), min(valid_hi, N)
-        if vhi > vlo:
-            mask[vlo:vhi] = True
-        pre_rate = float(rate)
-        if len(placements) == 1 and off == 0 and int(L_out) == N:
+        ev = np.asarray(core.values, dtype=float).ravel()   # 1 Hz output at frag_off + m*dt
+        # output-index position of each valid grid instant: m_k = (t_k - frag_off)/dt (fractional)
+        m_k = (grid_t[k_valid] - frag_off) / dt
+        m_round = np.round(m_k)
+        if np.all(np.abs(m_k - m_round) <= 1e-9):
+            # exact-phase: the grid instants coincide with output samples -> exact core values
+            # (integer alignment reduces to the pinned rev-2 core, bit-for-bit)
+            dense[k_valid] = ev[m_round.astype(int)]
+        else:
+            # fractional phase: evaluate the fragment's processed envelope AT the true grid
+            # instants through an EXPLICIT interpolation operator (never rounded, never
+            # nearest-sample); CubicSpline is exact at integer nodes, so it collapses to the
+            # pinned core wherever the phase is integer.
+            dense[k_valid] = CubicSpline(np.arange(ev.size), ev)(m_k)
+        # sentinel/identity return ONLY for an exact-phase (frag_off == session_start) full-
+        # session span; a fractional-phase span always takes the general exact-time path above.
+        if len(placements) == 1 and frag_off == 0.0 and ev.size == N:
             single_core = core
     coverage = float(mask.sum()) / N if N > 0 else 0.0
     gaps = _mask_to_gaps(mask, session_start_utc, dt)
@@ -510,13 +526,9 @@ def support_digest(fragments, *, session_start_utc, session_seconds, out_rate_hz
             "raw_sha256": hashlib.sha256(arr.tobytes()).hexdigest(),
         })
         frs_raw.append((arr, rate, start, npts))
-    N, placements = _place_fragments(frs_raw, session_start_utc=session_start_utc,
-                                     session_seconds=session_seconds, out_rate_hz=out_rate_hz)
-    mask = np.zeros(N, dtype=bool)
-    for (idx, off, L_out, valid_lo, valid_hi) in placements:
-        a, b = max(valid_lo, 0), min(valid_hi, N)
-        if b > a:
-            mask[a:b] = True
+    _N, _dt, mask, _placements = _timestamp_placements(
+        frs_raw, session_start_utc=session_start_utc, session_seconds=session_seconds,
+        out_rate_hz=out_rate_hz)
     session_identity = {
         "start_iso": _iso(session_start_utc),
         "seconds": float(session_seconds),

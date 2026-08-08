@@ -25,7 +25,7 @@ from datetime import datetime, timedelta, timezone
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
-from math import gcd
+from fractions import Fraction
 import hashlib
 import pickle
 import logging
@@ -235,19 +235,23 @@ def compute_band_envelope_from_array(data, rate_hz, *, freqmin=1.0, freqmax=10.0
     bandpassed = sp_signal.filtfilt(b, a, data)
     # 2) Hilbert envelope at the native rate (before any decimation)
     envelope = np.abs(hilbert(bandpassed))
-    # 3) anti-aliased resample of the ENVELOPE to out_rate_hz
-    up = int(round(float(out_rate_hz)))
-    down = int(round(rate_hz))
+    # 3) anti-aliased resample of the ENVELOPE to out_rate_hz. codex 0409 #3: form the resampling
+    # ratio from the RATIONAL out/native rate (never integer-rounded rates -- a 40.5 Hz native
+    # rate must not be coerced to 40) and declare dt from the REALIZED output rate, so the 1 Hz
+    # carrier's declared duration equals the real elapsed time.
+    ratio = Fraction(float(out_rate_hz) / rate_hz).limit_denominator(100000)
+    up, down = ratio.numerator, ratio.denominator
     if up < 1:
         up = 1
-    g = gcd(up, down) or 1
-    env_out = sp_signal.resample_poly(envelope, up // g, down // g)
-    env_out = np.asarray(env_out, dtype=float)
+    if down < 1:
+        down = 1
+    env_out = np.asarray(sp_signal.resample_poly(envelope, up, down), dtype=float)
+    realized_out_rate_hz = rate_hz * up / down
 
     return EnvelopeSeries(
         values=env_out,
         start_utc=start_utc,
-        dt_seconds=1.0 / float(out_rate_hz),
+        dt_seconds=1.0 / realized_out_rate_hz,
         coverage=1.0,
         gaps=[],
         source_ids=[source_id],
@@ -620,11 +624,19 @@ class SeismicDataFetcher:
         for nslc, stream in waveforms.items():
             # Extract the raw native array + rate. Stream-level merge/detrend/copy is
             # permitted; band DSP (filter/decimate/resample) on the stream is NOT.
+            # codex 0409 #2: TRUTHFUL carrier -- NEVER interpolate over data gaps. Inspect the raw
+            # ObsPy gaps first; ANY real gap => skip the station (the core emits coverage=1.0/gaps=[],
+            # so an interpolated fill would mint a false full-coverage carrier). Supporting partial
+            # coverage later needs segmented DSP + truthful propagated gap metadata.
             try:
+                raw_gaps = stream.get_gaps() if hasattr(stream, "get_gaps") else None
+                if isinstance(raw_gaps, (list, tuple)) and len(raw_gaps) > 0:
+                    logger.info(f"{nslc}: {len(raw_gaps)} raw data gap(s) -> skip (no interpolation)")
+                    continue
                 work = stream
                 try:
                     work = stream.copy()
-                    work.merge(method=1, fill_value='interpolate')
+                    work.merge(method=1)          # NON-interpolating merge (no fill_value)
                     work.detrend('demean')
                     work.detrend('linear')
                 except Exception:
@@ -637,6 +649,9 @@ class SeismicDataFetcher:
                 continue
 
             if data.size == 0:
+                continue
+            if not np.all(np.isfinite(data)):
+                logger.info(f"{nslc}: non-finite samples (masked gap) -> skip (no interpolation)")
                 continue
 
             # DERIVED identity: actual native rate + sha256 of the exact native samples.

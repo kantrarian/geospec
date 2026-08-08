@@ -346,24 +346,28 @@ def validate_topology(region):
 
 
 def _aggregate_segment_envelope(env_by_station):
-    """Median-stack station EnvelopeSeries into one per-segment activity EnvelopeSeries,
-    preserving rev-2 provenance. Requires >= 2 stations. Returns None if insufficient."""
-    series = [s for s in env_by_station.values() if s is not None]
+    """Median-stack station EnvelopeSeries into one per-segment activity EnvelopeSeries.
+    codex 0409 #1: the stations are EXACT-UTC-GRID-ALIGNED before the median (never
+    index-truncated by element zero); the aggregate carries the common-intersection
+    start/dt/length. Rate/phase/timezone mismatch across stations -> unavailable (None).
+    Requires >= 2 stations."""
+    series = {sid: s for sid, s in env_by_station.items() if s is not None}
     if len(series) < 2:
         return None
-    lengths = [np.asarray(getattr(s, "values", s)).size for s in series]
-    min_len = min(lengths) if lengths else 0
-    if min_len < 1:
+    A, names, _qc = align_activity_series(series, max_gap_seconds=float("inf"),
+                                          min_coverage=0.0)
+    if A is None or A.ndim != 2 or A.shape[1] < 1:
         return None
-    stacked = np.vstack([np.asarray(s.values, dtype=float).ravel()[:min_len] for s in series])
-    ref = series[0]
+    dt = float(series[names[0]].dt_seconds)
+    ov_start = max(series[n].start_utc for n in names)
+    ref = series[names[0]]
     return SD.EnvelopeSeries(
-        values=np.median(stacked, axis=0),
-        start_utc=ref.start_utc,
-        dt_seconds=ref.dt_seconds,
-        coverage=min(float(s.coverage) for s in series),
+        values=np.median(A, axis=0),
+        start_utc=ov_start,
+        dt_seconds=dt,
+        coverage=min(float(series[n].coverage) for n in names),
         gaps=[],
-        source_ids=[sid for s in series for sid in s.source_ids],
+        source_ids=[sid for n in names for sid in series[n].source_ids],
         band_tag=ref.band_tag,
         processing_version=ref.processing_version,
         pre_envelope_rate_hz=ref.pre_envelope_rate_hz,

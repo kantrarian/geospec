@@ -13,6 +13,7 @@ Nothing here lifts a freeze, tunes the admission rule, promotes a registry, depl
 or makes a claim; the campaign is outcome-blind and honestly mints 0..3 candidates. The batch is
 independently re-verified by codex's `0123` acceptance bar + cayley's Phase-4 checklist.
 """
+import gc
 import hashlib
 import io
 import json
@@ -186,7 +187,10 @@ def _mask_digest(series):
 
 def _station_series(SD, stream, source_id, session_start):
     """The EnvelopeSeries for scoring, derived from the COMBINED station stream (or None if
-    unavailable). Per-object provenance is derived separately from each staged object (H3)."""
+    unavailable). Per-object provenance is derived separately from each staged object (H3). The
+    native-rate envelope FFT peaks ~0.5 GB/station; on a commit-constrained host a transient
+    MemoryError is retried once after gc, and a persistent one yields None (honest resource
+    unavailability) so a single station never aborts the multi-hour campaign."""
     frags = _fragments_from_stream(stream)
     try:
         return SD.compute_band_envelope_supported(
@@ -194,6 +198,14 @@ def _station_series(SD, stream, source_id, session_start):
             source_id=source_id)
     except SD.DataUnavailable:
         return None
+    except MemoryError:
+        gc.collect()
+        try:
+            return SD.compute_band_envelope_supported(
+                frags, session_start_utc=session_start, session_seconds=SESSION_SECONDS,
+                source_id=source_id)
+        except (MemoryError, SD.DataUnavailable):
+            return None
 
 
 def _object_provenance(providers, staged_path):
@@ -414,6 +426,8 @@ def acquire(plan, ledger, root, *, providers, receipt, clock=None):
             base["publication_record_sha256"] = record_sha
             base["input_object_sha256s"] = day_refs
             day_result[(carrier, day)] = base
+            del seg_station_es                          # release the day's envelope series
+            gc.collect()                                # keep committed memory flat on a busy host
 
     # -- calibration_daily: 540 rows (2 arms x 3 carriers x 90 days) -----------
     rates = {obj["sha256"]: obj["native_rate_hz"] for obj in input_objects}   # H4 per-object rate

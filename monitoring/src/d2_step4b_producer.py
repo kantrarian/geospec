@@ -399,17 +399,20 @@ def _load_plan(root):
 
 
 def _acquire(plan, ledger, root):
-    """The ONLY acquisition path (codex 0347 P1). Lazily imports the provider stack — keeping it
-    out of the producer's import graph until strictly below the launch gate — and runs the full
-    published-phase-bound campaign: per REGISTERED (carrier, day) fetch (KOERI first, then SCEDC)
-    -> segmented score (pinned GeoSpec 3950a2c) -> the 0123 batch artifacts staged under `root`.
-    Reached only after verify_launch_authorization succeeds and the plan is bound; called exactly
-    once by run_campaign. The verified receipt + injectable clock ride the side-channel holder."""
-    import d2_step4b_providers as providers        # lazy: below the gate, off the import graph
-    import d2_step4b_campaign_run as campaign_run
-    return campaign_run.acquire(plan, ledger, root, providers=providers,
-                                receipt=_RECEIPT_HOLDER.get("receipt"),
-                                clock=_RECEIPT_HOLDER.get("clock"))
+    """The ONLY acquisition path (codex 0347 P1; schema pin A). Reached only after
+    verify_launch_authorization succeeds, the staged plan is bound, and the writer lock is held;
+    called exactly once by run_campaign. Under schema pin A (codex 1601 / cayley 1557) the standing
+    campaign is OWNED by the resume executor: the production default (`providers=None` on the side
+    channel) makes `run_resume_campaign` lazily import the REAL `d2_step4b_providers` stack itself,
+    strictly AFTER the durable reopened PROCESS_STARTED (RC1); an injected providers object rides
+    the side channel as the hermetic TEST seam. `campaign_run.acquire` remains the inner scientific
+    scoring/assembly step the resume executor drives. The verified receipt + injectable clock ride
+    the side-channel holder."""
+    import d2_step4b_resume as resume              # lazy: below the gate, off the import graph
+    return resume.run_resume_campaign(plan, root,
+                                      providers=_RECEIPT_HOLDER.get("providers"),
+                                      receipt=_RECEIPT_HOLDER.get("receipt"),
+                                      clock=_RECEIPT_HOLDER.get("clock"))
 
 
 def _writer_lock_path(root):
@@ -476,26 +479,19 @@ def run_campaign(plan, launch_authorization, root=None, *, dry_run=False, clock=
     allowed). Then load the ledger and drive acquisition through `_acquire` exactly once. The
     injectable `clock` (default: live now()) reaches the assembler via the side channel.
 
-    RESUME SEAM (cayley resume bar `3a829cd`): `providers=None` is the production default and this
-    function is byte-for-byte unchanged (the real provider stack is lazily imported below the gate
-    by `_acquire`; the existing SB/PV/executor bars keep passing). When a `providers` object is
-    INJECTED, the same receipt gate runs FIRST, then control passes to the resume-aware executor
-    (`d2_step4b_resume.run_resume_campaign`) which is automatic-from-root-state: a COMPLETED root
-    is verified and returned immutably; plan/ledger drift on a resumable root refuses before any
-    provider I/O; PROCESS_STARTED is committed under the writer lock before the first probe."""
+    SCHEMA PIN A (codex 1601 / cayley 1557; RC1): the standing campaign is OWNED by the resume
+    executor for BOTH the production default (`providers=None`) and the hermetic injected-providers
+    test seam. Routing is unchanged — receipt gate FIRST, then staged-plan drift refusal, then the
+    single-writer lock is taken and held through the whole `_acquire` — but `_acquire` now dispatches
+    to `d2_step4b_resume.run_resume_campaign`, which is automatic-from-root-state: a COMPLETED root is
+    re-VERIFIED (`verify_completed_root`; tampered -> ResumeIntegrityError, never BATCH_COMPLETE) and
+    returned immutably; plan/ledger drift on a resumable root refuses before any provider I/O;
+    PROCESS_STARTED is committed under this lock BEFORE the real provider stack is lazily imported.
+    The executor bar's H1/H3/H4/H5 still exercise `campaign_run.acquire` (the inner scientific step)
+    directly; H2/H6 + PV-1 monkeypatch `_acquire` and only assert it is reached correctly."""
     if not verify_launch_authorization(launch_authorization):
         raise SystemExit("run_campaign REFUSED: no VERIFIED_DIRECT owner launch authorization "
                          "— no archive request issued, no provider I/O performed.")
-    if providers is not None:
-        # Injected-providers resume seam: the receipt gate above has already passed; the resume
-        # executor owns the completed-root/drift checks + writer lock + PROCESS_STARTED ordering.
-        import d2_step4b_resume as _resume
-        staged_plan = _load_plan(root)                      # H2: reopen the staged plan
-        if plan is not None and plan_digest(plan) != plan_digest(staged_plan):
-            raise SystemExit("run_campaign REFUSED: caller plan differs from the staged "
-                             "campaign_plan.json — no provider I/O (H2).")
-        return _resume.run_resume_campaign(staged_plan, root, providers=providers,
-                                           receipt=launch_authorization, clock=clock)
     staged_plan = _load_plan(root)                          # H2: reopen the staged plan
     if plan is not None and plan_digest(plan) != plan_digest(staged_plan):
         raise SystemExit("run_campaign REFUSED: caller plan differs from the staged "
@@ -512,7 +508,9 @@ def run_campaign(plan, launch_authorization, root=None, *, dry_run=False, clock=
     try:
         _RECEIPT_HOLDER["receipt"] = launch_authorization   # side channel to the batch assembler
         _RECEIPT_HOLDER["clock"] = clock
+        _RECEIPT_HOLDER["providers"] = providers            # None = production default (lazy real)
         ledger = _load_ledger(root)
         return _acquire(plan, ledger, root)
     finally:
         _release_writer_lock(_writer_fd)
+        _RECEIPT_HOLDER.pop("providers", None)

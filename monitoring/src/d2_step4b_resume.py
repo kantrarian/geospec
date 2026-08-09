@@ -177,8 +177,8 @@ def _read_head(root):
 
 def _write_head(root, *, generation, event_count, last_event_sha256):
     _atomic_write_bytes(_state_head_path(root), _canon_bytes(
-        {"schema": "geospec-d2-resume-state-head-v1", "generation": generation,
-         "event_count": event_count, "last_event_sha256": last_event_sha256}) + b"\n")
+        {"generation": generation, "event_count": event_count,
+         "last_event_sha256": last_event_sha256}) + b"\n")
 
 
 def _validate_chain(root, events):
@@ -356,13 +356,25 @@ def verify_completed_root(root):
     if "resume_state.json" not in artifacts or "campaign_process_ledger.jsonl" not in artifacts \
             or "resume_state.head.json" not in artifacts:
         raise ResumeIntegrityError("completed root missing bound resume artifacts")
-    load_resume_state(root)                                     # chain + head integrity
+    events = load_resume_state(root)["events"]                 # chain + head integrity
     ledger_rows = _read_jsonl(root, "campaign_process_ledger.jsonl")
     if not ledger_rows or bm.get("process_count") != len(ledger_rows):
         raise ResumeIntegrityError("process_count != process-ledger row count")
+    # RC2d: recompute each process's first/last event hash from the reopened chain and require the
+    # ledger rows to MATCH — a semantic cross-link, never trusting the stored hashes as opaque
+    # (byte-integrity of the ledger file, even repaired in the manifest, is not acceptance).
+    chain_first_last = {}
+    for e in events:
+        pid = e.get("process_id")
+        if pid:
+            chain_first_last.setdefault(pid, [e["event_sha256"], None])
+            chain_first_last[pid][1] = e["event_sha256"]
     for r in ledger_rows:
         if r.get("campaign_id") != cid:
             raise ResumeIntegrityError("process-ledger campaign_id cross-link mismatch")
+        if chain_first_last.get(r.get("process_id")) != [r.get("first_event_sha256"),
+                                                         r.get("last_event_sha256")]:
+            raise ResumeIntegrityError("process-ledger first/last event-hash cross-link mismatch")
     return True
 
 
@@ -438,8 +450,7 @@ def _execute(plan, root, providers, receipt, clock, campaign_id, plan_bytes, led
         pid = ps["process_id"]
         if pid not in prior_ended and pid not in prior_observed:
             append_event(root, {"kind": "PROCESS_OBSERVED_DEAD", "dead_process_id": pid,
-                                "observed_dead_utc": _iso(tick()), "process_id": proc_id,
-                                "dead_ordinal": ps.get("ordinal")})
+                                "observed_by": proc_id, "observed_dead_utc": _iso(tick())})
 
     # -- RC1: the REAL provider module imports LAZILY, strictly after the durable PROCESS_STARTED -
     if providers is None:
@@ -501,6 +512,7 @@ def _execute(plan, root, providers, receipt, clock, campaign_id, plan_bytes, led
                 for srow in segments[segment]:
                     station_id = srow["station_id"]
                     uid = _unit_id(carrier, day, segment, station_id)
+                    unit_key = [carrier, day, segment, station_id]
                     prior_attempts = attempts_by_unit.get(uid, [])
                     term = terminal_by_unit.get(uid)
                     candidates = list(srow["ordered_nslc_candidates"])
@@ -546,21 +558,17 @@ def _execute(plan, root, providers, receipt, clock, campaign_id, plan_bytes, led
                                 attempted_utc=term.get("attempted_utc")))
                         continue
 
-                    # -- nonterminal unit: a fresh attempt (new ordinal; prior danglers kept) ----
+                    # -- nonterminal unit: a fresh attempt (prior danglers retained) -------------
                     indeterminate = len(prior_attempts)
                     attempt_id = _new_attempt_id()
-                    attempt_ordinal = indeterminate + 1
                     attempted_utc = _iso(tick())
-                    append_event(root, {"kind": "UNIT_ATTEMPT_STARTED", "unit_id": uid,
-                                        "attempt_id": attempt_id, "ordinal": attempt_ordinal,
-                                        "status": "IN_PROGRESS", "process_id": proc_id,
-                                        "carrier_key": carrier, "scored_day": day,
-                                        "segment_name": segment, "station_id": station_id,
-                                        "provider": provider,
+                    append_event(root, {"kind": "UNIT_ATTEMPT_STARTED", "unit_key": unit_key,
+                                        "unit_id": uid, "attempt_id": attempt_id,
+                                        "process_id": proc_id, "status": "IN_PROGRESS",
+                                        "attempted_utc": attempted_utc, "provider": provider,
                                         "ordered_nslc_candidates": candidates,
                                         "request_start_utc": row["request_start_utc"],
-                                        "request_end_utc": row["request_end_utc"],
-                                        "attempted_utc": attempted_utc})
+                                        "request_end_utc": row["request_end_utc"]})
                     net = candidates[0].split(".")[0]
                     stas = [c.split(".")[1] for c in candidates]
                     chas = [c.split(".")[3] for c in candidates]
@@ -572,9 +580,8 @@ def _execute(plan, root, providers, receipt, clock, campaign_id, plan_bytes, led
                         if cand in avail:
                             nslc = cand
                             break
-                    base_evt = {"unit_id": uid, "attempt_id": attempt_id, "process_id": proc_id,
-                                "carrier_key": carrier, "scored_day": day, "segment_name": segment,
-                                "station_id": station_id, "provider": provider,
+                    base_evt = {"unit_key": unit_key, "unit_id": uid, "attempt_id": attempt_id,
+                                "process_id": proc_id, "provider": provider,
                                 "request_start_utc": row["request_start_utc"],
                                 "request_end_utc": row["request_end_utc"],
                                 "publication_record_sha256": record_sha}
@@ -590,14 +597,15 @@ def _execute(plan, root, providers, receipt, clock, campaign_id, plan_bytes, led
                             attempted_utc=attempted_utc))
                         continue
                     source_url = _source_url(plan, carrier, nslc, row)
-                    # UNIT_SOURCE_SELECTED committed BEFORE the corresponding fetch (RC3) ----------
-                    append_event(root, {"kind": "UNIT_SOURCE_SELECTED", "unit_id": uid,
-                                        "attempt_id": attempt_id, "process_id": proc_id,
-                                        "selected_nslc": nslc, "source_url": source_url,
-                                        "provider": provider, "carrier_key": carrier,
-                                        "scored_day": day, "segment_name": segment,
-                                        "station_id": station_id,
-                                        "selected_utc": _iso(tick())})
+                    # UNIT_SOURCE_SELECTED committed BEFORE the corresponding fetch (RC3); carries the
+                    # exact provider/NSLC/window/record binding the fake asserts at the fetch boundary.
+                    append_event(root, {"kind": "UNIT_SOURCE_SELECTED", "unit_key": unit_key,
+                                        "unit_id": uid, "attempt_id": attempt_id,
+                                        "process_id": proc_id, "selected_nslc": nslc,
+                                        "source_url": source_url, "provider": provider,
+                                        "request_start_utc": row["request_start_utc"],
+                                        "request_end_utc": row["request_end_utc"],
+                                        "publication_record_sha256": record_sha})
                     try:
                         res = providers.fetch(provider, nslc, start, end, stage_dir=scratch_dir)
                     except providers.ProviderUnavailable:

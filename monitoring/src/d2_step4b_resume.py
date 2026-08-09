@@ -197,13 +197,20 @@ def _validate_chain(root, events):
     return events
 
 
-def load_resume_state(root):
+def load_resume_state(root, *, repair_head=True):
     """Validated resume state. Full chain re-derivation PLUS monotonic state-head reconciliation:
       * head.event_count == len(events)      -> require last hash match (consistent);
       * head.event_count == len(events) - 1  -> WAL crash window (state one event ahead of head):
         recover — accept the longer state, repair the head, lose nothing;
       * len(events) < head.event_count       -> tail truncation -> ResumeIntegrityError.
-    Surfaces the bound campaign_id (first PROCESS_STARTED) for drift checks."""
+    Surfaces the bound campaign_id (first PROCESS_STARTED) for drift checks.
+
+    `repair_head=True` (default) is for a live/incomplete RESUMABLE root — the WAL window is
+    reconciled by rewriting the head. `repair_head=False` is for an immutable, already-COMPLETED
+    root (verify_completed_root): a verifier must NEVER mutate its target, so an unreconciled
+    state-head is a typed refusal, not a silent repair (a valid one-behind head after the manifest
+    accepted the current bytes would otherwise let the verifier accept once then invalidate the
+    root against the very manifest it just validated — codex 1725 HIGH-1)."""
     events = _validate_chain(root, _read_events(root))
     head = _read_head(root)
     n = len(events)
@@ -218,8 +225,10 @@ def load_resume_state(root):
     elif n == hc + 1:
         if hc > 0 and events[hc - 1]["event_sha256"] != head["last_event_sha256"]:
             raise ResumeIntegrityError("state-head WAL prefix mismatch")
+        if not repair_head:
+            raise ResumeIntegrityError("completed root has an unreconciled state-head (read-only)")
         _write_head(root, generation=head["generation"] + 1, event_count=n,
-                    last_event_sha256=events[-1]["event_sha256"])       # repair head
+                    last_event_sha256=events[-1]["event_sha256"])       # repair head (live root)
     else:
         raise ResumeIntegrityError(
             f"state-head/event-count mismatch (truncation?): events={n} head={hc}")
@@ -356,7 +365,7 @@ def verify_completed_root(root):
     if "resume_state.json" not in artifacts or "campaign_process_ledger.jsonl" not in artifacts \
             or "resume_state.head.json" not in artifacts:
         raise ResumeIntegrityError("completed root missing bound resume artifacts")
-    events = load_resume_state(root)["events"]                 # chain + head integrity
+    events = load_resume_state(root, repair_head=False)["events"]   # read-only: never mutate target
     ledger_rows = _read_jsonl(root, "campaign_process_ledger.jsonl")
     if not ledger_rows or bm.get("process_count") != len(ledger_rows):
         raise ResumeIntegrityError("process_count != process-ledger row count")

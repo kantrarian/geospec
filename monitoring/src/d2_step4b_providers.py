@@ -155,13 +155,26 @@ def koeri_available(net: str, stations, channels, start: datetime, end: datetime
         return present
     for line in body.splitlines():
         line = line.strip()
-        if not line or line.startswith("#"):
+        if not line or line.startswith("#") or line[:7].lower() == "network":
             continue
         cols = line.split()
-        if len(cols) >= 4:
-            n, s, l, c = cols[0], cols[1], cols[2], cols[3]
-            l = "" if l in ("--", "") else l
-            present.add(f"{n}.{s}.{l}.{c}")
+        if len(cols) < 3:
+            continue
+        n, s = cols[0], cols[1]
+        # The FDSN availability text renders an EMPTY location as blank, which a whitespace split
+        # collapses; locate the channel as the 3-letter code and the location as the token just
+        # before it (empty when absent / '--'), so NET.STA..CHA candidates match correctly.
+        cha, loc = None, ""
+        for i in range(2, min(len(cols), 5)):
+            tok = cols[i]
+            if len(tok) == 3 and tok.isalpha():
+                cha = tok
+                prev = cols[i - 1] if i - 1 >= 2 else None
+                if prev is not None and prev not in ("--", ""):
+                    loc = prev
+                break
+        if cha is not None:
+            present.add(f"{n}.{s}.{loc}.{cha}")
     return present
 
 

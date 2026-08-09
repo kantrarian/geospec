@@ -185,12 +185,19 @@ def _mask_digest(series):
     return hashlib.sha256(np.packbits(m).tobytes()).hexdigest() if m.size else (64 * "0")
 
 
+class ScoringResourceUnavailable(RuntimeError):
+    """A persistent host MemoryError while scoring a station. This is NOT data unavailability: it
+    is a fatal resource condition that must abort the campaign (no batch), so host exhaustion is
+    never silently relabelled as data/support QC (codex 0824)."""
+
+
 def _station_series(SD, stream, source_id, session_start):
-    """The EnvelopeSeries for scoring, derived from the COMBINED station stream (or None if
-    unavailable). Per-object provenance is derived separately from each staged object (H3). The
-    native-rate envelope FFT peaks ~0.5 GB/station; on a commit-constrained host a transient
-    MemoryError is retried once after gc, and a persistent one yields None (honest resource
-    unavailability) so a single station never aborts the multi-hour campaign."""
+    """The EnvelopeSeries for scoring, derived from the COMBINED station stream (or None if the
+    DATA is unavailable). Per-object provenance is derived separately from each staged object
+    (H3). The native-rate envelope FFT peaks ~0.5 GB/station; on a commit-constrained host a
+    TRANSIENT MemoryError is retried once after gc. A PERSISTENT MemoryError (second failure) is a
+    host resource condition, not data unavailability, so it raises ScoringResourceUnavailable and
+    aborts the campaign with no batch -- resource exhaustion never mints/relabels a batch."""
     frags = _fragments_from_stream(stream)
     try:
         return SD.compute_band_envelope_supported(
@@ -204,8 +211,11 @@ def _station_series(SD, stream, source_id, session_start):
             return SD.compute_band_envelope_supported(
                 frags, session_start_utc=session_start, session_seconds=SESSION_SECONDS,
                 source_id=source_id)
-        except (MemoryError, SD.DataUnavailable):
+        except SD.DataUnavailable:
             return None
+        except MemoryError as exc:
+            raise ScoringResourceUnavailable(
+                f"persistent envelope MemoryError for {source_id}") from exc
 
 
 def _object_provenance(providers, staged_path):

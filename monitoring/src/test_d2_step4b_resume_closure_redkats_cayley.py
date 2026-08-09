@@ -508,6 +508,47 @@ def main():
               "repaired in the manifest) refuses on cross-link validation — ledger hashes "
               "are recomputed from the reopened chain, never trusted as opaque",
               semantic_refused, f"refused={semantic_refused}")
+    # RC2e (REV 3, codex 1725 HIGH-1 folded in; retires grassmann's standalone KAT):
+    # completed-root verification is READ-ONLY. A valid ONE-BEHIND state-head installed on
+    # a completed root (with only that artifact's manifest SHA/size repaired so ordinary
+    # byte integrity passes) must refuse on verify AND on production re-entry, with the
+    # head bytes UNCHANGED (no WAL repair on an immutable root) and ZERO provider calls.
+    with tempfile.TemporaryDirectory() as tp:
+        root = os.path.join(tp, "c")
+        os.makedirs(root)
+        _fixtures(P, root)
+        _run(P, root, _Prov())
+        head_p = os.path.join(root, "resume_state.head.json")
+        cur_head = json.loads(open(head_p, "rb").read().decode())
+        evs2e = _events(RS, root)
+        prev_head_bytes = _canon({"generation": cur_head["generation"] - 1,
+                                  "event_count": len(evs2e) - 1,
+                                  "last_event_sha256": evs2e[-2]["event_sha256"]})
+        with open(head_p, "wb") as f:
+            f.write(prev_head_bytes)
+        bm_p = os.path.join(root, "batch_manifest.json")
+        bm2e = _read_json(root, "batch_manifest.json")
+        bm2e["artifacts"]["resume_state.head.json"] = {
+            "sha256": _sha(prev_head_bytes), "size": len(prev_head_bytes)}
+        with open(bm_p, "wb") as f:
+            f.write(_canon(bm2e))
+        verify_refused = raises(lambda: RS.verify_completed_root(root),
+                                RS.ResumeIntegrityError)
+        head_after_verify = open(head_p, "rb").read()
+        prov2e = _Prov()
+        reentry_refused2e = raises(lambda: _run(P, root, prov2e),
+                                   RS.ResumeIntegrityError)
+        head_after_reentry = open(head_p, "rb").read()
+        check("RC2e READ-ONLY completed-root verification: a valid one-behind head with a "
+              "repaired manifest entry refuses on verify AND re-entry; head bytes remain "
+              "UNCHANGED (no WAL repair on an immutable root); zero provider calls",
+              verify_refused and reentry_refused2e
+              and head_after_verify == prev_head_bytes
+              and head_after_reentry == prev_head_bytes
+              and prov2e.fetches == [] and prov2e.probes == [],
+              f"verify={verify_refused} reentry={reentry_refused2e} "
+              f"head_unchanged={head_after_verify == prev_head_bytes} "
+              f"prov={len(prov2e.fetches)}/{len(prov2e.probes)}")
 
     # =========================== RC3 =========================================
     KEYSET = {

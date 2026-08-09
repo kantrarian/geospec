@@ -413,9 +413,17 @@ def _acquire(plan, ledger, root):
 
 
 def _writer_lock_path(root):
-    """The single-writer lock lives at the SIBLING path `root + '.writer.lock'` — never inside the
-    root, so it can never be mistaken for a campaign artifact (H6b)."""
-    return os.fspath(root) + ".writer.lock"
+    """The single-writer lock lives at the SIBLING path `<canonical root> + '.writer.lock'` — never
+    inside the root, so it can never be mistaken for a campaign artifact (H6b). H6d (codex 1339):
+    the lock IDENTITY is derived from the CANONICAL physical root — normcase(realpath(abspath(...)))
+    — not the caller's raw path spelling, so a trailing-separator / symlink / junction alias of the
+    same root resolves to the SAME lock file. Raw string concatenation would let `root + os.sep`
+    mint a second lock (and drop it INSIDE the root), defeating the same-root single-writer
+    invariant; canonicalization collapses every alias to one lock identity."""
+    canonical_root = os.path.normcase(
+        os.path.realpath(os.path.abspath(os.fspath(root)))
+    )
+    return canonical_root + ".writer.lock"
 
 
 def _acquire_writer_lock(root):

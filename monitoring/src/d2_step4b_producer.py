@@ -307,6 +307,12 @@ def verify_launch_authorization(receipt) -> bool:
 
 
 # ---- P1 (codex 0347): run_campaign is the single receipt-gated real driver -
+# run_campaign stashes the VERIFIED receipt here for _acquire's batch_manifest: the PV-spied
+# _acquire(plan, ledger, root) signature carries no receipt slot, so this side channel (set only
+# after the gate passes) is how the verified owner-launch receipt reaches the batch assembler.
+_RECEIPT_HOLDER = {}
+
+
 def _load_ledger(root):
     """Load the staged published_phase_ledger.json from the campaign root. A local JSON read only
     (no provider I/O); reached only after the launch gate succeeds."""
@@ -323,7 +329,8 @@ def _acquire(plan, ledger, root):
     once by run_campaign."""
     import d2_step4b_providers as providers        # lazy: below the gate, off the import graph
     import d2_step4b_campaign_run as campaign_run
-    return campaign_run.acquire(plan, ledger, root, providers=providers)
+    return campaign_run.acquire(plan, ledger, root, providers=providers,
+                                receipt=_RECEIPT_HOLDER.get("receipt"))
 
 
 def run_campaign(plan, launch_authorization, root=None, *, dry_run=False, **kwargs):
@@ -338,5 +345,6 @@ def run_campaign(plan, launch_authorization, root=None, *, dry_run=False, **kwar
     plan_sha = plan_digest(plan) if plan else None          # bind/hash the plan
     if dry_run:
         return {"status": "LAUNCH_AUTHORIZED", "dry_run": True, "plan_digest": plan_sha}
+    _RECEIPT_HOLDER["receipt"] = launch_authorization       # side channel to the batch assembler
     ledger = _load_ledger(root)
     return _acquire(plan, ledger, root)

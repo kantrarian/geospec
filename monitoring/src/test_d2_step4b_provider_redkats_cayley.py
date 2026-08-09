@@ -476,6 +476,54 @@ def main():
               "fault -> fail-closed after exactly 4 attempts, backoff [1,2,4]",
               ok_a and ok_b and ok_c,
               f"a={ok_a} b={ok_b} c={ok_c} calls={len(ncalls)} slept={slept}")
+
+        # ---- PV-3f (REV 5, codex 112111Z F2 -- POST-RUN red-first): HTTP status
+        # classifier. Retry ONLY transient statuses (408/425/429 + 500-599); a permanent
+        # client failure (403 and other 4xx except the no-data pair) is an IMMEDIATE typed
+        # ProviderUnavailable -- one call, no sleep, no 4x request multiplication.
+        ncalls.clear()
+        slept.clear()
+
+        def urlopen_403(req, timeout=None):
+            ncalls.append(1)
+            raise urllib.error.HTTPError("http://x", 403, "Forbidden", None, None)
+
+        urllib.request.urlopen = urlopen_403
+        ok_d = (raises(lambda: PR._http_get("http://x/denied", 10), PR.ProviderUnavailable)
+                and len(ncalls) == 1 and slept == [])
+        n403 = len(ncalls)
+
+        ncalls.clear()
+        slept.clear()
+
+        def urlopen_503(req, timeout=None):
+            ncalls.append(1)
+            raise urllib.error.HTTPError("http://x", 503, "Service Unavailable", None, None)
+
+        urllib.request.urlopen = urlopen_503
+        ok_e = (raises(lambda: PR._http_get("http://x/busy", 10), PR.ProviderUnavailable)
+                and len(ncalls) == 4 and slept == [1, 2, 4])
+
+        ncalls.clear()
+        slept.clear()
+        seq429 = [urllib.error.HTTPError("http://x", 429, "Too Many Requests", None, None),
+                  _OKResp()]
+
+        def urlopen_429(req, timeout=None):
+            ncalls.append(1)
+            item = seq429.pop(0)
+            if isinstance(item, Exception):
+                raise item
+            return item
+
+        urllib.request.urlopen = urlopen_429
+        ok_f = (PR._http_get("http://x/paced", 10) == b"BODY"
+                and len(ncalls) == 2 and slept == [1])
+        check("PV-3f status classifier: 403 -> IMMEDIATE ProviderUnavailable (1 call, no "
+              "sleep, no retry multiplication); persistent 503 -> retried fail-closed (4 "
+              "calls, [1,2,4]); transient 429 -> retried then body",
+              ok_d and ok_e and ok_f,
+              f"d={ok_d}(calls={n403}) e={ok_e} f={ok_f} slept={slept}")
     finally:
         urllib.request.urlopen = real_urlopen3
         _time.sleep = real_sleep

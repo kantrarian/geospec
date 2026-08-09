@@ -95,6 +95,19 @@ unlike the standalone producer KAT which needs obspy-importable scoring modules)
   success; a SECOND MemoryError raises the typed fatal (never None — resource failure is
   not data unavailability); `SD.DataUnavailable` still maps to None; a persistent OOM
   anywhere in scoring aborts `acquire` and leaves NO batch_manifest.json.
+
+REV 4 (2026-08-09, codex 112111Z F1 — POST-RUN; red-first for grassmann's hardening):
+* H6 — same-root single-writer invariant:
+  `run_campaign` takes an OS-level EXCLUSIVE lock at the SIBLING path
+  `root + ".writer.lock"` (kernel lock — msvcrt.locking here / fcntl.flock elsewhere — so a
+  crash releases ownership) after receipt + staged-plan validation and BEFORE
+  `_load_ledger`/provider work; held through final publication; released in `finally`.
+  A second same-root live invocation refuses (SystemExit) without reaching `_acquire`.
+  The lock lives ADJACENT to the root (never inside → can never enter
+  `batch_manifest.artifacts`). File PRESENCE alone is not the lock: a residual lock file
+  with no live holder must not block a fresh run (never age-broken, never
+  existence-checked). Expected red vs current master: exactly ['H6a', 'H6b'] (no lock
+  exists yet); H6c is a semantics pin that holds on both sides.
 """
 import hashlib
 import inspect
@@ -621,6 +634,75 @@ def main():
                       raised5 and no_batch, f"raised={raised5} no_batch={no_batch}")
         finally:
             stub_sd.compute_band_envelope_supported = real_compute
+
+    # ================= H6: same-root single-writer (codex 112111Z F1) =========
+    import threading
+    with tempfile.TemporaryDirectory() as td_parent:
+        h6_root = os.path.join(td_parent, "campaign")
+        os.makedirs(h6_root)
+        _mk_fixtures(P, h6_root)
+        entered = []
+        hold = threading.Event()
+        release = threading.Event()
+        real_acquire6 = P._acquire
+
+        def blocking_acquire(pl, lg, rt):
+            entered.append("A")
+            if len(entered) == 1:
+                hold.set()
+                release.wait(timeout=20)
+            return {}
+
+        thread_exc = []
+
+        def _runner():
+            try:
+                P.run_campaign(plan=None, launch_authorization=RECEIPT, root=h6_root)
+            except BaseException as exc:
+                thread_exc.append(exc)
+
+        try:
+            P._acquire = blocking_acquire
+            tA = threading.Thread(target=_runner, daemon=True)
+            tA.start()
+            got_hold = hold.wait(timeout=20)
+            lock_sibling = os.path.isfile(h6_root + ".writer.lock")
+            lock_inside = any("writer" in name for name in os.listdir(h6_root))
+            refused = False
+            try:
+                P.run_campaign(plan=None, launch_authorization=RECEIPT, root=h6_root)
+            except SystemExit:
+                refused = True
+            except BaseException:
+                pass
+            second_blocked = entered.count("A") == 1
+            release.set()
+            tA.join(timeout=25)
+            check("H6a a second same-root live invocation REFUSES (SystemExit) without "
+                  "reaching _acquire while the first holds the sibling kernel lock",
+                  got_hold and refused and second_blocked and not thread_exc,
+                  f"hold={got_hold} refused={refused} entries={entered.count('A')} "
+                  f"thread_exc={thread_exc[:1]}")
+            check("H6b the live lock is the SIBLING path root+'.writer.lock', never inside "
+                  "the root (cannot enter batch_manifest.artifacts)",
+                  lock_sibling and not lock_inside,
+                  f"sibling={lock_sibling} inside={lock_inside}")
+            # H6c: presence-without-holder never blocks (kernel lock, not existence check)
+            entered.clear()
+            with open(h6_root + ".writer.lock", "ab") as f:
+                f.write(b"")                       # residual file, no live holder
+            P._acquire = lambda pl, lg, rt: entered.append("B") or {}
+            proceeded = False
+            try:
+                P.run_campaign(plan=None, launch_authorization=RECEIPT, root=h6_root)
+                proceeded = entered == ["B"]
+            except BaseException:
+                pass
+            check("H6c a RESIDUAL lock file with no live holder does not block a fresh run "
+                  "(never age-broken, never existence-checked)",
+                  proceeded, f"entered={entered}")
+        finally:
+            P._acquire = real_acquire6
 
 
 main()

@@ -106,8 +106,11 @@ REV 4 (2026-08-09, codex 112111Z F1 — POST-RUN; red-first for grassmann's hard
   The lock lives ADJACENT to the root (never inside → can never enter
   `batch_manifest.artifacts`). File PRESENCE alone is not the lock: a residual lock file
   with no live holder must not block a fresh run (never age-broken, never
-  existence-checked). Expected red vs current master: exactly ['H6a', 'H6b'] (no lock
-  exists yet); H6c is a semantics pin that holds on both sides.
+  existence-checked). H6d (REV 5, codex 1339): the lock path derives from
+  normcase(realpath(abspath(root))) — a trailing-separator (or other) path alias of a
+  locked root resolves to the SAME lock and refuses identically, never minting an alias
+  lock inside the root. Expected red vs `33127e6`: exactly ['H6d'] (H6a/b/c landed green
+  at 0f3df30; the canonical-path repair is held on this freeze).
 """
 import hashlib
 import inspect
@@ -676,6 +679,21 @@ def main():
             except BaseException:
                 pass
             second_blocked = entered.count("A") == 1
+            # H6d (codex 1339, INSIDE the hold window): PATH-ALIAS invocations resolve to
+            # the SAME canonical lock. A trailing-separator alias of a LOCKED root must
+            # refuse identically — the lock path derives from
+            # normcase(realpath(abspath(root))), never raw string concatenation.
+            entered_before_alias = entered.count("A")
+            alias_refused = False
+            try:
+                P.run_campaign(plan=None, launch_authorization=RECEIPT,
+                               root=h6_root + os.sep)
+            except SystemExit:
+                alias_refused = True
+            except BaseException:
+                pass
+            alias_lock_inside = any("writer" in n for n in os.listdir(h6_root))
+            alias_entries_after = entered.count("A")
             release.set()
             tA.join(timeout=25)
             check("H6a a second same-root live invocation REFUSES (SystemExit) without "
@@ -687,6 +705,13 @@ def main():
                   "the root (cannot enter batch_manifest.artifacts)",
                   lock_sibling and not lock_inside,
                   f"sibling={lock_sibling} inside={lock_inside}")
+            check("H6d a TRAILING-SEPARATOR alias of a locked root refuses (SystemExit) "
+                  "without reaching _acquire and without minting an alias lock inside the "
+                  "root (canonical-path lock derivation)",
+                  alias_refused and alias_entries_after == entered_before_alias
+                  and not alias_lock_inside,
+                  f"refused={alias_refused} entries={alias_entries_after} "
+                  f"alias_inside={alias_lock_inside}")
             # H6c: presence-without-holder never blocks (kernel lock, not existence check)
             entered.clear()
             with open(h6_root + ".writer.lock", "ab") as f:

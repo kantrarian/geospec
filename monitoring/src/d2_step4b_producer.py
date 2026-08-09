@@ -458,17 +458,36 @@ def _release_writer_lock(fd):
         os.close(fd)
 
 
-def run_campaign(plan, launch_authorization, root=None, *, dry_run=False, clock=None, **kwargs):
+def run_campaign(plan, launch_authorization, root=None, *, dry_run=False, clock=None,
+                 providers=None, **kwargs):
     """The single real driver for the step-4b campaign (codex 0347 P1 + 0447 H2). Executable
     order: verify the VERIFIED_DIRECT owner receipt FIRST — invalid/missing raises SystemExit
     before ANY provider import/I/O and never reaches `_acquire` — then REOPEN
     `root/campaign_plan.json` and, if a caller-supplied plan differs from it, refuse (SystemExit,
     zero `_acquire`); the REOPENED staged plan is the acquisition authority (`plan=None` is
     allowed). Then load the ledger and drive acquisition through `_acquire` exactly once. The
-    injectable `clock` (default: live now()) reaches the assembler via the side channel."""
+    injectable `clock` (default: live now()) reaches the assembler via the side channel.
+
+    RESUME SEAM (cayley resume bar `3a829cd`): `providers=None` is the production default and this
+    function is byte-for-byte unchanged (the real provider stack is lazily imported below the gate
+    by `_acquire`; the existing SB/PV/executor bars keep passing). When a `providers` object is
+    INJECTED, the same receipt gate runs FIRST, then control passes to the resume-aware executor
+    (`d2_step4b_resume.run_resume_campaign`) which is automatic-from-root-state: a COMPLETED root
+    is verified and returned immutably; plan/ledger drift on a resumable root refuses before any
+    provider I/O; PROCESS_STARTED is committed under the writer lock before the first probe."""
     if not verify_launch_authorization(launch_authorization):
         raise SystemExit("run_campaign REFUSED: no VERIFIED_DIRECT owner launch authorization "
                          "— no archive request issued, no provider I/O performed.")
+    if providers is not None:
+        # Injected-providers resume seam: the receipt gate above has already passed; the resume
+        # executor owns the completed-root/drift checks + writer lock + PROCESS_STARTED ordering.
+        import d2_step4b_resume as _resume
+        staged_plan = _load_plan(root)                      # H2: reopen the staged plan
+        if plan is not None and plan_digest(plan) != plan_digest(staged_plan):
+            raise SystemExit("run_campaign REFUSED: caller plan differs from the staged "
+                             "campaign_plan.json — no provider I/O (H2).")
+        return _resume.run_resume_campaign(staged_plan, root, providers=providers,
+                                           receipt=launch_authorization, clock=clock)
     staged_plan = _load_plan(root)                          # H2: reopen the staged plan
     if plan is not None and plan_digest(plan) != plan_digest(staged_plan):
         raise SystemExit("run_campaign REFUSED: caller plan differs from the staged "

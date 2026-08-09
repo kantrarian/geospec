@@ -58,10 +58,11 @@ def _fdsn_time(dt: datetime) -> str:
 
 
 def _http_get(url: str, timeout: int, retries: int = 4) -> bytes:
-    """Anonymous GET, resilient to the transient network faults expected across a multi-hour
-    campaign (connection reset / RemoteDisconnected / IncompleteRead / timeout / 5xx): each is
-    retried with capped exponential backoff. 204/404 (FDSN/S3 no-data) -> ProviderUnavailable
-    with NO retry. A persistent failure after `retries` attempts -> ProviderUnavailable
+    """Anonymous GET, resilient to the transient faults expected across a multi-hour campaign
+    (connection reset / RemoteDisconnected / IncompleteRead / timeout, and the transient HTTP
+    statuses 408/425/429 + 500-599): each is retried with capped exponential backoff. 204/404
+    (FDSN/S3 no-data) and every non-transient client status (401/403/etc.) -> ProviderUnavailable
+    with NO retry. A persistent transient failure after `retries` attempts -> ProviderUnavailable
     (fail-closed, never a silent empty result)."""
     import http.client
     import socket
@@ -80,7 +81,12 @@ def _http_get(url: str, timeout: int, retries: int = 4) -> bytes:
         except urllib.error.HTTPError as exc:
             if exc.code in (204, 404):
                 raise ProviderUnavailable(f"{exc.code} {exc.reason}: {url}")
-            last = f"HTTP {exc.code} {exc.reason}"                 # 5xx etc. -> retry
+            if not (exc.code in (408, 425, 429) or 500 <= exc.code <= 599):
+                # permanent client failure (401/403 and every other non-transient 4xx) ->
+                # IMMEDIATE typed failure: one call, no sleep, no request multiplication.
+                # codex 113942Z exact set: retry ONLY the transient idempotent-GET statuses.
+                raise ProviderUnavailable(f"{exc.code} {exc.reason}: {url}")
+            last = f"HTTP {exc.code} {exc.reason}"                 # 408/425/429 + 5xx -> retry
         except (urllib.error.URLError, http.client.HTTPException, ConnectionError,
                 TimeoutError, socket.timeout, OSError) as exc:
             last = f"{type(exc).__name__}: {exc}"                 # transient network -> retry

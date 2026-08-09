@@ -412,6 +412,52 @@ def _acquire(plan, ledger, root):
                                 clock=_RECEIPT_HOLDER.get("clock"))
 
 
+def _writer_lock_path(root):
+    """The single-writer lock lives at the SIBLING path `root + '.writer.lock'` — never inside the
+    root, so it can never be mistaken for a campaign artifact (H6b)."""
+    return os.fspath(root) + ".writer.lock"
+
+
+def _acquire_writer_lock(root):
+    """H6 (codex 112111Z F1): take an OS-level, non-blocking, EXCLUSIVE byte-range lock on the
+    sibling lock file, returning the open fd to hold for the campaign's duration. The lock is a
+    KERNEL lock bound to the file handle (msvcrt.locking here / fcntl.flock elsewhere), so:
+      * a second same-root live invocation cannot take it -> SystemExit (single-writer), and
+      * a RESIDUAL lock file left by a dead run has no live holder, so the kernel grants the lock
+        and the fresh run proceeds — never an existence check, never an age break (H6c).
+    The file is opened O_CREAT without O_TRUNC: its bytes are irrelevant; the invariant is the
+    kernel lock on the handle, and truncating could clobber a concurrent holder's file."""
+    fd = os.open(_writer_lock_path(root), os.O_RDWR | os.O_CREAT, 0o644)
+    try:
+        if os.name == "nt":
+            import msvcrt
+            os.lseek(fd, 0, os.SEEK_SET)
+            msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)          # non-blocking exclusive; OSError if held
+        else:
+            import fcntl
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        os.close(fd)
+        raise SystemExit("run_campaign REFUSED: another live writer holds the same-root "
+                         "single-writer lock (%s) — no _acquire call, no provider I/O."
+                         % _writer_lock_path(root))
+    return fd
+
+
+def _release_writer_lock(fd):
+    """Release the kernel lock and close the handle. Closing the handle alone releases the kernel
+    lock, so an explicit-unlock failure is non-fatal (the `finally` close is the real guarantee)."""
+    try:
+        if os.name == "nt":
+            import msvcrt
+            os.lseek(fd, 0, os.SEEK_SET)
+            msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
+    except OSError:
+        pass
+    finally:
+        os.close(fd)
+
+
 def run_campaign(plan, launch_authorization, root=None, *, dry_run=False, clock=None, **kwargs):
     """The single real driver for the step-4b campaign (codex 0347 P1 + 0447 H2). Executable
     order: verify the VERIFIED_DIRECT owner receipt FIRST — invalid/missing raises SystemExit
@@ -431,7 +477,15 @@ def run_campaign(plan, launch_authorization, root=None, *, dry_run=False, clock=
     plan_sha = plan_digest(plan)
     if dry_run:
         return {"status": "LAUNCH_AUTHORIZED", "dry_run": True, "plan_digest": plan_sha}
-    _RECEIPT_HOLDER["receipt"] = launch_authorization       # side channel to the batch assembler
-    _RECEIPT_HOLDER["clock"] = clock
-    ledger = _load_ledger(root)
-    return _acquire(plan, ledger, root)
+    # H6 (codex 112111Z F1): same-root single-writer. Take the sibling kernel lock AFTER the
+    # receipt + staged-plan gates and hold it through final manifest publication (the whole
+    # _acquire), releasing in `finally`. A concurrent same-root live invocation refuses here
+    # (SystemExit) before reaching _acquire; a residual lock with no live holder never blocks.
+    _writer_fd = _acquire_writer_lock(root)
+    try:
+        _RECEIPT_HOLDER["receipt"] = launch_authorization   # side channel to the batch assembler
+        _RECEIPT_HOLDER["clock"] = clock
+        ledger = _load_ledger(root)
+        return _acquire(plan, ledger, root)
+    finally:
+        _release_writer_lock(_writer_fd)

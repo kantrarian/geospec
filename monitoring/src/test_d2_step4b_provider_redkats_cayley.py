@@ -183,6 +183,12 @@ def main():
                     "coachella_south": [["CI.BOR..BHZ"], ["CI.CTW..BHZ"]],
                     "brawley_seismic_zone": [["CI.BC3..BHZ"], ["CI.RXH..BHZ"]]}},
                 "2026-08-09")
+            # REV 2 (codex 0447 H2 compat): the fixture root stages the SAME plan the
+            # caller supplies, so an H2-compliant run_campaign (which reopens and binds
+            # root/campaign_plan.json) proceeds to _acquire on the matching path.
+            with open(os.path.join(td, "campaign_plan.json"), "wb") as f:
+                f.write((json.dumps(plan, sort_keys=True, separators=(",", ":"))
+                         + "\n").encode("utf-8"))
             try:
                 P.verify_launch_authorization = spy_verify
                 P._acquire = spy_acquire

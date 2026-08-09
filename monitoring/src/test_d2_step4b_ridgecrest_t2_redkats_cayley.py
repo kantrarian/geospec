@@ -15,7 +15,12 @@ ADDITIONAL PRODUCER SEAMS (extend `monitoring/src/d2_step4b_producer.py`; base s
 * load_ridgecrest_t2(registry_bytes: bytes) -> dict — verifies
   sha256(registry_bytes) == RIDGECREST_T2_REGISTRY_SHA256 then parses; ANY byte difference
   refuses (ValueError). There is no unpinned load path.
-* build_ridgecrest_extension_plan(activation_reference: str, registry: dict) -> dict
+* REV 2 (codex 0520 F1): build_ridgecrest_extension_plan(activation_reference: str,
+  registry_bytes: bytes) -> dict — the PUBLIC builder consumes PINNED BYTES ONLY and calls
+  load_ridgecrest_t2 itself; a plain dict (however valid-looking) and any re-encoded
+  mutation of the registry REFUSE. No second public raw-dict builder exists; structural
+  validation (shared NET.STA / thin segments / wrong identity) may live in a private
+  validator behind the pin. Plan semantics unchanged:
     - carrier "ridgecrest", topology_version "t2", provider "s3://scedc-pds";
     - incident arm = schedule_days(CAMPAIGN["incident_reference"]), activation arm =
       schedule_days(activation_reference), same [ref-120d, ref-30d) rule as the base plan;
@@ -146,9 +151,29 @@ def main():
           and raises(lambda: P.load_ridgecrest_t2(
               reg_bytes.replace(b"CI.DTP", b"CI.RRC"))))
 
-    # ---- RT-3: outcome-blind deterministic extension plan ----------------------
-    p1 = P.build_ridgecrest_extension_plan("2026-08-09", loaded)
-    p2 = P.build_ridgecrest_extension_plan("2026-08-09", loaded)
+    # ---- RT-2b (REV 2, codex 0520 F1): the builder consumes PINNED BYTES only --
+    def _reenc(mutated):
+        return (json.dumps(mutated, sort_keys=True, separators=(",", ":"),
+                           ensure_ascii=True) + "\n").encode()
+
+    forged = json.loads(reg_bytes.decode("utf-8"))
+    forged["segments"]["little_lake"]["stations"]["CI.WBM"]["nslc_candidates"] = \
+        ["CI.FORGED..BHZ"]
+    check("RT-2b PUBLIC builder refuses an unattested dict (however valid-looking) AND "
+          "re-encoded bytes of any candidate mutation (codex 0520 forge reproduced)",
+          raises(lambda: P.build_ridgecrest_extension_plan("2026-08-09", loaded))
+          and raises(lambda: P.build_ridgecrest_extension_plan("2026-08-09", dict(forged)))
+          and raises(lambda: P.build_ridgecrest_extension_plan("2026-08-09",
+                                                               _reenc(forged))))
+
+    # ---- RT-3: outcome-blind deterministic extension plan (from pinned bytes) --
+    try:
+        p1 = P.build_ridgecrest_extension_plan("2026-08-09", reg_bytes)
+        p2 = P.build_ridgecrest_extension_plan("2026-08-09", reg_bytes)
+    except Exception as exc:
+        check("RT-3-GATE builder consumes the pinned registry bytes", False,
+              f"AWAITING bytes-only builder (codex 0520 F1) -- {exc!r}")
+        return
     b1 = json.dumps(p1, sort_keys=True, separators=(",", ":"))
     check("RT-3 extension plan: carrier/t2/provider exact; both arms match schedule_days; "
           "deterministic; 64-hex digest",
@@ -171,7 +196,9 @@ def main():
     check("RT-3c extension plan preserves the registry's frozen NSLC candidate order verbatim",
           set(p1.get("segments", {})) == set(segs) and frozen_order_ok)
 
-    # ---- RT-4: fail-closed on doctored registries ------------------------------
+    # ---- RT-4 (REV 2): doctored registries refuse as RE-ENCODED BYTES ----------
+    # With the bytes-only public builder the pin subsumes structural doctoring: every
+    # mutation, canonically re-encoded, must refuse (no path exists for an unattested dict).
     shared = json.loads(reg_bytes.decode("utf-8"))
     shared["segments"]["little_lake"]["stations"]["CI.LRL"] = \
         shared["segments"]["airport_lake"]["stations"]["CI.LRL"]
@@ -182,12 +209,13 @@ def main():
     oneseg["segments"] = {"little_lake": oneseg["segments"]["little_lake"]}
     wrongprov = json.loads(reg_bytes.decode("utf-8"))
     wrongprov["provider"] = "eida.koeri.boun.edu.tr"
-    check("RT-4 doctored registries refuse fail-closed: shared NET.STA / single-station "
-          "segment / single segment / wrong provider",
-          raises(lambda: P.build_ridgecrest_extension_plan("2026-08-09", shared))
-          and raises(lambda: P.build_ridgecrest_extension_plan("2026-08-09", thin))
-          and raises(lambda: P.build_ridgecrest_extension_plan("2026-08-09", oneseg))
-          and raises(lambda: P.build_ridgecrest_extension_plan("2026-08-09", wrongprov)))
+    check("RT-4 doctored registries refuse as re-encoded bytes: shared NET.STA / "
+          "single-station segment / single segment / wrong provider",
+          raises(lambda: P.build_ridgecrest_extension_plan("2026-08-09", _reenc(shared)))
+          and raises(lambda: P.build_ridgecrest_extension_plan("2026-08-09", _reenc(thin)))
+          and raises(lambda: P.build_ridgecrest_extension_plan("2026-08-09", _reenc(oneseg)))
+          and raises(lambda: P.build_ridgecrest_extension_plan("2026-08-09",
+                                                               _reenc(wrongprov))))
 
     # ---- RT-6: base three-carrier policy intact ---------------------------------
     base_with_rc = {"ridgecrest": {seg: [segs[seg]["stations"][st]["nslc_candidates"]

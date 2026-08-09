@@ -57,24 +57,36 @@ def _fdsn_time(dt: datetime) -> str:
     return _as_utc(dt).strftime("%Y-%m-%dT%H:%M:%S.%f")
 
 
-def _http_get(url: str, timeout: int) -> bytes:
-    """Anonymous GET. 204/404 (FDSN/S3 no-data) -> ProviderUnavailable; other errors re-raised
-    as ProviderUnavailable with the reason attached (fail-closed, never a silent empty result)."""
-    req = urllib.request.Request(url, headers=_UA)
-    try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            if resp.status == 204:
-                raise ProviderUnavailable(f"204 no content: {url}")
-            body = resp.read()
-    except urllib.error.HTTPError as exc:
-        if exc.code in (204, 404):
-            raise ProviderUnavailable(f"{exc.code} {exc.reason}: {url}")
-        raise ProviderUnavailable(f"HTTP {exc.code} {exc.reason}: {url}")
-    except urllib.error.URLError as exc:
-        raise ProviderUnavailable(f"URLError {exc.reason}: {url}")
-    if not body:
-        raise ProviderUnavailable(f"empty body: {url}")
-    return body
+def _http_get(url: str, timeout: int, retries: int = 4) -> bytes:
+    """Anonymous GET, resilient to the transient network faults expected across a multi-hour
+    campaign (connection reset / RemoteDisconnected / IncompleteRead / timeout / 5xx): each is
+    retried with capped exponential backoff. 204/404 (FDSN/S3 no-data) -> ProviderUnavailable
+    with NO retry. A persistent failure after `retries` attempts -> ProviderUnavailable
+    (fail-closed, never a silent empty result)."""
+    import http.client
+    import socket
+    import time
+    last = None
+    for attempt in range(retries):
+        req = urllib.request.Request(url, headers=_UA)
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                if getattr(resp, "status", 200) == 204:
+                    raise ProviderUnavailable(f"204 no content: {url}")
+                body = resp.read()
+            if not body:
+                raise ProviderUnavailable(f"empty body: {url}")
+            return body
+        except urllib.error.HTTPError as exc:
+            if exc.code in (204, 404):
+                raise ProviderUnavailable(f"{exc.code} {exc.reason}: {url}")
+            last = f"HTTP {exc.code} {exc.reason}"                 # 5xx etc. -> retry
+        except (urllib.error.URLError, http.client.HTTPException, ConnectionError,
+                TimeoutError, socket.timeout, OSError) as exc:
+            last = f"{type(exc).__name__}: {exc}"                 # transient network -> retry
+        if attempt < retries - 1:
+            time.sleep(min(2 ** attempt, 15))                     # 1,2,4,8 (cap 15) s backoff
+    raise ProviderUnavailable(f"network error after {retries} attempts ({last}): {url}")
 
 
 def _read_trim(raw: bytes, start: datetime, end: datetime):

@@ -22,10 +22,12 @@ CONTRACT SEAMS (grassmann implements UNEDITED; additive to the landed executor `
     - `created_utc` = a FRESH clock() read after final artifact assembly;
     - ordering: campaign_started < every attempted < every issued < created under a strictly
       advancing clock (no reuse of the launch instant anywhere);
-    - `valid_through = activation_reference + 7d` unchanged; if a capsule's mint-time
-      clock().date() > valid_through, the region row becomes
+    - `valid_through = activation_reference + 7d` unchanged (inclusive stored date);
+      `expiry_utc` = 00:00:00Z on the day AFTER valid_through (codex 0500 #2). A capsule
+      whose mint-time clock() >= expiry_utc makes the region row
       `BLOCKED_CANDIDATE_WINDOW_EXPIRED` with reason `CANDIDATE_WINDOW_EXPIRED`, NO capsule
-      file is written, and NO registry_candidate entry appears (no post-outcome extension).
+      file, NO registry_candidate entry (no post-outcome extension). Boundary: a mint at
+      valid_through 23:59:59.999999Z is LIVE; the following day 00:00:00.000000Z BLOCKS.
 * H2 — the acquired plan IS the staged plan:
   `run_campaign` (producer), after receipt verification and BEFORE any provider import or
   `_acquire` call, reopens `root/campaign_plan.json`, parses it, and
@@ -79,10 +81,10 @@ CONTRACT SEAMS (grassmann implements UNEDITED; additive to the landed executor `
           side_channel_retained=["correlation_matrix","ordered_eigenvalues","participation_ratio"],
           claim_effects=["NO_EIGENVECTOR_CLAIM","SCALAR_SUMMARY_ONLY"]
 
-RED AS AUTHORED vs GeoSpec `5766093`: exactly
-['H1-GATE (clock seam; H1a/H1b activate behind it)', 'H2a (plan-mismatch refuse)',
- 'H2b (reopened-plan authority)', 'H3 (per-object provenance)', 'H4a (receipt binding)',
- 'H4b (declared losses)'].
+RED AS AUTHORED (REV 2, codex 0500 repairs #1+#2 applied; #3 landed as PV bar REV 2): exactly
+['H1-GATE (clock seam)', 'H1b (expiry; explicitly marked blocked-by-missing-seam)',
+ 'H2a (plan-mismatch refuse)', 'H2b (reopened-plan authority)',
+ 'H3 (per-object provenance)', 'H4a (receipt binding)', 'H4b (declared losses)'] — seven.
 """
 import hashlib
 import inspect
@@ -343,7 +345,9 @@ def main():
         check("H1-GATE acquire exposes the injectable clock seam "
               "(clock=zero-arg aware-UTC callable)", False,
               "AWAITING clock seam -- red-first as authored (codex 0447 H1)")
-        h1_root = None
+        check("H1b mint on/after expiry_utc -> BLOCKED_CANDIDATE_WINDOW_EXPIRED "
+              "(boundary: valid_through 23:59:59.999999Z live, next-day 00:00:00Z blocks)",
+              False, "BLOCKED by the missing clock seam (codex 0500 #1 explicit marker)")
     else:
         with tempfile.TemporaryDirectory() as td:
             plan, ledger = _mk_fixtures(P, td)
@@ -371,22 +375,45 @@ def main():
                   and len({started, created} | set(issued)) == 2 + len(issued)
                   and created.date() > date(2026, 8, 9),
                   f"started={started} n_att={len(attempted)} issued={issued} created={created}")
-        with tempfile.TemporaryDirectory() as td:
-            plan, ledger = _mk_fixtures(P, td)
-            clock = _mk_clock(datetime(2026, 8, 9, 0, 10, 0, tzinfo=timezone.utc), 10800)
-            res = RUN.acquire(plan, ledger, td, providers=_FakeProviders(special_day),
-                              receipt=RECEIPT, clock=clock)
-            adm = _read_json(td, "admission_results.json")["regions"]
-            reg = _read_json(td, "registry_candidate.json")
-            expired = [r for r in adm
-                       if r["status"] == "BLOCKED_CANDIDATE_WINDOW_EXPIRED"]
-            check("H1b mint after valid_through -> BLOCKED_CANDIDATE_WINDOW_EXPIRED, no "
-                  "capsule file, empty registry (no post-outcome extension)",
-                  len(expired) >= 1 and reg == {}
-                  and all(r.get("capsule_path") is None for r in adm)
-                  and not os.path.isdir(os.path.join(td, "capsules"))
-                  and all("CANDIDATE_WINDOW_EXPIRED" in r["reason_codes"] for r in expired),
-                  f"statuses={[r['status'] for r in adm]} reg={reg}")
+        def _expiry_run(clock_fn):
+            with tempfile.TemporaryDirectory() as td:
+                plan, ledger = _mk_fixtures(P, td)
+                RUN.acquire(plan, ledger, td, providers=_FakeProviders(special_day),
+                            receipt=RECEIPT, clock=clock_fn)
+                adm = _read_json(td, "admission_results.json")["regions"]
+                reg = _read_json(td, "registry_candidate.json")
+                caps = []
+                for r in adm:
+                    if r.get("capsule_path"):
+                        caps.append(_read_json(td, r["capsule_path"]))
+                return adm, reg, caps
+
+        # interior expired case (advancing +3h clock; started on activation day)
+        adm_i, reg_i, caps_i = _expiry_run(
+            _mk_clock(datetime(2026, 8, 9, 0, 10, 0, tzinfo=timezone.utc), 10800))
+        exp_i = [r for r in adm_i if r["status"] == "BLOCKED_CANDIDATE_WINDOW_EXPIRED"]
+        interior_ok = (len(exp_i) >= 1 and reg_i == {} and caps_i == []
+                       and all(r.get("capsule_path") is None for r in adm_i)
+                       and all("CANDIDATE_WINDOW_EXPIRED" in r["reason_codes"]
+                               for r in exp_i))
+        # boundary LIVE: valid_through (2026-08-16) 23:59:59.999999Z still mints
+        live_t = datetime(2026, 8, 16, 23, 59, 59, 999999, tzinfo=timezone.utc)
+        adm_l, reg_l, caps_l = _expiry_run(lambda: live_t)
+        live_ok = (len(caps_l) >= 1 and len(reg_l) >= 1
+                   and all(c["issued_utc"] == "2026-08-16T23:59:59.999999Z"
+                           for c in caps_l)
+                   and any(r["status"] == "ADMITTED_CANDIDATE" for r in adm_l))
+        # boundary BLOCKED: 2026-08-17T00:00:00.000000Z (== expiry_utc) blocks
+        adm_b, reg_b, caps_b = _expiry_run(
+            lambda: datetime(2026, 8, 17, 0, 0, 0, 0, tzinfo=timezone.utc))
+        blocked_ok = (reg_b == {} and caps_b == []
+                      and any(r["status"] == "BLOCKED_CANDIDATE_WINDOW_EXPIRED"
+                              for r in adm_b))
+        check("H1b mint on/after expiry_utc -> BLOCKED_CANDIDATE_WINDOW_EXPIRED "
+              "(boundary: valid_through 23:59:59.999999Z live, next-day 00:00:00Z blocks)",
+              interior_ok and live_ok and blocked_ok,
+              f"interior={interior_ok} live={live_ok} blocked={blocked_ok} "
+              f"statuses_i={[r['status'] for r in adm_i]}")
 
     # ================= H2: staged-plan binding ================================
     with tempfile.TemporaryDirectory() as td:

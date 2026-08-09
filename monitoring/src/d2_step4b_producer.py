@@ -16,6 +16,7 @@ bound in `run_campaign` (SB-8): `run_campaign` refuses — before ANY provider I
 import hashlib
 import json
 import math
+import os
 import re
 from datetime import datetime, timedelta, timezone
 
@@ -305,19 +306,37 @@ def verify_launch_authorization(receipt) -> bool:
     return isinstance(quote, str) and bool(_HEX64.match(quote))
 
 
-def run_campaign(plan, launch_authorization, dry_run=False, **kwargs):
-    """Campaign fetch/produce entry point. REFUSES — before ANY provider I/O — unless
-    `launch_authorization` is a VERIFIED_DIRECT owner launch receipt (SB-8b). The provider fetch,
-    published-phase binding, segmented scoring (via GeoSpec 3950a2c), batch assembly, and share
-    staging execute only past this gate; they are built out for the authorized run and never
-    reached without the receipt."""
+# ---- P1 (codex 0347): run_campaign is the single receipt-gated real driver -
+def _load_ledger(root):
+    """Load the staged published_phase_ledger.json from the campaign root. A local JSON read only
+    (no provider I/O); reached only after the launch gate succeeds."""
+    with open(os.path.join(root, "published_phase_ledger.json"), "r", encoding="utf-8") as fh:
+        return json.load(fh)
+
+
+def _acquire(plan, ledger, root):
+    """The ONLY acquisition path (codex 0347 P1). Lazily imports the provider stack — keeping it
+    out of the producer's import graph until strictly below the launch gate — and runs the full
+    published-phase-bound campaign: per REGISTERED (carrier, day) fetch (KOERI first, then SCEDC)
+    -> segmented score (pinned GeoSpec 3950a2c) -> the 0123 batch artifacts staged under `root`.
+    Reached only after verify_launch_authorization succeeds and the plan is bound; called exactly
+    once by run_campaign."""
+    import d2_step4b_providers as providers        # lazy: below the gate, off the import graph
+    import d2_step4b_campaign_run as campaign_run
+    return campaign_run.acquire(plan, ledger, root, providers=providers)
+
+
+def run_campaign(plan, launch_authorization, root=None, *, dry_run=False, **kwargs):
+    """The single real driver for the step-4b campaign (codex 0347 P1). Executable order: verify
+    the VERIFIED_DIRECT owner receipt FIRST — an invalid/missing receipt raises SystemExit before
+    ANY provider-module import or I/O and never reaches `_acquire` — then bind/hash the plan, load
+    the staged published-phase ledger, and drive acquisition through `_acquire` exactly once.
+    NotImplementedError is retired from this path; `_acquire` is the sole acquisition seam."""
     if not verify_launch_authorization(launch_authorization):
         raise SystemExit("run_campaign REFUSED: no VERIFIED_DIRECT owner launch authorization "
                          "— no archive request issued, no provider I/O performed.")
+    plan_sha = plan_digest(plan) if plan else None          # bind/hash the plan
     if dry_run:
-        return {"status": "LAUNCH_AUTHORIZED", "dry_run": True,
-                "plan_digest": plan_digest(plan) if plan is not None else None}
-    # Authorized, non-dry run: the provider-I/O fetch + published-phase binding + segmented
-    # scoring + batch assembly + share staging are performed here for the real campaign run.
-    raise NotImplementedError("authorized full-fetch campaign run is executed by the campaign "
-                              "driver; see the step-4b execution phase")
+        return {"status": "LAUNCH_AUTHORIZED", "dry_run": True, "plan_digest": plan_sha}
+    ledger = _load_ledger(root)
+    return _acquire(plan, ledger, root)

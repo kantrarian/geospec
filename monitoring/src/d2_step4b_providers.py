@@ -21,6 +21,7 @@ freeze; it only retrieves bytes for an already-bound (carrier, day) request inte
 """
 import hashlib
 import io
+import os
 import urllib.error
 import urllib.request
 from datetime import date, datetime, timedelta, timezone
@@ -88,16 +89,46 @@ def _read_trim(raw: bytes, start: datetime, end: datetime):
     return st
 
 
+def _stage(stage_dir: str, source_url: str, raw: bytes) -> dict:
+    """Persist the exact served bytes to a content-addressed file under stage_dir and return the
+    typed raw-object receipt {source, staged_path, size_bytes, sha256} (P2). Called BEFORE any
+    parse so a downstream parse failure still leaves the object byte-for-byte on disk."""
+    digest = hashlib.sha256(raw).hexdigest()
+    staged_path = os.path.join(stage_dir, f"{digest}.ms")
+    with open(staged_path, "wb") as fh:
+        fh.write(raw)
+    return {"source": source_url, "staged_path": staged_path,
+            "size_bytes": len(raw), "sha256": digest}
+
+
+def verify_staged_object(obj: dict) -> bool:
+    """Reopen staged_path and re-derive: True iff BOTH size_bytes and sha256 match the file
+    exactly; False on any byte mutation or missing file (P2)."""
+    try:
+        path = obj["staged_path"]
+        if not os.path.isfile(path):
+            return False
+        raw = open(path, "rb").read()
+        return (len(raw) == obj.get("size_bytes")
+                and hashlib.sha256(raw).hexdigest() == obj.get("sha256"))
+    except Exception:
+        return False
+
+
 # ---- KOERI (FDSN dataselect) -----------------------------------------------
-def koeri_fetch(nslc: str, start: datetime, end: datetime, base: str = KOERI_BASE,
-                timeout: int = 240):
-    """Fetch KOERI waveforms over the exact [start, end] interval via FDSN dataselect."""
+def koeri_fetch(nslc: str, start: datetime, end: datetime, *, stage_dir: str,
+                base: str = KOERI_BASE, timeout: int = 240):
+    """Fetch KOERI waveforms over the exact [start, end] interval via FDSN dataselect. The exact
+    served bytes are PERSISTED under stage_dir BEFORE parsing (P2); a parse failure keeps the
+    staged object byte-for-byte. Returns {"stream": <trimmed>, "raw_objects": [obj]}."""
     net, sta, loc, cha = parse_nslc(nslc)
     locq = loc if loc else "--"
     url = (f"{base}/fdsnws/dataselect/1/query?net={net}&sta={sta}&loc={locq}&cha={cha}"
            f"&starttime={_fdsn_time(start)}&endtime={_fdsn_time(end)}&format=miniseed&nodata=404")
     raw = _http_get(url, timeout)
-    return _read_trim(raw, start, end), hashlib.sha256(raw).hexdigest()
+    obj = _stage(stage_dir, url, raw)                 # persist BEFORE parse
+    stream = _read_trim(raw, start, end)              # may raise -> staged object survives
+    return {"stream": stream, "raw_objects": [obj]}
 
 
 def koeri_available(net: str, stations, channels, start: datetime, end: datetime,
@@ -136,62 +167,70 @@ def _scedc_key(net: str, sta: str, loc: str, cha: str, day: date) -> str:
 
 
 def _utc_days_spanned(start: datetime, end: datetime):
-    """Inclusive list of UTC calendar days the [start, end) interval touches (1 or 2 for a 24 h
-    non-midnight window)."""
-    d0 = _as_utc(start).date()
-    d1 = _as_utc(end).date()
-    days, cur = [], d0
-    while cur <= d1:
+    """HALF-OPEN [start, end) list of UTC calendar days touched (P3). ValueError if end <= start;
+    the last enumerated day is (end - 1 microsecond).date(), so an exact-midnight 24 h window
+    touches exactly ONE day."""
+    s, e = _as_utc(start), _as_utc(end)
+    if e <= s:
+        raise ValueError(f"end {end} <= start {start} (empty/negative interval)")
+    last = (e - timedelta(microseconds=1)).date()
+    days, cur = [], s.date()
+    while cur <= last:
         days.append(cur)
         cur = cur + timedelta(days=1)
     return days
 
 
-def scedc_fetch(nslc: str, start: datetime, end: datetime, base: str = SCEDC_BASE,
-                timeout: int = 300):
-    """Fetch SCEDC waveforms over [start, end] by assembling the touched public day-volumes and
-    trimming. A missing day-volume is tolerated (partial coverage); the scoring coverage floor
-    decides admissibility. Raises ProviderUnavailable only if NO day-volume yields samples."""
+def scedc_fetch(nslc: str, start: datetime, end: datetime, *, stage_dir: str,
+                base: str = SCEDC_BASE, timeout: int = 300):
+    """Fetch SCEDC waveforms over [start, end] by assembling the touched public day-volumes. Each
+    touched day-volume is a SEPARATELY-hashed raw object staged BEFORE parse (P2), in day order; a
+    missing day-volume is tolerated (partial coverage) but every existing touched object is
+    retained. The concatenated-bytes digest is never formed. Returns {"stream": <trimmed>,
+    "raw_objects": [obj-per-day]}."""
     net, sta, loc, cha = parse_nslc(nslc)
-    raws = []
+    raw_objects, payloads = [], []
     for day in _utc_days_spanned(start, end):
         url = f"{base}/{_scedc_key(net, sta, loc, cha, day)}"
         try:
-            raws.append(_http_get(url, timeout))
+            raw = _http_get(url, timeout)
         except ProviderUnavailable:
-            continue
-    if not raws:
+            continue                                  # missing day-volume tolerated (partial)
+        raw_objects.append(_stage(stage_dir, url, raw))   # persist BEFORE parse, day order
+        payloads.append(raw)
+    if not raw_objects:
         raise ProviderUnavailable(f"no SCEDC day-volume for {nslc} over [{start}, {end}]")
     import obspy
-    st = obspy.Stream()
-    for raw in raws:
-        st += obspy.read(io.BytesIO(raw))
     from obspy import UTCDateTime
+    st = obspy.Stream()
+    for raw in payloads:
+        st += obspy.read(io.BytesIO(raw))
     st.merge(method=0)                                # join contiguous day-volume traces
     st.trim(UTCDateTime(_as_utc(start)), UTCDateTime(_as_utc(end)))
     st = st.split()
-    if len(st) == 0:
-        raise ProviderUnavailable("SCEDC day-volumes carried no samples inside the interval")
-    return st, hashlib.sha256(b"".join(raws)).hexdigest()
+    return {"stream": st, "raw_objects": raw_objects}
 
 
 def scedc_available(net: str, stations, channels, start: datetime, end: datetime,
                     base: str = SCEDC_BASE, timeout: int = 120):
-    """Read-only availability probe via S3 object HEAD/GET on the first touched day-volume: the
-    set of NET.STA..CHA whose day-volume object exists. No waveform bytes are downloaded here
-    beyond the presence check for the first day."""
-    day = _utc_days_spanned(start, end)[0]
+    """Read-only availability: HEAD EVERY touched UTC day-volume for every frozen candidate; the
+    NSLC is present iff ANY touched day-volume object exists (P3) — data only in the second
+    touched day still registers available. urllib transport (the bar's interception contract);
+    no waveform bytes are downloaded beyond the presence checks."""
+    days = _utc_days_spanned(start, end)
     present = set()
     for sta in stations:
         for cha in channels:
-            key = _scedc_key(net, sta, "", cha, day)
-            req = urllib.request.Request(f"{base}/{key}", headers=_UA, method="HEAD")
-            try:
-                with urllib.request.urlopen(req, timeout=timeout) as resp:
-                    if resp.status == 200:
-                        present.add(f"{net}.{sta}..{cha}")
-            except Exception:
-                continue
+            for day in days:
+                key = _scedc_key(net, sta, "", cha, day)
+                req = urllib.request.Request(f"{base}/{key}", headers=_UA, method="HEAD")
+                try:
+                    with urllib.request.urlopen(req, timeout=timeout) as resp:
+                        if getattr(resp, "status", None) == 200:
+                            present.add(f"{net}.{sta}..{cha}")
+                            break                     # any touched day suffices
+                except Exception:
+                    continue
     return present
 
 
@@ -200,7 +239,7 @@ _FETCH = {"KOERI": koeri_fetch, "SCEDC": scedc_fetch}
 _AVAIL = {"KOERI": koeri_available, "SCEDC": scedc_available}
 
 
-def fetch(provider: str, nslc: str, start: datetime, end: datetime, **kw):
+def fetch(provider: str, nslc: str, start: datetime, end: datetime, *, stage_dir: str, **kw):
     if provider not in _FETCH:
         raise ValueError(f"unknown provider {provider!r} (frozen set: {sorted(_FETCH)})")
-    return _FETCH[provider](nslc, start, end, **kw)
+    return _FETCH[provider](nslc, start, end, stage_dir=stage_dir, **kw)

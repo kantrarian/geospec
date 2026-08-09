@@ -381,31 +381,47 @@ def _load_ledger(root):
         return json.load(fh)
 
 
+def _load_plan(root):
+    """Reopen the staged campaign_plan.json from the campaign root (H2: the acquired plan IS the
+    staged plan). Local JSON read only; reached only after the launch gate succeeds."""
+    with open(os.path.join(root, "campaign_plan.json"), "r", encoding="utf-8") as fh:
+        return json.load(fh)
+
+
 def _acquire(plan, ledger, root):
     """The ONLY acquisition path (codex 0347 P1). Lazily imports the provider stack — keeping it
     out of the producer's import graph until strictly below the launch gate — and runs the full
     published-phase-bound campaign: per REGISTERED (carrier, day) fetch (KOERI first, then SCEDC)
     -> segmented score (pinned GeoSpec 3950a2c) -> the 0123 batch artifacts staged under `root`.
     Reached only after verify_launch_authorization succeeds and the plan is bound; called exactly
-    once by run_campaign."""
+    once by run_campaign. The verified receipt + injectable clock ride the side-channel holder."""
     import d2_step4b_providers as providers        # lazy: below the gate, off the import graph
     import d2_step4b_campaign_run as campaign_run
     return campaign_run.acquire(plan, ledger, root, providers=providers,
-                                receipt=_RECEIPT_HOLDER.get("receipt"))
+                                receipt=_RECEIPT_HOLDER.get("receipt"),
+                                clock=_RECEIPT_HOLDER.get("clock"))
 
 
-def run_campaign(plan, launch_authorization, root=None, *, dry_run=False, **kwargs):
-    """The single real driver for the step-4b campaign (codex 0347 P1). Executable order: verify
-    the VERIFIED_DIRECT owner receipt FIRST — an invalid/missing receipt raises SystemExit before
-    ANY provider-module import or I/O and never reaches `_acquire` — then bind/hash the plan, load
-    the staged published-phase ledger, and drive acquisition through `_acquire` exactly once.
-    NotImplementedError is retired from this path; `_acquire` is the sole acquisition seam."""
+def run_campaign(plan, launch_authorization, root=None, *, dry_run=False, clock=None, **kwargs):
+    """The single real driver for the step-4b campaign (codex 0347 P1 + 0447 H2). Executable
+    order: verify the VERIFIED_DIRECT owner receipt FIRST — invalid/missing raises SystemExit
+    before ANY provider import/I/O and never reaches `_acquire` — then REOPEN
+    `root/campaign_plan.json` and, if a caller-supplied plan differs from it, refuse (SystemExit,
+    zero `_acquire`); the REOPENED staged plan is the acquisition authority (`plan=None` is
+    allowed). Then load the ledger and drive acquisition through `_acquire` exactly once. The
+    injectable `clock` (default: live now()) reaches the assembler via the side channel."""
     if not verify_launch_authorization(launch_authorization):
         raise SystemExit("run_campaign REFUSED: no VERIFIED_DIRECT owner launch authorization "
                          "— no archive request issued, no provider I/O performed.")
-    plan_sha = plan_digest(plan) if plan else None          # bind/hash the plan
+    staged_plan = _load_plan(root)                          # H2: reopen the staged plan
+    if plan is not None and plan_digest(plan) != plan_digest(staged_plan):
+        raise SystemExit("run_campaign REFUSED: caller plan differs from the staged "
+                         "campaign_plan.json — no _acquire call, no provider I/O (H2).")
+    plan = staged_plan                                      # reopened authority (H2)
+    plan_sha = plan_digest(plan)
     if dry_run:
         return {"status": "LAUNCH_AUTHORIZED", "dry_run": True, "plan_digest": plan_sha}
     _RECEIPT_HOLDER["receipt"] = launch_authorization       # side channel to the batch assembler
+    _RECEIPT_HOLDER["clock"] = clock
     ledger = _load_ledger(root)
     return _acquire(plan, ledger, root)

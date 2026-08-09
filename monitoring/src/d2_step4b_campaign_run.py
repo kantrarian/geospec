@@ -124,6 +124,39 @@ def _op_digest(*parts):
     return hashlib.sha256("|".join(str(p) for p in parts).encode("utf-8")).hexdigest()
 
 
+def _iso(dt):
+    return dt.strftime("%Y-%m-%dT%H:%M:%S.%f") + "Z"
+
+
+def _default_clock():
+    """A strictly-advancing aware-UTC clock: each call returns a time strictly later than the
+    prior (so the H1 ordering started < attempted < issued < created holds even across
+    same-microsecond calls). Injected clocks are used verbatim; this is only the live default."""
+    state = {"last": None}
+
+    def _tick():
+        t = datetime.now(timezone.utc)
+        if state["last"] is not None and t <= state["last"]:
+            t = state["last"] + timedelta(microseconds=1)
+        state["last"] = t
+        return t
+    return _tick
+
+
+# ---- H4 operation-receipt losses/frames (cayley executor bar) --------------
+_OP_LOSSES = {
+    0: (["absolute_phase", "native_frequency_detail"],
+        ["native_rate_hz", "raw_object_sha256s", "station_support_masks"], []),
+    1: (["station_specific_amplitude_structure"],
+        ["aggregate_mask_sha256", "station_coverages", "station_identities"], []),
+    2: (["full_operator_structure"],
+        ["correlation_matrix", "ordered_eigenvalues", "participation_ratio"],
+        ["NO_EIGENVECTOR_CLAIM", "SCALAR_SUMMARY_ONLY"]),
+}
+_OP_FRAME = {0: "native->1-10Hz-envelope-1Hz", 1: "per-second-utc-intersection-median",
+             2: "segment-correlation-eigenspectrum"}
+
+
 # ---- git provenance (overridable for the hermetic self-test) ---------------
 def _git_head(repo=REPO):
     return subprocess.run(["git", "-C", repo, "rev-parse", "HEAD"],
@@ -152,22 +185,63 @@ def _mask_digest(series):
 
 
 def _station_series(SD, stream, source_id, session_start):
-    """Return (EnvelopeSeries|None, provenance) for one fetched station over the bound session."""
+    """The EnvelopeSeries for scoring, derived from the COMBINED station stream (or None if
+    unavailable). Per-object provenance is derived separately from each staged object (H3)."""
     frags = _fragments_from_stream(stream)
-    prov = {"native_rate_hz": (float(frags[0][1]) if frags else 0.0),
-            "npts": int(sum(len(f[0]) for f in frags)), "fragment_count": len(frags)}
     try:
-        es = SD.compute_band_envelope_supported(
+        return SD.compute_band_envelope_supported(
             frags, session_start_utc=session_start, session_seconds=SESSION_SECONDS,
             source_id=source_id)
-        prov["coverage"] = round(float(es.coverage), 6)
-        prov["support_sha256"] = _mask_digest(es)
-        return es, prov
-    except SD.DataUnavailable as exc:
-        prov["coverage"] = None
-        prov["support_sha256"] = 64 * "0"
-        prov["unavailable"] = str(exc)[:120]
-        return None, prov
+    except SD.DataUnavailable:
+        return None
+
+
+def _object_provenance(providers, staged_path):
+    """H3: reopen ONE staged object via the provider seam and derive its provenance from ITS OWN
+    bytes alone -- native rate (first fragment), sample count, fragment count, and a
+    timestamp-support digest = sha256(canonical([[fragment_start_utc_iso, npts_i, rate_i], ...]))
+    over its own fragments in time order. Two SCEDC day-volumes give two distinct rows."""
+    frags = _fragments_from_stream(providers.parse_staged(staged_path))
+    frames = [[_iso(start), int(len(data)), float(rate)] for (data, rate, start) in frags]
+    return {"native_rate_hz": (float(frags[0][1]) if frags else 0.0),
+            "npts": int(sum(len(f[0]) for f in frags)), "fragment_count": len(frags),
+            "support_sha256": hashlib.sha256(_canon(frames)).hexdigest()}
+
+
+def _operation_receipt(index, arm, carrier, day, row, rates):
+    """The canonical stage receipt (H4) recomputable from calibration_daily + input_manifest."""
+    ids = {"operation": OPS[index], "arm": arm, "carrier_key": carrier, "day": day}
+    if index == 0:
+        return dict(ids, input_sha256s=sorted(row["input_object_sha256s"]),
+                    native_rates={h: rates[h] for h in row["input_object_sha256s"]},
+                    station_coverages={seg: sup["station_coverages"]
+                                       for seg, sup in row["segment_support"].items()})
+    if index == 1:
+        return dict(ids, segment_support=row["segment_support"],
+                    common_support_count=row["common_support_count"])
+    return dict(ids, correlation_matrix=row["correlation_matrix"],
+                correlation_matrix_order=row["correlation_matrix_order"],
+                ordered_eigenvalues=row["ordered_eigenvalues"], ratio=row["ratio"],
+                participation_ratio=row["participation_ratio"],
+                derivation=row["lambda2_lambda1_derivation"])
+
+
+def _operation_rows(arm, carrier, day, row, rates):
+    """The three operation-ledger rows for one ADMITTED (arm, carrier, day), each binding its
+    real stage output via output_sha256 = sha256(canonical(receipt)) and its exact declared
+    losses/side-channels/claim-effects (H4)."""
+    out = []
+    for index, op in enumerate(OPS):
+        lost, side, claims = _OP_LOSSES[index]
+        receipt = _operation_receipt(index, arm, carrier, day, row, rates)
+        out.append({
+            "arm": arm, "carrier_key": carrier, "day": day, "operation_name": op,
+            "input_sha256s": sorted(row["input_object_sha256s"]),
+            "output_sha256": hashlib.sha256(_canon(receipt)).hexdigest(),
+            "preconditions": ["published_phase_registered", "station_support>=0.5"],
+            "frame_change": _OP_FRAME[index], "information_lost": lost,
+            "side_channel_retained": side, "claim_effects": claims, "validation_status": "PASS"})
+    return out
 
 
 def _score_day(SD, FC, seg_station_es, session_start):
@@ -244,10 +318,12 @@ def _no_record_daily():
 
 
 # ---- the executor ----------------------------------------------------------
-def acquire(plan, ledger, root, *, providers, receipt):
+def acquire(plan, ledger, root, *, providers, receipt, clock=None):
     import seismic_data as SD
     import fault_correlation as FC
 
+    tick = clock if clock is not None else _default_clock()   # H1: injectable honest clock
+    campaign_started_utc = tick()                             # ONE read at entry (post-gate)
     scheduled_days = list(plan["scheduled_days"])
     incident_days = list(plan["incident_days"])
     activation_days = list(plan["activation_days"])
@@ -257,7 +333,6 @@ def acquire(plan, ledger, root, *, providers, receipt):
     os.makedirs(stage_dir, exist_ok=True)
 
     attempts, input_objects, day_result = [], [], {}
-    now = datetime.now(timezone.utc)
     carriers_ordered = ([c for c in ELIGIBLE if PROVIDERS[c]["provider"] == "KOERI"]
                         + [c for c in ELIGIBLE if PROVIDERS[c]["provider"] == "SCEDC"])
     for carrier in carriers_ordered:
@@ -279,6 +354,7 @@ def acquire(plan, ledger, root, *, providers, receipt):
             for segment in sorted(segments):
                 seg_station_es[segment] = []
                 for srow in segments[segment]:
+                    attempted_utc = _iso(tick())             # H1: fresh clock read per attempt
                     candidates = list(srow["ordered_nslc_candidates"])
                     net = candidates[0].split(".")[0]
                     stas = [c.split(".")[1] for c in candidates]
@@ -296,7 +372,7 @@ def acquire(plan, ledger, root, *, providers, receipt):
                                "provider": provider, "request_start_utc": row["request_start_utc"],
                                "request_end_utc": row["request_end_utc"], "selected_nslc": None,
                                "status": "UNAVAILABLE", "input_object_sha256s": [],
-                               "attempted_utc": now.strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
+                               "attempted_utc": attempted_utc,
                                "reason_codes": ["NO_AVAILABLE_CANDIDATE"]}
                     if nslc is None:
                         attempts.append(attempt)
@@ -313,9 +389,10 @@ def acquire(plan, ledger, root, *, providers, receipt):
                         attempts.append(attempt)
                         continue
                     stream, raw_objects = res["stream"], res["raw_objects"]
-                    es, prov = _station_series(SD, stream, nslc, start)
+                    es = _station_series(SD, stream, nslc, start)
                     refs = [ro["sha256"] for ro in raw_objects]
                     for ro in raw_objects:
+                        prov = _object_provenance(providers, ro["staged_path"])   # H3: own bytes
                         input_objects.append({
                             "sha256": ro["sha256"], "size": ro["size_bytes"],
                             "relative_path": os.path.relpath(ro["staged_path"], root).replace(
@@ -339,6 +416,7 @@ def acquire(plan, ledger, root, *, providers, receipt):
             day_result[(carrier, day)] = base
 
     # -- calibration_daily: 540 rows (2 arms x 3 carriers x 90 days) -----------
+    rates = {obj["sha256"]: obj["native_rate_hz"] for obj in input_objects}   # H4 per-object rate
     daily_rows, operations = [], []
     for arm, arm_days in (("incident", incident_days), ("activation", activation_days)):
         for carrier in ELIGIBLE:
@@ -352,19 +430,7 @@ def acquire(plan, ledger, root, *, providers, receipt):
                     row.update(base)
                 daily_rows.append(row)
                 if row["status"] == "ADMITTED":
-                    for op in OPS:
-                        operations.append({
-                            "arm": arm, "carrier_key": carrier, "day": day, "operation_name": op,
-                            "input_sha256s": list(row["input_object_sha256s"]),
-                            "output_sha256": _op_digest(op, carrier, day, arm,
-                                                        row.get("support_sha256")),
-                            "preconditions": ["published_phase_registered", "station_support>=0.5"],
-                            "frame_change": ("native->1-10Hz-envelope-1Hz" if op == OPS[0]
-                                             else "per-second-utc-grid" if op == OPS[1]
-                                             else "segment-correlation-eigenspectrum"),
-                            "information_lost": ["absolute_phase"] if op == OPS[0] else [],
-                            "side_channel_retained": [], "claim_effects": [],
-                            "validation_status": "PASS"})
+                    operations.extend(_operation_rows(arm, carrier, day, row, rates))
 
     # -- prior evidence + replay (from the accepted sealed diagnostic bytes) ---
     with open(DIAGNOSTIC_FIXTURE, "rb") as fh:
@@ -423,6 +489,9 @@ def acquire(plan, ledger, root, *, providers, receipt):
                        "end": (incident_ref - timedelta(days=30)).isoformat()}
     activation_window = {"start": activation_days[0],
                          "end": (activation_ref - timedelta(days=30)).isoformat()}
+    valid_through_date = activation_ref + timedelta(days=POLICY["candidate_valid_days"])
+    expiry_utc = datetime(valid_through_date.year, valid_through_date.month,       # H1: 00:00Z of
+                          valid_through_date.day, tzinfo=timezone.utc) + timedelta(days=1)  # vt+1d
     input_manifest_sha_holder = {}
     admissions, registry = [], {}
     for target in TARGETS:
@@ -476,11 +545,9 @@ def acquire(plan, ledger, root, *, providers, receipt):
                 "processing_version": PROCESSING_VERSION, "topology_version": TOPOLOGY_VERSION,
                 "threshold": act_thr, "calibration_window": activation_window,
                 "source_commit": IMPLEMENTATION_COMMIT,
-                "input_manifest_sha256": input_manifest_sha_holder,      # filled below (ref)
+                "input_manifest_sha256": input_manifest_sha_holder,      # filled at mint
                 "replay_output_sha256": _sha256_bytes(_canon(replay_metrics)),
-                "issued_utc": now.strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
-                "valid_through": (activation_ref + timedelta(
-                    days=POLICY["candidate_valid_days"])).isoformat()}
+                "valid_through": valid_through_date.isoformat()}         # issued_utc set at mint
             base_row["_capsule"] = capsule
             base_row["_capsule_carrier"] = carrier
         admissions.append(base_row)
@@ -501,9 +568,17 @@ def acquire(plan, ledger, root, *, providers, receipt):
         carrier = row.pop("_capsule_carrier", None)
         if capsule is None:
             continue
+        issued_utc = tick()                              # H1: fresh clock read at capsule mint
+        if issued_utc >= expiry_utc:                     # H1: mint on/after expiry -> no capsule
+            row["status"] = "BLOCKED_CANDIDATE_WINDOW_EXPIRED"
+            row["reason_codes"] = ["CANDIDATE_WINDOW_EXPIRED"]
+            row["capsule_path"] = None
+            row["capsule_sha256"] = None
+            continue
+        capsule["issued_utc"] = _iso(issued_utc)
         capsule["input_manifest_sha256"] = input_manifest_sha_holder_value
         rel = f"capsules/{carrier}_calibration.json"
-        os.makedirs(os.path.join(root, "capsules"), exist_ok=True)
+        os.makedirs(os.path.join(root, "capsules"), exist_ok=True)   # lazy: only when writing one
         _write_json(os.path.join(root, rel), capsule)
         capsule_sha = _sha256_file(os.path.join(root, rel))
         row["capsule_path"] = rel
@@ -539,6 +614,7 @@ def acquire(plan, ledger, root, *, providers, receipt):
     auth = {"status": receipt["status"],
             "in_session_timestamp_utc": receipt["in_session_timestamp_utc"],
             "owner_quote_sha256": receipt["owner_quote_sha256"]}
+    created_utc = tick()                                 # H1: fresh read after final assembly
     batch_manifest = {
         "schema": "geospec-d2-step4b-batch-v1", "contract_id": CONTRACT_ID,
         "run_id": _op_digest("run", producer_commit, plan.get("registered_utc")),
@@ -548,7 +624,7 @@ def acquire(plan, ledger, root, *, providers, receipt):
         "activation_reference_day": plan["activation_reference_day"],
         "incident_reference_day": "2026-07-29", "calibration_policy": POLICY, "targets": TARGETS,
         "environment": environment, "implementation_blobs": CORE_FILES, "artifacts": artifacts,
-        "created_utc": now.strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
+        "campaign_started_utc": _iso(campaign_started_utc), "created_utc": _iso(created_utc),
         "campaign_plan_sha256": campaign_plan_sha, "owner_launch_authorization": auth,
         "production_registry_modified": False, "production_freezes_modified": False,
         "non_claims": NON_CLAIMS}

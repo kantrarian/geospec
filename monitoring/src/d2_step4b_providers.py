@@ -101,6 +101,15 @@ def _stage(stage_dir: str, source_url: str, raw: bytes) -> dict:
             "size_bytes": len(raw), "sha256": digest}
 
 
+def parse_staged(staged_path: str):
+    """Reopen ONE staged raw object and parse IT ALONE (obspy.read on its own bytes). The executor
+    uses this for per-object provenance (H3) so a multi-day-volume response yields one provenance
+    row per object; keeping the parse here keeps the executor obspy-free + the bar hermetic."""
+    import obspy
+    with open(staged_path, "rb") as fh:
+        return obspy.read(io.BytesIO(fh.read()))
+
+
 def verify_staged_object(obj: dict) -> bool:
     """Reopen staged_path and re-derive: True iff BOTH size_bytes and sha256 match the file
     exactly; False on any byte mutation or missing file (P2)."""

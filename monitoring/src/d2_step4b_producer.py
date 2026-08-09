@@ -297,17 +297,27 @@ RIDGECREST_T2_REGISTRY_SHA256 = \
 
 def load_ridgecrest_t2(registry_bytes: bytes) -> dict:
     """Verify the redraw-registry bytes against the amendment pin, then parse. There is NO
-    unpinned load path: ANY byte difference refuses (ValueError)."""
-    actual = hashlib.sha256(registry_bytes).hexdigest()
+    unpinned load path: a non-bytes input OR any byte difference refuses (ValueError)."""
+    if not isinstance(registry_bytes, (bytes, bytearray)):
+        raise ValueError("ridgecrest-t2 registry must be pinned bytes, not a caller object")
+    actual = hashlib.sha256(bytes(registry_bytes)).hexdigest()
     if actual != RIDGECREST_T2_REGISTRY_SHA256:
         raise ValueError(f"ridgecrest-t2 registry sha256 {actual} != pin "
                          f"{RIDGECREST_T2_REGISTRY_SHA256}")
-    return json.loads(registry_bytes.decode("utf-8"))
+    return json.loads(bytes(registry_bytes).decode("utf-8"))
 
 
-def build_ridgecrest_extension_plan(activation_reference: str, registry: dict) -> dict:
-    """Outcome-blind, deterministic ridgecrest-t2 extension plan built ONLY from the frozen redraw
-    registry (station/NSLC structure and candidate order verbatim). Fail-closed ValueError on:
+def build_ridgecrest_extension_plan(activation_reference: str, registry_bytes: bytes) -> dict:
+    """PUBLIC builder (codex 0520 F1): consumes the PINNED registry BYTES only -- it verifies them
+    itself via load_ridgecrest_t2 (a plain dict, however valid-looking, or any re-encoded
+    candidate mutation refuses) and then builds the plan. There is NO public raw-dict builder."""
+    registry = load_ridgecrest_t2(registry_bytes)
+    return _build_ridgecrest_extension_plan(activation_reference, registry)
+
+
+def _build_ridgecrest_extension_plan(activation_reference: str, registry: dict) -> dict:
+    """Private structural builder (fail-closed checks on the ALREADY-attested registry). Not a
+    public path: only build_ridgecrest_extension_plan (bytes-only) reaches it. Fail-closed on:
     wrong region/topology_version/provider; fewer than 2 segments; fewer than 2 stations in any
     segment; any NET.STA shared across segments. No outcome-bearing field is emitted; byte-
     identical canonical JSON on identical inputs (plan_digest-able). Registers a redraw only."""

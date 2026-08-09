@@ -481,17 +481,19 @@ def main():
         # classifier. Retry ONLY transient statuses (408/425/429 + 500-599); a permanent
         # client failure (403 and other 4xx except the no-data pair) is an IMMEDIATE typed
         # ProviderUnavailable -- one call, no sleep, no 4x request multiplication.
-        ncalls.clear()
-        slept.clear()
+        perm_ok = {}
+        for code, reason in ((401, "Unauthorized"), (403, "Forbidden")):
+            ncalls.clear()
+            slept.clear()
 
-        def urlopen_403(req, timeout=None):
-            ncalls.append(1)
-            raise urllib.error.HTTPError("http://x", 403, "Forbidden", None, None)
+            def urlopen_perm(req, timeout=None, _c=code, _r=reason):
+                ncalls.append(1)
+                raise urllib.error.HTTPError("http://x", _c, _r, None, None)
 
-        urllib.request.urlopen = urlopen_403
-        ok_d = (raises(lambda: PR._http_get("http://x/denied", 10), PR.ProviderUnavailable)
-                and len(ncalls) == 1 and slept == [])
-        n403 = len(ncalls)
+            urllib.request.urlopen = urlopen_perm
+            perm_ok[code] = (raises(lambda: PR._http_get("http://x/denied", 10),
+                                    PR.ProviderUnavailable)
+                             and len(ncalls) == 1 and slept == [])
 
         ncalls.clear()
         slept.clear()
@@ -504,26 +506,29 @@ def main():
         ok_e = (raises(lambda: PR._http_get("http://x/busy", 10), PR.ProviderUnavailable)
                 and len(ncalls) == 4 and slept == [1, 2, 4])
 
-        ncalls.clear()
-        slept.clear()
-        seq429 = [urllib.error.HTTPError("http://x", 429, "Too Many Requests", None, None),
-                  _OKResp()]
+        trans_ok = {}
+        for code, reason in ((408, "Request Timeout"), (425, "Too Early"),
+                             (429, "Too Many Requests")):
+            ncalls.clear()
+            slept.clear()
+            seq_t = [urllib.error.HTTPError("http://x", code, reason, None, None), _OKResp()]
 
-        def urlopen_429(req, timeout=None):
-            ncalls.append(1)
-            item = seq429.pop(0)
-            if isinstance(item, Exception):
-                raise item
-            return item
+            def urlopen_trans(req, timeout=None, _s=seq_t):
+                ncalls.append(1)
+                item = _s.pop(0)
+                if isinstance(item, Exception):
+                    raise item
+                return item
 
-        urllib.request.urlopen = urlopen_429
-        ok_f = (PR._http_get("http://x/paced", 10) == b"BODY"
-                and len(ncalls) == 2 and slept == [1])
-        check("PV-3f status classifier: 403 -> IMMEDIATE ProviderUnavailable (1 call, no "
-              "sleep, no retry multiplication); persistent 503 -> retried fail-closed (4 "
-              "calls, [1,2,4]); transient 429 -> retried then body",
-              ok_d and ok_e and ok_f,
-              f"d={ok_d}(calls={n403}) e={ok_e} f={ok_f} slept={slept}")
+            urllib.request.urlopen = urlopen_trans
+            trans_ok[code] = (PR._http_get("http://x/paced", 10) == b"BODY"
+                              and len(ncalls) == 2 and slept == [1])
+        check("PV-3f status classifier (codex 113942Z exact set): 401/403 -> IMMEDIATE "
+              "ProviderUnavailable (1 call, no sleep); persistent 503 -> retried fail-closed "
+              "(4 calls, [1,2,4]); 408/425/429 -> retried then body (the complete "
+              "idempotent-GET transient set)",
+              all(perm_ok.values()) and ok_e and all(trans_ok.values()),
+              f"perm={perm_ok} e={ok_e} trans={trans_ok}")
     finally:
         urllib.request.urlopen = real_urlopen3
         _time.sleep = real_sleep

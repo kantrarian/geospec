@@ -85,6 +85,16 @@ RED AS AUTHORED (REV 2, codex 0500 repairs #1+#2 applied; #3 landed as PV bar RE
 ['H1-GATE (clock seam)', 'H1b (expiry; explicitly marked blocked-by-missing-seam)',
  'H2a (plan-mismatch refuse)', 'H2b (reopened-plan authority)',
  'H3 (per-object provenance)', 'H4a (receipt binding)', 'H4b (declared losses)'] — seven.
+
+REV 3 (2026-08-09, codex 0824 folded into the frozen suite as GREEN locks — the typed-fatal
+fix landed at 1305f5e before this revision; import-hermetic here via the sys.modules stubs,
+unlike the standalone producer KAT which needs obspy-importable scoring modules):
+* H5 — host resource exhaustion never mints or relabels:
+  `ScoringResourceUnavailable` (RuntimeError subclass) exists; `_station_series` retries
+  ONCE after gc on MemoryError (exactly two scorer calls) and returns the envelope on
+  success; a SECOND MemoryError raises the typed fatal (never None — resource failure is
+  not data unavailability); `SD.DataUnavailable` still maps to None; a persistent OOM
+  anywhere in scoring aborts `acquire` and leaves NO batch_manifest.json.
 """
 import hashlib
 import inspect
@@ -534,6 +544,83 @@ def main():
         check("H4b declared losses/side-channels/claim-effects are populated EXACTLY "
               "(scalarization declares NO_EIGENVECTOR_CLAIM + SCALAR_SUMMARY_ONLY)",
               n_checked > 0 and loss_ok, f"checked={n_checked}")
+
+    # ================= H5: resource exhaustion is typed-fatal (codex 0824) ====
+    if not hasattr(RUN, "ScoringResourceUnavailable"):
+        check("H5-GATE typed ScoringResourceUnavailable seam present", False,
+              "AWAITING typed-fatal seam (codex 0824)")
+    else:
+        class _ScriptedSD:
+            class DataUnavailable(Exception):
+                pass
+
+            def __init__(self, n_oom):
+                self.calls = 0
+                self.n_oom = n_oom
+
+            def compute_band_envelope_supported(self, frags, *, session_start_utc,
+                                                session_seconds, source_id):
+                self.calls += 1
+                if self.calls <= self.n_oom:
+                    raise MemoryError("injected commit-limit OOM")
+                return _ES(0.9, np.ones(86400, dtype=bool))
+
+        sd1 = _ScriptedSD(1)
+        frags_stream = [_Trace(datetime(2026, 5, 1, 7, 0, 0, tzinfo=timezone.utc), 8, 40.0)]
+        es1 = RUN._station_series(sd1, frags_stream, "KO.SAUV..HHZ",
+                                  datetime(2026, 5, 1, 7, 0, 0, tzinfo=timezone.utc))
+        check("H5a TRANSIENT OOM: retry-after-gc returns the envelope after EXACTLY two "
+              "scorer calls", es1 is not None and sd1.calls == 2, f"calls={sd1.calls}")
+
+        sd2 = _ScriptedSD(2)
+        typed = False
+        try:
+            RUN._station_series(sd2, frags_stream, "KO.SAUV..HHZ",
+                                datetime(2026, 5, 1, 7, 0, 0, tzinfo=timezone.utc))
+        except RUN.ScoringResourceUnavailable:
+            typed = True
+        except Exception:
+            pass
+        check("H5b PERSISTENT OOM raises typed ScoringResourceUnavailable (never None -- "
+              "resource failure is not data unavailability)",
+              typed and sd2.calls == 2, f"typed={typed} calls={sd2.calls}")
+
+        sd3 = _ScriptedSD(0)
+
+        def _du(*a, **k):
+            raise _ScriptedSD.DataUnavailable("no data")
+        sd3.compute_band_envelope_supported = _du
+        es3 = RUN._station_series(sd3, frags_stream, "KO.SAUV..HHZ",
+                                  datetime(2026, 5, 1, 7, 0, 0, tzinfo=timezone.utc))
+        check("H5c DataUnavailable still maps to None (data vs resource cleanly separated)",
+              es3 is None)
+
+        stub_sd = sys.modules["seismic_data"]
+        real_compute = stub_sd.compute_band_envelope_supported
+
+        def _persistent_oom(frags, *, session_start_utc, session_seconds, source_id):
+            raise MemoryError("injected persistent commit-limit OOM")
+        try:
+            stub_sd.compute_band_envelope_supported = _persistent_oom
+            with tempfile.TemporaryDirectory() as td:
+                plan5, ledger5 = _mk_fixtures(P, td)
+                kw5 = {"providers": _FakeProviders(None), "receipt": RECEIPT}
+                if "clock" in sig:
+                    kw5["clock"] = _mk_clock(
+                        datetime(2026, 8, 9, 12, 0, 0, tzinfo=timezone.utc), 1)
+                raised5 = False
+                try:
+                    RUN.acquire(plan5, ledger5, td, **kw5)
+                except RUN.ScoringResourceUnavailable:
+                    raised5 = True
+                except Exception:
+                    pass
+                no_batch = not os.path.isfile(os.path.join(td, "batch_manifest.json"))
+                check("H5d FULL PATH: a persistent scoring OOM aborts acquire with the typed "
+                      "fatal and mints NO batch_manifest.json",
+                      raised5 and no_batch, f"raised={raised5} no_batch={no_batch}")
+        finally:
+            stub_sd.compute_band_envelope_supported = real_compute
 
 
 main()

@@ -17,7 +17,7 @@ import hashlib
 import json
 import math
 import re
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 # ---- SB-1: frozen campaign constants ---------------------------------------
 CAMPAIGN = {
@@ -34,6 +34,19 @@ CAMPAIGN = {
 }
 
 _HEX64 = re.compile(r"^[0-9a-f]{64}$")
+
+# ---- SB-4 v2 / SB-7 v2 frozen constants (cayley REV 2 d1a58b3) --------------
+# Exact carrier -> published-region mapping (codex phasebar 0313).
+REGION_KEY = {
+    "istanbul_marmara": "istanbul_marmara",
+    "socal_coachella": "socal_saf_coachella",
+    "turkey_kahramanmaras": "turkey_kahramanmaras",
+}
+# The accepted sealed diagnostic-result artifact (codex retention PASS 0043); pinned DIRECTLY,
+# with no caller-supplied override / expected-sha path (SB-7b).
+DIAGNOSTIC_RESULT_SHA256 = "ee75e449aa0b1003a3cf047432a91a9adc1db4c7497b1e1d9d47f01d552a4b35"
+# A naive-or-Z serialized instant with up to 6 fractional digits; any explicit offset refuses.
+_NAIVE_OR_Z = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?Z?$")
 
 
 def _canonical(obj) -> bytes:
@@ -113,25 +126,46 @@ def plan_digest(plan) -> str:
     return hashlib.sha256(_canonical(plan)).hexdigest()
 
 
-# ---- SB-4: published-phase session binding (no inferred fallback) ----------
-def session_from_record(record_bytes: bytes):
-    """Parse the published daily-monitoring record's EXACT half-open request interval (aware
-    UTC). The registered session MUST be exactly 86,400.000000 s. Malformed / missing interval
-    / non-86,400 s duration -> ValueError. There is NO midnight / nearest / inferred fallback."""
+# ---- SB-4 v2: published-end-anchored session binding (codex phasebar 0313) --
+def _parse_published_end(value):
+    """A naive-or-Z serialized instant interpreted as UTC (microseconds preserved). Any explicit
+    non-Z offset / epoch / prose refuses. Returns aware-UTC."""
+    if not isinstance(value, str) or not _NAIVE_OR_Z.fullmatch(value):
+        raise ValueError(f"published region.date has unsupported form: {value!r}")
+    text = value[:-1] if value.endswith("Z") else value
+    return datetime.fromisoformat(text).replace(tzinfo=timezone.utc)
+
+
+def session_from_record(record_bytes: bytes, *, carrier: str, scored_day: str):
+    """published-end-anchored-segmented-v2 (codex phasebar 0313). The bound (start, end) for a
+    (carrier, scored_day) comes ONLY from the portable public daily-monitoring record's
+    region.date: require top-level record["date"] == scored_day; the carrier's REGION_KEY region
+    present; its components.fault_correlation.available EXACTLY True; region["date"] (naive-or-Z,
+    interpreted UTC, microseconds preserved) as the request END, which must lie on scored_day;
+    request START = END - exactly 86,400 s. A legacy/decoy request_interval in the record is
+    IGNORED; no midnight/nearest/cache/inferred fallback exists. Returns aware-UTC (start, end)."""
+    if carrier not in REGION_KEY:
+        raise ValueError(f"unknown carrier {carrier!r}")
     try:
         rec = json.loads(record_bytes.decode("utf-8"))
     except Exception as exc:
         raise ValueError(f"published record is not valid JSON: {exc}")
     if not isinstance(rec, dict):
         raise ValueError("published record is not a JSON object")
-    iv = rec.get("request_interval")
-    if not (isinstance(iv, dict) and "start" in iv and "end" in iv):
-        raise ValueError("published record has no request_interval {start, end}")
-    start = _parse_iso_utc(iv["start"])
-    end = _parse_iso_utc(iv["end"])
-    if (end - start) != timedelta(seconds=86400):
-        raise ValueError(f"registered session is not exactly 86,400 s "
-                         f"(got {(end - start).total_seconds()} s)")
+    if rec.get("date") != scored_day:
+        raise ValueError(f"top-level record.date {rec.get('date')!r} != scored_day {scored_day!r}")
+    regions = rec.get("regions")
+    region = regions.get(REGION_KEY[carrier]) if isinstance(regions, dict) else None
+    if not isinstance(region, dict):
+        raise ValueError(f"carrier {carrier!r} mapped region {REGION_KEY[carrier]!r} absent")
+    components = region.get("components")
+    fc = components.get("fault_correlation") if isinstance(components, dict) else None
+    if not (isinstance(fc, dict) and fc.get("available") is True):
+        raise ValueError("region fault_correlation.available is not exactly True")
+    end = _parse_published_end(region.get("date"))
+    if end.date().isoformat() != scored_day:
+        raise ValueError(f"published end {end} is not on the scored day {scored_day}")
+    start = end - timedelta(seconds=86400)
     return start, end
 
 
@@ -157,22 +191,65 @@ def threshold_from_admitted(ratios):
     return ordered[idx]
 
 
-# ---- SB-7: replay ratios derived from bound evidence bytes -----------------
-def derive_replay_ratios(prior_evidence_bytes: bytes, expected_sha256: str) -> dict:
-    """Verify the prior-evidence bytes against the pin, then extract the sealed control/incident
-    ratios FROM THE BYTES. Producer-entered ratio values have no path in; tampered bytes fail."""
-    actual = hashlib.sha256(prior_evidence_bytes).hexdigest()
-    if actual != expected_sha256:
-        raise ValueError(f"prior-evidence sha256 {actual} != pin {expected_sha256}")
-    prior = json.loads(prior_evidence_bytes.decode("utf-8"))
-    carriers = prior.get("carriers") if isinstance(prior, dict) else None
-    if not isinstance(carriers, dict):
-        raise ValueError("prior evidence missing 'carriers' mapping")
+# ---- SB-7 v2: replay derived ONLY from the accepted sealed artifact bytes --
+def _matrix_digest(matrix):
+    """sha256 hex of the canonical JSON (sorted keys, ',:' separators) of a correlation matrix."""
+    return hashlib.sha256(json.dumps(matrix, sort_keys=True,
+                                     separators=(",", ":")).encode("utf-8")).hexdigest()
+
+
+def parse_diagnostic_results(doc: dict) -> dict:
+    """Derive per-carrier replay values FROM the accepted diagnostic-result doc's bytes-parsed
+    content (codex 0300 F2). Require results for EXACTLY the three campaign carriers; both phases
+    status == "OK"; the ratio RECOMPUTED as ordered_eigenvalues[1]/[0] (descending) matching the
+    stored lambda2_lambda1 within rel/abs 1e-6 (mismatch = tamper -> ValueError). Returns per
+    carrier {incident_ratio, control_ratio, incident_common_support, control_common_support,
+    incident_matrix_digest, control_matrix_digest}."""
+    if not isinstance(doc, dict):
+        raise ValueError("diagnostic result is not a JSON object")
+    results = doc.get("results")
+    if not isinstance(results, dict):
+        raise ValueError("diagnostic result has no 'results' mapping")
+    if set(results) != set(REGION_KEY):
+        raise ValueError(f"diagnostic must cover exactly {sorted(REGION_KEY)}; "
+                         f"got {sorted(results)}")
     out = {}
-    for carrier, vals in carriers.items():
-        out[carrier] = {"control_ratio": float(vals["control_ratio"]),
-                        "incident_ratio": float(vals["incident_ratio"])}
+    for carrier in REGION_KEY:
+        carrier_res = results.get(carrier)
+        if not isinstance(carrier_res, dict):
+            raise ValueError(f"{carrier} results missing")
+        entry = {}
+        for phase in ("incident", "control"):
+            rec = carrier_res.get(phase)
+            if not isinstance(rec, dict):
+                raise ValueError(f"{carrier}/{phase} record missing")
+            if rec.get("status") != "OK":
+                raise ValueError(f"{carrier}/{phase} status {rec.get('status')!r} != OK")
+            eig = rec.get("ordered_eigenvalues")
+            if not (isinstance(eig, list) and len(eig) >= 2 and float(eig[0]) != 0.0):
+                raise ValueError(f"{carrier}/{phase} ordered_eigenvalues unusable")
+            recomputed = float(eig[1]) / float(eig[0])
+            stored = rec.get("lambda2_lambda1")
+            if not (isinstance(stored, (int, float))
+                    and math.isclose(recomputed, float(stored), rel_tol=1e-6, abs_tol=1e-6)):
+                raise ValueError(f"{carrier}/{phase} ratio tamper: recomputed {recomputed} "
+                                 f"!= stored {stored}")
+            entry[f"{phase}_ratio"] = float(stored)
+            entry[f"{phase}_common_support"] = rec.get("common_support_count")
+            entry[f"{phase}_matrix_digest"] = _matrix_digest(rec.get("correlation_matrix"))
+        out[carrier] = entry
     return out
+
+
+def derive_replay_ratios(diagnostic_result_bytes: bytes) -> dict:
+    """Verify the diagnostic-result bytes against the DIRECT pin, then derive the sealed replay
+    values from the bytes (codex 0300 F2). There is NO override / expected-sha parameter, and
+    producer-entered values have no path in; `prior_evidence.json` stays a receipt wrapper only."""
+    actual = hashlib.sha256(diagnostic_result_bytes).hexdigest()
+    if actual != DIAGNOSTIC_RESULT_SHA256:
+        raise ValueError(f"diagnostic-result sha256 {actual} != pin {DIAGNOSTIC_RESULT_SHA256}")
+    doc = json.loads(diagnostic_result_bytes.decode("utf-8"))
+    return parse_diagnostic_results(doc)
 
 
 # ---- SB-7c: deterministic candidate rule -----------------------------------

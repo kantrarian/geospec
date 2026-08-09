@@ -1,11 +1,26 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""D2 STEP-4B CAMPAIGN red-KATs (cayley, 2026-08-09) — contract
-`codex-d2-step4b-2026-08-09-v1` (codex 0129, `ecd5bff`); pinned segmented implementation
-GeoSpec `3950a2c`. These bars gate grassmann's campaign PRODUCER (red-first); codex's step-4b
-acceptance entry point separately verifies the produced BATCH. Nothing here fetches, lifts,
-tunes, or claims; the campaign's first archive request additionally requires the DIRECT verifiable
-owner launch go in grassmann's session (SB-8) — this bar cannot and does not substitute for it.
+"""D2 STEP-4B CAMPAIGN red-KATs (cayley) — contract `codex-d2-step4b-2026-08-09-v1`
+(codex 0129, `ecd5bff`); pinned segmented implementation GeoSpec `3950a2c`. These bars gate
+grassmann's campaign PRODUCER (red-first); codex's step-4b acceptance entry point separately
+verifies the produced BATCH. Nothing here fetches, lifts, tunes, or claims; the campaign's
+first archive request additionally required the DIRECT verifiable owner launch go in
+grassmann's session (SB-8) — this bar cannot and does not substitute for it.
+
+REV 2 (2026-08-09, authorized by codex 0300 F2 + codex 0313 SB-4 directive):
+  * SB-4 REVISED to `published-end-anchored-segmented-v2` (codex phasebar 0313): real public
+    records carry NO request_interval; the session anchors on the published per-region naive
+    `date` interpreted as UTC = request END, START = END − 86,400 s exactly. New RED cases:
+    shifted-end, wrong-region, unavailable-component, non-UTC-offset reinterpretation,
+    top-level day mismatch, decoy-request_interval anti-fallback, record-byte mutation.
+  * SB-7 REVISED to the ACCEPTED evidence schema (codex 0300 F2): the producer consumes the
+    exact sealed `d2_diagnostic_result.json` bytes pinned at `ee75e449…` DIRECTLY and derives
+    every replay value from `results[carrier][incident|control]` (status==OK both phases,
+    ratio recomputed from ordered_eigenvalues, matrix digest + common support from bytes).
+    Fixture = the REAL sealed artifact (`fixtures/d2_diagnostic_result.json`, byte-identical
+    to the mirrored diagnostic capsule), not a synthetic wrapper.
+  * All other checks semantically identical to rev-1 (geospec 65755de).
+  RED-FIRST DELTA vs producer `c1576a9`: exactly ['SB-4-GATE(v2)', 'SB-7-GATE(v2)'].
 
 CONTRACT SEAMS (grassmann implements `monitoring/src/d2_step4b_producer.py` to THIS, unedited)
 ==============================================================================================
@@ -23,21 +38,50 @@ CONTRACT SEAMS (grassmann implements `monitoring/src/d2_step4b_producer.py` to T
       endpoints; NO outcome-bearing field is accepted or emitted (ratios/thresholds/labels);
     - DETERMINISTIC: identical inputs -> byte-identical canonical JSON (sort_keys, ',:', LF).
 * plan_digest(plan) -> 64-hex sha256 over the canonical plan bytes.
-* session_from_record(record_bytes: bytes) -> (start_utc, end_utc)
-    - parses the published daily-monitoring record's EXACT half-open request interval
-      (aware UTC); the registered session MUST be exactly 86,400.000000 s (else ValueError);
-      malformed/missing interval -> ValueError. NO inferred/midnight/nearest fallback exists
-      anywhere in the producer: a scheduled day with no record is
-      UNAVAILABLE_NO_PUBLISHED_RECORD, gets NO archive request and NO attempt row.
+* REGION_KEY = {"istanbul_marmara": "istanbul_marmara",
+  "socal_coachella": "socal_saf_coachella", "turkey_kahramanmaras": "turkey_kahramanmaras"}
+  — the exact carrier -> published-region mapping (codex phasebar 0313).
+* session_from_record(record_bytes: bytes, *, carrier: str, scored_day: str)
+    -> (start_utc, end_utc)   [published-end-anchored-segmented-v2]
+    - parse the PORTABLE public daily-monitoring record bytes; require top-level
+      record["date"] == scored_day;
+    - region = record["regions"][REGION_KEY[carrier]] must exist (unknown carrier or missing
+      region -> ValueError);
+    - region["components"]["fault_correlation"]["available"] must be exactly True;
+    - request END = region["date"], a naive-or-Z serialized instant (microseconds preserved,
+      up to 6 digits) interpreted as UTC; ANY other form (explicit non-Z offset, epoch,
+      prose) refuses;
+    - END must lie on scored_day (end.date().isoformat() == scored_day);
+    - request START = END - exactly 86,400 s; return aware-UTC (start, end);
+    - NO other timestamp path exists: a legacy/decoy `request_interval` object in the record
+      is IGNORED; no midnight/nearest-day/cache/inferred fallback. A scheduled day with no
+      record remains UNAVAILABLE_NO_PUBLISHED_RECORD: no archive request, no metric.
 * select_channel(candidates: list[str], available: set[str]) -> str | None
     - the FIRST candidate (frozen order) present in `available`; None if none; there is no
       post-QC swap seam — QC failure of fetched data never re-enters selection.
 * threshold_from_admitted(ratios: list[float]) -> float | None
     - None when n < 60; else sort ascending and return ratios_sorted[ceil(0.05*n)-1]
       (nearest-rank lower 5% quantile, zero-based).
-* derive_replay_ratios(prior_evidence_bytes: bytes, expected_sha256: str) -> dict
-    - verifies sha256(prior_evidence_bytes) == expected pin, then extracts the six sealed
-      control/incident ratios FROM THE BYTES; producer-entered ratio values have no path in.
+* DIAGNOSTIC_RESULT_SHA256 =
+  "ee75e449aa0b1003a3cf047432a91a9adc1db4c7497b1e1d9d47f01d552a4b35" (the accepted sealed
+  diagnostic result — codex retention PASS 0043; pinned DIRECTLY, no caller-supplied pin).
+* parse_diagnostic_results(doc: dict) -> dict
+    - doc is the parsed diagnostic-result JSON; requires results for EXACTLY the three
+      campaign carriers; for each carrier and both phases ("incident", "control"):
+      status == "OK"; ratio RECOMPUTED as ordered_eigenvalues[1]/ordered_eigenvalues[0]
+      (descending) and required to match stored lambda2_lambda1 within rel/abs 1e-6
+      (mismatch = tamper -> ValueError); returns per carrier:
+      {"incident_ratio", "control_ratio", "incident_common_support",
+       "control_common_support", "incident_matrix_digest", "control_matrix_digest"}
+      where *_matrix_digest = sha256 hex of the canonical JSON (sort_keys, ',:') of
+      correlation_matrix and *_common_support = common_support_count from the bytes;
+    - missing carrier, missing phase, non-OK status, or ratio/eigenvalue mismatch ->
+      ValueError.
+* derive_replay_ratios(diagnostic_result_bytes: bytes) -> dict
+    - sha256(bytes) MUST equal DIAGNOSTIC_RESULT_SHA256 (else ValueError; NO override or
+      expected-sha parameter exists) -> json parse -> parse_diagnostic_results(doc).
+      Producer-entered ratio values have no path in; `prior_evidence.json` stays a receipt
+      wrapper only (codex 0300 F2).
 * admit_candidate(carrier, incident_summary, activation_summary, replay: dict) -> (status, info)
     - ADMITTED_CANDIDATE iff BOTH arms have >= 60 admitted days AND reproducible thresholds AND
       replay has both ratios AND incident_ratio >= incident_threshold AND
@@ -53,10 +97,9 @@ CONTRACT SEAMS (grassmann implements `monitoring/src/d2_step4b_producer.py` to T
   exactly ONE summary row per REGISTERED station/scheduled-day with a published record; statuses
   in {FETCHED, UNAVAILABLE, ERROR}; overlap days between the two arms are single acquisition
   entries reused byte-for-byte (same object hashes in both arm rows).
-
-RED AS AUTHORED (`d2_step4b_producer.py` absent / seams absent).
 """
 import hashlib
+import inspect
 import json
 import math
 import os
@@ -66,6 +109,14 @@ from datetime import datetime, timedelta, timezone
 HERE = os.path.dirname(os.path.abspath(__file__))
 if HERE not in sys.path:
     sys.path.insert(0, HERE)
+
+DIAG_FIXTURE = os.path.join(HERE, "fixtures", "d2_diagnostic_result.json")
+DIAG_SHA256 = "ee75e449aa0b1003a3cf047432a91a9adc1db4c7497b1e1d9d47f01d552a4b35"
+REGION_KEY = {
+    "istanbul_marmara": "istanbul_marmara",
+    "socal_coachella": "socal_saf_coachella",
+    "turkey_kahramanmaras": "turkey_kahramanmaras",
+}
 
 FAILS = []
 
@@ -82,6 +133,25 @@ def raises(fn, exc=Exception):
         return False
     except exc:
         return True
+
+
+def _pub_record(scored_day, region_dates, fc_available=None, extra=None):
+    """Portable public daily-monitoring record bytes in the REAL shape (top-level date +
+    regions[key].date + components.fault_correlation.available). fc_available overrides
+    availability per region key; extra merges extra top-level fields (e.g. a decoy
+    request_interval)."""
+    fc_available = fc_available or {}
+    regions = {}
+    for key, d in region_dates.items():
+        regions[key] = {
+            "date": d,
+            "components": {"fault_correlation":
+                           {"available": fc_available.get(key, True)}},
+        }
+    rec = {"date": scored_day, "regions": regions}
+    if extra:
+        rec.update(extra)
+    return json.dumps(rec, sort_keys=True).encode("utf-8")
 
 
 CARRIERS_OK = {
@@ -160,24 +230,85 @@ def main():
     check("SB-3e a carrier outside the provider cap refuses to plan (no tokyo_kanto, no "
           "expansion)", raises(lambda: P.build_campaign_plan(bad3, "2026-08-09")))
 
-    # ---- SB-4: published-phase session binding, no inferred fallback -------
-    rec = {"schema": "daily-monitoring-record", "day": "2026-05-01",
-           "request_interval": {"start": "2026-04-30T07:00:13.094647Z",
-                                "end": "2026-05-01T07:00:13.094647Z"}}
-    s, e = P.session_from_record(json.dumps(rec).encode())
-    check("SB-4 the published record's EXACT half-open interval is the session "
-          "(microfractional phase preserved; duration exactly 86,400 s)",
-          s.tzinfo is not None and (e - s) == timedelta(seconds=86400)
-          and s.microsecond == 94647,
-          f"start={s} end={e}")
-    rec_short = dict(rec)
-    rec_short["request_interval"] = {"start": "2026-04-30T07:00:13.094647Z",
-                                     "end": "2026-05-01T04:00:13.094647Z"}
-    check("SB-4b a non-86,400 s registered session refuses (never padded/extended)",
-          raises(lambda: P.session_from_record(json.dumps(rec_short).encode())))
-    check("SB-4c a record without an interval refuses (no midnight/nearest/inferred fallback)",
-          raises(lambda: P.session_from_record(json.dumps({"day": "2026-05-01"}).encode()))
-          and raises(lambda: P.session_from_record(b"{not json")))
+    # ---- SB-4 v2: published-end-anchored session binding (codex 0313) ------
+    sig = None
+    try:
+        sig = inspect.signature(P.session_from_record)
+    except (TypeError, ValueError):
+        pass
+    v2_session = (sig is not None and "carrier" in sig.parameters
+                  and "scored_day" in sig.parameters
+                  and getattr(P, "REGION_KEY", None) == REGION_KEY)
+    if not v2_session:
+        check("SB-4-GATE(v2) session seam is published-end-anchored-segmented-v2 "
+              "(carrier/scored_day-aware + exact REGION_KEY)", False,
+              "AWAITING producer v2 session seam -- red-first as revised")
+    else:
+        day = "2026-05-01"
+        good = _pub_record(day, {
+            "istanbul_marmara": "2026-05-01T07:00:13.094647",
+            "socal_saf_coachella": "2026-05-01T07:00:13.094647",
+            "turkey_kahramanmaras": "2026-05-01T07:00:13.094647"})
+        s, e = P.session_from_record(good, carrier="socal_coachella", scored_day=day)
+        check("SB-4 published naive region.date is the UTC request END (microseconds "
+              "preserved); START is exactly END - 86,400 s; both aware-UTC",
+              s.tzinfo is not None and e.tzinfo is not None
+              and e == datetime(2026, 5, 1, 7, 0, 13, 94647, tzinfo=timezone.utc)
+              and (e - s) == timedelta(seconds=86400),
+              f"start={s} end={e}")
+        goodz = _pub_record(day, {"istanbul_marmara": "2026-05-01T07:00:13.094647Z",
+                                  "socal_saf_coachella": "2026-05-01T07:00:13.094647Z",
+                                  "turkey_kahramanmaras": "2026-05-01T07:00:13.094647Z"})
+        s2, e2 = P.session_from_record(goodz, carrier="istanbul_marmara", scored_day=day)
+        check("SB-4a Z-suffixed form accepted identically; carrier maps through REGION_KEY",
+              e2 == e and (e2 - s2) == timedelta(seconds=86400))
+        shifted = _pub_record(day, {"socal_saf_coachella": "2026-05-02T07:00:13.094647",
+                                    "istanbul_marmara": "2026-05-01T07:00:13.094647",
+                                    "turkey_kahramanmaras": "2026-05-01T07:00:13.094647"})
+        check("SB-4b SHIFTED-END refuses (published end not on the scored day)",
+              raises(lambda: P.session_from_record(shifted, carrier="socal_coachella",
+                                                   scored_day=day)))
+        check("SB-4c WRONG-REGION refuses (carrier's mapped region absent; unknown carrier "
+              "refuses)",
+              raises(lambda: P.session_from_record(
+                  _pub_record(day, {"istanbul_marmara": "2026-05-01T07:00:13.094647"}),
+                  carrier="socal_coachella", scored_day=day))
+              and raises(lambda: P.session_from_record(good, carrier="ridgecrest",
+                                                       scored_day=day)))
+        unavail = _pub_record(day, {"socal_saf_coachella": "2026-05-01T07:00:13.094647",
+                                    "istanbul_marmara": "2026-05-01T07:00:13.094647",
+                                    "turkey_kahramanmaras": "2026-05-01T07:00:13.094647"},
+                              fc_available={"socal_saf_coachella": False})
+        check("SB-4d UNAVAILABLE-COMPONENT refuses (fault_correlation.available is not True)",
+              raises(lambda: P.session_from_record(unavail, carrier="socal_coachella",
+                                                   scored_day=day)))
+        offset = _pub_record(day, {"socal_saf_coachella": "2026-05-01T07:00:13.094647+03:00",
+                                   "istanbul_marmara": "2026-05-01T07:00:13.094647",
+                                   "turkey_kahramanmaras": "2026-05-01T07:00:13.094647"})
+        check("SB-4e NON-UTC OFFSET refuses (naive-or-Z only; no timezone reinterpretation)",
+              raises(lambda: P.session_from_record(offset, carrier="socal_coachella",
+                                                   scored_day=day)))
+        check("SB-4f TOP-LEVEL DAY MISMATCH refuses (record.date != scored_day)",
+              raises(lambda: P.session_from_record(good, carrier="socal_coachella",
+                                                   scored_day="2026-05-02")))
+        decoy = _pub_record(day, {"socal_saf_coachella": "2026-05-01T07:00:13.094647",
+                                  "istanbul_marmara": "2026-05-01T07:00:13.094647",
+                                  "turkey_kahramanmaras": "2026-05-01T07:00:13.094647"},
+                            extra={"request_interval":
+                                   {"start": "2026-04-30T00:00:00Z",
+                                    "end": "2026-05-01T00:00:00Z"}})
+        sd, ed = P.session_from_record(decoy, carrier="socal_coachella", scored_day=day)
+        check("SB-4g ANTI-FALLBACK: a decoy request_interval in the record is IGNORED; the "
+              "session anchors on region.date only",
+              ed == e and (ed - sd) == timedelta(seconds=86400), f"end={ed}")
+        mutated = good.replace(b"07:00:13.094647", b"07:00:13.094648")
+        sm, em = P.session_from_record(mutated, carrier="socal_coachella", scored_day=day)
+        check("SB-4h RECORD-BYTE MUTATION is faithfully reflected (bytes are authoritative: "
+              "one-microsecond change moves the anchor exactly); malformed bytes refuse",
+              em == e + timedelta(microseconds=1)
+              and raises(lambda: P.session_from_record(b"{not json",
+                                                       carrier="socal_coachella",
+                                                       scored_day=day)))
 
     # ---- SB-5: frozen NSLC selection order ---------------------------------
     cands = ["CI.BOR..BHZ", "CI.BOR..HHZ", "CI.BOR..HNZ"]
@@ -202,19 +333,64 @@ def main():
           and P.threshold_from_admitted(shuffled) == 5.0
           and P.threshold_from_admitted(r60[:-1]) is None)
 
-    # ---- SB-7: replay ratios derived from bound evidence bytes -------------
-    prior = {"carriers": {"socal_coachella": {"control_ratio": 0.9985, "incident_ratio": 0.9987},
-                          "turkey_kahramanmaras": {"control_ratio": 0.8779,
-                                                   "incident_ratio": 0.9340},
-             "istanbul_marmara": {"control_ratio": 0.3710, "incident_ratio": 0.3522}}}
-    prior_bytes = json.dumps(prior, sort_keys=True, separators=(",", ":")).encode()
-    pin = hashlib.sha256(prior_bytes).hexdigest()
-    got = P.derive_replay_ratios(prior_bytes, pin)
-    check("SB-7 replay ratios come FROM the pinned evidence bytes",
-          abs(got["socal_coachella"]["incident_ratio"] - 0.9987) < 1e-12
-          and abs(got["istanbul_marmara"]["control_ratio"] - 0.3710) < 1e-12)
-    check("SB-7b tampered evidence bytes fail the pin (no producer-entered ratio path)",
-          raises(lambda: P.derive_replay_ratios(prior_bytes + b" ", pin)))
+    # ---- SB-7 v2: replay derivation from the ACCEPTED sealed artifact ------
+    with open(DIAG_FIXTURE, "rb") as f:
+        diag_bytes = f.read()
+    check("SB-7-FIXTURE the committed fixture IS the accepted sealed artifact "
+          "(sha ee75e449...)",
+          hashlib.sha256(diag_bytes).hexdigest() == DIAG_SHA256)
+    v2_replay = (getattr(P, "DIAGNOSTIC_RESULT_SHA256", None) is not None
+                 and hasattr(P, "parse_diagnostic_results"))
+    if not v2_replay:
+        check("SB-7-GATE(v2) replay seam consumes the accepted diagnostic-result schema "
+              "(DIAGNOSTIC_RESULT_SHA256 + parse_diagnostic_results present)", False,
+              "AWAITING producer v2 replay seam -- red-first as revised")
+    else:
+        check("SB-7 producer pins the accepted artifact DIRECTLY",
+              P.DIAGNOSTIC_RESULT_SHA256 == DIAG_SHA256)
+        got = P.derive_replay_ratios(diag_bytes)
+        doc = json.loads(diag_bytes.decode("utf-8"))
+        res = doc["results"]
+
+        def md(carrier, phase):
+            return hashlib.sha256(json.dumps(
+                res[carrier][phase]["correlation_matrix"],
+                sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+
+        ok_vals = True
+        for carrier in REGION_KEY:
+            for phase in ("incident", "control"):
+                entry = res[carrier][phase]
+                ok_vals = (ok_vals
+                           and abs(got[carrier][f"{phase}_ratio"]
+                                   - entry["lambda2_lambda1"]) <= 1e-6
+                           and got[carrier][f"{phase}_common_support"]
+                           == entry["common_support_count"]
+                           and got[carrier][f"{phase}_matrix_digest"] == md(carrier, phase))
+        check("SB-7a real bytes -> every ratio/common-support/matrix-digest derived from the "
+              "artifact for all three carriers x both phases (socal incident 0.9986667, "
+              "istanbul control 0.37098175, turkey control 0.87788606, ...)",
+              set(got) == set(REGION_KEY) and ok_vals)
+        check("SB-7b BYTE-TAMPER refuses (any byte change fails the direct pin; no override "
+              "parameter exists)",
+              raises(lambda: P.derive_replay_ratios(diag_bytes + b" "))
+              and raises(lambda: P.derive_replay_ratios(
+                  diag_bytes.replace(b"0.9986667", b"0.9986668", 1)))
+              and "expected_sha256" not in
+                  inspect.signature(P.derive_replay_ratios).parameters)
+        missing = json.loads(diag_bytes.decode("utf-8"))
+        del missing["results"]["turkey_kahramanmaras"]
+        check("SB-7c MISSING-CARRIER refuses (exactly the three campaign carriers required)",
+              raises(lambda: P.parse_diagnostic_results(missing)))
+        nonok = json.loads(diag_bytes.decode("utf-8"))
+        nonok["results"]["socal_coachella"]["incident"]["status"] = "DEGRADED"
+        check("SB-7d NON-OK STATUS refuses (both phases must be status OK)",
+              raises(lambda: P.parse_diagnostic_results(nonok)))
+        tampered = json.loads(diag_bytes.decode("utf-8"))
+        tampered["results"]["socal_coachella"]["incident"]["ordered_eigenvalues"][1] *= 0.5
+        check("SB-7e EIGENVALUE/RATIO TAMPER refuses (ratio is RECOMPUTED from "
+              "ordered_eigenvalues and must match the stored scalar)",
+              raises(lambda: P.parse_diagnostic_results(tampered)))
 
     def arm(n_admitted, threshold):
         return {"admitted_days": n_admitted, "threshold": threshold}
@@ -228,7 +404,7 @@ def main():
                                {"control_ratio": 0.9992, "incident_ratio": 0.9987})
     st5, _ = P.admit_candidate("socal_coachella", arm(60, 0.9990), arm(62, 0.31),
                                {"control_ratio": 0.9985, "incident_ratio": 0.9992})
-    check("SB-7c candidate rule: all-4-conditions -> ADMITTED_CANDIDATE; <60 days -> "
+    check("SB-7f candidate rule: all-4-conditions -> ADMITTED_CANDIDATE; <60 days -> "
           "BLOCKED_INSUFFICIENT_CALIBRATION; no replay -> BLOCKED_REPLAY_UNAVAILABLE; "
           "incident<threshold -> BLOCKED_ARTIFACT_PERSISTS; control<threshold -> "
           "BLOCKED_NEGATIVE_CONTROL",
@@ -266,5 +442,5 @@ print()
 if FAILS:
     print(f"D2 STEP-4B CAMPAIGN RED-KAT FAILURES: {FAILS}")
     sys.exit(1)
-print("ALL D2 STEP-4B CAMPAIGN RED-KATs PASS (outcome-blind plan + published-phase-only sessions "
-      "+ frozen selection + pinned-evidence admission + direct-launch gate)")
+print("ALL D2 STEP-4B CAMPAIGN RED-KATs PASS (outcome-blind plan + published-end-anchored "
+      "sessions + frozen selection + accepted-artifact replay derivation + direct-launch gate)")

@@ -1,0 +1,855 @@
+{
+  "diagnostic": "D2 segmented-support historical incident/control replay",
+  "non_promotional": true,
+  "controls": "codex 1943/0014 -- sealed as diagnostic only; NOT a freeze-lift / calibration admit / admission-rule tuning / registry promotion / deployment / publication / claim / evidence; ratios may not be used to tune the admission rule (codex 1712)",
+  "frame": {
+    "geospec_commit": "3950a2c4fabc870eaa929f41a790b875966b9dfb",
+    "band_tag": "1-10Hz",
+    "processing_version": "d2-reband-v2",
+    "topology_version": "t1",
+    "out_rate_hz": 1.0,
+    "freqmin": 1.0,
+    "freqmax": 10.0,
+    "min_rate_hz": 25.0,
+    "seg_support": {
+      "edge_trim_seconds": 90,
+      "min_contiguous_span_seconds": 240,
+      "min_common_support_fraction": 0.5,
+      "station_coverage_floor": 0.5,
+      "edge_effect_rel_tol": 0.0002
+    },
+    "accepted_bar_sha256": {
+      "segsupport_crlf": "d0b3b8a03bf789b726d729529d11bfc9edfbd8f0576427af256f0c2eb1251c9e",
+      "segsupport_git_blob_lf": "1ca5a4a2a5c9cdea1303998db26e721d76aa0237347f94eef561fa51f5094319",
+      "livecarrier_crlf": "037e0e3d29bc1fb95dfc5602073a776d2bea5167c358426787460f817966070d",
+      "livecarrier_git_blob_lf": "b268ff48a53b135030a054eed84eef91adb2d8a536929abb1a9d26fe5bb7fff6",
+      "accepted_bar_commit": "9b40e02"
+    },
+    "lane_a_raw_input_manifest_ref": {
+      "batch_manifest_sha256": "eeb888d0b9611ea7be402964cec3fb839cd6ff6f42b699f4631146c2adc4f600",
+      "note": "raw miniSEED bytes are separately staged in the Lane A batch; referenced by per-file sha256 in segment_detail (not copied into this capsule)"
+    }
+  },
+  "results": {
+    "istanbul_marmara": {
+      "control": {
+        "session_start_utc": "2026-07-27T07:00:11Z",
+        "session_end_utc": "2026-07-28T07:00:11Z",
+        "session_seconds": 86400,
+        "segments_formed": [
+          "izmit",
+          "marmara_central",
+          "marmara_west"
+        ],
+        "n_segments": 3,
+        "segment_detail": {
+          "izmit": {
+            "stations_in": 2,
+            "stations_env": 2,
+            "stations": [
+              {
+                "source_id": "KO.GAZK..HHZ",
+                "raw_path": "istanbul_marmara__control_2026-07-28__izmit__KO.GAZK.HHZ.mseed",
+                "raw_sha256": "24bc0e90646802c4a83c2de722a179b09b10bf449ed16b612e0d96def3d6a69b",
+                "n_fragments": 54,
+                "native_rate_hz": 100.0,
+                "npts_total": 7505139,
+                "coverage": 0.804132
+              },
+              {
+                "source_id": "KO.SAUV..HHZ",
+                "raw_path": "istanbul_marmara__control_2026-07-28__izmit__KO.SAUV.HHZ.mseed",
+                "raw_sha256": "117cb3177e205db26c511b441d825fb41e8d1dea651f13459b43df313a2b37aa",
+                "n_fragments": 4,
+                "native_rate_hz": 100.0,
+                "npts_total": 8629810,
+                "coverage": 0.99228
+              }
+            ],
+            "aggregate_coverage": 0.803912,
+            "aggregate_valid_bins": 69458,
+            "aggregate_mask_sha256": "6e4db00a243cdc01d5b22754c85664e8dcbf9502ac455274bf8ae200e3288f85"
+          },
+          "marmara_central": {
+            "stations_in": 4,
+            "stations_env": 4,
+            "stations": [
+              {
+                "source_id": "KO.NMR5..HHZ",
+                "raw_path": "istanbul_marmara__control_2026-07-28__marmara_central__KO.NMR5.HHZ.mseed",
+                "raw_sha256": "a61042bf9b73c6c9a21f611c66556946e4d0b8ce00caa53b0c4a74abe5556d38",
+                "n_fragments": 8,
+                "native_rate_hz": 100.0,
+                "npts_total": 8586234,
+                "coverage": 0.979525
+              },
+              {
+                "source_id": "KO.NMR7..HHZ",
+                "raw_path": "istanbul_marmara__control_2026-07-28__marmara_central__KO.NMR7.HHZ.mseed",
+                "raw_sha256": "c46b25de65e9fbbeb4336af3c2a6fa9b4d9c238c8707bfe39c91adb8b9c011b0",
+                "n_fragments": 4,
+                "native_rate_hz": 100.0,
+                "npts_total": 8629773,
+                "coverage": 0.991111
+              },
+              {
+                "source_id": "KO.NMR8..HHZ",
+                "raw_path": "istanbul_marmara__control_2026-07-28__marmara_central__KO.NMR8.HHZ.mseed",
+                "raw_sha256": "f0b18a8350cd8f52e6de501cd06b0bd01dd5812fb68fddb4188b929a9460996e",
+                "n_fragments": 5,
+                "native_rate_hz": 100.0,
+                "npts_total": 6004282,
+                "coverage": 0.686551
+              },
+              {
+                "source_id": "KO.NMR9..HHZ",
+                "raw_path": "istanbul_marmara__control_2026-07-28__marmara_central__KO.NMR9.HHZ.mseed",
+                "raw_sha256": "33657ab16a888a97422913ecd3eb2f2052aa22221065b198e2fa91098d99abb2",
+                "n_fragments": 7,
+                "native_rate_hz": 100.0,
+                "npts_total": 8585657,
+                "coverage": 0.979769
+              }
+            ],
+            "aggregate_coverage": 0.989005,
+            "aggregate_valid_bins": 85450,
+            "aggregate_mask_sha256": "f140c87616563e0c62d7aecf04e3a9ac5eba39760c100da1f94675647e0ac8c9"
+          },
+          "marmara_west": {
+            "stations_in": 4,
+            "stations_env": 4,
+            "stations": [
+              {
+                "source_id": "KO.BOTS..HHZ",
+                "raw_path": "istanbul_marmara__control_2026-07-28__marmara_west__KO.BOTS.HHZ.mseed",
+                "raw_sha256": "ac13f7de8763c61efb22d4a951fa62c9e58cec761f51b26899853c7cbb06880f",
+                "n_fragments": 4,
+                "native_rate_hz": 100.0,
+                "npts_total": 8629737,
+                "coverage": 0.990486
+              },
+              {
+                "source_id": "KO.NMR2..HHZ",
+                "raw_path": "istanbul_marmara__control_2026-07-28__marmara_west__KO.NMR2.HHZ.mseed",
+                "raw_sha256": "7c5c5fd2912a9929e9ff36a0fb260a722fd5d1ee5ab732113b7fef35ca939cfa",
+                "n_fragments": 6,
+                "native_rate_hz": 100.0,
+                "npts_total": 8627187,
+                "coverage": 0.986655
+              },
+              {
+                "source_id": "KO.NMR3..HHZ",
+                "raw_path": "istanbul_marmara__control_2026-07-28__marmara_west__KO.NMR3.HHZ.mseed",
+                "raw_sha256": "d99f79e504d2e00134dcf6b7f64dacc29a7f76269d2dda33e7abdbdbef737ddf",
+                "n_fragments": 4,
+                "native_rate_hz": 100.0,
+                "npts_total": 8629245,
+                "coverage": 0.990417
+              },
+              {
+                "source_id": "KO.NMR6..HHZ",
+                "raw_path": "istanbul_marmara__control_2026-07-28__marmara_west__KO.NMR6.HHZ.mseed",
+                "raw_sha256": "c901859a43867285c46c0af94cbe4141e7b70ace659c57f4549d54578fa49a42",
+                "n_fragments": 4,
+                "native_rate_hz": 100.0,
+                "npts_total": 6472877,
+                "coverage": 0.741539
+              }
+            ],
+            "aggregate_coverage": 0.992616,
+            "aggregate_valid_bins": 85762,
+            "aggregate_mask_sha256": "9667519b3e5753ea810524406fdeab7d3a4352ebc7494297af4b2a9727c73845"
+          }
+        },
+        "status": "OK",
+        "common_support_count": 69458,
+        "min_common_support_required": 43200,
+        "ordered_eigenvalues": [
+          1.7851426,
+          0.66225533,
+          0.55260207
+        ],
+        "lambda2_lambda1": 0.37098175,
+        "lambda2_lambda1_derivation": "ordered_eigenvalues[1] / ordered_eigenvalues[0] (descending)",
+        "participation_ratio": 2.289677,
+        "correlation_matrix": [
+          [
+            1.0,
+            0.33774723,
+            0.41860491
+          ],
+          [
+            0.33774723,
+            1.0,
+            0.41957047
+          ],
+          [
+            0.41860491,
+            0.41957047,
+            1.0
+          ]
+        ],
+        "correlation_matrix_order": [
+          "izmit",
+          "marmara_central",
+          "marmara_west"
+        ]
+      },
+      "incident": {
+        "session_start_utc": "2026-07-28T07:00:11Z",
+        "session_end_utc": "2026-07-29T07:00:11Z",
+        "session_seconds": 86400,
+        "segments_formed": [
+          "izmit",
+          "marmara_central",
+          "marmara_west"
+        ],
+        "n_segments": 3,
+        "segment_detail": {
+          "izmit": {
+            "stations_in": 2,
+            "stations_env": 2,
+            "stations": [
+              {
+                "source_id": "KO.GAZK..HHZ",
+                "raw_path": "istanbul_marmara__incident_2026-07-29__izmit__KO.GAZK.HHZ.mseed",
+                "raw_sha256": "a2107fc1ff9ccc517e9e00a1ba1ec2a62534b1509a1861ad50679705e2b1da5c",
+                "n_fragments": 6,
+                "native_rate_hz": 100.0,
+                "npts_total": 8620877,
+                "coverage": 0.985289
+              },
+              {
+                "source_id": "KO.SAUV..HHZ",
+                "raw_path": "istanbul_marmara__incident_2026-07-29__izmit__KO.SAUV.HHZ.mseed",
+                "raw_sha256": "fb290722c7911018a09663a462b9b56549ea3b08ecb575784936735e6a35c449",
+                "n_fragments": 10,
+                "native_rate_hz": 100.0,
+                "npts_total": 8618381,
+                "coverage": 0.980023
+              }
+            ],
+            "aggregate_coverage": 0.969942,
+            "aggregate_valid_bins": 83803,
+            "aggregate_mask_sha256": "5576adfe36ca2f136cc97eebe53c437f1e43904f790be4d319aea55f4d711bf5"
+          },
+          "marmara_central": {
+            "stations_in": 4,
+            "stations_env": 4,
+            "stations": [
+              {
+                "source_id": "KO.NMR5..HHZ",
+                "raw_path": "istanbul_marmara__incident_2026-07-29__marmara_central__KO.NMR5.HHZ.mseed",
+                "raw_sha256": "3f28eea37667cf952a0458d03f6dea4a57c9c4136f3f56719a2d5a1e26538c3b",
+                "n_fragments": 7,
+                "native_rate_hz": 100.0,
+                "npts_total": 8621830,
+                "coverage": 0.986632
+              },
+              {
+                "source_id": "KO.NMR7..HHZ",
+                "raw_path": "istanbul_marmara__incident_2026-07-29__marmara_central__KO.NMR7.HHZ.mseed",
+                "raw_sha256": "a1abaaf772eeee30cb43054fd379389c4f89bb9489d1bab4f84a27ac00ebd058",
+                "n_fragments": 10,
+                "native_rate_hz": 100.0,
+                "npts_total": 8619345,
+                "coverage": 0.982315
+              },
+              {
+                "source_id": "KO.NMR8..HHZ",
+                "raw_path": "istanbul_marmara__incident_2026-07-29__marmara_central__KO.NMR8.HHZ.mseed",
+                "raw_sha256": "509d9c3619536d192317f72d812b1ff0bfbbe87fd714dc28c80c1ec3c42633f8",
+                "n_fragments": 8,
+                "native_rate_hz": 100.0,
+                "npts_total": 8619037,
+                "coverage": 0.982234
+              },
+              {
+                "source_id": "KO.NMR9..HHZ",
+                "raw_path": "istanbul_marmara__incident_2026-07-29__marmara_central__KO.NMR9.HHZ.mseed",
+                "raw_sha256": "efce54fe806f1913ed46a6fc7fe463ce63a9adb6f4b75f2406309ae3599a884c",
+                "n_fragments": 6,
+                "native_rate_hz": 100.0,
+                "npts_total": 8619429,
+                "coverage": 0.986551
+              }
+            ],
+            "aggregate_coverage": 0.986644,
+            "aggregate_valid_bins": 85246,
+            "aggregate_mask_sha256": "18ec75b6865131814530a5a51d8fe7a4bbc20ac9680a5a9cfa2c52cd6a69bb55"
+          },
+          "marmara_west": {
+            "stations_in": 4,
+            "stations_env": 4,
+            "stations": [
+              {
+                "source_id": "KO.BOTS..HHZ",
+                "raw_path": "istanbul_marmara__incident_2026-07-29__marmara_west__KO.BOTS.HHZ.mseed",
+                "raw_sha256": "b5f80771283ea1e54aaafa7076a337cfedbb8e336556499e013013b1bd4b64ca",
+                "n_fragments": 8,
+                "native_rate_hz": 100.0,
+                "npts_total": 8620365,
+                "coverage": 0.984525
+              },
+              {
+                "source_id": "KO.NMR2..HHZ",
+                "raw_path": "istanbul_marmara__incident_2026-07-29__marmara_west__KO.NMR2.HHZ.mseed",
+                "raw_sha256": "0cf9525249111c30d060635e6c414f8d75095c41c0abb9301646e0c146aca6f8",
+                "n_fragments": 9,
+                "native_rate_hz": 100.0,
+                "npts_total": 8621254,
+                "coverage": 0.982384
+              },
+              {
+                "source_id": "KO.NMR3..HHZ",
+                "raw_path": "istanbul_marmara__incident_2026-07-29__marmara_west__KO.NMR3.HHZ.mseed",
+                "raw_sha256": "dd6b3a67a6122093943ac49cbb064c3297c122b0c931ef4e5afa2cb06d0c515f",
+                "n_fragments": 8,
+                "native_rate_hz": 100.0,
+                "npts_total": 8621317,
+                "coverage": 0.984583
+              },
+              {
+                "source_id": "KO.NMR6..HHZ",
+                "raw_path": "istanbul_marmara__incident_2026-07-29__marmara_west__KO.NMR6.HHZ.mseed",
+                "raw_sha256": "50c56c64a6b9d68bbb114cd23d43f4605c507f9d08a796acd794371029eebc51",
+                "n_fragments": 7,
+                "native_rate_hz": 100.0,
+                "npts_total": 8617438,
+                "coverage": 0.98419
+              }
+            ],
+            "aggregate_coverage": 0.984583,
+            "aggregate_valid_bins": 85068,
+            "aggregate_mask_sha256": "d74694973e00e18516cbed79da9ffdaa5170810187ca7c0aace774789bedb3a3"
+          }
+        },
+        "status": "OK",
+        "common_support_count": 83609,
+        "min_common_support_required": 43200,
+        "ordered_eigenvalues": [
+          1.83254413,
+          0.64542112,
+          0.52203475
+        ],
+        "lambda2_lambda1": 0.3521995,
+        "lambda2_lambda1_derivation": "ordered_eigenvalues[1] / ordered_eigenvalues[0] (descending)",
+        "participation_ratio": 2.223701,
+        "correlation_matrix": [
+          [
+            1.0,
+            0.41460003,
+            0.3624767
+          ],
+          [
+            0.41460003,
+            1.0,
+            0.46943668
+          ],
+          [
+            0.3624767,
+            0.46943668,
+            1.0
+          ]
+        ],
+        "correlation_matrix_order": [
+          "izmit",
+          "marmara_central",
+          "marmara_west"
+        ]
+      }
+    },
+    "socal_coachella": {
+      "control": {
+        "session_start_utc": "2026-07-27T07:00:13Z",
+        "session_end_utc": "2026-07-28T07:00:13Z",
+        "session_seconds": 86400,
+        "segments_formed": [
+          "brawley_seismic_zone",
+          "coachella_south"
+        ],
+        "n_segments": 2,
+        "segment_detail": {
+          "brawley_seismic_zone": {
+            "stations_in": 2,
+            "stations_env": 2,
+            "stations": [
+              {
+                "source_id": "CI.BC3..BHZ",
+                "raw_path": "socal_coachella__control_2026-07-28__brawley_seismic_zone__CI.BC3.BHZ.mseed",
+                "raw_sha256": "bbd901f09eadbce7bf863f1182885cab86a716e37e388b284284dcc14b99456b",
+                "n_fragments": 1,
+                "native_rate_hz": 40.0,
+                "npts_total": 3456001,
+                "coverage": 0.997917
+              },
+              {
+                "source_id": "CI.RXH..BHZ",
+                "raw_path": "socal_coachella__control_2026-07-28__brawley_seismic_zone__CI.RXH.BHZ.mseed",
+                "raw_sha256": "ae3eb11873bcba845cdfcbe0bca5c54829294c51aa53095b1ae42439f2d4aeb5",
+                "n_fragments": 1,
+                "native_rate_hz": 40.0,
+                "npts_total": 3456001,
+                "coverage": 0.997917
+              }
+            ],
+            "aggregate_coverage": 0.997917,
+            "aggregate_valid_bins": 86220,
+            "aggregate_mask_sha256": "bf3bc7ee169a87a339c31602b6d6fa2fc0e0428afdee8cf5cccf63f13033e2af"
+          },
+          "coachella_north": {
+            "stations_in": 1,
+            "stations_env": 1,
+            "stations": [
+              {
+                "source_id": "CI.PSR..BHZ",
+                "raw_path": "socal_coachella__control_2026-07-28__coachella_north__CI.PSR.BHZ.mseed",
+                "raw_sha256": "c46ff63671d32ac3ba619d1897240f096678572de19d65b8a1f4f5e00a061e41",
+                "n_fragments": 1,
+                "native_rate_hz": 40.0,
+                "npts_total": 3456001,
+                "coverage": 0.997917
+              }
+            ],
+            "aggregate_coverage": null,
+            "aggregate_valid_bins": null,
+            "aggregate_mask_sha256": null
+          },
+          "coachella_south": {
+            "stations_in": 2,
+            "stations_env": 2,
+            "stations": [
+              {
+                "source_id": "CI.BOR..BHZ",
+                "raw_path": "socal_coachella__control_2026-07-28__coachella_south__CI.BOR.BHZ.mseed",
+                "raw_sha256": "56da574754018a3b0edc437d897741b0c28565e479498e51cf1d82bdf1583336",
+                "n_fragments": 1,
+                "native_rate_hz": 40.0,
+                "npts_total": 3456001,
+                "coverage": 0.997917
+              },
+              {
+                "source_id": "CI.CTW..BHZ",
+                "raw_path": "socal_coachella__control_2026-07-28__coachella_south__CI.CTW.BHZ.mseed",
+                "raw_sha256": "8205befff9952891645d57c0ebe4dfc66d3bc63ae3831a6bbd34ffb3880108f3",
+                "n_fragments": 1,
+                "native_rate_hz": 40.0,
+                "npts_total": 3456001,
+                "coverage": 0.997917
+              }
+            ],
+            "aggregate_coverage": 0.997917,
+            "aggregate_valid_bins": 86220,
+            "aggregate_mask_sha256": "bf3bc7ee169a87a339c31602b6d6fa2fc0e0428afdee8cf5cccf63f13033e2af"
+          }
+        },
+        "status": "OK",
+        "common_support_count": 86220,
+        "min_common_support_required": 43200,
+        "ordered_eigenvalues": [
+          1.00076195,
+          0.99923805
+        ],
+        "lambda2_lambda1": 0.99847727,
+        "lambda2_lambda1_derivation": "ordered_eigenvalues[1] / ordered_eigenvalues[0] (descending)",
+        "participation_ratio": 1.999999,
+        "correlation_matrix": [
+          [
+            1.0,
+            -0.00076195
+          ],
+          [
+            -0.00076195,
+            1.0
+          ]
+        ],
+        "correlation_matrix_order": [
+          "brawley_seismic_zone",
+          "coachella_south"
+        ]
+      },
+      "incident": {
+        "session_start_utc": "2026-07-28T07:00:14Z",
+        "session_end_utc": "2026-07-29T07:00:14Z",
+        "session_seconds": 86400,
+        "segments_formed": [
+          "brawley_seismic_zone",
+          "coachella_south"
+        ],
+        "n_segments": 2,
+        "segment_detail": {
+          "brawley_seismic_zone": {
+            "stations_in": 2,
+            "stations_env": 2,
+            "stations": [
+              {
+                "source_id": "CI.BC3..BHZ",
+                "raw_path": "socal_coachella__incident_2026-07-29__brawley_seismic_zone__CI.BC3.BHZ.mseed",
+                "raw_sha256": "8e07e3c98640530456a9a4982ea2d11a3092453a51d6120c7868b4eb6fad598f",
+                "n_fragments": 1,
+                "native_rate_hz": 40.0,
+                "npts_total": 3456001,
+                "coverage": 0.997917
+              },
+              {
+                "source_id": "CI.RXH..BHZ",
+                "raw_path": "socal_coachella__incident_2026-07-29__brawley_seismic_zone__CI.RXH.BHZ.mseed",
+                "raw_sha256": "8a1e76dea3db3e2fc1399ff69db5333f1d366b1aef6d75e4dc2ab8581bfe4e26",
+                "n_fragments": 1,
+                "native_rate_hz": 40.0,
+                "npts_total": 3456001,
+                "coverage": 0.997917
+              }
+            ],
+            "aggregate_coverage": 0.997917,
+            "aggregate_valid_bins": 86220,
+            "aggregate_mask_sha256": "bf3bc7ee169a87a339c31602b6d6fa2fc0e0428afdee8cf5cccf63f13033e2af"
+          },
+          "coachella_north": {
+            "stations_in": 1,
+            "stations_env": 1,
+            "stations": [
+              {
+                "source_id": "CI.PSR..BHZ",
+                "raw_path": "socal_coachella__incident_2026-07-29__coachella_north__CI.PSR.BHZ.mseed",
+                "raw_sha256": "069988acefe76014eb73d0e0dfbce83b73d100f6991fdf05a9e8651468d27718",
+                "n_fragments": 24,
+                "native_rate_hz": 40.0,
+                "npts_total": 3440248,
+                "coverage": 0.983194
+              }
+            ],
+            "aggregate_coverage": null,
+            "aggregate_valid_bins": null,
+            "aggregate_mask_sha256": null
+          },
+          "coachella_south": {
+            "stations_in": 2,
+            "stations_env": 2,
+            "stations": [
+              {
+                "source_id": "CI.BOR..BHZ",
+                "raw_path": "socal_coachella__incident_2026-07-29__coachella_south__CI.BOR.BHZ.mseed",
+                "raw_sha256": "9b29170257f371e47c87312ed209bf13ef11c4baed7065ce526694f6dbae8385",
+                "n_fragments": 2,
+                "native_rate_hz": 40.0,
+                "npts_total": 3454379,
+                "coverage": 0.995359
+              },
+              {
+                "source_id": "CI.CTW..BHZ",
+                "raw_path": "socal_coachella__incident_2026-07-29__coachella_south__CI.CTW.BHZ.mseed",
+                "raw_sha256": "f99a8b83496df32ad00b7978a5661e17cd518ccd7b0c24e664d637c7178dad2e",
+                "n_fragments": 1,
+                "native_rate_hz": 40.0,
+                "npts_total": 3456001,
+                "coverage": 0.997917
+              }
+            ],
+            "aggregate_coverage": 0.995359,
+            "aggregate_valid_bins": 85999,
+            "aggregate_mask_sha256": "bb7f0e18b088fd328871aebfcff11056264547f420f65ad4ca96327f5845b5f0"
+          }
+        },
+        "status": "OK",
+        "common_support_count": 85999,
+        "min_common_support_required": 43200,
+        "ordered_eigenvalues": [
+          1.0006671,
+          0.9993329
+        ],
+        "lambda2_lambda1": 0.9986667,
+        "lambda2_lambda1_derivation": "ordered_eigenvalues[1] / ordered_eigenvalues[0] (descending)",
+        "participation_ratio": 1.999999,
+        "correlation_matrix": [
+          [
+            1.0,
+            0.0006671
+          ],
+          [
+            0.0006671,
+            1.0
+          ]
+        ],
+        "correlation_matrix_order": [
+          "brawley_seismic_zone",
+          "coachella_south"
+        ]
+      }
+    },
+    "turkey_kahramanmaras": {
+      "control": {
+        "session_start_utc": "2026-07-27T07:00:09Z",
+        "session_end_utc": "2026-07-28T07:00:09Z",
+        "session_seconds": 86400,
+        "segments_formed": [
+          "east_anatolian_north",
+          "east_anatolian_south"
+        ],
+        "n_segments": 2,
+        "segment_detail": {
+          "east_anatolian_central": {
+            "stations_in": 2,
+            "stations_env": 1,
+            "stations": [
+              {
+                "source_id": "KO.KHMN..HNZ",
+                "raw_path": "turkey_kahramanmaras__control_2026-07-28__east_anatolian_central__KO.KHMN.HNZ.mseed",
+                "raw_sha256": "4438187410135143e61a00c48a052cd879ef5f337635a28f811fc17e8454225c",
+                "n_fragments": 328,
+                "native_rate_hz": 100.0,
+                "npts_total": 5961875,
+                "coverage": null,
+                "unavailable": "fragment 51 overlaps the previous span (start 2026-07-27 08:40:21.980000+00:00 < prev end 2026-07-27 08:40:22+00:00)"
+              },
+              {
+                "source_id": "KO.NURH..HHZ",
+                "raw_path": "turkey_kahramanmaras__control_2026-07-28__east_anatolian_central__KO.NURH.HHZ.mseed",
+                "raw_sha256": "19ff603881cd04935bd5ebfdfcac39b0f7ba4052f62e2b7c2bfaaf7119bd93d2",
+                "n_fragments": 3,
+                "native_rate_hz": 100.0,
+                "npts_total": 8630147,
+                "coverage": 0.992616
+              }
+            ],
+            "aggregate_coverage": null,
+            "aggregate_valid_bins": null,
+            "aggregate_mask_sha256": null
+          },
+          "east_anatolian_north": {
+            "stations_in": 4,
+            "stations_env": 4,
+            "stations": [
+              {
+                "source_id": "KO.AKDG..HHZ",
+                "raw_path": "turkey_kahramanmaras__control_2026-07-28__east_anatolian_north__KO.AKDG.HHZ.mseed",
+                "raw_sha256": "bc33ef0b0c3fff66aeebbb85fddcc86abf9c98add7008389b86d4bd5f6950067",
+                "n_fragments": 5,
+                "native_rate_hz": 100.0,
+                "npts_total": 8628729,
+                "coverage": 0.988287
+              },
+              {
+                "source_id": "KO.ARGN..HHZ",
+                "raw_path": "turkey_kahramanmaras__control_2026-07-28__east_anatolian_north__KO.ARGN.HHZ.mseed",
+                "raw_sha256": "b4f38316eeb8fc9376e89f1d81f23959580ad8234a8a5637a0e25b2392ef8050",
+                "n_fragments": 2,
+                "native_rate_hz": 100.0,
+                "npts_total": 8630663,
+                "coverage": 0.994757
+              },
+              {
+                "source_id": "KO.MLTY..HHZ",
+                "raw_path": "turkey_kahramanmaras__control_2026-07-28__east_anatolian_north__KO.MLTY.HHZ.mseed",
+                "raw_sha256": "7a6c3aecd60b8fe0f5f2043a61428d85f2ee36750dbb1f09f102db6d551c9d5c",
+                "n_fragments": 2,
+                "native_rate_hz": 100.0,
+                "npts_total": 8631454,
+                "coverage": 0.99485
+              },
+              {
+                "source_id": "KO.SVRC..HHZ",
+                "raw_path": "turkey_kahramanmaras__control_2026-07-28__east_anatolian_north__KO.SVRC.HHZ.mseed",
+                "raw_sha256": "53be181f71da4e94a98632eb5603c6808612fa4cf2f18d8de41bb6816c14f87b",
+                "n_fragments": 14,
+                "native_rate_hz": 100.0,
+                "npts_total": 8613371,
+                "coverage": 0.971875
+              }
+            ],
+            "aggregate_coverage": 0.99485,
+            "aggregate_valid_bins": 85955,
+            "aggregate_mask_sha256": "c25956a1a990d6bc2391045a3fa6765e0deb630326cef899f1056852db938643"
+          },
+          "east_anatolian_south": {
+            "stations_in": 2,
+            "stations_env": 2,
+            "stations": [
+              {
+                "source_id": "KO.GAZ..HHZ",
+                "raw_path": "turkey_kahramanmaras__control_2026-07-28__east_anatolian_south__KO.GAZ.HHZ.mseed",
+                "raw_sha256": "b82fce4a038c810bb9f6cc8756f31da4a5ba8e804a67870f62f3c3822e030762",
+                "n_fragments": 12,
+                "native_rate_hz": 100.0,
+                "npts_total": 8624415,
+                "coverage": 0.982627
+              },
+              {
+                "source_id": "KO.TAHT..HHZ",
+                "raw_path": "turkey_kahramanmaras__control_2026-07-28__east_anatolian_south__KO.TAHT.HHZ.mseed",
+                "raw_sha256": "22873b7fdce1250233e5da52c553dabe339d96ffbf32b84c094ba88a880fada6",
+                "n_fragments": 23,
+                "native_rate_hz": 100.0,
+                "npts_total": 7809649,
+                "coverage": 0.880637
+              }
+            ],
+            "aggregate_coverage": 0.880637,
+            "aggregate_valid_bins": 76087,
+            "aggregate_mask_sha256": "fe4bc0320380f77347db69df2466427ddd8b2bb580aaac79a336b5828f367a2c"
+          }
+        },
+        "status": "OK",
+        "common_support_count": 76087,
+        "min_common_support_required": 43200,
+        "ordered_eigenvalues": [
+          1.06502735,
+          0.93497265
+        ],
+        "lambda2_lambda1": 0.87788606,
+        "lambda2_lambda1_derivation": "ordered_eigenvalues[1] / ordered_eigenvalues[0] (descending)",
+        "participation_ratio": 1.991578,
+        "correlation_matrix": [
+          [
+            1.0,
+            0.06502735
+          ],
+          [
+            0.06502735,
+            1.0
+          ]
+        ],
+        "correlation_matrix_order": [
+          "east_anatolian_north",
+          "east_anatolian_south"
+        ]
+      },
+      "incident": {
+        "session_start_utc": "2026-07-28T07:00:11Z",
+        "session_end_utc": "2026-07-29T07:00:11Z",
+        "session_seconds": 86400,
+        "segments_formed": [
+          "east_anatolian_north",
+          "east_anatolian_south"
+        ],
+        "n_segments": 2,
+        "segment_detail": {
+          "east_anatolian_central": {
+            "stations_in": 2,
+            "stations_env": 1,
+            "stations": [
+              {
+                "source_id": "KO.KHMN..HNZ",
+                "raw_path": "turkey_kahramanmaras__incident_2026-07-29__east_anatolian_central__KO.KHMN.HNZ.mseed",
+                "raw_sha256": "a596758df3e65df54ff3bb4e77ec70d02e7f81e9eac72682286646c9592ab77e",
+                "n_fragments": 761,
+                "native_rate_hz": 100.0,
+                "npts_total": 8575533,
+                "coverage": null,
+                "unavailable": "fragment 548 overlaps the previous span (start 2026-07-28 15:57:51.980000+00:00 < prev end 2026-07-28 15:57:52+00:00)"
+              },
+              {
+                "source_id": "KO.NURH..HHZ",
+                "raw_path": "turkey_kahramanmaras__incident_2026-07-29__east_anatolian_central__KO.NURH.HHZ.mseed",
+                "raw_sha256": "06298a6a8d7b1b22de7ac7d8ed6906d3b41f84e88b4b73bdaeed9f4370d62edb",
+                "n_fragments": 1,
+                "native_rate_hz": 100.0,
+                "npts_total": 8640483,
+                "coverage": 0.997975
+              }
+            ],
+            "aggregate_coverage": null,
+            "aggregate_valid_bins": null,
+            "aggregate_mask_sha256": null
+          },
+          "east_anatolian_north": {
+            "stations_in": 4,
+            "stations_env": 4,
+            "stations": [
+              {
+                "source_id": "KO.AKDG..HHZ",
+                "raw_path": "turkey_kahramanmaras__incident_2026-07-29__east_anatolian_north__KO.AKDG.HHZ.mseed",
+                "raw_sha256": "882b50babf5f61563d47b7472cfee03f259faba5953e080469b89516cc7bd2c1",
+                "n_fragments": 6,
+                "native_rate_hz": 100.0,
+                "npts_total": 8620593,
+                "coverage": 0.986586
+              },
+              {
+                "source_id": "KO.ARGN..HHZ",
+                "raw_path": "turkey_kahramanmaras__incident_2026-07-29__east_anatolian_north__KO.ARGN.HHZ.mseed",
+                "raw_sha256": "4d0b1aea16f6ac25143c58069d4f2a7f91ee2ea0298c50a95862a61ca75f4646",
+                "n_fragments": 1,
+                "native_rate_hz": 100.0,
+                "npts_total": 8640177,
+                "coverage": 0.997928
+              },
+              {
+                "source_id": "KO.MLTY..HHZ",
+                "raw_path": "turkey_kahramanmaras__incident_2026-07-29__east_anatolian_north__KO.MLTY.HHZ.mseed",
+                "raw_sha256": "78340c205a23049542d08d66717bcf41301dca12b6ef4293130e5eb6d7d9711e",
+                "n_fragments": 1,
+                "native_rate_hz": 100.0,
+                "npts_total": 8640355,
+                "coverage": 0.997963
+              },
+              {
+                "source_id": "KO.SVRC..HHZ",
+                "raw_path": "turkey_kahramanmaras__incident_2026-07-29__east_anatolian_north__KO.SVRC.HHZ.mseed",
+                "raw_sha256": "a8117359951d1d59ab6ad87b7f8212097f4d135494b748952a688b733a543038",
+                "n_fragments": 22,
+                "native_rate_hz": 100.0,
+                "npts_total": 6565480,
+                "coverage": 0.736632
+              }
+            ],
+            "aggregate_coverage": 0.997975,
+            "aggregate_valid_bins": 86225,
+            "aggregate_mask_sha256": "f6fb321c5a7e6096726a1d8c27dfadb74e5271a88cef32659a7dabbc45a42dcb"
+          },
+          "east_anatolian_south": {
+            "stations_in": 2,
+            "stations_env": 2,
+            "stations": [
+              {
+                "source_id": "KO.GAZ..HHZ",
+                "raw_path": "turkey_kahramanmaras__incident_2026-07-29__east_anatolian_south__KO.GAZ.HHZ.mseed",
+                "raw_sha256": "24d7abbee0017612733683202104d96a8b3199a5ce87b176b01c7e418d8ad483",
+                "n_fragments": 15,
+                "native_rate_hz": 100.0,
+                "npts_total": 8627811,
+                "coverage": 0.984988
+              },
+              {
+                "source_id": "KO.TAHT..HHZ",
+                "raw_path": "turkey_kahramanmaras__incident_2026-07-29__east_anatolian_south__KO.TAHT.HHZ.mseed",
+                "raw_sha256": "95b4799575b4e7687b7020620007e1e1966a04ea85aae2623edb0d46fc872ced",
+                "n_fragments": 15,
+                "native_rate_hz": 100.0,
+                "npts_total": 8626304,
+                "coverage": 0.985104
+              }
+            ],
+            "aggregate_coverage": 0.982928,
+            "aggregate_valid_bins": 84925,
+            "aggregate_mask_sha256": "80354d02ae0bcea27dfdd58c380937b12061b3635624cbec134e93888238637c"
+          }
+        },
+        "status": "OK",
+        "common_support_count": 84925,
+        "min_common_support_required": 43200,
+        "ordered_eigenvalues": [
+          1.03411976,
+          0.96588024
+        ],
+        "lambda2_lambda1": 0.93401198,
+        "lambda2_lambda1_derivation": "ordered_eigenvalues[1] / ordered_eigenvalues[0] (descending)",
+        "participation_ratio": 1.997674,
+        "correlation_matrix": [
+          [
+            1.0,
+            0.03411976
+          ],
+          [
+            0.03411976,
+            1.0
+          ]
+        ],
+        "correlation_matrix_order": [
+          "east_anatolian_north",
+          "east_anatolian_south"
+        ]
+      }
+    }
+  }
+}

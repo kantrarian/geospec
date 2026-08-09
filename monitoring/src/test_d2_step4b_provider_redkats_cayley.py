@@ -409,6 +409,77 @@ def main():
     finally:
         PR._http_get = real_http2
 
+    # ---- PV-3e (REV 4): _http_get transient-retry semantics (ea4e3e0 lock) ----
+    # A ~2,400-request multi-hour campaign guarantees transient drops. Locks: transient
+    # network fault -> capped-backoff retry then success; 204/404 no-data -> ProviderUnavailable
+    # with NO retry (attempt-row semantics depend on this); persistent fault -> fail-closed
+    # ProviderUnavailable after exactly `retries` attempts with the 1,2,4s backoff schedule.
+    # Green regression lock (fix landed at ea4e3e0 after the real run died on
+    # RemoteDisconnected at ~378 scorings). time.sleep is patched -- the schedule is asserted,
+    # not waited out.
+    import http.client
+    import time as _time
+    real_urlopen3 = urllib.request.urlopen
+    real_sleep = _time.sleep
+    slept, ncalls = [], []
+
+    class _OKResp:
+        status = 200
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def read(self):
+            return b"BODY"
+
+    try:
+        _time.sleep = lambda s: slept.append(s)
+        seq = [http.client.RemoteDisconnected("dropped"), _OKResp()]
+
+        def urlopen_seq(req, timeout=None):
+            ncalls.append(1)
+            item = seq.pop(0)
+            if isinstance(item, Exception):
+                raise item
+            return item
+
+        urllib.request.urlopen = urlopen_seq
+        body = PR._http_get("http://x/transient", 10)
+        ok_a = body == b"BODY" and len(ncalls) == 2 and slept == [1]
+
+        ncalls.clear()
+        slept.clear()
+
+        def urlopen_404(req, timeout=None):
+            ncalls.append(1)
+            raise urllib.error.HTTPError("http://x", 404, "Not Found", None, None)
+
+        urllib.request.urlopen = urlopen_404
+        ok_b = (raises(lambda: PR._http_get("http://x/nodata", 10), PR.ProviderUnavailable)
+                and len(ncalls) == 1 and slept == [])
+
+        ncalls.clear()
+        slept.clear()
+
+        def urlopen_drop(req, timeout=None):
+            ncalls.append(1)
+            raise ConnectionResetError("reset by peer")
+
+        urllib.request.urlopen = urlopen_drop
+        ok_c = (raises(lambda: PR._http_get("http://x/dead", 10), PR.ProviderUnavailable)
+                and len(ncalls) == 4 and slept == [1, 2, 4])
+        check("PV-3e _http_get retry semantics: transient drop -> retry then body (2 "
+              "attempts, backoff [1]); 404 -> ProviderUnavailable with NO retry; persistent "
+              "fault -> fail-closed after exactly 4 attempts, backoff [1,2,4]",
+              ok_a and ok_b and ok_c,
+              f"a={ok_a} b={ok_b} c={ok_c} calls={len(ncalls)} slept={slept}")
+    finally:
+        urllib.request.urlopen = real_urlopen3
+        _time.sleep = real_sleep
+
 
 main()
 print()

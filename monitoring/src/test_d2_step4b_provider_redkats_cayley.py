@@ -376,6 +376,39 @@ def main():
     finally:
         urllib.request.urlopen = real_urlopen
 
+    # ---- PV-3d (REV 3): KOERI availability-text parsing regression lock ------
+    # Fixture lines 2-4 are VERBATIM live service output captured 2026-08-09T05:56Z from
+    # eida.koeri.boun.edu.tr/fdsnws/availability/1 — the fixed-width EMPTY Location column
+    # collapses under split(), the defect that falsely marked every KOERI station
+    # unavailable and aborted the 05:35Z fetch (fixed at 5bc7d2d). Green regression lock,
+    # not red-first: it pins the landed fix against the AUTHORITATIVE text shape.
+    koeri_text = (
+        "#Network Station Location Channel Quality SampleRate Earliest                    "
+        "Latest                     \n"
+        "KO       BOTS             HHZ     D       100.0      2026-05-01T07:00:00.000000Z "
+        "2026-05-01T07:24:42.000000Z\n"
+        "KO       SAUV             HHZ     D       100.0      2026-05-01T07:00:00.000000Z "
+        "2026-05-01T09:00:00.000000Z\n"
+        "KO       GAZK             HHZ     D       100.0      2026-05-01T07:00:00.000000Z "
+        "2026-05-01T09:00:00.000000Z\n"
+        "KO       TEST     00      HHZ     D       100.0      2026-05-01T07:00:00.000000Z "
+        "2026-05-01T09:00:00.000000Z\n"
+        "KO       DASH     --      HHZ     D       100.0      2026-05-01T07:00:00.000000Z "
+        "2026-05-01T09:00:00.000000Z\n")
+    real_http2 = PR._http_get
+    try:
+        PR._http_get = lambda url, timeout: koeri_text.encode("utf-8")
+        got_k = PR.koeri_available("KO", ["BOTS", "SAUV", "GAZK", "TEST", "DASH"],
+                                   ["HHZ"], d0700, d0700e)
+        check("PV-3d koeri_available parses the REAL availability text: EMPTY location "
+              "column -> NET.STA..CHA (never NET.STA.CHA.QUALITY); '--' -> empty; a present "
+              "location token is preserved",
+              got_k == {"KO.BOTS..HHZ", "KO.SAUV..HHZ", "KO.GAZK..HHZ",
+                        "KO.TEST.00.HHZ", "KO.DASH..HHZ"},
+              f"got={got_k}")
+    finally:
+        PR._http_get = real_http2
+
 
 main()
 print()

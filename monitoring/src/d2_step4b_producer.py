@@ -286,6 +286,67 @@ def admit_candidate(carrier, incident_summary, activation_summary, replay):
         "artifact_removed": True, "control_clear": True}
 
 
+# ---- Ridgecrest t2 extension seams (cayley t2 supplement; codex 0300 F3) ---
+# Registers the outcome-blind little_lake redraw (shared CI.LRL/CI.WBS -> unshared CI.WBM/CI.DTP)
+# per docs/AMENDMENT_2026-08-09_ridgecrest_t2_topology.md. This mints a redraw ONLY: the base
+# three-carrier policy is unchanged (build_campaign_plan still refuses 'ridgecrest') and
+# admit_candidate('ridgecrest', ...) with no replay evidence stays BLOCKED_REPLAY_UNAVAILABLE.
+RIDGECREST_T2_REGISTRY_SHA256 = \
+    "449273b866f682d1363806daef5509cac40f1480d003a7fd0731b71a365f2657"
+
+
+def load_ridgecrest_t2(registry_bytes: bytes) -> dict:
+    """Verify the redraw-registry bytes against the amendment pin, then parse. There is NO
+    unpinned load path: ANY byte difference refuses (ValueError)."""
+    actual = hashlib.sha256(registry_bytes).hexdigest()
+    if actual != RIDGECREST_T2_REGISTRY_SHA256:
+        raise ValueError(f"ridgecrest-t2 registry sha256 {actual} != pin "
+                         f"{RIDGECREST_T2_REGISTRY_SHA256}")
+    return json.loads(registry_bytes.decode("utf-8"))
+
+
+def build_ridgecrest_extension_plan(activation_reference: str, registry: dict) -> dict:
+    """Outcome-blind, deterministic ridgecrest-t2 extension plan built ONLY from the frozen redraw
+    registry (station/NSLC structure and candidate order verbatim). Fail-closed ValueError on:
+    wrong region/topology_version/provider; fewer than 2 segments; fewer than 2 stations in any
+    segment; any NET.STA shared across segments. No outcome-bearing field is emitted; byte-
+    identical canonical JSON on identical inputs (plan_digest-able). Registers a redraw only."""
+    if not isinstance(registry, dict):
+        raise ValueError("registry must be a mapping")
+    if registry.get("region") != "ridgecrest":
+        raise ValueError(f"registry region {registry.get('region')!r} != 'ridgecrest'")
+    if registry.get("topology_version") != "t2":
+        raise ValueError(f"registry topology_version {registry.get('topology_version')!r} != 't2'")
+    if registry.get("provider") != "s3://scedc-pds":
+        raise ValueError(f"registry provider {registry.get('provider')!r} != 's3://scedc-pds'")
+    segments = registry.get("segments")
+    if not isinstance(segments, dict) or len(segments) < 2:
+        raise ValueError("ridgecrest-t2 registry needs >= 2 segments")
+    seen_netsta, seg_out = {}, {}
+    for seg, body in segments.items():
+        stations = body.get("stations") if isinstance(body, dict) else None
+        if not isinstance(stations, dict) or len(stations) < 2:
+            raise ValueError(f"segment {seg!r} needs >= 2 stations")
+        st_out = {}
+        for st, sbody in stations.items():
+            netsta = ".".join(str(st).split(".")[:2])
+            if netsta in seen_netsta and seen_netsta[netsta] != seg:
+                raise ValueError(f"NET.STA {netsta} shared across segments "
+                                 f"{seen_netsta[netsta]!r} and {seg!r}")
+            seen_netsta[netsta] = seg
+            candidates = sbody.get("nslc_candidates") if isinstance(sbody, dict) else None
+            if not isinstance(candidates, list) or not candidates:
+                raise ValueError(f"station {st!r} in {seg!r} needs an nslc_candidate list")
+            st_out[st] = {"nslc_candidates": [str(c) for c in candidates]}  # frozen order verbatim
+        seg_out[seg] = {"stations": st_out}
+    return {
+        "carrier": "ridgecrest", "topology_version": "t2", "provider": "s3://scedc-pds",
+        "incident_arm": schedule_days(CAMPAIGN["incident_reference"]),
+        "activation_arm": schedule_days(str(activation_reference)),
+        "segments": seg_out,
+    }
+
+
 # ---- SB-8: the direct-owner launch gate ------------------------------------
 def verify_launch_authorization(receipt) -> bool:
     """True iff receipt == {status: 'VERIFIED_DIRECT', in_session_timestamp_utc: <aware-UTC>,

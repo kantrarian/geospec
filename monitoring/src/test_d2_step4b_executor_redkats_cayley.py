@@ -182,6 +182,9 @@ def _install_stubs():
         return [[1.0, 0.3], [0.3, 1.0]], list(seg_names), []
 
     fc.aggregate_segment_supported = aggregate_segment_supported
+    fc.station_eligible = lambda es: es is not None and es.coverage >= 0.5
+    # ^ fixture-compat amendment (fix-A scorer repair calls FC.station_eligible;
+    #   stub series carry 0.9 coverage -> all eligible, behavior unchanged)
     fc.compute_correlation_matrix_supported = compute_correlation_matrix_supported
     sys.modules["fault_correlation"] = fc
 

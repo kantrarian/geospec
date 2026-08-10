@@ -141,6 +141,9 @@ def _install_stubs():
         return _ES(min(s.coverage for s in series), mask)
 
     fc.aggregate_segment_supported = agg
+    fc.station_eligible = lambda es: es is not None and es.coverage >= 0.5
+    # ^ fixture-compat amendment (fix-A scorer repair calls FC.station_eligible;
+    #   stub series carry 0.9 coverage -> all eligible, behavior unchanged)
     fc.compute_correlation_matrix_supported = (
         lambda seg_series, seg_names:
         ((None, list(seg_names), ["INSUFFICIENT_SEGMENTS"]) if len(seg_series) < 2

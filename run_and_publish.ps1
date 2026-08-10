@@ -230,17 +230,38 @@ Write-Host "[5/5] Committing and pushing to GitHub..." -ForegroundColor Yellow
 Push-Location $RepoRoot
 
 try {
-    # W4: monitoring/dashboard/data.csv (the authoritative source) is committed daily --
-    # keeps the public copy fresh AND the tree clean (kills the chronic-dirty condition).
-    # monitoring/receipts holds the R6 §1 server-stamped publication receipts (P2 item 1). They are written
-    # POST-PUSH (step 5b) so each lands in git on the NEXT run -- intended (the GitHub-side build record is
-    # independently queryable meanwhile). A missing dir on the first run is tolerated by 2>$null.
-    git add docs/ensemble_latest.json docs/data.csv docs/validated_events.json docs/r4_prospective_record.json docs/r5_daily.json monitoring/dashboard/data.csv monitoring/receipts README.md 2>$null
+    # HARDENING (grassmann 2026-08-10, root cause of the 2026-08-08..10 publish stall):
+    # the script runs under $ErrorActionPreference='Stop'. In PS 5.1 a NATIVE command that
+    # writes to stderr AND exits non-zero is escalated to a terminating NativeCommandError
+    # that aborts the whole run. The old `git add <list> 2>$null` hit exactly this the day
+    # `monitoring/receipts` was added to the list (4025794) while that dir did not yet exist:
+    # `fatal: pathspec 'monitoring/receipts' did not match any files` (exit 128) killed the
+    # run BEFORE `git commit` -- and `2>$null` does NOT prevent it (it hides the text, not the
+    # error record). So the daily data generated but never published. Two guards below:
+    #   (1) stage only paths that actually exist -> no missing-pathspec fatal, ever;
+    #   (2) drop to 'Continue' around the native git calls so a non-zero git exit degrades
+    #       gracefully (logged) instead of aborting mid-publish. Explicit exit-code checks
+    #       keep push-safety. Restored in finally.
+    # W4: monitoring/dashboard/data.csv (the authoritative source) is committed daily to keep
+    # the public copy fresh AND the tree clean. monitoring/receipts holds the R6 §1
+    # server-stamped publication receipts (P2 item 1), written POST-PUSH (step 5b) so each
+    # lands in git on the NEXT run; the .gitkeep makes the dir exist so it always stages.
+    $PrevEAP = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
 
-    $HasChanges = git diff --cached --quiet; $HasChanges = $LASTEXITCODE -ne 0
+    $Candidates = @(
+        'docs/ensemble_latest.json', 'docs/data.csv', 'docs/validated_events.json',
+        'docs/r4_prospective_record.json', 'docs/r5_daily.json',
+        'monitoring/dashboard/data.csv', 'monitoring/receipts', 'README.md'
+    )
+    $ToAdd = @($Candidates | Where-Object { Test-Path (Join-Path $RepoRoot $_) })
+    if ($ToAdd.Count -gt 0) { git add -- $ToAdd 2>&1 | Write-Host }
+
+    git diff --cached --quiet
+    $HasChanges = $LASTEXITCODE -ne 0
 
     if ($HasChanges) {
-        git commit -m "Daily monitoring $AssessmentDate"
+        git commit -m "Daily monitoring $AssessmentDate" 2>&1 | Write-Host
         # Sync before pushing: remote may have advanced (e.g. registered amendments).
         # Rebase keeps the daily data commit on top; without this, the push is rejected
         # and the daily update silently fails. (Added 2026-07-29 with amendment R2.)
@@ -248,13 +269,18 @@ try {
         # monitoring/dashboard/data.csv is written but never committed by this flow), and a
         # plain pull --rebase ABORTS on unstaged changes (exit 128) without stopping the
         # script -- making the sync silently inert (grassmann, empirical, 2026-07-29).
-        git pull --rebase --autostash origin master
-        git push origin master
-        Write-Host "  Pushed to GitHub" -ForegroundColor Green
+        git pull --rebase --autostash origin master 2>&1 | Write-Host
+        git push origin master 2>&1 | Write-Host
+        if ($LASTEXITCODE -eq 0) {
+            Write-Host "  Pushed to GitHub" -ForegroundColor Green
+        } else {
+            Write-Host "  Push failed (exit $LASTEXITCODE); the commit is local and will push on the next run's rebase" -ForegroundColor Red
+        }
     } else {
         Write-Host "  No changes to commit" -ForegroundColor Yellow
     }
 } finally {
+    $ErrorActionPreference = $PrevEAP
     Pop-Location
 }
 

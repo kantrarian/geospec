@@ -434,11 +434,15 @@ def _execute(plan, root, providers, receipt, clock, campaign_id, plan_bytes, led
             raise ResumeIntegrityError(
                 "plan/ledger drift on a resumable root — no provider I/O, no manifest.")
 
-    terminal_by_unit, attempts_by_unit = {}, {}
+    terminal_by_unit, attempts_by_unit, attempt_by_id = {}, {}, {}
     for ev in prior_events:
         kind = ev.get("kind")
         if kind == "UNIT_ATTEMPT_STARTED":
             attempts_by_unit.setdefault(ev["unit_id"], []).append(ev)
+            attempt_id = ev.get("attempt_id")
+            if attempt_id in attempt_by_id:
+                raise ResumeIntegrityError(f"duplicate attempt_id in resume state: {attempt_id}")
+            attempt_by_id[attempt_id] = ev
         elif kind == "UNIT_TERMINAL":
             terminal_by_unit[ev["unit_id"]] = ev
 
@@ -530,6 +534,14 @@ def _execute(plan, root, providers, receipt, clock, campaign_id, plan_bytes, led
                         t_attempt = term.get("attempt_id")
                         indeterminate = sum(1 for a in prior_attempts
                                             if a.get("attempt_id") != t_attempt)
+                        # codex 2104: a terminal must cross-link to its exact UNIT_ATTEMPT_STARTED
+                        # (same unit + process); the reused summary's attempted_utc comes from that
+                        # start event (UNIT_TERMINAL carries terminal_utc, not attempted_utc).
+                        start_event = attempt_by_id.get(t_attempt)
+                        if (start_event is None or start_event.get("unit_id") != uid
+                                or start_event.get("process_id") != term.get("process_id")):
+                            raise ResumeIntegrityError(
+                                "terminal event lacks its exact UNIT_ATTEMPT_STARTED cross-link")
                         if term["status"] == "FETCHED":
                             nslc = term.get("selected_nslc")
                             refs = []
@@ -557,14 +569,14 @@ def _execute(plan, root, providers, receipt, clock, campaign_id, plan_bytes, led
                                 carrier, day, segment, station_id, provider, row, status="FETCHED",
                                 selected_nslc=nslc, refs=refs, reason=[],
                                 terminal_attempt_id=t_attempt, indeterminate=indeterminate,
-                                attempted_utc=term.get("attempted_utc")))
+                                attempted_utc=start_event.get("attempted_utc")))
                         else:
                             attempts_summary.append(_summary(
                                 carrier, day, segment, station_id, provider, row,
                                 status=term["status"], selected_nslc=term.get("selected_nslc"),
                                 refs=[], reason=list(term.get("reason_codes") or []),
                                 terminal_attempt_id=t_attempt, indeterminate=indeterminate,
-                                attempted_utc=term.get("attempted_utc")))
+                                attempted_utc=start_event.get("attempted_utc")))
                         continue
 
                     # -- nonterminal unit: a fresh attempt (prior danglers retained) -------------

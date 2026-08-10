@@ -27,7 +27,7 @@ import numpy as np
 
 REPO = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # geospec_sprint
 CONTRACT_ID = "codex-d2-step4b-2026-08-09-v1"
-IMPLEMENTATION_COMMIT = "3950a2c4fabc870eaa929f41a790b875966b9dfb"
+IMPLEMENTATION_COMMIT = "292b1069c8f25dfa899354d5bf76af3bfe2a351b"
 BAND_TAG = "1-10Hz"
 PROCESSING_VERSION = "d2-reband-v2"
 TOPOLOGY_VERSION = "t1"
@@ -62,6 +62,7 @@ PRIOR = {
     "diagnostic_result_sha256": "ee75e449aa0b1003a3cf047432a91a9adc1db4c7497b1e1d9d47f01d552a4b35",
 }
 CORE_FILES = {
+    "monitoring/src/d2_step4b_campaign_run.py": "f089e1e165ea5310b8b36fd73a1c5a733f287fc6f8523f48f3df0c3f2b398132",
     "monitoring/src/seismic_data.py": "04d4c305063a7a2e59c3b5b32dfae4843a3a2f6e047372fc9b52b1da1fea2b0b",
     "monitoring/src/fault_correlation.py": "a657c0ebce3f5febd62ae4fe5788b077bfe1b4060066a5749d73415b7ee1409c",
     "monitoring/src/ensemble.py": "3b2a2c6126298a75255c24869893acf3fa9408667113324bb3656f71837498db",

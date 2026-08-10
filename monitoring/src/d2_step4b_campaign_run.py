@@ -266,45 +266,75 @@ def _operation_rows(arm, carrier, day, row, rates):
     return out
 
 
+SEGMENT_MIN_SUPPORT_BINS = SESSION_SECONDS // 2          # 43,200 = 0.5 x requested grid
+
+
+def _reject_day(base, segment_support, seg_names, qc_reasons):
+    base.update({
+        "status": "REJECTED", "ratio": None, "participation_ratio": None,
+        "data_quality_ok": False,
+        "qc_reasons": qc_reasons or ["INSUFFICIENT_SEGMENTS"],
+        "segment_names": list(seg_names), "segment_support": segment_support,
+        "common_support_count": None, "correlation_matrix": None,
+        "correlation_matrix_order": None, "ordered_eigenvalues": None,
+        "lambda2_lambda1_derivation": None, "support_sha256": None})
+    return base
+
+
 def _score_day(SD, FC, seg_station_es, session_start):
     """Score one (carrier, day) from {segment: [(nslc, EnvelopeSeries)]}. Returns the arm-blind
-    daily result body (all daily_keys except `arm`), status ADMITTED or REJECTED."""
+    daily result body (all daily_keys except `arm`), status ADMITTED or REJECTED.
+
+    fix-A (cayley 1257 / codex 1303, scorer-frame bar `98e792e`): a day is ADMITTED only when
+    EVERY DECLARED SEGMENT forms — subset-frame scoring (dropping a dark segment and admitting on
+    the survivors) is the defect. Per declared segment: filter stations through
+    `FC.station_eligible` (individual supported coverage >= 0.50 — 0.50 remains eligible) keeping
+    only distinct NET.STA contributors, aggregate the eligible series, and BEFORE matrix
+    construction fail closed if the segment has < 2 eligible distinct stations, no aggregate, or
+    aggregate valid bins < 43,200. The correlation matrix is computed ONLY over the complete
+    declared frame; the retained all-segment AND-mask common-support >= 43,200 gate stands. A
+    REJECTED day carries deterministic segment-naming reasons in SORTED order
+    (`INSUFFICIENT_ELIGIBLE_STATIONS:<seg>` / `SEGMENT_AGGREGATE_BELOW_FLOOR:<seg>`) and mints no
+    scalar/matrix/eigenvalue fields; an ADMITTED row satisfies
+    set(segment_support) == set(segment_names) == set(declared_segments)."""
     session_end = session_start + timedelta(seconds=SESSION_SECONDS)
     base = {
         "session_start_utc": session_start.strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
         "session_end_utc": session_end.strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
         "requested_grid_count": SESSION_SECONDS,
     }
-    seg_series, seg_names, segment_support = [], [], {}
-    for segment in sorted(seg_station_es):
+    declared_segments = sorted(seg_station_es)
+    seg_series, seg_names, segment_support, reject_reasons = [], [], {}, []
+    for segment in declared_segments:
         entries = seg_station_es[segment]
-        st_series = [es for (_nslc, es) in entries if es is not None]
-        agg = FC.aggregate_segment_supported(st_series) if st_series else None
-        if agg is None:
-            segment_support[segment] = {
-                "station_ids": sorted(nslc for (nslc, _es) in entries),
-                "station_coverages": {}, "aggregate_valid_bins": 0,
-                "aggregate_mask_sha256": 64 * "0"}
-            continue
-        coverages = {nslc: round(float(es.coverage), 6) for (nslc, es) in entries if es is not None}
+        # (2) eligibility filters BEFORE aggregation: station_eligible + distinct NET.STA only.
+        eligible = [(nslc, es) for (nslc, es) in entries
+                    if es is not None and FC.station_eligible(es)]
+        distinct_netsta = {".".join(str(nslc).split(".")[:2]) for (nslc, _es) in eligible}
+        agg = (FC.aggregate_segment_supported([es for (_nslc, es) in eligible])
+               if len(distinct_netsta) >= 2 else None)
+        agg_bins = int(np.asarray(agg.valid_mask, dtype=bool).sum()) if agg is not None else 0
+        coverages = {nslc: round(float(es.coverage), 6) for (nslc, es) in eligible}
         segment_support[segment] = {
             "station_ids": sorted(coverages),
-            "station_coverages": coverages,
-            "aggregate_valid_bins": int(np.asarray(agg.valid_mask, dtype=bool).sum()),
-            "aggregate_mask_sha256": _mask_digest(agg)}
-        seg_series.append(agg)
-        seg_names.append(segment)
+            "station_coverages": coverages, "aggregate_valid_bins": agg_bins,
+            "aggregate_mask_sha256": _mask_digest(agg) if agg is not None else 64 * "0"}
+        # (3) fail closed per declared segment (never drop a segment and admit on the survivors).
+        if len(distinct_netsta) < 2:
+            reject_reasons.append(f"INSUFFICIENT_ELIGIBLE_STATIONS:{segment}")
+        elif agg is None or agg_bins < SEGMENT_MIN_SUPPORT_BINS:
+            reject_reasons.append(f"SEGMENT_AGGREGATE_BELOW_FLOOR:{segment}")
+        else:
+            seg_series.append(agg)
+            seg_names.append(segment)
+    # (3/5) any declared segment that failed to form -> REJECTED over the complete frame.
+    if reject_reasons or set(seg_names) != set(declared_segments) or len(seg_names) < 2:
+        return _reject_day(base, segment_support, seg_names, sorted(reject_reasons))
+    # (4) matrix over the COMPLETE declared frame; the retained common-support gate stands.
     C, names, qc = FC.compute_correlation_matrix_supported(seg_series, seg_names)
-    if C is None or len(seg_names) < 2:
-        base.update({
-            "status": "REJECTED", "ratio": None, "participation_ratio": None,
-            "data_quality_ok": False,
-            "qc_reasons": (list(qc)[:4] if qc else ["INSUFFICIENT_SEGMENTS"]) or ["INSUFFICIENT_SEGMENTS"],
-            "segment_names": list(seg_names), "segment_support": segment_support,
-            "common_support_count": None, "correlation_matrix": None,
-            "correlation_matrix_order": None, "ordered_eigenvalues": None,
-            "lambda2_lambda1_derivation": None, "support_sha256": None})
-        return base
+    if C is None:
+        return _reject_day(base, segment_support, seg_names,
+                           (list(qc)[:4] if qc else ["INSUFFICIENT_SEGMENTS"]))
     masks = np.vstack([np.asarray(s.valid_mask, dtype=bool).ravel() for s in seg_series])
     common = int(masks.all(axis=0).sum())
     # matrix, eigenvalues, and ratio all derive from ONE full-precision symmetric unit-diagonal

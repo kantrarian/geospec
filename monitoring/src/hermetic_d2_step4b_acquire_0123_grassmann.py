@@ -187,7 +187,18 @@ def main():
         with open(os.path.join(root, "publication_records", f"{d}.json"), "wb") as fh:
             fh.write(day_record[d]["raw"])
 
-    summary = R.acquire(plan, ledger, root, providers=providers, receipt=receipt)
+    # Pin the acquire clock to the activation reference day so this hermetic self-test is
+    # date-independent (the default live clock made campaign_started_utc drift off the fixed
+    # activation_reference_day after a date rollover -> a spurious "activation day != campaign
+    # start UTC day" 0123 failure unrelated to acquisition).
+    _t = {"v": datetime(2026, 8, 9, 12, 0, 0, tzinfo=U)}
+
+    def _pinned_clock():
+        _t["v"] = _t["v"] + timedelta(microseconds=1)
+        return _t["v"]
+
+    summary = R.acquire(plan, ledger, root, providers=providers, receipt=receipt,
+                        clock=_pinned_clock)
     print("acquire ->", {k: summary[k] for k in ("status", "candidates", "attempts", "daily_rows",
                                                   "clean_tree")})
 

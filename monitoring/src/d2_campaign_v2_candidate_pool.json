@@ -1,0 +1,1687 @@
+{
+  "activation_reference_day": "2026-08-10",
+  "carriers": {
+    "istanbul_marmara": {
+      "provider": "KOERI",
+      "segment_polygons": {
+        "izmit": [
+          [
+            40.5,
+            29.5
+          ],
+          [
+            40.5,
+            31.0
+          ],
+          [
+            41.0,
+            31.0
+          ],
+          [
+            41.0,
+            29.5
+          ]
+        ],
+        "marmara_central": [
+          [
+            40.3,
+            27.5
+          ],
+          [
+            40.3,
+            29.0
+          ],
+          [
+            40.8,
+            29.0
+          ],
+          [
+            40.8,
+            27.5
+          ]
+        ],
+        "marmara_west": [
+          [
+            40.5,
+            27.0
+          ],
+          [
+            40.5,
+            28.0
+          ],
+          [
+            41.1,
+            28.0
+          ],
+          [
+            41.1,
+            27.0
+          ]
+        ]
+      },
+      "segments": {
+        "izmit": [
+          {
+            "assignment": "nearest_centroid_55.7km",
+            "code": "ADVT",
+            "lat": 40.4332,
+            "lon": 29.7383,
+            "network": "KO",
+            "ordered_nslc": [
+              "KO.ADVT..HHZ"
+            ],
+            "segment": "izmit",
+            "source": "fdsn",
+            "station_id": "KO.ADVT"
+          },
+          {
+            "assignment": "nearest_centroid_70.2km",
+            "code": "CAVI",
+            "lat": 40.2018,
+            "lon": 29.8377,
+            "network": "KO",
+            "ordered_nslc": [
+              "KO.CAVI..HHZ"
+            ],
+            "segment": "izmit",
+            "source": "fdsn",
+            "station_id": "KO.CAVI"
+          },
+          {
+            "code": "GAZK",
+            "lat": 40.7479,
+            "lon": 27.3275,
+            "metadata_confirmed": true,
+            "network": "KO",
+            "ordered_nslc": [
+              "KO.GAZK..HHZ"
+            ],
+            "segment": "izmit",
+            "source": "v1+fdsn",
+            "station_id": "KO.GAZK"
+          },
+          {
+            "assignment": "nearest_centroid_41.9km",
+            "code": "GULT",
+            "lat": 40.432,
+            "lon": 30.5152,
+            "network": "KO",
+            "ordered_nslc": [
+              "KO.GULT..HHZ"
+            ],
+            "segment": "izmit",
+            "source": "fdsn",
+            "station_id": "KO.GULT"
+          },
+          {
+            "assignment": "inside_polygon",
+            "code": "HRTX",
+            "lat": 40.8009,
+            "lon": 29.6729,
+            "network": "KO",
+            "ordered_nslc": [
+              "KO.HRTX..HHZ"
+            ],
+            "segment": "izmit",
+            "source": "fdsn",
+            "station_id": "KO.HRTX"
+          },
+          {
+            "code": "SAUV",
+            "lat": 40.7401,
+            "lon": 30.3271,
+            "metadata_confirmed": true,
+            "network": "KO",
+            "ordered_nslc": [
+              "KO.SAUV..HHZ"
+            ],
+            "segment": "izmit",
+            "source": "v1+fdsn",
+            "station_id": "KO.SAUV"
+          },
+          {
+            "assignment": "nearest_centroid_67.9km",
+            "code": "SILT",
+            "lat": 41.153,
+            "lon": 29.643,
+            "network": "KO",
+            "ordered_nslc": [
+              "KO.SILT..HHZ"
+            ],
+            "segment": "izmit",
+            "source": "fdsn",
+            "station_id": "KO.SILT"
+          },
+          {
+            "assignment": "inside_polygon",
+            "code": "UVEZ",
+            "lat": 40.904,
+            "lon": 30.9032,
+            "network": "KO",
+            "ordered_nslc": [
+              "KO.UVEZ..HHZ"
+            ],
+            "segment": "izmit",
+            "source": "fdsn",
+            "station_id": "KO.UVEZ"
+          },
+          {
+            "assignment": "nearest_centroid_76.9km",
+            "code": "YLV",
+            "lat": 40.5658,
+            "lon": 29.3708,
+            "network": "KO",
+            "ordered_nslc": [
+              "KO.YLV..HHZ"
+            ],
+            "segment": "izmit",
+            "source": "fdsn",
+            "station_id": "KO.YLV"
+          }
+        ],
+        "marmara_central": [
+          {
+            "assignment": "inside_polygon",
+            "code": "ARMT",
+            "lat": 40.5683,
+            "lon": 28.866,
+            "network": "KO",
+            "ordered_nslc": [
+              "KO.ARMT..HHZ"
+            ],
+            "segment": "marmara_central",
+            "source": "fdsn",
+            "station_id": "KO.ARMT"
+          },
+          {
+            "assignment": "nearest_centroid_82.8km",
+            "code": "BGKT",
+            "lat": 41.181,
+            "lon": 28.773,
+            "network": "KO",
+            "ordered_nslc": [
+              "KO.BGKT..HHZ"
+            ],
+            "segment": "marmara_central",
+            "source": "fdsn",
+            "station_id": "KO.BGKT"
+          },
+          {
+            "assignment": "nearest_centroid_79.4km",
+            "code": "CTKS",
+            "lat": 41.2373,
+            "lon": 28.5072,
+            "network": "KO",
+            "ordered_nslc": [
+              "KO.CTKS..HHZ"
+            ],
+            "segment": "marmara_central",
+            "source": "fdsn",
+            "station_id": "KO.CTKS"
+          },
+          {
+            "assignment": "inside_polygon",
+            "code": "EDC",
+            "lat": 40.3465,
+            "lon": 27.8618,
+            "network": "KO",
+            "ordered_nslc": [
+              "KO.EDC..HHZ"
+            ],
+            "segment": "marmara_central",
+            "source": "fdsn",
+            "station_id": "KO.EDC"
+          },
+          {
+            "assignment": "nearest_centroid_81.8km",
+            "code": "GEML",
+            "lat": 40.4646,
+            "lon": 29.2116,
+            "network": "KO",
+            "ordered_nslc": [
+              "KO.GEML..HHZ"
+            ],
+            "segment": "marmara_central",
+            "source": "fdsn",
+            "station_id": "KO.GEML"
+          },
+          {
+            "assignment": "nearest_centroid_88.7km",
+            "code": "ISK",
+            "lat": 41.0615,
+            "lon": 29.0592,
+            "network": "KO",
+            "ordered_nslc": [
+              "KO.ISK..HHZ"
+            ],
+            "segment": "marmara_central",
+            "source": "fdsn",
+            "station_id": "KO.ISK"
+          },
+          {
+            "assignment": "nearest_centroid_88.9km",
+            "code": "KAVV",
+            "lat": 41.0638,
+            "lon": 29.06,
+            "network": "KO",
+            "ordered_nslc": [
+              "KO.KAVV..HHZ"
+            ],
+            "segment": "marmara_central",
+            "source": "fdsn",
+            "station_id": "KO.KAVV"
+          },
+          {
+            "assignment": "nearest_centroid_32.8km",
+            "code": "KCTX",
+            "lat": 40.2626,
+            "lon": 28.3353,
+            "network": "KO",
+            "ordered_nslc": [
+              "KO.KCTX..HHZ"
+            ],
+            "segment": "marmara_central",
+            "source": "fdsn",
+            "station_id": "KO.KCTX"
+          },
+          {
+            "assignment": "inside_polygon",
+            "code": "MDNY",
+            "lat": 40.3709,
+            "lon": 28.8846,
+            "network": "KO",
+            "ordered_nslc": [
+              "KO.MDNY..HHZ"
+            ],
+            "segment": "marmara_central",
+            "source": "fdsn",
+            "station_id": "KO.MDNY"
+          },
+          {
+            "assignment": "inside_polygon",
+            "code": "MRMT",
+            "lat": 40.609,
+            "lon": 27.5832,
+            "network": "KO",
+            "ordered_nslc": [
+              "KO.MRMT..HHZ"
+            ],
+            "segment": "marmara_central",
+            "source": "fdsn",
+            "station_id": "KO.MRMT"
+          },
+          {
+            "code": "NMR5",
+            "lat": 40.7954,
+            "lon": 27.366,
+            "metadata_confirmed": true,
+            "network": "KO",
+            "ordered_nslc": [
+              "KO.NMR5..HHZ"
+            ],
+            "segment": "marmara_central",
+            "source": "v1+fdsn",
+            "station_id": "KO.NMR5"
+          },
+          {
+            "code": "NMR7",
+            "lat": 40.728,
+            "lon": 27.2353,
+            "metadata_confirmed": true,
+            "network": "KO",
+            "ordered_nslc": [
+              "KO.NMR7..HHZ"
+            ],
+            "segment": "marmara_central",
+            "source": "v1+fdsn",
+            "station_id": "KO.NMR7"
+          },
+          {
+            "code": "NMR8",
+            "lat": 40.612,
+            "lon": 27.5347,
+            "metadata_confirmed": true,
+            "network": "KO",
+            "ordered_nslc": [
+              "KO.NMR8..HHZ"
+            ],
+            "segment": "marmara_central",
+            "source": "v1+fdsn",
+            "station_id": "KO.NMR8"
+          },
+          {
+            "code": "NMR9",
+            "lat": 40.6196,
+            "lon": 27.702,
+            "metadata_confirmed": true,
+            "network": "KO",
+            "ordered_nslc": [
+              "KO.NMR9..HHZ"
+            ],
+            "segment": "marmara_central",
+            "source": "v1+fdsn",
+            "station_id": "KO.NMR9"
+          },
+          {
+            "assignment": "nearest_centroid_75.6km",
+            "code": "SLVT",
+            "lat": 41.2288,
+            "lon": 28.2098,
+            "network": "KO",
+            "ordered_nslc": [
+              "KO.SLVT..HHZ"
+            ],
+            "segment": "marmara_central",
+            "source": "fdsn",
+            "station_id": "KO.SLVT"
+          }
+        ],
+        "marmara_west": [
+          {
+            "code": "BOTS",
+            "lat": 40.9902,
+            "lon": 27.981,
+            "metadata_confirmed": true,
+            "network": "KO",
+            "ordered_nslc": [
+              "KO.BOTS..HHZ"
+            ],
+            "segment": "marmara_west",
+            "source": "v1+fdsn",
+            "station_id": "KO.BOTS"
+          },
+          {
+            "assignment": "nearest_centroid_48.4km",
+            "code": "KRBG",
+            "lat": 40.3932,
+            "lon": 27.2977,
+            "network": "KO",
+            "ordered_nslc": [
+              "KO.KRBG..HHZ"
+            ],
+            "segment": "marmara_west",
+            "source": "fdsn",
+            "station_id": "KO.KRBG"
+          },
+          {
+            "code": "NMR2",
+            "lat": 40.7172,
+            "lon": 27.3123,
+            "metadata_confirmed": true,
+            "network": "KO",
+            "ordered_nslc": [
+              "KO.NMR2..HHZ"
+            ],
+            "segment": "marmara_west",
+            "source": "v1+fdsn",
+            "station_id": "KO.NMR2"
+          },
+          {
+            "code": "NMR3",
+            "lat": 40.7432,
+            "lon": 27.2944,
+            "metadata_confirmed": true,
+            "network": "KO",
+            "ordered_nslc": [
+              "KO.NMR3..HHZ"
+            ],
+            "segment": "marmara_west",
+            "source": "v1+fdsn",
+            "station_id": "KO.NMR3"
+          },
+          {
+            "assignment": "inside_polygon",
+            "code": "NMR4",
+            "lat": 40.788,
+            "lon": 27.3006,
+            "network": "KO",
+            "ordered_nslc": [
+              "KO.NMR4..HHZ"
+            ],
+            "segment": "marmara_west",
+            "source": "fdsn",
+            "station_id": "KO.NMR4"
+          },
+          {
+            "code": "NMR6",
+            "lat": 40.704,
+            "lon": 27.2653,
+            "metadata_confirmed": true,
+            "network": "KO",
+            "ordered_nslc": [
+              "KO.NMR6..HHZ"
+            ],
+            "segment": "marmara_west",
+            "source": "v1+fdsn",
+            "station_id": "KO.NMR6"
+          },
+          {
+            "assignment": "inside_polygon",
+            "code": "RKY",
+            "lat": 40.6874,
+            "lon": 27.1776,
+            "network": "KO",
+            "ordered_nslc": [
+              "KO.RKY..HHZ"
+            ],
+            "segment": "marmara_west",
+            "source": "fdsn",
+            "station_id": "KO.RKY"
+          },
+          {
+            "assignment": "inside_polygon",
+            "code": "TKR",
+            "lat": 40.9893,
+            "lon": 27.5351,
+            "network": "KO",
+            "ordered_nslc": [
+              "KO.TKR..HHZ"
+            ],
+            "segment": "marmara_west",
+            "source": "fdsn",
+            "station_id": "KO.TKR"
+          }
+        ]
+      }
+    },
+    "socal_coachella": {
+      "provider": "SCEDC",
+      "segment_polygons": {
+        "brawley_seismic_zone": [
+          [
+            32.8,
+            -116.0
+          ],
+          [
+            32.8,
+            -115.2
+          ],
+          [
+            33.6,
+            -115.2
+          ],
+          [
+            33.6,
+            -116.0
+          ]
+        ],
+        "coachella_north": [
+          [
+            33.6,
+            -116.7
+          ],
+          [
+            33.6,
+            -116.3
+          ],
+          [
+            34.0,
+            -116.3
+          ],
+          [
+            34.0,
+            -116.7
+          ]
+        ],
+        "coachella_south": [
+          [
+            33.0,
+            -116.8
+          ],
+          [
+            33.0,
+            -116.2
+          ],
+          [
+            33.6,
+            -116.2
+          ],
+          [
+            33.6,
+            -116.8
+          ]
+        ]
+      },
+      "segments": {
+        "brawley_seismic_zone": [
+          {
+            "code": "BC3",
+            "lat": 33.65515,
+            "lon": -115.45366,
+            "metadata_confirmed": true,
+            "network": "CI",
+            "ordered_nslc": [
+              "CI.BC3..BHZ"
+            ],
+            "segment": "brawley_seismic_zone",
+            "source": "v1+fdsn",
+            "station_id": "CI.BC3"
+          },
+          {
+            "assignment": "inside_polygon",
+            "code": "BOM",
+            "lat": 33.36465,
+            "lon": -115.72963,
+            "network": "CI",
+            "ordered_nslc": [
+              "CI.BOM..HHZ"
+            ],
+            "segment": "brawley_seismic_zone",
+            "source": "fdsn",
+            "station_id": "CI.BOM"
+          },
+          {
+            "assignment": "nearest_centroid_58.1km",
+            "code": "COA",
+            "lat": 32.86341,
+            "lon": -115.12339,
+            "network": "CI",
+            "ordered_nslc": [
+              "CI.COA..HHZ"
+            ],
+            "segment": "brawley_seismic_zone",
+            "source": "fdsn",
+            "station_id": "CI.COA"
+          },
+          {
+            "assignment": "inside_polygon",
+            "code": "CRR",
+            "lat": 32.88682,
+            "lon": -115.96918,
+            "network": "CI",
+            "ordered_nslc": [
+              "CI.CRR..HHZ"
+            ],
+            "segment": "brawley_seismic_zone",
+            "source": "fdsn",
+            "station_id": "CI.CRR"
+          },
+          {
+            "assignment": "inside_polygon",
+            "code": "DRE",
+            "lat": 32.80532,
+            "lon": -115.44679,
+            "network": "CI",
+            "ordered_nslc": [
+              "CI.DRE..HHZ"
+            ],
+            "segment": "brawley_seismic_zone",
+            "source": "fdsn",
+            "station_id": "CI.DRE"
+          },
+          {
+            "assignment": "nearest_centroid_48.4km",
+            "code": "ELO",
+            "lat": 32.765278,
+            "lon": -115.620889,
+            "network": "CI",
+            "ordered_nslc": [
+              "CI.ELO..HHZ"
+            ],
+            "segment": "brawley_seismic_zone",
+            "source": "fdsn",
+            "station_id": "CI.ELO"
+          },
+          {
+            "assignment": "inside_polygon",
+            "code": "ERR",
+            "lat": 33.11652,
+            "lon": -115.82273,
+            "network": "CI",
+            "ordered_nslc": [
+              "CI.ERR..HHZ"
+            ],
+            "segment": "brawley_seismic_zone",
+            "source": "fdsn",
+            "station_id": "CI.ERR"
+          },
+          {
+            "assignment": "inside_polygon",
+            "code": "FRK",
+            "lat": 33.40209,
+            "lon": -115.63835,
+            "network": "CI",
+            "ordered_nslc": [
+              "CI.FRK..HHZ"
+            ],
+            "segment": "brawley_seismic_zone",
+            "source": "fdsn",
+            "station_id": "CI.FRK"
+          },
+          {
+            "assignment": "nearest_centroid_56.5km",
+            "code": "HAY",
+            "lat": 33.70734,
+            "lon": -115.63889,
+            "network": "CI",
+            "ordered_nslc": [
+              "CI.HAY..HHZ"
+            ],
+            "segment": "brawley_seismic_zone",
+            "source": "fdsn",
+            "station_id": "CI.HAY"
+          },
+          {
+            "assignment": "nearest_centroid_77.5km",
+            "code": "IKP",
+            "lat": 32.65012,
+            "lon": -116.10948,
+            "network": "CI",
+            "ordered_nslc": [
+              "CI.IKP..HHZ"
+            ],
+            "segment": "brawley_seismic_zone",
+            "source": "fdsn",
+            "station_id": "CI.IKP"
+          },
+          {
+            "assignment": "inside_polygon",
+            "code": "IMP",
+            "lat": 32.90147,
+            "lon": -115.56071,
+            "network": "CI",
+            "ordered_nslc": [
+              "CI.IMP..HHZ"
+            ],
+            "segment": "brawley_seismic_zone",
+            "source": "fdsn",
+            "station_id": "CI.IMP"
+          },
+          {
+            "assignment": "inside_polygon",
+            "code": "NSS2",
+            "lat": 33.55553,
+            "lon": -115.94586,
+            "network": "CI",
+            "ordered_nslc": [
+              "CI.NSS2..HHZ"
+            ],
+            "segment": "brawley_seismic_zone",
+            "source": "fdsn",
+            "station_id": "CI.NSS2"
+          },
+          {
+            "assignment": "nearest_centroid_63.7km",
+            "code": "OCP",
+            "lat": 32.74755,
+            "lon": -116.01931,
+            "network": "CI",
+            "ordered_nslc": [
+              "CI.OCP..HHZ"
+            ],
+            "segment": "brawley_seismic_zone",
+            "source": "fdsn",
+            "station_id": "CI.OCP"
+          },
+          {
+            "assignment": "inside_polygon",
+            "code": "PLR",
+            "lat": 33.17349,
+            "lon": -115.977744,
+            "network": "CI",
+            "ordered_nslc": [
+              "CI.PLR..HHZ"
+            ],
+            "segment": "brawley_seismic_zone",
+            "source": "fdsn",
+            "station_id": "CI.PLR"
+          },
+          {
+            "code": "RXH",
+            "lat": 33.18313,
+            "lon": -115.62257,
+            "metadata_confirmed": true,
+            "network": "CI",
+            "ordered_nslc": [
+              "CI.RXH..BHZ"
+            ],
+            "segment": "brawley_seismic_zone",
+            "source": "v1+fdsn",
+            "station_id": "CI.RXH"
+          },
+          {
+            "assignment": "inside_polygon",
+            "code": "SLB",
+            "lat": 33.48519,
+            "lon": -115.86643,
+            "network": "CI",
+            "ordered_nslc": [
+              "CI.SLB..HHZ"
+            ],
+            "segment": "brawley_seismic_zone",
+            "source": "fdsn",
+            "station_id": "CI.SLB"
+          },
+          {
+            "assignment": "inside_polygon",
+            "code": "SNR",
+            "lat": 32.86184,
+            "lon": -115.43602,
+            "network": "CI",
+            "ordered_nslc": [
+              "CI.SNR..HHZ"
+            ],
+            "segment": "brawley_seismic_zone",
+            "source": "fdsn",
+            "station_id": "CI.SNR"
+          },
+          {
+            "assignment": "nearest_centroid_64.9km",
+            "code": "SWP",
+            "lat": 32.79184,
+            "lon": -116.09718,
+            "network": "CI",
+            "ordered_nslc": [
+              "CI.SWP..HHZ"
+            ],
+            "segment": "brawley_seismic_zone",
+            "source": "fdsn",
+            "station_id": "CI.SWP"
+          },
+          {
+            "assignment": "inside_polygon",
+            "code": "SWS",
+            "lat": 32.94508,
+            "lon": -115.79988,
+            "network": "CI",
+            "ordered_nslc": [
+              "CI.SWS..HHZ"
+            ],
+            "segment": "brawley_seismic_zone",
+            "source": "fdsn",
+            "station_id": "CI.SWS"
+          },
+          {
+            "assignment": "inside_polygon",
+            "code": "WWF",
+            "lat": 33.27884,
+            "lon": -115.57888,
+            "network": "CI",
+            "ordered_nslc": [
+              "CI.WWF..HHZ"
+            ],
+            "segment": "brawley_seismic_zone",
+            "source": "fdsn",
+            "station_id": "CI.WWF"
+          }
+        ],
+        "coachella_north": [
+          {
+            "assignment": "nearest_centroid_51.4km",
+            "code": "BEL",
+            "lat": 34.0006,
+            "lon": -115.9982,
+            "network": "CI",
+            "ordered_nslc": [
+              "CI.BEL..HHZ"
+            ],
+            "segment": "coachella_north",
+            "source": "fdsn",
+            "station_id": "CI.BEL"
+          },
+          {
+            "assignment": "nearest_centroid_31.6km",
+            "code": "BLA2",
+            "lat": 34.06931,
+            "lon": -116.38993,
+            "network": "CI",
+            "ordered_nslc": [
+              "CI.BLA2..HHZ"
+            ],
+            "segment": "coachella_north",
+            "source": "fdsn",
+            "station_id": "CI.BLA2"
+          },
+          {
+            "assignment": "inside_polygon",
+            "code": "CSH",
+            "lat": 33.6442,
+            "lon": -116.5956,
+            "network": "CI",
+            "ordered_nslc": [
+              "CI.CSH..HHZ"
+            ],
+            "segment": "coachella_north",
+            "source": "fdsn",
+            "station_id": "CI.CSH"
+          },
+          {
+            "assignment": "nearest_centroid_49.8km",
+            "code": "CTC",
+            "lat": 33.65516,
+            "lon": -115.99006,
+            "network": "CI",
+            "ordered_nslc": [
+              "CI.CTC..HHZ"
+            ],
+            "segment": "coachella_north",
+            "source": "fdsn",
+            "station_id": "CI.CTC"
+          },
+          {
+            "assignment": "nearest_centroid_29.1km",
+            "code": "CZN",
+            "lat": 33.91375,
+            "lon": -116.78409,
+            "network": "CI",
+            "ordered_nslc": [
+              "CI.CZN..HHZ"
+            ],
+            "segment": "coachella_north",
+            "source": "fdsn",
+            "station_id": "CI.CZN"
+          },
+          {
+            "assignment": "inside_polygon",
+            "code": "DEV",
+            "lat": 33.93597,
+            "lon": -116.57794,
+            "network": "CI",
+            "ordered_nslc": [
+              "CI.DEV..HHZ"
+            ],
+            "segment": "coachella_north",
+            "source": "fdsn",
+            "station_id": "CI.DEV"
+          },
+          {
+            "assignment": "nearest_centroid_51.8km",
+            "code": "FHO",
+            "lat": 34.09355,
+            "lon": -116.93588,
+            "network": "CI",
+            "ordered_nslc": [
+              "CI.FHO..HHZ"
+            ],
+            "segment": "coachella_north",
+            "source": "fdsn",
+            "station_id": "CI.FHO"
+          },
+          {
+            "assignment": "nearest_centroid_25.7km",
+            "code": "IDO",
+            "lat": 33.79678,
+            "lon": -116.22152,
+            "network": "CI",
+            "ordered_nslc": [
+              "CI.IDO..HHZ"
+            ],
+            "segment": "coachella_north",
+            "source": "fdsn",
+            "station_id": "CI.IDO"
+          },
+          {
+            "assignment": "nearest_centroid_20.8km",
+            "code": "IDY",
+            "lat": 33.74642,
+            "lon": -116.71536,
+            "network": "CI",
+            "ordered_nslc": [
+              "CI.IDY..HHZ"
+            ],
+            "segment": "coachella_north",
+            "source": "fdsn",
+            "station_id": "CI.IDY"
+          },
+          {
+            "assignment": "nearest_centroid_56.0km",
+            "code": "JTH",
+            "lat": 34.12644,
+            "lon": -116.03785,
+            "network": "CI",
+            "ordered_nslc": [
+              "CI.JTH..HHZ"
+            ],
+            "segment": "coachella_north",
+            "source": "fdsn",
+            "station_id": "CI.JTH"
+          },
+          {
+            "assignment": "nearest_centroid_33.2km",
+            "code": "KYV",
+            "lat": 33.92545,
+            "lon": -116.1734,
+            "network": "CI",
+            "ordered_nslc": [
+              "CI.KYV..HHZ"
+            ],
+            "segment": "coachella_north",
+            "source": "fdsn",
+            "station_id": "CI.KYV"
+          },
+          {
+            "assignment": "inside_polygon",
+            "code": "MGE",
+            "lat": 33.81841,
+            "lon": -116.36874,
+            "network": "CI",
+            "ordered_nslc": [
+              "CI.MGE..HHZ"
+            ],
+            "segment": "coachella_north",
+            "source": "fdsn",
+            "station_id": "CI.MGE"
+          },
+          {
+            "assignment": "nearest_centroid_29.8km",
+            "code": "MSC",
+            "lat": 34.03852,
+            "lon": -116.64795,
+            "network": "CI",
+            "ordered_nslc": [
+              "CI.MSC..HHZ"
+            ],
+            "segment": "coachella_north",
+            "source": "fdsn",
+            "station_id": "CI.MSC"
+          },
+          {
+            "assignment": "inside_polygon",
+            "code": "PMD",
+            "lat": 33.64785,
+            "lon": -116.37769,
+            "network": "CI",
+            "ordered_nslc": [
+              "CI.PMD..HHZ"
+            ],
+            "segment": "coachella_north",
+            "source": "fdsn",
+            "station_id": "CI.PMD"
+          },
+          {
+            "assignment": "nearest_centroid_41.1km",
+            "code": "POB2",
+            "lat": 33.68708,
+            "lon": -116.92382,
+            "network": "CI",
+            "ordered_nslc": [
+              "CI.POB2..HHZ"
+            ],
+            "segment": "coachella_north",
+            "source": "fdsn",
+            "station_id": "CI.POB2"
+          },
+          {
+            "assignment": "inside_polygon",
+            "code": "PSD",
+            "lat": 33.82393,
+            "lon": -116.55026,
+            "network": "CI",
+            "ordered_nslc": [
+              "CI.PSD..HHZ"
+            ],
+            "segment": "coachella_north",
+            "source": "fdsn",
+            "station_id": "CI.PSD"
+          },
+          {
+            "assignment": "nearest_centroid_27.7km",
+            "code": "SLR",
+            "lat": 33.83359,
+            "lon": -116.79737,
+            "network": "CI",
+            "ordered_nslc": [
+              "CI.SLR..HHZ"
+            ],
+            "segment": "coachella_north",
+            "source": "fdsn",
+            "station_id": "CI.SLR"
+          },
+          {
+            "assignment": "nearest_centroid_38.6km",
+            "code": "SNO",
+            "lat": 34.03515,
+            "lon": -116.80778,
+            "network": "CI",
+            "ordered_nslc": [
+              "CI.SNO..HHZ"
+            ],
+            "segment": "coachella_north",
+            "source": "fdsn",
+            "station_id": "CI.SNO"
+          },
+          {
+            "assignment": "nearest_centroid_42.5km",
+            "code": "THM",
+            "lat": 33.65066,
+            "lon": -116.07734,
+            "network": "CI",
+            "ordered_nslc": [
+              "CI.THM..HHZ"
+            ],
+            "segment": "coachella_north",
+            "source": "fdsn",
+            "station_id": "CI.THM"
+          },
+          {
+            "assignment": "inside_polygon",
+            "code": "WWC",
+            "lat": 33.94068,
+            "lon": -116.40876,
+            "network": "CI",
+            "ordered_nslc": [
+              "CI.WWC..HHZ"
+            ],
+            "segment": "coachella_north",
+            "source": "fdsn",
+            "station_id": "CI.WWC"
+          }
+        ],
+        "coachella_south": [
+          {
+            "assignment": "nearest_centroid_42.5km",
+            "code": "ACP",
+            "lat": 32.9546,
+            "lon": -116.30338,
+            "network": "CI",
+            "ordered_nslc": [
+              "CI.ACP..HHZ"
+            ],
+            "segment": "coachella_south",
+            "source": "fdsn",
+            "station_id": "CI.ACP"
+          },
+          {
+            "assignment": "nearest_centroid_36.5km",
+            "code": "ANG",
+            "lat": 33.503277,
+            "lon": -116.808391,
+            "network": "CI",
+            "ordered_nslc": [
+              "CI.ANG..HHZ"
+            ],
+            "segment": "coachella_south",
+            "source": "fdsn",
+            "station_id": "CI.ANG"
+          },
+          {
+            "assignment": "nearest_centroid_70.8km",
+            "code": "BAR",
+            "lat": 32.68005,
+            "lon": -116.67215,
+            "network": "CI",
+            "ordered_nslc": [
+              "CI.BAR..HHZ"
+            ],
+            "segment": "coachella_south",
+            "source": "fdsn",
+            "station_id": "CI.BAR"
+          },
+          {
+            "code": "BOR",
+            "lat": 33.2682,
+            "lon": -116.41716,
+            "metadata_confirmed": true,
+            "network": "CI",
+            "ordered_nslc": [
+              "CI.BOR..BHZ"
+            ],
+            "segment": "coachella_south",
+            "source": "v1+fdsn",
+            "station_id": "CI.BOR"
+          },
+          {
+            "assignment": "inside_polygon",
+            "code": "CARY",
+            "lat": 33.56537,
+            "lon": -116.73734,
+            "network": "CI",
+            "ordered_nslc": [
+              "CI.CARY..HHZ"
+            ],
+            "segment": "coachella_south",
+            "source": "fdsn",
+            "station_id": "CI.CARY"
+          },
+          {
+            "code": "CTW",
+            "lat": 33.67728,
+            "lon": -115.87214,
+            "metadata_confirmed": true,
+            "network": "CI",
+            "ordered_nslc": [
+              "CI.CTW..BHZ"
+            ],
+            "segment": "coachella_south",
+            "source": "v1+fdsn",
+            "station_id": "CI.CTW"
+          },
+          {
+            "assignment": "nearest_centroid_45.4km",
+            "code": "CYP",
+            "lat": 32.906111,
+            "lon": -116.627222,
+            "network": "CI",
+            "ordered_nslc": [
+              "CI.CYP..HHZ"
+            ],
+            "segment": "coachella_south",
+            "source": "fdsn",
+            "station_id": "CI.CYP"
+          },
+          {
+            "assignment": "inside_polygon",
+            "code": "DNR",
+            "lat": 33.56667,
+            "lon": -116.63056,
+            "network": "CI",
+            "ordered_nslc": [
+              "CI.DNR..HHZ"
+            ],
+            "segment": "coachella_south",
+            "source": "fdsn",
+            "station_id": "CI.DNR"
+          },
+          {
+            "assignment": "nearest_centroid_53.0km",
+            "code": "DPP",
+            "lat": 32.99889,
+            "lon": -116.94187,
+            "network": "CI",
+            "ordered_nslc": [
+              "CI.DPP..HHZ"
+            ],
+            "segment": "coachella_south",
+            "source": "fdsn",
+            "station_id": "CI.DPP"
+          },
+          {
+            "assignment": "nearest_centroid_55.7km",
+            "code": "EML",
+            "lat": 32.89083,
+            "lon": -116.84566,
+            "network": "CI",
+            "ordered_nslc": [
+              "CI.EML..HHZ"
+            ],
+            "segment": "coachella_south",
+            "source": "fdsn",
+            "station_id": "CI.EML"
+          },
+          {
+            "assignment": "inside_polygon",
+            "code": "JEM",
+            "lat": 33.08098,
+            "lon": -116.59755,
+            "network": "CI",
+            "ordered_nslc": [
+              "CI.JEM..HHZ"
+            ],
+            "segment": "coachella_south",
+            "source": "fdsn",
+            "station_id": "CI.JEM"
+          },
+          {
+            "assignment": "inside_polygon",
+            "code": "LKH",
+            "lat": 33.23598,
+            "lon": -116.75876,
+            "network": "CI",
+            "ordered_nslc": [
+              "CI.LKH..HHZ"
+            ],
+            "segment": "coachella_south",
+            "source": "fdsn",
+            "station_id": "CI.LKH"
+          },
+          {
+            "assignment": "nearest_centroid_70.5km",
+            "code": "LYP",
+            "lat": 32.70333,
+            "lon": -116.7548,
+            "network": "CI",
+            "ordered_nslc": [
+              "CI.LYP..HHZ"
+            ],
+            "segment": "coachella_south",
+            "source": "fdsn",
+            "station_id": "CI.LYP"
+          },
+          {
+            "assignment": "inside_polygon",
+            "code": "MTG",
+            "lat": 33.19915,
+            "lon": -116.64727,
+            "network": "CI",
+            "ordered_nslc": [
+              "CI.MTG..HHZ"
+            ],
+            "segment": "coachella_south",
+            "source": "fdsn",
+            "station_id": "CI.MTG"
+          },
+          {
+            "assignment": "nearest_centroid_34.2km",
+            "code": "PLM",
+            "lat": 33.35361,
+            "lon": -116.86265,
+            "network": "CI",
+            "ordered_nslc": [
+              "CI.PLM..HHZ"
+            ],
+            "segment": "coachella_south",
+            "source": "fdsn",
+            "station_id": "CI.PLM"
+          },
+          {
+            "assignment": "inside_polygon",
+            "code": "RCR",
+            "lat": 33.36237,
+            "lon": -116.3096,
+            "network": "CI",
+            "ordered_nslc": [
+              "CI.RCR..HHZ"
+            ],
+            "segment": "coachella_south",
+            "source": "fdsn",
+            "station_id": "CI.RCR"
+          },
+          {
+            "assignment": "nearest_centroid_75.1km",
+            "code": "SDR",
+            "lat": 32.73561,
+            "lon": -116.94241,
+            "network": "CI",
+            "ordered_nslc": [
+              "CI.SDR..HHZ"
+            ],
+            "segment": "coachella_south",
+            "source": "fdsn",
+            "station_id": "CI.SDR"
+          },
+          {
+            "assignment": "inside_polygon",
+            "code": "SLH",
+            "lat": 33.19269,
+            "lon": -116.25399,
+            "network": "CI",
+            "ordered_nslc": [
+              "CI.SLH..HHZ"
+            ],
+            "segment": "coachella_south",
+            "source": "fdsn",
+            "station_id": "CI.SLH"
+          },
+          {
+            "assignment": "inside_polygon",
+            "code": "TOR",
+            "lat": 33.57526,
+            "lon": -116.22584,
+            "network": "CI",
+            "ordered_nslc": [
+              "CI.TOR..HHZ"
+            ],
+            "segment": "coachella_south",
+            "source": "fdsn",
+            "station_id": "CI.TOR"
+          },
+          {
+            "assignment": "nearest_centroid_37.4km",
+            "code": "VLO",
+            "lat": 32.97181,
+            "lon": -116.41064,
+            "network": "CI",
+            "ordered_nslc": [
+              "CI.VLO..HHZ"
+            ],
+            "segment": "coachella_south",
+            "source": "fdsn",
+            "station_id": "CI.VLO"
+          }
+        ]
+      }
+    },
+    "turkey_kahramanmaras": {
+      "provider": "KOERI",
+      "segment_polygons": {
+        "east_anatolian_central": [
+          [
+            37.0,
+            35.5
+          ],
+          [
+            37.0,
+            38.0
+          ],
+          [
+            38.0,
+            38.0
+          ],
+          [
+            38.0,
+            35.5
+          ]
+        ],
+        "east_anatolian_north": [
+          [
+            38.0,
+            37.0
+          ],
+          [
+            38.0,
+            40.0
+          ],
+          [
+            39.0,
+            40.0
+          ],
+          [
+            39.0,
+            37.0
+          ]
+        ],
+        "east_anatolian_south": [
+          [
+            36.0,
+            35.0
+          ],
+          [
+            36.0,
+            38.0
+          ],
+          [
+            37.2,
+            38.0
+          ],
+          [
+            37.2,
+            35.0
+          ]
+        ]
+      },
+      "segments": {
+        "east_anatolian_central": [
+          {
+            "assignment": "nearest_centroid_169.8km",
+            "code": "BNN",
+            "lat": 38.8521,
+            "lon": 35.8472,
+            "network": "KO",
+            "ordered_nslc": [
+              "KO.BNN..HHZ"
+            ],
+            "segment": "east_anatolian_central",
+            "source": "fdsn",
+            "station_id": "KO.BNN"
+          },
+          {
+            "assignment": "inside_polygon",
+            "code": "CEYT",
+            "lat": 37.0105,
+            "lon": 35.7478,
+            "network": "KO",
+            "ordered_nslc": [
+              "KO.CEYT..HHZ"
+            ],
+            "segment": "east_anatolian_central",
+            "source": "fdsn",
+            "station_id": "KO.CEYT"
+          },
+          {
+            "code": "KHMN",
+            "lat": null,
+            "lon": null,
+            "network": "KO",
+            "ordered_nslc": [
+              "KO.KHMN..HNZ"
+            ],
+            "segment": "east_anatolian_central",
+            "source": "v1",
+            "station_id": "KO.KHMN"
+          },
+          {
+            "assignment": "inside_polygon",
+            "code": "KMRS",
+            "lat": 37.5087,
+            "lon": 36.9,
+            "network": "KO",
+            "ordered_nslc": [
+              "KO.KMRS..HHZ"
+            ],
+            "segment": "east_anatolian_central",
+            "source": "fdsn",
+            "station_id": "KO.KMRS"
+          },
+          {
+            "assignment": "inside_polygon",
+            "code": "KOZT",
+            "lat": 37.4795,
+            "lon": 35.8264,
+            "network": "KO",
+            "ordered_nslc": [
+              "KO.KOZT..HHZ"
+            ],
+            "segment": "east_anatolian_central",
+            "source": "fdsn",
+            "station_id": "KO.KOZT"
+          },
+          {
+            "code": "NURH",
+            "lat": 37.9693,
+            "lon": 37.4363,
+            "metadata_confirmed": true,
+            "network": "KO",
+            "ordered_nslc": [
+              "KO.NURH..HHZ"
+            ],
+            "segment": "east_anatolian_central",
+            "source": "v1+fdsn",
+            "station_id": "KO.NURH"
+          },
+          {
+            "assignment": "nearest_centroid_105.0km",
+            "code": "SARI",
+            "lat": 38.4072,
+            "lon": 36.4181,
+            "network": "KO",
+            "ordered_nslc": [
+              "KO.SARI..HHZ"
+            ],
+            "segment": "east_anatolian_central",
+            "source": "fdsn",
+            "station_id": "KO.SARI"
+          }
+        ],
+        "east_anatolian_north": [
+          {
+            "code": "AKDG",
+            "lat": 38.3618,
+            "lon": 37.9703,
+            "metadata_confirmed": true,
+            "network": "KO",
+            "ordered_nslc": [
+              "KO.AKDG..HHZ"
+            ],
+            "segment": "east_anatolian_north",
+            "source": "v1+fdsn",
+            "station_id": "KO.AKDG"
+          },
+          {
+            "code": "ARGN",
+            "lat": 38.7763,
+            "lon": 38.2639,
+            "metadata_confirmed": true,
+            "network": "KO",
+            "ordered_nslc": [
+              "KO.ARGN..HHZ"
+            ],
+            "segment": "east_anatolian_north",
+            "source": "v1+fdsn",
+            "station_id": "KO.ARGN"
+          },
+          {
+            "assignment": "inside_polygon",
+            "code": "DARE",
+            "lat": 38.5712,
+            "lon": 37.4832,
+            "network": "KO",
+            "ordered_nslc": [
+              "KO.DARE..HHZ"
+            ],
+            "segment": "east_anatolian_north",
+            "source": "fdsn",
+            "station_id": "KO.DARE"
+          },
+          {
+            "assignment": "nearest_centroid_155.6km",
+            "code": "DYBB",
+            "lat": 37.9532,
+            "lon": 40.1393,
+            "network": "KO",
+            "ordered_nslc": [
+              "KO.DYBB..HHZ"
+            ],
+            "segment": "east_anatolian_north",
+            "source": "fdsn",
+            "station_id": "KO.DYBB"
+          },
+          {
+            "assignment": "inside_polygon",
+            "code": "KBAN",
+            "lat": 38.797,
+            "lon": 38.7278,
+            "network": "KO",
+            "ordered_nslc": [
+              "KO.KBAN..HHZ"
+            ],
+            "segment": "east_anatolian_north",
+            "source": "fdsn",
+            "station_id": "KO.KBAN"
+          },
+          {
+            "code": "MLTY",
+            "lat": 38.3223,
+            "lon": 38.4407,
+            "metadata_confirmed": true,
+            "network": "KO",
+            "ordered_nslc": [
+              "KO.MLTY..HHZ"
+            ],
+            "segment": "east_anatolian_north",
+            "source": "v1+fdsn",
+            "station_id": "KO.MLTY"
+          },
+          {
+            "code": "SVRC",
+            "lat": 38.3775,
+            "lon": 39.306,
+            "metadata_confirmed": true,
+            "network": "KO",
+            "ordered_nslc": [
+              "KO.SVRC..HHZ"
+            ],
+            "segment": "east_anatolian_north",
+            "source": "v1+fdsn",
+            "station_id": "KO.SVRC"
+          },
+          {
+            "assignment": "nearest_centroid_121.1km",
+            "code": "URFA",
+            "lat": 37.4409,
+            "lon": 38.8213,
+            "network": "KO",
+            "ordered_nslc": [
+              "KO.URFA..HHZ"
+            ],
+            "segment": "east_anatolian_north",
+            "source": "fdsn",
+            "station_id": "KO.URFA"
+          }
+        ],
+        "east_anatolian_south": [
+          {
+            "code": "GAZ",
+            "lat": 37.1721,
+            "lon": 37.2096,
+            "metadata_confirmed": true,
+            "network": "KO",
+            "ordered_nslc": [
+              "KO.GAZ..HHZ"
+            ],
+            "segment": "east_anatolian_south",
+            "source": "v1+fdsn",
+            "station_id": "KO.GAZ"
+          },
+          {
+            "assignment": "nearest_centroid_148.0km",
+            "code": "KARA",
+            "lat": 37.2607,
+            "lon": 35.0547,
+            "network": "KO",
+            "ordered_nslc": [
+              "KO.KARA..HHZ"
+            ],
+            "segment": "east_anatolian_south",
+            "source": "fdsn",
+            "station_id": "KO.KARA"
+          },
+          {
+            "code": "TAHT",
+            "lat": 36.3755,
+            "lon": 36.1855,
+            "metadata_confirmed": true,
+            "network": "KO",
+            "ordered_nslc": [
+              "KO.TAHT..HHZ"
+            ],
+            "segment": "east_anatolian_south",
+            "source": "v1+fdsn",
+            "station_id": "KO.TAHT"
+          }
+        ]
+      }
+    }
+  },
+  "contract_id": "codex-d2-campaign-v2-2026-08-10-v1",
+  "incident_reference_day": "2026-07-29",
+  "scheduled": {
+    "activation": [
+      "2026-03-13",
+      "2026-07-11"
+    ],
+    "incident": [
+      "2026-03-01",
+      "2026-06-29"
+    ]
+  },
+  "schema": "geospec-d2-campaign-v2-candidate-pool-v1",
+  "selection_note": "candidates enumerated by provider station metadata (HHZ, channel-level, over the window union) then assigned to the nearest unchanged segment polygon; v1 stations retain their v1 segment; a station identity occurs in at most one segment pool per carrier; availability-only (no waveform/lambda/QC/replay/v1-score input); freezes before any availability probe.",
+  "station_metadata_receipts": {
+    "istanbul_marmara_KO": {
+      "bytes": 4820,
+      "error": null,
+      "receipt_path": "station_metadata_receipts/istanbul_marmara_KO.txt",
+      "sha256": "9bccbf5f013073b1510b41ecb0b5383c690e5713ea903dade8c75d386175ae72",
+      "status": 200,
+      "url": "http://eida.koeri.boun.edu.tr/fdsnws/station/1/query?net=KO&cha=HHZ&level=channel&format=text&minlatitude=40.1500&maxlatitude=41.2500&minlongitude=26.8500&maxlongitude=31.1500&starttime=2026-03-01T00:00:00&endtime=2026-07-11T00:00:00&nodata=404"
+    },
+    "socal_coachella_CI": {
+      "bytes": 9106,
+      "error": null,
+      "receipt_path": "station_metadata_receipts/socal_coachella_CI.txt",
+      "sha256": "260fb7c440038a20703eb8d70b1571b8fa34fd8fa6a5bdf580b7bd8f2ffa3093",
+      "status": 200,
+      "url": "https://service.scedc.caltech.edu/fdsnws/station/1/query?net=CI&cha=HHZ&level=channel&format=text&minlatitude=32.6500&maxlatitude=34.1500&minlongitude=-116.9500&maxlongitude=-115.0500&starttime=2026-03-01T00:00:00&endtime=2026-07-11T00:00:00&nodata=404"
+    },
+    "turkey_kahramanmaras_KO": {
+      "bytes": 2823,
+      "error": null,
+      "receipt_path": "station_metadata_receipts/turkey_kahramanmaras_KO.txt",
+      "sha256": "6f62ebb68a9652f523c8491bd7bfa2d34605e3a1bc24de4271cc3097002abb2a",
+      "status": 200,
+      "url": "http://eida.koeri.boun.edu.tr/fdsnws/station/1/query?net=KO&cha=HHZ&level=channel&format=text&minlatitude=35.8500&maxlatitude=39.1500&minlongitude=34.8500&maxlongitude=40.1500&starttime=2026-03-01T00:00:00&endtime=2026-07-11T00:00:00&nodata=404"
+    },
+    "turkey_kahramanmaras_TU": {
+      "bytes": 400,
+      "error": "HTTPError 404",
+      "receipt_path": "station_metadata_receipts/turkey_kahramanmaras_TU.txt",
+      "sha256": "668492e6242a88d02c4cc8c6b1fdae06f234c19167c1b959b89a21cac4ae4449",
+      "status": 404,
+      "url": "http://eida.koeri.boun.edu.tr/fdsnws/station/1/query?net=TU&cha=HHZ&level=channel&format=text&minlatitude=35.8500&maxlatitude=39.1500&minlongitude=34.8500&maxlongitude=40.1500&starttime=2026-03-01T00:00:00&endtime=2026-07-11T00:00:00&nodata=404"
+    }
+  },
+  "window_union": [
+    "2026-03-01T00:00:00",
+    "2026-07-11T00:00:00"
+  ]
+}

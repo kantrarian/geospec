@@ -44,6 +44,14 @@ BLOCKED markers). V0/V1 are green context locks on the REAL pinned evidence — 
 derivation proof: selection and per-carrier eligibility RECOMPUTED from availability_table
 + pool + arms under the frozen policy rule reproduce the bundle EXACTLY (verified live
 before freeze; any later tamper of table/bundle/selection breaks it).
+
+REV 2 (2026-08-13, codex 1435 HIGH repair): V1b potential-day recompute now uses the
+SELECTED registry only (contract sec. 3: ">=2 selected stations in each of >=2 segments"),
+not every probed candidate — the old expression could grant V1b PASS via unselected spares
+after selected stations lost support. Adds the synthetic unselected-spare counterexample
+KAT (real evidence does not distinguish the two algorithms; codex recomputed the pinned
+bundle selected-only and the declared counts are unchanged). Repair diff authored+tested
+by codex (1435); applied verbatim by cayley.
 """
 import hashlib
 import json
@@ -92,6 +100,37 @@ def _reenc(doc):
             + "\n").encode()
 
 
+def _selected_potential_days(days, stations, selection, floor):
+    """Carrier-day upper bound from the selected registry only (Phase-0 contract sec. 3)."""
+    out = []
+    for d in sorted(days):
+        seg_ok = sum(
+            1 for _seg, sids in selection.items()
+            if sids is not None and sum(
+                1 for sid in sids
+                if d in stations[sid]["per_day"]
+                and stations[sid]["per_day"][d]["state"] == "AVAILABLE"
+                and stations[sid]["per_day"][d]["seconds"] >= floor) >= 2)
+        if seg_ok >= 2:
+            out.append(d)
+    return out
+
+
+def _selected_only_counterexample(floor):
+    day = "synthetic-day"
+    absent = {"per_day": {day: {"state": "ABSENT", "seconds": 0}}}
+    available = {"per_day": {day: {"state": "AVAILABLE", "seconds": floor}}}
+    stations = {
+        "a1": absent, "a2": absent, "a3": absent,
+        "b1": absent, "b2": absent, "b3": absent,
+        "a_spare1": available, "a_spare2": available,
+        "b_spare1": available, "b_spare2": available,
+    }
+    selection = {"seg_a": ["a1", "a2", "a3"],
+                 "seg_b": ["b1", "b2", "b3"]}
+    return _selected_potential_days([day], stations, selection, floor) == []
+
+
 def _recompute(bundle, avail):
     """The frozen policy selection + eligibility rule, re-derived from pinned inputs."""
     floor = avail["floor_seconds"]
@@ -120,19 +159,8 @@ def _recompute(bundle, avail):
                 sel[seg] = sorted(sid for sid, _i, _a in ranked)
             else:
                 sel[seg] = None
-        potential = {}
-        for a, days in arm_days.items():
-            pot = []
-            for d in sorted(days):
-                seg_ok = sum(
-                    1 for seg in segs
-                    if sum(1 for sid, (_i, _a2, s_) in counts.items()
-                           if s_ == seg and d in stations[sid]["per_day"]
-                           and stations[sid]["per_day"][d]["state"] == "AVAILABLE"
-                           and stations[sid]["per_day"][d]["seconds"] >= floor) >= 2)
-                if seg_ok >= 2:
-                    pot.append(d)
-            potential[a] = pot
+        potential = {a: _selected_potential_days(days, stations, sel, floor)
+                     for a, days in arm_days.items()}
         out[carrier] = {"selection": sel, "potential": potential}
     return out
 
@@ -199,11 +227,13 @@ def main():
           "carrier's selected_registry EXACTLY",
           sel_ok)
     check("V1b carrier ELIGIBILITY is derived: recomputed per-arm potential-day lists "
-          "(>=2 segments with >=2 available stations per day) equal the bundle's "
-          "metadata_potential_days exactly; all three carriers >= 60/arm",
+          "(>=2 segments with >=2 SELECTED stations per day -- contract sec. 3, codex "
+          "1435 repair) equal the bundle's metadata_potential_days exactly; all three "
+          "carriers >= 60/arm; synthetic unselected-spare counterexample refuses",
           pot_ok and all(
               len(bundle["carriers"][c]["metadata_potential_days"][a]) >= FLOOR_DAYS
-              for c in bundle["carriers"] for a in ("incident", "activation")))
+              for c in bundle["carriers"] for a in ("incident", "activation"))
+          and _selected_only_counterexample(avail["floor_seconds"]))
     check("V1c NO POST-PROBE POOL EXPANSION + structure: every selected station exists in "
           "the FROZEN pool under the SAME segment; per-carrier station disjointness; "
           "3-4 stations per segment",

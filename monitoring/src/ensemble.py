@@ -128,14 +128,15 @@ logger = logging.getLogger(__name__)
 #       the sawtooth-excluded window, so the stale-baseline artifact is corrected and the component scores honestly.
 #   D2: 5 regions / fault_correlation -- a shared long-period arrival (0.01-1 Hz band) collapsed lambda2/lambda1
 #       across regions at once; the component is mis-banded (captures coherent long-period energy, not local
-#       stress). STILL FROZEN pending the re-band + spurious-transient/data-QC rejection fix + codex §5 review.
+#       stress). PARTIALLY LIFTED 2026-08-13 (dated note in docs/INCIDENT_2026-07-31_component_artifacts.md):
+#       socal_coachella (+ runner alias socal_saf_coachella), istanbul_marmara, turkey_kahramanmaras lift on
+#       the campaign-v2 step-4b calibration capsules (triple-verified batch ad19aeae..., per-region 1-10 Hz
+#       thresholds, externally pinned via monitoring/data/calibration/capsule_registry.json; capsules carry
+#       valid_through 2026-08-17 -- past it the loader fails closed, an honest expiry, not a freeze).
+#       tokyo_kanto/japan_tohoku (BLOCKED_NO_TRUE_CARRIER) and ridgecrest (BLOCKED_TOPOLOGY) STAY FROZEN.
 FROZEN_COMPONENTS = {
-    ("turkey_kahramanmaras", "fault_correlation"),
-    ("istanbul_marmara", "fault_correlation"),
     ("tokyo_kanto", "fault_correlation"),
     ("japan_tohoku", "fault_correlation"),      # D2R-5f: canonical (FC) key cannot bypass the freeze
-    ("socal_saf_coachella", "fault_correlation"),
-    ("socal_coachella", "fault_correlation"),    # D2R-5f: canonical (FC) key cannot bypass the freeze
     ("ridgecrest", "fault_correlation"),
 }
 

@@ -6,7 +6,11 @@
 paper/
 
 # Monitoring data and logs (large files)
-monitoring/data/
+# D2 freeze-lift 2026-08-13: monitoring/data/* (not the bare dir) so the calibration
+# subdir can be negated -- capsule_registry.json + region capsules MUST be committed
+# (externally-pinned calibration; see docs/INCIDENT_2026-07-31_component_artifacts.md).
+monitoring/data/*
+!monitoring/data/calibration/
 monitoring/logs/
 
 # Python artifacts

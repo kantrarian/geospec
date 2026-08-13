@@ -294,3 +294,41 @@ The D1 (anchorage / seismic_thd) freeze is **LIFTED**. Evidence + the path:
   corrected), not to hide honest readings; if the site noise later warrants it, that's a separate component-QC item.
 - **D2 (5 regions / fault_correlation) stays FROZEN** — its re-band + spurious-transient/data-QC fix + codex §5 review
   are separate and not done. — grassmann
+
+## D2 FREEZE-LIFT NOTE — PARTIAL, 3 carriers (grassmann, 2026-08-13, owner-authorized Phase-5)
+
+The D2 (fault_correlation) freeze is **LIFTED for exactly three carriers** — `socal_coachella` (runner alias
+`socal_saf_coachella`), `istanbul_marmara`, `turkey_kahramanmaras` — on the campaign-v2 step-4b calibration
+capsules. `tokyo_kanto`/`japan_tohoku` (BLOCKED_NO_TRUE_CARRIER) and `ridgecrest` (BLOCKED_TOPOLOGY,
+RIDGECREST_TIME_CONFOUND → T2 supplement required) **STAY FROZEN**.
+
+- **Authorization:** asylum Phase-5 GO, in-session utterance "go ahead with phase 5" (2026-08-13 ~18:02Z,
+  owner_quote_sha256 `da321397af5305349bfc59601a4e72fc3c4be648cb9f9a612f3da0daf0a0063b`, routed
+  agent-framework `ba09d89`); scope = lift the three ADMITTED_CANDIDATE capsules into live D2 calibration +
+  freeze-lift those carriers per this doc's gates. **NO publication or public claim is authorized.**
+- **Evidence:** frozen campaign-v2 root `ad19aeaed478e29b…` (batch `c2729898…`), produced under contract
+  codex-d2-campaign-v2-2026-08-10-v1 at producer P `8e23259…` / fix-A impl `292b1069…`, verified
+  **three-for-three**: grassmann first-hand (`verify_completed_root` True + staging byte-verify 3969/3969),
+  codex acceptance `EVIDENCE_BATCH_PASS` **191,463/0** (consumer `db0b0bae…`), cayley independent second-verify
+  (walk + consumer line-for-line + verifier at P + UNAVAILABLE quantification clean, zero allocator signatures).
+- **Pre-lift gates from this doc:** (i) **threshold recal for 1–10 Hz** — satisfied by the capsules themselves:
+  per-region incident/activation thresholds derived under the frozen pre-registered contract (calibration
+  window 2026-03-13→2026-07-11, ≥92 days/arm each carrier, control_clear all three); (ii) **data-QC gate** —
+  landed in the re-band rev-2 chain (fail-closed observability + `data_quality_ok` gating, bars `db0a6c2`
+  lineage); (iii) **codex §5 / cayley review** — closed by the step-4b review lineage (scorer-frame bar
+  `98e792e`, fix-A `292b106`→`9f0fb0e`, day-volume amendment 1734, campaign-v2 bar stack + Phase-5 GO routing
+  cayley `1804`; codex held an objection window before this landed).
+- **Wiring (this commit):** capsules copied **byte-identical** from the frozen root (shas == the batch
+  `registry_candidate.json` pins: socal `caa8f679…`, istanbul `92c16a95…`, turkey `cbeed05e…`) to
+  `monitoring/data/calibration/<region>.json` (`.gitattributes -text` pin so no EOL rewrite can break the
+  sha); external registry `monitoring/data/calibration/capsule_registry.json` (region-keyed, registered
+  digests, topology t1, production-absolute capsule paths per the D2R-4p bar convention);
+  `FROZEN_COMPONENTS` reduced to the three staying-frozen entries. No other methodology change rides along.
+- **Honest expiry:** every capsule carries `valid_through: 2026-08-17` and a 30-day R3 embargo past its
+  window end (admissible 2026-08-10→2026-08-17). Past `valid_through` the loader **fails closed**
+  (`CalibrationUnavailable` → available=False) — an honest expiry, not a freeze; renewal requires a new
+  owner-authorized calibration campaign under the standing contract discipline.
+- **What the lifted state does NOT claim:** ADMITTED_CANDIDATE is a candidate-registry status from the frozen
+  pipeline — not a validated forecast, not evidence the method works (that remains INCONCLUSIVE), not a basis
+  for publication/portfolio/outreach (standing escalation list `7baa636` governs those). The component simply
+  resumes scoring honestly against externally-pinned, triple-verified thresholds. — grassmann

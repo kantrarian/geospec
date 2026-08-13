@@ -26,6 +26,18 @@ REV 3.1 fixture correction (codex 0426 ruling; grassmann's hold caught MY defect
   no new surface, test count unchanged. Expected on `1121f64` (align tightening still held):
   D2R-3o is the SINGLE red-first failure; all else green.
 
+REV 3.2 freeze-state amendment (cayley, 2026-08-13 — Phase-5 partial lift, owner receipt
+`da321397…`, landed geospec `d960def`):
+  D2R-5f's frozen_pairs pin updated from the PRE-lift five-region freeze to the POST-lift
+  state: socal_saf_coachella + socal_coachella now False (lifted TOGETHER — alias and
+  canonical must agree in BOTH directions: pre-lift neither could bypass the freeze,
+  post-lift neither may stay silently frozen, codex 1834 acceptance check 2);
+  istanbul_marmara + turkey_kahramanmaras added at False (full lift scope pinned);
+  tokyo_kanto / japan_tohoku / ridgecrest remain True (BLOCKED, codex 1834 §"two freezes
+  remain"); kumamoto False unchanged. State-pin-only amendment: no check logic, no other
+  fixture, no count change. Verified red on the pre-lift tree (d960def^) and green on the
+  landed lift (d960def) — the pin separates the states in both directions.
+
 REV 2 repairs (codex 2324):
   #1 BLOCKER  production COMPOSITION frozen, not helpers/source-text: D2R-1f spies on the core
       through the ACTUAL get_segment_envelopes shell (core called once per stream; NO DSP on the
@@ -794,10 +806,13 @@ def main():
         check("D2R-5e tokyo_kanto fault_correlation is UNAVAILABLE until true Kanto segments "
               "exist (never scored on the Tohoku carrier)", False, f"RAISED {exc}")
     frozen_pairs = (("tokyo_kanto", True), ("japan_tohoku", True),
-                    ("socal_saf_coachella", True), ("socal_coachella", True),
+                    ("socal_saf_coachella", False), ("socal_coachella", False),
+                    ("istanbul_marmara", False), ("turkey_kahramanmaras", False),
                     ("ridgecrest", True), ("kumamoto", False))
     ok_frozen = all(EN.component_frozen(r, "fault_correlation") is want for r, want in frozen_pairs)
-    check("D2R-5f freeze is CARRIER-KEYED: the FC-canonical key cannot bypass it", ok_frozen,
+    check("D2R-5f freeze is CARRIER-KEYED and matches the POST-lift state exactly: alias + "
+          "canonical agree both directions (lifted pairs BOTH unfrozen, blocked regions "
+          "BOTH-keyed frozen; 2026-08-13 Phase-5 scope, receipt da321397)", ok_frozen,
           f"{[(r, EN.component_frozen(r, 'fault_correlation')) for r, _ in frozen_pairs]}")
 
 

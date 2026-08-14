@@ -25,7 +25,7 @@ Date: January 2026
 
 import numpy as np
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 import os
@@ -568,6 +568,19 @@ class GeoSpecEnsemble:
         Returns:
             Tuple of (MethodResult, segments_defined, segments_working, segment_names)
         """
+        # Phase-5 datetime seam (codex 1318 ruling; cayley bar 7bdd070): canonicalize the
+        # incoming date ONCE at the legacy-runner <-> rev-3-core boundary, before any capsule
+        # or analysis use. ALL accepted datetimes become aware UTC: naive input has the
+        # explicit legacy meaning "UTC" (labeled, not shifted); aware input denotes an
+        # instant and is CONVERTED to UTC (never relabelled). The same date_utc feeds both
+        # capsule admission and analyze_region -- one scored UTC-day/instant binding across
+        # admission, fetching, cache identity, timestamp placement, and result provenance.
+        date_utc = (
+            date.replace(tzinfo=timezone.utc)
+            if date.tzinfo is None
+            else date.astimezone(timezone.utc)
+        )
+
         # Translate runner region key to fault_segments canonical key
         fc_region = get_fc_region_key(self.region)
 
@@ -579,7 +592,7 @@ class GeoSpecEnsemble:
 
         # (a) calibration capsule -- fail closed
         try:
-            calibration = self._resolve_calibration_capsule(fc_region, date)
+            calibration = self._resolve_calibration_capsule(fc_region, date_utc)
         except FC.CalibrationUnavailable as e:
             return (
                 MethodResult(
@@ -592,7 +605,7 @@ class GeoSpecEnsemble:
         # (b) run the analysis with the capsule threshold; gate on data quality
         try:
             result = self.fault_corr_monitor.analyze_region(
-                fc_region, date, calibration=calibration)
+                fc_region, date_utc, calibration=calibration)
         except Exception as e:
             logger.warning(f"Fault correlation failed: {e}")
             return (

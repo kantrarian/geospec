@@ -1,18 +1,18 @@
 {
-  "date": "2026-08-11",
-  "timestamp": "2026-08-13T07:01:54.687896",
+  "date": "2026-08-12",
+  "timestamp": "2026-08-14T07:32:07.753492",
   "regions": {
     "ridgecrest": {
       "region": "ridgecrest",
-      "date": "2026-08-11T07:00:12.920232",
-      "combined_risk": 0.009976557916922448,
+      "date": "2026-08-12T07:28:43.249332",
+      "combined_risk": 0.013300360741913672,
       "tier": 0,
       "tier_name": "NORMAL",
       "components": {
         "lambda_geo": {
           "name": "lambda_geo",
           "available": true,
-          "raw_value": 0.12503351687595463,
+          "raw_value": 0.12989850338129286,
           "raw_secondary": null,
           "risk_score": 0.0,
           "is_elevated": false,
@@ -29,26 +29,26 @@
           "is_elevated": false,
           "is_critical": false,
           "frozen": true,
-          "notes": "calibration unavailable: capsule registry not found: C:\\GeoSpec\\geospec_sprint\\monitoring\\src\\..\\data\\calibration\\capsule_registry.json | FROZEN (incident 2026-07-31): excluded from tier pending fix"
+          "notes": "calibration unavailable: no registry entry for region ridgecrest | FROZEN (incident 2026-07-31): excluded from tier pending fix"
         },
         "seismic_thd": {
           "name": "seismic_thd",
           "available": true,
-          "raw_value": 0.3091146930301148,
-          "raw_secondary": 6305.565363731558,
-          "risk_score": 0.023278635139485714,
+          "raw_value": 0.32609689906731015,
+          "raw_secondary": 3528373.5896329703,
+          "risk_score": 0.031034175064465232,
           "is_elevated": false,
           "is_critical": false,
           "frozen": false,
-          "notes": "sta=IU.TUC, THD=0.3091, z=-0.89, baseline_mean=0.3862, baseline_std=0.0865, n=91, rate=40Hz",
+          "notes": "sta=IU.TUC, THD=0.3261, z=-0.63, baseline_mean=0.3812, baseline_std=0.0872, n=91, rate=40Hz",
           "baseline": {
-            "mean": 0.38618,
-            "std": 0.086521,
+            "mean": 0.381204,
+            "std": 0.087168,
             "n_samples": 91,
-            "window": "2026-04-08 to 2026-07-07",
+            "window": "2026-04-16 to 2026-07-15",
             "quality": "good"
           },
-          "z_score": -0.890712162017143,
+          "z_score": -0.6321941645178257,
           "sample_rate_hz": 40.0
         }
       },
@@ -80,15 +80,15 @@
     },
     "socal_saf_mojave": {
       "region": "socal_saf_mojave",
-      "date": "2026-08-11T07:00:12.920232",
-      "combined_risk": 0.009976557916922448,
+      "date": "2026-08-12T07:28:43.249332",
+      "combined_risk": 0.013300360741913672,
       "tier": 0,
       "tier_name": "NORMAL",
       "components": {
         "lambda_geo": {
           "name": "lambda_geo",
           "available": true,
-          "raw_value": 0.4787984350637754,
+          "raw_value": 0.4708860636686442,
           "raw_secondary": null,
           "risk_score": 0.0,
           "is_elevated": false,
@@ -105,26 +105,26 @@
           "is_elevated": false,
           "is_critical": false,
           "frozen": false,
-          "notes": "calibration unavailable: capsule registry not found: C:\\GeoSpec\\geospec_sprint\\monitoring\\src\\..\\data\\calibration\\capsule_registry.json"
+          "notes": "calibration unavailable: no registry entry for region socal_saf_mojave"
         },
         "seismic_thd": {
           "name": "seismic_thd",
           "available": true,
-          "raw_value": 0.3091146930301148,
-          "raw_secondary": 6305.565363731558,
-          "risk_score": 0.023278635139485714,
+          "raw_value": 0.32609689906731015,
+          "raw_secondary": 3528373.5896329703,
+          "risk_score": 0.031034175064465232,
           "is_elevated": false,
           "is_critical": false,
           "frozen": false,
-          "notes": "sta=IU.TUC, THD=0.3091, z=-0.89, baseline_mean=0.3862, baseline_std=0.0865, n=91, rate=40Hz",
+          "notes": "sta=IU.TUC, THD=0.3261, z=-0.63, baseline_mean=0.3812, baseline_std=0.0872, n=91, rate=40Hz",
           "baseline": {
-            "mean": 0.38618,
-            "std": 0.086521,
+            "mean": 0.381204,
+            "std": 0.087168,
             "n_samples": 91,
-            "window": "2026-04-08 to 2026-07-07",
+            "window": "2026-04-16 to 2026-07-15",
             "quality": "good"
           },
-          "z_score": -0.890712162017143,
+          "z_score": -0.6321941645178257,
           "sample_rate_hz": 40.0
         }
       },
@@ -156,15 +156,15 @@
     },
     "socal_saf_coachella": {
       "region": "socal_saf_coachella",
-      "date": "2026-08-11T07:00:12.920232",
-      "combined_risk": 0.009976557916922448,
+      "date": "2026-08-12T07:28:43.249332",
+      "combined_risk": 0.013300360741913672,
       "tier": 0,
       "tier_name": "NORMAL",
       "components": {
         "lambda_geo": {
           "name": "lambda_geo",
           "available": true,
-          "raw_value": 0.21335813918135077,
+          "raw_value": 0.23356072464890779,
           "raw_secondary": null,
           "risk_score": 0.0,
           "is_elevated": false,
@@ -180,27 +180,27 @@
           "risk_score": 0.0,
           "is_elevated": false,
           "is_critical": false,
-          "frozen": true,
-          "notes": "calibration unavailable: capsule registry not found: C:\\GeoSpec\\geospec_sprint\\monitoring\\src\\..\\data\\calibration\\capsule_registry.json | FROZEN (incident 2026-07-31): excluded from tier pending fix"
+          "frozen": false,
+          "notes": "Error: can't subtract offset-naive and offset-aware datetimes"
         },
         "seismic_thd": {
           "name": "seismic_thd",
           "available": true,
-          "raw_value": 0.3091146930301148,
-          "raw_secondary": 6305.565363731558,
-          "risk_score": 0.023278635139485714,
+          "raw_value": 0.32609689906731015,
+          "raw_secondary": 3528373.5896329703,
+          "risk_score": 0.031034175064465232,
           "is_elevated": false,
           "is_critical": false,
           "frozen": false,
-          "notes": "sta=IU.TUC, THD=0.3091, z=-0.89, baseline_mean=0.3862, baseline_std=0.0865, n=91, rate=40Hz",
+          "notes": "sta=IU.TUC, THD=0.3261, z=-0.63, baseline_mean=0.3812, baseline_std=0.0872, n=91, rate=40Hz",
           "baseline": {
-            "mean": 0.38618,
-            "std": 0.086521,
+            "mean": 0.381204,
+            "std": 0.087168,
             "n_samples": 91,
-            "window": "2026-04-08 to 2026-07-07",
+            "window": "2026-04-16 to 2026-07-15",
             "quality": "good"
           },
-          "z_score": -0.890712162017143,
+          "z_score": -0.6321941645178257,
           "sample_rate_hz": 40.0
         }
       },
@@ -232,8 +232,8 @@
     },
     "norcal_hayward": {
       "region": "norcal_hayward",
-      "date": "2026-08-11T07:00:12.920232",
-      "combined_risk": 0.012843167909508997,
+      "date": "2026-08-12T07:28:43.249332",
+      "combined_risk": 0.014073208403494361,
       "tier": 0,
       "tier_name": "NORMAL",
       "components": {
@@ -257,26 +257,26 @@
           "is_elevated": false,
           "is_critical": false,
           "frozen": false,
-          "notes": "calibration unavailable: capsule registry not found: C:\\GeoSpec\\geospec_sprint\\monitoring\\src\\..\\data\\calibration\\capsule_registry.json"
+          "notes": "calibration unavailable: no registry entry for region norcal_hayward"
         },
         "seismic_thd": {
           "name": "seismic_thd",
           "available": true,
-          "raw_value": 0.3066941960028079,
-          "raw_secondary": 4365.976151623916,
-          "risk_score": 0.02996739178885433,
+          "raw_value": 0.31637367135138095,
+          "raw_secondary": 98223.20741130118,
+          "risk_score": 0.03283748627482017,
           "is_elevated": false,
           "is_critical": false,
           "frozen": false,
-          "notes": "sta=BK.BKS, THD=0.3067, z=-0.67, baseline_mean=0.3811, baseline_std=0.1114, n=89, rate=40Hz",
+          "notes": "sta=BK.BKS, THD=0.3164, z=-0.57, baseline_mean=0.3819, baseline_std=0.1145, n=89, rate=40Hz",
           "baseline": {
-            "mean": 0.381114,
-            "std": 0.111448,
+            "mean": 0.381895,
+            "std": 0.114531,
             "n_samples": 89,
-            "window": "2026-04-08 to 2026-07-07",
+            "window": "2026-04-16 to 2026-07-15",
             "quality": "good"
           },
-          "z_score": -0.6677536070381892,
+          "z_score": -0.5720837908393277,
           "sample_rate_hz": 40.0
         }
       },
@@ -308,8 +308,8 @@
     },
     "cascadia": {
       "region": "cascadia",
-      "date": "2026-08-11T07:00:12.920232",
-      "combined_risk": 0.012394051916191584,
+      "date": "2026-08-12T07:28:43.249332",
+      "combined_risk": 0.015008219251206227,
       "tier": 0,
       "tier_name": "NORMAL",
       "components": {
@@ -333,26 +333,26 @@
           "is_elevated": false,
           "is_critical": false,
           "frozen": false,
-          "notes": "calibration unavailable: capsule registry not found: C:\\GeoSpec\\geospec_sprint\\monitoring\\src\\..\\data\\calibration\\capsule_registry.json"
+          "notes": "calibration unavailable: no registry entry for region cascadia"
         },
         "seismic_thd": {
           "name": "seismic_thd",
           "available": true,
-          "raw_value": 0.2842544129054628,
-          "raw_secondary": 2548.8415866999862,
-          "risk_score": 0.028919454471113694,
+          "raw_value": 0.30456352250728014,
+          "raw_secondary": 121542.6424429699,
+          "risk_score": 0.03501917825281453,
           "is_elevated": false,
           "is_critical": false,
           "frozen": false,
-          "notes": "sta=IU.COR, THD=0.2843, z=-0.70, baseline_mean=0.3643, baseline_std=0.1140, n=91, rate=40Hz",
+          "notes": "sta=IU.COR, THD=0.3046, z=-0.50, baseline_mean=0.3643, baseline_std=0.1197, n=91, rate=40Hz",
           "baseline": {
             "mean": 0.364338,
-            "std": 0.113968,
+            "std": 0.119702,
             "n_samples": 91,
-            "window": "2026-04-08 to 2026-07-07",
+            "window": "2026-04-16 to 2026-07-15",
             "quality": "good"
           },
-          "z_score": -0.702684850962877,
+          "z_score": -0.4993607249061825,
           "sample_rate_hz": 40.0
         }
       },
@@ -384,8 +384,8 @@
     },
     "tokyo_kanto": {
       "region": "tokyo_kanto",
-      "date": "2026-08-11T07:00:12.920232",
-      "combined_risk": 0.019203110793517074,
+      "date": "2026-08-12T07:28:43.249332",
+      "combined_risk": 0.018387988342564686,
       "tier": 0,
       "tier_name": "NORMAL",
       "components": {
@@ -409,26 +409,26 @@
           "is_elevated": false,
           "is_critical": false,
           "frozen": true,
-          "notes": "calibration unavailable: capsule registry not found: C:\\GeoSpec\\geospec_sprint\\monitoring\\src\\..\\data\\calibration\\capsule_registry.json | FROZEN (incident 2026-07-31): excluded from tier pending fix"
+          "notes": "calibration unavailable: no registry entry for region tokyo_kanto | FROZEN (incident 2026-07-31): excluded from tier pending fix"
         },
         "seismic_thd": {
           "name": "seismic_thd",
           "available": true,
-          "raw_value": 0.3832014069807553,
-          "raw_secondary": 12322.39836876116,
-          "risk_score": 0.04480725851820651,
+          "raw_value": 0.40711626567756476,
+          "raw_secondary": 45281.270161000575,
+          "risk_score": 0.042905306132650936,
           "is_elevated": false,
           "is_critical": false,
           "frozen": false,
-          "notes": "sta=IU.MAJO, THD=0.3832, z=-0.17, baseline_mean=0.4080, baseline_std=0.1434, n=91, rate=40Hz",
+          "notes": "sta=IU.MAJO, THD=0.4071, z=-0.24, baseline_mean=0.4383, baseline_std=0.1321, n=91, rate=40Hz",
           "baseline": {
-            "mean": 0.408026,
-            "std": 0.143419,
+            "mean": 0.438349,
+            "std": 0.132068,
             "n_samples": 91,
-            "window": "2026-04-08 to 2026-07-07",
+            "window": "2026-04-16 to 2026-07-15",
             "quality": "good"
           },
-          "z_score": -0.17309138272644994,
+          "z_score": -0.23648979557830233,
           "sample_rate_hz": 40.0
         }
       },
@@ -460,8 +460,8 @@
     },
     "istanbul_marmara": {
       "region": "istanbul_marmara",
-      "date": "2026-08-11T07:00:12.920232",
-      "combined_risk": 0.3254821590641312,
+      "date": "2026-08-12T07:28:43.249332",
+      "combined_risk": 0.31391742048066634,
       "tier": 1,
       "tier_name": "WATCH",
       "components": {
@@ -484,27 +484,27 @@
           "risk_score": 0.0,
           "is_elevated": false,
           "is_critical": false,
-          "frozen": true,
-          "notes": "calibration unavailable: capsule registry not found: C:\\GeoSpec\\geospec_sprint\\monitoring\\src\\..\\data\\calibration\\capsule_registry.json | FROZEN (incident 2026-07-31): excluded from tier pending fix"
+          "frozen": false,
+          "notes": "Error: can't subtract offset-naive and offset-aware datetimes"
         },
         "seismic_thd": {
           "name": "seismic_thd",
           "available": true,
-          "raw_value": 0.5376310195928494,
-          "raw_secondary": 17598.84224391044,
-          "risk_score": 0.7594583711496394,
+          "raw_value": 0.5176327013055216,
+          "raw_secondary": 615603.1372731538,
+          "risk_score": 0.7324739811215548,
           "is_elevated": true,
-          "is_critical": true,
+          "is_critical": false,
           "frozen": false,
-          "notes": "sta=IU.ANTO, THD=0.5376, z=3.62, baseline_mean=0.3119, baseline_std=0.0603, n=91, rate=40Hz",
+          "notes": "sta=IU.ANTO, THD=0.5176, z=3.43, baseline_mean=0.3070, baseline_std=0.0477, n=91, rate=40Hz",
           "baseline": {
-            "mean": 0.311915,
-            "std": 0.060261,
+            "mean": 0.307022,
+            "std": 0.047667,
             "n_samples": 91,
-            "window": "2026-04-08 to 2026-07-07",
+            "window": "2026-04-16 to 2026-07-15",
             "quality": "good"
           },
-          "z_score": 3.6182296393704925,
+          "z_score": 3.4298959244862193,
           "sample_rate_hz": 40.0
         }
       },
@@ -524,10 +524,10 @@
       },
       "persistence": {
         "current_tier": 1,
-        "consecutive_days": 3,
+        "consecutive_days": 4,
         "is_confirmed": true,
         "tier_history": [
-          0,
+          1,
           1,
           1,
           1
@@ -536,8 +536,8 @@
     },
     "turkey_kahramanmaras": {
       "region": "turkey_kahramanmaras",
-      "date": "2026-08-11T07:00:12.920232",
-      "combined_risk": 0.7594583711496394,
+      "date": "2026-08-12T07:28:43.249332",
+      "combined_risk": 0.7324739811215548,
       "tier": 1,
       "tier_name": "WATCH",
       "components": {
@@ -560,34 +560,34 @@
           "risk_score": 0.0,
           "is_elevated": false,
           "is_critical": false,
-          "frozen": true,
-          "notes": "calibration unavailable: capsule registry not found: C:\\GeoSpec\\geospec_sprint\\monitoring\\src\\..\\data\\calibration\\capsule_registry.json | FROZEN (incident 2026-07-31): excluded from tier pending fix"
+          "frozen": false,
+          "notes": "Error: can't subtract offset-naive and offset-aware datetimes"
         },
         "seismic_thd": {
           "name": "seismic_thd",
           "available": true,
-          "raw_value": 0.5376310195928494,
-          "raw_secondary": 17598.84224391044,
-          "risk_score": 0.7594583711496394,
+          "raw_value": 0.5176327013055216,
+          "raw_secondary": 615603.1372731538,
+          "risk_score": 0.7324739811215548,
           "is_elevated": true,
-          "is_critical": true,
+          "is_critical": false,
           "frozen": false,
-          "notes": "sta=IU.ANTO, THD=0.5376, z=3.62, baseline_mean=0.3119, baseline_std=0.0603, n=91, rate=40Hz",
+          "notes": "sta=IU.ANTO, THD=0.5176, z=3.43, baseline_mean=0.3070, baseline_std=0.0477, n=91, rate=40Hz",
           "baseline": {
-            "mean": 0.311915,
-            "std": 0.060261,
+            "mean": 0.307022,
+            "std": 0.047667,
             "n_samples": 91,
-            "window": "2026-04-08 to 2026-07-07",
+            "window": "2026-04-16 to 2026-07-15",
             "quality": "good"
           },
-          "z_score": 3.6182296393704925,
+          "z_score": 3.4298959244862193,
           "sample_rate_hz": 40.0
         }
       },
       "confidence": 0.5,
       "agreement": "single_method",
       "methods_available": 1,
-      "notes": "Tier capped at WATCH (was CRITICAL): need >=2 methods for ELEVATED+",
+      "notes": "Tier capped at WATCH (was ELEVATED): need >=2 methods for ELEVATED+",
       "coverage": {
         "segments_defined": 3,
         "segments_working": 0,
@@ -599,10 +599,10 @@
       },
       "persistence": {
         "current_tier": 1,
-        "consecutive_days": 3,
+        "consecutive_days": 4,
         "is_confirmed": true,
         "tier_history": [
-          0,
+          1,
           1,
           1,
           1
@@ -611,7 +611,7 @@
     },
     "campi_flegrei": {
       "region": "campi_flegrei",
-      "date": "2026-08-11T07:00:12.920232",
+      "date": "2026-08-12T07:28:43.249332",
       "combined_risk": 0.0,
       "tier": 0,
       "tier_name": "NORMAL",
@@ -619,7 +619,7 @@
         "lambda_geo": {
           "name": "lambda_geo",
           "available": true,
-          "raw_value": 0.13571311871035224,
+          "raw_value": 0.14640086970530108,
           "raw_secondary": null,
           "risk_score": 0.0,
           "is_elevated": false,
@@ -636,7 +636,7 @@
           "is_elevated": false,
           "is_critical": false,
           "frozen": false,
-          "notes": "calibration unavailable: capsule registry not found: C:\\GeoSpec\\geospec_sprint\\monitoring\\src\\..\\data\\calibration\\capsule_registry.json"
+          "notes": "calibration unavailable: no registry entry for region campi_flegrei"
         },
         "seismic_thd": {
           "name": "seismic_thd",
@@ -677,21 +677,21 @@
     },
     "kaikoura": {
       "region": "kaikoura",
-      "date": "2026-08-11T07:00:12.920232",
-      "combined_risk": 0.0882997237496919,
+      "date": "2026-08-12T07:28:43.249332",
+      "combined_risk": 0.08766426461915848,
       "tier": 0,
       "tier_name": "NORMAL",
       "components": {
         "lambda_geo": {
           "name": "lambda_geo",
           "available": true,
-          "raw_value": 0.1,
+          "raw_value": 0.2499484343768863,
           "raw_secondary": null,
           "risk_score": 0.0,
           "is_elevated": false,
           "is_critical": false,
           "frozen": false,
-          "notes": "ratio=0.1x"
+          "notes": "ratio=0.2x"
         },
         "fault_correlation": {
           "name": "fault_correlation",
@@ -702,18 +702,18 @@
           "is_elevated": false,
           "is_critical": false,
           "frozen": false,
-          "notes": "calibration unavailable: capsule registry not found: C:\\GeoSpec\\geospec_sprint\\monitoring\\src\\..\\data\\calibration\\capsule_registry.json"
+          "notes": "calibration unavailable: no registry entry for region kaikoura"
         },
         "seismic_thd": {
           "name": "seismic_thd",
           "available": true,
-          "raw_value": 0.3819171615933726,
-          "raw_secondary": 2111.1598067053806,
-          "risk_score": 0.2060326887492811,
+          "raw_value": 0.3811387241584691,
+          "raw_secondary": 8111.465922795884,
+          "risk_score": 0.20454995077803645,
           "is_elevated": false,
           "is_critical": false,
           "frozen": false,
-          "notes": "sta=IU.SNZO, THD=0.3819, z=1.17, baseline_mean=0.3000, baseline_std=0.0700, n=0, rate=40Hz",
+          "notes": "sta=IU.SNZO, THD=0.3811, z=1.16, baseline_mean=0.3000, baseline_std=0.0700, n=0, rate=40Hz",
           "baseline": {
             "mean": 0.3,
             "std": 0.07,
@@ -721,7 +721,7 @@
             "window": "UNCALIBRATED",
             "quality": "poor"
           },
-          "z_score": 1.1702451656196082,
+          "z_score": 1.1591246308352732,
           "sample_rate_hz": 40.0
         }
       },
@@ -744,8 +744,8 @@
         "consecutive_days": 0,
         "is_confirmed": false,
         "tier_history": [
-          0,
           1,
+          0,
           0,
           0
         ]
@@ -753,15 +753,15 @@
     },
     "anchorage": {
       "region": "anchorage",
-      "date": "2026-08-11T07:00:12.920232",
-      "combined_risk": 0.014278643726166685,
+      "date": "2026-08-12T07:28:43.249332",
+      "combined_risk": 0.017125368523506223,
       "tier": 0,
       "tier_name": "NORMAL",
       "components": {
         "lambda_geo": {
           "name": "lambda_geo",
           "available": true,
-          "raw_value": 0.33489346399875697,
+          "raw_value": 0.3426669853765733,
           "raw_secondary": null,
           "risk_score": 0.0,
           "is_elevated": false,
@@ -778,26 +778,26 @@
           "is_elevated": false,
           "is_critical": false,
           "frozen": false,
-          "notes": "calibration unavailable: capsule registry not found: C:\\GeoSpec\\geospec_sprint\\monitoring\\src\\..\\data\\calibration\\capsule_registry.json"
+          "notes": "calibration unavailable: no registry entry for region anchorage"
         },
         "seismic_thd": {
           "name": "seismic_thd",
           "available": true,
-          "raw_value": 0.2045877261689142,
-          "raw_secondary": 1850.3294279446732,
-          "risk_score": 0.0333168353610556,
+          "raw_value": 0.22802401770078765,
+          "raw_secondary": 246486.75009298354,
+          "risk_score": 0.03995919322151452,
           "is_elevated": false,
           "is_critical": false,
           "frozen": false,
-          "notes": "sta=IU.COLA, THD=0.2046, z=-0.56, baseline_mean=0.2724, baseline_std=0.1219, n=84, rate=40Hz",
+          "notes": "sta=IU.COLA, THD=0.2280, z=-0.33, baseline_mean=0.2724, baseline_std=0.1326, n=84, rate=40Hz",
           "baseline": {
             "mean": 0.272392,
-            "std": 0.121927,
+            "std": 0.132563,
             "n_samples": 84,
-            "window": "2026-04-08 to 2026-07-07",
+            "window": "2026-04-16 to 2026-07-15",
             "quality": "good"
           },
-          "z_score": -0.5561054879648135,
+          "z_score": -0.33469355928284955,
           "sample_rate_hz": 40.0
         }
       },
@@ -829,21 +829,21 @@
     },
     "kumamoto": {
       "region": "kumamoto",
-      "date": "2026-08-11T07:00:12.920232",
-      "combined_risk": 0.019203110793517074,
+      "date": "2026-08-12T07:28:43.249332",
+      "combined_risk": 0.018387988342564686,
       "tier": 0,
       "tier_name": "NORMAL",
       "components": {
         "lambda_geo": {
           "name": "lambda_geo",
           "available": true,
-          "raw_value": 1.38029626533828,
+          "raw_value": 1.2836103182467704,
           "raw_secondary": null,
           "risk_score": 0.0,
           "is_elevated": false,
           "is_critical": false,
           "frozen": false,
-          "notes": "ratio=1.4x"
+          "notes": "ratio=1.3x"
         },
         "fault_correlation": {
           "name": "fault_correlation",
@@ -854,26 +854,26 @@
           "is_elevated": false,
           "is_critical": false,
           "frozen": false,
-          "notes": "calibration unavailable: capsule registry not found: C:\\GeoSpec\\geospec_sprint\\monitoring\\src\\..\\data\\calibration\\capsule_registry.json"
+          "notes": "calibration unavailable: no registry entry for region kumamoto"
         },
         "seismic_thd": {
           "name": "seismic_thd",
           "available": true,
-          "raw_value": 0.3832014069807553,
-          "raw_secondary": 12322.39836876116,
-          "risk_score": 0.04480725851820651,
+          "raw_value": 0.40711626567756476,
+          "raw_secondary": 45281.270161000575,
+          "risk_score": 0.042905306132650936,
           "is_elevated": false,
           "is_critical": false,
           "frozen": false,
-          "notes": "sta=IU.MAJO, THD=0.3832, z=-0.17, baseline_mean=0.4080, baseline_std=0.1434, n=91, rate=40Hz",
+          "notes": "sta=IU.MAJO, THD=0.4071, z=-0.24, baseline_mean=0.4383, baseline_std=0.1321, n=91, rate=40Hz",
           "baseline": {
-            "mean": 0.408026,
-            "std": 0.143419,
+            "mean": 0.438349,
+            "std": 0.132068,
             "n_samples": 91,
-            "window": "2026-04-08 to 2026-07-07",
+            "window": "2026-04-16 to 2026-07-15",
             "quality": "good"
           },
-          "z_score": -0.17309138272644994,
+          "z_score": -0.23648979557830233,
           "sample_rate_hz": 40.0
         }
       },
@@ -905,10 +905,10 @@
     },
     "hualien": {
       "region": "hualien",
-      "date": "2026-08-11T07:00:12.920232",
-      "combined_risk": 0.0,
-      "tier": -1,
-      "tier_name": "DEGRADED",
+      "date": "2026-08-12T07:28:43.249332",
+      "combined_risk": 0.0006416700909196715,
+      "tier": 0,
+      "tier_name": "NORMAL",
       "components": {
         "lambda_geo": {
           "name": "lambda_geo",
@@ -930,49 +930,60 @@
           "is_elevated": false,
           "is_critical": false,
           "frozen": false,
-          "notes": "calibration unavailable: capsule registry not found: C:\\GeoSpec\\geospec_sprint\\monitoring\\src\\..\\data\\calibration\\capsule_registry.json"
+          "notes": "calibration unavailable: no registry entry for region hualien"
         },
         "seismic_thd": {
           "name": "seismic_thd",
-          "available": false,
-          "raw_value": 0.0,
-          "raw_secondary": null,
-          "risk_score": 0.0,
+          "available": true,
+          "raw_value": 0.25027613848731406,
+          "raw_secondary": 8232.155140204442,
+          "risk_score": 0.0006416700909196715,
           "is_elevated": false,
           "is_critical": false,
           "frozen": false,
-          "notes": "Insufficient data from IU.TATO"
+          "notes": "sta=IU.TATO, THD=0.2503, z=-1.65, baseline_mean=0.4006, baseline_std=0.0914, n=87, rate=40Hz",
+          "baseline": {
+            "mean": 0.400643,
+            "std": 0.091393,
+            "n_samples": 87,
+            "window": "2026-04-16 to 2026-07-15",
+            "quality": "good"
+          },
+          "z_score": -1.6452776636360111,
+          "sample_rate_hz": 40.0
         }
       },
-      "confidence": 0.0,
-      "agreement": "no_data",
-      "methods_available": 0,
-      "notes": "Insufficient data: 0 methods available, need >=1",
+      "confidence": 0.5,
+      "agreement": "single_method",
+      "methods_available": 1,
+      "notes": "",
       "coverage": {
         "segments_defined": 1,
         "segments_working": 0,
         "segment_names": [],
         "coverage_pct": 0.0
       },
-      "effective_weights": {},
+      "effective_weights": {
+        "seismic_thd": 1.0
+      },
       "persistence": {
-        "current_tier": -1,
+        "current_tier": 0,
         "consecutive_days": 0,
         "is_confirmed": false,
         "tier_history": [
-          0,
           1,
           -1,
-          -1
+          -1,
+          0
         ]
       }
     },
     "mexico_guerrero": {
       "region": "mexico_guerrero",
-      "date": "2026-08-11T07:00:12.920232",
-      "combined_risk": 0.03882261537998948,
-      "tier": 0,
-      "tier_name": "NORMAL",
+      "date": "2026-08-12T07:28:43.249332",
+      "combined_risk": 0.31835540199131895,
+      "tier": 1,
+      "tier_name": "WATCH",
       "components": {
         "lambda_geo": {
           "name": "lambda_geo",
@@ -994,31 +1005,31 @@
           "is_elevated": false,
           "is_critical": false,
           "frozen": false,
-          "notes": "calibration unavailable: capsule registry not found: C:\\GeoSpec\\geospec_sprint\\monitoring\\src\\..\\data\\calibration\\capsule_registry.json"
+          "notes": "calibration unavailable: no registry entry for region mexico_guerrero"
         },
         "seismic_thd": {
           "name": "seismic_thd",
           "available": true,
-          "raw_value": 0.1276298126731665,
-          "raw_secondary": 316.6589523841753,
-          "risk_score": 0.09058610255330879,
-          "is_elevated": false,
+          "raw_value": 0.25904696839042607,
+          "raw_secondary": 362244.8272524642,
+          "risk_score": 0.7428292713130775,
+          "is_elevated": true,
           "is_critical": false,
           "frozen": false,
-          "notes": "sta=MX.TLIG, THD=0.1276, z=0.30, baseline_mean=0.1164, baseline_std=0.0369, n=72, rate=20Hz",
+          "notes": "sta=MX.TLIG, THD=0.2590, z=3.47, baseline_mean=0.1188, baseline_std=0.0404, n=64, rate=20Hz",
           "baseline": {
-            "mean": 0.116397,
-            "std": 0.036902,
-            "n_samples": 72,
-            "window": "2026-04-08 to 2026-07-07",
+            "mean": 0.118837,
+            "std": 0.040391,
+            "n_samples": 64,
+            "window": "2026-04-16 to 2026-07-15",
             "quality": "good"
           },
-          "z_score": 0.30439576914981586,
+          "z_score": 3.47131708525231,
           "sample_rate_hz": 20.0
         }
       },
-      "confidence": 0.8,
-      "agreement": "all_normal",
+      "confidence": 0.75,
+      "agreement": "mostly_elevated",
       "methods_available": 2,
       "notes": "",
       "coverage": {
@@ -1032,14 +1043,14 @@
         "seismic_thd": 0.4285714285714286
       },
       "persistence": {
-        "current_tier": 0,
-        "consecutive_days": 0,
+        "current_tier": 1,
+        "consecutive_days": 1,
         "is_confirmed": false,
         "tier_history": [
           0,
           0,
           0,
-          0
+          1
         ]
       }
     }
@@ -1047,17 +1058,17 @@
   "summary": {
     "total_regions": 14,
     "tier_counts": {
-      "-1": 1,
+      "-1": 0,
       "0": 11,
-      "1": 2,
+      "1": 3,
       "2": 0,
       "3": 0
     },
     "confirmed_watch_count": 2,
-    "preliminary_watch_count": 0,
-    "degraded_count": 1,
+    "preliminary_watch_count": 1,
+    "degraded_count": 0,
     "max_risk_region": "turkey_kahramanmaras",
-    "max_risk": 0.7594583711496394
+    "max_risk": 0.7324739811215548
   },
   "earthquake_events": {
     "ridgecrest": {
@@ -1068,7 +1079,7 @@
         "minlon": -118.5,
         "maxlon": -116.5
       },
-      "last_updated": "2026-08-13T11:01:49.709347",
+      "last_updated": "2026-08-14T11:32:02.777389",
       "event_count": 2,
       "largest_event": {
         "event_id": "ci41292687",
@@ -1126,7 +1137,7 @@
         "minlon": -118.5,
         "maxlon": -115.5
       },
-      "last_updated": "2026-08-13T11:01:50.010852",
+      "last_updated": "2026-08-14T11:32:03.363804",
       "event_count": 2,
       "largest_event": {
         "event_id": "ci41292687",
@@ -1184,7 +1195,7 @@
         "minlon": -117.0,
         "maxlon": -115.0
       },
-      "last_updated": "2026-08-13T11:01:50.300266",
+      "last_updated": "2026-08-14T11:32:03.667496",
       "event_count": 0,
       "largest_event": null,
       "most_recent_event": null,
@@ -1199,7 +1210,7 @@
         "minlon": -123.0,
         "maxlon": -121.5
       },
-      "last_updated": "2026-08-13T11:01:50.629041",
+      "last_updated": "2026-08-14T11:32:04.031150",
       "event_count": 0,
       "largest_event": null,
       "most_recent_event": null,
@@ -1214,7 +1225,7 @@
         "minlon": -130.0,
         "maxlon": -122.0
       },
-      "last_updated": "2026-08-13T11:01:50.974900",
+      "last_updated": "2026-08-14T11:32:04.406376",
       "event_count": 9,
       "largest_event": {
         "event_id": "us6000t8yt",
@@ -1305,7 +1316,7 @@
         "minlon": 138.5,
         "maxlon": 141.5
       },
-      "last_updated": "2026-08-13T11:01:51.261220",
+      "last_updated": "2026-08-14T11:32:04.706964",
       "event_count": 19,
       "largest_event": {
         "event_id": "us6000t8cy",
@@ -1396,7 +1407,7 @@
         "minlon": 27.5,
         "maxlon": 30.5
       },
-      "last_updated": "2026-08-13T11:01:51.799914",
+      "last_updated": "2026-08-14T11:32:05.024070",
       "event_count": 0,
       "largest_event": null,
       "most_recent_event": null,
@@ -1411,7 +1422,7 @@
         "minlon": 36.0,
         "maxlon": 38.5
       },
-      "last_updated": "2026-08-13T11:01:52.303382",
+      "last_updated": "2026-08-14T11:32:05.507323",
       "event_count": 5,
       "largest_event": {
         "event_id": "us7000t1j0",
@@ -1502,40 +1513,40 @@
         "minlon": 13.8,
         "maxlon": 14.5
       },
-      "last_updated": "2026-08-13T11:01:52.576142",
+      "last_updated": "2026-08-14T11:32:05.945942",
       "event_count": 2,
       "largest_event": {
         "event_id": "us6000th99",
-        "time": "2026-07-31T17:46:43.732000",
-        "latitude": 40.8789,
-        "longitude": 14.1713,
+        "time": "2026-07-31T17:46:43.912000",
+        "latitude": 40.9056,
+        "longitude": 14.1271,
         "depth_km": 5,
         "magnitude": 4.5,
         "mag_type": "mww",
-        "place": "0 km WNW of Torre Caracciolo, Italy",
+        "place": "0 km SW of Torretta-Scalzapecora, Italy",
         "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us6000th99"
       },
       "most_recent_event": {
         "event_id": "us6000th99",
-        "time": "2026-07-31T17:46:43.732000",
-        "latitude": 40.8789,
-        "longitude": 14.1713,
+        "time": "2026-07-31T17:46:43.912000",
+        "latitude": 40.9056,
+        "longitude": 14.1271,
         "depth_km": 5,
         "magnitude": 4.5,
         "mag_type": "mww",
-        "place": "0 km WNW of Torre Caracciolo, Italy",
+        "place": "0 km SW of Torretta-Scalzapecora, Italy",
         "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us6000th99"
       },
       "events": [
         {
           "event_id": "us6000th99",
-          "time": "2026-07-31T17:46:43.732000",
-          "latitude": 40.8789,
-          "longitude": 14.1713,
+          "time": "2026-07-31T17:46:43.912000",
+          "latitude": 40.9056,
+          "longitude": 14.1271,
           "depth_km": 5,
           "magnitude": 4.5,
           "mag_type": "mww",
-          "place": "0 km WNW of Torre Caracciolo, Italy",
+          "place": "0 km SW of Torretta-Scalzapecora, Italy",
           "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us6000th99"
         },
         {
@@ -1560,40 +1571,40 @@
         "minlon": 172.0,
         "maxlon": 175.0
       },
-      "last_updated": "2026-08-13T11:01:53.043622",
-      "event_count": 3,
+      "last_updated": "2026-08-14T11:32:06.238695",
+      "event_count": 2,
       "largest_event": {
         "event_id": "us7000szwc",
-        "time": "2026-07-12T16:31:07.960000",
-        "latitude": -42.4746,
-        "longitude": 173.1301,
-        "depth_km": 10,
-        "magnitude": 4.6,
+        "time": "2026-07-12T16:31:08.710000",
+        "latitude": -42.5664,
+        "longitude": 173.4789,
+        "depth_km": 29.271,
+        "magnitude": 4.5,
         "mag_type": "mb",
-        "place": "26 km E of Hanmer Springs, New Zealand",
+        "place": "54 km E of Hanmer Springs, New Zealand",
         "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us7000szwc"
       },
       "most_recent_event": {
         "event_id": "us7000szwc",
-        "time": "2026-07-12T16:31:07.960000",
-        "latitude": -42.4746,
-        "longitude": 173.1301,
-        "depth_km": 10,
-        "magnitude": 4.6,
+        "time": "2026-07-12T16:31:08.710000",
+        "latitude": -42.5664,
+        "longitude": 173.4789,
+        "depth_km": 29.271,
+        "magnitude": 4.5,
         "mag_type": "mb",
-        "place": "26 km E of Hanmer Springs, New Zealand",
+        "place": "54 km E of Hanmer Springs, New Zealand",
         "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us7000szwc"
       },
       "events": [
         {
           "event_id": "us7000szwc",
-          "time": "2026-07-12T16:31:07.960000",
-          "latitude": -42.4746,
-          "longitude": 173.1301,
-          "depth_km": 10,
-          "magnitude": 4.6,
+          "time": "2026-07-12T16:31:08.710000",
+          "latitude": -42.5664,
+          "longitude": 173.4789,
+          "depth_km": 29.271,
+          "magnitude": 4.5,
           "mag_type": "mb",
-          "place": "26 km E of Hanmer Springs, New Zealand",
+          "place": "54 km E of Hanmer Springs, New Zealand",
           "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us7000szwc"
         },
         {
@@ -1606,17 +1617,6 @@
           "mag_type": "mb",
           "place": "42 km SE of Witherlea, New Zealand",
           "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us7000spft"
-        },
-        {
-          "event_id": "us6000sy5t",
-          "time": "2026-05-16T06:34:12.969000",
-          "latitude": -41.7898,
-          "longitude": 174.2248,
-          "depth_km": 10,
-          "magnitude": 4,
-          "mag_type": "mwr",
-          "place": "36 km SE of Witherlea, New Zealand",
-          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us6000sy5t"
         }
       ],
       "m65_plus_events": []
@@ -1629,7 +1629,7 @@
         "minlon": -152.0,
         "maxlon": -147.0
       },
-      "last_updated": "2026-08-13T11:01:53.333055",
+      "last_updated": "2026-08-14T11:32:06.592191",
       "event_count": 2,
       "largest_event": {
         "event_id": "aka2026mpakbo",
@@ -1687,7 +1687,7 @@
         "minlon": 129.5,
         "maxlon": 132.0
       },
-      "last_updated": "2026-08-13T11:01:53.830997",
+      "last_updated": "2026-08-14T11:32:06.896254",
       "event_count": 22,
       "largest_event": {
         "event_id": "us6000tgb9",
@@ -1785,7 +1785,7 @@
         "minlon": 120.5,
         "maxlon": 122.5
       },
-      "last_updated": "2026-08-13T11:01:54.316114",
+      "last_updated": "2026-08-14T11:32:07.206561",
       "event_count": 13,
       "largest_event": {
         "event_id": "us7000t3gt",
@@ -1823,10 +1823,10 @@
         },
         {
           "event_id": "us7000t3kn",
-          "time": "2026-07-27T02:14:50.279000",
-          "latitude": 23.1882,
-          "longitude": 120.5356,
-          "depth_km": 18.643,
+          "time": "2026-07-27T02:14:50.866000",
+          "latitude": 23.1812,
+          "longitude": 120.5417,
+          "depth_km": 22.804,
           "magnitude": 4.5,
           "mag_type": "mb",
           "place": "10 km NE of Yujing, Taiwan",
@@ -1876,7 +1876,7 @@
         "minlon": -101.0,
         "maxlon": -97.0
       },
-      "last_updated": "2026-08-13T11:01:54.585590",
+      "last_updated": "2026-08-14T11:32:07.683492",
       "event_count": 4,
       "largest_event": {
         "event_id": "us7000sqzv",

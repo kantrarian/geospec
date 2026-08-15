@@ -934,7 +934,12 @@ class SeismicDataFetcher:
             try:
                 for i in range(len(stream)):
                     trace = stream[i]
-                    data = np.asarray(trace.data, dtype=float).ravel()
+                    # Identity-preserving extraction (codex 0943 / bar OC-1): asarray is a
+                    # no-op for float 1-D input (the core receives the ORIGINAL array
+                    # object); ravel only when a reshape is actually required.
+                    data = np.asarray(trace.data, dtype=float)
+                    if data.ndim != 1:
+                        data = data.ravel()
                     if data.size == 0:
                         continue
                     rate = float(trace.stats.sampling_rate)
@@ -945,6 +950,16 @@ class SeismicDataFetcher:
                 continue
             if not fragments:
                 continue
+
+            # KOERI order canonicalization (codex 0943 ruling; cayley bar 2acfbaa): the shell
+            # SHALL canonicalize PROVIDER ENUMERATION by sorting the extracted non-empty
+            # fragment tuples in ascending aware-UTC start order before deriving any cache
+            # identity or invoking the core. Tuple-list sort only (never a Stream method);
+            # no sample, rate, or timestamp is merged/deduplicated/trimmed/dropped/moved/
+            # relabelled/altered. Equal starts and every post-sort start < prev exclusive end
+            # remain DataUnavailable under the frozen core validator. This establishes the
+            # core's frozen ascending-input precondition; it is NOT an overlap policy.
+            fragments.sort(key=lambda fr: fr[2])
 
             # DERIVED identity: native rate + raw digest of the first span + support digest of
             # the whole fragment set (timing/valid-mask structure).

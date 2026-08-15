@@ -37,6 +37,17 @@ SEAMS PINNED BY THIS BAR (naming decisions implementing the contract):
   bar's raw-view for the delta measurement; the §1 pipeline applies the SAME precision
   at every quantization point including trim ordering).
 
+REV 2 (codex `dfad58d` C-prime ruling, 2026-08-15): output-only q11 left BLAS-dependent
+residual-grid cell selection (two straddles found on 2026-08-13/istanbul: grid[211] across
+producer/geomen, grid[226] on py3.14 — three distinct digests for one entry). Repair =
+CANONICAL RESIDUAL EVALUATION: project beta + each row operand to q11 FIRST, evaluate
+`log_ratio - (b0 + b1*api7 + b2*r30)` exactly in Decimal in that declared operation order,
+project ONCE to q11; same evaluator for first-pass trim ordering, the final grid, and
+today's transform before bisect. New pinned seams: `canonical_numerics.canonical_residual`
++ `fit_region(..., diagnostics=dict)` out-param (kept_days + first_pass_beta, non-digested).
+SCOPE (per ruling): the green claim is the NAMED FOUR-LANE capsule result — codex's three
+lanes + the producer lane — not "any host".
+
 MODES (the bar is cross-runtime by construction):
   default            in-lane checks CN-0..CN-5 (red today: seams absent + the landed
                      capsule verifier baseline fails off-producer)
@@ -123,7 +134,8 @@ def rebuild_lane_summary(PR, CN):
         ratios = json.loads((d / "ratios.json").read_text())
         precip = json.loads((d / "precip.json").read_text())
         query = json.loads((d / "query.json").read_text())
-        m11 = PR.fit_region(region, ratios, precip, day, sig_digits=11)
+        diag = {}
+        m11 = PR.fit_region(region, ratios, precip, day, sig_digits=11, diagnostics=diag)
         m12 = PR.fit_region(region, ratios, precip, day, sig_digits=12)
         m17 = PR.fit_region(region, ratios, precip, day, sig_digits=17)
         if m11 is None or m12 is None or m17 is None:
@@ -131,9 +143,16 @@ def rebuild_lane_summary(PR, CN):
             continue
         out["q11_model"][key] = CN.model_digest(m11, n=11)
         out["q12_model"][key] = CN.model_digest(m12, n=12)
+        # REV 2: explicit cross-lane surfaces per the C-prime ruling
+        out.setdefault("trim_days", {})[key] = hashlib.sha256(json.dumps(
+            sorted(diag.get("kept_days", [])), separators=(",", ":")).encode()).hexdigest()
+        out.setdefault("resid_grid", {})[key] = hashlib.sha256(json.dumps(
+            [CN.canonical_text(v, 11) for v in m11["resid_sorted"]],
+            separators=(",", ":")).encode()).hexdigest()
         out["q17_raw"][key] = {"beta": [ref_text(b, 17) for b in m17["beta"]],
                                "cond": ref_text(m17["cond"], 17),
-                               "max_leverage": ref_text(m17["max_leverage"], 17)}
+                               "max_leverage": ref_text(m17["max_leverage"], 17),
+                               "resid_sorted": [ref_text(v, 17) for v in m17["resid_sorted"]]}
         old_fetch, old_hist, old_store = PR.fetch_precip, PR.load_ratio_history, PR.MODEL_FILE
         try:
             PR.fetch_precip = lambda *a, _p=precip, **k: dict(_p)
@@ -145,6 +164,8 @@ def rebuild_lane_summary(PR, CN):
             PR.fetch_precip, PR.load_ratio_history, PR.MODEL_FILE = old_fetch, old_hist, old_store
         out["q11_record"][key] = (hashlib.sha256(CN.canonical_record_bytes(rec)).hexdigest()
                                   if rec is not None else "RECORD_NONE")
+        out.setdefault("rank", {})[key] = (rec.get("residual_rank_index")
+                                           if rec is not None else None)
     return out
 
 
@@ -159,7 +180,8 @@ def in_lane_checks():
         return None
     need = all(hasattr(CN, a) for a in
                ("POLICY", "qsig", "canonical_text", "parse_canonical_token",
-                "model_digest", "canonical_record_bytes", "gate_compare"))
+                "model_digest", "canonical_record_bytes", "gate_compare",
+                "canonical_residual"))
     policy_ok = getattr(CN, "POLICY", None) == {
         "id": "r5-canonical-numerics-v1", "rounding": "ROUND_HALF_EVEN",
         "significant_decimal_digits": 11}
@@ -171,10 +193,11 @@ def in_lane_checks():
 
     import precip_residual as PR
     import inspect
-    sig_ok = "sig_digits" in inspect.signature(PR.fit_region).parameters
+    params = inspect.signature(PR.fit_region).parameters
+    sig_ok = "sig_digits" in params and "diagnostics" in params
     check("CN-0b fit_region exposes sig_digits (11 product / 12 negative-control / "
-          "17 raw-view; same precision at every §1 quantization point incl. trim order)",
-          sig_ok)
+          "17 raw-view) AND the REV-2 diagnostics out-param (kept_days + first_pass_beta, "
+          "non-digested)", sig_ok)
     if not sig_ok:
         return None
 
@@ -196,6 +219,26 @@ def in_lane_checks():
     ok1 = ok1 and CN.canonical_text(-0.0, 11) == "0" and CN.canonical_text(0.0, 11) == "0"
     check("CN-1 q11 semantics == §2 (from_float, 11 sig digits ROUND_HALF_EVEN, signed "
           "zero -> 0, fixed-point text, NaN/inf refusal)", ok1, detail)
+
+    # CN-1b -- REV 2: canonical residual evaluator (C-prime). Operands projected FIRST,
+    # exact Decimal evaluation in the declared order, ONE final projection.
+    ok1b = True
+    d1b = ""
+    try:
+        if CN.canonical_residual(0.12345678901234, [0.0, 0.0, 0.0], 0.0, 0.0) != \
+                ref_qsig(0.12345678901234, 11):
+            ok1b, d1b = False, "identity vector"
+        if ok1b and CN.canonical_residual(0.25, [0.1, 0.001, 0.0002], 10.0, 100.0) != \
+                Decimal("0.12"):
+            ok1b, d1b = False, "exact-arithmetic vector"
+        if ok1b and CN.canonical_residual(0.12345678901, [5e-12, 0.0, 0.0], 0.0, 0.0) != \
+                Decimal("0.123456789"):
+            ok1b, d1b = False, "HALF_EVEN tie vector"
+    except Exception as e:
+        ok1b, d1b = False, f"raised {e}"
+    check("CN-1b canonical_residual == C-prime (operands q11-projected first, exact "
+          "Decimal in declared order b1*api7 + b2*r30 + b0 then subtract, ONE final "
+          "projection; HALF_EVEN tie vector exact)", ok1b, d1b)
 
     # CN-2 — §3 digest domain on a fixture
     fixture = {"region": "x", "n": 42, "beta": [0.1, -0.0, 2.5e-11],
@@ -298,9 +341,13 @@ def compare(paths):
     keys = sorted(lanes[0]["q11_model"].keys())
     ok6 = len(lanes) >= 2 and all(
         ln["q11_model"] == lanes[0]["q11_model"] and ln["q11_record"] == lanes[0]["q11_record"]
+        and ln.get("trim_days") == lanes[0].get("trim_days")
+        and ln.get("resid_grid") == lanes[0].get("resid_grid")
+        and ln.get("rank") == lanes[0].get("rank")
         for ln in lanes[1:]) and "FIT_NONE" not in lanes[0]["q11_model"].values()
-    check(f"CN-6 q11 model digests + canonical record shas identical across ALL lanes "
-          f"({', '.join(names)}) for all {len(keys)} entries", ok6)
+    check(f"CN-6 q11 model digests + record shas + REV-2 trim membership + resid-grid "
+          f"shas + today's rank identical across ALL lanes ({', '.join(names)}) for all "
+          f"{len(keys)} entries", ok6)
     diverges = any(ln["q12_model"].get(k) != lanes[0]["q12_model"].get(k)
                    for ln in lanes[1:] for k in keys)
     check("CN-7 q12 NEGATIVE CONTROL diverges somewhere across lanes (the corpus still "

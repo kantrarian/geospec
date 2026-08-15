@@ -2670,15 +2670,16 @@
     "r5_active": false
    },
    "socal_saf_mojave": {
-    "stat": 0.5051077346804229,
-    "residual_percentile": 0.8858267716535433,
-    "raw_ratio": 0.4708860636686442,
-    "api7": 6.080395151634752,
+    "stat": 0.50510773468,
+    "residual_percentile": 0.88582677165,
+    "residual_rank_index": 225,
+    "raw_ratio": 0.47088606367,
+    "api7": 6.0803951516,
     "r30": 8.0,
     "beta": [
-     -1.58080077320995,
-     0.0073773700292958716,
-     -0.0032788003079781466
+     -1.5808007732,
+     0.0073773700293,
+     -0.0032788003079
     ],
     "n_fit": 254,
     "fitted_date": "2026-08-12",
@@ -2688,18 +2689,19 @@
      "2025-07-13",
      "2026-07-13"
     ],
-    "model_sha256": "5f184023dba4b1eb20d12851cfbde5e3328bd1d28c769167e4bbab27f82c3206"
+    "model_sha256": "93c92f5877665cf9d18b609eae39e8ea02d157a2dd113ab11b34dde52b99bee1"
    },
    "socal_saf_coachella": {
-    "stat": 0.23904088041060062,
-    "residual_percentile": 0.8070866141732284,
-    "raw_ratio": 0.23356072464890779,
-    "api7": 0.4234491653952144,
-    "r30": 2.3000000000000003,
+    "stat": 0.23904088041,
+    "residual_percentile": 0.80708661417,
+    "residual_rank_index": 205,
+    "raw_ratio": 0.23356072465,
+    "api7": 0.4234491654,
+    "r30": 2.3,
     "beta": [
-     -1.8265426108950065,
-     0.02115236243645246,
-     -0.0036159767085480084
+     -1.8265426109,
+     0.021152362436,
+     -0.0036159767084
     ],
     "n_fit": 254,
     "fitted_date": "2026-08-12",
@@ -2709,7 +2711,7 @@
      "2025-07-13",
      "2026-07-13"
     ],
-    "model_sha256": "f71558c27aba473c35396217814f26bdeb37b9f99e969b5e24bd0cbf66e4cb0d"
+    "model_sha256": "66cddbbc55505c068d563e9803b668bc43c4b618ce8e79169fc28314c551adf3"
    },
    "norcal_hayward": {
     "r5_active": false
@@ -2718,15 +2720,16 @@
     "r5_active": false
    },
    "tokyo_kanto": {
-    "stat": 0.10000000000000002,
-    "residual_percentile": 0.007874015748031496,
+    "stat": 0.1,
+    "residual_percentile": 0.007874015748,
+    "residual_rank_index": 2,
     "raw_ratio": 0.1,
-    "api7": 98.7342133066167,
+    "api7": 98.734213307,
     "r30": 213.1,
     "beta": [
-     -1.8338267750568786,
-     -0.005715667141148635,
-     0.0056796187347062915
+     -1.8338267751,
+     -0.0057156671411,
+     0.0056796187348
     ],
     "n_fit": 254,
     "fitted_date": "2026-08-12",
@@ -2736,18 +2739,19 @@
      "2025-07-13",
      "2026-07-13"
     ],
-    "model_sha256": "586374b7f83e27e62e3b5fc7f0134bd04e5b2d13da43d027b73385319bebff14"
+    "model_sha256": "8e501e4cc14657cf0cd5cf59fde412d29c6f3279b9b98910876c08844c953289"
    },
    "istanbul_marmara": {
-    "stat": 0.10000000000000002,
-    "residual_percentile": 0.6719367588932806,
+    "stat": 0.1,
+    "residual_percentile": 0.67193675889,
+    "residual_rank_index": 170,
     "raw_ratio": 0.1,
-    "api7": 1.0163411155082382,
+    "api7": 1.0163411155,
     "r30": 7.0,
     "beta": [
-     -2.2348102121539997,
-     0.0022574123758017785,
-     -0.0005105549863541046
+     -2.2348102122,
+     0.0022574123759,
+     -0.00051055498634
     ],
     "n_fit": 253,
     "fitted_date": "2026-08-12",
@@ -2757,18 +2761,19 @@
      "2025-07-13",
      "2026-07-13"
     ],
-    "model_sha256": "1a0f4a4986804a83be47bc52e2ad40c172a4f0c9ba240e6f2f45d10e41d62726"
+    "model_sha256": "4968160f541819c84a6c4d093b2613681240a4a5988686b541343160213a0acf"
    },
    "campi_flegrei": {
-    "stat": 0.290240229571751,
-    "residual_percentile": 0.33617021276595743,
-    "raw_ratio": 0.14640086970530108,
-    "api7": 2.5335223748444693,
-    "r30": 10.299999999999999,
+    "stat": 0.29024022957,
+    "residual_percentile": 0.33617021277,
+    "residual_rank_index": 79,
+    "raw_ratio": 0.14640086971,
+    "api7": 2.5335223748,
+    "r30": 10.3,
     "beta": [
-     -1.4984845164962124,
-     0.0011578013937873933,
-     0.006010309734893155
+     -1.4984845165,
+     0.0011578013938,
+     0.0060103097348
     ],
     "n_fit": 235,
     "fitted_date": "2026-08-12",
@@ -2778,18 +2783,19 @@
      "2025-07-13",
      "2026-07-13"
     ],
-    "model_sha256": "b0b29f7ce4fe4a5e0f22a4ba279739566d126b9786f4a8e3d1ebf70845b063df"
+    "model_sha256": "bd7257ab575f6abdf28e5a98b921578de917c553fb0176fbce53487f414df509"
    },
    "kaikoura": {
-    "stat": 0.24531102242467046,
-    "residual_percentile": 0.8605577689243028,
-    "raw_ratio": 0.24499414126625946,
-    "api7": 23.370422642211025,
+    "stat": 0.24531102242,
+    "residual_percentile": 0.86055776892,
+    "residual_rank_index": 216,
+    "raw_ratio": 0.24499414127,
+    "api7": 23.370422642,
     "r30": 39.7,
     "beta": [
-     -2.0031161422120434,
-     0.0018985512763620115,
-     -0.0008863236731547269
+     -2.0031161422,
+     0.0018985512764,
+     -0.00088632367317
     ],
     "n_fit": 251,
     "fitted_date": "2026-08-12",
@@ -2799,18 +2805,19 @@
      "2025-07-13",
      "2026-07-13"
     ],
-    "model_sha256": "3d03952a5bbe61d6c8bee2547332a88d10cc841d9a5ce50faadf8a9dfb0b5c88"
+    "model_sha256": "ff60418b48c3046fde27698fd708cbba98994b3ef95b65ac49c4d8a88e5216f6"
    },
    "anchorage": {
-    "stat": 0.45710590924861183,
-    "residual_percentile": 0.9488188976377953,
-    "raw_ratio": 0.3426669853765733,
-    "api7": 17.043836809892646,
-    "r30": 142.29999999999998,
+    "stat": 0.45710590925,
+    "residual_percentile": 0.94881889764,
+    "residual_rank_index": 241,
+    "raw_ratio": 0.34266698538,
+    "api7": 17.04383681,
+    "r30": 142.3,
     "beta": [
-     -2.011367774408522,
-     0.0034603532539084153,
-     -0.002479083187053339
+     -2.0113677744,
+     0.0034603532536,
+     -0.002479083187
     ],
     "n_fit": 254,
     "fitted_date": "2026-08-12",
@@ -2820,18 +2827,19 @@
      "2025-07-13",
      "2026-07-13"
     ],
-    "model_sha256": "48200edf73d04c57d911e2b4915ff9b4c8dd3575da84d70fffa7cdaa2f904141"
+    "model_sha256": "ab76c97c9bf021cef70ce3ffdeeca47dc29e6e5f5a7b7ee520d36f1e5bd86d2d"
    },
    "kumamoto": {
-    "stat": 3.4945411276025093,
+    "stat": 3.4945411276,
     "residual_percentile": 1.0,
-    "raw_ratio": 1.2836103182467704,
-    "api7": 8.597641959020596,
-    "r30": 21.200000000000003,
+    "residual_rank_index": 256,
+    "raw_ratio": 1.2836103182,
+    "api7": 8.597641959,
+    "r30": 21.2,
     "beta": [
-     -1.7785411928499824,
-     0.0008737469367729716,
-     0.002189690477422408
+     -1.7785411928,
+     0.00087374693701,
+     0.0021896904773
     ],
     "n_fit": 256,
     "fitted_date": "2026-08-12",
@@ -2841,18 +2849,19 @@
      "2025-07-13",
      "2026-07-13"
     ],
-    "model_sha256": "32ca293926b6bd7d66b8460b322c635264c948d31355c99e52c50ccc5284755c"
+    "model_sha256": "465d4a6232ade57bf05a98360f9f46d3c4c096babb08499505961dea6aac974e"
    },
    "mexico_guerrero": {
-    "stat": 0.10000000000000002,
+    "stat": 0.1,
     "residual_percentile": 0.044,
+    "residual_rank_index": 11,
     "raw_ratio": 0.1,
-    "api7": 79.3914767617802,
+    "api7": 79.391476762,
     "r30": 276.3,
     "beta": [
-     -1.359493776343572,
-     0.013181509211899553,
-     -0.002505220781730157
+     -1.3594937764,
+     0.013181509213,
+     -0.0025052207819
     ],
     "n_fit": 250,
     "fitted_date": "2026-08-12",
@@ -2862,7 +2871,7 @@
      "2025-07-13",
      "2026-07-13"
     ],
-    "model_sha256": "ca77aff68df78516e112b8e9d5a7899cb731560152520f57d837ce20aae7fd04"
+    "model_sha256": "784c0b67ad409ed740c9f285ed2d80c35aef1c01f77a537c0b6fbfda2e30ec3c"
    }
   },
   "2026-08-13": {
@@ -2870,15 +2879,16 @@
     "r5_active": false
    },
    "socal_saf_mojave": {
-    "stat": 0.5051077346804229,
-    "residual_percentile": 0.8862745098039215,
-    "raw_ratio": 0.4708860636686442,
-    "api7": 5.772355636471277,
-    "r30": 7.3999999999999995,
+    "stat": 0.50510773468,
+    "residual_percentile": 0.8862745098,
+    "residual_rank_index": 226,
+    "raw_ratio": 0.47088606367,
+    "api7": 5.7723556365,
+    "r30": 7.4,
     "beta": [
-     -1.5755543852155591,
-     0.007400930021804324,
-     -0.0033463879588328483
+     -1.5755543852,
+     0.0074009300218,
+     -0.0033463879588
     ],
     "n_fit": 255,
     "fitted_date": "2026-08-13",
@@ -2888,18 +2898,19 @@
      "2025-07-14",
      "2026-07-14"
     ],
-    "model_sha256": "4df917fc9a6605e175d6e2caacd94d86afc02e05581c279b6eef5c60464f7fd4"
+    "model_sha256": "298f468a5d55b6ebeb0a25b633869b1dd2db7ded983a69e35784f1aad76dec6a"
    },
    "socal_saf_coachella": {
-    "stat": 0.23904088041060062,
-    "residual_percentile": 0.803921568627451,
-    "raw_ratio": 0.23356072464890779,
-    "api7": 0.38110424885569294,
-    "r30": 2.3000000000000003,
+    "stat": 0.23904088041,
+    "residual_percentile": 0.80392156863,
+    "residual_rank_index": 205,
+    "raw_ratio": 0.23356072465,
+    "api7": 0.38110424886,
+    "r30": 2.3,
     "beta": [
-     -1.824050393429444,
-     0.021125612732160622,
-     -0.003708613335963066
+     -1.8240503934,
+     0.021125612732,
+     -0.0037086133358
     ],
     "n_fit": 255,
     "fitted_date": "2026-08-13",
@@ -2909,7 +2920,7 @@
      "2025-07-14",
      "2026-07-14"
     ],
-    "model_sha256": "ecba77540d1f7c16fe24903d4a340d261a1173f8c0dafae0062729d7a66e0268"
+    "model_sha256": "98d9f5126520004113a7c19e88f7e0af3428d768373d17828bddb21a1b0ec841"
    },
    "norcal_hayward": {
     "r5_active": false
@@ -2918,15 +2929,16 @@
     "r5_active": false
    },
    "tokyo_kanto": {
-    "stat": 0.10000000000000002,
-    "residual_percentile": 0.00784313725490196,
+    "stat": 0.1,
+    "residual_percentile": 0.0078431372549,
+    "residual_rank_index": 2,
     "raw_ratio": 0.1,
-    "api7": 159.75691043370722,
+    "api7": 159.75691043,
     "r30": 284.0,
     "beta": [
-     -1.8301343318274435,
-     -0.00369771644286083,
-     0.0047916823405736095
+     -1.8301343318,
+     -0.0036977164428,
+     0.0047916823406
     ],
     "n_fit": 255,
     "fitted_date": "2026-08-13",
@@ -2936,18 +2948,19 @@
      "2025-07-14",
      "2026-07-14"
     ],
-    "model_sha256": "3ae39321cf316e0fdcebca2530f4ce2fc779caa3b940ad817a9d880ef0fdf17f"
+    "model_sha256": "8b3634eff545b5f45d9bb919d31405eb0b4c84f0c4a4aad7937f49ffe300c1ef"
    },
    "istanbul_marmara": {
-    "stat": 0.10000000000000002,
-    "residual_percentile": 0.6220472440944882,
+    "stat": 0.1,
+    "residual_percentile": 0.62204724409,
+    "residual_rank_index": 158,
     "raw_ratio": 0.1,
-    "api7": 1.7098550761476452,
+    "api7": 1.7098550761,
     "r30": 6.1,
     "beta": [
-     -2.2358179630850814,
-     0.002255943295165881,
-     -0.0005010982194449121
+     -2.2358179631,
+     0.0022559432952,
+     -0.00050109821943
     ],
     "n_fit": 254,
     "fitted_date": "2026-08-13",
@@ -2957,18 +2970,19 @@
      "2025-07-14",
      "2026-07-14"
     ],
-    "model_sha256": "05f81028b3126f8d46b8d33e5ae6272c5017e4f1af04a8a57793ce7c1cc6bcba"
+    "model_sha256": "e9607e1c9ca8baa3b086016f27b42c21bb1b509834bce7979daa80f90c26da17"
    },
    "campi_flegrei": {
-    "stat": 0.289992491010562,
-    "residual_percentile": 0.3347457627118644,
-    "raw_ratio": 0.14640086970530108,
-    "api7": 3.0801701373600228,
+    "stat": 0.28999249101,
+    "residual_percentile": 0.33474576271,
+    "residual_rank_index": 79,
+    "raw_ratio": 0.14640086971,
+    "api7": 3.0801701374,
     "r30": 11.1,
     "beta": [
-     -1.4993170842332735,
-     0.0011605885934626052,
-     0.006014665519900507
+     -1.4993170842,
+     0.0011605885935,
+     0.0060146655198
     ],
     "n_fit": 236,
     "fitted_date": "2026-08-13",
@@ -2978,18 +2992,19 @@
      "2025-07-14",
      "2026-07-14"
     ],
-    "model_sha256": "cfedcf29c056c65ed697c94a93d231038283a7858974ca68a91704336a718b61"
+    "model_sha256": "4ae4ed5689db7447c39ea60830694bafa33298b3358e5466b43f34fcc0692070"
    },
    "kaikoura": {
-    "stat": 0.13300847989176134,
-    "residual_percentile": 0.7341269841269841,
-    "raw_ratio": 0.13737449929956258,
-    "api7": 21.03305691613594,
+    "stat": 0.13300847989,
+    "residual_percentile": 0.73412698413,
+    "residual_rank_index": 185,
+    "raw_ratio": 0.1373744993,
+    "api7": 21.033056916,
     "r30": 39.7,
     "beta": [
-     -2.0009727858652653,
-     0.0018985459212098677,
-     -0.0009057110610311868
+     -2.0009727859,
+     0.0018985459213,
+     -0.00090571106104
     ],
     "n_fit": 252,
     "fitted_date": "2026-08-13",
@@ -2999,18 +3014,19 @@
      "2025-07-14",
      "2026-07-14"
     ],
-    "model_sha256": "4565064ecfe75aa9828e6f2bcdb2891e49173467732cd8e83a784752475f13c4"
+    "model_sha256": "65b1d77ddceb916ac2b9e8985fe18952fdd40582d3501b518b94d41ed02dd2fd"
    },
    "anchorage": {
-    "stat": 0.45710590924861183,
-    "residual_percentile": 0.9490196078431372,
-    "raw_ratio": 0.3426669853765733,
-    "api7": 15.739291397976386,
-    "r30": 133.89999999999995,
+    "stat": 0.45710590925,
+    "residual_percentile": 0.94901960784,
+    "residual_rank_index": 242,
+    "raw_ratio": 0.34266698538,
+    "api7": 15.739291398,
+    "r30": 133.9,
     "beta": [
-     -2.0103958805472852,
-     0.0028270926031907515,
-     -0.002312928681892347
+     -2.0103958806,
+     0.002827092603,
+     -0.0023129286818
     ],
     "n_fit": 255,
     "fitted_date": "2026-08-13",
@@ -3020,18 +3036,19 @@
      "2025-07-14",
      "2026-07-14"
     ],
-    "model_sha256": "1ebcead2fa7c203b288a82ca9790774c16a66a20e8c7667031b460ccf476e0c5"
+    "model_sha256": "d998d1fbcda2c344d746f0f8c2ebee07be362660b84c94c01dcf71fe083e5191"
    },
    "kumamoto": {
-    "stat": 3.4945411276025093,
+    "stat": 3.4945411276,
     "residual_percentile": 1.0,
-    "raw_ratio": 1.2836103182467704,
-    "api7": 9.837877763118536,
+    "residual_rank_index": 257,
+    "raw_ratio": 1.2836103182,
+    "api7": 9.8378777631,
     "r30": 21.9,
     "beta": [
-     -1.7958956123057095,
-     -0.0006600437598144476,
-     0.002884865578664013
+     -1.7958956123,
+     -0.00066004375962,
+     0.0028848655786
     ],
     "n_fit": 257,
     "fitted_date": "2026-08-13",
@@ -3041,18 +3058,19 @@
      "2025-07-14",
      "2026-07-14"
     ],
-    "model_sha256": "74ad6e98fb2e6d0e87014305442d6e1480de2abe4923a1c621e6c5c7ec9789d1"
+    "model_sha256": "9a3fcf29c0090d7ecbf9ef456b982cc8a5dd2231c4997fd09dfcfaad4c5e3784"
    },
    "mexico_guerrero": {
-    "stat": 0.10000000000000002,
-    "residual_percentile": 0.07569721115537849,
+    "stat": 0.1,
+    "residual_percentile": 0.075697211155,
+    "residual_rank_index": 19,
     "raw_ratio": 0.1,
-    "api7": 74.05232908560217,
+    "api7": 74.052329086,
     "r30": 272.8,
     "beta": [
-     -1.349059648104764,
-     0.01260607595099533,
-     -0.0024345230179534626
+     -1.3490596481,
+     0.012606075952,
+     -0.0024345230181
     ],
     "n_fit": 251,
     "fitted_date": "2026-08-13",
@@ -3062,7 +3080,7 @@
      "2025-07-14",
      "2026-07-14"
     ],
-    "model_sha256": "6ba1e2427c9466ab530dba62a43b1a30a1f45e83b75ffff83816370c7399526b"
+    "model_sha256": "e2bb85ba1a4a74eeb7fdeb5406ffa7fd1eaa3897f7ae2812421cd3797c867767"
    }
   }
  },
@@ -3078,6 +3096,91 @@
    "capsule_path": "monitoring/replay_capsules/r5_20260812_20260813",
    "capsule_manifest_sha256": "b05c8ad5501a9a02bb471c2a47368184e6c41157d235ab1390f22a516928d216",
    "capsule_note": "codex 172526Z reproducibility repair: every consumed input byte preserved + manifest-bound to ee77902; all 18 recomputed model digests MATCH the published values (no value change); verifier = tools/r5_replay_capsule.py verify"
+  },
+  {
+   "applied_utc": "2026-08-15T19:39:04Z",
+   "days": [
+    "2026-08-12",
+    "2026-08-13"
+   ],
+   "numeric_policy_id": "r5-canonical-numerics-v1",
+   "reason": "r5-canonical-numerics-v1 amendment (codex 185751Z, owner-gated): digest-bearing values projected to q11 canonical numerics so the capsule verifies host-independently; scientific values invariant at q11 (refusal-gated). Digest map below; capsule manifest rebound.",
+   "model_digest_map": {
+    "2026-08-12/anchorage": {
+     "old_model_sha256": "48200edf73d04c57d911e2b4915ff9b4c8dd3575da84d70fffa7cdaa2f904141",
+     "new_model_sha256": "ab76c97c9bf021cef70ce3ffdeeca47dc29e6e5f5a7b7ee520d36f1e5bd86d2d"
+    },
+    "2026-08-12/campi_flegrei": {
+     "old_model_sha256": "b0b29f7ce4fe4a5e0f22a4ba279739566d126b9786f4a8e3d1ebf70845b063df",
+     "new_model_sha256": "bd7257ab575f6abdf28e5a98b921578de917c553fb0176fbce53487f414df509"
+    },
+    "2026-08-12/istanbul_marmara": {
+     "old_model_sha256": "1a0f4a4986804a83be47bc52e2ad40c172a4f0c9ba240e6f2f45d10e41d62726",
+     "new_model_sha256": "4968160f541819c84a6c4d093b2613681240a4a5988686b541343160213a0acf"
+    },
+    "2026-08-12/kaikoura": {
+     "old_model_sha256": "3d03952a5bbe61d6c8bee2547332a88d10cc841d9a5ce50faadf8a9dfb0b5c88",
+     "new_model_sha256": "ff60418b48c3046fde27698fd708cbba98994b3ef95b65ac49c4d8a88e5216f6"
+    },
+    "2026-08-12/kumamoto": {
+     "old_model_sha256": "32ca293926b6bd7d66b8460b322c635264c948d31355c99e52c50ccc5284755c",
+     "new_model_sha256": "465d4a6232ade57bf05a98360f9f46d3c4c096babb08499505961dea6aac974e"
+    },
+    "2026-08-12/mexico_guerrero": {
+     "old_model_sha256": "ca77aff68df78516e112b8e9d5a7899cb731560152520f57d837ce20aae7fd04",
+     "new_model_sha256": "784c0b67ad409ed740c9f285ed2d80c35aef1c01f77a537c0b6fbfda2e30ec3c"
+    },
+    "2026-08-12/socal_saf_coachella": {
+     "old_model_sha256": "f71558c27aba473c35396217814f26bdeb37b9f99e969b5e24bd0cbf66e4cb0d",
+     "new_model_sha256": "66cddbbc55505c068d563e9803b668bc43c4b618ce8e79169fc28314c551adf3"
+    },
+    "2026-08-12/socal_saf_mojave": {
+     "old_model_sha256": "5f184023dba4b1eb20d12851cfbde5e3328bd1d28c769167e4bbab27f82c3206",
+     "new_model_sha256": "93c92f5877665cf9d18b609eae39e8ea02d157a2dd113ab11b34dde52b99bee1"
+    },
+    "2026-08-12/tokyo_kanto": {
+     "old_model_sha256": "586374b7f83e27e62e3b5fc7f0134bd04e5b2d13da43d027b73385319bebff14",
+     "new_model_sha256": "8e501e4cc14657cf0cd5cf59fde412d29c6f3279b9b98910876c08844c953289"
+    },
+    "2026-08-13/anchorage": {
+     "old_model_sha256": "1ebcead2fa7c203b288a82ca9790774c16a66a20e8c7667031b460ccf476e0c5",
+     "new_model_sha256": "d998d1fbcda2c344d746f0f8c2ebee07be362660b84c94c01dcf71fe083e5191"
+    },
+    "2026-08-13/campi_flegrei": {
+     "old_model_sha256": "cfedcf29c056c65ed697c94a93d231038283a7858974ca68a91704336a718b61",
+     "new_model_sha256": "4ae4ed5689db7447c39ea60830694bafa33298b3358e5466b43f34fcc0692070"
+    },
+    "2026-08-13/istanbul_marmara": {
+     "old_model_sha256": "05f81028b3126f8d46b8d33e5ae6272c5017e4f1af04a8a57793ce7c1cc6bcba",
+     "new_model_sha256": "e9607e1c9ca8baa3b086016f27b42c21bb1b509834bce7979daa80f90c26da17"
+    },
+    "2026-08-13/kaikoura": {
+     "old_model_sha256": "4565064ecfe75aa9828e6f2bcdb2891e49173467732cd8e83a784752475f13c4",
+     "new_model_sha256": "65b1d77ddceb916ac2b9e8985fe18952fdd40582d3501b518b94d41ed02dd2fd"
+    },
+    "2026-08-13/kumamoto": {
+     "old_model_sha256": "74ad6e98fb2e6d0e87014305442d6e1480de2abe4923a1c621e6c5c7ec9789d1",
+     "new_model_sha256": "9a3fcf29c0090d7ecbf9ef456b982cc8a5dd2231c4997fd09dfcfaad4c5e3784"
+    },
+    "2026-08-13/mexico_guerrero": {
+     "old_model_sha256": "6ba1e2427c9466ab530dba62a43b1a30a1f45e83b75ffff83816370c7399526b",
+     "new_model_sha256": "e2bb85ba1a4a74eeb7fdeb5406ffa7fd1eaa3897f7ae2812421cd3797c867767"
+    },
+    "2026-08-13/socal_saf_coachella": {
+     "old_model_sha256": "ecba77540d1f7c16fe24903d4a340d261a1173f8c0dafae0062729d7a66e0268",
+     "new_model_sha256": "98d9f5126520004113a7c19e88f7e0af3428d768373d17828bddb21a1b0ec841"
+    },
+    "2026-08-13/socal_saf_mojave": {
+     "old_model_sha256": "4df917fc9a6605e175d6e2caacd94d86afc02e05581c279b6eef5c60464f7fd4",
+     "new_model_sha256": "298f468a5d55b6ebeb0a25b633869b1dd2db7ded983a69e35784f1aad76dec6a"
+    },
+    "2026-08-13/tokyo_kanto": {
+     "old_model_sha256": "3ae39321cf316e0fdcebca2530f4ce2fc779caa3b940ad817a9d880ef0fdf17f",
+     "new_model_sha256": "8b3634eff545b5f45d9bb919d31405eb0b4c84f0c4a4aad7937f49ffe300c1ef"
+    }
+   },
+   "capsule_manifest_sha256": "4123997a430366ce766be954b1669b9bdf78f82318ec7a67d31b2fde9e0964ed",
+   "by": "grassmann"
   }
  ]
 }

@@ -136,8 +136,22 @@ def load_ratio_history(region: str) -> Dict[str, float]:
 # ---------------------------------------------------------------- fitting
 
 def fit_region(region: str, ratios: Dict[str, float], precip: Dict[str, float],
-               today: str) -> Optional[dict]:
-    """Log-OLS with one trim pass on the lagged window. Returns the model dict or None."""
+               today: str, sig_digits: int = 11) -> Optional[dict]:
+    """Log-OLS with one trim pass on the lagged window. Returns the model dict or None.
+
+    r5-canonical-numerics-v1 (codex 185751Z §1, owner-gated; cayley bar a6ce01e):
+    the SAME registered estimator and operation order (lstsq -> residuals ->
+    deterministic trim -> lstsq refit), with the canonical projection q(sig_digits)
+    applied at EVERY persisted/hashed/ranked/compared value: training-row inputs at
+    row build; first-pass residuals before trim ordering (ordered by
+    (abs(q_residual), day) — day is the fixed tie-breaker); refit beta, final
+    residuals, condition, leverage, and predictor ranges before storage or gates;
+    ratio_sorted is formed from q(original_ratio) (no exp(log) round trip). Gates
+    compare canonical Decimals with the ±1 ulp11 ambiguity band and fail closed to
+    R3 with R5_NUMERIC_BOUNDARY_AMBIGUITY. sig_digits: 11 = the product; 12/17 =
+    the acceptance bar's negative-control and raw-view precisions."""
+    from canonical_numerics import gate_compare, qfloat
+    q = lambda v: qfloat(v, sig_digits)
     end = (_d(today) - timedelta(days=R5_CONFIG["fit_window_lag_days"])).isoformat()
     start = (_d(today) - timedelta(days=R5_CONFIG["fit_window_start_days"])).isoformat()
     rows = []
@@ -145,28 +159,29 @@ def fit_region(region: str, ratios: Dict[str, float], precip: Dict[str, float],
         if start <= day <= end:
             ix = indices(precip, day)
             if ix is not None:
-                rows.append((day, math.log(max(ratio, 1e-3)), ix[0], ix[1]))
+                # §1.1 quantize API7, R30, log(ratio) at row build; §1.5 retain the
+                # original training ratio in the row.
+                rows.append((day, q(math.log(max(ratio, 1e-3))), q(ix[0]), q(ix[1]),
+                             q(ratio)))
     if len(rows) < R5_CONFIG["min_fit_days"]:
         return None
     def ols(rs):
-        # normal equations for [1, api, r30] (stdlib; 3x3 solve)
         import numpy as np
-        X = np.array([[1.0, a, r] for _, _, a, r in rs])
-        y = np.array([v for _, v, _, _ in rs])
+        X = np.array([[1.0, a, r] for _, _, a, r, _ in rs])
+        y = np.array([v for _, v, _, _, _ in rs])
         beta, *_ = np.linalg.lstsq(X, y, rcond=None)
         resid = y - X @ beta
         return beta.tolist(), resid.tolist()
     beta, resid = ols(rows)
-    # single trim pass: drop the largest trim_frac |residuals|, refit
+    # §1.2: quantize first-pass residuals before trim ordering; order by
+    # (abs(q_residual), day) — day breaks ties deterministically; drop the final k.
     k = max(1, int(len(rows) * R5_CONFIG["trim_frac"]))
-    keep = sorted(range(len(rows)), key=lambda i: abs(resid[i]))[:-k]
+    keep = sorted(range(len(rows)),
+                  key=lambda i: (abs(q(resid[i])), rows[i][0]))[:-k]
     kept = [rows[i] for i in keep]
     beta, resid = ols(kept)
-    # R5-4 fix: trimming residuals is NOT a leverage guard. Fail closed to R3 when the
-    # design is ill-conditioned or dominated by high-leverage points, rather than emit
-    # an extreme residual percentile from a degenerate fit.
     import numpy as np
-    Xk = np.array([[1.0, a, r] for _, _, a, r in kept])
+    Xk = np.array([[1.0, a, r] for _, _, a, r, _ in kept])
     try:
         cond = float(np.linalg.cond(Xk.T @ Xk))
     except Exception:
@@ -174,17 +189,28 @@ def fit_region(region: str, ratios: Dict[str, float], precip: Dict[str, float],
     XtX_inv = np.linalg.pinv(Xk.T @ Xk)
     lev = np.array([float(x @ XtX_inv @ x) for x in Xk])   # hat-matrix diagonal
     max_lev = float(lev.max())
-    if cond > R5_CONFIG["max_condition"] or max_lev > R5_CONFIG["max_leverage"]:
+    # §1.3 quantize before gates; §1 gate rule: canonical-vs-exact-Decimal compare
+    # with the ambiguity band failing closed to R3.
+    cond_q, lev_q = q(cond), q(max_lev)
+    g_cond = gate_compare(cond_q, R5_CONFIG["max_condition"])
+    g_lev = gate_compare(lev_q, R5_CONFIG["max_leverage"])
+    if g_cond == "ambiguous" or g_lev == "ambiguous":
+        logger.warning(f"R5 fit for {region}: R5_NUMERIC_BOUNDARY_AMBIGUITY on "
+                       f"{'condition' if g_cond == 'ambiguous' else 'leverage'} gate; "
+                       f"failing closed to R3")
+        return None
+    if g_cond == "ge" or g_lev == "ge":
         logger.warning(f"R5 fit for {region} fails leverage/condition gate "
-                       f"(cond={cond:.1f}, max_lev={max_lev:.3f}); staying on R3")
+                       f"(cond={cond_q}, max_lev={lev_q}); staying on R3")
         return None
     return {
-        "cond": cond, "max_leverage": max_lev,
-        "api7_range": [min(a for _, _, a, _ in kept), max(a for _, _, a, _ in kept)],
-        "r30_range": [min(r for _, _, _, r in kept), max(r for _, _, _, r in kept)],
-        "region": region, "fitted_date": today, "n": len(keep), "beta": beta,
-        "resid_sorted": sorted(resid),
-        "ratio_sorted": sorted(math.exp(v) for _, v, _, _ in (rows[i] for i in keep)),
+        "cond": cond_q, "max_leverage": lev_q,
+        "api7_range": [min(a for _, _, a, _, _ in kept), max(a for _, _, a, _, _ in kept)],
+        "r30_range": [min(r for _, _, _, r, _ in kept), max(r for _, _, _, r, _ in kept)],
+        "region": region, "fitted_date": today, "n": len(keep),
+        "beta": [q(b) for b in beta],
+        "resid_sorted": sorted(q(v) for v in resid),
+        "ratio_sorted": sorted(orig for _, _, _, _, orig in kept),
         "window": [start, end],
     }
 
@@ -282,7 +308,10 @@ def r5_transform(region: str, lat: float, lon: float, ratio: float,
         ix = indices(precip, today)
         if ix is None:
             return None
-        api7, r30 = ix
+        # r5-canonical-numerics-v1 §1.4: quantize today's predictors and residual;
+        # every published R5 float is canonical.
+        from canonical_numerics import gate_compare, model_digest, qfloat
+        api7, r30 = qfloat(ix[0]), qfloat(ix[1])
         # R5-4: extrapolation guard -- if today's predictors are far outside the fit
         # envelope, the linear residual is unreliable; stay on R3.
         ar = model.get("api7_range"); rr = model.get("r30_range")
@@ -290,30 +319,43 @@ def r5_transform(region: str, lat: float, lon: float, ratio: float,
             logger.warning(f"R5 {region}: model lacks predictor ranges; R3 (R5-R2)")
             return None
         ef = R5_CONFIG["envelope_factor"]
-        # R5-R3: guard BOTH sides. Predictors are nonnegative; lower bound = min/ef
-        # (0 stays 0). Outside [min/ef, max*ef] on either predictor -> extrapolation -> R3.
+        # R5-R3: guard BOTH sides via the canonical gate rule (ambiguity fails closed).
         def out(v, lo, hi):
-            return v > hi * ef or v < lo / ef
-        if out(api7, ar[0], ar[1]) or out(r30, rr[0], rr[1]):
+            hi_c = gate_compare(v, hi * ef)
+            lo_c = "lt" if lo == 0 and v >= 0 else gate_compare(v, lo / ef)
+            if hi_c == "ambiguous" or lo_c == "ambiguous":
+                return "ambiguous"
+            return "out" if (hi_c == "ge" and v > hi * ef) or \
+                            (lo_c == "lt" and v < lo / ef) else "in"
+        oa, orr = out(api7, ar[0], ar[1]), out(r30, rr[0], rr[1])
+        if oa == "ambiguous" or orr == "ambiguous":
+            logger.warning(f"R5 {region}: R5_NUMERIC_BOUNDARY_AMBIGUITY on envelope "
+                           f"guard; failing closed to R3")
+            return None
+        if oa == "out" or orr == "out":
             logger.warning(f"R5 {region}: predictors outside fit envelope "
                            f"(api7={api7:.0f} in [{ar[0]:.0f},{ar[1]:.0f}], "
                            f"r30={r30:.0f} in [{rr[0]:.0f},{rr[1]:.0f}]); R3")
             return None
         b = model["beta"]
-        resid = math.log(max(ratio, 1e-3)) - (b[0] + b[1] * api7 + b[2] * r30)
-        p = percentile_of(model["resid_sorted"], resid)
-        stat = quantile_at(model["ratio_sorted"], p)
-        rec = {"stat": stat, "residual_percentile": p, "raw_ratio": ratio,
+        resid = qfloat(math.log(max(ratio, 1e-3)) - (b[0] + b[1] * api7 + b[2] * r30))
+        # §1.6: rank/index is the claim-bearing provenance; the displayed percentile
+        # is derived from the exact rational rank and then canonicalized.
+        import bisect
+        rank = bisect.bisect_left(model["resid_sorted"], resid)
+        n_grid = len(model["resid_sorted"])
+        p = qfloat(rank / n_grid) if n_grid else 0.5
+        stat = qfloat(quantile_at(model["ratio_sorted"], rank / n_grid if n_grid else 0.5))
+        rec = {"stat": stat, "residual_percentile": p,
+               "residual_rank_index": rank, "raw_ratio": qfloat(ratio),
                "api7": api7, "r30": r30, "beta": b, "n_fit": model["n"],
                "fitted_date": model["fitted_date"], "r5_computed": True,
                "r5_active": False}   # R5-R5: shadow -- computed, NOT operational
         if historical:
-            # As-of provenance (codex 1246): window + a digest over the canonical model
-            # JSON, so the record is bound to the exact deterministic fit that produced it.
+            # As-of provenance (codex 1246 + 185751Z): window + the CANONICAL model
+            # digest, recomputable from persisted content + the declared policy alone.
             rec["window"] = list(model["window"])
-            rec["model_sha256"] = hashlib.sha256(
-                json.dumps(model, sort_keys=True,
-                           separators=(",", ":")).encode("utf-8")).hexdigest()
+            rec["model_sha256"] = model_digest(model, n=11)
         return rec
     except Exception as e:                                     # FAIL-OPEN, always
         logger.warning(f"R5 transform failed for {region} ({e}); falling back to R3 ratio path")

@@ -133,6 +133,28 @@ def gate_compare(x, threshold) -> str:
     return "lt" if q < t else "ge"
 
 
+def canonical_residual(log_ratio, beta, api7, r30, n: int = 11) -> Decimal:
+    """C-prime (codex dfad58d ruling; bar REV 2/3): the decision-bearing residual
+    as an EXACT function of canonical operands. Every operand (log_ratio, b0, b1,
+    b2, api7, r30) is projected to q(n) FIRST; the prediction is evaluated exactly
+    in Decimal in the DECLARED operation order `b1*api7 + b2*r30 + b0`, subtracted
+    from the projected log_ratio, and the result projected ONCE to q(n). BLAS
+    supplies the fitted beta; all downstream rank-grid arithmetic runs on this
+    canonical carrier, so grid cells cannot be selected by host-dependent float
+    noise."""
+    import decimal
+    ql = qsig(log_ratio, n)
+    b0, b1, b2 = (qsig(b, n) for b in beta)
+    qa, qr = qsig(api7, n), qsig(r30, n)
+    with decimal.localcontext() as ctx:
+        ctx.prec = 60          # exact for products/sums of q11 operands
+        resid = ql - (b1 * qa + b2 * qr + b0)
+    if resid == 0:
+        return Decimal(0)
+    return resid.quantize(Decimal(1).scaleb(resid.adjusted() - (n - 1)),
+                          rounding=ROUND_HALF_EVEN)
+
+
 def qfloat(x, n: int = 11) -> float:
     """float carrier of qsig(x, n) — binary64 has ample precision for n <= 15, so
     q(float(q(x))) == q(x): the projection is idempotent through this carrier."""

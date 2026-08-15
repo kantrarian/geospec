@@ -136,7 +136,8 @@ def load_ratio_history(region: str) -> Dict[str, float]:
 # ---------------------------------------------------------------- fitting
 
 def fit_region(region: str, ratios: Dict[str, float], precip: Dict[str, float],
-               today: str, sig_digits: int = 11) -> Optional[dict]:
+               today: str, sig_digits: int = 11,
+               diagnostics: Optional[dict] = None) -> Optional[dict]:
     """Log-OLS with one trim pass on the lagged window. Returns the model dict or None.
 
     r5-canonical-numerics-v1 (codex 185751Z §1, owner-gated; cayley bar a6ce01e):
@@ -150,7 +151,7 @@ def fit_region(region: str, ratios: Dict[str, float], precip: Dict[str, float],
     compare canonical Decimals with the ±1 ulp11 ambiguity band and fail closed to
     R3 with R5_NUMERIC_BOUNDARY_AMBIGUITY. sig_digits: 11 = the product; 12/17 =
     the acceptance bar's negative-control and raw-view precisions."""
-    from canonical_numerics import gate_compare, qfloat
+    from canonical_numerics import canonical_residual, gate_compare, qfloat
     q = lambda v: qfloat(v, sig_digits)
     end = (_d(today) - timedelta(days=R5_CONFIG["fit_window_lag_days"])).isoformat()
     start = (_d(today) - timedelta(days=R5_CONFIG["fit_window_start_days"])).isoformat()
@@ -172,14 +173,18 @@ def fit_region(region: str, ratios: Dict[str, float], precip: Dict[str, float],
         beta, *_ = np.linalg.lstsq(X, y, rcond=None)
         resid = y - X @ beta
         return beta.tolist(), resid.tolist()
-    beta, resid = ols(rows)
-    # §1.2: quantize first-pass residuals before trim ordering; order by
-    # (abs(q_residual), day) — day breaks ties deterministically; drop the final k.
+    beta_first, _ = ols(rows)
+    # C-prime (codex dfad58d): first-pass residuals are the CANONICAL evaluator's
+    # exact output (operands q-projected first, Decimal declared-order, one final
+    # projection) — never a rounded raw lstsq residual. Trim order
+    # (abs(canonical_residual), day); day breaks ties; drop the final k.
+    cres1 = [canonical_residual(v, beta_first, a, r, sig_digits)
+             for _, v, a, r, _ in rows]
     k = max(1, int(len(rows) * R5_CONFIG["trim_frac"]))
     keep = sorted(range(len(rows)),
-                  key=lambda i: (abs(q(resid[i])), rows[i][0]))[:-k]
+                  key=lambda i: (abs(cres1[i]), rows[i][0]))[:-k]
     kept = [rows[i] for i in keep]
-    beta, resid = ols(kept)
+    beta, _ = ols(kept)
     import numpy as np
     Xk = np.array([[1.0, a, r] for _, _, a, r, _ in kept])
     try:
@@ -203,13 +208,21 @@ def fit_region(region: str, ratios: Dict[str, float], precip: Dict[str, float],
         logger.warning(f"R5 fit for {region} fails leverage/condition gate "
                        f"(cond={cond_q}, max_lev={lev_q}); staying on R3")
         return None
+    # C-prime: the final residual grid is the canonical evaluator's exact output
+    # for every kept row under the refit beta.
+    final_res = [canonical_residual(v, beta, a, r, sig_digits)
+                 for _, v, a, r, _ in kept]
+    if diagnostics is not None:
+        # REV-2 out-param: trim membership + raw first-pass beta (non-digested).
+        diagnostics["kept_days"] = [rows[i][0] for i in keep]
+        diagnostics["first_pass_beta"] = [float(b) for b in beta_first]
     return {
         "cond": cond_q, "max_leverage": lev_q,
         "api7_range": [min(a for _, _, a, _, _ in kept), max(a for _, _, a, _, _ in kept)],
         "r30_range": [min(r for _, _, _, r, _ in kept), max(r for _, _, _, r, _ in kept)],
         "region": region, "fitted_date": today, "n": len(keep),
         "beta": [q(b) for b in beta],
-        "resid_sorted": sorted(q(v) for v in resid),
+        "resid_sorted": sorted(float(d) for d in final_res),
         "ratio_sorted": sorted(orig for _, _, _, _, orig in kept),
         "window": [start, end],
     }
@@ -338,7 +351,10 @@ def r5_transform(region: str, lat: float, lon: float, ratio: float,
                            f"r30={r30:.0f} in [{rr[0]:.0f},{rr[1]:.0f}]); R3")
             return None
         b = model["beta"]
-        resid = qfloat(math.log(max(ratio, 1e-3)) - (b[0] + b[1] * api7 + b[2] * r30))
+        # C-prime: today's residual through the SAME canonical evaluator before bisect
+        # (never a raw binary residual that is only output-rounded).
+        from canonical_numerics import canonical_residual
+        resid = float(canonical_residual(math.log(max(ratio, 1e-3)), b, api7, r30))
         # §1.6: rank/index is the claim-bearing provenance; the displayed percentile
         # is derived from the exact rational rank and then canonicalized.
         import bisect

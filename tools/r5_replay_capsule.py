@@ -104,7 +104,9 @@ def regenerate():
         rec_new = _capsule_transform(PR, region, query, ratios, precip, day)
         if rec_new is None:
             print(f"REFUSE {key}: canonical transform returned None"); sys.exit(1)
-        # §5 refusal gate: scientific-value invariance at q11 BEFORE replacement.
+        # §5 refusal gate (codex dfad58d step 2 tightening): statistic, percentile,
+        # RANK, and n_fit invariance at q11 BEFORE replacement — any scientific-value
+        # change stops for asylum rather than consuming the standing gate.
         for field in ("stat", "residual_percentile"):
             if CN.qsig(rec_new[field], 11) != CN.qsig(rec_old[field], 11):
                 print(f"REFUSE {key}: {field} moved beyond q11 "
@@ -112,6 +114,11 @@ def regenerate():
         if rec_new["n_fit"] != rec_old["n_fit"]:
             print(f"REFUSE {key}: n_fit changed {rec_old['n_fit']} -> {rec_new['n_fit']}")
             sys.exit(1)
+        if "residual_rank_index" in rec_old and \
+                rec_new.get("residual_rank_index") != rec_old["residual_rank_index"]:
+            print(f"REFUSE {key}: residual_rank_index changed "
+                  f"{rec_old['residual_rank_index']} -> "
+                  f"{rec_new.get('residual_rank_index')}"); sys.exit(1)
         new_digest = CN.model_digest(model, n=11)
         if rec_new["model_sha256"] != new_digest:
             print(f"REFUSE {key}: transform digest != model digest"); sys.exit(1)

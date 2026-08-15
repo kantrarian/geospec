@@ -235,6 +235,12 @@ REGIONS = {
 # DAILY RUNNER
 # =============================================================================
 
+# codex 1246 replay-purity contract (cayley bar ac05448): set True by main() when an
+# explicit --date was supplied. Historical replays fit the R5 model deterministically
+# as-of the target date and never read/write the persistent live model store.
+_HISTORICAL_REPLAY = False
+
+
 def run_region_assessment(
     region: str,
     target_date: datetime,
@@ -511,7 +517,8 @@ def fetch_ngl_lambda_geo(
                     _c = _r5_rd.get(region, {}).get('center')
                     if _c:
                         r5 = r5_transform(region, _c[0], _c[1], ratio,
-                                          target_date.strftime('%Y-%m-%d'))
+                                          target_date.strftime('%Y-%m-%d'),
+                                          historical=_HISTORICAL_REPLAY)
                 except Exception as _e:
                     logger.warning(f"  {region}: R5 unavailable ({_e}); using R3 ratio")
                 # SHADOW MODE (codex red-team 2026-07-30, findings R5-1..R5-5 verified by
@@ -1197,6 +1204,10 @@ def main():
     # Parse date (apply latency offset if no explicit date given)
     if args.date:
         target_date = datetime.strptime(args.date, '%Y-%m-%d')
+        # codex 1246: an explicit --date is a HISTORICAL REPLAY -- R5 fits as-of the
+        # target date, store-free (replay-order/store-state invariance).
+        global _HISTORICAL_REPLAY
+        _HISTORICAL_REPLAY = True
     else:
         # Default: N days ago due to data latency (seismic ~1 day, GPS 2-14 days)
         target_date = datetime.now() - timedelta(days=args.latency)

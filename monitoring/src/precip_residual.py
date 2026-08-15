@@ -21,6 +21,7 @@ monitoring/data/precip_cache/. Ratio history: monitoring/data/ensemble_results/*
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import math
@@ -251,16 +252,33 @@ def quantile_at(sorted_vals, p) -> float:
 
 
 def r5_transform(region: str, lat: float, lon: float, ratio: float,
-                 today: str) -> Optional[dict]:
-    """The R5 statistic for today's ratio. None on ANY failure (caller stays on R3 path)."""
+                 today: str, historical: bool = False) -> Optional[dict]:
+    """The R5 statistic for today's ratio. None on ANY failure (caller stays on R3 path).
+
+    historical=True (codex 1246 replay-purity contract; cayley bar ac05448): an explicit
+    historical replay (`--date` caller) fits DETERMINISTICALLY as-of `today` from the
+    target-date window and NEVER reads or writes the persistent live model store — so a
+    date's R5 record is identical across replay orders and store states. The historical
+    output additionally publishes the as-of provenance: fitted_date, window, beta, and
+    model_sha256. The normal-cadence weekly-refit store policy (R5-2/R5-R1) is untouched."""
     try:
-        model, reason = get_model(region, lat, lon, today)
-        if model is None:
-            logger.info(f"R5 {region}: {reason}")
-            return None
-        precip = fetch_precip(region, lat, lon, today)
-        if not precip:
-            return None
+        if historical:
+            precip = fetch_precip(region, lat, lon, today)
+            if not precip:
+                return None
+            ratios = load_ratio_history(region)
+            model = fit_region(region, ratios, precip, today)
+            if model is None:
+                logger.info(f"R5 {region}: historical as-of fit ineligible; R3")
+                return None
+        else:
+            model, reason = get_model(region, lat, lon, today)
+            if model is None:
+                logger.info(f"R5 {region}: {reason}")
+                return None
+            precip = fetch_precip(region, lat, lon, today)
+            if not precip:
+                return None
         ix = indices(precip, today)
         if ix is None:
             return None
@@ -285,10 +303,18 @@ def r5_transform(region: str, lat: float, lon: float, ratio: float,
         resid = math.log(max(ratio, 1e-3)) - (b[0] + b[1] * api7 + b[2] * r30)
         p = percentile_of(model["resid_sorted"], resid)
         stat = quantile_at(model["ratio_sorted"], p)
-        return {"stat": stat, "residual_percentile": p, "raw_ratio": ratio,
-                "api7": api7, "r30": r30, "beta": b, "n_fit": model["n"],
-                "fitted_date": model["fitted_date"], "r5_computed": True,
-                "r5_active": False}   # R5-R5: shadow -- computed, NOT operational
+        rec = {"stat": stat, "residual_percentile": p, "raw_ratio": ratio,
+               "api7": api7, "r30": r30, "beta": b, "n_fit": model["n"],
+               "fitted_date": model["fitted_date"], "r5_computed": True,
+               "r5_active": False}   # R5-R5: shadow -- computed, NOT operational
+        if historical:
+            # As-of provenance (codex 1246): window + a digest over the canonical model
+            # JSON, so the record is bound to the exact deterministic fit that produced it.
+            rec["window"] = list(model["window"])
+            rec["model_sha256"] = hashlib.sha256(
+                json.dumps(model, sort_keys=True,
+                           separators=(",", ":")).encode("utf-8")).hexdigest()
+        return rec
     except Exception as e:                                     # FAIL-OPEN, always
         logger.warning(f"R5 transform failed for {region} ({e}); falling back to R3 ratio path")
         return None

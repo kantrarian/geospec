@@ -3074,7 +3074,10 @@
     "2026-08-13"
    ],
    "reason": "codex-1246 R5 replay-order finding: prior entries for these days were written through the shared live model store during explicit-date replays (order-dependent). Regenerated via the repaired store-free deterministic as-of-date path (geospec ee77902); FC artifacts untouched.",
-   "by": "grassmann"
+   "by": "grassmann",
+   "capsule_path": "monitoring/replay_capsules/r5_20260812_20260813",
+   "capsule_manifest_sha256": "b05c8ad5501a9a02bb471c2a47368184e6c41157d235ab1390f22a516928d216",
+   "capsule_note": "codex 172526Z reproducibility repair: every consumed input byte preserved + manifest-bound to ee77902; all 18 recomputed model digests MATCH the published values (no value change); verifier = tools/r5_replay_capsule.py verify"
   }
  ]
 }

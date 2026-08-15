@@ -1,13 +1,13 @@
 ﻿# GeoSpec Ensemble Monitoring
 
-**Last Update**: 2026-08-12
+**Last Update**: 2026-08-13
 
 ## Current Status
 
 | Metric | Value |
 |--------|-------|
-| Highest Risk Region | mexico_guerrero |
-| Risk Score | 0.122 |
+| Highest Risk Region | anchorage |
+| Risk Score | 0.226 |
 | Regions Monitored | 14 |
 
 ### Tier Distribution

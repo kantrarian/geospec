@@ -48,6 +48,15 @@ today's transform before bisect. New pinned seams: `canonical_numerics.canonical
 SCOPE (per ruling): the green claim is the NAMED FOUR-LANE capsule result — codex's three
 lanes + the producer lane — not "any host".
 
+REV 3 (codex `997a16f` preflight, 2026-08-15): three bar defects repaired — (1) CN-8 now
+MEASURES the residual grids (they were emitted but not compared; codex's synthetic fixture
+proved the bypass) with absent/length-mismatch refusal; (2) the four-lane scope is ENFORCED:
+--lane-id is required with --emit, and compare requires exactly the four ids
+{codex-py314-np251, codex-py311-np246, codex-py311-np1264, grassmann-producer}, duplicates/
+missing red; (3) the trim surface refuses vacuous diagnostics — kept_days must be a nonempty
+list with len == model n and first_pass_beta a 3-float list, else DIAG_INVALID (which reds
+CN-6); negative KATs lock all three (CN-0c + the CN-8 fixture semantics).
+
 MODES (the bar is cross-runtime by construction):
   default            in-lane checks CN-0..CN-5 (red today: seams absent + the landed
                      capsule verifier baseline fails off-producer)
@@ -78,6 +87,8 @@ if HERE not in sys.path:
     sys.path.insert(0, HERE)
 REPO = Path(HERE).resolve().parents[1]
 CAPSULE = REPO / "monitoring" / "replay_capsules" / "r5_20260812_20260813"
+REQUIRED_LANES = {"codex-py314-np251", "codex-py311-np246", "codex-py311-np1264",
+                  "grassmann-producer"}
 
 FAILS = []
 
@@ -123,6 +134,19 @@ def manifest_entries():
     return m["entries"]
 
 
+def trim_surface(diag, m11):
+    """REV 3: refuse vacuous diagnostics. kept_days must be a NONEMPTY list whose length
+    equals the model's n, and first_pass_beta a 3-float list; else DIAG_INVALID (which
+    reds CN-6 — never an admissible hash)."""
+    kd = diag.get("kept_days")
+    fpb = diag.get("first_pass_beta")
+    if (not isinstance(kd, list) or not kd or len(kd) != m11.get("n")
+            or not isinstance(fpb, list) or len(fpb) != 3
+            or not all(isinstance(b, (int, float)) for b in fpb)):
+        return "DIAG_INVALID"
+    return hashlib.sha256(json.dumps(sorted(kd), separators=(",", ":")).encode()).hexdigest()
+
+
 def rebuild_lane_summary(PR, CN):
     """Per capsule entry: q11/q12/q17 model digests + q11 canonical record sha + q17
     raw views of the delta-measured fields."""
@@ -144,8 +168,7 @@ def rebuild_lane_summary(PR, CN):
         out["q11_model"][key] = CN.model_digest(m11, n=11)
         out["q12_model"][key] = CN.model_digest(m12, n=12)
         # REV 2: explicit cross-lane surfaces per the C-prime ruling
-        out.setdefault("trim_days", {})[key] = hashlib.sha256(json.dumps(
-            sorted(diag.get("kept_days", [])), separators=(",", ":")).encode()).hexdigest()
+        out.setdefault("trim_days", {})[key] = trim_surface(diag, m11)
         out.setdefault("resid_grid", {})[key] = hashlib.sha256(json.dumps(
             [CN.canonical_text(v, 11) for v in m11["resid_sorted"]],
             separators=(",", ":")).encode()).hexdigest()
@@ -239,6 +262,23 @@ def in_lane_checks():
     check("CN-1b canonical_residual == C-prime (operands q11-projected first, exact "
           "Decimal in declared order b1*api7 + b2*r30 + b0 then subtract, ONE final "
           "projection; HALF_EVEN tie vector exact)", ok1b, d1b)
+
+    # CN-0c — REV 3: the trim surface REFUSES vacuous/no-op diagnostics (codex 997a16f #3)
+    m_stub = {"n": 3}
+    ok0c = (trim_surface({}, m_stub) == "DIAG_INVALID"
+            and trim_surface({"kept_days": [], "first_pass_beta": [1.0, 2.0, 3.0]},
+                             m_stub) == "DIAG_INVALID"
+            and trim_surface({"kept_days": ["a", "b"], "first_pass_beta": [1.0, 2.0, 3.0]},
+                             m_stub) == "DIAG_INVALID"
+            and trim_surface({"kept_days": ["a", "b", "c"], "first_pass_beta": [1.0, 2.0]},
+                             m_stub) == "DIAG_INVALID"
+            and trim_surface({"kept_days": ["a", "b", "c"],
+                              "first_pass_beta": [1.0, 2.0, 3.0]}, m_stub)
+            not in ("DIAG_INVALID",
+                    "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"))
+    check("CN-0c trim surface refuses no-op diagnostics (empty/short kept_days, bad "
+          "first_pass_beta -> DIAG_INVALID; valid input never hashes to the empty-list "
+          "sha)", ok0c)
 
     # CN-2 — §3 digest domain on a fixture
     fixture = {"region": "x", "n": 42, "beta": [0.1, -0.0, 2.5e-11],
@@ -339,49 +379,70 @@ def compare(paths):
     lanes = [json.loads(Path(p).read_text()) for p in paths]
     names = [f"{ln['fingerprint']['python']}/np{ln['fingerprint']['numpy']}" for ln in lanes]
     keys = sorted(lanes[0]["q11_model"].keys())
-    ok6 = len(lanes) >= 2 and all(
+    lane_ids = [ln.get("lane_id") for ln in lanes]
+    ids_ok = (len(lane_ids) == len(set(lane_ids)) and set(lane_ids) == REQUIRED_LANES)
+    sentinels_ok = all(
+        "FIT_NONE" not in ln["q11_model"].values()
+        and "RECORD_NONE" not in ln["q11_record"].values()
+        and "DIAG_INVALID" not in ln.get("trim_days", {}).values()
+        and None not in ln.get("rank", {}).values()
+        for ln in lanes)
+    ok6 = ids_ok and sentinels_ok and all(
         ln["q11_model"] == lanes[0]["q11_model"] and ln["q11_record"] == lanes[0]["q11_record"]
         and ln.get("trim_days") == lanes[0].get("trim_days")
         and ln.get("resid_grid") == lanes[0].get("resid_grid")
         and ln.get("rank") == lanes[0].get("rank")
-        for ln in lanes[1:]) and "FIT_NONE" not in lanes[0]["q11_model"].values()
-    check(f"CN-6 q11 model digests + record shas + REV-2 trim membership + resid-grid "
-          f"shas + today's rank identical across ALL lanes ({', '.join(names)}) for all "
-          f"{len(keys)} entries", ok6)
+        for ln in lanes[1:])
+    check(f"CN-6 EXACT four-lane set {sorted(REQUIRED_LANES)} (no dupes/missing), no "
+          f"sentinel values, and q11 digests + record shas + trim membership + resid-grid "
+          f"shas + rank identical across lanes ({', '.join(names)}) for all {len(keys)} "
+          f"entries", ok6, f"lane_ids={lane_ids} sentinels_ok={sentinels_ok}")
     diverges = any(ln["q12_model"].get(k) != lanes[0]["q12_model"].get(k)
                    for ln in lanes[1:] for k in keys)
     check("CN-7 q12 NEGATIVE CONTROL diverges somewhere across lanes (the corpus still "
           "probes runtime sensitivity; all-match would mean the fixture lost its "
           "discrimination)", diverges)
     worst = 0.0
+    raw_domain_ok = True
     for k in keys:
         for ln in lanes[1:]:
             a, b = lanes[0]["q17_raw"].get(k), ln["q17_raw"].get(k)
             if not a or not b:
+                raw_domain_ok = False
                 continue
-            for fa, fb in [(x, y) for x, y in
-                           zip(a["beta"] + [a["cond"], a["max_leverage"]],
-                               b["beta"] + [b["cond"], b["max_leverage"]])]:
+            av = a["beta"] + [a["cond"], a["max_leverage"]] + a.get("resid_sorted", [])
+            bv = b["beta"] + [b["cond"], b["max_leverage"]] + b.get("resid_sorted", [])
+            if len(av) != len(bv) or "resid_sorted" not in a or "resid_sorted" not in b:
+                raw_domain_ok = False
+                continue
+            for fa, fb in zip(av, bv):
                 da, db = Decimal(fa), Decimal(fb)
                 ref = da if da != 0 else db
                 if ref == 0:
                     continue
                 quantum = Decimal(1).scaleb(ref.adjusted() - 10)
                 worst = max(worst, float(abs(da - db) / quantum))
-    check(f"CN-8 max |raw q17 delta| / q11 quantum <= 0.1 across lanes "
-          f"(codex-measured corpus max 0.077716)", worst <= 0.1, f"worst={worst}")
+    check(f"CN-8 residual grids MEASURED in the raw domain (absent/length-mismatch "
+          f"refuses) and max |raw q17 delta| / q11 quantum <= 0.1 across lanes "
+          f"(codex-measured corpus max 0.077716)", raw_domain_ok and worst <= 0.1,
+          f"raw_domain_ok={raw_domain_ok} worst={worst}")
 
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--emit", metavar="PATH", default=None)
+    ap.add_argument("--lane-id", default=None,
+                    help="required with --emit; one of " + ", ".join(sorted(REQUIRED_LANES)))
     ap.add_argument("--compare", nargs="+", metavar="SUMMARY", default=None)
     args = ap.parse_args()
+    if args.emit and not args.lane_id:
+        ap.error("--emit requires --lane-id")
     if args.compare:
         compare(args.compare)
     else:
         summary = in_lane_checks()
         if args.emit and summary is not None:
+            summary["lane_id"] = args.lane_id
             Path(args.emit).write_text(json.dumps(summary, indent=1, sort_keys=True))
             print(f"    lane summary -> {args.emit}")
 

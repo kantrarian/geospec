@@ -25,7 +25,7 @@ RENEWAL_ANCHOR = "2026-08-16"
 V2_POOL_SHA256 = "15d0e32c51c027dc144c5c6d57ec5f100a59374f6248abfc5c56ee38628ddc67"
 # Set when the renewal Phase-0.5-equivalent evidence bundle freezes (bar checks the
 # pin exists + refusal semantics; codex verifies the eventual binding at its lane).
-RENEWAL_BUNDLE_SHA256 = "c131ebfd78458e2435e9ea0dd93ae5d136db7c76dc69d45c4e1a28b4735a9195"
+RENEWAL_BUNDLE_SHA256 = "4519bbd1eae0c517a2f91822c853bc42272a6c85966f0e7436cd3e74e3c79b54"
 
 _INCIDENT_START, _INCIDENT_END = "2026-03-01", "2026-06-29"      # end exclusive
 _ACTIVATION_START, _ACTIVATION_END = "2026-03-19", "2026-07-17"  # [A-150d, A-30d)

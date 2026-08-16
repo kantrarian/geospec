@@ -386,10 +386,24 @@ def acquire(plan, ledger, root, *, providers, receipt, clock=None):
     os.makedirs(stage_dir, exist_ok=True)
 
     attempts, input_objects, day_result = [], [], {}
-    carriers_ordered = ([c for c in ELIGIBLE if PROVIDERS[c]["provider"] == "KOERI"]
-                        + [c for c in ELIGIBLE if PROVIDERS[c]["provider"] == "SCEDC"])
+    # Renewal-contract plans (codex-d2-campaign-v2-renewal-*): carriers/providers come
+    # from the PLAN; COVERAGE_INFEASIBLE carriers are never fetched (zero provider
+    # calls); a genuine post-sort overlap holds as TRUE_OVERLAP_UNRULED with no
+    # admitted contribution. The frozen v2 path below is byte-unchanged otherwise.
+    _renewal = str(plan.get("contract_id", "")).startswith("codex-d2-campaign-v2-renewal-")
+    if _renewal:
+        import d2_renewal_plan as _RP
+        _pmap = plan["providers"]
+        _infeasible = set((plan.get("coverage_infeasible") or {}).keys())
+        _base = [c for c in plan["carriers"] if c not in _infeasible]
+        carriers_ordered = ([c for c in _base if _pmap[c]["provider"] == "KOERI"]
+                            + [c for c in _base if _pmap[c]["provider"] == "SCEDC"])
+    else:
+        _pmap = PROVIDERS
+        carriers_ordered = ([c for c in ELIGIBLE if PROVIDERS[c]["provider"] == "KOERI"]
+                            + [c for c in ELIGIBLE if PROVIDERS[c]["provider"] == "SCEDC"])
     for carrier in carriers_ordered:
-        provider = PROVIDERS[carrier]["provider"]
+        provider = _pmap[carrier]["provider"]
         net = None
         segments = {}
         for srow in station_registry[carrier]:
@@ -442,6 +456,15 @@ def acquire(plan, ledger, root, *, providers, receipt, clock=None):
                         attempts.append(attempt)
                         continue
                     stream, raw_objects = res["stream"], res["raw_objects"]
+                    if _renewal:
+                        # §3/§4: a TRUE post-sort overlap is held UNRULED — recorded as an
+                        # attempt, never deduplicated/merged/consumed, no admitted data.
+                        _frags = _fragments_from_stream(stream)
+                        if _RP.classify_station_refusal(_frags) == "TRUE_OVERLAP_UNRULED":
+                            attempt.update({"selected_nslc": nslc, "status": "UNAVAILABLE",
+                                            "reason_codes": ["TRUE_OVERLAP_UNRULED"]})
+                            attempts.append(attempt)
+                            continue
                     es = _station_series(SD, stream, nslc, start)
                     refs = [ro["sha256"] for ro in raw_objects]
                     for ro in raw_objects:
@@ -665,7 +688,7 @@ def acquire(plan, ledger, root, *, providers, receipt, clock=None):
             artifacts[rel] = {"sha256": _sha256_file(full), "size": os.path.getsize(full)}
     environment = {"python": platform.python_version(), "platform": platform.platform(),
                    "numpy": np.__version__, "scipy": __import__("scipy").__version__,
-                   "obspy": __import__("obspy").__version__}
+                   "obspy": getattr(__import__("obspy"), "__version__", "unavailable")}
     auth = {"status": receipt["status"],
             "in_session_timestamp_utc": receipt["in_session_timestamp_utc"],
             "owner_quote_sha256": receipt["owner_quote_sha256"]}

@@ -28,6 +28,21 @@ REV 2 REPAIRS (codex f7fd6f3, finding -> checks):
       extra/missing targets, wrong contract, nonterminal states; the capsule validator
       refuses independent mutation of EVERY required scalar/binding.
 
+REV 3 (codex R2 `00c4e7b` / `169dca4`, four bypasses repaired):
+  #1 CRITICAL RN-5d: compute_batch_root REQUIRES capsule_path+manifest_path, REOPENS both
+     byte artifacts, REFUSES either declared-digest mismatch, derives the root only from
+     reopened-and-matched bytes (zeros-digest and missing-manifest negatives executable).
+  #2 CRITICAL RN-2c/2e: ledger-FIRST construction — the final bundle bytes BIND
+     phase_ledger_sha256, the plan CARRIES and MATCHES the reopened ledger digest, and
+     the builder REFUSES a bundle without the binding.
+  #3 MAJOR RN-4d: reuse entries validate against an EXPECTED immutable-object record
+     (well-formed-but-WRONG identity/session/digest negatives refuse).
+  #4 MAJOR RN-4f: chronology is ENFORCED IN acquire against
+     max(plan.created_utc, ledger.created_utc) — a deliberately earlier injected clock
+     must REFUSE, and every attempt must postdate the LATER creation time.
+  MINOR owned: cayley's 0222 envelope carried a literal ${TS} (quoted-heredoc expansion
+  defect); live-read timestamps hereafter; no chronology inferred from that envelope.
+
 SEAMS PINNED (naming decisions implementing the contract):
   module `monitoring/src/d2_renewal_plan.py`:
     RENEWAL_CONTRACT_ID / RENEWAL_ANCHOR / V2_POOL_SHA256 / RENEWAL_BUNDLE_SHA256
@@ -39,10 +54,15 @@ SEAMS PINNED (naming decisions implementing the contract):
     core_blob_map() -> {repo-relative core file: git blob sha}
     classify_station_refusal(frs) -> str            ("TRUE_OVERLAP_UNRULED" | other)
     mark_coverage_infeasible(potentials) -> bool
-    validate_reuse_entry(entry, *, campaign_start_utc, contract_id) -> bool
+    validate_reuse_entry(entry, *, campaign_start_utc, contract_id, expected) -> bool
+        (expected = the immutable-object record {provider_identity, session, sha256};
+         well-formed-but-wrong values REFUSE; locally reopened bytes checked when given)
     validate_batch_form(batch) -> bool
     validate_renewal_capsule(capsule, *, expected_source_commit) -> bool
-    compute_batch_root(entries) -> str              (from REOPENED capsule bytes)
+    compute_batch_root(entries) -> str
+        (entries REQUIRE capsule_path+manifest_path; BOTH reopened; declared
+         capsule_sha256/manifest_sha256 must MATCH the reopened bytes or REFUSE;
+         root derived only from reopened-and-matched bytes)
     validate_registry_candidate(record, *, expected) -> bool
     renewal_admits(day, capsule, lift_effective_utc) -> bool  (no-backfill boundary)
   executor delta (d2_step4b_campaign_run.acquire): renewal-contract plans accepted;
@@ -353,7 +373,7 @@ def main():
     check("RN-2a v2 candidate pool bytes == pinned V2_POOL_SHA256",
           sha(v2_bytes) == V2_POOL_SHA)
 
-    fixture_bundle = {
+    prelim_bundle = {
         "schema": "geospec-d2-campaign-v2-renewal-bundle-v1", "contract_id": CONTRACT_ID,
         "activation_reference_day": ANCHOR,
         "arms": {"incident": {"days": exp_incident}, "activation": {"days": exp_activation}},
@@ -387,17 +407,19 @@ def main():
             check("RN-2b renewal pool = copy-only re-envelope of the v2 pool + dict/"
                   "mutation refusals + new contract envelope", False, f"raised {e}")
 
-        # RN-2c REV2: correct-contract fixture ACCEPT + canonical bytes + core_blobs;
-        # one-byte mutation REFUSES; wrong-contract refuses. Pin override save/restore.
+        # RN-2c/RN-2e REV3: LEDGER-FIRST construction with the plan carrying the binding.
         try:
-            ok2c = False
-            det2c = ""
             saved = RP.RENEWAL_BUNDLE_SHA256
             try:
-                lb, lbytes = RP.build_renewal_phase_ledger(canon(fixture_bundle)) \
-                    if False else (None, None)   # ledger fixture built in RN-2e
-                fb = dict(fixture_bundle)
-                fb_bytes = canon(fb)
+                prelim_bytes = canon(prelim_bundle)
+                RP.RENEWAL_BUNDLE_SHA256 = sha(prelim_bytes)
+                ledger, ledger_bytes = RP.build_renewal_phase_ledger(prelim_bytes)
+                ldays = sorted({r["scored_day"] for r in ledger["rows"]})
+                ok_cov = ldays == exp_union and ledger.get("contract_id") == CONTRACT_ID \
+                    and isinstance(ledger.get("created_utc"), str)
+                final_bundle = dict(prelim_bundle)
+                final_bundle["phase_ledger_sha256"] = sha(ledger_bytes)
+                fb_bytes = canon(final_bundle)
                 RP.RENEWAL_BUNDLE_SHA256 = sha(fb_bytes)
                 plan, plan_bytes = RP.build_renewal_plan(fb_bytes)
                 head = git_head_blobs()
@@ -407,6 +429,19 @@ def main():
                              and plan.get("core_blobs") == RP.core_blob_map()
                              and all(plan["core_blobs"].get(f) == head[f] and head[f]
                                      for f in CORE_FILES))
+                # codex R2 #2: the plan CARRIES and MATCHES the reopened ledger digest
+                ok_bind = plan.get("phase_ledger_sha256") == sha(ledger_bytes) \
+                    == final_bundle["phase_ledger_sha256"]
+                # builder REFUSES a bundle without the binding
+                unbound = dict(prelim_bundle)          # phase_ledger_sha256 is None
+                ub_bytes = canon(unbound)
+                RP.RENEWAL_BUNDLE_SHA256 = sha(ub_bytes)
+                try:
+                    RP.build_renewal_plan(ub_bytes)
+                    ok_unbound = False
+                except Exception:
+                    ok_unbound = True
+                RP.RENEWAL_BUNDLE_SHA256 = sha(fb_bytes)
                 mut = bytearray(fb_bytes)
                 mut[-2] ^= 1
                 try:
@@ -415,63 +450,54 @@ def main():
                 except Exception:
                     ok_mut = True
                 try:
-                    RP.build_renewal_plan(canon({"contract_id": "codex-d2-campaign-v2-2026-08-10-v1"}))
+                    RP.build_renewal_plan(canon({"contract_id":
+                                                 "codex-d2-campaign-v2-2026-08-10-v1"}))
                     ok_wrong = False
                 except Exception:
                     ok_wrong = True
-                ok2c = ok_accept and ok_mut and ok_wrong
-                det2c = f"accept={ok_accept} mut_refused={ok_mut} wrong_refused={ok_wrong}"
-            finally:
-                RP.RENEWAL_BUNDLE_SHA256 = saved
-            check("RN-2c build_renewal_plan ACCEPTS the canonical correct-contract bundle "
-                  "fixture (pin==fixture sha), returns canonical plan bytes carrying "
-                  "core_blobs == core_blob_map() == git-HEAD, and REFUSES a one-byte "
-                  "mutation and a wrong-contract bundle", ok2c, det2c)
-        except Exception as e:
-            check("RN-2c build_renewal_plan ACCEPTS the canonical correct-contract bundle "
-                  "fixture (pin==fixture sha), returns canonical plan bytes carrying "
-                  "core_blobs == core_blob_map() == git-HEAD, and REFUSES a one-byte "
-                  "mutation and a wrong-contract bundle", False, f"raised {e}")
-
-        # RN-2e REV2: renewal published-phase ledger + binding + refusals
-        try:
-            saved = RP.RENEWAL_BUNDLE_SHA256
-            try:
-                fb_bytes = canon(fixture_bundle)
-                RP.RENEWAL_BUNDLE_SHA256 = sha(fb_bytes)
-                ledger, ledger_bytes = RP.build_renewal_phase_ledger(fb_bytes)
-                ldays = sorted({r["scored_day"] for r in ledger["rows"]})
-                ok_cov = ldays == exp_union and ledger.get("contract_id") == CONTRACT_ID \
-                    and isinstance(ledger.get("created_utc"), str)
-                bound = dict(fixture_bundle)
-                bound["phase_ledger_sha256"] = sha(ledger_bytes)
-                ok_val = RP.validate_renewal_phase_ledger(ledger, bound) is True
+                check("RN-2c build_renewal_plan ACCEPTS the canonical ledger-bound bundle "
+                      "(pin==fixture sha), returns canonical plan bytes carrying "
+                      "core_blobs==core_blob_map()==git-HEAD AND "
+                      "phase_ledger_sha256==sha(reopened ledger bytes); REFUSES an "
+                      "unbound bundle, a one-byte mutation, and a wrong contract",
+                      ok_accept and ok_bind and ok_unbound and ok_mut and ok_wrong,
+                      f"accept={ok_accept} bind={ok_bind} unbound_refused={ok_unbound} "
+                      f"mut={ok_mut} wrong={ok_wrong}")
+                ok_val = RP.validate_renewal_phase_ledger(ledger, final_bundle) is True
                 old_v2 = dict(ledger)
                 old_v2["contract_id"] = "codex-d2-campaign-v2-2026-08-10-v1"
-                ok_old = RP.validate_renewal_phase_ledger(old_v2, bound) is False
-                mut = json.loads(json.dumps(ledger))
-                mut["rows"] = mut["rows"][1:]                    # one-day mutation
-                ok_mut = RP.validate_renewal_phase_ledger(mut, bound) is False
-                check("RN-2e renewal published-phase ledger: exact 138-day union coverage, "
-                      "renewal contract id, bundle sha binding; REFUSES the old v2 ledger "
-                      "and a one-day mutation", ok_cov and ok_val and ok_old and ok_mut,
-                      f"cov={ok_cov} val={ok_val} old={ok_old} mut={ok_mut}")
+                ok_old = RP.validate_renewal_phase_ledger(old_v2, final_bundle) is False
+                lmut = json.loads(json.dumps(ledger))
+                lmut["rows"] = lmut["rows"][1:]
+                ok_lmut = RP.validate_renewal_phase_ledger(lmut, final_bundle) is False
+                check("RN-2e renewal published-phase ledger: LEDGER-FIRST flow, exact "
+                      "138-day union coverage, final-bundle sha binding; REFUSES the old "
+                      "v2 ledger and a one-day mutation",
+                      ok_cov and ok_val and ok_old and ok_lmut,
+                      f"cov={ok_cov} val={ok_val} old={ok_old} mut={ok_lmut}")
             finally:
                 RP.RENEWAL_BUNDLE_SHA256 = saved
         except Exception as e:
-            check("RN-2e renewal published-phase ledger: exact 138-day union coverage, "
-                  "renewal contract id, bundle sha binding; REFUSES the old v2 ledger "
-                  "and a one-day mutation", False, f"raised {e}")
+            check("RN-2c build_renewal_plan ACCEPTS the canonical ledger-bound bundle "
+                  "(pin==fixture sha), returns canonical plan bytes carrying "
+                  "core_blobs==core_blob_map()==git-HEAD AND "
+                  "phase_ledger_sha256==sha(reopened ledger bytes); REFUSES an "
+                  "unbound bundle, a one-byte mutation, and a wrong contract",
+                  False, f"raised {e}")
+            check("RN-2e renewal published-phase ledger: LEDGER-FIRST flow, exact "
+                  "138-day union coverage, final-bundle sha binding; REFUSES the old "
+                  "v2 ledger and a one-day mutation", False, f"raised {e}")
     else:
         awaiting("RN-2b renewal pool = copy-only re-envelope of the v2 pool + dict/"
                  "mutation refusals + new contract envelope",
-                 "RN-2c build_renewal_plan ACCEPTS the canonical correct-contract bundle "
-                 "fixture (pin==fixture sha), returns canonical plan bytes carrying "
-                 "core_blobs == core_blob_map() == git-HEAD, and REFUSES a one-byte "
-                 "mutation and a wrong-contract bundle",
-                 "RN-2e renewal published-phase ledger: exact 138-day union coverage, "
-                 "renewal contract id, bundle sha binding; REFUSES the old v2 ledger "
-                 "and a one-day mutation")
+                 "RN-2c build_renewal_plan ACCEPTS the canonical ledger-bound bundle "
+                 "(pin==fixture sha), returns canonical plan bytes carrying "
+                 "core_blobs==core_blob_map()==git-HEAD AND "
+                 "phase_ledger_sha256==sha(reopened ledger bytes); REFUSES an "
+                 "unbound bundle, a one-byte mutation, and a wrong contract",
+                 "RN-2e renewal published-phase ledger: LEDGER-FIRST flow, exact "
+                 "138-day union coverage, final-bundle sha binding; REFUSES the old "
+                 "v2 ledger and a one-day mutation")
 
     ok2d, tail = run_suite("test_campaign_v2_phase075_registry_redkats_cayley.py")
     check("RN-2d COMPOSE: frozen v2 selection-semantics bar green", ok2d, tail)
@@ -539,17 +565,48 @@ def main():
                     a.get("status") == "FETCHED" and "KO.S00" in str(a) and
                     "TRUE_OVERLAP_UNRULED" not in (a.get("reason_codes") or [])
                     for a in s00)
-                pool_created = plan["created_utc"]
-                chron = all(a.get("attempted_utc", "") > pool_created for a in attempts)
+                later_created = max(plan["created_utc"], ledger["created_utc"])
+                chron = all(a.get("attempted_utc", "") > later_created for a in attempts)
                 ok4f = held and not admitted_with_overlap and chron
                 det = f"held={held} admitted_anyway={admitted_with_overlap} chron={chron}"
             check("RN-4f REAL-acquire overlap hold: the scripted true-overlap station ends "
                   "as TRUE_OVERLAP_UNRULED with no admitted contribution, and every "
-                  "attempt postdates pool/ledger creation", ok4f, det)
+                  "attempt postdates max(plan, ledger) creation", ok4f, det)
         except Exception as e:
             check("RN-4f REAL-acquire overlap hold: the scripted true-overlap station ends "
                   "as TRUE_OVERLAP_UNRULED with no admitted contribution, and every "
-                  "attempt postdates pool/ledger creation", False, f"raised {e}")
+                  "attempt postdates max(plan, ledger) creation", False, f"raised {e}")
+        # RN-4g REV3 (codex R2 #4): acquire ENFORCES chronology — an injected clock that
+        # predates plan/ledger creation must REFUSE (no attempts, no root artifacts).
+        try:
+            import d2_step4b_campaign_run as CR
+            td3 = tempfile.mkdtemp()
+            plan3, ledger3 = _mk_renewal_fixture_root(RP, td3)
+            early = datetime(2026, 8, 15, 0, 0, 0, tzinfo=timezone.utc)   # before creation
+            state = {"t": early}
+
+            def early_clock():
+                state["t"] += timedelta(seconds=1)
+                return state["t"]
+
+            refused = False
+            try:
+                CR.acquire(plan3, ledger3, td3, providers=_SpyProviders(),
+                           receipt=RECEIPT, clock=early_clock)
+            except (SystemExit, Exception):
+                refused = True
+            no_attempts = not os.path.exists(os.path.join(td3,
+                                                          "acquisition_attempts.jsonl")) \
+                or not open(os.path.join(td3, "acquisition_attempts.jsonl"),
+                            encoding="utf-8").read().strip()
+            check("RN-4g acquire ENFORCES chronology: an injected clock earlier than "
+                  "max(plan, ledger) created_utc REFUSES with zero attempts recorded",
+                  refused and no_attempts,
+                  f"refused={refused} no_attempts={no_attempts}")
+        except Exception as e:
+            check("RN-4g acquire ENFORCES chronology: an injected clock earlier than "
+                  "max(plan, ledger) created_utc REFUSES with zero attempts recorded",
+                  False, f"raised {e}")
         try:
             import d2_step4b_campaign_run as CR
             td2 = tempfile.mkdtemp()
@@ -571,31 +628,43 @@ def main():
             check("RN-4c COVERAGE_INFEASIBLE is enforced AT THE OPERATION: an either-arm-"
                   "below-60 carrier produces ZERO provider calls and zero fetch entries",
                   False, f"raised {e}")
-        # RN-4d REV2: table-driven reuse attestation
+        # RN-4d REV3 (codex R2 #3): validation against the EXPECTED immutable-object
+        # record — well-formed-but-WRONG values must refuse.
         try:
             base = {"reuse": True, "attested_utc": "2026-08-16T02:00:00Z",
                     "provider_identity": "s3://scedc-pds/obj1",
                     "contract_id": CONTRACT_ID,
                     "session": {"start": "2026-03-01T07:00:00Z", "end": "2026-03-02T07:00:00Z"},
                     "sha256": "a" * 64}
-            kw = {"campaign_start_utc": "2026-08-16T01:30:00Z", "contract_id": CONTRACT_ID}
+            expected = {"provider_identity": "s3://scedc-pds/obj1",
+                        "session": {"start": "2026-03-01T07:00:00Z",
+                                    "end": "2026-03-02T07:00:00Z"},
+                        "sha256": "a" * 64}
+            kw = {"campaign_start_utc": "2026-08-16T01:30:00Z",
+                  "contract_id": CONTRACT_ID, "expected": expected}
             cases = [
                 (dict(base), True),
-                ({**base, "attested_utc": "2026-08-15T00:00:00Z"}, False),   # pre-campaign
+                ({**base, "attested_utc": "2026-08-15T00:00:00Z"}, False),
                 ({**base, "contract_id": "codex-d2-campaign-v2-2026-08-10-v1"}, False),
                 ({**base, "provider_identity": ""}, False),
                 ({**base, "sha256": "b" * 63}, False),
                 ({k: v for k, v in base.items() if k != "session"}, False),
+                # codex R2 #3 well-formed-but-WRONG negatives:
+                ({**base, "provider_identity": "s3://scedc-pds/obj2"}, False),
+                ({**base, "session": {"start": "2026-03-01T08:00:00Z",
+                                      "end": "2026-03-02T08:00:00Z"}}, False),
+                ({**base, "sha256": "c" * 64}, False),
             ]
             ok4d = all(RP.validate_reuse_entry(c, **kw) is exp for c, exp in cases)
-            check("RN-4d reuse attestation is table-driven: pre-campaign timestamp, wrong "
-                  "contract, empty provider identity, malformed digest, and missing "
-                  "session all REFUSE; the exact in-run re-attestation accepts", ok4d)
+            check("RN-4d reuse attestation validates against the EXPECTED immutable-object "
+                  "record: pre-campaign/wrong-contract/empty/malformed refuse AND "
+                  "well-formed-but-WRONG identity, session, and digest refuse; only the "
+                  "exact expected re-attestation accepts", ok4d)
         except Exception as e:
-            check("RN-4d reuse attestation is table-driven: pre-campaign timestamp, wrong "
-                  "contract, empty provider identity, malformed digest, and missing "
-                  "session all REFUSE; the exact in-run re-attestation accepts",
-                  False, f"raised {e}")
+            check("RN-4d reuse attestation validates against the EXPECTED immutable-object "
+                  "record: pre-campaign/wrong-contract/empty/malformed refuse AND "
+                  "well-formed-but-WRONG identity, session, and digest refuse; only the "
+                  "exact expected re-attestation accepts", False, f"raised {e}")
         # RN-4e REV2: table-driven batch form
         try:
             def batch(carriers):
@@ -628,12 +697,15 @@ def main():
     else:
         awaiting("RN-4f REAL-acquire overlap hold: the scripted true-overlap station ends "
                  "as TRUE_OVERLAP_UNRULED with no admitted contribution, and every "
-                 "attempt postdates pool/ledger creation",
+                 "attempt postdates max(plan, ledger) creation",
+                 "RN-4g acquire ENFORCES chronology: an injected clock earlier than "
+                 "max(plan, ledger) created_utc REFUSES with zero attempts recorded",
                  "RN-4c COVERAGE_INFEASIBLE is enforced AT THE OPERATION: an either-arm-"
                  "below-60 carrier produces ZERO provider calls and zero fetch entries",
-                 "RN-4d reuse attestation is table-driven: pre-campaign timestamp, wrong "
-                 "contract, empty provider identity, malformed digest, and missing "
-                 "session all REFUSE; the exact in-run re-attestation accepts",
+                 "RN-4d reuse attestation validates against the EXPECTED immutable-object "
+                 "record: pre-campaign/wrong-contract/empty/malformed refuse AND "
+                 "well-formed-but-WRONG identity, session, and digest refuse; only the "
+                 "exact expected re-attestation accepts",
                  "RN-4e batch form is table-driven: exactly the three frozen targets in "
                  "the outcome-blind order with terminal states; duplicates, reorder, "
                  "substitutes, wrong contract, and nonterminal states REFUSE; the "
@@ -718,22 +790,42 @@ def main():
                   "non-finite threshold/manifest sha/replay sha/future issued/wrong "
                   "valid_through/stale-or-mismatched source_commit); nominal HEAD-bound "
                   "capsule accepts", False, f"raised {e}")
-        # RN-5d REV2: batch root from REOPENED bytes + registry candidate binding
+        # RN-5d REV3 (codex R2 #1): BOTH artifacts reopened; declared-digest mismatch
+        # REFUSES; root only from reopened-and-matched bytes.
         try:
             entries = []
             for i, carrier in enumerate(TARGET_ORDER):
                 cbody = json.dumps({**cap, "region": carrier}, sort_keys=True).encode()
                 p = os.path.join(capdir, f"{carrier}_renewal.json")
                 open(p, "wb").write(cbody)
+                mbody = canon({"carrier": carrier, "objects": [{"sha256": "e" * 64}]})
+                mp = os.path.join(capdir, f"{carrier}_manifest.json")
+                open(mp, "wb").write(mbody)
                 entries.append({"carrier_key": carrier, "capsule_path": p,
                                 "capsule_sha256": sha(cbody),
-                                "manifest_sha256": ("d%d" % i) * 32})
+                                "manifest_path": mp, "manifest_sha256": sha(mbody)})
             root1 = RP.compute_batch_root(entries)
-            reopened = []
-            for e2 in entries:
-                reopened.append({**e2, "capsule_sha256":
-                                 sha(open(e2["capsule_path"], "rb").read())})
-            root2 = RP.compute_batch_root(reopened)
+            root2 = RP.compute_batch_root([dict(e2) for e2 in entries])
+            # declared-digest mismatch refusals (codex's exact probes):
+            zeros = [dict(entries[0], capsule_sha256="0" * 64)] + entries[1:]
+            try:
+                RP.compute_batch_root(zeros)
+                ok_zero = False
+            except Exception:
+                ok_zero = True
+            ghost = [dict(entries[0], manifest_path=os.path.join(capdir, "ghost.json"))] \
+                + entries[1:]
+            try:
+                RP.compute_batch_root(ghost)
+                ok_ghost = False
+            except Exception:
+                ok_ghost = True
+            wrongm = [dict(entries[0], manifest_sha256="f" * 64)] + entries[1:]
+            try:
+                RP.compute_batch_root(wrongm)
+                ok_wrongm = False
+            except Exception:
+                ok_wrongm = True
             open(entries[0]["capsule_path"], "ab").write(b" ")
             tampered = [{**entries[0], "capsule_sha256":
                          sha(open(entries[0]["capsule_path"], "rb").read())}] + entries[1:]
@@ -755,15 +847,20 @@ def main():
             empty_rx = dict(record)
             empty_rx["verification_receipts"] = []
             flips.append(RP.validate_registry_candidate(empty_rx, expected=expected) is False)
-            check("RN-5d batch root recomputes from REOPENED capsule bytes (root1==root2, "
-                  "tamper changes it) and the registry candidate binds path/sha/contract/"
-                  "root/receipts with per-field flip refusals",
-                  root1 == root2 and root3 != root1 and ok_rec and all(flips),
-                  f"roots eq={root1 == root2} tamper_diff={root3 != root1} rec={ok_rec}")
+            check("RN-5d batch root: BOTH capsule and manifest REOPENED and matched "
+                  "against declared digests (zeros-capsule-sha, missing-manifest, and "
+                  "wrong-manifest-sha all REFUSE; root1==root2; tamper changes the root) "
+                  "and the registry candidate binds with per-field flip refusals",
+                  root1 == root2 and root3 != root1 and ok_zero and ok_ghost
+                  and ok_wrongm and ok_rec and all(flips),
+                  f"eq={root1 == root2} tamper={root3 != root1} zero={ok_zero} "
+                  f"ghost={ok_ghost} wrongm={ok_wrongm} rec={ok_rec}")
         except Exception as e:
-            check("RN-5d batch root recomputes from REOPENED capsule bytes (root1==root2, "
-                  "tamper changes it) and the registry candidate binds path/sha/contract/"
-                  "root/receipts with per-field flip refusals", False, f"raised {e}")
+            check("RN-5d batch root: BOTH capsule and manifest REOPENED and matched "
+                  "against declared digests (zeros-capsule-sha, missing-manifest, and "
+                  "wrong-manifest-sha all REFUSE; root1==root2; tamper changes the root) "
+                  "and the registry candidate binds with per-field flip refusals",
+                  False, f"raised {e}")
         # RN-5e REV2: no-backfill — lift/effective boundary is executable
         try:
             lift = "2026-08-20T14:00:00Z"
@@ -784,9 +881,10 @@ def main():
                  "non-finite threshold/manifest sha/replay sha/future issued/wrong "
                  "valid_through/stale-or-mismatched source_commit); nominal HEAD-bound "
                  "capsule accepts",
-                 "RN-5d batch root recomputes from REOPENED capsule bytes (root1==root2, "
-                 "tamper changes it) and the registry candidate binds path/sha/contract/"
-                 "root/receipts with per-field flip refusals",
+                 "RN-5d batch root: BOTH capsule and manifest REOPENED and matched "
+                 "against declared digests (zeros-capsule-sha, missing-manifest, and "
+                 "wrong-manifest-sha all REFUSE; root1==root2; tamper changes the root) "
+                 "and the registry candidate binds with per-field flip refusals",
                  "RN-5e no-backfill is executable: a gap day already refused stale "
                  "(before lift_effective) is NEVER retroactively admitted; unlifted "
                  "capsules admit nothing; post-expiry stays stale")

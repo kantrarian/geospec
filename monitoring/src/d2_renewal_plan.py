@@ -120,9 +120,16 @@ def _load_bundle(bundle_bytes) -> dict:
 
 
 def build_renewal_plan(bundle_bytes) -> Tuple[dict, bytes]:
-    """§2: the campaign plan from the FROZEN renewal evidence bundle bytes only.
+    """§2 (REV 3 #2): the campaign plan from the FROZEN renewal evidence bundle
+    bytes only — LEDGER-FIRST: the bundle must already bind the published-phase
+    ledger digest, and the plan CARRIES that binding. An unbound bundle refuses.
     Canonical plan bytes carry the exact core blob vector at HEAD (§3)."""
     bundle = _load_bundle(bundle_bytes)
+    pls = bundle.get("phase_ledger_sha256")
+    if not (isinstance(pls, str) and len(pls) == 64
+            and all(c in "0123456789abcdef" for c in pls)):
+        raise ValueError("bundle does not bind the published-phase ledger digest "
+                         "(unbound bundle — build the ledger FIRST)")
     arms = renewal_arms()
     cp = bundle.get("campaign_plan", {})
     carriers = [c for c in cp.get("eligible_carriers", []) if c in _TARGET_ORDER]
@@ -145,6 +152,7 @@ def build_renewal_plan(bundle_bytes) -> Tuple[dict, bytes]:
         "outcomes_inspected_before_schedule": False,
         "coverage_infeasible": cp.get("coverage_infeasible", {}),
         "core_blobs": core_blob_map(),
+        "phase_ledger_sha256": pls,
         "created_utc": _now_iso(),
     }
     return plan, _canon(plan)
@@ -226,10 +234,12 @@ def mark_coverage_infeasible(potentials) -> bool:
             or int(potentials.get("activation_potential", 0)) < 60)
 
 
-def validate_reuse_entry(entry, *, campaign_start_utc, contract_id) -> bool:
-    """§4: existing physical bytes may be deduplicated ONLY on a fresh in-run
-    re-attestation binding provider identity, session, digest, and a timestamp
-    inside THIS campaign under THIS contract."""
+def validate_reuse_entry(entry, *, campaign_start_utc, contract_id, expected) -> bool:
+    """§4 (REV 3 #3): existing physical bytes may be deduplicated ONLY on a fresh
+    in-run re-attestation binding provider identity, session, digest, and a
+    timestamp inside THIS campaign under THIS contract — validated against the
+    EXPECTED immutable-object record, so a well-formed-but-WRONG identity,
+    session, or digest refuses. Shape alone is never standing."""
     try:
         if not isinstance(entry, dict) or entry.get("reuse") is not True:
             return False
@@ -247,6 +257,14 @@ def validate_reuse_entry(entry, *, campaign_start_utc, contract_id) -> bool:
             return False
         sess = entry.get("session")
         if not (isinstance(sess, dict) and sess.get("start") and sess.get("end")):
+            return False
+        if not isinstance(expected, dict):
+            return False
+        if pid != expected.get("provider_identity"):
+            return False
+        if sess != expected.get("session"):
+            return False
+        if h != expected.get("sha256"):
             return False
         return True
     except Exception:
@@ -320,15 +338,25 @@ def validate_renewal_capsule(capsule, *, expected_source_commit) -> bool:
 
 
 def compute_batch_root(entries) -> str:
-    """§5 (REV 2 #1): the batch root recomputes from REOPENED capsule bytes —
-    never from an entry's claimed digest. Any capsule-byte tamper changes it."""
+    """§5 (REV 3 #1): the batch root derives ONLY from reopened-and-matched
+    bytes — BOTH the capsule and the manifest are reopened from their entry
+    paths, both digests are recomputed, and ANY declared-digest mismatch or
+    missing artifact REFUSES. Never from an entry's claimed digest alone."""
     leaves = []
     for e in sorted(entries, key=lambda x: x["carrier_key"]):
         with open(e["capsule_path"], "rb") as fh:
-            reopened = _sha(fh.read())
+            cap_sha = _sha(fh.read())
+        if cap_sha != e["capsule_sha256"]:
+            raise ValueError("declared capsule_sha256 does not match reopened "
+                             "capsule bytes for " + str(e.get("carrier_key")))
+        with open(e["manifest_path"], "rb") as fh:
+            man_sha = _sha(fh.read())
+        if man_sha != e["manifest_sha256"]:
+            raise ValueError("declared manifest_sha256 does not match reopened "
+                             "manifest bytes for " + str(e.get("carrier_key")))
         leaves.append({"carrier_key": e["carrier_key"],
-                       "capsule_sha256": reopened,
-                       "manifest_sha256": e["manifest_sha256"]})
+                       "capsule_sha256": cap_sha,
+                       "manifest_sha256": man_sha})
     return _sha(_canon(leaves))
 
 

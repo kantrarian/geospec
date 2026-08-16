@@ -391,8 +391,19 @@ def acquire(plan, ledger, root, *, providers, receipt, clock=None):
     # calls); a genuine post-sort overlap holds as TRUE_OVERLAP_UNRULED with no
     # admitted contribution. The frozen v2 path below is byte-unchanged otherwise.
     _renewal = str(plan.get("contract_id", "")).startswith("codex-d2-campaign-v2-renewal-")
+    _later_created = ""
     if _renewal:
         import d2_renewal_plan as _RP
+        # codex R2 #4 / RN-4g: chronology is ENFORCED at the operation, not merely
+        # recorded — the acquisition clock must postdate BOTH the plan and the
+        # ledger creation; an earlier clock refuses before ANY attempt is recorded.
+        _later_created = max(str(plan.get("created_utc", "")),
+                             str(ledger.get("created_utc", "")))
+        if _iso(campaign_started_utc) <= _later_created:
+            raise RuntimeError("RENEWAL_CHRONOLOGY_VIOLATION: acquisition clock "
+                               + _iso(campaign_started_utc)
+                               + " does not postdate plan/ledger creation "
+                               + _later_created)
         _pmap = plan["providers"]
         _infeasible = set((plan.get("coverage_infeasible") or {}).keys())
         _base = [c for c in plan["carriers"] if c not in _infeasible]
@@ -422,6 +433,12 @@ def acquire(plan, ledger, root, *, providers, receipt, clock=None):
                 seg_station_es[segment] = []
                 for srow in segments[segment]:
                     attempted_utc = _iso(tick())             # H1: fresh clock read per attempt
+                    if _renewal and attempted_utc <= _later_created:
+                        # RN-4f/RN-4g: EVERY attempt must postdate max(plan, ledger)
+                        # creation — an injected clock that regresses mid-run refuses.
+                        raise RuntimeError("RENEWAL_CHRONOLOGY_VIOLATION: attempt "
+                                           + attempted_utc + " does not postdate "
+                                           + _later_created)
                     candidates = list(srow["ordered_nslc_candidates"])
                     net = candidates[0].split(".")[0]
                     stas = [c.split(".")[1] for c in candidates]

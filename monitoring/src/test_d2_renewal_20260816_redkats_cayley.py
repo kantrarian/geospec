@@ -60,6 +60,23 @@ and RN-5c amended per that ruling instead.
      recorded producer_commit) — the sealed zero-I/O re-mint (option B step 3, owner
      one-liner) produces exactly these artifacts.
 
+REV 4.3 (grassmann `2b27621` finding 1: a SECOND mint site in the RESUME executor
+  d2_step4b_resume.py -- its own inline capsule dict with the stale
+  source_commit=CR.IMPLEMENTATION_COMMIT -- and per RC1c the resume path IS the real
+  production edge; production never calls CR.acquire, so the REV 4.2-proven finalize
+  mint is dead code in production and the remint capsules came out stale AGAIN. The
+  bar validated the seam on the WRONG EDGE -- the R2 lesson at a third level:
+  validator -> mint -> WHICH mint. Owned.):
+  RN-5f-d drives the REAL production edge: run_resume_campaign on the hermetic
+  candidate fixture, spy-wrapped CR.mint_capsule, and the full REV 4.2 rigor on the
+  RESUME-written root (one spy call per candidate, ONE producer commit, complete
+  snapshot equality, manifest-bytes cross-link, source_commit == producer ==
+  input_manifest.producer_commit). RED on the current tree by construction: resume
+  emits candidates without ever calling the seam.
+  RN-5f-e: a raising replacement minter must PROPAGATE through the RESUME edge as the
+  injected sentinel type+value; a resume path that never calls the seam, swallows, or
+  translates is a failed check.
+
 REV 4.2 (codex `c37ef5c` WORKS-WITH-FIX, two bar false-greens hardened; the landed
   implementation 3183889 passes both repaired assertions):
   RN-5f-b: COMPLETE equality only -- the reopened written capsule must equal a JSON
@@ -210,6 +227,7 @@ def install_obspy_stub():
     from scipy.signal import hilbert as _hilb
     _o = types.ModuleType("obspy")
     _o.Stream, _o.Trace, _o.UTCDateTime = type("S", (), {}), type("T", (), {}), object
+    _o.__version__ = "stub-hermetic"        # resume.py:996 reads it unguarded
     _f = types.ModuleType("obspy.clients.fdsn")
     _f.Client = type("C", (), {"__init__": lambda s, *a, **k: None})
     _c = types.ModuleType("obspy.clients")
@@ -1258,6 +1276,127 @@ def main():
             check("RN-5f-c a raising replacement minter PROPAGATES through the real "
                   "producer path as the injected sentinel type+value -- translation "
                   "to any other exception is a failed check (no silent swallow)", False, f"raised {e}")
+        # RN-5f-d/e REV 4.3 (grassmann 2b27621 finding 1): the RESUME executor is
+        # the REAL production edge (RC1c) with its OWN capsule assembly -- drive IT.
+        try:
+            import d2_step4b_campaign_run as CR
+            import d2_step4b_resume as RS
+            saved_pol3 = dict(CR.POLICY)
+            spy_calls_r = []
+            real_mint2 = getattr(CR, "mint_capsule", None)
+            td_r = tempfile.mkdtemp()
+            plan_r, ledger_r = _mk_candidate_fixture_root(RP, td_r)
+            drive_err_r = None
+            try:
+                CR.POLICY["min_admitted_days"] = 2
+                if callable(real_mint2):
+                    def spy_mint_r(plan_arg, **kw):
+                        out = real_mint2(plan_arg, **kw)
+                        spy_calls_r.append({"producer_commit": kw.get("producer_commit"),
+                                            "carrier": kw.get("carrier"),
+                                            "out": json.loads(json.dumps(out))})
+                        return out
+                    CR.mint_capsule = spy_mint_r
+                try:
+                    RS.run_resume_campaign(plan_r, td_r,
+                                           providers=_CandidateProviders(),
+                                           receipt=RECEIPT)
+                except BaseException as e:
+                    drive_err_r = f"{type(e).__name__}: {e}"
+            finally:
+                CR.POLICY.clear()
+                CR.POLICY.update(saved_pol3)
+                if callable(real_mint2):
+                    CR.mint_capsule = real_mint2
+            adm_pr = os.path.join(td_r, "admission_results.json")
+            regions_r = []
+            if os.path.exists(adm_pr):
+                regions_r = json.loads(open(adm_pr, encoding="utf-8").read()).get(
+                    "regions", [])
+            cand_r = [r for r in regions_r if isinstance(r, dict)
+                      and r.get("status") == "ADMITTED_CANDIDATE"]
+            ok_resume = False
+            det_r = (f"drive_err={drive_err_r} candidates={len(cand_r)} "
+                     f"spy_calls={len(spy_calls_r)}")
+            if cand_r and not drive_err_r:
+                row_r = cand_r[0]
+                cpath_r = os.path.join(td_r, row_r.get("capsule_path") or "missing")
+                emitted_r = json.loads(open(cpath_r, encoding="utf-8").read()) \
+                    if os.path.exists(cpath_r) else None
+                im_pr = os.path.join(td_r, "input_manifest.json")
+                im_bytes_r = open(im_pr, "rb").read() if os.path.exists(im_pr) else b""
+                im_r = json.loads(im_bytes_r.decode("utf-8")) if im_bytes_r else {}
+                producers_r = {c["producer_commit"] for c in spy_calls_r}
+                spy_out_r = spy_calls_r[0]["out"] if spy_calls_r else None
+                ok_resume = (len(spy_calls_r) == len(cand_r)
+                             and len(producers_r) == 1
+                             and emitted_r is not None and spy_out_r is not None
+                             and emitted_r == spy_out_r
+                             and emitted_r.get("input_manifest_sha256") == sha(im_bytes_r)
+                             and emitted_r.get("source_commit") == next(iter(producers_r))
+                             and emitted_r.get("source_commit")
+                             == im_r.get("producer_commit"))
+                det_r += (f" emitted_src={str((emitted_r or {}).get('source_commit'))[:9]}"
+                          f" manifest_src={str(im_r.get('producer_commit'))[:9]}")
+            check("RN-5f-d RESUME-edge candidate drive (the REAL production edge, "
+                  "RC1c): run_resume_campaign on the hermetic fixture reaches "
+                  "ADMITTED_CANDIDATE, the spy-wrapped CR.mint_capsule seam is called "
+                  "once per emitted candidate with ONE producer commit, the WRITTEN "
+                  "capsule equals the SNAPSHOTTED spy result COMPLETELY, its "
+                  "input_manifest_sha256 == sha256(reopened manifest bytes), and its "
+                  "source_commit == that commit == input_manifest.producer_commit (a "
+                  "stale IMPLEMENTATION_COMMIT literal in the resume assembly cannot "
+                  "pass)", ok_resume, det_r)
+            ok_prop_r = False
+            if callable(real_mint2) and cand_r:
+                td_r2 = tempfile.mkdtemp()
+                plan_r2, _lg2 = _mk_candidate_fixture_root(RP, td_r2)
+                class _BoomR(Exception):
+                    pass
+                def boom_mint_r(*a, **k):
+                    raise _BoomR("bar sentinel resume")
+                saved_pol4 = dict(CR.POLICY)
+                try:
+                    CR.POLICY["min_admitted_days"] = 2
+                    CR.mint_capsule = boom_mint_r
+                    try:
+                        RS.run_resume_campaign(plan_r2, td_r2,
+                                               providers=_CandidateProviders(),
+                                               receipt=RECEIPT)
+                        ok_prop_r = False
+                    except _BoomR as e:
+                        ok_prop_r = str(e) == "bar sentinel resume"
+                    except BaseException:
+                        ok_prop_r = False
+                finally:
+                    CR.POLICY.clear()
+                    CR.POLICY.update(saved_pol4)
+                    CR.mint_capsule = real_mint2
+            check("RN-5f-e a raising replacement minter PROPAGATES through the RESUME "
+                  "edge as the injected sentinel type+value -- a resume path that "
+                  "never calls the seam, swallows, or translates is a failed check",
+                  ok_prop_r,
+                  "unreachable while RN-5f-d red" if not (callable(real_mint2)
+                                                          and cand_r) else "")
+            src_r = open(os.path.join(HERE, "d2_step4b_resume.py"),
+                         encoding="utf-8").read()
+            print(f"    [diag] resume mint_capsule-refs={src_r.count('mint_capsule')} "
+                  f"resume-stale-literal="
+                  f"{'source_commit' + chr(34) + ': CR.IMPLEMENTATION_COMMIT' in src_r}")
+        except Exception as e:
+            check("RN-5f-d RESUME-edge candidate drive (the REAL production edge, "
+                  "RC1c): run_resume_campaign on the hermetic fixture reaches "
+                  "ADMITTED_CANDIDATE, the spy-wrapped CR.mint_capsule seam is called "
+                  "once per emitted candidate with ONE producer commit, the WRITTEN "
+                  "capsule equals the SNAPSHOTTED spy result COMPLETELY, its "
+                  "input_manifest_sha256 == sha256(reopened manifest bytes), and its "
+                  "source_commit == that commit == input_manifest.producer_commit (a "
+                  "stale IMPLEMENTATION_COMMIT literal in the resume assembly cannot "
+                  "pass)", False, f"raised {e}")
+            check("RN-5f-e a raising replacement minter PROPAGATES through the RESUME "
+                  "edge as the injected sentinel type+value -- a resume path that "
+                  "never calls the seam, swallows, or translates is a failed check",
+                  False, f"raised {e}")
         # RN-5g REV4.1 (codex 8e4d8fc #1): producer-schema replacement-root check
         # + ALWAYS-RUNNING lock fixtures proving the check itself discriminates.
         try:
@@ -1355,6 +1494,10 @@ def main():
                  "v2 plan -> frozen IMPLEMENTATION_COMMIT (v2 semantics preserved); the "
                  "executor mint CALLS the seam and the literal "
                  "source_commit: IMPLEMENTATION_COMMIT mint is gone from campaign_run",
+                 "RN-5f-d RESUME-edge candidate drive (the REAL production edge, "
+                 "RC1c) with full snapshot equality + manifest cross-link",
+                 "RN-5f-e a raising replacement minter PROPAGATES through the RESUME "
+                 "edge as the injected sentinel type+value",
                  "RN-5g staged-root capsules pass validate_renewal_capsule against "
                  "the root's recorded producer_commit (re-mint acceptance)")
 

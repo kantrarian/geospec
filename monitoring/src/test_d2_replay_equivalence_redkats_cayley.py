@@ -1,5 +1,19 @@
 """RED-first KATs -- D2 sealed-replay EXACT SCIENTIFIC EQUIVALENCE bar (cayley).
 
+REV 2.2 (codex `e127a7f` WORKS-WITH-FIX -- P1/P2 semantics CONCURRED, two root-local
+integrity holes repaired; four accepted counterexamples locked):
+  2.2-1 P1 no longer drops core_blobs blind: both plans must share the complete
+        top-level schema; core_blobs must be a dict whose keyset equals the FIVE
+        production CORE_FILES with 40-lower-hex git blob values -- validated BEFORE
+        projection; only the VALUES stay cross-root tolerant (RN-5g binds them to the
+        producing commit per root). Missing map / wrong keyset / extra key / malformed
+        blob each REFUSES.
+  2.2-2 P2 root-local closure is now two-way: within each root, every ordered WAL
+        PROCESS_STARTED receipt verifies, process ids are nonempty and unique, the
+        ordered WAL pid list equals the ledger's, and batch_manifest.process_count ==
+        len(process_rows). Orphan-invalid WAL starts and duplicate ledger rows REFUSE;
+        cross-root row counts stay free.
+
 REV 2 (codex `76d93f7` WORKS-WITH-FIX -- three classification defects repaired -- plus
 grassmann `b947a1e` classification surprise):
   C1 CRITICAL receipt projection: receipts are now VALIDATED AND CROSS-BOUND FIRST
@@ -50,10 +64,19 @@ No provider I/O. No lift, no claim, no replay authorization.
 import hashlib
 import json
 import os
+import re
 import sys
 import tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+_HEX40 = re.compile(r"[0-9a-f]{40}\Z")
+# the plan core_blobs keyset authority (== renewal bar CORE_FILES; RN-5g holds the
+# independent per-root producer_commit -> git ls-tree -> blob binding)
+PLAN_CORE_FILES = ["monitoring/src/seismic_data.py",
+                   "monitoring/src/fault_correlation.py",
+                   "monitoring/src/ensemble.py",
+                   "monitoring/src/d2_step4b_campaign_run.py",
+                   "monitoring/src/d2_renewal_plan.py"]
 sys.path.insert(0, HERE)
 FAILS = []
 
@@ -170,17 +193,36 @@ def _validate_receipts(root, label):
     events = _read_json(root, "resume_state.json").get("events")
     if not isinstance(events, list):
         return f"{label}: resume_state.json missing events list"
+    # REV 2.2 (codex e127a7f #2): root-local WAL/ledger CLOSURE, two-way.
+    # Cross-root row counts stay free (P2); within the root: every ordered
+    # PROCESS_STARTED receipt verifies, process ids are nonempty and unique, the
+    # ordered WAL pid list equals the ledger's (orphan starts AND duplicate/missing
+    # ledger rows both refuse), and batch_manifest.process_count matches.
+    starts = [e for e in events if isinstance(e, dict)
+              and e.get("kind") == "PROCESS_STARTED"]
+    for e in starts:
+        if not verify(e.get("owner_launch_authorization")):
+            return (f"{label}: WAL PROCESS_STARTED {e.get('process_id')} receipt "
+                    f"fails verify_launch_authorization")
+    wal_pids = [e.get("process_id") for e in starts]
+    if not wal_pids or any(not p for p in wal_pids) \
+            or len(set(wal_pids)) != len(wal_pids):
+        return f"{label}: WAL PROCESS_STARTED process ids empty or non-unique"
+    ledger_pids = [r.get("process_id") for r in proc_rows]
+    if wal_pids != ledger_pids:
+        return (f"{label}: ordered WAL PROCESS_STARTED pids != ledger pids "
+                f"({len(wal_pids)} vs {len(ledger_pids)})")
+    if bm.get("process_count") != len(proc_rows):
+        return (f"{label}: batch_manifest.process_count {bm.get('process_count')} "
+                f"!= {len(proc_rows)} ledger rows")
     wal_receipts = {e.get("process_id"): e.get("owner_launch_authorization")
-                    for e in events if isinstance(e, dict)
-                    and e.get("kind") == "PROCESS_STARTED"}
+                    for e in starts}
     completed_receipts = []
     for r in proc_rows:
         rc = r.get("owner_launch_authorization")
         pid = r.get("process_id")
         if not verify(rc):
             return f"{label}: process {pid} receipt fails verify_launch_authorization"
-        if pid not in wal_receipts:
-            return f"{label}: process {pid} has no WAL PROCESS_STARTED event"
         if wal_receipts[pid] != rc:
             return f"{label}: process {pid} receipt != its WAL PROCESS_STARTED receipt"
         if r.get("disposition") == "COMPLETED":
@@ -250,9 +292,21 @@ def validate_replay_equivalence(held, repl):
     if _sets(hrows) != _sets(rrows):
         return False, "admitted/refused sets or reason codes differ", report
 
-    # campaign_plan typed (P1)
+    # campaign_plan typed (P1) -- REV 2.2 (codex e127a7f #1): schema + core_blobs
+    # presence/keyset/blob-shape validated BEFORE projection; values stay cross-root
+    # tolerant (RN-5g binds them to the producing commit per root)
     hp = _read_json(held, "campaign_plan.json")
     rp = _read_json(repl, "campaign_plan.json")
+    if set(hp.keys()) != set(rp.keys()):
+        keys = sorted(set(hp.keys()) ^ set(rp.keys()))
+        return False, f"campaign_plan top-level schema differs: {keys}", report
+    for label, plan in (("held", hp), ("replacement", rp)):
+        cb = plan.get("core_blobs")
+        if not isinstance(cb, dict) or set(cb.keys()) != set(PLAN_CORE_FILES):
+            return False, (f"{label} plan core_blobs missing or keyset != the five "
+                           f"production CORE_FILES"), report
+        if not all(isinstance(v, str) and _HEX40.match(v) for v in cb.values()):
+            return False, f"{label} plan core_blobs has a malformed git blob id", report
     if _project(hp, PLAN_ALLOW) != _project(rp, PLAN_ALLOW):
         keys = sorted(k for k in set(hp) | set(rp)
                       if k not in PLAN_ALLOW and hp.get(k) != rp.get(k))
@@ -359,7 +413,7 @@ def _mk_root(td, *, pid, receipt, commit, blobs_tag):
     plan = {"contract_id": "codex-d2-campaign-v2-renewal-2026-08-16-v1",
             "carriers": ["c1"], "scheduled_days": days,
             "activation_reference_day": "2026-08-16",
-            "core_blobs": {"monitoring/src/x.py": blobs_tag * 40},
+            "core_blobs": {f: blobs_tag * 40 for f in PLAN_CORE_FILES},
             "created_utc": f"t-{pid}", "registered_utc": f"t-{pid}"}
     rows = []
     for arm in ("incident", "activation"):
@@ -594,6 +648,28 @@ def main():
             t, "batch_manifest.json",
             lambda d: d["owner_launch_authorization"].update(
                 owner_quote_sha256="f" * 64)))))
+    # -- REV 2.2 locks: codex e127a7f #1 (plan core_blobs integrity)
+    battery.append(("plan core_blobs deleted (2.2-1)", *refused(lambda t: _edit_json(
+        t, "campaign_plan.json", lambda d: d.pop("core_blobs")))))
+    battery.append(("plan core_blobs wrong keyset (2.2-1)", *refused(
+        lambda t: _edit_json(t, "campaign_plan.json", lambda d: d.update(
+            core_blobs={"monitoring/src/unrelated.py": "b" * 40})))))
+    battery.append(("plan core_blobs extra key (2.2-1)", *refused(
+        lambda t: _edit_json(t, "campaign_plan.json", lambda d: d["core_blobs"].update(
+            {"monitoring/src/extra.py": "b" * 40})))))
+    battery.append(("plan core_blobs malformed blob id (2.2-1)", *refused(
+        lambda t: _edit_json(t, "campaign_plan.json", lambda d: d["core_blobs"].update(
+            {PLAN_CORE_FILES[0]: "not-a-git-blob"})))))
+    # -- REV 2.2 locks: codex e127a7f #2 (root-local WAL/ledger closure)
+    battery.append(("orphan invalid WAL PROCESS_STARTED (2.2-2)", *refused(
+        lambda t: _edit_json(t, "resume_state.json", lambda d: d["events"].append(
+            {"kind": "PROCESS_STARTED", "process_id": "p-orphan",
+             "owner_launch_authorization": {"status": "RELAYED",
+                                            "in_session_timestamp_utc": "not-utc",
+                                            "owner_quote_sha256": "zz"}})))))
+    battery.append(("duplicate ledger row, stale process_count (2.2-2)", *refused(
+        lambda t: _edit_jsonl(t, "campaign_process_ledger.jsonl",
+                              lambda rows: rows.append(dict(rows[0]))))))
 
     all_refused = all(v for _, v, _ in battery)
     check("RE-1b violation battery: every non-allowlisted difference REFUSES "

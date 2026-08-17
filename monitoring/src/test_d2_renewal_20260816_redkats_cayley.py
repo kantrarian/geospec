@@ -60,6 +60,23 @@ and RN-5c amended per that ruling instead.
      recorded producer_commit) — the sealed zero-I/O re-mint (option B step 3, owner
      one-liner) produces exactly these artifacts.
 
+REV 4.1 (codex `8e4d8fc`, two executable counterexamples repaired):
+  RN-5g now parses the PRODUCER'S REAL SCHEMA (admission_results.regions is a LIST of
+  rows; any other type refuses), selects rows by status==ADMITTED_CANDIDATE, binds the
+  reopened capsule's region to the row's carrier_key, and requires the plan's blob-key
+  set to equal CORE_FILES exactly before value comparison (empty/missing/extra/git-fail
+  all refuse). Its core is factored into validate_replacement_root() and LOCKED by an
+  always-running fixture battery: nominal synthetic-root PASS + dict-shape, empty-map,
+  missing-key, extra-key, wrong-blob, and region-mismatch refusals.
+  RN-5f now EXECUTES the producer-to-minter edge: a candidate-producing hermetic
+  real-acquire fixture (POLICY.min_admitted_days patched to 2 inside the KAT only —
+  RN-1c still locks the real value; one correlated low-ratio day pins the threshold
+  minimum so the sealed diagnostic replay clears the gates) drives the REAL acquire to
+  an emitted capsule; the bar spy-wraps CR.mint_capsule, requires one spy call per
+  emitted candidate, reopens the written capsule and requires it to equal the spy
+  result carrying the single supplied producer commit; a raising replacement minter
+  must PROPAGATE through the producer. Source inspection is demoted to diagnostics.
+
 SEAMS PINNED (naming decisions implementing the contract):
   module `monitoring/src/d2_renewal_plan.py`:
     RENEWAL_CONTRACT_ID / RENEWAL_ANCHOR / V2_POOL_SHA256 / RENEWAL_BUNDLE_SHA256
@@ -314,6 +331,185 @@ def _mk_renewal_fixture_root(RP, td, *, infeasible_carrier=None):
     with open(os.path.join(td, "published_phase_ledger.json"), "wb") as f:
         f.write(canon(ledger))
     return plan, ledger
+
+
+def _mk_candidate_fixture_root(RP, td):
+    """Candidate-producing hermetic fixture: 1 carrier (istanbul), 3 scheduled days,
+    2 segments x 2 stations, REAL-quality bodies (13 h @ 25 Hz, coverage ~0.54). Day 1
+    serves ONE identical body to all stations/segments (cross-segment correlation ->
+    LOW ratio, pinning the nearest-rank threshold minimum); days 2-3 serve independent
+    noise (HIGH ratios). With POLICY.min_admitted_days patched to 2 in the KAT, the
+    admitted set yields finite thresholds whose minimum is the low day-1 ratio, so the
+    sealed diagnostic replay ratios clear artifact/control gates."""
+    days = ["2026-03-02", "2026-03-03", "2026-03-04"]
+    registry = {}
+    rows = []
+    for seg_i, seg in enumerate(("seg_a", "seg_b")):
+        for st_i in range(2):
+            sta = f"S{seg_i}{st_i}"
+            rows.append({"segment_name": seg, "station_id": f"KO.{sta}",
+                         "ordered_nslc_candidates": [f"KO.{sta}..BHZ"]})
+    registry["istanbul_marmara"] = rows
+    plan = {"schema": "geospec-d2-step4b-campaign-plan-v1",
+            "contract_id": CONTRACT_ID,
+            "registered_utc": "2026-08-16T01:20:00.000000Z",
+            "activation_reference_day": ANCHOR, "incident_reference_day": "2026-07-29",
+            "carriers": ["istanbul_marmara"],
+            "providers": {"istanbul_marmara": {"provider": "KOERI",
+                                               "endpoint": "eida.koeri.boun.edu.tr"}},
+            "station_registry": registry,
+            "incident_days": days, "activation_days": days, "scheduled_days": days,
+            "acquisition_order": ["KOERI"], "free_sources_only": True,
+            "outcomes_inspected_before_schedule": False,
+            "core_blobs": RP.core_blob_map() if RP else {},
+            "created_utc": "2026-08-16T01:20:00.000000Z"}
+    lrows = []
+    for day in days:
+        end = f"{day}T07:00:13.094647Z"
+        start_dt = datetime.strptime(end, "%Y-%m-%dT%H:%M:%S.%fZ") - timedelta(seconds=86400)
+        lrows.append({"carrier_key": "istanbul_marmara", "scored_day": day,
+                      "status": "REGISTERED", "publication_commit": 40 * "a",
+                      "publication_repo_path": "docs/ensemble_latest.json",
+                      "publication_record_artifact": "publication_records/x.json",
+                      "record_git_blob": 40 * "b", "record_sha256": 64 * "c",
+                      "request_start_utc": start_dt.strftime("%Y-%m-%dT%H:%M:%S.%f") + "Z",
+                      "request_end_utc": end, "reason_codes": []})
+    ledger = {"schema": "geospec-d2-published-phase-ledger-v1", "rows": lrows,
+              "created_utc": "2026-08-16T01:21:00.000000Z"}
+    with open(os.path.join(td, "campaign_plan.json"), "wb") as f:
+        f.write(canon(plan))
+    with open(os.path.join(td, "published_phase_ledger.json"), "wb") as f:
+        f.write(canon(ledger))
+    return plan, ledger
+
+
+class _CandidateProviders:
+    """Serves REAL-quality synthetic bodies (13 h @ 25 Hz starting 5 h into the
+    session). Day 1: one shared correlated body for every station (low ratio).
+    Days 2-3: per-station seeded noise (high ratio). Zero network."""
+
+    class ProviderUnavailable(Exception):
+        pass
+
+    SPAN = 46800          # 13 h
+    RATE = 25.0
+    OFFSET = 5 * 3600
+
+    def __init__(self):
+        import numpy as np
+        rng = np.random.default_rng(20260817)
+        self._shared = rng.standard_normal(int(self.SPAN * self.RATE))
+        self._np = np
+
+    def koeri_available(self, net, stas, chas, start, end):
+        return {f"{net}.{s}..{c}" for s in stas for c in chas}
+
+    def scedc_available(self, net, stas, chas, start, end):
+        return {f"{net}.{s}..{c}" for s in stas for c in chas}
+
+    def parse_staged(self, staged_path):
+        import pickle
+        with open(staged_path, "rb") as f:
+            frames = pickle.loads(f.read())
+        return [_Trace(datetime.fromisoformat(iso), npts, rate)
+                for iso, npts, rate, *_ in frames]
+
+    def fetch(self, provider, nslc, start, end, *, stage_dir, **kw):
+        import pickle
+        np = self._np
+        day = end.date().isoformat()
+        frag_start = (start + timedelta(seconds=self.OFFSET))
+        if day == "2026-03-02":
+            data = self._shared
+        else:
+            seed = abs(hash((nslc, day))) % (2 ** 32)
+            data = np.random.default_rng(seed).standard_normal(int(self.SPAN * self.RATE))
+        # Staged bytes carry the timing frames (provenance reparse needs only
+        # rate/npts/support timing per H3); scoring consumes the returned stream.
+        frames = [[frag_start.isoformat(), int(self.SPAN * self.RATE), self.RATE,
+                   nslc, day]]
+        body = pickle.dumps(frames)
+        name = f"{nslc}_{day}_{sha(body)[:12]}.pkl"
+        path = os.path.join(stage_dir, name)
+        with open(path, "wb") as f:
+            f.write(body)
+        stream = [_Trace(frag_start, int(self.SPAN * self.RATE), self.RATE)]
+        stream[0].data = data
+        return {"stream": stream,
+                "raw_objects": [{"source": f"fake://{nslc}/{day}", "staged_path": path,
+                                 "size_bytes": len(body), "sha256": sha(body)}]}
+
+
+def validate_replacement_root(root_env, RP):
+    """RN-5g core (REV 4.1): producer-schema-faithful replacement-root validation.
+    Returns (ok: bool, detail: str). REFUSES: non-list regions, missing carrier_key/
+    capsule_path on candidate rows, capsule-region/row mismatch, blob-key set !=
+    CORE_FILES exactly, any git ls-tree failure or value mismatch, validator failure."""
+    im = json.loads(open(os.path.join(root_env, "input_manifest.json"),
+                         encoding="utf-8").read())
+    producer = im.get("producer_commit")
+    adm = json.loads(open(os.path.join(root_env, "admission_results.json"),
+                          encoding="utf-8").read())
+    regions = adm.get("regions")
+    if not isinstance(regions, list):
+        return False, f"regions is {type(regions).__name__}, not the producer's list"
+    plan_doc = json.loads(open(os.path.join(root_env, "campaign_plan.json"),
+                               encoding="utf-8").read())
+    blobs = plan_doc.get("core_blobs")
+    if not isinstance(blobs, dict) or set(blobs.keys()) != set(CORE_FILES):
+        return False, f"core_blobs key set != CORE_FILES (got {sorted(blobs) if isinstance(blobs, dict) else blobs})"
+    repo = os.path.join(HERE, "..", "..")
+    for f2 in CORE_FILES:
+        r = subprocess.run(["git", "ls-tree", str(producer), f2], capture_output=True,
+                           text=True, cwd=repo)
+        parts = r.stdout.split()
+        if r.returncode != 0 or len(parts) < 3 or parts[2] != blobs[f2]:
+            return False, f"blob mismatch/failure at {f2}"
+    caps = 0
+    for row in regions:
+        if not isinstance(row, dict) or row.get("status") != "ADMITTED_CANDIDATE":
+            continue
+        carrier = row.get("carrier_key")
+        cp = row.get("capsule_path")
+        if not carrier or not cp:
+            return False, f"candidate row missing carrier_key/capsule_path: {row.get('runner_key')}"
+        cpath = cp if os.path.isabs(cp) else os.path.join(root_env, cp)
+        cap = json.loads(open(cpath, encoding="utf-8").read())
+        if cap.get("region") != carrier:
+            return False, f"capsule region {cap.get('region')} != row carrier {carrier}"
+        if cap.get("source_commit") != producer:
+            return False, f"capsule source_commit != producer_commit for {carrier}"
+        if RP.validate_renewal_capsule(cap, expected_source_commit=producer) is not True:
+            return False, f"validator refuses capsule for {carrier}"
+        caps += 1
+    if caps == 0:
+        return False, "no ADMITTED_CANDIDATE capsules found"
+    return True, f"caps={caps} producer={str(producer)[:9]}"
+
+
+def _mk_synthetic_replacement_root(RP, cap_template, head):
+    """Nominal RN-5g lock fixture: a minimal synthetic root in the REAL producer
+    schema (regions as a LIST) with one HEAD-bound capsule and exact HEAD blobs."""
+    td = tempfile.mkdtemp()
+    os.makedirs(os.path.join(td, "capsules"), exist_ok=True)
+    cap = dict(cap_template)
+    cap["region"] = "istanbul_marmara"
+    cap["source_commit"] = head
+    open(os.path.join(td, "capsules", "istanbul_marmara_calibration.json"), "w",
+         encoding="utf-8").write(json.dumps(cap, sort_keys=True))
+    regions = [{"runner_key": "istanbul_marmara", "carrier_key": "istanbul_marmara",
+                "status": "ADMITTED_CANDIDATE",
+                "capsule_path": "capsules/istanbul_marmara_calibration.json"},
+               {"runner_key": "ridgecrest", "carrier_key": "ridgecrest",
+                "status": "BLOCKED_TOPOLOGY", "capsule_path": None}]
+    open(os.path.join(td, "admission_results.json"), "w", encoding="utf-8").write(
+        json.dumps({"schema": "x", "regions": regions}))
+    open(os.path.join(td, "input_manifest.json"), "w", encoding="utf-8").write(
+        json.dumps({"producer_commit": head}))
+    blobs = {f: git_head_blobs()[f] for f in CORE_FILES}
+    open(os.path.join(td, "campaign_plan.json"), "w", encoding="utf-8").write(
+        json.dumps({"contract_id": CONTRACT_ID, "core_blobs": blobs}))
+    return td
 
 
 def main():
@@ -894,106 +1090,209 @@ def main():
             check("RN-5e no-backfill is executable: a gap day already refused stale "
                   "(before lift_effective) is NEVER retroactively admitted; unlifted "
                   "capsules admit nothing; post-expiry stays stale", False, f"raised {e}")
-        # RN-5f REV4+ (codex 53e1a14 step 2): EXECUTABLE mint seam. The producer must
-        # call a pure capsule-mint seam; the bar DRIVES it and validates the emitted
-        # capsule. Source inspection is retained only as a secondary call-path tripwire.
+        # RN-5f REV4.1 (codex 8e4d8fc #2): the REAL producer-to-minter edge.
+        # (a) direct branch KATs on the pure seam; (b) candidate-producing hermetic
+        # real-acquire drive with a spy-wrapped minter; (c) raising-minter propagation.
+        # Source inspection is DIAGNOSTIC ONLY (reported, never load-bearing).
         try:
             import d2_step4b_campaign_run as CR
             head = git_head()
             mint = getattr(CR, "mint_capsule", None)
-            r_plan = {"contract_id": CONTRACT_ID}
-            v_plan = {"contract_id": "codex-d2-step4b-2026-08-09-v1"}
-            kwm = dict(carrier="istanbul_marmara", threshold=0.21,
-                       calibration_window={"start": "2026-03-19", "end": "2026-07-17"},
-                       replay_output_sha256="b" * 64, valid_through="2026-08-23",
-                       input_manifest_sha256="a" * 64,
-                       issued_utc="2026-08-17T14:00:00Z", producer_commit=head)
-            ok_drive = False
-            det = "mint_capsule seam absent"
+            ok_branch = False
             if callable(mint):
-                cap_r = mint(r_plan, **kwm)
-                cap_v = mint(v_plan, **kwm)
-                ok_drive = (isinstance(cap_r, dict)
-                            and cap_r.get("source_commit") == head
-                            and RP.validate_renewal_capsule(
-                                cap_r, expected_source_commit=head) is True
-                            and RP.validate_renewal_capsule(
-                                cap_r, expected_source_commit="f" * 40) is False
-                            and cap_v.get("source_commit") == CR.IMPLEMENTATION_COMMIT)
-                det = (f"emitted_src={str(cap_r.get('source_commit'))[:9]} "
-                       f"v2_src={str(cap_v.get('source_commit'))[:9]}")
+                kwm = dict(carrier="istanbul_marmara", threshold=0.21,
+                           calibration_window={"start": "2026-03-19", "end": "2026-07-17"},
+                           replay_output_sha256="b" * 64, valid_through="2026-08-23",
+                           input_manifest_sha256="a" * 64,
+                           issued_utc="2026-08-17T14:00:00Z", producer_commit=head)
+                cap_r = mint({"contract_id": CONTRACT_ID}, **kwm)
+                cap_v = mint({"contract_id": "codex-d2-step4b-2026-08-09-v1"}, **kwm)
+                ok_branch = (isinstance(cap_r, dict)
+                             and cap_r.get("source_commit") == head
+                             and RP.validate_renewal_capsule(
+                                 cap_r, expected_source_commit=head) is True
+                             and RP.validate_renewal_capsule(
+                                 cap_r, expected_source_commit="f" * 40) is False
+                             and cap_v.get("source_commit") == CR.IMPLEMENTATION_COMMIT)
+            check("RN-5f-a pure mint seam branch KATs: renewal plan -> supplied producing "
+                  "commit (validates; wrong commit refuses); v2 plan -> "
+                  "IMPLEMENTATION_COMMIT preserved",
+                  ok_branch, "mint_capsule seam absent" if not callable(mint) else "")
+        except Exception as e:
+            check("RN-5f-a pure mint seam branch KATs: renewal plan -> supplied producing "
+                  "commit (validates; wrong commit refuses); v2 plan -> "
+                  "IMPLEMENTATION_COMMIT preserved", False, f"raised {e}")
+        try:
+            import d2_step4b_campaign_run as CR
+            saved_pol = dict(CR.POLICY)
+            spy_calls = []
+            real_mint = getattr(CR, "mint_capsule", None)
+            td_c = tempfile.mkdtemp()
+            plan_c, ledger_c = _mk_candidate_fixture_root(RP, td_c)
+            drive_err = None
+            try:
+                CR.POLICY["min_admitted_days"] = 2
+                if callable(real_mint):
+                    def spy_mint(plan_arg, **kw):
+                        out = real_mint(plan_arg, **kw)
+                        spy_calls.append({"producer_commit": kw.get("producer_commit"),
+                                          "carrier": kw.get("carrier"), "out": out})
+                        return out
+                    CR.mint_capsule = spy_mint
+                try:
+                    CR.acquire(plan_c, ledger_c, td_c, providers=_CandidateProviders(),
+                               receipt=RECEIPT)
+                except BaseException as e:
+                    drive_err = f"{type(e).__name__}: {e}"
+            finally:
+                CR.POLICY.clear()
+                CR.POLICY.update(saved_pol)
+                if callable(real_mint):
+                    CR.mint_capsule = real_mint
+            adm_p = os.path.join(td_c, "admission_results.json")
+            regions_c = []
+            if os.path.exists(adm_p):
+                regions_c = json.loads(open(adm_p, encoding="utf-8").read()).get(
+                    "regions", [])
+            cand = [r for r in regions_c if isinstance(r, dict)
+                    and r.get("status") == "ADMITTED_CANDIDATE"]
+            ok_drive = False
+            det = f"drive_err={drive_err} candidates={len(cand)} spy_calls={len(spy_calls)}"
+            if cand and not drive_err:
+                row = cand[0]
+                cpath = os.path.join(td_c, row.get("capsule_path") or "missing")
+                emitted = json.loads(open(cpath, encoding="utf-8").read()) \
+                    if os.path.exists(cpath) else None
+                im_c = json.loads(open(os.path.join(td_c, "input_manifest.json"),
+                                       encoding="utf-8").read())
+                producers = {c["producer_commit"] for c in spy_calls}
+                spy_out = spy_calls[0]["out"] if spy_calls else None
+                emitted_no_late = {k: v for k, v in (emitted or {}).items()
+                                   if k not in ("issued_utc", "input_manifest_sha256")}
+                spy_no_late = {k: v for k, v in (spy_out or {}).items()
+                               if k not in ("issued_utc", "input_manifest_sha256")}
+                ok_drive = (len(spy_calls) == len(cand) and len(producers) == 1
+                            and emitted is not None and spy_out is not None
+                            and emitted_no_late == spy_no_late
+                            and emitted.get("source_commit") == next(iter(producers))
+                            and emitted.get("source_commit")
+                            == im_c.get("producer_commit"))
+                det += (f" emitted_src={str((emitted or {}).get('source_commit'))[:9]}"
+                        f" manifest_src={str(im_c.get('producer_commit'))[:9]}")
+            check("RN-5f-b REAL-acquire candidate drive: the hermetic fixture reaches "
+                  "ADMITTED_CANDIDATE, the spy-wrapped minter is called once per emitted "
+                  "candidate with ONE producer commit, and the WRITTEN capsule equals the "
+                  "spy result carrying that same commit == input_manifest.producer_commit",
+                  ok_drive, det)
+            # (c) raising replacement minter must PROPAGATE through the producer
+            ok_prop = False
+            if callable(real_mint) and cand:
+                td_p = tempfile.mkdtemp()
+                plan_p, ledger_p = _mk_candidate_fixture_root(RP, td_p)
+                class _Boom(Exception):
+                    pass
+                def boom_mint(*a, **k):
+                    raise _Boom("bar sentinel")
+                saved_pol2 = dict(CR.POLICY)
+                try:
+                    CR.POLICY["min_admitted_days"] = 2
+                    CR.mint_capsule = boom_mint
+                    try:
+                        CR.acquire(plan_p, ledger_p, td_p,
+                                   providers=_CandidateProviders(), receipt=RECEIPT)
+                        ok_prop = False
+                    except BaseException:
+                        ok_prop = True
+                finally:
+                    CR.POLICY.clear()
+                    CR.POLICY.update(saved_pol2)
+                    CR.mint_capsule = real_mint
+            check("RN-5f-c a raising replacement minter PROPAGATES through the real "
+                  "producer path (no silent swallow)", ok_prop,
+                  "unreachable while RN-5f-b red" if not (callable(real_mint) and cand)
+                  else "")
+            # diagnostics only (never load-bearing): source shape
             src = open(os.path.join(HERE, "d2_step4b_campaign_run.py"),
                        encoding="utf-8").read()
-            call_ok = ('"source_commit": IMPLEMENTATION_COMMIT' not in src
-                       and src.count("mint_capsule") >= 2)   # def + producer call site
-            check("RN-5f EXECUTABLE mint seam: driving CR.mint_capsule emits a renewal "
-                  "capsule whose source_commit == the supplied producing commit and which "
-                  "PASSES validate_renewal_capsule (wrong expected commit refuses); a v2 "
-                  "plan preserves IMPLEMENTATION_COMMIT; the producer mint site calls the "
-                  "seam and the frozen literal is gone (secondary tripwire)",
-                  ok_drive and call_ok, f"{det} call_ok={call_ok}")
+            print(f"    [diag] mint-call-sites={src.count('mint_capsule')} "
+                  f"stale-literal-present={'source_commit' + chr(34) + ': IMPLEMENTATION_COMMIT' in src}")
         except Exception as e:
-            check("RN-5f EXECUTABLE mint seam: driving CR.mint_capsule emits a renewal "
-                  "capsule whose source_commit == the supplied producing commit and which "
-                  "PASSES validate_renewal_capsule (wrong expected commit refuses); a v2 "
-                  "plan preserves IMPLEMENTATION_COMMIT; the producer mint site calls the "
-                  "seam and the frozen literal is gone (secondary tripwire)",
+            check("RN-5f-b REAL-acquire candidate drive: the hermetic fixture reaches "
+                  "ADMITTED_CANDIDATE, the spy-wrapped minter is called once per emitted "
+                  "candidate with ONE producer commit, and the WRITTEN capsule equals the "
+                  "spy result carrying that same commit == input_manifest.producer_commit",
                   False, f"raised {e}")
-        # RN-5g REV4: staged-root re-mint validation — every renewal capsule in a staged
-        # renewal root must pass RN-5c against the root's recorded producer_commit.
-        # Runs when a root path is supplied via D2_RENEWAL_ROOT (verification lanes);
-        # otherwise records the binding as pending-root (not green, not misleading).
+            check("RN-5f-c a raising replacement minter PROPAGATES through the real "
+                  "producer path (no silent swallow)", False, f"raised {e}")
+        # RN-5g REV4.1 (codex 8e4d8fc #1): producer-schema replacement-root check
+        # + ALWAYS-RUNNING lock fixtures proving the check itself discriminates.
+        try:
+            head = git_head()
+            nominal = _mk_synthetic_replacement_root(RP, cap, head)
+            ok_nom, det_nom = validate_replacement_root(nominal, RP)
+            refusals = []
+            # dict-shape regions
+            r1 = _mk_synthetic_replacement_root(RP, cap, head)
+            adm = json.loads(open(os.path.join(r1, "admission_results.json")).read())
+            adm["regions"] = {"istanbul_marmara": adm["regions"][0]}
+            open(os.path.join(r1, "admission_results.json"), "w").write(json.dumps(adm))
+            refusals.append(not validate_replacement_root(r1, RP)[0])
+            # empty blob map
+            r2 = _mk_synthetic_replacement_root(RP, cap, head)
+            pl = json.loads(open(os.path.join(r2, "campaign_plan.json")).read())
+            pl["core_blobs"] = {}
+            open(os.path.join(r2, "campaign_plan.json"), "w").write(json.dumps(pl))
+            refusals.append(not validate_replacement_root(r2, RP)[0])
+            # missing key
+            r3 = _mk_synthetic_replacement_root(RP, cap, head)
+            pl = json.loads(open(os.path.join(r3, "campaign_plan.json")).read())
+            pl["core_blobs"].pop(CORE_FILES[0])
+            open(os.path.join(r3, "campaign_plan.json"), "w").write(json.dumps(pl))
+            refusals.append(not validate_replacement_root(r3, RP)[0])
+            # extra key
+            r4 = _mk_synthetic_replacement_root(RP, cap, head)
+            pl = json.loads(open(os.path.join(r4, "campaign_plan.json")).read())
+            pl["core_blobs"]["monitoring/src/extra.py"] = "a" * 40
+            open(os.path.join(r4, "campaign_plan.json"), "w").write(json.dumps(pl))
+            refusals.append(not validate_replacement_root(r4, RP)[0])
+            # wrong blob value
+            r5 = _mk_synthetic_replacement_root(RP, cap, head)
+            pl = json.loads(open(os.path.join(r5, "campaign_plan.json")).read())
+            pl["core_blobs"][CORE_FILES[0]] = "b" * 40
+            open(os.path.join(r5, "campaign_plan.json"), "w").write(json.dumps(pl))
+            refusals.append(not validate_replacement_root(r5, RP)[0])
+            # capsule-region / row-carrier mismatch
+            r6 = _mk_synthetic_replacement_root(RP, cap, head)
+            cp6 = os.path.join(r6, "capsules", "istanbul_marmara_calibration.json")
+            c6 = json.loads(open(cp6).read())
+            c6["region"] = "socal_coachella"
+            open(cp6, "w").write(json.dumps(c6, sort_keys=True))
+            refusals.append(not validate_replacement_root(r6, RP)[0])
+            check("RN-5g-lock the replacement-root check DISCRIMINATES: nominal "
+                  "producer-schema synthetic root PASSES; dict-shape regions, empty blob "
+                  "map, missing key, extra key, wrong blob, and capsule/row region "
+                  "mismatch ALL refuse", ok_nom and all(refusals),
+                  f"nominal={ok_nom}({det_nom}) refusals={refusals}")
+        except Exception as e:
+            check("RN-5g-lock the replacement-root check DISCRIMINATES: nominal "
+                  "producer-schema synthetic root PASSES; dict-shape regions, empty blob "
+                  "map, missing key, extra key, wrong blob, and capsule/row region "
+                  "mismatch ALL refuse", False, f"raised {e}")
         try:
             root_env = os.environ.get("D2_RENEWAL_ROOT")
             if root_env and os.path.isdir(root_env):
-                im = json.loads(open(os.path.join(root_env, "input_manifest.json"),
-                                     encoding="utf-8").read())
-                producer = im["producer_commit"]
-                adm = json.loads(open(os.path.join(root_env, "admission_results.json"),
-                                      encoding="utf-8").read())
-                rows = adm.get("regions", adm)
-                rows = rows if isinstance(rows, dict) else {}
-                caps = []
-                for region, row in rows.items():
-                    if not isinstance(row, dict):
-                        continue
-                    cp = row.get("capsule_path")
-                    if cp:
-                        cpath = cp if os.path.isabs(cp) else os.path.join(root_env, cp)
-                        caps.append(json.loads(open(cpath, encoding="utf-8").read()))
-                plan_doc = json.loads(open(os.path.join(root_env, "campaign_plan.json"),
-                                           encoding="utf-8").read())
-                repo = os.path.join(HERE, "..", "..")
-                blob_ok = True
-                if isinstance(plan_doc.get("core_blobs"), dict) and producer:
-                    for f2, b2 in plan_doc["core_blobs"].items():
-                        parts = subprocess.run(["git", "ls-tree", producer, f2],
-                                               capture_output=True, text=True,
-                                               cwd=repo).stdout.split()
-                        if len(parts) < 3 or parts[2] != b2:
-                            blob_ok = False
-                else:
-                    blob_ok = False
-                ok5g = bool(caps) and blob_ok and all(
-                    c.get("source_commit") == producer
-                    and RP.validate_renewal_capsule(
-                        c, expected_source_commit=producer) is True
-                    for c in caps)
-                check("RN-5g replacement-root THREE-WAY provenance equality: every emitted "
-                      "capsule.source_commit == reopened input_manifest.producer_commit, "
-                      "the plan's core_blobs match git ls-tree at that SAME commit, and "
-                      "each capsule passes validate_renewal_capsule (codex step-3: one "
-                      "captured HEAD across plan/manifest/capsules)",
-                      ok5g, f"caps={len(caps)} producer={producer[:9] if producer else None} "
-                            f"blob_ok={blob_ok}")
+                ok5g, det5g = validate_replacement_root(root_env, RP)
+                check("RN-5g replacement-root validation (producer schema; three-way "
+                      "provenance equality capsule == manifest == plan-HEAD blob vector)",
+                      ok5g, det5g)
             else:
-                check("RN-5g replacement-root THREE-WAY provenance equality (capsule == manifest "
-                      "== plan-HEAD blob vector; codex step-3)",
-                      False, "PENDING ROOT (set D2_RENEWAL_ROOT to the staged root; "
-                             "verification lanes run this against the sealed/re-minted root)")
+                check("RN-5g replacement-root validation (producer schema; three-way "
+                      "provenance equality capsule == manifest == plan-HEAD blob vector)",
+                      False, "PENDING ROOT (set D2_RENEWAL_ROOT; verification lanes run "
+                             "this against the sealed replacement root)")
         except Exception as e:
-            check("RN-5g replacement-root THREE-WAY provenance equality (capsule == "
-                  "manifest == plan-HEAD blob vector; codex step-3)",
+            check("RN-5g replacement-root validation (producer schema; three-way "
+                  "provenance equality capsule == manifest == plan-HEAD blob vector)",
                   False, f"raised {e}")
     else:
         awaiting("RN-5c capsule validator is table-driven: EVERY required scalar/binding "

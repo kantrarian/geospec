@@ -371,6 +371,27 @@ def _no_record_daily():
 
 
 # ---- the executor ----------------------------------------------------------
+def mint_capsule(plan, *, carrier, threshold, calibration_window, replay_output_sha256,
+                 valid_through, input_manifest_sha256, issued_utc, producer_commit):
+    """The pure capsule-mint seam (codex 53e1a14 B ruling / bar REV 4.1 RN-5f).
+
+    Renewal-contract plans bind the capsule's source attestation to the ONE
+    captured producing commit supplied by the caller; the frozen v2 path keeps
+    the implementation-identity label byte-identically. Pure: no I/O, no clock,
+    no git — every input is supplied so the producer-to-minter edge is the only
+    place a capsule can come from."""
+    _renewal = str(plan.get("contract_id", "")).startswith("codex-d2-campaign-v2-renewal-")
+    return {
+        "schema": "geospec-d2-calibration-v1", "region": carrier, "band_tag": BAND_TAG,
+        "processing_version": PROCESSING_VERSION, "topology_version": TOPOLOGY_VERSION,
+        "threshold": threshold, "calibration_window": calibration_window,
+        "source_commit": producer_commit if _renewal else IMPLEMENTATION_COMMIT,
+        "input_manifest_sha256": input_manifest_sha256,
+        "replay_output_sha256": replay_output_sha256,
+        "issued_utc": issued_utc,
+        "valid_through": valid_through}
+
+
 def acquire(plan, ledger, root, *, providers, receipt, clock=None):
     import seismic_data as SD
     import fault_correlation as FC
@@ -635,15 +656,13 @@ def acquire(plan, ledger, root, *, providers, receipt, clock=None):
             status, reasons = "ADMITTED_CANDIDATE", []
         base_row.update({"status": status, "reason_codes": reasons})
         if status == "ADMITTED_CANDIDATE":
-            capsule = {
-                "schema": "geospec-d2-calibration-v1", "region": carrier, "band_tag": BAND_TAG,
-                "processing_version": PROCESSING_VERSION, "topology_version": TOPOLOGY_VERSION,
+            # Mint INPUTS only — the capsule itself is minted through the pure
+            # mint_capsule seam in the finalize loop, where the ONE captured
+            # producer_commit / input_manifest sha / issued_utc exist (B ruling).
+            base_row["_mint_inputs"] = {
                 "threshold": act_thr, "calibration_window": activation_window,
-                "source_commit": IMPLEMENTATION_COMMIT,
-                "input_manifest_sha256": input_manifest_sha_holder,      # filled at mint
                 "replay_output_sha256": _sha256_bytes(_canon(replay_metrics)),
-                "valid_through": valid_through_date.isoformat()}         # issued_utc set at mint
-            base_row["_capsule"] = capsule
+                "valid_through": valid_through_date.isoformat()}
             base_row["_capsule_carrier"] = carrier
         admissions.append(base_row)
 
@@ -659,9 +678,9 @@ def acquire(plan, ledger, root, *, providers, receipt, clock=None):
 
     # finalize capsules (now that input_manifest sha exists) + registry --------
     for row in admissions:
-        capsule = row.pop("_capsule", None)
+        mint_inputs = row.pop("_mint_inputs", None)
         carrier = row.pop("_capsule_carrier", None)
-        if capsule is None:
+        if mint_inputs is None:
             continue
         issued_utc = tick()                              # H1: fresh clock read at capsule mint
         if issued_utc >= expiry_utc:                     # H1: mint on/after expiry -> no capsule
@@ -670,8 +689,13 @@ def acquire(plan, ledger, root, *, providers, receipt, clock=None):
             row["capsule_path"] = None
             row["capsule_sha256"] = None
             continue
-        capsule["issued_utc"] = _iso(issued_utc)
-        capsule["input_manifest_sha256"] = input_manifest_sha_holder_value
+        capsule = mint_capsule(                          # B ruling: the ONE captured HEAD
+            plan, carrier=carrier, threshold=mint_inputs["threshold"],
+            calibration_window=mint_inputs["calibration_window"],
+            replay_output_sha256=mint_inputs["replay_output_sha256"],
+            valid_through=mint_inputs["valid_through"],
+            input_manifest_sha256=input_manifest_sha_holder_value,
+            issued_utc=_iso(issued_utc), producer_commit=producer_commit)
         rel = f"capsules/{carrier}_calibration.json"
         os.makedirs(os.path.join(root, "capsules"), exist_ok=True)   # lazy: only when writing one
         _write_json(os.path.join(root, rel), capsule)

@@ -1,40 +1,50 @@
 """RED-first KATs -- D2 sealed-replay EXACT SCIENTIFIC EQUIVALENCE bar (cayley).
 
-Codex ruling `f2f24b6` (2026-08-17, both remint findings sustained): a replacement
-root produced by a sealed zero-provider-I/O replay is acceptable ONLY as a
-provenance-preserving correction -- it must be SCIENTIFICALLY BYTE-EQUIVALENT to the
-held acquisition root it supersedes. Grassmann's finding 2 (`2b27621`) is the
-counterexample this bar exists to refuse: 596/720 daily rows differed, the socal
-admitted set shifted 96->91, and every threshold moved, because the failed launcher's
-SealedProvider skipped the live pipeline's merge+trim. Admission-set or threshold
-equality alone is INSUFFICIENT (drift can cancel at those projections); the bar
-compares the full typed daily-row carrier before any downstream scalarization.
+REV 2 (codex `76d93f7` WORKS-WITH-FIX -- three classification defects repaired -- plus
+grassmann `b947a1e` classification surprise):
+  C1 CRITICAL receipt projection: receipts are now VALIDATED AND CROSS-BOUND FIRST
+     (real `d2_step4b_producer.verify_launch_authorization`, the production seam), and
+     only their cross-root VALUE is omitted from equality. Both roots independently:
+     batch receipt + every process-row receipt + every WAL PROCESS_STARTED receipt must
+     verify; each process row must bind to its WAL PROCESS_STARTED receipt; the batch
+     receipt must equal a COMPLETED process row's receipt. Missing / RELAYED / bad-UTC /
+     bad-hash / unbound each REFUSES (always-running locks).
+  C2 HIGH generic identity predicate ERASED scientific identity (source_id,
+     station_id dropped for ending in _id): replaced with PER-FILE EXACT ALLOWLISTS
+     pinned to the production schemas (_input_object, _summary, process rows).
+     source_id / station_id counterexamples locked as REFUSE.
+  C3 HIGH asymmetric classification: batch_manifest.json + resume_state.json +
+     resume_state.head.json REQUIRED IN BOTH ROOTS; batch_manifest compared TYPED
+     (named replacement-identity/issuance/attestation/induced fields dropped; all
+     scientific policy/targets/versions/non-claims fields EXACT; artifacts sub-map for
+     byte-equal-class files EXACT); producer_commit allowlisted in the process-ledger
+     and batch attestation surface. Missing-manifest REFUSE + attestation-only PASS
+     locked.
+  G1 (grassmann): publication_records/** classified BYTE-EQUAL-REQUIRED (sealed
+     upstream inputs staged verbatim; any difference is a real violation).
+  P1 (surfaced for codex ratification): campaign_plan.json moved BYTE_EQUAL -> TYPED
+     with allowlist {core_blobs, created_utc, registered_utc} ONLY -- the authorized
+     replay rebuilds the plan at the repaired HEAD (supersession by design, grassmann
+     c879f29), so core-blob attestations and plan issuance may differ while carriers/
+     days/windows/registry/providers/contract stay EXACT. A scheduled_days change is
+     locked as REFUSE.
+  P2 (surfaced for codex ratification): campaign_process_ledger.jsonl is REPLACEMENT
+     IDENTITY (row-count-free) -- the held root carries its crash/resume process
+     history, the replacement carries its own -- but EVERY row's receipt must verify
+     and WAL-bind (C1). Science lives in daily rows / objects / attempts, all pinned.
 
-REQUIRED EQUAL (codex f2f24b6 items 1-4):
-  1. canonical digest equality for EVERY daily scientific row, in the same
-     carrier/arm/day index order (full typed row -- matrices, eigenvalues, supports,
-     ratios, qc, derivations -- no projection; the row schema carries no identity);
-  2. exact admitted/refused sets and reason codes (explicit set-level check on top of
-     the row digests, for diagnostics);
-  3. exact matrix / eigenvalue / replay-output / ratio / sample-count / threshold
-     values (rows + admission_results + replay_metrics + prior_evidence);
-  4. exact provider-object identities (sha256+size set equality; per-object typed
-     equality after dropping ONLY process-linkage/issuance keys) and byte-equal held
-     raw objects.
-ONLY THE EXPLICIT ALLOWLIST MAY DIFFER (item 5): repaired source/core-blob
-attestations (capsule source_commit, manifest producer/implementation commits),
-digests INDUCED by those attestations (input_manifest_sha256, capsule_sha256,
-registry expected_sha256), live issuance time (issued_utc), replacement/supersession
-identity (WAL, process/attempt ids and timestamps, batch manifest/root digest).
-ANY file outside the classification -- including a file present in only one root --
-REFUSES: unknown surface is not silently tolerated.
+Codex ruling `f2f24b6` (both remint findings sustained): a replacement root is
+acceptable ONLY as a provenance-preserving correction -- SCIENTIFICALLY
+BYTE-EQUIVALENT to the held acquisition root. Finding 2 (596/720 daily rows drifted,
+socal 96->91, thresholds moved) is the counterexample this bar refuses. Admission-set
+or threshold equality alone is INSUFFICIENT; the full typed daily-row carrier is
+compared before any scalarization.
 
-Verification sequence this bar pins (codex f2f24b6 authority section):
-  RED (production): run on (held d2_renewal_campaign_20260816, no-standing remint) --
-      MUST FAIL, reproducing finding 2 (~596/720 differing rows).
-  GREEN (acceptance): run on (held, corrected-SealedProvider replacement) -- MUST
-      PASS before any lane closes. Set D2_HELD_ROOT + D2_REPLACEMENT_ROOT.
-No provider I/O in this bar. No lift, no claim, no replay authorization.
+Verification sequence (f2f24b6 authority section):
+  RED (production): (held d2_renewal_campaign_20260816, no-standing remint) MUST FAIL
+      on the drift signature (~596/720). GREEN: (held, corrected replacement) MUST
+      PASS. Set D2_HELD_ROOT + D2_REPLACEMENT_ROOT.
+No provider I/O. No lift, no claim, no replay authorization.
 """
 
 import hashlib
@@ -44,6 +54,7 @@ import sys
 import tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, HERE)
 FAILS = []
 
 
@@ -63,42 +74,46 @@ def canon(obj):
     return json.dumps(obj, sort_keys=True, separators=(",", ":")).encode("utf-8")
 
 
-# ---- classification -----------------------------------------------------------------
+# ---- classification (REV 2) ---------------------------------------------------------
 BYTE_EQUAL = {
-    "campaign_plan.json", "published_phase_ledger.json", "replay_metrics.json",
+    "published_phase_ledger.json", "replay_metrics.json",
     "prior_evidence.json", "d2_diagnostic_result.json",
 }
+BYTE_EQUAL_DIRS = {"raw_objects", "publication_records"}      # G1
 TYPED = {
     "admission_results.json", "input_manifest.json", "registry_candidate.json",
+    "campaign_plan.json", "batch_manifest.json",              # P1 + C3
 }
-IDENTITY_TOLERANT = {
-    "acquisition_attempts.jsonl", "operation_ledger.jsonl",
-    "campaign_process_ledger.jsonl",
+IDENTITY_TOLERANT = {"acquisition_attempts.jsonl", "operation_ledger.jsonl"}
+REPLACEMENT_IDENTITY = {                                      # P2 + WAL (receipt-bound)
+    "resume_state.json", "resume_state.head.json", "campaign_process_ledger.jsonl",
 }
-REPLACEMENT_IDENTITY = {           # wholesale-allowlisted (may differ / be one-sided)
+REQUIRED_BOTH = {                                             # C3: presence mandatory
     "batch_manifest.json", "resume_state.json", "resume_state.head.json",
+    "campaign_process_ledger.jsonl",
 }
 DAILY = "calibration_daily.jsonl"
 
-# per-file typed allowlists (attestations + induced digests + issuance ONLY)
+# per-file EXACT allowlists (C2) -- pinned to production schemas
 CAPSULE_ALLOW = {"source_commit", "input_manifest_sha256", "issued_utc"}
 ADMISSION_ALLOW_TOP = {"implementation_commit"}
 ADMISSION_ALLOW_ROW = {"capsule_sha256"}
 MANIFEST_ALLOW_TOP = {"producer_commit", "implementation_commit"}
+OBJ_ALLOW = {"reuse_disposition", "acquired_process_id", "verified_process_id"}
+ATT_ALLOW = {"attempt_id", "terminal_attempt_id", "attempted_utc",
+             "indeterminate_attempt_count", "process_id"}
+OPS_ALLOW = {"operation_id", "process_id", "operation_utc", "created_utc",
+             "recorded_utc"}
 REGISTRY_ALLOW = {"expected_sha256"}
-# generic identity-key predicate for object rows / ledger rows
-def _is_identity_key(k):
-    return (k.endswith("_utc") or k.endswith("_id") or k.startswith("attempt")
-            or k.startswith("process") or "process" in k or k.startswith("reuse")
-            or k == "owner_launch_authorization")
+PLAN_ALLOW = {"core_blobs", "created_utc", "registered_utc"}                 # P1
+BM_ALLOW = {"run_id", "campaign_id", "producer_commit", "implementation_commit",
+            "clean_tree", "campaign_started_utc", "created_utc",
+            "campaign_plan_sha256", "owner_launch_authorization", "process_count",
+            "state_head_generation", "artifacts"}                            # C3
 
 
-def _drop_identity(obj):
-    if isinstance(obj, dict):
-        return {k: _drop_identity(v) for k, v in obj.items() if not _is_identity_key(k)}
-    if isinstance(obj, list):
-        return [_drop_identity(v) for v in obj]
-    return obj
+def _project(row, allow):
+    return {k: v for k, v in row.items() if k not in allow}
 
 
 def _read_json(root, rel):
@@ -125,36 +140,80 @@ def _walk_rel(root):
     return out
 
 
+def _classify(rel):
+    base = rel.split("/", 1)[0]
+    if rel in BYTE_EQUAL or rel == DAILY:
+        return "byte"
+    if base in BYTE_EQUAL_DIRS and "/" in rel:
+        return "byte"
+    if rel in TYPED:
+        return "typed"
+    if rel in IDENTITY_TOLERANT:
+        return "tolerant"
+    if rel in REPLACEMENT_IDENTITY:
+        return "replacement"
+    if base == "capsules" and "/" in rel:
+        return "typed"
+    return "UNKNOWN"
+
+
+def _validate_receipts(root, label):
+    """C1: validate + cross-bind receipts for ONE root. Returns error string or None."""
+    from d2_step4b_producer import verify_launch_authorization as verify
+    bm = _read_json(root, "batch_manifest.json")
+    auth = bm.get("owner_launch_authorization")
+    if not verify(auth):
+        return f"{label}: batch_manifest receipt fails verify_launch_authorization"
+    proc_rows = _read_jsonl(root, "campaign_process_ledger.jsonl")
+    if not proc_rows:
+        return f"{label}: empty campaign_process_ledger"
+    events = _read_json(root, "resume_state.json").get("events")
+    if not isinstance(events, list):
+        return f"{label}: resume_state.json missing events list"
+    wal_receipts = {e.get("process_id"): e.get("owner_launch_authorization")
+                    for e in events if isinstance(e, dict)
+                    and e.get("kind") == "PROCESS_STARTED"}
+    completed_receipts = []
+    for r in proc_rows:
+        rc = r.get("owner_launch_authorization")
+        pid = r.get("process_id")
+        if not verify(rc):
+            return f"{label}: process {pid} receipt fails verify_launch_authorization"
+        if pid not in wal_receipts:
+            return f"{label}: process {pid} has no WAL PROCESS_STARTED event"
+        if wal_receipts[pid] != rc:
+            return f"{label}: process {pid} receipt != its WAL PROCESS_STARTED receipt"
+        if r.get("disposition") == "COMPLETED":
+            completed_receipts.append(rc)
+    if auth not in completed_receipts:
+        return f"{label}: batch receipt is not any COMPLETED process row's receipt"
+    return None
+
+
 def validate_replay_equivalence(held, repl):
-    """Returns (ok, detail, report). REFUSES on the first violated class; report
-    always carries the daily-row tally when rows were reached."""
+    """Returns (ok, detail, report)."""
     report = {}
     held_files, repl_files = _walk_rel(held), _walk_rel(repl)
 
-    def classify(rel):
-        base = rel.split("/", 1)[0]
-        if rel in BYTE_EQUAL or rel in TYPED or rel in IDENTITY_TOLERANT \
-                or rel in REPLACEMENT_IDENTITY or rel == DAILY:
-            return "known"
-        if base == "raw_objects":
-            return "raw"
-        if base == "capsules":
-            return "capsule"
-        return "UNKNOWN"
-
     for rel in sorted(held_files | repl_files):
-        cls = classify(rel)
+        cls = _classify(rel)
         if cls == "UNKNOWN":
             return False, f"unclassified file (out of allowlist): {rel}", report
-        if rel not in held_files and cls not in ("known",) or \
-           rel not in repl_files and cls not in ("known",):
-            if cls in ("raw", "capsule"):
-                return False, f"one-sided {cls} file: {rel}", report
-        if (rel in held_files) != (rel in repl_files) and rel not in REPLACEMENT_IDENTITY:
+        one_sided = (rel in held_files) != (rel in repl_files)
+        if one_sided and (rel in REQUIRED_BOTH or cls != "replacement"):
             return False, f"file present in only one root: {rel}", report
+    for rel in REQUIRED_BOTH:                                   # C3 presence
+        if rel not in held_files or rel not in repl_files:
+            return False, f"required file missing: {rel}", report
 
-    # 0) byte-equal class
-    for rel in sorted(BYTE_EQUAL):
+    # C1: receipts validated + cross-bound in BOTH roots before any projection
+    for root, label in ((held, "held"), (repl, "replacement")):
+        err = _validate_receipts(root, label)
+        if err:
+            return False, err, report
+
+    # byte-equal class (incl. publication_records/**, raw_objects/**)
+    for rel in sorted(f for f in held_files if _classify(f) == "byte" and f != DAILY):
         with open(os.path.join(held, rel), "rb") as fh:
             hb = fh.read()
         with open(os.path.join(repl, rel), "rb") as fh:
@@ -162,7 +221,7 @@ def validate_replay_equivalence(held, repl):
         if hb != rb:
             return False, f"byte-equal class differs: {rel}", report
 
-    # 1) daily rows: identical ordered index + full-row canonical digest equality
+    # daily rows: identical ordered index + full-row canonical digest equality
     hrows = _read_jsonl(held, DAILY)
     rrows = _read_jsonl(repl, DAILY)
     report["daily_total"] = len(hrows)
@@ -181,7 +240,7 @@ def validate_replay_equivalence(held, repl):
         return False, (f"daily rows differ: {len(diffs)}/{len(hrows)} "
                        f"(first {hidx[diffs[0]]})"), report
 
-    # 2) explicit admitted/refused sets + reason codes (diagnostic redundancy)
+    # explicit admitted/refused sets + reason codes (diagnostic redundancy)
     def _sets(rows):
         adm = {(r["carrier_key"], r["arm"], r["day"]) for r in rows
                if r.get("status") == "ADMITTED"}
@@ -191,7 +250,15 @@ def validate_replay_equivalence(held, repl):
     if _sets(hrows) != _sets(rrows):
         return False, "admitted/refused sets or reason codes differ", report
 
-    # 3) admission_results typed compare
+    # campaign_plan typed (P1)
+    hp = _read_json(held, "campaign_plan.json")
+    rp = _read_json(repl, "campaign_plan.json")
+    if _project(hp, PLAN_ALLOW) != _project(rp, PLAN_ALLOW):
+        keys = sorted(k for k in set(hp) | set(rp)
+                      if k not in PLAN_ALLOW and hp.get(k) != rp.get(k))
+        return False, f"campaign_plan differs beyond allowlist: {keys}", report
+
+    # admission_results typed
     ha = _read_json(held, "admission_results.json")
     ra = _read_json(repl, "admission_results.json")
     ha2 = {k: v for k, v in ha.items() if k not in ADMISSION_ALLOW_TOP and k != "regions"}
@@ -202,24 +269,21 @@ def validate_replay_equivalence(held, repl):
     if not isinstance(hr, list) or not isinstance(rr, list) or len(hr) != len(rr):
         return False, "admission_results.regions shape/count differs", report
     for i, (a, b) in enumerate(zip(hr, rr)):
-        a2 = {k: v for k, v in a.items() if k not in ADMISSION_ALLOW_ROW}
-        b2 = {k: v for k, v in b.items() if k not in ADMISSION_ALLOW_ROW}
-        if a2 != b2:
-            keys = sorted(k for k in set(a2) | set(b2) if a2.get(k) != b2.get(k))
+        if _project(a, ADMISSION_ALLOW_ROW) != _project(b, ADMISSION_ALLOW_ROW):
+            keys = sorted(k for k in set(a) | set(b) if k not in ADMISSION_ALLOW_ROW
+                          and a.get(k) != b.get(k))
             return False, f"admission region[{i}] differs beyond allowlist: {keys}", report
 
-    # 4) capsules typed compare (thresholds/windows/replay sha EXACT)
-    hcaps = sorted(f for f in held_files if f.startswith("capsules/"))
-    for rel in hcaps:
+    # capsules typed (thresholds/windows/replay sha EXACT)
+    for rel in sorted(f for f in held_files if f.startswith("capsules/")):
         a = _read_json(held, rel)
         b = _read_json(repl, rel)
-        a2 = {k: v for k, v in a.items() if k not in CAPSULE_ALLOW}
-        b2 = {k: v for k, v in b.items() if k not in CAPSULE_ALLOW}
-        if a2 != b2:
-            keys = sorted(k for k in set(a2) | set(b2) if a2.get(k) != b2.get(k))
+        if _project(a, CAPSULE_ALLOW) != _project(b, CAPSULE_ALLOW):
+            keys = sorted(k for k in set(a) | set(b) if k not in CAPSULE_ALLOW
+                          and a.get(k) != b.get(k))
             return False, f"capsule {rel} differs beyond allowlist: {keys}", report
 
-    # 5) input_manifest: object identity exact (sha+size set + projected typed rows)
+    # input_manifest: sha+size set + per-object EXACT allowlist projection (C2)
     hm = _read_json(held, "input_manifest.json")
     rm = _read_json(repl, "input_manifest.json")
     hm2 = {k: v for k, v in hm.items() if k not in MANIFEST_ALLOW_TOP and k != "objects"}
@@ -227,61 +291,76 @@ def validate_replay_equivalence(held, repl):
     if hm2 != rm2:
         return False, "input_manifest top-level differs beyond allowlist", report
     ho, ro = hm.get("objects") or [], rm.get("objects") or []
-    hset = {(o.get("sha256"), o.get("size_bytes")) for o in ho}
-    rset = {(o.get("sha256"), o.get("size_bytes")) for o in ro}
+    hset = {(o.get("sha256"), o.get("size")) for o in ho}
+    rset = {(o.get("sha256"), o.get("size")) for o in ro}
     report["objects_held"] = len(hset)
     if hset != rset:
         return False, (f"provider-object sha/size sets differ "
                        f"(held {len(hset)} repl {len(rset)})"), report
-    hproj = sorted((canon(_drop_identity(o)) for o in ho))
-    rproj = sorted((canon(_drop_identity(o)) for o in ro))
+    hproj = sorted(canon(_project(o, OBJ_ALLOW)) for o in ho)
+    rproj = sorted(canon(_project(o, OBJ_ALLOW)) for o in ro)
     if hproj != rproj:
-        return False, "provider-object typed rows differ beyond identity keys", report
+        first = next(i for i, (x, y) in enumerate(zip(hproj, rproj)) if x != y)
+        return False, f"provider-object typed rows differ (sorted idx {first})", report
 
-    # 6) raw objects byte-equal by relative path
-    hraw = {f for f in held_files if f.startswith("raw_objects/")}
-    for rel in sorted(hraw):
-        with open(os.path.join(held, rel), "rb") as fh:
-            hb = fh.read()
-        with open(os.path.join(repl, rel), "rb") as fh:
-            rb = fh.read()
-        if hb != rb:
-            return False, f"raw object bytes differ: {rel}", report
-
-    # 7) registry candidate (expected_sha256 induced -> allowlisted)
+    # registry candidate
     hg = _read_json(held, "registry_candidate.json")
     rg = _read_json(repl, "registry_candidate.json")
     if set(hg) != set(rg):
         return False, "registry carriers differ", report
     for carrier in hg:
-        a2 = {k: v for k, v in hg[carrier].items() if k not in REGISTRY_ALLOW}
-        b2 = {k: v for k, v in rg[carrier].items() if k not in REGISTRY_ALLOW}
-        if a2 != b2:
+        if _project(hg[carrier], REGISTRY_ALLOW) != _project(rg[carrier], REGISTRY_ALLOW):
             return False, f"registry[{carrier}] differs beyond allowlist", report
 
-    # 8) identity-tolerant ledgers: count + ordered label projection exact
-    for rel in sorted(IDENTITY_TOLERANT):
+    # identity-tolerant ledgers: count + ordered EXACT-allowlist projection (C2)
+    for rel, allow in (("acquisition_attempts.jsonl", ATT_ALLOW),
+                       ("operation_ledger.jsonl", OPS_ALLOW)):
         a = _read_jsonl(held, rel)
         b = _read_jsonl(repl, rel)
         if len(a) != len(b):
             return False, f"{rel} row count {len(a)} != {len(b)}", report
-        pa = [canon(_drop_identity(r)) for r in a]
-        pb = [canon(_drop_identity(r)) for r in b]
+        pa = [canon(_project(r, allow)) for r in a]
+        pb = [canon(_project(r, allow)) for r in b]
         if pa != pb:
             first = next(i for i, (x, y) in enumerate(zip(pa, pb)) if x != y)
             return False, f"{rel} label projection differs at row {first}", report
+
+    # batch_manifest typed (C3): scientific surface EXACT, artifacts sub-map for
+    # byte-equal-class files EXACT, named identity/attestation/induced fields dropped
+    hb = _read_json(held, "batch_manifest.json")
+    rb = _read_json(repl, "batch_manifest.json")
+    if _project(hb, BM_ALLOW) != _project(rb, BM_ALLOW):
+        keys = sorted(k for k in set(hb) | set(rb) if k not in BM_ALLOW
+                      and hb.get(k) != rb.get(k))
+        return False, f"batch_manifest differs beyond allowlist: {keys}", report
+    hart = {k: v for k, v in (hb.get("artifacts") or {}).items()
+            if _classify(k) == "byte"}
+    rart = {k: v for k, v in (rb.get("artifacts") or {}).items()
+            if _classify(k) == "byte"}
+    if hart != rart:
+        keys = sorted(k for k in set(hart) | set(rart) if hart.get(k) != rart.get(k))
+        return False, f"batch_manifest artifacts differ on byte-equal files: {keys[:3]}", report
 
     return True, (f"EQUIVALENT: {report['daily_total']} daily rows digest-equal, "
                   f"{report.get('objects_held')} objects identity-equal"), report
 
 
 # ---- synthetic lock fixtures --------------------------------------------------------
-def _mk_root(td):
+def _receipt(ts, quote_seed):
+    return {"status": "VERIFIED_DIRECT", "in_session_timestamp_utc": ts,
+            "owner_quote_sha256": sha(quote_seed.encode())}
+
+
+def _mk_root(td, *, pid, receipt, commit, blobs_tag):
     os.makedirs(os.path.join(td, "capsules"), exist_ok=True)
     os.makedirs(os.path.join(td, "raw_objects"), exist_ok=True)
-    plan = {"contract_id": "codex-d2-campaign-v2-renewal-2026-08-16-v1", "carriers": ["c1"]}
-    ledger = {"rows": [{"carrier_key": "c1", "scored_day": "2026-03-02"}]}
+    os.makedirs(os.path.join(td, "publication_records"), exist_ok=True)
     days = ["2026-03-02", "2026-03-03", "2026-03-04"]
+    plan = {"contract_id": "codex-d2-campaign-v2-renewal-2026-08-16-v1",
+            "carriers": ["c1"], "scheduled_days": days,
+            "activation_reference_day": "2026-08-16",
+            "core_blobs": {"monitoring/src/x.py": blobs_tag * 40},
+            "created_utc": f"t-{pid}", "registered_utc": f"t-{pid}"}
     rows = []
     for arm in ("incident", "activation"):
         for d in days:
@@ -295,16 +374,22 @@ def _mk_root(td):
                          "ordered_eigenvalues": [1.4, 0.6] if admitted else None,
                          "input_object_sha256s": ["aa" * 32] if admitted else []})
     raw = b"held-raw-object-bytes-v1"
-    obj = {"sha256": sha(raw), "size_bytes": len(raw), "carrier_key": "c1",
-           "scored_day": "2026-03-02", "segment_name": "seg_a", "nslc": "KO.S00..BHZ",
-           "record_sha256": "c" * 64, "acquired_by_process": "p-held",
-           "verified_by_process": "p-held", "reuse": "FRESH", "acquired_utc": "t1"}
+    obj = {"sha256": sha(raw), "size": len(raw), "relative_path": f"raw_objects/{sha(raw)}.ms",
+           "kind": "archive-seismic-miniseed-fragments-v1", "carrier_key": "c1",
+           "scored_day": "2026-03-02", "segment_name": "seg_a", "source_id": "KO.S00..BHZ",
+           "start_utc": "2026-03-01T07:00:13.094647Z", "end_utc": "2026-03-02T07:00:13.094647Z",
+           "native_rate_hz": 25.0, "npts": 1170000, "fragment_count": 1,
+           "support_sha256": "b" * 64, "publication_record_sha256": "c" * 64,
+           "reuse_disposition": "FRESH" if pid == "p-held" else "REUSED_VERIFIED",
+           "acquired_process_id": pid, "verified_process_id": pid}
     files = {
         "campaign_plan.json": canon(plan),
-        "published_phase_ledger.json": canon(ledger),
+        "published_phase_ledger.json": canon(
+            {"rows": [{"carrier_key": "c1", "scored_day": "2026-03-02"}]}),
         "replay_metrics.json": canon({"replay": "metrics", "sha": "d" * 64}),
         "prior_evidence.json": canon({"prior": True}),
         "d2_diagnostic_result.json": canon({"diag": 1}),
+        "publication_records/2026-03-02.json": canon({"pub": "2026-03-02", "sha": "c" * 64}),
         "admission_results.json": canon(
             {"schema": "adm-v1", "implementation_commit": "292b1069" + "0" * 32,
              "regions": [{"runner_key": "c1", "carrier_key": "c1",
@@ -312,38 +397,46 @@ def _mk_root(td):
                           "activation_threshold": 0.31, "incident_n": 2,
                           "activation_n": 2, "reason_codes": [],
                           "capsule_path": "capsules/c1_calibration.json",
-                          "capsule_sha256": "e" * 64}]}),
+                          "capsule_sha256": sha(commit.encode())}]}),
         "capsules/c1_calibration.json": canon(
             {"schema": "geospec-d2-calibration-v1", "region": "c1", "threshold": 0.31,
              "calibration_window": {"start": "2026-03-02", "end": "2026-07-17"},
              "replay_output_sha256": "d" * 64, "valid_through": "2026-08-23",
-             "source_commit": "held-commit", "input_manifest_sha256": "f" * 64,
-             "issued_utc": "2026-08-16T02:00:00.000000Z"}),
+             "source_commit": commit, "input_manifest_sha256": sha(pid.encode()),
+             "issued_utc": f"t-{pid}"}),
         "input_manifest.json": canon(
-            {"schema": "im-v2-resume", "producer_commit": "held-commit",
-             "implementation_commit": "292b1069" + "0" * 32, "objects": [obj]}),
+            {"schema": "im-v2-resume", "producer_commit": commit,
+             "implementation_commit": commit, "objects": [obj]}),
         "registry_candidate.json": canon(
             {"c1": {"capsule_path": "capsules/c1_calibration.json",
-                    "expected_sha256": "e" * 64, "topology_version": "t1"}}),
+                    "expected_sha256": sha(commit.encode()), "topology_version": "t1"}}),
         "acquisition_attempts.jsonl": b"\n".join(canon(r) for r in [
-            {"carrier_key": "c1", "scored_day": "2026-03-02", "segment_name": "seg_a",
-             "station_id": "KO.S00", "provider": "KOERI", "status": "FETCHED",
-             "selected_nslc": "KO.S00..BHZ", "attempt_id": "a-held",
-             "process_id": "p-held", "attempted_utc": "t1"},
-            {"carrier_key": "c1", "scored_day": "2026-03-03", "segment_name": "seg_a",
-             "station_id": "KO.S00", "provider": "KOERI", "status": "FETCHED",
-             "selected_nslc": "KO.S00..BHZ", "attempt_id": "b-held",
-             "process_id": "p-held", "attempted_utc": "t2"}]),
+            {"carrier_key": "c1", "scored_day": d, "segment_name": "seg_a",
+             "station_id": "KO.S00", "provider": "KOERI",
+             "request_start_utc": "2026-03-01T07:00:13.094647Z",
+             "request_end_utc": f"{d}T07:00:13.094647Z",
+             "selected_nslc": "KO.S00..BHZ", "status": "FETCHED",
+             "input_object_sha256s": [sha(raw)], "reason_codes": [],
+             "attempted_utc": f"t-{pid}", "attempt_id": f"a-{pid}-{d}",
+             "terminal_attempt_id": f"a-{pid}-{d}", "indeterminate_attempt_count": 0,
+             "process_id": pid} for d in days[:2]]),
         "operation_ledger.jsonl": canon(
             {"arm": "incident", "carrier_key": "c1", "day": "2026-03-02",
-             "op": "SCORE", "operation_id": "o-held"}),
+             "op": "SCORE", "operation_id": f"o-{pid}"}),
         "campaign_process_ledger.jsonl": canon(
-            {"process_id": "p-held", "ordinal": 1, "disposition": "COMPLETED",
-             "producer_commit": "held-commit", "owner_launch_authorization": "recpt",
-             "process_started_utc": "t0", "process_ended_utc": "t9"}),
-        "resume_state.json": canon({"events": ["held-wal"]}),
-        "resume_state.head.json": canon({"generation": 1}),
-        "batch_manifest.json": canon({"run_id": "held-run", "root_sha": "1" * 64}),
+            {"process_id": pid, "ordinal": 1, "resume_of": None,
+             "producer_commit": commit, "campaign_id": sha(canon(plan)),
+             "owner_launch_authorization": receipt, "disposition": "COMPLETED",
+             "failure_type": None, "process_started_utc": f"t0-{pid}",
+             "process_ended_utc": f"t9-{pid}", "observed_dead_utc": None,
+             "first_event_sha256": "1" * 64, "last_event_sha256": "2" * 64}),
+        "resume_state.json": canon(
+            {"events": [{"kind": "PROCESS_STARTED", "process_id": pid,
+                         "owner_launch_authorization": receipt,
+                         "campaign_id": sha(canon(plan))},
+                        {"kind": "PROCESS_ENDED", "process_id": pid}]}),
+        "resume_state.head.json": canon(
+            {"generation": 1, "event_count": 2, "last_event_sha256": "2" * 64}),
         f"raw_objects/{sha(raw)}.ms": raw,
         "calibration_daily.jsonl": b"\n".join(canon(r) for r in rows),
     }
@@ -352,52 +445,42 @@ def _mk_root(td):
         os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(path, "wb") as fh:
             fh.write(body)
-    return files
+    # batch_manifest LAST: real artifacts walk of what was just written
+    artifacts = {}
+    for rel in _walk_rel(td):
+        p = os.path.join(td, rel)
+        with open(p, "rb") as fh:
+            body = fh.read()
+        artifacts[rel] = {"sha256": sha(body), "size": len(body)}
+    bm = {"schema": "geospec-d2-step4b-batch-v1",
+          "contract_id": "codex-d2-campaign-v2-renewal-2026-08-16-v1",
+          "run_id": sha(canon(plan)), "campaign_id": sha(canon(plan)),
+          "producer_commit": commit, "implementation_commit": commit,
+          "clean_tree": True, "band_tag": "bp_1_10_env1hz",
+          "processing_version": "pv", "topology_version": "t1",
+          "activation_reference_day": "2026-08-16", "incident_reference_day": "2026-07-29",
+          "calibration_policy": {"min_admitted_days": 60}, "targets": [{"runner_key": "c1"}],
+          "environment": {"python": "3.14.0"}, "implementation_blobs": ["monitoring/src/x.py"],
+          "artifacts": artifacts, "campaign_started_utc": f"t0-{pid}",
+          "created_utc": f"t9-{pid}", "campaign_plan_sha256": sha(canon(plan)),
+          "owner_launch_authorization": receipt, "resumable": True,
+          "process_count": 1, "state_head_generation": 1,
+          "production_registry_modified": False, "production_freezes_modified": False,
+          "non_claims": ["registry status only"]}
+    with open(os.path.join(td, "batch_manifest.json"), "wb") as fh:
+        fh.write(canon(bm))
 
 
 def _mk_pair(mutate=None):
-    """held + replacement with ALLOWLIST-ONLY differences; mutate(repl_dir) optional."""
+    """held + replacement differing ONLY on the allowlist surface: fresh valid receipt,
+    new process identity, repaired producer commit -> new core_blobs/attestations/
+    induced digests. Nominal MUST pass; mutate(repl_dir) applies a violation."""
     th = tempfile.mkdtemp()
     tr = tempfile.mkdtemp()
-    _mk_root(th)
-    _mk_root(tr)
-
-    def rewrite(rel, fn):
-        p = os.path.join(tr, rel)
-        doc = json.loads(open(p, "rb").read().decode("utf-8"))
-        fn(doc)
-        with open(p, "wb") as fh:
-            fh.write(canon(doc))
-
-    # allowlisted replacement-identity differences (nominal MUST still pass)
-    rewrite("capsules/c1_calibration.json", lambda d: d.update(
-        source_commit="repl-commit", input_manifest_sha256="9" * 64,
-        issued_utc="2026-08-17T18:00:00.000000Z"))
-    rewrite("input_manifest.json", lambda d: (
-        d.update(producer_commit="repl-commit", implementation_commit="repl-impl"),
-        d["objects"][0].update(acquired_by_process="p-repl",
-                               verified_by_process="p-repl", reuse="REUSED_VERIFIED",
-                               acquired_utc="t7")))
-    rewrite("admission_results.json", lambda d: (
-        d.update(implementation_commit="repl-impl"),
-        d["regions"][0].update(capsule_sha256="9" * 64)))
-    rewrite("registry_candidate.json", lambda d: d["c1"].update(expected_sha256="9" * 64))
-    rewrite("batch_manifest.json", lambda d: d.update(run_id="repl-run", root_sha="2" * 64))
-    rewrite("resume_state.json", lambda d: d.update(events=["repl-wal", "x"]))
-    rewrite("resume_state.head.json", lambda d: d.update(generation=3))
-    # attempts/process/operation ledgers: flip identity fields only
-    for rel in ("acquisition_attempts.jsonl", "operation_ledger.jsonl",
-                "campaign_process_ledger.jsonl"):
-        p = os.path.join(tr, rel)
-        rows = [json.loads(x) for x in open(p, "rb").read().decode("utf-8").splitlines() if x]
-        for r in rows:
-            for k in list(r):
-                if k.endswith("_id"):
-                    r[k] = r[k].replace("held", "repl") if isinstance(r[k], str) else r[k]
-                if k.endswith("_utc"):
-                    r[k] = "t-repl"
-        with open(p, "wb") as fh:
-            fh.write(b"\n".join(canon(r) for r in rows))
+    _mk_root(th, pid="p-held", receipt=_receipt("2026-08-16T01:00:00+00:00", "held-go"),
+             commit="held-commit", blobs_tag="a")
+    _mk_root(tr, pid="p-repl", receipt=_receipt("2026-08-17T19:00:00+00:00", "fresh-go"),
+             commit="repl-commit", blobs_tag="b")
     if mutate:
         mutate(tr)
     return th, tr
@@ -420,85 +503,112 @@ def _edit_json(root, rel, fn):
 
 
 def main():
-    # RE-1 nominal: allowlist-only pair PASSES (proves the allowlist admits exactly
-    # the attestation/issuance/identity surface and nothing else blocks)
     th, tr = _mk_pair()
     ok_nom, det_nom, rep_nom = validate_replay_equivalence(th, tr)
-    check("RE-1a nominal replacement (allowlist-only differences: attestations, "
-          "induced digests, issuance, WAL/batch/process identity) is EQUIVALENT",
+    check("RE-1a nominal replacement (allowlist-only: FRESH VALID receipt, new process "
+          "identity, repaired producer commit + core_blobs + induced digests, plan "
+          "issuance) is EQUIVALENT -- incl. codex C3 attestation-only PASS lock",
           ok_nom, det_nom)
 
-    # RE-1b..: violation battery -- each class must REFUSE
     def refused(mut):
         h, r = _mk_pair(mutate=mut)
         ok, det, _ = validate_replay_equivalence(h, r)
         return (not ok), det
 
     battery = []
-    v, d = refused(lambda tr: _edit_jsonl(tr, DAILY, lambda rows: rows[0].update(
-        ratio=rows[0]["ratio"] + 1e-9)))
-    battery.append(("ratio nudged 1e-9", v, d))
-    v, d = refused(lambda tr: _edit_jsonl(tr, DAILY, lambda rows: rows.reverse()))
-    battery.append(("row order reversed", v, d))
-    v, d = refused(lambda tr: _edit_jsonl(tr, DAILY, lambda rows: rows.pop()))
-    battery.append(("row dropped", v, d))
-    v, d = refused(lambda tr: _edit_jsonl(tr, DAILY, lambda rows: rows[0].update(
-        status="REJECTED")))
-    battery.append(("status flip", v, d))
-    v, d = refused(lambda tr: _edit_jsonl(tr, DAILY, lambda rows: rows[-1].update(
-        qc_reasons=["OTHER"])))
-    battery.append(("reason-code change", v, d))
-    v, d = refused(lambda tr: _edit_jsonl(tr, DAILY, lambda rows: rows[0].update(
-        ordered_eigenvalues=[1.4000001, 0.5999999])))
-    battery.append(("eigenvalue drift", v, d))
-    v, d = refused(lambda tr: _edit_jsonl(tr, DAILY, lambda rows: rows[0].update(
-        common_support_count=78528)))
-    battery.append(("support-count shift", v, d))
-    v, d = refused(lambda tr: _edit_json(tr, "admission_results.json",
-                                         lambda doc: doc["regions"][0].update(
-                                             activation_threshold=0.315)))
-    battery.append(("threshold moved", v, d))
-    v, d = refused(lambda tr: _edit_json(tr, "capsules/c1_calibration.json",
-                                         lambda doc: doc.update(threshold=0.315)))
-    battery.append(("capsule threshold changed (non-allowlisted)", v, d))
-    v, d = refused(lambda tr: open(os.path.join(tr, "raw_objects",
-                                                os.listdir(os.path.join(tr, "raw_objects"))[0]),
-                                   "wb").write(b"tampered"))
-    battery.append(("raw object bytes differ", v, d))
-    v, d = refused(lambda tr: _edit_json(tr, "campaign_plan.json",
-                                         lambda doc: doc.update(carriers=["c1", "c2"])))
-    battery.append(("plan bytes differ", v, d))
-    v, d = refused(lambda tr: open(os.path.join(tr, "extra_report.json"), "wb")
-                   .write(b"{}"))
-    battery.append(("out-of-allowlist file added", v, d))
-    v, d = refused(lambda tr: _edit_jsonl(tr, "acquisition_attempts.jsonl",
-                                          lambda rows: rows[0].update(status="REFUSED")))
-    battery.append(("attempt label flip", v, d))
-    v, d = refused(lambda tr: _edit_json(tr, "input_manifest.json", lambda doc:
-                                         doc["objects"][0].update(sha256="b" * 64)))
-    battery.append(("provider-object sha changed", v, d))
+    # -- original 14 non-allowlisted violation classes
+    battery.append(("ratio nudged 1e-9", *refused(lambda t: _edit_jsonl(
+        t, DAILY, lambda rows: rows[0].update(ratio=rows[0]["ratio"] + 1e-9)))))
+    battery.append(("row order reversed", *refused(lambda t: _edit_jsonl(
+        t, DAILY, lambda rows: rows.reverse()))))
+    battery.append(("row dropped", *refused(lambda t: _edit_jsonl(
+        t, DAILY, lambda rows: rows.pop()))))
+    battery.append(("status flip", *refused(lambda t: _edit_jsonl(
+        t, DAILY, lambda rows: rows[0].update(status="REJECTED")))))
+    battery.append(("reason-code change", *refused(lambda t: _edit_jsonl(
+        t, DAILY, lambda rows: rows[-1].update(qc_reasons=["OTHER"])))))
+    battery.append(("eigenvalue drift", *refused(lambda t: _edit_jsonl(
+        t, DAILY, lambda rows: rows[0].update(ordered_eigenvalues=[1.4000001, 0.5999999])))))
+    battery.append(("support-count shift", *refused(lambda t: _edit_jsonl(
+        t, DAILY, lambda rows: rows[0].update(common_support_count=78528)))))
+    battery.append(("threshold moved (admission)", *refused(lambda t: _edit_json(
+        t, "admission_results.json",
+        lambda d: d["regions"][0].update(activation_threshold=0.315)))))
+    battery.append(("capsule threshold changed", *refused(lambda t: _edit_json(
+        t, "capsules/c1_calibration.json", lambda d: d.update(threshold=0.315)))))
+    battery.append(("raw object bytes differ", *refused(lambda t: open(
+        os.path.join(t, "raw_objects", os.listdir(os.path.join(t, "raw_objects"))[0]),
+        "wb").write(b"tampered"))))
+    battery.append(("plan scheduled_days differ (non-allowlisted plan field)",
+                    *refused(lambda t: _edit_json(
+                        t, "campaign_plan.json",
+                        lambda d: d.update(scheduled_days=d["scheduled_days"][:2])))))
+    battery.append(("out-of-allowlist file added", *refused(
+        lambda t: open(os.path.join(t, "extra_report.json"), "wb").write(b"{}"))))
+    battery.append(("attempt label flip", *refused(lambda t: _edit_jsonl(
+        t, "acquisition_attempts.jsonl", lambda rows: rows[0].update(status="REFUSED")))))
+    battery.append(("provider-object sha changed", *refused(lambda t: _edit_json(
+        t, "input_manifest.json", lambda d: d["objects"][0].update(sha256="b" * 64)))))
+    # -- REV 2 locks: codex C2 counterexamples
+    battery.append(("object source_id changed (codex C2)", *refused(lambda t: _edit_json(
+        t, "input_manifest.json",
+        lambda d: d["objects"][0].update(source_id="XX.OTHER..BHZ")))))
+    battery.append(("attempt station_id changed (codex C2)", *refused(lambda t: _edit_jsonl(
+        t, "acquisition_attempts.jsonl",
+        lambda rows: rows[0].update(station_id="XX.OTHER")))))
+    # -- REV 2 locks: codex C3
+    battery.append(("batch_manifest deleted (codex C3)", *refused(
+        lambda t: os.remove(os.path.join(t, "batch_manifest.json")))))
+    battery.append(("batch_manifest policy changed", *refused(lambda t: _edit_json(
+        t, "batch_manifest.json",
+        lambda d: d.update(calibration_policy={"min_admitted_days": 2})))))
+    # -- REV 2 locks: grassmann G1
+    battery.append(("publication record tampered (G1)", *refused(lambda t: _edit_json(
+        t, "publication_records/2026-03-02.json", lambda d: d.update(pub="tampered")))))
+    # -- REV 2 locks: codex C1 receipt battery
+    battery.append(("receipt missing (C1)", *refused(lambda t: _edit_jsonl(
+        t, "campaign_process_ledger.jsonl",
+        lambda rows: rows[0].pop("owner_launch_authorization")))))
+    battery.append(("receipt RELAYED (C1)", *refused(lambda t: _edit_jsonl(
+        t, "campaign_process_ledger.jsonl",
+        lambda rows: rows[0]["owner_launch_authorization"].update(status="RELAYED")))))
+    battery.append(("receipt bad-UTC (C1)", *refused(lambda t: _edit_jsonl(
+        t, "campaign_process_ledger.jsonl",
+        lambda rows: rows[0]["owner_launch_authorization"].update(
+            in_session_timestamp_utc="not-utc")))))
+    battery.append(("receipt bad-hash (C1)", *refused(lambda t: _edit_jsonl(
+        t, "campaign_process_ledger.jsonl",
+        lambda rows: rows[0]["owner_launch_authorization"].update(
+            owner_quote_sha256="zz")))))
+    battery.append(("receipt WAL-binding mismatch (C1)", *refused(lambda t: _edit_json(
+        t, "resume_state.json",
+        lambda d: d["events"][0]["owner_launch_authorization"].update(
+            owner_quote_sha256="e" * 64)))))
+    battery.append(("batch receipt unbound to COMPLETED row (C1)", *refused(
+        lambda t: _edit_json(
+            t, "batch_manifest.json",
+            lambda d: d["owner_launch_authorization"].update(
+                owner_quote_sha256="f" * 64)))))
 
     all_refused = all(v for _, v, _ in battery)
     check("RE-1b violation battery: every non-allowlisted difference REFUSES "
-          "(14 classes: row nudge/order/count/status/reasons/eigenvalues/supports, "
-          "thresholds in admission+capsule, raw bytes, plan bytes, unknown file, "
-          "attempt labels, object identity)", all_refused,
+          f"({len(battery)} classes incl. codex C1 receipt locks, C2 source_id/"
+          "station_id, C3 manifest presence+policy, G1 publication records)",
+          all_refused,
           "; ".join(f"{n}: {'ok' if v else 'NOT REFUSED'}" for n, v, _ in battery))
 
-    # RE-2 real pair (verification lanes)
     held_env = os.environ.get("D2_HELD_ROOT")
     repl_env = os.environ.get("D2_REPLACEMENT_ROOT")
     if held_env and repl_env and os.path.isdir(held_env) and os.path.isdir(repl_env):
         ok, det, rep = validate_replay_equivalence(held_env, repl_env)
-        check("RE-2 real-pair exact scientific equivalence (held vs replacement): "
-              "720 typed daily rows digest-equal in index order + sets/reasons + "
-              "thresholds + objects + raw bytes; only the attestation/issuance/"
-              "identity allowlist differs", ok, f"{det} report={rep}")
+        check("RE-2 real-pair exact scientific equivalence (held vs replacement)",
+              ok, f"{det} report={rep}")
     else:
         check("RE-2 real-pair exact scientific equivalence (held vs replacement)",
               False, "PENDING PAIR (set D2_HELD_ROOT + D2_REPLACEMENT_ROOT; the "
-                     "RED run is (held, no-standing remint) which MUST FAIL ~596/720; "
-                     "the GREEN run is (held, corrected replacement) which MUST PASS)")
+                     "RED run is (held, no-standing remint) which MUST FAIL on the "
+                     "drift signature ~596/720; the GREEN run is (held, corrected "
+                     "replacement) which MUST PASS)")
 
 
 main()

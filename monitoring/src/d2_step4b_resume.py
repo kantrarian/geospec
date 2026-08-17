@@ -919,11 +919,13 @@ def _assemble_and_finalize(root, plan, ledger, receipt, tick, campaign_id, plan_
             status, reasons = "ADMITTED_CANDIDATE", []
         base_row.update({"status": status, "reason_codes": reasons})
         if status == "ADMITTED_CANDIDATE":
-            base_row["_capsule"] = {
-                "schema": "geospec-d2-calibration-v1", "region": carrier, "band_tag": CR.BAND_TAG,
-                "processing_version": CR.PROCESSING_VERSION, "topology_version": CR.TOPOLOGY_VERSION,
+            # Mint INPUTS only — the capsule is minted through the SHARED pure
+            # CR.mint_capsule seam in the finalize loop below with the resume
+            # run's ONE captured producer_commit (codex f2f24b6 finding-1 repair:
+            # duplicate inline capsule construction deleted; mint_capsule is the
+            # single mint authority for BOTH executors).
+            base_row["_mint_inputs"] = {
                 "threshold": act_thr, "calibration_window": activation_window,
-                "source_commit": CR.IMPLEMENTATION_COMMIT, "input_manifest_sha256": None,
                 "replay_output_sha256": CR._sha256_bytes(CR._canon(replay_metrics)),
                 "valid_through": valid_through_date.isoformat()}
             base_row["_capsule_carrier"] = carrier
@@ -942,9 +944,9 @@ def _assemble_and_finalize(root, plan, ledger, receipt, tick, campaign_id, plan_
     input_manifest_sha = CR._sha256_file(os.path.join(root, "input_manifest.json"))
 
     for row in admissions:
-        capsule = row.pop("_capsule", None)
+        mint_inputs = row.pop("_mint_inputs", None)
         carrier = row.pop("_capsule_carrier", None)
-        if capsule is None:
+        if mint_inputs is None:
             continue
         issued_utc = tick()
         if issued_utc >= expiry_utc:
@@ -952,8 +954,13 @@ def _assemble_and_finalize(root, plan, ledger, receipt, tick, campaign_id, plan_
                         "reason_codes": ["CANDIDATE_WINDOW_EXPIRED"], "capsule_path": None,
                         "capsule_sha256": None})
             continue
-        capsule["issued_utc"] = _iso(issued_utc)
-        capsule["input_manifest_sha256"] = input_manifest_sha
+        capsule = CR.mint_capsule(                       # ONE captured commit (line 936)
+            plan, carrier=carrier, threshold=mint_inputs["threshold"],
+            calibration_window=mint_inputs["calibration_window"],
+            replay_output_sha256=mint_inputs["replay_output_sha256"],
+            valid_through=mint_inputs["valid_through"],
+            input_manifest_sha256=input_manifest_sha,
+            issued_utc=_iso(issued_utc), producer_commit=producer_commit)
         rel = f"capsules/{carrier}_calibration.json"
         os.makedirs(os.path.join(root, "capsules"), exist_ok=True)
         _atomic_write_json(os.path.join(root, rel), capsule)

@@ -894,33 +894,50 @@ def main():
             check("RN-5e no-backfill is executable: a gap day already refused stale "
                   "(before lift_effective) is NEVER retroactively admitted; unlifted "
                   "capsules admit nothing; post-expiry stays stale", False, f"raised {e}")
-        # RN-5f REV4: the mint's source-commit seam — renewal capsules attest the
-        # PRODUCING HEAD; the frozen v2 label is banned from the renewal mint path.
+        # RN-5f REV4+ (codex 53e1a14 step 2): EXECUTABLE mint seam. The producer must
+        # call a pure capsule-mint seam; the bar DRIVES it and validates the emitted
+        # capsule. Source inspection is retained only as a secondary call-path tripwire.
         try:
             import d2_step4b_campaign_run as CR
             head = git_head()
-            renewal_plan_stub = {"contract_id": CONTRACT_ID}
-            v2_plan_stub = {"contract_id": "codex-d2-step4b-2026-08-09-v1"}
-            fn = getattr(RP, "capsule_source_commit", None)
-            branch_ok = (callable(fn)
-                         and fn(renewal_plan_stub) == head
-                         and fn(v2_plan_stub) == CR.IMPLEMENTATION_COMMIT)
+            mint = getattr(CR, "mint_capsule", None)
+            r_plan = {"contract_id": CONTRACT_ID}
+            v_plan = {"contract_id": "codex-d2-step4b-2026-08-09-v1"}
+            kwm = dict(carrier="istanbul_marmara", threshold=0.21,
+                       calibration_window={"start": "2026-03-19", "end": "2026-07-17"},
+                       replay_output_sha256="b" * 64, valid_through="2026-08-23",
+                       input_manifest_sha256="a" * 64,
+                       issued_utc="2026-08-17T14:00:00Z", producer_commit=head)
+            ok_drive = False
+            det = "mint_capsule seam absent"
+            if callable(mint):
+                cap_r = mint(r_plan, **kwm)
+                cap_v = mint(v_plan, **kwm)
+                ok_drive = (isinstance(cap_r, dict)
+                            and cap_r.get("source_commit") == head
+                            and RP.validate_renewal_capsule(
+                                cap_r, expected_source_commit=head) is True
+                            and RP.validate_renewal_capsule(
+                                cap_r, expected_source_commit="f" * 40) is False
+                            and cap_v.get("source_commit") == CR.IMPLEMENTATION_COMMIT)
+                det = (f"emitted_src={str(cap_r.get('source_commit'))[:9]} "
+                       f"v2_src={str(cap_v.get('source_commit'))[:9]}")
             src = open(os.path.join(HERE, "d2_step4b_campaign_run.py"),
                        encoding="utf-8").read()
-            mint_ok = ("capsule_source_commit" in src
-                       and '"source_commit": IMPLEMENTATION_COMMIT' not in src)
-            check("RN-5f capsule_source_commit(plan): renewal plan -> producing git HEAD, "
-                  "v2 plan -> frozen IMPLEMENTATION_COMMIT (v2 semantics preserved); the "
-                  "executor mint CALLS the seam and the literal "
-                  "source_commit: IMPLEMENTATION_COMMIT mint is gone from campaign_run",
-                  branch_ok and mint_ok,
-                  f"branch_ok={branch_ok} mint_call={'capsule_source_commit' in src} "
-                  f"literal_gone={chr(34) + 'source_commit' + chr(34) + ': IMPLEMENTATION_COMMIT' not in src}")
+            call_ok = ('"source_commit": IMPLEMENTATION_COMMIT' not in src
+                       and src.count("mint_capsule") >= 2)   # def + producer call site
+            check("RN-5f EXECUTABLE mint seam: driving CR.mint_capsule emits a renewal "
+                  "capsule whose source_commit == the supplied producing commit and which "
+                  "PASSES validate_renewal_capsule (wrong expected commit refuses); a v2 "
+                  "plan preserves IMPLEMENTATION_COMMIT; the producer mint site calls the "
+                  "seam and the frozen literal is gone (secondary tripwire)",
+                  ok_drive and call_ok, f"{det} call_ok={call_ok}")
         except Exception as e:
-            check("RN-5f capsule_source_commit(plan): renewal plan -> producing git HEAD, "
-                  "v2 plan -> frozen IMPLEMENTATION_COMMIT (v2 semantics preserved); the "
-                  "executor mint CALLS the seam and the literal "
-                  "source_commit: IMPLEMENTATION_COMMIT mint is gone from campaign_run",
+            check("RN-5f EXECUTABLE mint seam: driving CR.mint_capsule emits a renewal "
+                  "capsule whose source_commit == the supplied producing commit and which "
+                  "PASSES validate_renewal_capsule (wrong expected commit refuses); a v2 "
+                  "plan preserves IMPLEMENTATION_COMMIT; the producer mint site calls the "
+                  "seam and the frozen literal is gone (secondary tripwire)",
                   False, f"raised {e}")
         # RN-5g REV4: staged-root re-mint validation — every renewal capsule in a staged
         # renewal root must pass RN-5c against the root's recorded producer_commit.
@@ -944,20 +961,39 @@ def main():
                     if cp:
                         cpath = cp if os.path.isabs(cp) else os.path.join(root_env, cp)
                         caps.append(json.loads(open(cpath, encoding="utf-8").read()))
-                ok5g = bool(caps) and all(
-                    RP.validate_renewal_capsule(c, expected_source_commit=producer) is True
+                plan_doc = json.loads(open(os.path.join(root_env, "campaign_plan.json"),
+                                           encoding="utf-8").read())
+                repo = os.path.join(HERE, "..", "..")
+                blob_ok = True
+                if isinstance(plan_doc.get("core_blobs"), dict) and producer:
+                    for f2, b2 in plan_doc["core_blobs"].items():
+                        parts = subprocess.run(["git", "ls-tree", producer, f2],
+                                               capture_output=True, text=True,
+                                               cwd=repo).stdout.split()
+                        if len(parts) < 3 or parts[2] != b2:
+                            blob_ok = False
+                else:
+                    blob_ok = False
+                ok5g = bool(caps) and blob_ok and all(
+                    c.get("source_commit") == producer
+                    and RP.validate_renewal_capsule(
+                        c, expected_source_commit=producer) is True
                     for c in caps)
-                check("RN-5g staged-root capsules pass validate_renewal_capsule against "
-                      "the root's recorded producer_commit (re-mint acceptance)",
-                      ok5g, f"caps={len(caps)} producer={producer[:9] if producer else None}")
+                check("RN-5g replacement-root THREE-WAY provenance equality: every emitted "
+                      "capsule.source_commit == reopened input_manifest.producer_commit, "
+                      "the plan's core_blobs match git ls-tree at that SAME commit, and "
+                      "each capsule passes validate_renewal_capsule (codex step-3: one "
+                      "captured HEAD across plan/manifest/capsules)",
+                      ok5g, f"caps={len(caps)} producer={producer[:9] if producer else None} "
+                            f"blob_ok={blob_ok}")
             else:
-                check("RN-5g staged-root capsules pass validate_renewal_capsule against "
-                      "the root's recorded producer_commit (re-mint acceptance)",
+                check("RN-5g replacement-root THREE-WAY provenance equality (capsule == manifest "
+                      "== plan-HEAD blob vector; codex step-3)",
                       False, "PENDING ROOT (set D2_RENEWAL_ROOT to the staged root; "
                              "verification lanes run this against the sealed/re-minted root)")
         except Exception as e:
-            check("RN-5g staged-root capsules pass validate_renewal_capsule against "
-                  "the root's recorded producer_commit (re-mint acceptance)",
+            check("RN-5g replacement-root THREE-WAY provenance equality (capsule == "
+                  "manifest == plan-HEAD blob vector; codex step-3)",
                   False, f"raised {e}")
     else:
         awaiting("RN-5c capsule validator is table-driven: EVERY required scalar/binding "

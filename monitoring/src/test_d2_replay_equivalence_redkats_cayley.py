@@ -565,6 +565,11 @@ def main():
     # -- REV 2 locks: grassmann G1
     battery.append(("publication record tampered (G1)", *refused(lambda t: _edit_json(
         t, "publication_records/2026-03-02.json", lambda d: d.update(pub="tampered")))))
+    battery.append(("publication record missing one side (codex 1e4efb7)", *refused(
+        lambda t: os.remove(os.path.join(t, "publication_records", "2026-03-02.json")))))
+    battery.append(("publication record added one side (codex 1e4efb7)", *refused(
+        lambda t: open(os.path.join(t, "publication_records", "2026-03-05.json"),
+                       "wb").write(canon({"pub": "extra"})))))
     # -- REV 2 locks: codex C1 receipt battery
     battery.append(("receipt missing (C1)", *refused(lambda t: _edit_jsonl(
         t, "campaign_process_ledger.jsonl",

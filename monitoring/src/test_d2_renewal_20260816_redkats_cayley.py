@@ -43,6 +43,23 @@ REV 3 (codex R2 `00c4e7b` / `169dca4`, four bypasses repaired):
   MINOR owned: cayley's 0222 envelope carried a literal ${TS} (quoted-heredoc expansion
   defect); live-read timestamps hereafter; no chronology inferred from that envelope.
 
+REV 4 (grassmann finding `974ef1a`: minted capsules carry the frozen v2 label
+`source_commit=292b1069...` and FAIL RN-5c — a producer/validator mismatch this bar
+never drove; the bar validated the VALIDATOR, not the MINT — the R2 lesson one level
+deeper, owned). REV 4 implements the contract-forced option B (contract §3 verbatim bans
+the 292b1069 attestation on renewal capsules; option A would contradict the frozen
+contract). SELF-VOIDING clause: if codex nonetheless rules option A, RN-5f/5g are struck
+and RN-5c amended per that ruling instead.
+  RN-5f pins `d2_renewal_plan.capsule_source_commit(plan)`: returns the PRODUCING git
+     HEAD when plan.contract_id is the renewal contract, and the frozen
+     IMPLEMENTATION_COMMIT for the v2 path (v2 semantics preserved); and the executor's
+     mint must CALL it — the literal `"source_commit": IMPLEMENTATION_COMMIT` may no
+     longer appear in campaign_run.py.
+  RN-5g validates any RE-MINTED renewal capsules present in a staged renewal root:
+     each must pass validate_renewal_capsule(expected_source_commit = the root's
+     recorded producer_commit) — the sealed zero-I/O re-mint (option B step 3, owner
+     one-liner) produces exactly these artifacts.
+
 SEAMS PINNED (naming decisions implementing the contract):
   module `monitoring/src/d2_renewal_plan.py`:
     RENEWAL_CONTRACT_ID / RENEWAL_ANCHOR / V2_POOL_SHA256 / RENEWAL_BUNDLE_SHA256
@@ -65,6 +82,8 @@ SEAMS PINNED (naming decisions implementing the contract):
          root derived only from reopened-and-matched bytes)
     validate_registry_candidate(record, *, expected) -> bool
     renewal_admits(day, capsule, lift_effective_utc) -> bool  (no-backfill boundary)
+    capsule_source_commit(plan) -> str   (REV 4: renewal plan -> producing git HEAD;
+                                          v2 plan -> frozen IMPLEMENTATION_COMMIT)
   executor delta (d2_step4b_campaign_run.acquire): renewal-contract plans accepted;
     true-overlap station attempts carry TRUE_OVERLAP_UNRULED; infeasible carriers are
     never fetched.
@@ -875,6 +894,71 @@ def main():
             check("RN-5e no-backfill is executable: a gap day already refused stale "
                   "(before lift_effective) is NEVER retroactively admitted; unlifted "
                   "capsules admit nothing; post-expiry stays stale", False, f"raised {e}")
+        # RN-5f REV4: the mint's source-commit seam — renewal capsules attest the
+        # PRODUCING HEAD; the frozen v2 label is banned from the renewal mint path.
+        try:
+            import d2_step4b_campaign_run as CR
+            head = git_head()
+            renewal_plan_stub = {"contract_id": CONTRACT_ID}
+            v2_plan_stub = {"contract_id": "codex-d2-step4b-2026-08-09-v1"}
+            fn = getattr(RP, "capsule_source_commit", None)
+            branch_ok = (callable(fn)
+                         and fn(renewal_plan_stub) == head
+                         and fn(v2_plan_stub) == CR.IMPLEMENTATION_COMMIT)
+            src = open(os.path.join(HERE, "d2_step4b_campaign_run.py"),
+                       encoding="utf-8").read()
+            mint_ok = ("capsule_source_commit" in src
+                       and '"source_commit": IMPLEMENTATION_COMMIT' not in src)
+            check("RN-5f capsule_source_commit(plan): renewal plan -> producing git HEAD, "
+                  "v2 plan -> frozen IMPLEMENTATION_COMMIT (v2 semantics preserved); the "
+                  "executor mint CALLS the seam and the literal "
+                  "source_commit: IMPLEMENTATION_COMMIT mint is gone from campaign_run",
+                  branch_ok and mint_ok,
+                  f"branch_ok={branch_ok} mint_call={'capsule_source_commit' in src} "
+                  f"literal_gone={chr(34) + 'source_commit' + chr(34) + ': IMPLEMENTATION_COMMIT' not in src}")
+        except Exception as e:
+            check("RN-5f capsule_source_commit(plan): renewal plan -> producing git HEAD, "
+                  "v2 plan -> frozen IMPLEMENTATION_COMMIT (v2 semantics preserved); the "
+                  "executor mint CALLS the seam and the literal "
+                  "source_commit: IMPLEMENTATION_COMMIT mint is gone from campaign_run",
+                  False, f"raised {e}")
+        # RN-5g REV4: staged-root re-mint validation — every renewal capsule in a staged
+        # renewal root must pass RN-5c against the root's recorded producer_commit.
+        # Runs when a root path is supplied via D2_RENEWAL_ROOT (verification lanes);
+        # otherwise records the binding as pending-root (not green, not misleading).
+        try:
+            root_env = os.environ.get("D2_RENEWAL_ROOT")
+            if root_env and os.path.isdir(root_env):
+                im = json.loads(open(os.path.join(root_env, "input_manifest.json"),
+                                     encoding="utf-8").read())
+                producer = im["producer_commit"]
+                adm = json.loads(open(os.path.join(root_env, "admission_results.json"),
+                                      encoding="utf-8").read())
+                rows = adm.get("regions", adm)
+                rows = rows if isinstance(rows, dict) else {}
+                caps = []
+                for region, row in rows.items():
+                    if not isinstance(row, dict):
+                        continue
+                    cp = row.get("capsule_path")
+                    if cp:
+                        cpath = cp if os.path.isabs(cp) else os.path.join(root_env, cp)
+                        caps.append(json.loads(open(cpath, encoding="utf-8").read()))
+                ok5g = bool(caps) and all(
+                    RP.validate_renewal_capsule(c, expected_source_commit=producer) is True
+                    for c in caps)
+                check("RN-5g staged-root capsules pass validate_renewal_capsule against "
+                      "the root's recorded producer_commit (re-mint acceptance)",
+                      ok5g, f"caps={len(caps)} producer={producer[:9] if producer else None}")
+            else:
+                check("RN-5g staged-root capsules pass validate_renewal_capsule against "
+                      "the root's recorded producer_commit (re-mint acceptance)",
+                      False, "PENDING ROOT (set D2_RENEWAL_ROOT to the staged root; "
+                             "verification lanes run this against the sealed/re-minted root)")
+        except Exception as e:
+            check("RN-5g staged-root capsules pass validate_renewal_capsule against "
+                  "the root's recorded producer_commit (re-mint acceptance)",
+                  False, f"raised {e}")
     else:
         awaiting("RN-5c capsule validator is table-driven: EVERY required scalar/binding "
                  "mutation refuses independently (region/band/processing/topology/window/"
@@ -887,7 +971,13 @@ def main():
                  "and the registry candidate binds with per-field flip refusals",
                  "RN-5e no-backfill is executable: a gap day already refused stale "
                  "(before lift_effective) is NEVER retroactively admitted; unlifted "
-                 "capsules admit nothing; post-expiry stays stale")
+                 "capsules admit nothing; post-expiry stays stale",
+                 "RN-5f capsule_source_commit(plan): renewal plan -> producing git HEAD, "
+                 "v2 plan -> frozen IMPLEMENTATION_COMMIT (v2 semantics preserved); the "
+                 "executor mint CALLS the seam and the literal "
+                 "source_commit: IMPLEMENTATION_COMMIT mint is gone from campaign_run",
+                 "RN-5g staged-root capsules pass validate_renewal_capsule against "
+                 "the root's recorded producer_commit (re-mint acceptance)")
 
 
 main()

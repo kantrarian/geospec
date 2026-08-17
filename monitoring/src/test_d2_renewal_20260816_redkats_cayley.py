@@ -60,6 +60,20 @@ and RN-5c amended per that ruling instead.
      recorded producer_commit) — the sealed zero-I/O re-mint (option B step 3, owner
      one-liner) produces exactly these artifacts.
 
+REV 4.2 (codex `c37ef5c` WORKS-WITH-FIX, two bar false-greens hardened; the landed
+  implementation 3183889 passes both repaired assertions):
+  RN-5f-b: COMPLETE equality only -- the reopened written capsule must equal a JSON
+  round-trip SNAPSHOT of the spy-captured mint result with NO fields excluded (the
+  issued_utc/input_manifest_sha256 exclusion was an executable false-green: a producer
+  overwriting input_manifest_sha256 AFTER mint still passed; snapshotting also kills
+  the in-place-mutation variant), PLUS the mandatory cross-link
+  capsule.input_manifest_sha256 == sha256(reopened input_manifest.json bytes).
+  RN-5f-c: ONLY the injected sentinel type+value counts as propagation; any translated
+  exception is a failed check (except-BaseException accepted translation).
+  validate_replacement_root(): the same manifest-bytes cross-link is enforced on every
+  admitted capsule (absence/mismatch = refusal); a new always-running battery fixture
+  proves the cross-link itself discriminates.
+
 REV 4.1 (codex `8e4d8fc`, two executable counterexamples repaired):
   RN-5g now parses the PRODUCER'S REAL SCHEMA (admission_results.regions is a LIST of
   rows; any other type refuses), selects rows by status==ADMITTED_CANDIDATE, binds the
@@ -444,9 +458,13 @@ def validate_replacement_root(root_env, RP):
     """RN-5g core (REV 4.1): producer-schema-faithful replacement-root validation.
     Returns (ok: bool, detail: str). REFUSES: non-list regions, missing carrier_key/
     capsule_path on candidate rows, capsule-region/row mismatch, blob-key set !=
-    CORE_FILES exactly, any git ls-tree failure or value mismatch, validator failure."""
-    im = json.loads(open(os.path.join(root_env, "input_manifest.json"),
-                         encoding="utf-8").read())
+    CORE_FILES exactly, any git ls-tree failure or value mismatch, validator failure.
+    REV 4.2 (codex c37ef5c): every admitted capsule must also carry
+    input_manifest_sha256 == sha256(reopened input_manifest.json BYTES)."""
+    with open(os.path.join(root_env, "input_manifest.json"), "rb") as fh:
+        im_bytes = fh.read()
+    im = json.loads(im_bytes.decode("utf-8"))
+    im_digest = sha(im_bytes)
     producer = im.get("producer_commit")
     adm = json.loads(open(os.path.join(root_env, "admission_results.json"),
                           encoding="utf-8").read())
@@ -479,6 +497,9 @@ def validate_replacement_root(root_env, RP):
             return False, f"capsule region {cap.get('region')} != row carrier {carrier}"
         if cap.get("source_commit") != producer:
             return False, f"capsule source_commit != producer_commit for {carrier}"
+        if cap.get("input_manifest_sha256") != im_digest:
+            return False, ("capsule input_manifest_sha256 != sha256(reopened manifest "
+                           f"bytes) for {carrier}")
         if RP.validate_renewal_capsule(cap, expected_source_commit=producer) is not True:
             return False, f"validator refuses capsule for {carrier}"
         caps += 1
@@ -492,9 +513,13 @@ def _mk_synthetic_replacement_root(RP, cap_template, head):
     schema (regions as a LIST) with one HEAD-bound capsule and exact HEAD blobs."""
     td = tempfile.mkdtemp()
     os.makedirs(os.path.join(td, "capsules"), exist_ok=True)
+    im_body = json.dumps({"producer_commit": head}).encode("utf-8")
+    with open(os.path.join(td, "input_manifest.json"), "wb") as fh:
+        fh.write(im_body)
     cap = dict(cap_template)
     cap["region"] = "istanbul_marmara"
     cap["source_commit"] = head
+    cap["input_manifest_sha256"] = sha(im_body)   # REV 4.2 cross-link bound to bytes
     open(os.path.join(td, "capsules", "istanbul_marmara_calibration.json"), "w",
          encoding="utf-8").write(json.dumps(cap, sort_keys=True))
     regions = [{"runner_key": "istanbul_marmara", "carrier_key": "istanbul_marmara",
@@ -504,8 +529,6 @@ def _mk_synthetic_replacement_root(RP, cap_template, head):
                 "status": "BLOCKED_TOPOLOGY", "capsule_path": None}]
     open(os.path.join(td, "admission_results.json"), "w", encoding="utf-8").write(
         json.dumps({"schema": "x", "regions": regions}))
-    open(os.path.join(td, "input_manifest.json"), "w", encoding="utf-8").write(
-        json.dumps({"producer_commit": head}))
     blobs = {f: git_head_blobs()[f] for f in CORE_FILES}
     open(os.path.join(td, "campaign_plan.json"), "w", encoding="utf-8").write(
         json.dumps({"contract_id": CONTRACT_ID, "core_blobs": blobs}))
@@ -1135,8 +1158,11 @@ def main():
                 if callable(real_mint):
                     def spy_mint(plan_arg, **kw):
                         out = real_mint(plan_arg, **kw)
+                        # REV 4.2: SNAPSHOT (json round-trip) so post-mint mutation of
+                        # the same dict object cannot retro-edit the spy record.
                         spy_calls.append({"producer_commit": kw.get("producer_commit"),
-                                          "carrier": kw.get("carrier"), "out": out})
+                                          "carrier": kw.get("carrier"),
+                                          "out": json.loads(json.dumps(out))})
                         return out
                     CR.mint_capsule = spy_mint
                 try:
@@ -1167,13 +1193,12 @@ def main():
                                        encoding="utf-8").read())
                 producers = {c["producer_commit"] for c in spy_calls}
                 spy_out = spy_calls[0]["out"] if spy_calls else None
-                emitted_no_late = {k: v for k, v in (emitted or {}).items()
-                                   if k not in ("issued_utc", "input_manifest_sha256")}
-                spy_no_late = {k: v for k, v in (spy_out or {}).items()
-                               if k not in ("issued_utc", "input_manifest_sha256")}
+                with open(os.path.join(td_c, "input_manifest.json"), "rb") as fh:
+                    im_bytes = fh.read()
                 ok_drive = (len(spy_calls) == len(cand) and len(producers) == 1
                             and emitted is not None and spy_out is not None
-                            and emitted_no_late == spy_no_late
+                            and emitted == spy_out
+                            and emitted.get("input_manifest_sha256") == sha(im_bytes)
                             and emitted.get("source_commit") == next(iter(producers))
                             and emitted.get("source_commit")
                             == im_c.get("producer_commit"))
@@ -1181,8 +1206,10 @@ def main():
                         f" manifest_src={str(im_c.get('producer_commit'))[:9]}")
             check("RN-5f-b REAL-acquire candidate drive: the hermetic fixture reaches "
                   "ADMITTED_CANDIDATE, the spy-wrapped minter is called once per emitted "
-                  "candidate with ONE producer commit, and the WRITTEN capsule equals the "
-                  "spy result carrying that same commit == input_manifest.producer_commit",
+                  "candidate with ONE producer commit, the WRITTEN capsule equals the "
+                  "SNAPSHOTTED spy result COMPLETELY (no fields excluded), its "
+                  "input_manifest_sha256 == sha256(reopened manifest bytes), and its "
+                  "source_commit == that commit == input_manifest.producer_commit",
                   ok_drive, det)
             # (c) raising replacement minter must PROPAGATE through the producer
             ok_prop = False
@@ -1201,14 +1228,18 @@ def main():
                         CR.acquire(plan_p, ledger_p, td_p,
                                    providers=_CandidateProviders(), receipt=RECEIPT)
                         ok_prop = False
+                    except _Boom as e:
+                        # REV 4.2: only the injected sentinel type+value counts.
+                        ok_prop = str(e) == "bar sentinel"
                     except BaseException:
-                        ok_prop = True
+                        ok_prop = False
                 finally:
                     CR.POLICY.clear()
                     CR.POLICY.update(saved_pol2)
                     CR.mint_capsule = real_mint
             check("RN-5f-c a raising replacement minter PROPAGATES through the real "
-                  "producer path (no silent swallow)", ok_prop,
+                  "producer path as the injected sentinel type+value -- translation "
+                  "to any other exception is a failed check (no silent swallow)", ok_prop,
                   "unreachable while RN-5f-b red" if not (callable(real_mint) and cand)
                   else "")
             # diagnostics only (never load-bearing): source shape
@@ -1219,11 +1250,14 @@ def main():
         except Exception as e:
             check("RN-5f-b REAL-acquire candidate drive: the hermetic fixture reaches "
                   "ADMITTED_CANDIDATE, the spy-wrapped minter is called once per emitted "
-                  "candidate with ONE producer commit, and the WRITTEN capsule equals the "
-                  "spy result carrying that same commit == input_manifest.producer_commit",
+                  "candidate with ONE producer commit, the WRITTEN capsule equals the "
+                  "SNAPSHOTTED spy result COMPLETELY (no fields excluded), its "
+                  "input_manifest_sha256 == sha256(reopened manifest bytes), and its "
+                  "source_commit == that commit == input_manifest.producer_commit",
                   False, f"raised {e}")
             check("RN-5f-c a raising replacement minter PROPAGATES through the real "
-                  "producer path (no silent swallow)", False, f"raised {e}")
+                  "producer path as the injected sentinel type+value -- translation "
+                  "to any other exception is a failed check (no silent swallow)", False, f"raised {e}")
         # RN-5g REV4.1 (codex 8e4d8fc #1): producer-schema replacement-root check
         # + ALWAYS-RUNNING lock fixtures proving the check itself discriminates.
         try:
@@ -1268,31 +1302,41 @@ def main():
             c6["region"] = "socal_coachella"
             open(cp6, "w").write(json.dumps(c6, sort_keys=True))
             refusals.append(not validate_replacement_root(r6, RP)[0])
+            # capsule manifest-digest cross-link mismatch (codex c37ef5c HIGH-1)
+            r7 = _mk_synthetic_replacement_root(RP, cap, head)
+            cp7 = os.path.join(r7, "capsules", "istanbul_marmara_calibration.json")
+            c7 = json.loads(open(cp7).read())
+            c7["input_manifest_sha256"] = "f" * 64
+            open(cp7, "w").write(json.dumps(c7, sort_keys=True))
+            refusals.append(not validate_replacement_root(r7, RP)[0])
             check("RN-5g-lock the replacement-root check DISCRIMINATES: nominal "
                   "producer-schema synthetic root PASSES; dict-shape regions, empty blob "
-                  "map, missing key, extra key, wrong blob, and capsule/row region "
-                  "mismatch ALL refuse", ok_nom and all(refusals),
+                  "map, missing key, extra key, wrong blob, capsule/row region "
+                  "mismatch, and capsule-manifest digest mismatch ALL refuse", ok_nom and all(refusals),
                   f"nominal={ok_nom}({det_nom}) refusals={refusals}")
         except Exception as e:
             check("RN-5g-lock the replacement-root check DISCRIMINATES: nominal "
                   "producer-schema synthetic root PASSES; dict-shape regions, empty blob "
-                  "map, missing key, extra key, wrong blob, and capsule/row region "
-                  "mismatch ALL refuse", False, f"raised {e}")
+                  "map, missing key, extra key, wrong blob, capsule/row region "
+                  "mismatch, and capsule-manifest digest mismatch ALL refuse", False, f"raised {e}")
         try:
             root_env = os.environ.get("D2_RENEWAL_ROOT")
             if root_env and os.path.isdir(root_env):
                 ok5g, det5g = validate_replacement_root(root_env, RP)
-                check("RN-5g replacement-root validation (producer schema; three-way "
-                      "provenance equality capsule == manifest == plan-HEAD blob vector)",
+                check("RN-5g replacement-root validation (producer schema; capsule == "
+                      "manifest == plan-HEAD blob vector + capsule manifest-digest "
+                      "cross-link on reopened bytes)",
                       ok5g, det5g)
             else:
-                check("RN-5g replacement-root validation (producer schema; three-way "
-                      "provenance equality capsule == manifest == plan-HEAD blob vector)",
+                check("RN-5g replacement-root validation (producer schema; capsule == "
+                      "manifest == plan-HEAD blob vector + capsule manifest-digest "
+                      "cross-link on reopened bytes)",
                       False, "PENDING ROOT (set D2_RENEWAL_ROOT; verification lanes run "
                              "this against the sealed replacement root)")
         except Exception as e:
-            check("RN-5g replacement-root validation (producer schema; three-way "
-                  "provenance equality capsule == manifest == plan-HEAD blob vector)",
+            check("RN-5g replacement-root validation (producer schema; capsule == "
+                  "manifest == plan-HEAD blob vector + capsule manifest-digest "
+                  "cross-link on reopened bytes)",
                   False, f"raised {e}")
     else:
         awaiting("RN-5c capsule validator is table-driven: EVERY required scalar/binding "

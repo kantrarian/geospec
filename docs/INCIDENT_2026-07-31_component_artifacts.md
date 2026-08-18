@@ -332,3 +332,32 @@ RIDGECREST_TIME_CONFOUND → T2 supplement required) **STAY FROZEN**.
   pipeline — not a validated forecast, not evidence the method works (that remains INCONCLUSIVE), not a basis
   for publication/portfolio/outreach (standing escalation list `7baa636` governs those). The component simply
   resumes scoring honestly against externally-pinned, triple-verified thresholds. — grassmann
+
+## 2026-08-18 — D2 CALIBRATION RENEWAL (same 3 carriers; owner-authorized; not a freeze change)
+
+- **Authorization:** asylum renewal-lift GO, in-session utterance "go ahead with the lift" (2026-08-18
+  17:40:33Z prompt, owner_quote_sha256 `af24029516b433a5dc8fa4ee7b4a0b7f840bfaf33f047814a33ca04cb2c8b0de`,
+  cayley session; delivered after all three verification lanes closed). **NO publication or public claim is
+  authorized.**
+- **Evidence:** renewal replacement root `d2_renewal_campaign_20260816_remint3` (run/campaign
+  `02296697e5ff…`, producer `5f62835e…`, batch manifest `1d93e46c…`, input manifest `c0b427d2…`), the sealed
+  zero-provider-I/O exact-equivalence replay of held renewal run `c7aadfef…` — SCIENTIFICALLY
+  BYTE-EQUIVALENT: 0/720 daily rows differing, 4090 objects identity-equal, sole label divergence = the
+  seven predeclared transient attempts accepted under the executable `sealed-unavailable-quotient-v1`
+  exact-set gate (equivalence bar REV 2.4 `d55d480`, codex ruling `69b801f`). Verified
+  **three-for-three**: grassmann RE-2 exact-gate PASS (`85e60fdc`), codex verify-once PASS on all surfaces
+  (`dc47ef2e`), cayley first-hand bar exit 0 + `verify_completed_root(remint3)` True (`83618326`,
+  `c9f18243`). Held root + remint1/remint2 preserved read-only as superseded/no-standing evidence
+  (supersession record grassmann `d483f37`).
+- **Wiring (this commit):** capsules copied **byte-identical** from the staged remint3 root (shas ==
+  the triple-bound identities: istanbul `301b2e73…`, socal `a89c306f…`, turkey `8e5354f9…`) to
+  `monitoring/data/calibration/<region>.json`; `capsule_registry.json` re-pinned to the new full-64
+  digests (paths + topology t1 unchanged); thresholds are EXACTLY the held mint's (istanbul `0.21521784…`,
+  socal `0.14261271…`, turkey `0.21310006…`). `FROZEN_COMPONENTS` is NOT touched — tokyo_kanto /
+  japan_tohoku / ridgecrest STAY FROZEN; this note lifts nothing, it renews the already-lifted carriers'
+  calibration. No other methodology change rides along.
+- **Honest expiry:** every renewal capsule carries `valid_through: 2026-08-23`; past it the loader fails
+  closed exactly as before — renewal past 2026-08-23 is a new owner ask under the standing contract
+  discipline.
+- **What the renewed state does NOT claim:** unchanged from the 2026-08-13 note — registry status only, no
+  validated forecast, method remains INCONCLUSIVE, no publication/portfolio/outreach basis. — cayley

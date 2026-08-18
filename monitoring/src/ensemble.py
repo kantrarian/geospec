@@ -133,6 +133,10 @@ logger = logging.getLogger(__name__)
 #       the campaign-v2 step-4b calibration capsules (triple-verified batch ad19aeae..., per-region 1-10 Hz
 #       thresholds, externally pinned via monitoring/data/calibration/capsule_registry.json; capsules carry
 #       valid_through 2026-08-17 -- past it the loader fails closed, an honest expiry, not a freeze).
+#       RENEWED 2026-08-18 (owner-authorized; dated note in the same docs file): capsules refreshed from the
+#       triple-verified renewal replacement root remint3 (run 02296697..., producer 5f62835, sealed replay
+#       byte-equivalent to held under sealed-unavailable-quotient-v1), thresholds == the held mint exactly,
+#       valid_through 2026-08-23 -- same honest-expiry semantics; renewal past it is a new owner ask.
 #       tokyo_kanto/japan_tohoku (BLOCKED_NO_TRUE_CARRIER) and ridgecrest (BLOCKED_TOPOLOGY) STAY FROZEN.
 FROZEN_COMPONENTS = {
     ("tokyo_kanto", "fault_correlation"),

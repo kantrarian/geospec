@@ -1,7 +1,25 @@
 """RED-first KATs -- D2 sealed-replay EXACT SCIENTIFIC EQUIVALENCE bar (cayley).
 
+REV 2.4 (codex ruling `69b801f` OPTION A, superseding the REV 2.3 class-wide
+allowance): the projection is NAMED -- `sealed-unavailable-quotient-v1` -- and is
+NOT a class allowance: divergent pairs are accepted ONLY under a DECLARED quotient
+key set, and the projected key set must equal the declaration EXACTLY. An eighth
+key, a missing key, a duplicate key, or any pair under an empty/undeclared
+quotient REFUSES. The production RE-2 lane declares the SEVEN predeclared remint3
+keys (grassmann `d483f37` exhaustive disclosure; carrier keys per
+d2_renewal_plan._TARGET_ORDER). The held candidate must bind to the row's station
+(changed-candidate refusal). BOTH original and replacement labels are recorded in
+report["projected_attempts"] -- neither is overwritten nor reported as literal
+equality -- and the acceptance receipt states science_daily_differing=N/M,
+attempt_projection=<name>, projected_attempts=N. Disclosure: REV 2.3 was authored
+concurrently with (and landed 4 minutes after) codex's ruling -- concordant on
+option (a) and the rejection of (b), but its class-wide allowance lacked the named
+quotient, the exact predeclared-key pin, and the both-labels receipt; REV 2.4
+folds the ruling in verbatim. REV 2.3's pair conditions and lock battery are
+retained unchanged underneath the quotient gate.
+
 REV 2.3 (grassmann remint3 packet `d483f37`, disposition (a) -- cayley ruling, codex
-ratification pending): the SOLE admissible attempts-label divergence is the sealed
+ratified as OPTION A in `69b801f`): the SOLE admissible attempts-label divergence is the sealed
 provider's truthful rendering of a live transient provider failure. The live run
 experienced availability-yes-then-transient-fetch-error (terminal UNAVAILABLE,
 selected_nslc carries the candidate, reason PROVIDER_UNAVAILABLE, zero input
@@ -151,6 +169,19 @@ ATT_ALLOW = {"attempt_id", "terminal_attempt_id", "attempted_utc",
 # REV 2.3: the ONLY attempts fields that may diverge beyond ATT_ALLOW, and only as
 # the exact transient pair (held live-transient -> sealed truthful no-candidate)
 TRANSIENT_ATT_PAIR = {"selected_nslc", "reason_codes"}
+# REV 2.4 (codex 69b801f): sealed-unavailable-quotient-v1 -- the SEVEN predeclared
+# remint3 attempt keys (carrier_key, scored_day, station_id), frozen from grassmann
+# d483f37's exhaustive disclosure + d2_renewal_plan._TARGET_ORDER carrier keys.
+# The RE-2 real-pair lane declares EXACTLY this set; any deviation refuses.
+SEALED_UNAVAILABLE_QUOTIENT_V1 = (
+    ("istanbul_marmara", "2026-04-22", "KO.GEML"),
+    ("istanbul_marmara", "2026-06-15", "KO.GEML"),
+    ("turkey_kahramanmaras", "2026-05-25", "KO.KBAN"),
+    ("turkey_kahramanmaras", "2026-06-07", "KO.KOZT"),
+    ("turkey_kahramanmaras", "2026-06-15", "KO.KARA"),
+    ("turkey_kahramanmaras", "2026-07-01", "KO.KBAN"),
+    ("turkey_kahramanmaras", "2026-07-02", "KO.KOZT"),
+)
 OPS_ALLOW = {"operation_id", "process_id", "operation_utc", "created_utc",
              "recorded_utc"}
 REGISTRY_ALLOW = {"expected_sha256"}
@@ -276,13 +307,20 @@ def _transient_label_pair(hrow, rrow):
             and hrow.get("input_object_sha256s") == []
             and rrow.get("input_object_sha256s") == []
             and isinstance(sel, str) and sel != ""
+            # REV 2.4 changed-candidate refusal: the recorded candidate must bind
+            # to the row's own station identity (NET.STA prefix of the NSLC)
+            and isinstance(hrow.get("station_id"), str)
+            and sel.startswith(hrow["station_id"] + ".")
             and rrow.get("selected_nslc") is None
             and hrow.get("reason_codes") == ["PROVIDER_UNAVAILABLE"]
             and rrow.get("reason_codes") == ["NO_AVAILABLE_CANDIDATE"])
 
 
-def validate_replay_equivalence(held, repl):
-    """Returns (ok, detail, report)."""
+def validate_replay_equivalence(held, repl, quotient_keys=()):
+    """Returns (ok, detail, report). quotient_keys: the DECLARED
+    sealed-unavailable-quotient key set (carrier_key, scored_day, station_id);
+    the projected pair set must equal it EXACTLY (REV 2.4, codex 69b801f).
+    Empty declaration = no attempts-label divergence is admissible at all."""
     report = {}
     held_files, repl_files = _walk_rel(held), _walk_rel(repl)
 
@@ -429,12 +467,34 @@ def validate_replay_equivalence(held, repl):
             if canon(_project(ra, allow)) == canon(_project(rb, allow)):
                 continue
             if rel == "acquisition_attempts.jsonl" and _transient_label_pair(ra, rb):
-                transient.append((ra.get("carrier_key"), ra.get("scored_day"),
-                                  ra.get("station_id")))
+                # REV 2.4: BOTH labels recorded; neither overwritten nor reported
+                # as literal equality (codex condition 6)
+                transient.append({
+                    "key": (ra.get("carrier_key"), ra.get("scored_day"),
+                            ra.get("station_id")),
+                    "held": {"selected_nslc": ra.get("selected_nslc"),
+                             "reason_codes": ra.get("reason_codes")},
+                    "sealed": {"selected_nslc": rb.get("selected_nslc"),
+                               "reason_codes": rb.get("reason_codes")}})
                 continue
             return False, f"{rel} label projection differs at row {i}", report
         if rel == "acquisition_attempts.jsonl":
-            report["transient_label_rows"] = transient
+            report["projected_attempts"] = transient
+            report["quotient_declared"] = [tuple(k) for k in quotient_keys]
+            # REV 2.4 exact-set gate: projected keys == declared quotient, no
+            # duplicates, no eighth key, no missing key (codex 69b801f)
+            pkeys = [t["key"] for t in transient]
+            if len(pkeys) != len(set(pkeys)):
+                return False, "duplicate projected quotient key", report
+            declared = {tuple(k) for k in quotient_keys}
+            extra = sorted(set(pkeys) - declared)
+            missing = sorted(declared - set(pkeys))
+            if extra:
+                return False, (f"projected attempt key(s) outside the declared "
+                               f"quotient: {extra}"), report
+            if missing:
+                return False, (f"declared quotient key(s) missing from the "
+                               f"projection: {missing}"), report
 
     # batch_manifest typed (C3): scientific surface EXACT, artifacts sub-map for
     # byte-equal-class files EXACT, named identity/attestation/induced fields dropped
@@ -452,10 +512,13 @@ def validate_replay_equivalence(held, repl):
         keys = sorted(k for k in set(hart) | set(rart) if hart.get(k) != rart.get(k))
         return False, f"batch_manifest artifacts differ on byte-equal files: {keys[:3]}", report
 
-    tl = report.get("transient_label_rows") or []
-    return True, (f"EQUIVALENT: {report['daily_total']} daily rows digest-equal, "
+    proj = report.get("projected_attempts") or []
+    pname = "sealed-unavailable-quotient-v1" if quotient_keys else "none"
+    return True, (f"EQUIVALENT: science_daily_differing="
+                  f"{report['daily_differing']}/{report['daily_total']}, "
                   f"{report.get('objects_held')} objects identity-equal, "
-                  f"{len(tl)} transient-label pair(s) allowlisted: {tl}"), report
+                  f"attempt_projection={pname}, projected_attempts={len(proj)}: "
+                  f"{[t['key'] for t in proj]}"), report
 
 
 # ---- synthetic lock fixtures --------------------------------------------------------
@@ -643,27 +706,39 @@ def main():
         ok, det, _ = validate_replay_equivalence(h, r)
         return (not ok), det
 
-    # REV 2.3 nominal: exactly ONE transient pair (held live-transient with the
-    # selected candidate, sealed truthful no-candidate) must PASS and be ENUMERATED
+    # REV 2.3/2.4 nominal: exactly ONE transient pair (held live-transient with the
+    # selected candidate, sealed truthful no-candidate) under a DECLARED one-key
+    # quotient must PASS with BOTH labels recorded in the receipt
+    T01_KEY = ("c1", "2026-03-04", "KO.T01")
     th2, tr2 = _mk_pair()
     _edit_jsonl(th2, "acquisition_attempts.jsonl", lambda rows: rows.append(
         _att_pair_row("p-held", selected="KO.T01..BHZ",
                       reasons=["PROVIDER_UNAVAILABLE"])))
     _edit_jsonl(tr2, "acquisition_attempts.jsonl", lambda rows: rows.append(
         _att_pair_row("p-repl", selected=None, reasons=["NO_AVAILABLE_CANDIDATE"])))
-    ok_tp, det_tp, rep_tp = validate_replay_equivalence(th2, tr2)
-    check("RE-1c REV 2.3 transient-label pair (held PROVIDER_UNAVAILABLE + selected "
-          "candidate vs sealed NO_AVAILABLE_CANDIDATE + None; terminal UNAVAILABLE, "
-          "zero input objects BOTH) PASSES with the pair enumerated in the report",
-          ok_tp and rep_tp.get("transient_label_rows") == [("c1", "2026-03-04",
-                                                            "KO.T01")],
+    ok_tp, det_tp, rep_tp = validate_replay_equivalence(th2, tr2,
+                                                        quotient_keys=(T01_KEY,))
+    proj_tp = rep_tp.get("projected_attempts") or []
+    check("RE-1c REV 2.4 transient-label pair under a DECLARED one-key quotient "
+          "(held PROVIDER_UNAVAILABLE + selected candidate vs sealed "
+          "NO_AVAILABLE_CANDIDATE + None; terminal UNAVAILABLE, zero input objects "
+          "BOTH) PASSES with BOTH labels recorded in the receipt",
+          ok_tp and [t["key"] for t in proj_tp] == [T01_KEY]
+          and proj_tp[0]["held"] == {"selected_nslc": "KO.T01..BHZ",
+                                     "reason_codes": ["PROVIDER_UNAVAILABLE"]}
+          and proj_tp[0]["sealed"] == {"selected_nslc": None,
+                                       "reason_codes": ["NO_AVAILABLE_CANDIDATE"]}
+          and "attempt_projection=sealed-unavailable-quotient-v1" in det_tp
+          and "projected_attempts=1" in det_tp
+          and "science_daily_differing=0/6" in det_tp,
           f"{det_tp} report={rep_tp}")
 
-    def refused_att_pair(held_row, repl_row, rel="acquisition_attempts.jsonl"):
+    def refused_att_pair(held_row, repl_row, rel="acquisition_attempts.jsonl",
+                         quotient=(T01_KEY,)):
         h, r = _mk_pair()
         _edit_jsonl(h, rel, lambda rows: rows.append(held_row))
         _edit_jsonl(r, rel, lambda rows: rows.append(repl_row))
-        ok, det, _ = validate_replay_equivalence(h, r)
+        ok, det, _ = validate_replay_equivalence(h, r, quotient_keys=quotient)
         return (not ok), det
 
     battery = []
@@ -824,21 +899,80 @@ def main():
                     *refused_att_pair(
                         _op_pair("KO.T01..BHZ", ["PROVIDER_UNAVAILABLE"]),
                         _op_pair(None, ["NO_AVAILABLE_CANDIDATE"]),
-                        rel="operation_ledger.jsonl")))
+                        rel="operation_ledger.jsonl", quotient=())))
+    # -- REV 2.4 locks: exact-set quotient gate (codex 69b801f)
+    battery.append(("well-formed pair under EMPTY/undeclared quotient (2.4)",
+                    *refused_att_pair(
+                        _att_pair_row("p-held", selected="KO.T01..BHZ",
+                                      reasons=["PROVIDER_UNAVAILABLE"]),
+                        _att_pair_row("p-repl", selected=None,
+                                      reasons=["NO_AVAILABLE_CANDIDATE"]),
+                        quotient=())))
+    battery.append(("declared quotient key MISSING from projection (2.4)",
+                    *refused_att_pair(
+                        _att_pair_row("p-held", selected="KO.T01..BHZ",
+                                      reasons=["PROVIDER_UNAVAILABLE"]),
+                        _att_pair_row("p-repl", selected=None,
+                                      reasons=["NO_AVAILABLE_CANDIDATE"]),
+                        quotient=(T01_KEY, ("c1", "2026-03-04", "KO.T09")))))
+
+    def refused_att_pairs(held_rows, repl_rows, quotient):
+        h, r = _mk_pair()
+        _edit_jsonl(h, "acquisition_attempts.jsonl",
+                    lambda rows: rows.extend(held_rows))
+        _edit_jsonl(r, "acquisition_attempts.jsonl",
+                    lambda rows: rows.extend(repl_rows))
+        ok, det, _ = validate_replay_equivalence(h, r, quotient_keys=quotient)
+        return (not ok), det
+
+    battery.append(("EIGHTH key: second well-formed pair outside declaration (2.4)",
+                    *refused_att_pairs(
+                        [_att_pair_row("p-held", selected="KO.T01..BHZ",
+                                       reasons=["PROVIDER_UNAVAILABLE"]),
+                         _att_pair_row("p-held2", selected="KO.T02..BHZ",
+                                       reasons=["PROVIDER_UNAVAILABLE"],
+                                       station="KO.T02")],
+                        [_att_pair_row("p-repl", selected=None,
+                                       reasons=["NO_AVAILABLE_CANDIDATE"]),
+                         _att_pair_row("p-repl2", selected=None,
+                                       reasons=["NO_AVAILABLE_CANDIDATE"],
+                                       station="KO.T02")],
+                        quotient=(T01_KEY,))))
+    battery.append(("DUPLICATE projected quotient key (2.4)",
+                    *refused_att_pairs(
+                        [_att_pair_row("p-held", selected="KO.T01..BHZ",
+                                       reasons=["PROVIDER_UNAVAILABLE"]),
+                         _att_pair_row("p-held2", selected="KO.T01..BHZ",
+                                       reasons=["PROVIDER_UNAVAILABLE"])],
+                        [_att_pair_row("p-repl", selected=None,
+                                       reasons=["NO_AVAILABLE_CANDIDATE"]),
+                         _att_pair_row("p-repl2", selected=None,
+                                       reasons=["NO_AVAILABLE_CANDIDATE"])],
+                        quotient=(T01_KEY,))))
+    battery.append(("changed candidate: held selected_nslc not bound to its own "
+                    "station (2.4)", *refused_att_pair(
+                        _att_pair_row("p-held", selected="KO.OTHER..BHZ",
+                                      reasons=["PROVIDER_UNAVAILABLE"]),
+                        _att_pair_row("p-repl", selected=None,
+                                      reasons=["NO_AVAILABLE_CANDIDATE"]))))
 
     all_refused = all(v for _, v, _ in battery)
     check("RE-1b violation battery: every non-allowlisted difference REFUSES "
           f"({len(battery)} classes incl. codex C1 receipt locks, C2 source_id/"
           "station_id, C3 manifest presence+policy, G1 publication records, "
-          "REV 2.3 transient-pair locks)",
+          "REV 2.3 transient-pair locks, REV 2.4 quotient-gate locks)",
           all_refused,
           "; ".join(f"{n}: {'ok' if v else 'NOT REFUSED'}" for n, v, _ in battery))
 
     held_env = os.environ.get("D2_HELD_ROOT")
     repl_env = os.environ.get("D2_REPLACEMENT_ROOT")
     if held_env and repl_env and os.path.isdir(held_env) and os.path.isdir(repl_env):
-        ok, det, rep = validate_replay_equivalence(held_env, repl_env)
-        check("RE-2 real-pair exact scientific equivalence (held vs replacement)",
+        # REV 2.4: the real-pair lane declares EXACTLY the seven predeclared
+        # remint3 keys (sealed-unavailable-quotient-v1, codex 69b801f)
+        ok, det, rep = validate_replay_equivalence(
+            held_env, repl_env, quotient_keys=SEALED_UNAVAILABLE_QUOTIENT_V1)
+        check("RE-2 real-pair exact scientific equivalence (held vs replacement) "
+              "under sealed-unavailable-quotient-v1 (the predeclared 7 keys)",
               ok, f"{det} report={rep}")
     else:
         check("RE-2 real-pair exact scientific equivalence (held vs replacement)",

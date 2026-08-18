@@ -23,6 +23,21 @@ REV 2 (codex builder review `17a550be` -- all five repairs locked):
   B12  (F2) PyG routes through the pinned city2graph gdf_to_pyg bridge
        (torch-gated: explicit typed line until torch lands for the packet)
 
+REV 3 (codex verify-once `4b365e4e` closures 1 + 3, disclosures ratified):
+  B0c  A1 BYTE AUTHORITY: the public build_station_table accepts exact
+       plan_bytes + pool_bytes ONLY, hard-pinned to the frozen full-64
+       constants with NO public digest override -- row deletion/addition/
+       reordering/re-encoding all refuse via the byte pin; exact bytes still
+       yield 110/35. Fixture rows go through the clearly PRIVATE helper.
+  B12  strengthened to FULL heterogeneous identity: every returned node and
+       edge table (station/segment/carrier + coherence/near/member/adjacent/
+       contains, with r, support, provenance, distance, unit factor, both CRS
+       fields) compares canonically after gdf_to_pyg -> pyg_to_gdf; same-pair
+       near+coherence must both survive (torch-gated until the packet env).
+  B13/B14  KO.KHMN record requirement: render + phase_a_result declare
+       geometry_excluded_station_ids/count/reason -- a map can never silently
+       imply every selected station was rendered.
+
 Capability-gated classes print an explicit [CAP] line when a dependency is
 absent -- never a silent skip; the full-green run happens under the pinned
 f2g-env (py3.12 + city2graph@3892a086 lock).
@@ -109,14 +124,15 @@ def _snap(day, edges, digest, states=None):
 
 
 def main():
-    st = B.build_station_table(PLAN, POOL_BYTES, pool_sha256=POOL_SHA)
+    st = B._fixture_station_table(PLAN, POOL_BYTES, pool_sha256=POOL_SHA)
     sg = B.build_segment_table(PLAN, TOPO)
     ca = B.build_carrier_table(PLAN, TOPO, {"c_one": {
         "expected_sha256": "1" * 64, "valid_through": "2026-08-23",
         "threshold": 0.21}})
-    check("B1 identity tables deterministic (real schema + pinned pool join)",
+    check("B1 identity tables deterministic (real schema + pinned pool join; "
+          "fixture rows via the PRIVATE helper)",
           B.canon_jsonl(st) == B.canon_jsonl(
-              B.build_station_table(PLAN, POOL_BYTES, pool_sha256=POOL_SHA))
+              B._fixture_station_table(PLAN, POOL_BYTES, pool_sha256=POOL_SHA))
           and len(st) == 4 and len(sg) == 2 and len(ca) == 1
           and ca[0]["topology_version"] == "t1")
 
@@ -125,15 +141,15 @@ def main():
         import d2_campaign_v2_plan as V2P
         bundle = open(os.path.join(HERE, "campaign_v2_phase05",
                                    "phase0_bundle.json"), "rb").read()
-        plan_real, _pb = V2P.build_v2_campaign_plan(bundle)
+        plan_real, plan_bytes = V2P.build_v2_campaign_plan(bundle)
         pool_real = open(os.path.join(HERE,
                                       "d2_campaign_v2_candidate_pool.json"),
                          "rb").read()
-        rst = B.build_station_table(plan_real, pool_real)
+        rst = B.build_station_table(plan_bytes, pool_real)   # PUBLIC authority
         khmn = next(r for r in rst if r["station_id"] == "KO.KHMN")
-        check("B0 real-shape: exact bundle -> exact plan + exact pool -> "
-              "110 pool nodes / 35 selected; KO.KHMN typed coordinate absence "
-              "(selected, coords null in the frozen pool -- disclosed)",
+        check("B0 real-shape via the PUBLIC bytes-authority seam: exact plan "
+              "bytes + exact pool bytes -> 110 pool nodes / 35 selected; "
+              "KO.KHMN typed coordinate absence (ratified)",
               len(rst) == 110
               and sum(r["registry_selected"] for r in rst) == 35
               and all((r["lon"] and r["lat"]) or not r["coordinates_available"]
@@ -141,32 +157,60 @@ def main():
               and khmn["registry_selected"] is True
               and khmn["coordinates_available"] is False
               and khmn["lon"] is None)
+        # B0b: cross-join refusals via the PRIVATE helper (join-logic locks)
         flat = dict(plan_real)
         flat["station_registry"] = [r for rows in
                                     plan_real["station_registry"].values()
                                     for r in rows]
-        ok_a, code_a = refuses(lambda: B.build_station_table(flat, pool_real),
-                               "PLAN_SCHEMA")
-        ok_b, code_b = refuses(lambda: B.build_station_table(
-            plan_real, pool_real + b" "), "POOL_DIGEST_MISMATCH")
+        _fx = lambda p, pb: B._fixture_station_table(  # noqa: E731
+            p, pb, pool_sha256=B.POOL_SHA256)
+        ok_a, code_a = refuses(lambda: _fx(flat, pool_real), "PLAN_SCHEMA")
         mut = json.loads(json.dumps(plan_real))
         c0 = list(mut["station_registry"])[0]
         mut["station_registry"][c0][0]["ordered_nslc_candidates"] = ["XX.NO..HHZ"]
-        ok_c, code_c = refuses(lambda: B.build_station_table(mut, pool_real),
-                               "NSLC_MISMATCH_POOL")
+        ok_c, code_c = refuses(lambda: _fx(mut, pool_real), "NSLC_MISMATCH_POOL")
         mut2 = json.loads(json.dumps(plan_real))
         mut2["station_registry"][c0][0]["segment_name"] = "not_a_segment"
-        ok_d, code_d = refuses(lambda: B.build_station_table(mut2, pool_real),
+        ok_d, code_d = refuses(lambda: _fx(mut2, pool_real),
                                "SEGMENT_MISMATCH_POOL")
         mut3 = json.loads(json.dumps(plan_real))
         cs = list(mut3["station_registry"])
         moved = mut3["station_registry"][cs[0]].pop(0)
         mut3["station_registry"][cs[1]].append(moved)
-        ok_e, code_e = refuses(lambda: B.build_station_table(mut3, pool_real),
+        ok_e, code_e = refuses(lambda: _fx(mut3, pool_real),
                                "CARRIER_MISMATCH_POOL")
-        check("B0b real-shape mutations refuse (nesting/pool-bytes/NSLC/"
-              "segment/carrier)", ok_a and ok_b and ok_c and ok_d and ok_e,
-              f"{code_a}/{code_b}/{code_c}/{code_d}/{code_e}")
+        check("B0b cross-join mutations refuse (nesting/NSLC/segment/carrier)",
+              ok_a and ok_c and ok_d and ok_e,
+              f"{code_a}/{code_c}/{code_d}/{code_e}")
+        # B0c (closure 1): BYTE AUTHORITY on the public seam
+        import inspect
+        sig = str(inspect.signature(B.build_station_table))
+        doc = json.loads(plan_bytes.decode("utf-8"))
+        rows0 = doc["station_registry"][list(doc["station_registry"])[0]]
+        deleted = json.loads(plan_bytes.decode("utf-8"))
+        deleted["station_registry"][list(deleted["station_registry"])[0]].pop(0)
+        added = json.loads(plan_bytes.decode("utf-8"))
+        added["station_registry"][list(added["station_registry"])[0]].append(
+            dict(rows0[0], station_id="KO.FAKE"))
+        reordered = json.loads(plan_bytes.decode("utf-8"))
+        reordered["station_registry"][
+            list(reordered["station_registry"])[0]].reverse()
+        recoded = plan_bytes.replace(b",", b", ", 1)     # same JSON, new bytes
+        mutants = [B.canon_bytes(deleted)[:-1] + b"\n", B.canon_bytes(added),
+                   B.canon_bytes(reordered), recoded]
+        oks, codes = [], []
+        for mb in mutants:
+            ok_m, code_m = refuses(lambda mb=mb: B.build_station_table(
+                mb, pool_real), "PLAN_BYTES_AUTHORITY")
+            oks.append(ok_m); codes.append(code_m)
+        ok_p, code_p = refuses(lambda: B.build_station_table(
+            plan_bytes, pool_real + b" "), "POOL_BYTES_AUTHORITY")
+        check("B0c byte authority: deletion/addition/reordering/re-encoding "
+              "and forged-pool bytes ALL refuse; the public seam exposes NO "
+              "digest override",
+              all(oks) and ok_p
+              and "sha256" not in sig and "expected" not in sig,
+              f"{codes}/{code_p} sig={sig}")
     except FileNotFoundError as e:
         cap("B0 real-shape", f"committed bundle/pool not present: {e}")
 
@@ -401,30 +445,60 @@ def main():
 
     try:
         data = B.to_pyg(node_tables, edge_tables)
-        nb, eb = B.from_pyg(data)
-        st_back = B.from_geodataframe(nb["station"])
-        check("B12 PyG via pinned city2graph bridge: station identity survives "
-              "gdf_to_pyg -> pyg_to_gdf",
-              B.canon_jsonl(sorted(st_back, key=lambda r_: r_["station_id"]))
-              == B.canon_jsonl(st))
+        back = B.from_pyg(data)
+        nb, eb = back if isinstance(back, tuple) else (back, {})
+        # closure 3: FULL heterogeneous identity -- every node and edge table
+        node_ok = all(
+            B.canon_jsonl(sorted(B.from_geodataframe(nb[kind]),
+                                 key=lambda r_: B.canon_bytes(r_)))
+            == B.canon_jsonl(sorted(node_tables[kind],
+                                    key=lambda r_: B.canon_bytes(r_)))
+            for kind in node_tables)
+        def _etbl(key):
+            for k in eb:
+                if (k[1] if isinstance(k, tuple) else k) == key:
+                    return B.from_geodataframe(eb[k])
+            return None
+        edge_ok = all(
+            (lambda got: got is not None and B.canon_jsonl(
+                sorted(got, key=lambda r_: B.canon_bytes(r_)))
+             == B.canon_jsonl(sorted(rows, key=lambda r_: B.canon_bytes(r_))))
+            (_etbl(name))
+            for name, rows in edge_tables.items() if rows)
+        pair_both = _etbl("near") is not None and _etbl("coheres_with") is not None
+        check("B12 PyG via pinned city2graph bridge: FULL heterogeneous "
+              "identity -- every node+edge table canonical after gdf_to_pyg -> "
+              "pyg_to_gdf; same-pair near+coherence both survive",
+              node_ok and edge_ok and pair_both)
     except B.CapabilityUnavailable as e:
-        cap("B12 PyG bridge round trip", str(e))
+        cap("B12 PyG bridge FULL-identity round trip (packet-time live bar)",
+            str(e))
 
     try:
-        out = B.render_map(st, edges, os.path.join(td, "render.png"),
+        st_x = st + [{**st[0], "station_id": "KO.NOXY", "lon": None,
+                      "lat": None, "coordinates_available": False}]
+        out = B.render_map(st_x, edges, os.path.join(td, "render.png"),
                            title_suffix="fixture c_one 2026-03-02")
-        check("B13 render writes file; mandated label unconditional",
-              os.path.getsize(out) > 0
-              and B.RENDER_LABEL.startswith("seismic envelope coherence"))
+        check("B13 render writes file; mandated label unconditional; "
+              "geometry-excluded stations DECLARED in render metadata",
+              os.path.getsize(out["path"]) > 0
+              and B.RENDER_LABEL.startswith("seismic envelope coherence")
+              and out["geometry_excluded_station_ids"] == ["KO.NOXY"]
+              and out["geometry_excluded_count"] == 1
+              and out["geometry_excluded_reason"] is not None)
     except B.CapabilityUnavailable as e:
-        cap("B13 render label", str(e))
+        cap("B13 render label + excluded record", str(e))
 
     res = B.phase_a_result(input_digests={"plan": "x" * 64},
                            code_digests={"builder": "y" * 64},
-                           output_digests={}, bar_results={}, status="FIXTURE")
-    check("B14 phase_a_result carries the four standing non-claims",
+                           output_digests={}, bar_results={}, status="FIXTURE",
+                           geometry_excluded_station_ids=["KO.KHMN"])
+    check("B14 phase_a_result carries the four standing non-claims AND the "
+          "geometry-excluded record (KO.KHMN ruling)",
           len(res["non_claims"]) == 4
-          and any("INCONCLUSIVE" in c for c in res["non_claims"]))
+          and any("INCONCLUSIVE" in c for c in res["non_claims"])
+          and res["geometry_excluded_station_ids"] == ["KO.KHMN"]
+          and res["geometry_excluded_count"] == 1)
 
 
 main()

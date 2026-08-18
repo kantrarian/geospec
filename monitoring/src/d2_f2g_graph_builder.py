@@ -75,7 +75,9 @@ import numpy as np
 
 SCHEMA = "f2g-graph-v1"
 SOURCE_CRS = "EPSG:4326"
-# A1 pin: the frozen 110-candidate pool (d2_campaign_v2_candidate_pool.json)
+# A1 pins (REV 3, codex closure 1): the frozen full-64 byte authorities. The
+# production entrypoint hard-requires BOTH; no public digest override exists.
+PLAN_SHA256 = "9973dc9ff928382a3cc3136c3254a3fcfde1e500b8bae02ff684f30855766265"
 POOL_SHA256 = "15d0e32c51c027dc144c5c6d57ec5f100a59374f6248abfc5c56ee38628ddc67"
 CITY2GRAPH_PIN = "3892a086fb21c7a7e774d5ab4020d052a827c3b5"
 PLAN_ROW_KEYS = {"segment_name", "station_id", "ordered_nslc_candidates"}
@@ -126,13 +128,28 @@ def _pool_index(pool_bytes, pool_sha256):
     return idx
 
 
-def build_station_table(plan, pool_bytes, *, pool_sha256=POOL_SHA256):
-    """Station nodes -- REV 2 (codex F1): EXACT v2 plan schema only.
-    plan.station_registry maps carrier -> rows carrying ONLY
-    {segment_name, station_id, ordered_nslc_candidates}; coordinates, network
-    and NSLC truth come from the digest-pinned pool join, and every selected
-    row must match its pool row exactly or the whole build refuses (never a
-    partial table). Pool spares become typed-flag nodes with NO membership."""
+def build_station_table(plan_bytes, pool_bytes):
+    """PRODUCTION AUTHORITY entrypoint -- REV 3 (codex closure 1): accepts the
+    EXACT plan BYTES and pool BYTES, hard-requires the frozen full-64 constants
+    (PLAN_SHA256 / POOL_SHA256), and parses internally. A parsed dict has no
+    attestation; row deletion/addition/reordering/re-encoding all change the
+    bytes and refuse. There is NO public digest override."""
+    if not isinstance(plan_bytes, (bytes, bytearray)) \
+            or sha(bytes(plan_bytes)) != PLAN_SHA256:
+        raise F2GRefusal("PLAN_BYTES_AUTHORITY",
+                         "plan must be the exact frozen bytes (9973dc9f...)")
+    if not isinstance(pool_bytes, (bytes, bytearray)) \
+            or sha(bytes(pool_bytes)) != POOL_SHA256:
+        raise F2GRefusal("POOL_BYTES_AUTHORITY",
+                         "pool must be the exact frozen bytes (15d0e32c...)")
+    plan = json.loads(bytes(plan_bytes).decode("utf-8"))
+    return _fixture_station_table(plan, pool_bytes, pool_sha256=POOL_SHA256)
+
+
+def _fixture_station_table(plan, pool_bytes, *, pool_sha256):
+    """PRIVATE fixture helper (closure 1): synthetic KAT rows only -- never the
+    production authority path. Same join/refusal logic; the caller supplies the
+    fixture digest for its own fixture bytes."""
     idx = _pool_index(pool_bytes, pool_sha256)
     reg = plan.get("station_registry")
     if not isinstance(reg, dict) or not all(isinstance(v, list)
@@ -642,6 +659,11 @@ def render_map(station_table, coherence_edges, out_path, *, title_suffix=""):
         raise CapabilityUnavailable(f"matplotlib: {exc}")
     pos = {r["station_id"]: (r["lon"], r["lat"]) for r in station_table
            if r.get("coordinates_available", True)}
+    # KO.KHMN ruling record (codex ratification): the render must DECLARE which
+    # stations were geometry-excluded so a map cannot silently imply that every
+    # selected station was rendered.
+    excluded = sorted(r["station_id"] for r in station_table
+                      if not r.get("coordinates_available", True))
     fig, ax = plt.subplots(figsize=(8, 6))
     for e in coherence_edges:
         if e["station_a"] not in pos or e["station_b"] not in pos:
@@ -652,20 +674,31 @@ def render_map(station_table, coherence_edges, out_path, *, title_suffix=""):
     xs = [p[0] for p in pos.values()]
     ys = [p[1] for p in pos.values()]
     ax.scatter(xs, ys, s=18, color="k", zorder=3)
-    ax.set_title(f"{RENDER_LABEL}{(' | ' + title_suffix) if title_suffix else ''}",
-                 fontsize=9)
+    title = f"{RENDER_LABEL}{(' | ' + title_suffix) if title_suffix else ''}"
+    if excluded:
+        title += (f"\ngeometry-excluded ({len(excluded)}, null coordinates in "
+                  f"the frozen pool): {', '.join(excluded)}")
+    ax.set_title(title, fontsize=9)
     fig.savefig(out_path, dpi=120)
     plt.close(fig)
-    return out_path
+    return {"path": out_path,
+            "geometry_excluded_station_ids": excluded,
+            "geometry_excluded_count": len(excluded),
+            "geometry_excluded_reason":
+                "null coordinates in the frozen pool (typed absence; "
+                "no coordinate invented)" if excluded else None}
 
 
 def phase_a_result(*, input_digests, code_digests, output_digests, bar_results,
-                   status):
+                   status, geometry_excluded_station_ids=()):
     return {"schema": SCHEMA, "kind": "phase_a_result", "status": status,
             "input_digests": dict(sorted(input_digests.items())),
             "code_digests": dict(sorted(code_digests.items())),
             "output_digests": dict(sorted(output_digests.items())),
             "bar_results": bar_results,
+            "geometry_excluded_station_ids":
+                sorted(geometry_excluded_station_ids),
+            "geometry_excluded_count": len(geometry_excluded_station_ids),
             "non_claims": [
                 "no forecast skill follows from representation",
                 "seismic coherence is not displacement or tectonic movement",

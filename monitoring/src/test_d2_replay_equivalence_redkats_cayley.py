@@ -1,5 +1,28 @@
 """RED-first KATs -- D2 sealed-replay EXACT SCIENTIFIC EQUIVALENCE bar (cayley).
 
+REV 2.3 (grassmann remint3 packet `d483f37`, disposition (a) -- cayley ruling, codex
+ratification pending): the SOLE admissible attempts-label divergence is the sealed
+provider's truthful rendering of a live transient provider failure. The live run
+experienced availability-yes-then-transient-fetch-error (terminal UNAVAILABLE,
+selected_nslc carries the candidate, reason PROVIDER_UNAVAILABLE, zero input
+objects); the sealed provider holds no object for that unit and honestly reports
+no-candidate (selected_nslc None, reason NO_AVAILABLE_CANDIDATE, zero input
+objects). Forcing label equality would make the sealed replay ASSERT an
+availability outcome it never derived from bytes -- option (b) ledger-consulting
+label reproduction is REJECTED as retrofitted provenance whose equality is vacuous
+(labels copied from the very ledger they are compared against verify nothing).
+Allowed EXACTLY when, at the same ordinal row of acquisition_attempts.jsonl ONLY,
+with the same key schema and every field outside ATT_ALLOW | {selected_nslc,
+reason_codes} byte-equal: held {selected_nslc: <non-empty str>, reason_codes:
+["PROVIDER_UNAVAILABLE"]} vs sealed {selected_nslc: None, reason_codes:
+["NO_AVAILABLE_CANDIDATE"]}, status == "UNAVAILABLE" AND input_object_sha256s == []
+on BOTH sides. Every allowed pair is enumerated in report["transient_label_rows"]
+and disclosed in the PASS detail; verification lanes must confirm the enumerated
+set equals the disclosed row list (remint3: grassmann's known 7). Locks: wrong
+reason-code pair either side, extra reason code, reversed direction, data-bearing
+row either side, non-UNAVAILABLE status, held selected_nslc None, station identity
+mismatch, and the same pair in operation_ledger.jsonl -- all REFUSE.
+
 REV 2.2 (codex `e127a7f` WORKS-WITH-FIX -- P1/P2 semantics CONCURRED, two root-local
 integrity holes repaired; four accepted counterexamples locked):
   2.2-1 P1 no longer drops core_blobs blind: both plans must share the complete
@@ -125,6 +148,9 @@ MANIFEST_ALLOW_TOP = {"producer_commit", "implementation_commit"}
 OBJ_ALLOW = {"reuse_disposition", "acquired_process_id", "verified_process_id"}
 ATT_ALLOW = {"attempt_id", "terminal_attempt_id", "attempted_utc",
              "indeterminate_attempt_count", "process_id"}
+# REV 2.3: the ONLY attempts fields that may diverge beyond ATT_ALLOW, and only as
+# the exact transient pair (held live-transient -> sealed truthful no-candidate)
+TRANSIENT_ATT_PAIR = {"selected_nslc", "reason_codes"}
 OPS_ALLOW = {"operation_id", "process_id", "operation_utc", "created_utc",
              "recorded_utc"}
 REGISTRY_ALLOW = {"expected_sha256"}
@@ -230,6 +256,29 @@ def _validate_receipts(root, label):
     if auth not in completed_receipts:
         return f"{label}: batch receipt is not any COMPLETED process row's receipt"
     return None
+
+
+def _transient_label_pair(hrow, rrow):
+    """REV 2.3 sole admissible attempts-label divergence: a live transient provider
+    failure (availability-yes then fetch-error) rendered by the sealed provider as
+    no-candidate. Same key schema; every field outside ATT_ALLOW | TRANSIENT_ATT_PAIR
+    byte-equal (binds carrier/day/segment/station/provider/request window); terminal
+    UNAVAILABLE + zero input objects on BOTH sides; direction fixed held->sealed."""
+    if set(hrow.keys()) != set(rrow.keys()):
+        return False
+    for k in hrow:
+        if k in ATT_ALLOW or k in TRANSIENT_ATT_PAIR:
+            continue
+        if hrow[k] != rrow[k]:
+            return False
+    sel = hrow.get("selected_nslc")
+    return (hrow.get("status") == "UNAVAILABLE" and rrow.get("status") == "UNAVAILABLE"
+            and hrow.get("input_object_sha256s") == []
+            and rrow.get("input_object_sha256s") == []
+            and isinstance(sel, str) and sel != ""
+            and rrow.get("selected_nslc") is None
+            and hrow.get("reason_codes") == ["PROVIDER_UNAVAILABLE"]
+            and rrow.get("reason_codes") == ["NO_AVAILABLE_CANDIDATE"])
 
 
 def validate_replay_equivalence(held, repl):
@@ -366,18 +415,26 @@ def validate_replay_equivalence(held, repl):
         if _project(hg[carrier], REGISTRY_ALLOW) != _project(rg[carrier], REGISTRY_ALLOW):
             return False, f"registry[{carrier}] differs beyond allowlist", report
 
-    # identity-tolerant ledgers: count + ordered EXACT-allowlist projection (C2)
+    # identity-tolerant ledgers: count + ordered EXACT-allowlist projection (C2);
+    # REV 2.3: attempts rows may ADDITIONALLY diverge only as the exact transient
+    # pair, each allowance enumerated in the report (never silent)
     for rel, allow in (("acquisition_attempts.jsonl", ATT_ALLOW),
                        ("operation_ledger.jsonl", OPS_ALLOW)):
         a = _read_jsonl(held, rel)
         b = _read_jsonl(repl, rel)
         if len(a) != len(b):
             return False, f"{rel} row count {len(a)} != {len(b)}", report
-        pa = [canon(_project(r, allow)) for r in a]
-        pb = [canon(_project(r, allow)) for r in b]
-        if pa != pb:
-            first = next(i for i, (x, y) in enumerate(zip(pa, pb)) if x != y)
-            return False, f"{rel} label projection differs at row {first}", report
+        transient = []
+        for i, (ra, rb) in enumerate(zip(a, b)):
+            if canon(_project(ra, allow)) == canon(_project(rb, allow)):
+                continue
+            if rel == "acquisition_attempts.jsonl" and _transient_label_pair(ra, rb):
+                transient.append((ra.get("carrier_key"), ra.get("scored_day"),
+                                  ra.get("station_id")))
+                continue
+            return False, f"{rel} label projection differs at row {i}", report
+        if rel == "acquisition_attempts.jsonl":
+            report["transient_label_rows"] = transient
 
     # batch_manifest typed (C3): scientific surface EXACT, artifacts sub-map for
     # byte-equal-class files EXACT, named identity/attestation/induced fields dropped
@@ -395,8 +452,10 @@ def validate_replay_equivalence(held, repl):
         keys = sorted(k for k in set(hart) | set(rart) if hart.get(k) != rart.get(k))
         return False, f"batch_manifest artifacts differ on byte-equal files: {keys[:3]}", report
 
+    tl = report.get("transient_label_rows") or []
     return True, (f"EQUIVALENT: {report['daily_total']} daily rows digest-equal, "
-                  f"{report.get('objects_held')} objects identity-equal"), report
+                  f"{report.get('objects_held')} objects identity-equal, "
+                  f"{len(tl)} transient-label pair(s) allowlisted: {tl}"), report
 
 
 # ---- synthetic lock fixtures --------------------------------------------------------
@@ -556,6 +615,21 @@ def _edit_json(root, rel, fn):
         fh.write(canon(doc))
 
 
+def _att_pair_row(pid, *, selected, reasons, status="UNAVAILABLE", shas=(),
+                  station="KO.T01", day="2026-03-04"):
+    """REV 2.3 fixture: an appended attempts row whose non-identity fields are
+    byte-equal across roots except the mutated pair surface under test."""
+    return {"carrier_key": "c1", "scored_day": day, "segment_name": "seg_a",
+            "station_id": station, "provider": "KOERI",
+            "request_start_utc": "2026-03-03T07:00:13.094647Z",
+            "request_end_utc": f"{day}T07:00:13.094647Z",
+            "selected_nslc": selected, "status": status,
+            "input_object_sha256s": list(shas), "reason_codes": list(reasons),
+            "attempted_utc": f"t-{pid}", "attempt_id": f"tp-{pid}",
+            "terminal_attempt_id": f"tp-{pid}", "indeterminate_attempt_count": 0,
+            "process_id": pid}
+
+
 def main():
     th, tr = _mk_pair()
     ok_nom, det_nom, rep_nom = validate_replay_equivalence(th, tr)
@@ -566,6 +640,29 @@ def main():
 
     def refused(mut):
         h, r = _mk_pair(mutate=mut)
+        ok, det, _ = validate_replay_equivalence(h, r)
+        return (not ok), det
+
+    # REV 2.3 nominal: exactly ONE transient pair (held live-transient with the
+    # selected candidate, sealed truthful no-candidate) must PASS and be ENUMERATED
+    th2, tr2 = _mk_pair()
+    _edit_jsonl(th2, "acquisition_attempts.jsonl", lambda rows: rows.append(
+        _att_pair_row("p-held", selected="KO.T01..BHZ",
+                      reasons=["PROVIDER_UNAVAILABLE"])))
+    _edit_jsonl(tr2, "acquisition_attempts.jsonl", lambda rows: rows.append(
+        _att_pair_row("p-repl", selected=None, reasons=["NO_AVAILABLE_CANDIDATE"])))
+    ok_tp, det_tp, rep_tp = validate_replay_equivalence(th2, tr2)
+    check("RE-1c REV 2.3 transient-label pair (held PROVIDER_UNAVAILABLE + selected "
+          "candidate vs sealed NO_AVAILABLE_CANDIDATE + None; terminal UNAVAILABLE, "
+          "zero input objects BOTH) PASSES with the pair enumerated in the report",
+          ok_tp and rep_tp.get("transient_label_rows") == [("c1", "2026-03-04",
+                                                            "KO.T01")],
+          f"{det_tp} report={rep_tp}")
+
+    def refused_att_pair(held_row, repl_row, rel="acquisition_attempts.jsonl"):
+        h, r = _mk_pair()
+        _edit_jsonl(h, rel, lambda rows: rows.append(held_row))
+        _edit_jsonl(r, rel, lambda rows: rows.append(repl_row))
         ok, det, _ = validate_replay_equivalence(h, r)
         return (not ok), det
 
@@ -670,11 +767,70 @@ def main():
     battery.append(("duplicate ledger row, stale process_count (2.2-2)", *refused(
         lambda t: _edit_jsonl(t, "campaign_process_ledger.jsonl",
                               lambda rows: rows.append(dict(rows[0]))))))
+    # -- REV 2.3 locks: the transient pair is the ONLY admissible label divergence
+    battery.append(("transient pair wrong live reason FETCH_ERROR (2.3)",
+                    *refused_att_pair(
+                        _att_pair_row("p-held", selected="KO.T01..BHZ",
+                                      reasons=["FETCH_ERROR:ConnectionError"]),
+                        _att_pair_row("p-repl", selected=None,
+                                      reasons=["NO_AVAILABLE_CANDIDATE"]))))
+    battery.append(("transient pair wrong sealed reason (2.3)", *refused_att_pair(
+        _att_pair_row("p-held", selected="KO.T01..BHZ",
+                      reasons=["PROVIDER_UNAVAILABLE"]),
+        _att_pair_row("p-repl", selected=None, reasons=["PROVIDER_UNAVAILABLE"]))))
+    battery.append(("transient pair extra sealed reason code (2.3)", *refused_att_pair(
+        _att_pair_row("p-held", selected="KO.T01..BHZ",
+                      reasons=["PROVIDER_UNAVAILABLE"]),
+        _att_pair_row("p-repl", selected=None,
+                      reasons=["NO_AVAILABLE_CANDIDATE", "EXTRA"]))))
+    battery.append(("transient pair direction reversed (2.3)", *refused_att_pair(
+        _att_pair_row("p-held", selected=None, reasons=["NO_AVAILABLE_CANDIDATE"]),
+        _att_pair_row("p-repl", selected="KO.T01..BHZ",
+                      reasons=["PROVIDER_UNAVAILABLE"]))))
+    battery.append(("transient pair data-bearing held row (2.3)", *refused_att_pair(
+        _att_pair_row("p-held", selected="KO.T01..BHZ",
+                      reasons=["PROVIDER_UNAVAILABLE"], shas=["ee" * 32]),
+        _att_pair_row("p-repl", selected=None, reasons=["NO_AVAILABLE_CANDIDATE"]))))
+    battery.append(("transient pair data-bearing sealed row (2.3)", *refused_att_pair(
+        _att_pair_row("p-held", selected="KO.T01..BHZ",
+                      reasons=["PROVIDER_UNAVAILABLE"]),
+        _att_pair_row("p-repl", selected=None, reasons=["NO_AVAILABLE_CANDIDATE"],
+                      shas=["ee" * 32]))))
+    battery.append(("transient pair non-UNAVAILABLE status both sides (2.3)",
+                    *refused_att_pair(
+                        _att_pair_row("p-held", selected="KO.T01..BHZ",
+                                      reasons=["PROVIDER_UNAVAILABLE"],
+                                      status="ERROR"),
+                        _att_pair_row("p-repl", selected=None,
+                                      reasons=["NO_AVAILABLE_CANDIDATE"],
+                                      status="ERROR"))))
+    battery.append(("transient pair held selected_nslc None (2.3)", *refused_att_pair(
+        _att_pair_row("p-held", selected=None, reasons=["PROVIDER_UNAVAILABLE"]),
+        _att_pair_row("p-repl", selected=None, reasons=["NO_AVAILABLE_CANDIDATE"]))))
+    battery.append(("transient pair station identity mismatch (2.3)",
+                    *refused_att_pair(
+                        _att_pair_row("p-held", selected="KO.T01..BHZ",
+                                      reasons=["PROVIDER_UNAVAILABLE"]),
+                        _att_pair_row("p-repl", selected=None,
+                                      reasons=["NO_AVAILABLE_CANDIDATE"],
+                                      station="KO.T02"))))
+    _op_pair = lambda sel, rsn: {"arm": "incident", "carrier_key": "c1",  # noqa: E731
+                                 "day": "2026-03-04", "op": "ACQUIRE",
+                                 "operation_id": "o-shared",
+                                 "status": "UNAVAILABLE",
+                                 "input_object_sha256s": [],
+                                 "selected_nslc": sel, "reason_codes": rsn}
+    battery.append(("transient pair in operation_ledger REFUSES (2.3)",
+                    *refused_att_pair(
+                        _op_pair("KO.T01..BHZ", ["PROVIDER_UNAVAILABLE"]),
+                        _op_pair(None, ["NO_AVAILABLE_CANDIDATE"]),
+                        rel="operation_ledger.jsonl")))
 
     all_refused = all(v for _, v, _ in battery)
     check("RE-1b violation battery: every non-allowlisted difference REFUSES "
           f"({len(battery)} classes incl. codex C1 receipt locks, C2 source_id/"
-          "station_id, C3 manifest presence+policy, G1 publication records)",
+          "station_id, C3 manifest presence+policy, G1 publication records, "
+          "REV 2.3 transient-pair locks)",
           all_refused,
           "; ".join(f"{n}: {'ok' if v else 'NOT REFUSED'}" for n, v, _ in battery))
 

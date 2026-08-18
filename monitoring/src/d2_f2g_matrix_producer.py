@@ -40,6 +40,14 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 _REPO = os.path.abspath(os.path.join(_HERE, "..", ".."))
 
 MANIFEST_SCHEMA = "f2g-matrix-manifest-v1"
+IDENTITY_ARTIFACT = "f2g_producer_identity.json"
+IDENTITY_SCHEMA = "f2g-producer-identity-v1"
+_IDENTITY_KEYS = {"schema", "producer_commit", "producer_blob_map",
+                  "algorithm_config_digest", "environment_lock_digest",
+                  "clean_tree"}
+# Real production input-manifest schemas: the frozen D2 station-series path ONLY
+# (closure 2b). "im-v2-resume" is the bar's pinned token for the same dispatch.
+REAL_SCHEMAS = {"im-v2-resume", "geospec-d2-step4b-input-manifest-v2-resume"}
 _MANIFEST_KEYS = {
     "schema", "campaign_id", "run_id", "carrier_key", "day", "producer_commit",
     "producer_blob_map", "clean_tree", "algorithm_config_digest",
@@ -63,6 +71,10 @@ ALGORITHM_CONFIG = {
     "fixture_series": "raw-le-float64-mono",
     "envelope": "abs-hilbert",
     "correlation": "pearson-common-finite-prefix",
+    "real_schemas": sorted(REAL_SCHEMAS),
+    "real_path": "d2_step4b_campaign_run._station_series/"
+                 "seismic_data-band-envelope; pearson over common valid_mask; "
+                 "n_overlap = common-valid count",
     "n_overlap_policy": "min-common-finite-samples",
     "diagonal": 1.0,
     "cross_carrier_pairs": False,
@@ -91,7 +103,18 @@ ALGORITHM_CONFIG_DIGEST = _sha(_canon(ALGORITHM_CONFIG))
 
 
 def environment_lock():
+    try:
+        import scipy
+        scipy_v = scipy.__version__
+    except ImportError:
+        scipy_v = "absent"
+    try:
+        import obspy
+        obspy_v = getattr(obspy, "__version__", "unavailable")
+    except ImportError:
+        obspy_v = "absent"
     return {"python": platform.python_version(), "numpy": np.__version__,
+            "scipy": scipy_v, "obspy": obspy_v,
             "platform": platform.platform(), "machine": platform.machine()}
 
 
@@ -177,6 +200,8 @@ def _npy_bytes(arr):
 
 
 def _derive_fixture(root, input_objects, station_ids):
+    """FIXTURE-SCHEMA ONLY (closure 2b): raw little-endian float64 sample arrays.
+    Unreachable for any real input-manifest schema by construction."""
     env = {}
     for sid in station_ids:
         recs = [o for o in input_objects if o["station_id"] == sid]
@@ -191,13 +216,106 @@ def _derive_fixture(root, input_objects, station_ids):
     return _pairwise(env, station_ids)
 
 
-# -- first-acceptance identity pins ("mismatch vs recorded" refuses) ----------------
+def _derive_real(root, records_by_station, station_ids, session_start):
+    """REAL v2 schema (closure 2b): parse miniSEED and reuse the FROZEN D2
+    station-series path (d2_step4b_campaign_run._station_series over the
+    seismic_data band-envelope), then Pearson over the common valid_mask samples;
+    n_overlap = the common-valid count. Raises typed errors when real
+    dependencies are absent or bytes do not parse -- never a silent fixture
+    read, never a wrong-frame answer."""
+    try:
+        import obspy
+    except ImportError as exc:
+        raise RuntimeError("REAL_DEPS_ABSENT:obspy") from exc
+    import d2_step4b_campaign_run as CR
+    import seismic_data as SD
+
+    es_by_station = {}
+    for sid in station_ids:
+        recs = records_by_station[sid]
+        stream = None
+        nslc = recs[0]["selected_nslc"]
+        for rec in sorted(recs, key=lambda o: o["object_sha256"]):
+            p = _locate_object(root, rec)
+            raw = open(p, "rb").read()
+            if _sha(raw) != rec["object_sha256"]:
+                raise ValueError(f"object byte drift for {sid}")
+            st = obspy.read(p)                     # typed failure if not miniSEED
+            stream = st if stream is None else stream + st
+        es_by_station[sid] = CR._station_series(SD, stream, nslc, session_start)
+
+    n = len(station_ids)
+    r = np.eye(n, dtype="<f8")
+    nov = [[0] * n for _ in range(n)]
+    for i in range(n):
+        for j in range(i + 1, n):
+            a = es_by_station[station_ids[i]]
+            b = es_by_station[station_ids[j]]
+            common = a.valid_mask & b.valid_mask
+            k = int(common.sum())
+            if k >= 2:
+                va, vb = a.values[common], b.values[common]
+                if va.std() > 0 and vb.std() > 0:
+                    r[i, j] = r[j, i] = float(np.corrcoef(va, vb)[0, 1])
+                    nov[i][j] = nov[j][i] = k
+                else:
+                    r[i, j] = r[j, i] = np.nan
+            else:
+                r[i, j] = r[j, i] = np.nan
+    return r, nov
+
+
+# -- identity AUTHORITY (closure 2a): the durable per-root artifact is the ONLY
+# clearance; every verification (first call, any process) compares against the
+# REOPENED artifact. The process-local first-acceptance registry below remains
+# ONLY as an auxiliary same-process drift alarm, never clearance. -------------------
 _RECORDED = {}
 
 
 def _identity_fields(man):
     return (man.get("producer_commit"), _sha(_canon(man.get("producer_blob_map"))),
             man.get("algorithm_config_digest"), man.get("environment_lock_digest"))
+
+
+def write_producer_identity(root):
+    """Emit the canonical durable expected-identity artifact for this producer at
+    <root>/f2g_producer_identity.json BEFORE matrix production. Refuses on a dirty
+    tree (the artifact must bind clean_tree=true). Returns the artifact digest."""
+    if not _git_clean():
+        raise RuntimeError("IDENTITY_ARTIFACT_REQUIRES_CLEAN_TREE")
+    doc = {"schema": IDENTITY_SCHEMA,
+           "producer_commit": _git_head(),
+           "producer_blob_map": _git_blob_map(),
+           "algorithm_config_digest": ALGORITHM_CONFIG_DIGEST,
+           "environment_lock_digest": environment_lock_digest(),
+           "clean_tree": True}
+    raw = _canon(doc)
+    with open(os.path.join(root, IDENTITY_ARTIFACT), "wb") as fh:
+        fh.write(raw)
+    return _sha(raw)
+
+
+def _load_identity_authority(root, refuse):
+    """Reopen the durable identity artifact; absent/malformed = fail-closed."""
+    p = os.path.join(root, IDENTITY_ARTIFACT)
+    try:
+        raw = open(p, "rb").read()
+    except Exception:
+        refuse("IDENTITY_AUTHORITY_ABSENT")
+        return None
+    try:
+        doc = json.loads(raw.decode("utf-8"))
+    except Exception:
+        refuse("IDENTITY_AUTHORITY_UNREADABLE")
+        return None
+    if _canon(doc) != raw:
+        refuse("IDENTITY_AUTHORITY_NOT_CANONICAL")
+    if set(doc.keys()) != _IDENTITY_KEYS or doc.get("schema") != IDENTITY_SCHEMA:
+        refuse("IDENTITY_AUTHORITY_KEYSET_DRIFT")
+        return None
+    if doc.get("clean_tree") is not True:
+        refuse("IDENTITY_AUTHORITY_NOT_CLEAN_TREE")
+    return doc
 
 
 def _read_npy_header(raw):
@@ -359,7 +477,22 @@ def verify_matrix_artifact(root, matrix_path, manifest_path, *, recompute=False)
                 done = True
                 break
 
-    # ---- first-acceptance identity pin ("mismatch vs recorded") --------------------
+    # ---- identity AUTHORITY (closure 2a): the reopened durable artifact is the
+    # only clearance -- first call and after restart alike ---------------------------
+    authority = _load_identity_authority(root, refuse)
+    if authority is not None:
+        if man.get("producer_commit") != authority.get("producer_commit"):
+            refuse("IDENTITY_MISMATCH_VS_AUTHORITY:producer_commit")
+        if man.get("producer_blob_map") != authority.get("producer_blob_map"):
+            refuse("IDENTITY_MISMATCH_VS_AUTHORITY:producer_blob_map")
+        if man.get("algorithm_config_digest") != authority.get(
+                "algorithm_config_digest"):
+            refuse("IDENTITY_MISMATCH_VS_AUTHORITY:algorithm_config_digest")
+        if man.get("environment_lock_digest") != authority.get(
+                "environment_lock_digest"):
+            refuse("IDENTITY_MISMATCH_VS_AUTHORITY:environment_lock_digest")
+
+    # ---- auxiliary same-process drift alarm (never clearance) ----------------------
     key = (os.path.normcase(os.path.abspath(root)), man.get("carrier_key"),
            man.get("day"))
     ident = _identity_fields(man)
@@ -367,10 +500,31 @@ def verify_matrix_artifact(root, matrix_path, manifest_path, *, recompute=False)
     if recorded is not None and recorded != ident:
         refuse("PRODUCER_IDENTITY_DRIFT_VS_RECORDED")
 
-    # ---- derivation oracle ---------------------------------------------------------
+    # ---- derivation oracle (schema-dispatched; fixture reader NEVER runs for a
+    # real-schema root) ---------------------------------------------------------------
     if recompute and not reasons:
         try:
-            r2, _nov2 = _derive_fixture(root, objs, sids)
+            im_doc = json.loads(open(im_path, "rb").read().decode("utf-8"))
+            schema = im_doc.get("schema", "")
+            if schema == ALGORITHM_CONFIG["fixture_schema"]:
+                r2, _nov2 = _derive_fixture(root, objs, sids)
+            elif schema in REAL_SCHEMAS:
+                by_station = {}
+                for o in objs:
+                    by_station.setdefault(o["station_id"], []).append(o)
+                sha_to_start = {o.get("sha256"): o.get("start_utc")
+                                for o in im_doc.get("objects", [])}
+                starts = sorted(s for s in (sha_to_start.get(o["object_sha256"])
+                                            for o in objs) if s)
+                if not starts:
+                    raise ValueError("REAL_SCHEMA_WITHOUT_SESSION_START")
+                from datetime import datetime, timezone
+                session_start = datetime.strptime(
+                    starts[0], "%Y-%m-%dT%H:%M:%S.%fZ").replace(
+                        tzinfo=timezone.utc)
+                r2, _nov2 = _derive_real(root, by_station, sids, session_start)
+            else:
+                raise ValueError(f"UNSUPPORTED_INPUT_MANIFEST_SCHEMA:{schema}")
         except Exception:
             refuse("RECOMPUTE_FAILED")
         else:
@@ -401,24 +555,30 @@ def produce_carrier_day_matrix(root, carrier_key, day, *, out_dir):
     im = json.loads(im_raw.decode("utf-8"))
     schema = im.get("schema", "")
 
+    session_start = None
     if schema == ALGORITHM_CONFIG["fixture_schema"]:
         objs = [dict(o) for o in im["objects"]]
         campaign_id = run_id = _sha(im_raw)
-    else:
-        objs = [dict(o) for o in im.get("objects", [])
-                if o.get("carrier_key") == carrier_key
-                and o.get("scored_day") == day]
-        objs = [{"station_id": o.get("source_id", "").rsplit("..", 1)[0]
-                 .rsplit(".", 1)[0] if False else ".".join(
-                     o.get("source_id", "").split(".")[:2]),
+    elif schema in REAL_SCHEMAS:
+        raw_objs = [o for o in im.get("objects", [])
+                    if o.get("carrier_key") == carrier_key
+                    and o.get("scored_day") == day]
+        objs = [{"station_id": ".".join(str(o.get("source_id", "")).split(".")[:2]),
                  "selected_nslc": o.get("source_id"),
                  "object_sha256": o.get("sha256"), "size": o.get("size"),
-                 "relative_path": o.get("relative_path")} for o in objs]
+                 "relative_path": o.get("relative_path")} for o in raw_objs]
+        starts = sorted(o.get("start_utc") for o in raw_objs if o.get("start_utc"))
+        if starts:
+            from datetime import datetime, timezone
+            session_start = datetime.strptime(
+                starts[0], "%Y-%m-%dT%H:%M:%S.%fZ").replace(tzinfo=timezone.utc)
         bm_path = os.path.join(root, "batch_manifest.json")
         bmj = json.loads(open(bm_path, "rb").read().decode("utf-8")) \
             if os.path.exists(bm_path) else {}
-        campaign_id = bmj.get("campaign_id", "0" * 64)
+        campaign_id = bmj.get("campaign_id", _sha(im_raw))
         run_id = bmj.get("run_id", campaign_id)
+    else:
+        raise ValueError(f"UNSUPPORTED_INPUT_MANIFEST_SCHEMA:{schema}")
 
     objs.sort(key=lambda o: (o["station_id"], o["object_sha256"]))
     station_ids = sorted({o["station_id"] for o in objs})
@@ -426,8 +586,15 @@ def produce_carrier_day_matrix(root, carrier_key, day, *, out_dir):
     if not station_ids:
         status, codes = "UNAVAILABLE", ["NO_BOUND_OBJECTS"]
         r, nov = np.zeros((0, 0), dtype="<f8"), []
-    else:
+    elif schema == ALGORITHM_CONFIG["fixture_schema"]:
         r, nov = _derive_fixture(root, objs, station_ids)
+    else:
+        by_station = {}
+        for o in objs:
+            by_station.setdefault(o["station_id"], []).append(o)
+        if session_start is None:
+            raise ValueError("REAL_SCHEMA_WITHOUT_SESSION_START")
+        r, nov = _derive_real(root, by_station, station_ids, session_start)
     mb = _npy_bytes(r)
     man = {
         "schema": MANIFEST_SCHEMA,

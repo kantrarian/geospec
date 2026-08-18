@@ -12,7 +12,7 @@
   "max_leverage": 0.5,
   "envelope_factor": 1.5
  },
- "updated": "2026-08-17T07:06:44.234106",
+ "updated": "2026-08-18T07:01:17.725164",
  "days": {
   "2026-07-28": {
    "ridgecrest": {
@@ -3414,6 +3414,170 @@
     "raw_ratio": 0.1,
     "api7": 66.309960595,
     "r30": 245.5,
+    "beta": [
+     -1.359493776343572,
+     0.013181509211899553,
+     -0.002505220781730157
+    ],
+    "n_fit": 250,
+    "fitted_date": "2026-08-12",
+    "r5_computed": true,
+    "r5_active": false
+   }
+  },
+  "2026-08-16": {
+   "ridgecrest": {
+    "r5_active": false
+   },
+   "socal_saf_mojave": {
+    "stat": 0.1,
+    "residual_percentile": 0.01968503937,
+    "residual_rank_index": 5,
+    "raw_ratio": 0.1,
+    "api7": 4.208047259,
+    "r30": 7.2,
+    "beta": [
+     -1.58080077320995,
+     0.0073773700292958716,
+     -0.0032788003079781466
+    ],
+    "n_fit": 254,
+    "fitted_date": "2026-08-12",
+    "r5_computed": true,
+    "r5_active": false
+   },
+   "socal_saf_coachella": {
+    "stat": 0.23904088041,
+    "residual_percentile": 0.80708661417,
+    "residual_rank_index": 205,
+    "raw_ratio": 0.23356072465,
+    "api7": 0.27782499742,
+    "r30": 1.9,
+    "beta": [
+     -1.8265426108950065,
+     0.02115236243645246,
+     -0.0036159767085480084
+    ],
+    "n_fit": 254,
+    "fitted_date": "2026-08-12",
+    "r5_computed": true,
+    "r5_active": false
+   },
+   "norcal_hayward": {
+    "r5_active": false
+   },
+   "cascadia": {
+    "r5_active": false
+   },
+   "tokyo_kanto": {
+    "stat": 0.1,
+    "residual_percentile": 0.0,
+    "residual_rank_index": 0,
+    "raw_ratio": 0.1,
+    "api7": 145.24441813,
+    "r30": 290.6,
+    "beta": [
+     -1.8338267750568786,
+     -0.005715667141148635,
+     0.0056796187347062915
+    ],
+    "n_fit": 254,
+    "fitted_date": "2026-08-12",
+    "r5_computed": true,
+    "r5_active": false
+   },
+   "istanbul_marmara": {
+    "stat": 0.1,
+    "residual_percentile": 0.65612648221,
+    "residual_rank_index": 166,
+    "raw_ratio": 0.1,
+    "api7": 1.3274843505,
+    "r30": 6.2,
+    "beta": [
+     -2.2348102121539997,
+     0.0022574123758017785,
+     -0.0005105549863541046
+    ],
+    "n_fit": 253,
+    "fitted_date": "2026-08-12",
+    "r5_computed": true,
+    "r5_active": false
+   },
+   "campi_flegrei": {
+    "stat": 0.29024022957,
+    "residual_percentile": 0.33617021277,
+    "residual_rank_index": 79,
+    "raw_ratio": 0.14640086971,
+    "api7": 2.3454440301,
+    "r30": 11.2,
+    "beta": [
+     -1.4984845164962124,
+     0.0011578013937873933,
+     0.006010309734893155
+    ],
+    "n_fit": 235,
+    "fitted_date": "2026-08-12",
+    "r5_computed": true,
+    "r5_active": false
+   },
+   "kaikoura": {
+    "stat": 0.1,
+    "residual_percentile": 0.04780876494,
+    "residual_rank_index": 12,
+    "raw_ratio": 0.1,
+    "api7": 55.139264382,
+    "r30": 83.0,
+    "beta": [
+     -2.0031161422120434,
+     0.0018985512763620115,
+     -0.0008863236731547269
+    ],
+    "n_fit": 251,
+    "fitted_date": "2026-08-12",
+    "r5_computed": true,
+    "r5_active": false
+   },
+   "anchorage": {
+    "stat": 0.45710590925,
+    "residual_percentile": 0.94881889764,
+    "residual_rank_index": 241,
+    "raw_ratio": 0.34266698538,
+    "api7": 14.570391818,
+    "r30": 105.4,
+    "beta": [
+     -2.011367774408522,
+     0.0034603532539084153,
+     -0.002479083187053339
+    ],
+    "n_fit": 254,
+    "fitted_date": "2026-08-12",
+    "r5_computed": true,
+    "r5_active": false
+   },
+   "kumamoto": {
+    "stat": 3.4945411276,
+    "residual_percentile": 1.0,
+    "residual_rank_index": 256,
+    "raw_ratio": 1.2836103182,
+    "api7": 9.3530374779,
+    "r30": 21.2,
+    "beta": [
+     -1.7785411928499824,
+     0.0008737469367729716,
+     0.002189690477422408
+    ],
+    "n_fit": 256,
+    "fitted_date": "2026-08-12",
+    "r5_computed": true,
+    "r5_active": false
+   },
+   "mexico_guerrero": {
+    "stat": 0.1,
+    "residual_percentile": 0.036,
+    "residual_rank_index": 9,
+    "raw_ratio": 0.1,
+    "api7": 83.571686644,
+    "r30": 240.7,
     "beta": [
      -1.359493776343572,
      0.013181509211899553,

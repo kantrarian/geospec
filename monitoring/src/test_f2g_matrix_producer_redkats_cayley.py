@@ -1,5 +1,39 @@
 """RED-first KATs -- fault2graph Phase A MATRIX PRODUCER bar (cayley).
 
+REV 2 (codex verify-once `4b365e4e` closures 2a/2b; grassmann ACK `479eddc0`):
+  IDENTITY AUTHORITY (2a -- TOFU is not attestation): a canonical DURABLE
+  expected-identity artifact `<root>/f2g_producer_identity.json` (schema
+  f2g-producer-identity-v1: producer_commit, producer_blob_map,
+  algorithm_config_digest, environment_lock_digest, clean_tree=true; canonical
+  bytes) is the ONLY identity clearance. Every verification -- first call and
+  after process restart -- compares the manifest's identity fields to the
+  REOPENED artifact. Process-local first-acceptance may remain as an auxiliary
+  same-process drift alarm, never clearance.
+    P8a  invented identity REFUSES on the FIRST call (no prior acceptance)
+    P8b  identity artifact ABSENT -> fail-closed REFUSAL (no authority, no pass)
+    P9a  post-restart (fresh subprocess): valid identity PASSES, invented
+         identity REFUSES -- the durable artifact is the authority, not memory
+  REAL-PATH DISPATCH (2b -- the fixture reader must be unreachable for real
+  data): input-manifest schema dispatch is pinned -- fixture schema
+  `f2g-fixture-input-manifest-v1` alone may use `_derive_fixture`; the real v2
+  schema `im-v2-resume` MUST parse miniSEED through the frozen D2 path
+  (`d2_step4b_campaign_run._station_series` ->
+  `seismic_data.compute_band_envelope_supported`) with ObsPy/SciPy in the
+  environment lock; any other schema is a typed refusal.
+    P15a (runs everywhere) real-schema input NEVER reaches `_derive_fixture`
+         (spy) and NEVER yields a silently fixture-derived matrix; with real
+         deps absent the outcome must be a typed refusal, not a wrong answer
+    P15b (obspy-gated) small real-format miniSEED fixture: the produced matrix
+         equals an INDEPENDENTLY INVOKED frozen-D2 oracle (envelopes via
+         _station_series/compute_band_envelope_supported; pearson over the
+         common valid_mask samples; n_overlap = common-valid count). ORACLE
+         NOTE: authored on an obspy-less host -- if the frozen correlation
+         semantic differs from pearson-over-common-valid, R1.2 the exact
+         frozen call through inbox and the bar amends; the reachability lock
+         (P15a) is load-bearing regardless.
+  STATUS: these classes are EXPECTED RED against producer `d3e76f4` (grassmann
+  runs the red proof, lands repairs bar-unedited, then green). P1-P14 unchanged.
+
 REV 1 (codex Phase-A contract `2e0c7a33` A2/A5; owner receipt ba6da167; design note
 `e123c2c` V-A). Cross-authorship per A5: grassmann implements the producer, THIS bar
 is cayley's red-KAT surface for it. Codex reviews the builder separately.
@@ -70,6 +104,15 @@ sys.path.insert(0, HERE)
 FAILS = []
 
 SEAM_MODULE = "d2_f2g_matrix_producer"
+IDENTITY_ARTIFACT = "f2g_producer_identity.json"
+IDENTITY = {"schema": "f2g-producer-identity-v1",
+            "producer_commit": "a" * 40,
+            "producer_blob_map": {"monitoring/src/seismic_data.py": "b" * 40},
+            "algorithm_config_digest": "c" * 64,
+            "environment_lock_digest": "d" * 64,
+            "clean_tree": True}
+FIXTURE_SCHEMA = "f2g-fixture-input-manifest-v1"
+REAL_SCHEMA = "im-v2-resume"
 MANIFEST_KEYS = {
     "schema", "campaign_id", "run_id", "carrier_key", "day", "producer_commit",
     "producer_blob_map", "clean_tree", "algorithm_config_digest",
@@ -124,6 +167,10 @@ def _mk_fixture(td):
     im = {"schema": "f2g-fixture-input-manifest-v1", "objects": objs}
     with open(os.path.join(td, "input_manifest.json"), "wb") as fh:
         fh.write(canon(im))
+    # REV 2 (2a): the durable expected-identity artifact IS the identity
+    # authority; fixtures carry it with the values the manifests claim
+    with open(os.path.join(td, IDENTITY_ARTIFACT), "wb") as fh:
+        fh.write(canon(IDENTITY))
     return stations, objs
 
 
@@ -280,6 +327,164 @@ def main():
                 "station_id": "KO.SPARE", "selected_nslc": "KO.SPARE..HHZ",
                 "object_sha256": "5" * 64, "size": 1,
                 "pool_member": True, "registry_selected": False}]}))
+
+    # ---- REV 2: identity authority (2a) -- EXPECTED RED on d3e76f4 ----------------
+    INVENTED = {"producer_commit": "f" * 40,
+                "producer_blob_map": {"monitoring/src/seismic_data.py": "e" * 40},
+                "algorithm_config_digest": "9" * 64,
+                "environment_lock_digest": "8" * 64}
+
+    def _fresh_pair(day, ident_fields=None, drop_identity_artifact=False):
+        t2 = tempfile.mkdtemp()
+        s2, o2 = _mk_fixture(t2)
+        if drop_identity_artifact:
+            os.remove(os.path.join(t2, IDENTITY_ARTIFACT))
+        def mut(r, m):
+            m = {**m, "day": day}
+            if ident_fields:
+                m.update(ident_fields)
+            return r, m
+        mp2, fp2 = _mk_artifact(t2, s2, o2, mutate=mut)
+        return t2, mp2, fp2
+
+    t8, mp8, fp8 = _fresh_pair("2026-03-05", INVENTED)
+    ok8a, det8a = prod.verify_matrix_artifact(t8, mp8, fp8, recompute=False)
+    check("F2G-P8a INVENTED identity REFUSES on the FIRST call (durable "
+          "artifact is the authority; TOFU is not attestation)", not ok8a,
+          f"ACCEPTED invented identity ({det8a})")
+    t8b, mp8b, fp8b = _fresh_pair("2026-03-06", drop_identity_artifact=True)
+    ok8b, det8b = prod.verify_matrix_artifact(t8b, mp8b, fp8b, recompute=False)
+    check("F2G-P8b identity artifact ABSENT -> fail-closed REFUSAL", not ok8b,
+          f"ACCEPTED without any identity authority ({det8b})")
+
+    import subprocess
+    def _sub_verify(root, mp_, fp_):
+        code = ("import sys; sys.path.insert(0, sys.argv[4]); "
+                "import d2_f2g_matrix_producer as P; "
+                "ok, rs = P.verify_matrix_artifact(sys.argv[1], sys.argv[2], "
+                "sys.argv[3], recompute=False); print('VERDICT', ok)")
+        r_ = subprocess.run([sys.executable, "-c", code, root, mp_, fp_, HERE],
+                            capture_output=True, text=True, timeout=180)
+        return "VERDICT True" in r_.stdout, (r_.stdout + r_.stderr)[-160:]
+    t9, mp9, fp9 = _fresh_pair("2026-03-07")
+    ok9v, out9v = _sub_verify(t9, mp9, fp9)
+    t9i, mp9i, fp9i = _fresh_pair("2026-03-08", INVENTED)
+    ok9i, out9i = _sub_verify(t9i, mp9i, fp9i)
+    check("F2G-P9a post-restart authority: valid identity PASSES and invented "
+          "identity REFUSES in a FRESH process", ok9v and not ok9i,
+          f"valid={ok9v} invented_accepted={ok9i} ({out9i if ok9i else out9v})")
+
+    # ---- REV 2: real-path dispatch (2b) -- EXPECTED RED on d3e76f4 ----------------
+    t15 = tempfile.mkdtemp()
+    os.makedirs(os.path.join(t15, "raw_objects"), exist_ok=True)
+    fake = b"MSEEDMSEEDMSEED!"                     # 16 bytes: parses as 2 float64s
+    with open(os.path.join(t15, "raw_objects", sha(fake) + ".ms"), "wb") as fh:
+        fh.write(fake)
+    real_objs = [{"sha256": sha(fake), "size": len(fake),
+                  "relative_path": f"raw_objects/{sha(fake)}.ms",
+                  "kind": "archive-seismic-miniseed-fragments-v1",
+                  "carrier_key": "c_fix", "scored_day": "2026-03-02",
+                  "segment_name": "seg_a", "source_id": "KO.A01..HHZ",
+                  "start_utc": "2026-03-01T07:00:13.094647Z",
+                  "end_utc": "2026-03-02T07:00:13.094647Z"}]
+    with open(os.path.join(t15, "input_manifest.json"), "wb") as fh:
+        fh.write(canon({"schema": REAL_SCHEMA, "producer_commit": "a" * 40,
+                        "implementation_commit": "a" * 40,
+                        "objects": real_objs}))
+    with open(os.path.join(t15, IDENTITY_ARTIFACT), "wb") as fh:
+        fh.write(canon(IDENTITY))
+    fixture_calls = []
+    orig_df = getattr(prod, "_derive_fixture", None)
+    if orig_df is not None:
+        def _spy(*a, **k):
+            fixture_calls.append(1)
+            return orig_df(*a, **k)
+        prod._derive_fixture = _spy
+    try:
+        try:
+            prod.produce_carrier_day_matrix(t15, "c_fix", "2026-03-02",
+                                            out_dir=os.path.join(t15, "out"))
+            produced = True
+        except Exception:
+            produced = False
+    finally:
+        if orig_df is not None:
+            prod._derive_fixture = orig_df
+    check("F2G-P15a real schema (im-v2-resume) NEVER reaches _derive_fixture "
+          "and never yields a silently fixture-derived matrix (typed refusal "
+          "acceptable when real deps absent)",
+          not fixture_calls and not produced,
+          f"fixture_reader_calls={len(fixture_calls)} produced={produced}")
+
+    try:
+        import obspy  # noqa: F401
+        run_p15b = True
+    except ImportError:
+        run_p15b = False
+        print("    [CAP ] F2G-P15b frozen-D2 oracle - obspy absent on this "
+              "host (grassmann's venv runs it live)")
+    if run_p15b:
+        from datetime import datetime, timezone
+        import obspy as _ob
+        import d2_step4b_campaign_run as CR
+        import seismic_data as SD
+        t15b = tempfile.mkdtemp()
+        os.makedirs(os.path.join(t15b, "raw_objects"), exist_ok=True)
+        session_start = datetime(2026, 3, 2, 0, 0, 0, tzinfo=timezone.utc)
+        rng15 = np.random.default_rng(15)
+        objs15, streams = [], {}
+        for sid in ("KO.A01", "KO.A02"):
+            tr = _ob.Trace(data=(np.sin(2 * np.pi * 3.0 * np.arange(0, 600, 0.02))
+                                 + 0.1 * rng15.standard_normal(30000)))
+            tr.stats.sampling_rate = 50.0
+            tr.stats.starttime = _ob.UTCDateTime("2026-03-02T00:00:00")
+            net, sta = sid.split(".")
+            tr.stats.network, tr.stats.station, tr.stats.channel = net, sta, "HHZ"
+            import io as _io
+            buf = _io.BytesIO()
+            _ob.Stream([tr]).write(buf, format="MSEED")
+            b15 = buf.getvalue()
+            with open(os.path.join(t15b, "raw_objects", sha(b15) + ".ms"),
+                      "wb") as fh:
+                fh.write(b15)
+            objs15.append({"sha256": sha(b15), "size": len(b15),
+                           "relative_path": f"raw_objects/{sha(b15)}.ms",
+                           "kind": "archive-seismic-miniseed-fragments-v1",
+                           "carrier_key": "c_fix", "scored_day": "2026-03-02",
+                           "segment_name": "seg_a",
+                           "source_id": sid + "..HHZ",
+                           "start_utc": "2026-03-02T00:00:00.000000Z",
+                           "end_utc": "2026-03-02T00:10:00.000000Z"})
+            streams[sid] = _ob.Stream([tr])
+        with open(os.path.join(t15b, "input_manifest.json"), "wb") as fh:
+            fh.write(canon({"schema": REAL_SCHEMA, "producer_commit": "a" * 40,
+                            "implementation_commit": "a" * 40,
+                            "objects": objs15}))
+        with open(os.path.join(t15b, IDENTITY_ARTIFACT), "wb") as fh:
+            fh.write(canon(IDENTITY))
+        ok15b, det15b = False, ""
+        try:
+            man15 = prod.produce_carrier_day_matrix(
+                t15b, "c_fix", "2026-03-02", out_dir=os.path.join(t15b, "out"))
+            es = {sid: CR._station_series(SD, streams[sid], sid + "..HHZ",
+                                          session_start)
+                  for sid in streams}
+            a_, b_ = es["KO.A01"], es["KO.A02"]
+            common = a_.valid_mask & b_.valid_mask
+            va, vb = a_.values[common], b_.values[common]
+            oracle = float(np.corrcoef(va, vb)[0, 1])
+            mtx = np.load(os.path.join(t15b, "out", "c_fix",
+                                       "2026-03-02.matrix.npy"))
+            ids15 = man15["station_ids"]
+            got = float(mtx[ids15.index("KO.A01"), ids15.index("KO.A02")])
+            ok15b = np.isfinite(got) and got == oracle \
+                and man15["n_overlap"][0][1] == int(common.sum())
+            det15b = f"got={got} oracle={oracle} n={int(common.sum())}"
+        except Exception as exc:
+            det15b = f"{type(exc).__name__}: {exc}"
+        check("F2G-P15b real miniSEED through the frozen D2 path equals the "
+              "independently invoked oracle (envelopes via _station_series; "
+              "pearson over common valid_mask)", ok15b, det15b)
 
 
 main()

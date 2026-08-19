@@ -599,13 +599,13 @@ def main():
               and rc0["producer_environment_lock_digest"] is not None
               and rc0["consumer_environment_lock"]["obspy"] is not None)
 
-        _doctor(rt15, mp15, fp15, 5e-10)
+        _doctor(rt15, mp15, fp15, -5e-10)
         _r, _m, rc1 = B.ingest_matrix_cross_host(rt15, mp15, fp15)
         check("B15a-lo delta 5e-10 (below 1e-9): comparator engages and PASSES "
               "with the delta recorded",
               rc1["mode"] == "cross_host_comparator"
               and 4e-10 < rc1["observed_max_abs_delta"] < 1e-9)
-        _doctor(rt15, mp15, fp15, 2e-9 - 5e-10)   # cumulative ~2e-9
+        _doctor(rt15, mp15, fp15, -(2e-9 - 5e-10))   # cumulative ~-2e-9
         try:
             B.ingest_matrix_cross_host(rt15, mp15, fp15)
             check("B15a-hi delta ~2e-9 (above 1e-9) REFUSES", False,
@@ -630,7 +630,7 @@ def main():
             check("B15b finite-mask difference REFUSES", True)
 
         rt15c, mp15c, fp15c, _ = _b15_root()
-        m_ = np.load(mp15c); m_[0, 1] = m_[1, 0] = m_[0, 1] + 1e-3
+        m_ = np.load(mp15c); m_[0, 1] = m_[1, 0] = m_[0, 1] - 1e-3
         buf = _io3.BytesIO(); np.save(buf, np.asarray(m_, dtype="<f8", order="C"))
         body = buf.getvalue()
         md = json.loads(open(fp15c, "rb").read().decode("utf-8"))
@@ -647,7 +647,7 @@ def main():
                   e.reason_code == "MATRIX_VERIFY_FAILED_PRE", e.reason_code)
 
         rt15d, mp15d, fp15d, _ = _b15_root()
-        _doctor(rt15d, mp15d, fp15d, 1e-1)    # P17c-order swapped-semantics delta
+        _doctor(rt15d, mp15d, fp15d, -1e-1)   # P17c-order swapped-semantics delta
         try:
             B.ingest_matrix_cross_host(rt15d, mp15d, fp15d)
             check("B15d swapped-semantics-order delta (1e-1) still REFUSES",
@@ -658,7 +658,7 @@ def main():
 
         rt15f, mp15f, fp15f, _ = _b15_root()
         m_ = np.load(mp15f)
-        ulp = np.nextafter(m_[0, 1], np.inf) - m_[0, 1]
+        ulp = np.nextafter(m_[0, 1], -np.inf) - m_[0, 1]
         _doctor(rt15f, mp15f, fp15f, ulp)
         ok_ex, rs_ex = P.verify_matrix_artifact(rt15f, mp15f, fp15f,
                                                 recompute=True)

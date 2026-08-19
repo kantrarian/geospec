@@ -382,6 +382,7 @@ def main():
         prod_root = tempfile.mkdtemp()
         gg["_mk_fixture"](prod_root)
         P = importlib.import_module("d2_f2g_matrix_producer")
+        P.write_producer_identity(prod_root)
         P.produce_carrier_day_matrix(prod_root, "c_fix", "2026-03-02",
                                      out_dir=os.path.join(prod_root, "out"))
         pmp = os.path.join(prod_root, "out", "c_fix", "2026-03-02.matrix.npy")

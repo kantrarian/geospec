@@ -1,5 +1,41 @@
 """RED-first KATs -- fault2graph Phase A MATRIX PRODUCER bar (cayley).
 
+REV 3 (codex P16 freeze `09a271b5` + grassmann assembly finding `ff4a3d51`
+folded into the SAME cycle per grassmann's sequencing ask -- codex may split):
+  P16 ELIGIBILITY AUTHORITY: real-schema recomputation must rebuild the FULL
+  candidate universe from the REOPENED hash-bound root input_manifest.json for
+  the (carrier, day) -- NEVER from the result manifest -- run the frozen
+  station-series gate over it, and require exact equality of derived eligible
+  station_ids / eligible object records / sorted SERIES_UNAVAILABLE:* codes /
+  status (PRODUCED iff >=2 eligible else INSUFFICIENT_ELIGIBLE_STATIONS) /
+  matrix bytes / n_overlap. An output manifest never decides its own
+  measurement domain.
+    P16a (obspy-gated) a station engineered to fail the frozen gate (below-
+         min-rate fragments) is ABSENT from index/objects, its
+         SERIES_UNAVAILABLE:<sid> reason present, and the produced artifact
+         passes recompute=True
+    P16b (obspy-gated) HEALTHY-OMISSION DOCTOR: omit a healthy station and
+         make every downstream byte/digest/status/reason internally
+         consistent -- recompute must REFUSE with an eligibility-set/object-
+         set mismatch (RED on d813c1e: recompute currently sees only
+         manifest.input_objects)
+    P16c (obspy-gated) <2 eligible -> honest INSUFFICIENT_ELIGIBLE_STATIONS
+         status, and that artifact itself recompute-verifies
+  P17 ASSEMBLY FIDELITY (the remint2 mechanism, grassmann sweep finding #2):
+  real-schema assembly is PROVIDER-DISPATCHED post-staging -- SCEDC objects
+  read+merge(method=0)+trim(per-object request window)+split before
+  _station_series; KOERI objects read+trim. The fixture stations declare
+  `provider` on each object record (real paths may derive it from the carrier
+  registry -- R1.2 the dispatch key if implemented differently).
+    P17a (obspy-gated) a station whose session data spans TWO overlapping
+         day-volume objects: the produced matrix equals the independently
+         assembled oracle (merge(0)+trim+split through the frozen path) AND
+         differs from the naive-concat answer (the fixture DISCRIMINATES --
+         both assertions load-bearing; RED on d813c1e's concat path)
+  RED-PROOF NOTE: P16/P17 classes are obspy-gated; grassmann observes the reds
+  on d813c1e and lands repairs bar-unedited (P15b precedent). P16b is the
+  load-bearing doctor.
+
 REV 2 (codex verify-once `4b365e4e` closures 2a/2b; grassmann ACK `479eddc0`):
   IDENTITY AUTHORITY (2a -- TOFU is not attestation): a canonical DURABLE
   expected-identity artifact `<root>/f2g_producer_identity.json` (schema
@@ -485,6 +521,200 @@ def main():
         check("F2G-P15b real miniSEED through the frozen D2 path equals the "
               "independently invoked oracle (envelopes via _station_series; "
               "pearson over common valid_mask)", ok15b, det15b)
+
+    # ---- REV 3: P16 eligibility authority + P17 assembly fidelity ----------------
+    if not run_p15b:
+        for nm in ("P16a eligibility typed absence (frozen-gate refusal)",
+                   "P16b HEALTHY-OMISSION doctor refuses on recompute",
+                   "P16c <2 eligible -> honest insufficient status",
+                   "P17a SCEDC two-object assembly fidelity (merge+trim+split)"):
+            print(f"    [CAP ] F2G-{nm} - obspy absent (grassmann red-runs "
+                  f"these on d813c1e)")
+    else:
+        import io as _io
+        from datetime import datetime as _dt, timezone as _tz
+        import obspy as _ob
+
+        def _trace(sid, rate, start_iso, seconds, phase=0.0):
+            n = int(seconds * rate)
+            t = np.arange(n) / rate + phase
+            tr = _ob.Trace(data=(np.sin(2 * np.pi * 3.0 * t)
+                                 + 0.05 * np.cos(2 * np.pi * 7.0 * t)))
+            tr.stats.sampling_rate = rate
+            tr.stats.starttime = _ob.UTCDateTime(start_iso)
+            net, sta = sid.split(".")
+            tr.stats.network, tr.stats.station, tr.stats.channel = net, sta, "HHZ"
+            return tr
+
+        def _mseed_root(specs, day="2026-03-02"):
+            """specs: [{sid, provider, objects: [(start_iso, seconds, rate,
+            win_start, win_end)]}] -> real-schema root."""
+            rt = tempfile.mkdtemp()
+            os.makedirs(os.path.join(rt, "raw_objects"), exist_ok=True)
+            objs = []
+            for sp in specs:
+                for (start_iso, seconds, rate, ws, we) in sp["objects"]:
+                    buf = _io.BytesIO()
+                    _ob.Stream([_trace(sp["sid"], rate, start_iso, seconds)]
+                               ).write(buf, format="MSEED")
+                    bb = buf.getvalue()
+                    with open(os.path.join(rt, "raw_objects",
+                                           sha(bb) + ".ms"), "wb") as fh:
+                        fh.write(bb)
+                    objs.append({"sha256": sha(bb), "size": len(bb),
+                                 "relative_path": f"raw_objects/{sha(bb)}.ms",
+                                 "kind": "archive-seismic-miniseed-fragments-v1",
+                                 "carrier_key": "c_fix", "scored_day": day,
+                                 "segment_name": "seg_a",
+                                 "source_id": sp["sid"] + "..HHZ",
+                                 "provider": sp["provider"],
+                                 "start_utc": ws, "end_utc": we})
+            with open(os.path.join(rt, "input_manifest.json"), "wb") as fh:
+                fh.write(canon({"schema": REAL_SCHEMA,
+                                "producer_commit": "a" * 40,
+                                "implementation_commit": "a" * 40,
+                                "objects": objs}))
+            prod.write_producer_identity(rt)
+            return rt
+
+        DAY = "2026-03-02"
+        W = (f"{DAY}T00:00:00.000000Z", f"{DAY}T00:20:00.000000Z")
+        good = lambda sid: {"sid": sid, "provider": "KOERI", "objects": [  # noqa: E731
+            (f"{DAY}T00:00:00", 1200, 50.0, W[0], W[1])]}
+        lowrate = lambda sid: {"sid": sid, "provider": "KOERI", "objects": [  # noqa: E731
+            (f"{DAY}T00:00:00", 1200, 10.0, W[0], W[1])]}
+
+        def _produce(rt):
+            man = prod.produce_carrier_day_matrix(
+                rt, "c_fix", DAY, out_dir=os.path.join(rt, "out"))
+            mp_ = os.path.join(rt, "out", "c_fix", f"{DAY}.matrix.npy")
+            fp_ = os.path.join(rt, "out", "c_fix", f"{DAY}.manifest.json")
+            return man, mp_, fp_
+
+        # P16a: frozen-gate refusal is typed absence and recompute-verifies
+        try:
+            rt16 = _mseed_root([good("KO.G01"), good("KO.G02"),
+                                lowrate("KO.LOW")])
+            man16, mp16, fp16 = _produce(rt16)
+            ok_v, rs_v = prod.verify_matrix_artifact(rt16, mp16, fp16,
+                                                     recompute=True)
+            check("F2G-P16a frozen-gate refusal = typed absence (absent from "
+                  "index+objects, SERIES_UNAVAILABLE reason, PRODUCED, "
+                  "recompute-verifies)",
+                  "KO.LOW" not in man16["station_ids"]
+                  and all(o["station_id"] != "KO.LOW"
+                          for o in man16["input_objects"])
+                  and any(c.startswith("SERIES_UNAVAILABLE:KO.LOW")
+                          for c in man16["reason_codes"])
+                  and man16["status"] == "PRODUCED" and ok_v,
+                  f"ids={man16['station_ids']} status={man16['status']} "
+                  f"verify={ok_v} {rs_v[:2]}")
+        except Exception as exc:
+            check("F2G-P16a frozen-gate refusal = typed absence", False,
+                  f"{type(exc).__name__}: {exc}")
+
+        # P16b: the HEALTHY-OMISSION doctor -- must REFUSE on recompute
+        try:
+            rt16b = _mseed_root([good("KO.H01"), good("KO.H02"),
+                                 good("KO.H03")])
+            man_b, mp_b, fp_b = _produce(rt16b)
+            ids_b = man_b["station_ids"]
+            omit = ids_b[-1]
+            keep = [i for i, s in enumerate(ids_b) if s != omit]
+            arr_b = np.load(mp_b)[np.ix_(keep, keep)]
+            new_ids = [s for s in ids_b if s != omit]
+            mb2 = dict(json.loads(open(fp_b, "rb").read().decode("utf-8")))
+            mb2["station_ids"] = new_ids
+            mb2["station_index_digest"] = sha(canon(new_ids))
+            mb2["input_objects"] = [o for o in mb2["input_objects"]
+                                    if o["station_id"] != omit]
+            mb2["n_overlap"] = [[man_b["n_overlap"][i][j] for j in keep]
+                                for i in keep]
+            mb2["matrix_shape"] = [len(new_ids)] * 2
+            mb2["reason_codes"] = sorted(mb2["reason_codes"]
+                                         + [f"SERIES_UNAVAILABLE:{omit}"])
+            body = _npy_bytes(arr_b)
+            mb2["matrix_sha256"], mb2["matrix_size"] = sha(body), len(body)
+            with open(mp_b, "wb") as fh:
+                fh.write(body)
+            with open(fp_b, "wb") as fh:
+                fh.write(canon(mb2))
+            ok_d, rs_d = prod.verify_matrix_artifact(rt16b, mp_b, fp_b,
+                                                     recompute=True)
+            check("F2G-P16b HEALTHY-OMISSION doctor (internally consistent "
+                  "subset) REFUSES on recompute -- the root manifest universe "
+                  "is the eligibility authority", not ok_d,
+                  f"ACCEPTED the omission ({rs_d[:2]})")
+        except Exception as exc:
+            check("F2G-P16b healthy-omission doctor refuses", False,
+                  f"{type(exc).__name__}: {exc}")
+
+        # P16c: <2 eligible -> honest insufficiency
+        try:
+            rt16c = _mseed_root([good("KO.S01"), lowrate("KO.L01"),
+                                 lowrate("KO.L02")])
+            man_c, _mp_c, _fp_c = _produce(rt16c)
+            check("F2G-P16c <2 eligible -> INSUFFICIENT_ELIGIBLE_STATIONS "
+                  "honest status",
+                  man_c["status"] == "INSUFFICIENT_ELIGIBLE_STATIONS",
+                  f"status={man_c['status']}")
+        except Exception as exc:
+            check("F2G-P16c insufficient-eligible status", False,
+                  f"{type(exc).__name__}: {exc}")
+
+        # P17a: SCEDC two-object assembly -- merge(0)+trim+split is REQUIRED
+        try:
+            split_station = {"sid": "KO.SPL", "provider": "SCEDC", "objects": [
+                (f"2026-03-01T23:50:00", 1200, 50.0, W[0], W[1]),
+                (f"{DAY}T00:05:00", 900, 50.0, W[0], W[1])]}
+            rt17 = _mseed_root([split_station, good("KO.REF")])
+            man17, mp17, fp17 = _produce(rt17)
+            import d2_step4b_campaign_run as CR
+            import seismic_data as SD
+            session_start = _dt(2026, 3, 2, 0, 0, 0, tzinfo=_tz.utc)
+            raws = {}
+            for o in json.loads(open(os.path.join(rt17, "input_manifest.json"),
+                                     "rb").read().decode("utf-8"))["objects"]:
+                raws.setdefault(o["source_id"], []).append(
+                    _ob.read(os.path.join(rt17, o["relative_path"])))
+            def _assembled(source_id, scedc):
+                st_ = _ob.Stream()
+                for s_ in raws[source_id]:
+                    st_ += s_
+                if scedc:
+                    st_.merge(method=0)
+                    st_.trim(_ob.UTCDateTime(W[0]), _ob.UTCDateTime(W[1]))
+                    st_ = st_.split()
+                else:
+                    st_.trim(_ob.UTCDateTime(W[0]), _ob.UTCDateTime(W[1]))
+                return st_
+            es_spl = CR._station_series(SD, _assembled("KO.SPL..HHZ", True),
+                                        "KO.SPL..HHZ", session_start)
+            es_ref = CR._station_series(SD, _assembled("KO.REF..HHZ", False),
+                                        "KO.REF..HHZ", session_start)
+            common = es_spl.valid_mask & es_ref.valid_mask
+            oracle = float(np.corrcoef(es_spl.values[common],
+                                       es_ref.values[common])[0, 1])
+            concat_spl = _ob.Stream()
+            for s_ in raws["KO.SPL..HHZ"]:
+                concat_spl += s_
+            es_cc = CR._station_series(SD, concat_spl, "KO.SPL..HHZ",
+                                       session_start)
+            cc_common = es_cc.valid_mask & es_ref.valid_mask
+            concat_ans = float(np.corrcoef(es_cc.values[cc_common],
+                                           es_ref.values[cc_common])[0, 1])
+            m17 = np.load(mp17)
+            i17 = man17["station_ids"].index("KO.REF")
+            j17 = man17["station_ids"].index("KO.SPL")
+            got17 = float(m17[i17, j17])
+            check("F2G-P17a SCEDC two-object assembly: produced == "
+                  "merge(0)+trim+split oracle AND != naive concat (fixture "
+                  "discriminates; both assertions load-bearing)",
+                  got17 == oracle and oracle != concat_ans,
+                  f"got={got17} oracle={oracle} concat={concat_ans}")
+        except Exception as exc:
+            check("F2G-P17a SCEDC assembly fidelity", False,
+                  f"{type(exc).__name__}: {exc}")
 
 
 main()

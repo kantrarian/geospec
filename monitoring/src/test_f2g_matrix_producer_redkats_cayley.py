@@ -1,5 +1,35 @@
 """RED-first KATs -- fault2graph Phase A MATRIX PRODUCER bar (cayley).
 
+REV 4 (codex R1.3 ADOPTION `15dfa7bd` of grassmann dual-path finding #3
+`6d039f65`): ACQUISITION-HISTORY-AWARE REPRODUCTION -- the persisted v2 surface
+is the oracle; the reproducer reproduces what production SCORED, quirk
+included. Dispatch per station/day unit ONLY from the reopened A1-hash-bound
+root manifest's `reuse_disposition`:
+  FETCHED_NEW (+ LEGACY_REUSED_AFTER_REFETCH_ATTESTATION) -> the P17 fresh
+      provider assembly (SCEDC merge(0)+trim+split; KOERI read+trim);
+  REUSED_VERIFIED -> the ACTUAL pinned d2_step4b_providers.parse_staged seam on
+      the SINGLE recorded object (the executor's untrimmed resume semantics);
+  unknown/absent or mixed dispositions within a unit -> typed refusal.
+LOSS GUARD: a multi-object REUSED_VERIFIED unit REFUSES as
+REUSED_MULTI_OBJECT_UNSUPPORTED -- objects[0] emulation may never silently
+discard bound bytes outside the proven zero-multi-object root condition.
+Classes (obspy-gated; grassmann observes the reds on the current producer):
+  P17b reused-semantics discrimination: produced reused cell == the
+       independently invoked untrimmed parse_staged oracle EXACTLY (incl
+       n_overlap) AND trimmed comparator differs or is the expected
+       frozen-gate typed refusal (recorded)
+  P17c dispatch-lock doctor: a doctored result artifact carrying the
+       OTHER semantics' values (consistently rehashed) REFUSES on recompute --
+       the result manifest can never select its own disposition
+  P17d loss guard: two-object REUSED_VERIFIED unit refuses typed
+       (REUSED_MULTI_OBJECT_UNSUPPORTED; the station is never measured)
+  P17e unknown disposition refuses typed
+The dual-path mapping belongs in ALGORITHM_CONFIG (+digest, already
+identity-bound); packet receipts disclose counts by disposition -- packet-lane
+assertions, no manifest keyset change. All root-manifest fixture records now
+carry reuse_disposition (default FETCHED_NEW) per the adopted rule that an
+absent disposition is unknown -> refusal.
+
 REV 3 (codex P16 freeze `09a271b5` + grassmann assembly finding `ff4a3d51`
 folded into the SAME cycle per grassmann's sequencing ask -- codex may split):
   P16 ELIGIBILITY AUTHORITY: real-schema recomputation must rebuild the FULL
@@ -527,9 +557,13 @@ def main():
         for nm in ("P16a eligibility typed absence (frozen-gate refusal)",
                    "P16b HEALTHY-OMISSION doctor refuses on recompute",
                    "P16c <2 eligible -> honest insufficient status",
-                   "P17a SCEDC two-object assembly fidelity (merge+trim+split)"):
+                   "P17a SCEDC two-object assembly fidelity (merge+trim+split)",
+                   "P17b reused-semantics parse_staged discrimination",
+                   "P17c dispatch-lock doctor (result cannot choose semantics)",
+                   "P17d multi-object REUSED loss guard",
+                   "P17e unknown disposition refusal"):
             print(f"    [CAP ] F2G-{nm} - obspy absent (grassmann red-runs "
-                  f"these on d813c1e)")
+                  f"these on the current producer)")
     else:
         import io as _io
         from datetime import datetime as _dt, timezone as _tz
@@ -548,7 +582,9 @@ def main():
 
         def _mseed_root(specs, day="2026-03-02"):
             """specs: [{sid, provider, objects: [(start_iso, seconds, rate,
-            win_start, win_end)]}] -> real-schema root."""
+            win_start, win_end)], reuse_disposition?}] -> real-schema root.
+            REV 4: every record carries reuse_disposition (default
+            FETCHED_NEW); absent = unknown = refusal under the adopted rule."""
             rt = tempfile.mkdtemp()
             os.makedirs(os.path.join(rt, "raw_objects"), exist_ok=True)
             objs = []
@@ -568,6 +604,8 @@ def main():
                                  "segment_name": "seg_a",
                                  "source_id": sp["sid"] + "..HHZ",
                                  "provider": sp["provider"],
+                                 "reuse_disposition":
+                                     sp.get("reuse_disposition", "FETCHED_NEW"),
                                  "start_utc": ws, "end_utc": we})
             with open(os.path.join(rt, "input_manifest.json"), "wb") as fh:
                 fh.write(canon({"schema": REAL_SCHEMA,
@@ -727,6 +765,132 @@ def main():
                   f"got={got17} oracle={oracle} {cc_note}")
         except Exception as exc:
             check("F2G-P17a SCEDC assembly fidelity", False,
+                  f"{type(exc).__name__}: {exc}")
+
+        # ---- REV 4: acquisition-history-aware dispatch (codex 15dfa7bd) ----------
+        import d2_step4b_providers as PV
+        # P17b: reused unit -- raw bytes start BEFORE the request window, both
+        # inside the session; untrimmed (parse_staged) vs trimmed discriminate
+        W2 = (f"{DAY}T00:00:05.000000Z", f"{DAY}T00:20:00.000000Z")
+        reused_spec = {"sid": "KO.RU", "provider": "KOERI",
+                       "reuse_disposition": "REUSED_VERIFIED",
+                       "objects": [(f"{DAY}T00:00:00", 1205, 50.0,
+                                    W2[0], W2[1])]}
+        try:
+            rt_b = _mseed_root([reused_spec, good("KO.REF")])
+            man_b17, mp_b17, fp_b17 = _produce(rt_b)
+            ru_obj = next(o for o in json.loads(
+                open(os.path.join(rt_b, "input_manifest.json"), "rb").read()
+                .decode("utf-8"))["objects"] if o["source_id"] == "KO.RU..HHZ")
+            st_ru = PV.parse_staged(os.path.join(rt_b, ru_obj["relative_path"]))
+            es_ru = CR._station_series(SD, st_ru, "KO.RU..HHZ", session_start)
+            ref_obj = next(o for o in json.loads(
+                open(os.path.join(rt_b, "input_manifest.json"), "rb").read()
+                .decode("utf-8"))["objects"] if o["source_id"] == "KO.REF..HHZ")
+            st_ref = PV.parse_staged(os.path.join(rt_b,
+                                                  ref_obj["relative_path"]))
+            st_ref.trim(_ob.UTCDateTime(ref_obj["start_utc"]),
+                        _ob.UTCDateTime(ref_obj["end_utc"]))
+            es_rf = CR._station_series(SD, st_ref, "KO.REF..HHZ",
+                                       session_start)
+            com_b = es_ru.valid_mask & es_rf.valid_mask
+            oracle_u = float(np.corrcoef(es_ru.values[com_b],
+                                         es_rf.values[com_b])[0, 1])
+            st_tr = PV.parse_staged(os.path.join(rt_b, ru_obj["relative_path"]))
+            st_tr.trim(_ob.UTCDateTime(W2[0]), _ob.UTCDateTime(W2[1]))
+            es_tr = CR._station_series(SD, st_tr, "KO.RU..HHZ", session_start)
+            if es_tr is None:
+                dis_b, tr_note = True, "TRIMMED_REFUSED_BY_FROZEN_GATE"
+            else:
+                ct = es_tr.valid_mask & es_rf.valid_mask
+                tr_ans = float(np.corrcoef(es_tr.values[ct],
+                                           es_rf.values[ct])[0, 1])
+                dis_b = np.isfinite(tr_ans) and tr_ans != oracle_u
+                tr_note = f"trimmed={tr_ans}"
+            m_b = np.load(mp_b17)
+            ib = man_b17["station_ids"].index("KO.REF")
+            jb = man_b17["station_ids"].index("KO.RU")
+            got_b = float(m_b[ib, jb])
+            check("F2G-P17b reused unit: produced cell == untrimmed "
+                  "parse_staged oracle EXACTLY (incl n_overlap); trimmed "
+                  "comparator differs or frozen-gate-refuses (recorded)",
+                  np.isfinite(got_b) and got_b == oracle_u
+                  and man_b17["n_overlap"][ib][jb] == int(com_b.sum())
+                  and dis_b,
+                  f"got={got_b} oracle_untrimmed={oracle_u} {tr_note}")
+
+            # P17c: dispatch-lock doctor -- swap in the OTHER semantics' value,
+            # rehash consistently; recompute (root disposition authority) refuses
+            if es_tr is not None and np.isfinite(tr_ans) and tr_ans != oracle_u:
+                m_d = np.array(m_b)
+                m_d[ib, jb] = m_d[jb, ib] = tr_ans
+            else:
+                m_d = np.array(m_b)
+                m_d[ib, jb] = m_d[jb, ib] = float(
+                    np.clip(got_b + 1e-3, -0.999, 0.999))
+            body_d = _npy_bytes(m_d)
+            md = dict(json.loads(open(fp_b17, "rb").read().decode("utf-8")))
+            md["matrix_sha256"], md["matrix_size"] = sha(body_d), len(body_d)
+            with open(mp_b17, "wb") as fh:
+                fh.write(body_d)
+            with open(fp_b17, "wb") as fh:
+                fh.write(canon(md))
+            ok_dl, rs_dl = prod.verify_matrix_artifact(rt_b, mp_b17, fp_b17,
+                                                       recompute=True)
+            check("F2G-P17c dispatch-lock doctor: other-semantics values with "
+                  "consistent rehash REFUSE on recompute (root manifest is the "
+                  "sole dispatch authority)", not ok_dl,
+                  f"ACCEPTED doctored semantics ({rs_dl[:2]})")
+        except Exception as exc:
+            check("F2G-P17b/c reused-semantics + dispatch lock", False,
+                  f"{type(exc).__name__}: {exc}")
+
+        # P17d: multi-object REUSED unit -> loss-guard refusal, never objects[0]
+        try:
+            multi_reused = {"sid": "KO.MU", "provider": "KOERI",
+                            "reuse_disposition": "REUSED_VERIFIED",
+                            "objects": [
+                                (f"{DAY}T00:00:00", 600, 50.0, W[0], W[1]),
+                                (f"{DAY}T00:10:00", 600, 50.0, W[0], W[1])]}
+            rt_d = _mseed_root([multi_reused, good("KO.R2"), good("KO.R3")])
+            refused_d, note_d = False, ""
+            try:
+                man_d, _mpd, _fpd = _produce(rt_d)
+                refused_d = ("KO.MU" not in man_d["station_ids"]
+                             and any("REUSED_MULTI_OBJECT_UNSUPPORTED" in c
+                                     for c in man_d["reason_codes"]))
+                note_d = f"status={man_d['status']} codes={man_d['reason_codes'][:3]}"
+            except Exception as exc:
+                refused_d = "REUSED_MULTI_OBJECT_UNSUPPORTED" in str(exc)
+                note_d = f"{type(exc).__name__}: {str(exc)[:80]}"
+            check("F2G-P17d multi-object REUSED unit refuses typed "
+                  "(REUSED_MULTI_OBJECT_UNSUPPORTED; never objects[0] "
+                  "emulation over bound bytes)", refused_d, note_d)
+        except Exception as exc:
+            check("F2G-P17d multi-object REUSED loss guard", False,
+                  f"{type(exc).__name__}: {exc}")
+
+        # P17e: unknown disposition -> typed refusal
+        try:
+            rt_e = _mseed_root([{"sid": "KO.WU", "provider": "KOERI",
+                                 "reuse_disposition": "MYSTERY",
+                                 "objects": [(f"{DAY}T00:00:00", 1200, 50.0,
+                                              W[0], W[1])]},
+                                good("KO.R4"), good("KO.R5")])
+            refused_e, note_e = False, ""
+            try:
+                man_e, _mpe, _fpe = _produce(rt_e)
+                refused_e = "KO.WU" not in man_e["station_ids"] and any(
+                    "MYSTERY" in c or "UNKNOWN" in c.upper()
+                    for c in man_e["reason_codes"])
+                note_e = f"codes={man_e['reason_codes'][:3]}"
+            except Exception as exc:
+                refused_e = True
+                note_e = f"{type(exc).__name__}: {str(exc)[:80]}"
+            check("F2G-P17e unknown reuse_disposition refuses typed",
+                  refused_e, note_e)
+        except Exception as exc:
+            check("F2G-P17e unknown disposition refusal", False,
                   f"{type(exc).__name__}: {exc}")
 
 

@@ -597,9 +597,10 @@ def _hetero_gdfs(node_tables, edge_tables):
     for kind, idcol in (("segment", "segment_name"), ("carrier", "carrier_key")):
         rows = node_tables.get(kind) or []
         if rows:
-            nodes[kind] = gpd.GeoDataFrame(
-                rows, geometry=[None] * len(rows),
-                crs=SOURCE_CRS).set_index(idcol, drop=False)
+            # relational nodes carry NO geometry column at all -- an all-None
+            # geographic geometry would push the bridge into estimate_utm_crs
+            # over NaN bounds; absent geometry is the truthful representation
+            nodes[kind] = gpd.GeoDataFrame(rows).set_index(idcol, drop=False)
     edges = {}
     trip = {"coheres_with": ("station", "coheres_with", "station"),
             "near": ("station", "near", "station"),

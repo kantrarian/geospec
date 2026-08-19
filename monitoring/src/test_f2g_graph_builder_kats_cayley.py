@@ -528,6 +528,157 @@ def main():
     except B.CapabilityUnavailable as e:
         cap("B13 render label + excluded record", str(e))
 
+    # ---- B15: cross_host_consumer_v1 profile (codex ruling 82c31cf3) ----------
+    try:
+        import obspy as _ob
+        import io as _io
+        import importlib as _il
+        from datetime import datetime as _dt, timezone as _tz
+        P = _il.import_module("d2_f2g_matrix_producer")
+        import numpy as _np
+
+        def _b15_root():
+            rt = tempfile.mkdtemp()
+            os.makedirs(os.path.join(rt, "raw_objects"), exist_ok=True)
+            objs = []
+            for sid in ("KO.X01", "KO.X02", "KO.X03"):
+                tr = _ob.Trace(data=(np.sin(2 * np.pi * 2.5 * np.arange(0, 1200, 0.02))
+                                     + 0.05 * np.cos(2 * np.pi * 6.0 * np.arange(0, 1200, 0.02))))
+                tr.stats.sampling_rate = 50.0
+                tr.stats.starttime = _ob.UTCDateTime("2026-03-02T00:00:00")
+                tr.stats.network, tr.stats.station, tr.stats.channel = \
+                    sid.split(".")[0], sid.split(".")[1], "HHZ"
+                buf = _io.BytesIO()
+                _ob.Stream([tr]).write(buf, format="MSEED")
+                bb = buf.getvalue()
+                with open(os.path.join(rt, "raw_objects", B.sha(bb) + ".ms"),
+                          "wb") as fh:
+                    fh.write(bb)
+                objs.append({"sha256": B.sha(bb), "size": len(bb),
+                             "relative_path": f"raw_objects/{B.sha(bb)}.ms",
+                             "kind": "archive-seismic-miniseed-fragments-v1",
+                             "carrier_key": "c_fix", "scored_day": "2026-03-02",
+                             "segment_name": "seg_a",
+                             "source_id": sid + "..HHZ", "provider": "KOERI",
+                             "reuse_disposition": "FETCHED_NEW",
+                             "start_utc": "2026-03-02T00:00:00.000000Z",
+                             "end_utc": "2026-03-02T00:20:00.000000Z"})
+            with open(os.path.join(rt, "input_manifest.json"), "wb") as fh:
+                fh.write(B.canon_bytes({"schema": "im-v2-resume",
+                                        "producer_commit": "a" * 40,
+                                        "implementation_commit": "a" * 40,
+                                        "objects": objs}))
+            P.write_producer_identity(rt)
+            man = P.produce_carrier_day_matrix(
+                rt, "c_fix", "2026-03-02", out_dir=os.path.join(rt, "out"))
+            mp_ = os.path.join(rt, "out", "c_fix", "2026-03-02.matrix.npy")
+            fp_ = os.path.join(rt, "out", "c_fix", "2026-03-02.manifest.json")
+            return rt, mp_, fp_, man
+
+        def _doctor(rt, mp_, fp_, offset, cell=(0, 1)):
+            m_ = np.load(mp_)
+            i_, j_ = cell
+            m_[i_, j_] = m_[j_, i_] = m_[i_, j_] + offset
+            import io as _io2
+            buf = _io2.BytesIO()
+            np.save(buf, np.asarray(m_, dtype="<f8", order="C"))
+            body = buf.getvalue()
+            md = json.loads(open(fp_, "rb").read().decode("utf-8"))
+            md["matrix_sha256"], md["matrix_size"] = B.sha(body), len(body)
+            with open(mp_, "wb") as fh:
+                fh.write(body)
+            with open(fp_, "wb") as fh:
+                fh.write(B.canon_bytes(md))
+
+        rt15, mp15, fp15, _man15 = _b15_root()
+        _r, _m, rc0 = B.ingest_matrix_cross_host(rt15, mp15, fp15)
+        check("B15-0 same-host produced artifact: exact mode PASSES, delta 0, "
+              "receipt carries profile + both env locks",
+              rc0["mode"] == "exact" and rc0["observed_max_abs_delta"] == 0.0
+              and rc0["profile"] == "cross_host_consumer_v1"
+              and rc0["producer_environment_lock_digest"] is not None
+              and rc0["consumer_environment_lock"]["obspy"] is not None)
+
+        _doctor(rt15, mp15, fp15, 5e-10)
+        _r, _m, rc1 = B.ingest_matrix_cross_host(rt15, mp15, fp15)
+        check("B15a-lo delta 5e-10 (below 1e-9): comparator engages and PASSES "
+              "with the delta recorded",
+              rc1["mode"] == "cross_host_comparator"
+              and 4e-10 < rc1["observed_max_abs_delta"] < 1e-9)
+        _doctor(rt15, mp15, fp15, 2e-9 - 5e-10)   # cumulative ~2e-9
+        try:
+            B.ingest_matrix_cross_host(rt15, mp15, fp15)
+            check("B15a-hi delta ~2e-9 (above 1e-9) REFUSES", False,
+                  "ACCEPTED above-threshold delta")
+        except B.F2GRefusal as e:
+            check("B15a-hi delta ~2e-9 (above 1e-9) REFUSES",
+                  e.reason_code == "CROSS_HOST_DELTA_EXCEEDED", e.reason_code)
+
+        rt15b, mp15b, fp15b, _ = _b15_root()
+        m_ = np.load(mp15b)
+        m_[0, 1] = m_[1, 0] = np.nan          # finite-mask difference + doctored
+        import io as _io3
+        buf = _io3.BytesIO(); np.save(buf, np.asarray(m_, dtype="<f8", order="C"))
+        body = buf.getvalue()
+        md = json.loads(open(fp15b, "rb").read().decode("utf-8"))
+        md["matrix_sha256"], md["matrix_size"] = B.sha(body), len(body)
+        open(mp15b, "wb").write(body); open(fp15b, "wb").write(B.canon_bytes(md))
+        try:
+            B.ingest_matrix_cross_host(rt15b, mp15b, fp15b)
+            check("B15b finite-mask difference REFUSES", False, "ACCEPTED")
+        except B.F2GRefusal as e:
+            check("B15b finite-mask difference REFUSES", True)
+
+        rt15c, mp15c, fp15c, _ = _b15_root()
+        m_ = np.load(mp15c); m_[0, 1] = m_[1, 0] = m_[0, 1] + 1e-3
+        buf = _io3.BytesIO(); np.save(buf, np.asarray(m_, dtype="<f8", order="C"))
+        body = buf.getvalue()
+        md = json.loads(open(fp15c, "rb").read().decode("utf-8"))
+        md["matrix_sha256"], md["matrix_size"] = B.sha(body), len(body)
+        md["n_overlap"][0][1] = md["n_overlap"][0][1] + 1   # extra reason rides
+        open(mp15c, "wb").write(body); open(fp15c, "wb").write(B.canon_bytes(md))
+        try:
+            B.ingest_matrix_cross_host(rt15c, mp15c, fp15c)
+            check("B15c DERIVATION_MISMATCH plus another reason REFUSES "
+                  "(comparator must not engage)", False, "ACCEPTED")
+        except B.F2GRefusal as e:
+            check("B15c DERIVATION_MISMATCH plus another reason REFUSES "
+                  "(comparator must not engage)",
+                  e.reason_code == "MATRIX_VERIFY_FAILED_PRE", e.reason_code)
+
+        rt15d, mp15d, fp15d, _ = _b15_root()
+        _doctor(rt15d, mp15d, fp15d, 1e-1)    # P17c-order swapped-semantics delta
+        try:
+            B.ingest_matrix_cross_host(rt15d, mp15d, fp15d)
+            check("B15d swapped-semantics-order delta (1e-1) still REFUSES",
+                  False, "ACCEPTED")
+        except B.F2GRefusal as e:
+            check("B15d swapped-semantics-order delta (1e-1) still REFUSES",
+                  e.reason_code == "CROSS_HOST_DELTA_EXCEEDED", e.reason_code)
+
+        rt15f, mp15f, fp15f, _ = _b15_root()
+        m_ = np.load(mp15f)
+        ulp = np.nextafter(m_[0, 1], np.inf) - m_[0, 1]
+        _doctor(rt15f, mp15f, fp15f, ulp)
+        ok_ex, rs_ex = P.verify_matrix_artifact(rt15f, mp15f, fp15f,
+                                                recompute=True)
+        _r, _m, rc_f = B.ingest_matrix_cross_host(rt15f, mp15f, fp15f)
+        check("B15f role split: producer EXACT mode rejects a one-ULP "
+              "re-derivation difference; the consumer profile accepts it with "
+              "the tiny delta RECORDED",
+              (not ok_ex) and rs_ex == ["DERIVATION_MISMATCH"]
+              and rc_f["mode"] == "cross_host_comparator"
+              and 0 < rc_f["observed_max_abs_delta"] < 1e-12)
+
+        import inspect as _ins
+        sig15 = str(_ins.signature(B.ingest_matrix_cross_host))
+        check("B15e no override: profile signature exposes NO tolerance/"
+              "threshold parameter",
+              "tol" not in sig15 and "threshold" not in sig15
+              and "delta" not in sig15, sig15)
+    except ImportError as e:
+        cap("B15 cross_host_consumer_v1 profile bars", f"obspy absent: {e}")
+
     res = B.phase_a_result(input_digests={"plan": "x" * 64},
                            code_digests={"builder": "y" * 64},
                            output_digests={}, bar_results={}, status="FIXTURE",

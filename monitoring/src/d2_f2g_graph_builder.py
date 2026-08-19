@@ -353,6 +353,119 @@ def ingest_matrix(root, matrix_path, manifest_path, *, verifier=None):
     return r, man
 
 
+CROSS_HOST_PROFILE = "cross_host_consumer_v1"
+CROSS_HOST_MAX_ABS_DELTA = 1e-9        # codex ruling 82c31cf3: FIXED, absolute,
+                                       # never caller-selectable
+
+
+def _consumer_environment_lock():
+    import platform as _pl
+    import numpy as _np
+    import scipy as _sp
+    try:
+        import obspy as _ob
+        obv = _ob.__version__
+    except ImportError:
+        obv = None
+    return {"python": _pl.python_version(), "numpy": _np.__version__,
+            "scipy": _sp.__version__, "obspy": obv,
+            "platform": _pl.platform(), "machine": _pl.machine()}
+
+
+def ingest_matrix_cross_host(root, matrix_path, manifest_path):
+    """codex R1.2 ruling `82c31cf3` -- the consumer profile, implemented
+    CONSUMER-SIDE (the producer verifier and its byte-exact default are
+    untouched). Sequence:
+      (1) the caller has already hash-checked the artifacts against the
+          accepted packet summary (no tolerance there);
+      (2) run the producer verifier in normal exact-recompute mode; PASS ends
+          here. The cross-host comparator engages ONLY when the complete
+          reason set is exactly {DERIVATION_MISMATCH}; any additional reason
+          refuses;
+      (3) re-derive through the pinned producer path from the full
+          root-manifest universe and require EXACT equality of every discrete
+          surface (station ids/order, input-object identities, eligibility,
+          status/reasons, n_overlap, shapes, finite/nonfinite mask);
+      (4) compare finite cells at max|delta| <= 1e-9 absolute (rtol=0);
+      (5) receipt fields returned for recording (profile, threshold, observed
+          max delta, producer env-lock digest, consumer env lock);
+      (6) post-use reopen/hash/identity verification (recompute=False)."""
+    try:
+        verifier_mod = importlib.import_module("d2_f2g_matrix_producer")
+    except ImportError as exc:
+        raise F2GRefusal("PRODUCER_SEAM_ABSENT", str(exc))
+    verifier = verifier_mod.verify_matrix_artifact
+    ok, reasons = verifier(root, matrix_path, manifest_path, recompute=True)
+    receipt = {"profile": CROSS_HOST_PROFILE,
+               "max_abs_delta_threshold": CROSS_HOST_MAX_ABS_DELTA,
+               "consumer_environment_lock": _consumer_environment_lock()}
+    with open(manifest_path, "rb") as fh:
+        man = json.loads(fh.read().decode("utf-8"))
+    receipt["producer_environment_lock_digest"] = man.get(
+        "environment_lock_digest")
+    if ok:
+        receipt["mode"] = "exact"
+        receipt["observed_max_abs_delta"] = 0.0
+    else:
+        if set(reasons) != {"DERIVATION_MISMATCH"}:
+            raise F2GRefusal("MATRIX_VERIFY_FAILED_PRE", str(reasons))
+        receipt["mode"] = "cross_host_comparator"
+        from datetime import datetime, timezone
+        im_doc = json.loads(open(os.path.join(root, "input_manifest.json"),
+                                 "rb").read().decode("utf-8"))
+        universe = verifier_mod._real_universe(im_doc, man["carrier_key"],
+                                               man["day"])
+        cand = sorted({o["station_id"] for o in universe})
+        starts = sorted(o.get("start_utc") for o in universe
+                        if o.get("start_utc"))
+        session_start = datetime.strptime(
+            starts[0], "%Y-%m-%dT%H:%M:%S.%fZ").replace(tzinfo=timezone.utc)
+        by_station = {}
+        for o in universe:
+            by_station.setdefault(o["station_id"], []).append(o)
+        r2, nov2, inel = verifier_mod._derive_real(
+            root, by_station, cand, session_start,
+            carrier_key=man["carrier_key"])
+        eligible = [s for s in cand if s not in inel]
+        derived_status = ("PRODUCED" if len(eligible) >= 2
+                          else "INSUFFICIENT_ELIGIBLE_STATIONS")
+        derived_reasons = sorted(inel.values()) if isinstance(inel, dict) \
+            else sorted(inel)
+        prod_mat = np.load(matrix_path)
+        checks = {
+            "station_ids": eligible == man["station_ids"],
+            "status": derived_status == man["status"],
+            "eligibility_reasons":
+                derived_reasons == sorted(man.get("reason_codes", [])),
+            "input_object_identities": sorted(
+                (o["station_id"], o["object_sha256"])
+                for recs in by_station.values() for o in recs
+                if o["station_id"] in eligible) == sorted(
+                (o["station_id"], o["object_sha256"])
+                for o in man.get("input_objects", [])),
+            "n_overlap": nov2 == man["n_overlap"],
+            "shape": list(r2.shape) == list(man["matrix_shape"])
+            and r2.shape == prod_mat.shape,
+            "finite_mask": bool(np.array_equal(np.isfinite(r2),
+                                               np.isfinite(prod_mat))),
+        }
+        bad = [k for k, v in checks.items() if not v]
+        if bad:
+            raise F2GRefusal("CROSS_HOST_DISCRETE_MISMATCH", str(bad))
+        finite = np.isfinite(prod_mat)
+        delta = float(np.max(np.abs(r2[finite] - prod_mat[finite]))) \
+            if finite.any() else 0.0
+        receipt["observed_max_abs_delta"] = delta
+        if delta > CROSS_HOST_MAX_ABS_DELTA:
+            raise F2GRefusal("CROSS_HOST_DELTA_EXCEEDED",
+                             f"{delta} > {CROSS_HOST_MAX_ABS_DELTA}")
+    r = np.load(matrix_path)
+    ok2, reasons2 = verifier(root, matrix_path, manifest_path, recompute=False)
+    if not ok2:
+        raise F2GRefusal("MATRIX_VERIFY_FAILED_POST", str(reasons2))
+    return r, man, receipt
+
+
 def build_coherence_edges(r, manifest, station_table):
     """(station, coheres_with, station) for one (carrier, day). Only finite
     upper-triangle cells become edges; absence stays absent (never weight 0);

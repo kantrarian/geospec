@@ -281,13 +281,13 @@ def _acquisition_lane(sid, recs):
     """Per-unit acquisition-history dispatch (codex adoption 15dfa7bd), keyed
     STRICTLY on the root-manifest records' reuse_disposition. Returns
     (lane, refusal_code): lane in {"fresh", "reused"} with code None, or lane
-    None with a typed refusal code. absent = unknown = refusal; mixed
-    dispositions within a unit refuse; a multi-object REUSED_VERIFIED unit
-    refuses as loss guard -- objects[0] emulation may never silently discard
-    bound bytes."""
+    None with the loss-guard code (a multi-object REUSED_VERIFIED unit is never
+    measured -- objects[0] emulation may never silently discard bound bytes).
+    Unknown/absent or MIXED dispositions are a structural manifest defect:
+    fail-closed typed RAISE -- an undispatchable root produces nothing."""
     vals = sorted({str(r.get("reuse_disposition")) for r in recs})
     if len(vals) > 1:
-        return None, "REUSE_DISPOSITION_MIXED:" + sid
+        raise ValueError("REUSE_DISPOSITION_MIXED:" + sid)
     v = vals[0]
     if v in _FRESH_DISPOSITIONS:
         return "fresh", None
@@ -295,7 +295,7 @@ def _acquisition_lane(sid, recs):
         if len(recs) != 1:
             return None, "REUSED_MULTI_OBJECT_UNSUPPORTED:" + sid
         return "reused", None
-    return None, "REUSE_DISPOSITION_UNKNOWN:" + sid + ":" + v
+    raise ValueError("REUSE_DISPOSITION_UNKNOWN:" + sid + ":" + v)
 
 
 def _assemble_stream(root, recs, provider, obspy):

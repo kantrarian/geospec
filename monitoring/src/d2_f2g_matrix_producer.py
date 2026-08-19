@@ -216,11 +216,82 @@ def _derive_fixture(root, input_objects, station_ids):
     return _pairwise(env, station_ids)
 
 
-def _derive_real(root, records_by_station, station_ids, session_start):
-    """REAL v2 schema (closure 2b): parse miniSEED and reuse the FROZEN D2
-    station-series path (d2_step4b_campaign_run._station_series over the
-    seismic_data band-envelope), then Pearson over the common valid_mask samples;
-    n_overlap = the common-valid count. Raises typed errors when real
+def _real_universe(im, carrier_key, day):
+    """The FULL candidate object universe for (carrier, day) from a real-schema
+    input manifest: every bound object, with station identity derived from
+    source_id. This -- and never a result manifest -- is the eligibility
+    authority (P16)."""
+    out = []
+    for o in im.get("objects", []):
+        if o.get("carrier_key") != carrier_key or o.get("scored_day") != day:
+            continue
+        rec = dict(o)
+        rec["station_id"] = ".".join(str(o.get("source_id", "")).split(".")[:2])
+        rec["selected_nslc"] = o.get("source_id")
+        rec["object_sha256"] = o.get("sha256")
+        out.append(rec)
+    out.sort(key=lambda r: (r["station_id"], r["object_sha256"]))
+    return out
+
+
+def _slim_record(rec):
+    """The manifest input_objects record shape (single source of truth used by
+    BOTH production and the P16 recompute reconstruction)."""
+    out = {"station_id": rec["station_id"], "selected_nslc": rec["selected_nslc"],
+           "object_sha256": rec["object_sha256"], "size": rec["size"]}
+    if rec.get("relative_path"):
+        out["relative_path"] = rec["relative_path"]
+    return out
+
+
+def _provider_of(root, rec, carrier_key):
+    """P17 dispatch key: the object record's declared provider; else the pinned
+    plan's per-carrier provider when a campaign_plan.json rides the root; else
+    None (KOERI-style read+trim assembly, the conservative default)."""
+    p = rec.get("provider")
+    if p:
+        return p
+    plan_path = os.path.join(root, "campaign_plan.json")
+    if os.path.exists(plan_path):
+        try:
+            plan = json.loads(open(plan_path, "rb").read().decode("utf-8"))
+            return plan.get("providers", {}).get(carrier_key, {}).get("provider")
+        except Exception:
+            return None
+    return None
+
+
+def _assemble_stream(root, recs, provider, obspy):
+    """P17: provider-dispatched post-staging assembly, mirroring the live fetch:
+    SCEDC = read every day-volume + merge(method=0) + trim(request window) +
+    split; KOERI/other = read + trim (live KOERI responses are window-limited;
+    trim is the faithful no-op bound)."""
+    from obspy import UTCDateTime
+    stream = None
+    for rec in sorted(recs, key=lambda o: o["object_sha256"]):
+        p = _locate_object(root, rec)
+        raw = open(p, "rb").read()
+        if _sha(raw) != rec["object_sha256"]:
+            raise ValueError("object byte drift for " + rec["station_id"])
+        st = obspy.read(p)                         # typed failure if not miniSEED
+        stream = st if stream is None else stream + st
+    start, end = recs[0].get("start_utc"), recs[0].get("end_utc")
+    if provider == "SCEDC":
+        stream.merge(method=0)
+        if start and end:
+            stream.trim(UTCDateTime(start), UTCDateTime(end))
+        stream = stream.split()
+    elif start and end:
+        stream.trim(UTCDateTime(start), UTCDateTime(end))
+    return stream
+
+
+def _derive_real(root, records_by_station, station_ids, session_start,
+                 carrier_key=None):
+    """REAL v2 schema (closures 2b + P17): provider-dispatched assembly, then the
+    FROZEN D2 station-series path (d2_step4b_campaign_run._station_series over
+    the seismic_data band-envelope), then Pearson over the common valid_mask
+    samples; n_overlap = the common-valid count. Raises typed errors when real
     dependencies are absent or bytes do not parse -- never a silent fixture
     read, never a wrong-frame answer."""
     try:
@@ -234,15 +305,9 @@ def _derive_real(root, records_by_station, station_ids, session_start):
     ineligible = []
     for sid in station_ids:
         recs = records_by_station[sid]
-        stream = None
         nslc = recs[0]["selected_nslc"]
-        for rec in sorted(recs, key=lambda o: o["object_sha256"]):
-            p = _locate_object(root, rec)
-            raw = open(p, "rb").read()
-            if _sha(raw) != rec["object_sha256"]:
-                raise ValueError(f"object byte drift for {sid}")
-            st = obspy.read(p)                     # typed failure if not miniSEED
-            stream = st if stream is None else stream + st
+        provider = _provider_of(root, recs[0], carrier_key)
+        stream = _assemble_stream(root, recs, provider, obspy)
         es = CR._station_series(SD, stream, nslc, session_start)
         if es is None:
             # The frozen path refused the series (quality/coverage gate). The
@@ -518,23 +583,49 @@ def verify_matrix_artifact(root, matrix_path, manifest_path, *, recompute=False)
             if schema == ALGORITHM_CONFIG["fixture_schema"]:
                 r2, _nov2 = _derive_fixture(root, objs, sids)
             elif schema in REAL_SCHEMAS:
-                by_station = {}
-                for o in objs:
-                    by_station.setdefault(o["station_id"], []).append(o)
-                sha_to_start = {o.get("sha256"): o.get("start_utc")
-                                for o in im_doc.get("objects", [])}
-                starts = sorted(s for s in (sha_to_start.get(o["object_sha256"])
-                                            for o in objs) if s)
+                # P16: rebuild the FULL candidate universe from the REOPENED
+                # hash-bound root manifest -- the result manifest NEVER decides
+                # its own measurement domain.
+                universe = _real_universe(im_doc, man.get("carrier_key"),
+                                          man.get("day"))
+                if not universe:
+                    raise ValueError("EMPTY_CANDIDATE_UNIVERSE")
+                cand_sids = sorted({o["station_id"] for o in universe})
+                starts = sorted(o.get("start_utc") for o in universe
+                                if o.get("start_utc"))
                 if not starts:
                     raise ValueError("REAL_SCHEMA_WITHOUT_SESSION_START")
                 from datetime import datetime, timezone
                 session_start = datetime.strptime(
                     starts[0], "%Y-%m-%dT%H:%M:%S.%fZ").replace(
                         tzinfo=timezone.utc)
-                r2, _nov2, _inel = _derive_real(root, by_station, sids,
-                                                session_start)
-                if _inel:
-                    raise ValueError("INELIGIBLE_STATION_IN_MANIFEST_INDEX")
+                by_station = {}
+                for o in universe:
+                    by_station.setdefault(o["station_id"], []).append(o)
+                r2, nov2, inel = _derive_real(
+                    root, by_station, cand_sids, session_start,
+                    carrier_key=man.get("carrier_key"))
+                eligible = [s for s in cand_sids if s not in inel]
+                exp_objs = sorted((_slim_record(o) for o in universe
+                                   if o["station_id"] not in inel),
+                                  key=lambda o: (o["station_id"],
+                                                 o["object_sha256"]))
+                exp_codes = sorted("SERIES_UNAVAILABLE:" + s for s in inel)
+                exp_status = "PRODUCED" if len(eligible) >= 2 \
+                    else "INSUFFICIENT_ELIGIBLE_STATIONS"
+                if man.get("station_ids") != eligible:
+                    refuse("ELIGIBILITY_SET_MISMATCH")
+                if man.get("input_objects") != exp_objs:
+                    refuse("OBJECT_SET_MISMATCH")
+                if sorted(c for c in (man.get("reason_codes") or [])
+                          if c.startswith("SERIES_UNAVAILABLE:")) != exp_codes \
+                        or any(not c.startswith("SERIES_UNAVAILABLE:")
+                               for c in (man.get("reason_codes") or [])):
+                    refuse("ELIGIBILITY_REASON_MISMATCH")
+                if man.get("status") != exp_status:
+                    refuse("ELIGIBILITY_STATUS_MISMATCH")
+                if man.get("n_overlap") != nov2:
+                    refuse("N_OVERLAP_MISMATCH")
             else:
                 raise ValueError(f"UNSUPPORTED_INPUT_MANIFEST_SCHEMA:{schema}")
         except Exception:
@@ -572,14 +663,8 @@ def produce_carrier_day_matrix(root, carrier_key, day, *, out_dir):
         objs = [dict(o) for o in im["objects"]]
         campaign_id = run_id = _sha(im_raw)
     elif schema in REAL_SCHEMAS:
-        raw_objs = [o for o in im.get("objects", [])
-                    if o.get("carrier_key") == carrier_key
-                    and o.get("scored_day") == day]
-        objs = [{"station_id": ".".join(str(o.get("source_id", "")).split(".")[:2]),
-                 "selected_nslc": o.get("source_id"),
-                 "object_sha256": o.get("sha256"), "size": o.get("size"),
-                 "relative_path": o.get("relative_path")} for o in raw_objs]
-        starts = sorted(o.get("start_utc") for o in raw_objs if o.get("start_utc"))
+        objs = _real_universe(im, carrier_key, day)
+        starts = sorted(o.get("start_utc") for o in objs if o.get("start_utc"))
         if starts:
             from datetime import datetime, timezone
             session_start = datetime.strptime(
@@ -607,13 +692,16 @@ def produce_carrier_day_matrix(root, carrier_key, day, *, out_dir):
         if session_start is None:
             raise ValueError("REAL_SCHEMA_WITHOUT_SESSION_START")
         r, nov, ineligible = _derive_real(root, by_station, station_ids,
-                                          session_start)
+                                          session_start,
+                                          carrier_key=carrier_key)
         if ineligible:
             # typed absence: the frozen path refused these stations' series;
             # they leave the measured index AND the used-objects record.
             station_ids = [s for s in station_ids if s not in ineligible]
-            objs = [o for o in objs if o["station_id"] not in ineligible]
             codes += sorted("SERIES_UNAVAILABLE:" + s for s in ineligible)
+        objs = [_slim_record(o) for o in objs
+                if o["station_id"] not in ineligible]
+        objs.sort(key=lambda o: (o["station_id"], o["object_sha256"]))
         if len(station_ids) < 2:
             status = "INSUFFICIENT_ELIGIBLE_STATIONS"
     mb = _npy_bytes(r)

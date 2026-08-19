@@ -640,10 +640,11 @@ def _make_sidecar(kind, table, identity_keys, gdf):
     exact non-tensor canonical attributes the bridge demonstrably cannot
     extract, BOUND to the structure by ordered identity keys + canonical
     SHA-256 so values can never float free."""
-    cols = [c for c in gdf.columns if c != "geometry"]
+    rows = from_geodataframe(gdf)      # undoes pandas None->NaN coercion (B11)
+    cols = list(rows[0].keys()) if rows else []
     body = {"schema": SIDECAR_SCHEMA, "kind": kind, "table": table,
             "identity_keys": identity_keys, "columns": cols,
-            "values": {c: list(gdf[c]) for c in cols}}
+            "values": {c: [r[c] for r in rows] for c in cols}}
     return {**body, "sha256": sha(canon_bytes(body))}
 
 

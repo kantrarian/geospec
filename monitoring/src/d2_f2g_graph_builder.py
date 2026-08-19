@@ -630,15 +630,44 @@ _TRIP = {"coheres_with": ("station", "coheres_with", "station"),
          "contains": ("carrier", "contains", "segment")}
 
 
+SIDECAR_SCHEMA = "f2g-pyg-sidecar-v1"
+
+
+def _make_sidecar(kind, table, identity_keys, gdf):
+    """codex R1.2-A binding lock: an adapter-level PRESERVATION LEDGER, not a
+    replacement converter. The pinned bridge remains responsible for PyG
+    structure/indexes/relations/tensors/geometry; this sidecar carries ONLY the
+    exact non-tensor canonical attributes the bridge demonstrably cannot
+    extract, BOUND to the structure by ordered identity keys + canonical
+    SHA-256 so values can never float free."""
+    cols = [c for c in gdf.columns if c != "geometry"]
+    body = {"schema": SIDECAR_SCHEMA, "kind": kind, "table": table,
+            "identity_keys": identity_keys, "columns": cols,
+            "values": {c: list(gdf[c]) for c in cols}}
+    return {**body, "sha256": sha(canon_bytes(body))}
+
+
+def _verify_sidecar(sc, kind, table, got_identities):
+    if sc is None:
+        raise F2GRefusal("PYG_SIDECAR_ABSENT", f"{kind} {table}")
+    body = {k: v for k, v in sc.items() if k != "sha256"}
+    if sha(canon_bytes(body)) != sc.get("sha256"):
+        raise F2GRefusal("PYG_SIDECAR_DIGEST_MISMATCH", f"{kind} {table}")
+    if sc.get("schema") != SIDECAR_SCHEMA or sc.get("kind") != kind \
+            or sc.get("table") != table:
+        raise F2GRefusal("PYG_SIDECAR_SCHEMA_MISMATCH",
+                         f"{sc.get('kind')}/{sc.get('table')} vs {kind}/{table}")
+    if list(sc["identity_keys"]) != list(got_identities):
+        raise F2GRefusal("PYG_SIDECAR_STRUCTURE_MISMATCH",
+                         f"{kind} {table}: ordered identities differ from the "
+                         f"bridge-returned structure")
+
+
 def to_pyg(node_tables, edge_tables):
-    """REV 2/3 (codex F2 + closure 3): the PyG path routes through the PINNED
-    city2graph hetero bridge (A5 DEPEND) -- never local replacement code. The
-    bridge tensorizes structure; the EXACT canonical attribute values (strings,
-    lists, None included -- float32 tensors would be lossy) ride as PyG store
-    attributes (`f2g_<col>`), the bridge's own documented extraction surface
-    (`pyg_to_gdf(additional_node_cols/additional_edge_cols)`) restores them.
-    The attachment order is the gdf row order the bridge consumed; any
-    misalignment fails the B12 canonical-equality bar, which is the check."""
+    """REV 4 (codex R1.2-A): the PINNED city2graph bridge converts structure/
+    tensors/geometry (A5 DEPEND, no repin); exact non-tensor identity rides a
+    structure-bound sidecar ledger per store. The bridge did NOT round-trip
+    those attributes -- that division is recorded, never blurred."""
     try:
         import city2graph as c2g
     except ImportError as exc:
@@ -648,41 +677,46 @@ def to_pyg(node_tables, edge_tables):
         data = c2g.gdf_to_pyg(nodes, edges)
     except ImportError as exc:
         raise CapabilityUnavailable(f"torch/torch_geometric: {exc}")
-    schema = {"nodes": {}, "edges": {}}
     for kind, gdf in nodes.items():
-        cols = [c for c in gdf.columns if c != "geometry"]
-        schema["nodes"][kind] = cols
-        for c in cols:
-            setattr(data[kind], f"f2g_{c}", list(gdf[c]))
+        data[kind].f2g_sidecar = _make_sidecar(
+            "node", kind, [str(i) for i in gdf.index], gdf)
     for trip, gdf in edges.items():
-        cols = [c for c in gdf.columns if c != "geometry"]
-        schema["edges"][trip] = cols
-        for c in cols:
-            setattr(data[trip], f"f2g_{c}", list(gdf[c]))
-    data.f2g_schema = schema
+        data[trip].f2g_sidecar = _make_sidecar(
+            "edge", list(trip), [[str(a), str(b)] for a, b in gdf.index], gdf)
+    data.f2g_adapter = {"schema": SIDECAR_SCHEMA,
+                        "bridge": f"city2graph@{CITY2GRAPH_PIN}",
+                        "bridge_limitation":
+                            "additional-column extraction is tensor-only; "
+                            "exact non-tensor identity carried by this "
+                            "structure-bound sidecar ledger",
+                        "sidecar_sha256s": {
+                            **{k: data[k].f2g_sidecar["sha256"] for k in nodes},
+                            **{"|".join(t): data[t].f2g_sidecar["sha256"]
+                               for t in edges}}}
     return data
 
 
 def from_pyg(data):
-    """Inverse via the pinned bridge's extraction surface; `f2g_` prefixes are
-    stripped back to the canonical column names."""
+    """REV 4 inverse: structure FIRST through the pinned bridge's pyg_to_gdf,
+    then each store's sidecar verifies (digest, schema, kind/table, ordered
+    structural identities vs the bridge-returned rows) BEFORE any attribute is
+    restored -- a mismatch is a typed refusal, never a silent restore."""
     try:
         import city2graph as c2g
     except ImportError as exc:
         raise CapabilityUnavailable(f"city2graph: {exc}")
-    schema = getattr(data, "f2g_schema", None)
-    if schema is None:
-        raise F2GRefusal("PYG_SCHEMA_ABSENT",
-                         "object was not produced by to_pyg (no f2g_schema)")
-    nb, eb = c2g.pyg_to_gdf(
-        data,
-        additional_node_cols={k: [f"f2g_{c}" for c in v]
-                              for k, v in schema["nodes"].items()},
-        additional_edge_cols={k: [f"f2g_{c}" for c in v]
-                              for k, v in schema["edges"].items()})
-    for gdf in list(nb.values()) + list(eb.values()):
-        gdf.rename(columns={c: c[4:] for c in gdf.columns
-                            if c.startswith("f2g_")}, inplace=True)
+    nb, eb = c2g.pyg_to_gdf(data)
+    for kind, gdf in nb.items():
+        sc = getattr(data[kind], "f2g_sidecar", None)
+        _verify_sidecar(sc, "node", kind, [str(i) for i in gdf.index])
+        for c in sc["columns"]:
+            gdf[c] = sc["values"][c]
+    for trip, gdf in eb.items():
+        sc = getattr(data[trip], "f2g_sidecar", None)
+        _verify_sidecar(sc, "edge", list(trip),
+                        [[str(a), str(b)] for a, b in gdf.index])
+        for c in sc["columns"]:
+            gdf[c] = sc["values"][c]
     return nb, eb
 
 
@@ -730,8 +764,9 @@ def render_map(station_table, coherence_edges, out_path, *, title_suffix=""):
 
 
 def phase_a_result(*, input_digests, code_digests, output_digests, bar_results,
-                   status, geometry_excluded_station_ids=()):
+                   status, geometry_excluded_station_ids=(), pyg_adapter=None):
     return {"schema": SCHEMA, "kind": "phase_a_result", "status": status,
+            "pyg_adapter": pyg_adapter,
             "input_digests": dict(sorted(input_digests.items())),
             "code_digests": dict(sorted(code_digests.items())),
             "output_digests": dict(sorted(output_digests.items())),

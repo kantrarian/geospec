@@ -57,6 +57,7 @@ _MANIFEST_KEYS = {
     "matrix_size", "status", "reason_codes",
 }
 _BLOB_FILES = ("monitoring/src/seismic_data.py", "monitoring/src/fault_correlation.py",
+               "monitoring/src/d2_step4b_providers.py",
                "monitoring/src/d2_f2g_matrix_producer.py")
 
 # The frozen derivation declaration. The fixture schema carries raw little-endian
@@ -79,6 +80,18 @@ ALGORITHM_CONFIG = {
     "diagonal": 1.0,
     "cross_carrier_pairs": False,
     "unavailable_rule": "typed-absence-never-zero",
+    # codex R1.3 adoption 15dfa7bd (dual-path finding 6d039f65): the persisted
+    # v2 surface is the oracle -- reproduce what production SCORED. Per-unit
+    # stream assembly dispatches ONLY on the hash-bound ROOT input manifest's
+    # reuse_disposition; the result manifest can never choose its own semantics.
+    "acquisition_dispatch": {
+        "authority": "root-input-manifest.reuse_disposition",
+        "FETCHED_NEW": "provider-assembly",
+        "LEGACY_REUSED_AFTER_REFETCH_ATTESTATION": "provider-assembly",
+        "REUSED_VERIFIED": "d2_step4b_providers.parse_staged-single-object-untrimmed",
+        "reused_multi_object": "REUSED_MULTI_OBJECT_UNSUPPORTED-typed-refusal",
+        "unknown_or_mixed": "typed-refusal",
+    },
 }
 
 
@@ -261,6 +274,30 @@ def _provider_of(root, rec, carrier_key):
     return None
 
 
+_FRESH_DISPOSITIONS = {"FETCHED_NEW", "LEGACY_REUSED_AFTER_REFETCH_ATTESTATION"}
+
+
+def _acquisition_lane(sid, recs):
+    """Per-unit acquisition-history dispatch (codex adoption 15dfa7bd), keyed
+    STRICTLY on the root-manifest records' reuse_disposition. Returns
+    (lane, refusal_code): lane in {"fresh", "reused"} with code None, or lane
+    None with a typed refusal code. absent = unknown = refusal; mixed
+    dispositions within a unit refuse; a multi-object REUSED_VERIFIED unit
+    refuses as loss guard -- objects[0] emulation may never silently discard
+    bound bytes."""
+    vals = sorted({str(r.get("reuse_disposition")) for r in recs})
+    if len(vals) > 1:
+        return None, "REUSE_DISPOSITION_MIXED:" + sid
+    v = vals[0]
+    if v in _FRESH_DISPOSITIONS:
+        return "fresh", None
+    if v == "REUSED_VERIFIED":
+        if len(recs) != 1:
+            return None, "REUSED_MULTI_OBJECT_UNSUPPORTED:" + sid
+        return "reused", None
+    return None, "REUSE_DISPOSITION_UNKNOWN:" + sid + ":" + v
+
+
 def _assemble_stream(root, recs, provider, obspy):
     """P17: provider-dispatched post-staging assembly, mirroring the live fetch:
     SCEDC = read every day-volume + merge(method=0) + trim(request window) +
@@ -288,10 +325,15 @@ def _assemble_stream(root, recs, provider, obspy):
 
 def _derive_real(root, records_by_station, station_ids, session_start,
                  carrier_key=None):
-    """REAL v2 schema (closures 2b + P17): provider-dispatched assembly, then the
-    FROZEN D2 station-series path (d2_step4b_campaign_run._station_series over
-    the seismic_data band-envelope), then Pearson over the common valid_mask
-    samples; n_overlap = the common-valid count. Raises typed errors when real
+    """REAL v2 schema (closures 2b + P17 + codex adoption 15dfa7bd): per-unit
+    acquisition-history dispatch on the root manifest's reuse_disposition --
+    fresh units through the provider assembly, REUSED_VERIFIED single-object
+    units through the ACTUAL d2_step4b_providers.parse_staged seam untrimmed
+    (the executor's resume semantics) -- then the FROZEN D2 station-series path
+    (d2_step4b_campaign_run._station_series over the seismic_data band-envelope),
+    then Pearson over the common valid_mask samples; n_overlap = the
+    common-valid count. Returns (r, n_overlap, ineligible) with ineligible a
+    dict {station_id: typed refusal code}. Raises typed errors when real
     dependencies are absent or bytes do not parse -- never a silent fixture
     read, never a wrong-frame answer."""
     try:
@@ -299,21 +341,36 @@ def _derive_real(root, records_by_station, station_ids, session_start,
     except ImportError as exc:
         raise RuntimeError("REAL_DEPS_ABSENT:obspy") from exc
     import d2_step4b_campaign_run as CR
+    import d2_step4b_providers as PV
     import seismic_data as SD
 
     es_by_station = {}
-    ineligible = []
+    ineligible = {}
     for sid in station_ids:
         recs = records_by_station[sid]
         nslc = recs[0]["selected_nslc"]
-        provider = _provider_of(root, recs[0], carrier_key)
-        stream = _assemble_stream(root, recs, provider, obspy)
+        lane, code = _acquisition_lane(sid, recs)
+        if lane is None:
+            # Dispatch refusal (unknown/mixed disposition or multi-object
+            # REUSED): the station is never measured this day.
+            ineligible[sid] = code
+            continue
+        if lane == "reused":
+            rec = recs[0]
+            p = _locate_object(root, rec)
+            raw = open(p, "rb").read()
+            if _sha(raw) != rec["object_sha256"]:
+                raise ValueError("object byte drift for " + sid)
+            stream = PV.parse_staged(p)
+        else:
+            provider = _provider_of(root, recs[0], carrier_key)
+            stream = _assemble_stream(root, recs, provider, obspy)
         es = CR._station_series(SD, stream, nslc, session_start)
         if es is None:
             # The frozen path refused the series (quality/coverage gate). The
             # station is NOT eligible this day: typed absence from the measured
             # index -- never a zero/nan row for a station without a measurement.
-            ineligible.append(sid)
+            ineligible[sid] = "SERIES_UNAVAILABLE:" + sid
         else:
             es_by_station[sid] = es
     station_ids = [s for s in station_ids if s not in ineligible]
@@ -610,17 +667,16 @@ def verify_matrix_artifact(root, matrix_path, manifest_path, *, recompute=False)
                                    if o["station_id"] not in inel),
                                   key=lambda o: (o["station_id"],
                                                  o["object_sha256"]))
-                exp_codes = sorted("SERIES_UNAVAILABLE:" + s for s in inel)
+                exp_codes = sorted(inel.values())
                 exp_status = "PRODUCED" if len(eligible) >= 2 \
                     else "INSUFFICIENT_ELIGIBLE_STATIONS"
                 if man.get("station_ids") != eligible:
                     refuse("ELIGIBILITY_SET_MISMATCH")
                 if man.get("input_objects") != exp_objs:
                     refuse("OBJECT_SET_MISMATCH")
-                if sorted(c for c in (man.get("reason_codes") or [])
-                          if c.startswith("SERIES_UNAVAILABLE:")) != exp_codes \
-                        or any(not c.startswith("SERIES_UNAVAILABLE:")
-                               for c in (man.get("reason_codes") or [])):
+                # exact equality: the recomputed refusal codes (frozen-gate
+                # SERIES_UNAVAILABLE + dispatch refusals) and NOTHING else
+                if sorted(man.get("reason_codes") or []) != exp_codes:
                     refuse("ELIGIBILITY_REASON_MISMATCH")
                 if man.get("status") != exp_status:
                     refuse("ELIGIBILITY_STATUS_MISMATCH")
@@ -695,10 +751,12 @@ def produce_carrier_day_matrix(root, carrier_key, day, *, out_dir):
                                           session_start,
                                           carrier_key=carrier_key)
         if ineligible:
-            # typed absence: the frozen path refused these stations' series;
-            # they leave the measured index AND the used-objects record.
+            # typed absence: frozen-gate refusal (SERIES_UNAVAILABLE) or
+            # acquisition-dispatch refusal (unknown/mixed disposition,
+            # multi-object REUSED loss guard); the station leaves the measured
+            # index AND the used-objects record.
             station_ids = [s for s in station_ids if s not in ineligible]
-            codes += sorted("SERIES_UNAVAILABLE:" + s for s in ineligible)
+            codes += sorted(ineligible.values())
         objs = [_slim_record(o) for o in objs
                 if o["station_id"] not in ineligible]
         objs.sort(key=lambda o: (o["station_id"], o["object_sha256"]))

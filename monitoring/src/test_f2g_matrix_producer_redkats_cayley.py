@@ -695,23 +695,36 @@ def main():
             common = es_spl.valid_mask & es_ref.valid_mask
             oracle = float(np.corrcoef(es_spl.values[common],
                                        es_ref.values[common])[0, 1])
+            # concat comparator per codex ruling 44663bd3: ONLY the expected
+            # frozen-gate refusal branch qualifies as discrimination (recorded
+            # explicitly); never NaN/zero coercion, never an arbitrary
+            # exception; a finite concat answer must differ from the oracle
             concat_spl = _ob.Stream()
             for s_ in raws["KO.SPL..HHZ"]:
                 concat_spl += s_
             es_cc = CR._station_series(SD, concat_spl, "KO.SPL..HHZ",
                                        session_start)
-            cc_common = es_cc.valid_mask & es_ref.valid_mask
-            concat_ans = float(np.corrcoef(es_cc.values[cc_common],
-                                           es_ref.values[cc_common])[0, 1])
+            if es_cc is None:
+                discrim = True
+                cc_note = "NAIVE_CONCAT_REFUSED_BY_FROZEN_GATE"
+            else:
+                cc_common = es_cc.valid_mask & es_ref.valid_mask
+                concat_ans = float(np.corrcoef(es_cc.values[cc_common],
+                                               es_ref.values[cc_common])[0, 1])
+                discrim = np.isfinite(concat_ans) and concat_ans != oracle
+                cc_note = f"concat={concat_ans}"
             m17 = np.load(mp17)
             i17 = man17["station_ids"].index("KO.REF")
             j17 = man17["station_ids"].index("KO.SPL")
             got17 = float(m17[i17, j17])
-            check("F2G-P17a SCEDC two-object assembly: produced == "
-                  "merge(0)+trim+split oracle AND != naive concat (fixture "
-                  "discriminates; both assertions load-bearing)",
-                  got17 == oracle and oracle != concat_ans,
-                  f"got={got17} oracle={oracle} concat={concat_ans}")
+            check("F2G-P17a SCEDC two-object assembly: produced cell finite + "
+                  "float-exact to the merge(0)+trim+split oracle; n_overlap == "
+                  "oracle common-valid; naive concat = frozen-gate refusal "
+                  "(recorded) OR a differing finite answer",
+                  np.isfinite(got17) and got17 == oracle
+                  and man17["n_overlap"][i17][j17] == int(common.sum())
+                  and discrim,
+                  f"got={got17} oracle={oracle} {cc_note}")
         except Exception as exc:
             check("F2G-P17a SCEDC assembly fidelity", False,
                   f"{type(exc).__name__}: {exc}")

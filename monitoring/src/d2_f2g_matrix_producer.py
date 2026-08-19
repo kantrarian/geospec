@@ -231,6 +231,7 @@ def _derive_real(root, records_by_station, station_ids, session_start):
     import seismic_data as SD
 
     es_by_station = {}
+    ineligible = []
     for sid in station_ids:
         recs = records_by_station[sid]
         stream = None
@@ -242,7 +243,15 @@ def _derive_real(root, records_by_station, station_ids, session_start):
                 raise ValueError(f"object byte drift for {sid}")
             st = obspy.read(p)                     # typed failure if not miniSEED
             stream = st if stream is None else stream + st
-        es_by_station[sid] = CR._station_series(SD, stream, nslc, session_start)
+        es = CR._station_series(SD, stream, nslc, session_start)
+        if es is None:
+            # The frozen path refused the series (quality/coverage gate). The
+            # station is NOT eligible this day: typed absence from the measured
+            # index -- never a zero/nan row for a station without a measurement.
+            ineligible.append(sid)
+        else:
+            es_by_station[sid] = es
+    station_ids = [s for s in station_ids if s not in ineligible]
 
     n = len(station_ids)
     r = np.eye(n, dtype="<f8")
@@ -262,7 +271,7 @@ def _derive_real(root, records_by_station, station_ids, session_start):
                     r[i, j] = r[j, i] = np.nan
             else:
                 r[i, j] = r[j, i] = np.nan
-    return r, nov
+    return r, nov, ineligible
 
 
 # -- identity AUTHORITY (closure 2a): the durable per-root artifact is the ONLY
@@ -522,7 +531,10 @@ def verify_matrix_artifact(root, matrix_path, manifest_path, *, recompute=False)
                 session_start = datetime.strptime(
                     starts[0], "%Y-%m-%dT%H:%M:%S.%fZ").replace(
                         tzinfo=timezone.utc)
-                r2, _nov2 = _derive_real(root, by_station, sids, session_start)
+                r2, _nov2, _inel = _derive_real(root, by_station, sids,
+                                                session_start)
+                if _inel:
+                    raise ValueError("INELIGIBLE_STATION_IN_MANIFEST_INDEX")
             else:
                 raise ValueError(f"UNSUPPORTED_INPUT_MANIFEST_SCHEMA:{schema}")
         except Exception:
@@ -594,7 +606,16 @@ def produce_carrier_day_matrix(root, carrier_key, day, *, out_dir):
             by_station.setdefault(o["station_id"], []).append(o)
         if session_start is None:
             raise ValueError("REAL_SCHEMA_WITHOUT_SESSION_START")
-        r, nov = _derive_real(root, by_station, station_ids, session_start)
+        r, nov, ineligible = _derive_real(root, by_station, station_ids,
+                                          session_start)
+        if ineligible:
+            # typed absence: the frozen path refused these stations' series;
+            # they leave the measured index AND the used-objects record.
+            station_ids = [s for s in station_ids if s not in ineligible]
+            objs = [o for o in objs if o["station_id"] not in ineligible]
+            codes += sorted("SERIES_UNAVAILABLE:" + s for s in ineligible)
+        if len(station_ids) < 2:
+            status = "INSUFFICIENT_ELIGIBLE_STATIONS"
     mb = _npy_bytes(r)
     man = {
         "schema": MANIFEST_SCHEMA,

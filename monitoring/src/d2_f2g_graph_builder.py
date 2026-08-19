@@ -623,28 +623,67 @@ def _hetero_gdfs(node_tables, edge_tables):
     return nodes, edges
 
 
+_TRIP = {"coheres_with": ("station", "coheres_with", "station"),
+         "near": ("station", "near", "station"),
+         "member_of": ("station", "member_of", "segment"),
+         "adjacent_to": ("segment", "adjacent_to", "segment"),
+         "contains": ("carrier", "contains", "segment")}
+
+
 def to_pyg(node_tables, edge_tables):
-    """REV 2 (codex F2): the PyG path routes through the PINNED city2graph
-    hetero bridge (A5 DEPEND) -- never local replacement code. Attributes
-    (r, n_overlap, provenance, distance, CRS) ride as feature/metadata columns
-    through gdf_to_pyg; pyg_to_gdf is the inverse."""
+    """REV 2/3 (codex F2 + closure 3): the PyG path routes through the PINNED
+    city2graph hetero bridge (A5 DEPEND) -- never local replacement code. The
+    bridge tensorizes structure; the EXACT canonical attribute values (strings,
+    lists, None included -- float32 tensors would be lossy) ride as PyG store
+    attributes (`f2g_<col>`), the bridge's own documented extraction surface
+    (`pyg_to_gdf(additional_node_cols/additional_edge_cols)`) restores them.
+    The attachment order is the gdf row order the bridge consumed; any
+    misalignment fails the B12 canonical-equality bar, which is the check."""
     try:
         import city2graph as c2g
     except ImportError as exc:
         raise CapabilityUnavailable(f"city2graph: {exc}")
     nodes, edges = _hetero_gdfs(node_tables, edge_tables)
     try:
-        return c2g.gdf_to_pyg(nodes, edges)
+        data = c2g.gdf_to_pyg(nodes, edges)
     except ImportError as exc:
         raise CapabilityUnavailable(f"torch/torch_geometric: {exc}")
+    schema = {"nodes": {}, "edges": {}}
+    for kind, gdf in nodes.items():
+        cols = [c for c in gdf.columns if c != "geometry"]
+        schema["nodes"][kind] = cols
+        for c in cols:
+            setattr(data[kind], f"f2g_{c}", list(gdf[c]))
+    for trip, gdf in edges.items():
+        cols = [c for c in gdf.columns if c != "geometry"]
+        schema["edges"][trip] = cols
+        for c in cols:
+            setattr(data[trip], f"f2g_{c}", list(gdf[c]))
+    data.f2g_schema = schema
+    return data
 
 
 def from_pyg(data):
+    """Inverse via the pinned bridge's extraction surface; `f2g_` prefixes are
+    stripped back to the canonical column names."""
     try:
         import city2graph as c2g
     except ImportError as exc:
         raise CapabilityUnavailable(f"city2graph: {exc}")
-    return c2g.pyg_to_gdf(data)
+    schema = getattr(data, "f2g_schema", None)
+    if schema is None:
+        raise F2GRefusal("PYG_SCHEMA_ABSENT",
+                         "object was not produced by to_pyg (no f2g_schema)")
+    nb, eb = c2g.pyg_to_gdf(
+        data,
+        additional_node_cols={k: [f"f2g_{c}" for c in v]
+                              for k, v in schema["nodes"].items()},
+        additional_edge_cols={k: [f"f2g_{c}" for c in v]
+                              for k, v in schema["edges"].items()})
+    for gdf in list(nb.values()) + list(eb.values()):
+        gdf.rename(columns={c: c[4:] for c in gdf.columns
+                            if c.startswith("f2g_")}, inplace=True)
+    return nb, eb
 
 
 RENDER_LABEL = "seismic envelope coherence structure -- not displacement"

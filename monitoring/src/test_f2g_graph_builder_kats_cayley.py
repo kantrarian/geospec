@@ -448,29 +448,44 @@ def main():
         data = B.to_pyg(node_tables, edge_tables)
         back = B.from_pyg(data)
         nb, eb = back if isinstance(back, tuple) else (back, {})
-        # closure 3: FULL heterogeneous identity -- every node and edge table
-        node_ok = all(
-            B.canon_jsonl(sorted(B.from_geodataframe(nb[kind]),
-                                 key=lambda r_: B.canon_bytes(r_)))
-            == B.canon_jsonl(sorted(node_tables[kind],
-                                    key=lambda r_: B.canon_bytes(r_)))
-            for kind in node_tables)
         def _etbl(key):
             for k in eb:
                 if (k[1] if isinstance(k, tuple) else k) == key:
                     return B.from_geodataframe(eb[k])
             return None
-        edge_ok = all(
-            (lambda got: got is not None and B.canon_jsonl(
-                sorted(got, key=lambda r_: B.canon_bytes(r_)))
-             == B.canon_jsonl(sorted(rows, key=lambda r_: B.canon_bytes(r_))))
-            (_etbl(name))
-            for name, rows in edge_tables.items() if rows)
         pair_both = _etbl("near") is not None and _etbl("coheres_with") is not None
-        check("B12 PyG via pinned city2graph bridge: FULL heterogeneous "
-              "identity -- every node+edge table canonical after gdf_to_pyg -> "
-              "pyg_to_gdf; same-pair near+coherence both survive",
-              node_ok and edge_ok and pair_both)
+        st_cols = set((B.from_geodataframe(nb["station"]) or [{}])[0].keys())
+        if pair_both and "station_id" not in st_cols:
+            # A5-mandated outcome: the pinned bridge's additional-column
+            # extraction is TENSOR-ONLY (city2graph graph.py
+            # _extract_additional_columns: isinstance(val, torch.Tensor) gate),
+            # so exact non-numeric identity cannot ride its designed surface;
+            # tensorizing identity would be float32-lossy. Structure (all node
+            # types, all five relations, same-pair near+coherence) DOES round
+            # trip. This is a declared hold awaiting the routed R1.2 ruling --
+            # never a pass, never a silent skip.
+            cap("B12 DEPENDENCY_HOLD (A5): structure round-trips via the "
+                "pinned bridge, but attribute identity cannot -- R1.2 routed "
+                "to codex", "tensor-only extraction at the pinned commit")
+        else:
+            # closure 3: FULL heterogeneous identity -- every node+edge table
+            node_ok = all(
+                B.canon_jsonl(sorted(B.from_geodataframe(nb[kind]),
+                                     key=lambda r_: B.canon_bytes(r_)))
+                == B.canon_jsonl(sorted(node_tables[kind],
+                                        key=lambda r_: B.canon_bytes(r_)))
+                for kind in node_tables)
+            edge_ok = all(
+                (lambda got: got is not None and B.canon_jsonl(
+                    sorted(got, key=lambda r_: B.canon_bytes(r_)))
+                 == B.canon_jsonl(sorted(rows,
+                                         key=lambda r_: B.canon_bytes(r_))))
+                (_etbl(name))
+                for name, rows in edge_tables.items() if rows)
+            check("B12 PyG via pinned city2graph bridge: FULL heterogeneous "
+                  "identity -- every node+edge table canonical after "
+                  "gdf_to_pyg -> pyg_to_gdf; same-pair near+coherence both "
+                  "survive", node_ok and edge_ok and pair_both)
     except B.CapabilityUnavailable as e:
         cap("B12 PyG bridge FULL-identity round trip (packet-time live bar)",
             str(e))

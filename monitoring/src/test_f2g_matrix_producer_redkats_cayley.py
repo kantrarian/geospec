@@ -519,6 +519,7 @@ def main():
                            "carrier_key": "c_fix", "scored_day": "2026-03-02",
                            "segment_name": "seg_a",
                            "source_id": sid + "..HHZ",
+                           "reuse_disposition": "FETCHED_NEW",   # REV 4 rule
                            "start_utc": "2026-03-02T00:00:00.000000Z",
                            "end_utc": "2026-03-02T00:10:00.000000Z"})
             streams[sid] = _ob.Stream([tr])

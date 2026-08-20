@@ -149,17 +149,22 @@ def _digest_leaves(obj):
 
 
 def _results_bound(res):
-    """codex 0431Z repairs 1+2: the four annex digests must appear among the
-    artifact's digest leaves; the equivalence receipt must carry Boolean
-    full_equal AND fold_equal both exactly True (a nonempty receipt is not
-    proof); the digests block must name the driver and engine authorities."""
-    digs = _digest_leaves(res.get("digests"))
-    eq = res.get("equivalence_receipt") or {}
-    dig_keys = set((res.get("digests") or {}).keys()) \
-        if isinstance(res.get("digests"), dict) else set()
-    has_auth = any("driver" in k for k in dig_keys) \
-        and any("engine" in k for k in dig_keys)
-    return ANNEX_SHAS.issubset(digs) \
+    """codex 0431Z repairs 1+2 + 0517Z closure: the four annex digests must
+    appear among the artifact's digest leaves; the equivalence receipt must
+    carry Boolean full_equal AND fold_equal both exactly True (a nonempty
+    receipt is not proof); and the digests block must bind the EXACT
+    registered driver/engine authorities -- key-name substrings are not
+    authorities (fake {"claimed_driver": null} bypass closed)."""
+    d = res.get("digests")
+    eq = res.get("equivalence_receipt")
+    if not isinstance(d, dict) or not isinstance(eq, dict):
+        return False
+    has_auth = (
+        d.get("estimation_run_driver_commit") == "d4edfb2"
+        and isinstance(d.get("engine"), str)
+        and "6034419" in d["engine"]
+    )
+    return ANNEX_SHAS.issubset(_digest_leaves(d)) \
         and eq.get("full_equal") is True and eq.get("fold_equal") is True \
         and has_auth
 
@@ -265,9 +270,30 @@ def g16a():
     check("G16a annex authority binding (rev-1.1 bytes)", ok, "; ".join(det))
 
 
+def g16c():
+    """codex 0517Z negative fixture: four exact annex hashes + fake/empty
+    authorities + true booleans must be REFUSED -- engine-independent."""
+    fake = {
+        "digests": {
+            "annex_common_rev11_sha256": sorted(ANNEX_SHAS)[0],
+            "annex_b1_rev11_sha256": sorted(ANNEX_SHAS)[1],
+            "annex_b2_rev11_sha256": sorted(ANNEX_SHAS)[2],
+            "annex_b3_rev11_sha256": sorted(ANNEX_SHAS)[3],
+            "claimed_driver": None, "claimed_engine": False},
+        "equivalence_receipt": {"full_equal": True, "fold_equal": True},
+    }
+    ok = _results_bound(fake) is False
+    real = _results(B1_RESULTS)
+    ok_real = real is None or _results_bound(real) is True
+    check("G16c fake-empty-authorities REFUSED (exact registered values only)",
+          ok and ok_real,
+          f"fake_accepted={not ok} real_bound_ok={ok_real}")
+
+
 def main():
     g7a()                       # engine-independent: runs (and must pass) NOW
     g16a()                      # engine-independent: annex bytes bind NOW
+    g16c()                      # engine-independent: authority-bypass lock
     if not HAVE:
         for nm in ("G1 seams+constants", "G2 walk-forward split",
                    "G3 testable floor 45", "G4 degenerate baseline",

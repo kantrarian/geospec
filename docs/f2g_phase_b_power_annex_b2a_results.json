@@ -46,7 +46,8 @@
   "frozen_amendment_sha256": "f3d0830b38869d8b6f0b03d113d45ae0f111e8645bd4a2934582b21e48e909e8"
  },
  "disclosures": [
-  "gate-receipt label: the checkpoint gate row's engine_commit_bound string reads 'b4a7eee' (hardcoded in the driver before the audit-order deltas landed). The gate executed at launch against the working-tree module, which was the ADMITTED engine 493c2b9; the byte-equal result (full + fold) therefore binds 493c2b9, recorded in digests."
+  "the evidence capsule's launch-time gate row carries a stale hardcoded label ('b4a7eee'); it is superseded by the SOURCE-ATTESTED full gate receipt bound below (codex repair 2): full + ALL 35 LOCO folds proven exactly equal against admitted engine 493c2b9 post-run.",
+  "the admitted bar's _results_bound checker binds the SUPERSEDED-family authorities by design and correctly returns False on these amended artifacts; conformance for the amended lane is established by the committed strict verifier (codex repair 3), not by that checker."
  ],
  "env": {
   "machine": "AMD64",
@@ -54,13 +55,22 @@
   "python": "3.12.10"
  },
  "equivalence_receipt": {
-  "driver_fold_p": 0.03,
-  "driver_p": 0.03,
-  "engine_commit_bound": "b4a7eee",
-  "engine_fold_p": 0.03,
-  "engine_p": 0.03,
-  "fold_equal": true,
-  "full_equal": true
+  "all_equal": true,
+  "driver_commit_bound": "e384e2c",
+  "driver_disk_sha256": "de19e162bb876344faa5b01f0fca8533647aeb56313ad600c37db6b608edff6e",
+  "engine_commit_bound": "493c2b9",
+  "engine_disk_sha256": "fd819da34fe0ec1fc64b44a9d07adc7c65b1e087883f4fa5319a96b1098a818f",
+  "fold_equal_all": true,
+  "folds_checked": 35,
+  "full_equal": true,
+  "receipt_path": "docs/f2g_phase_b_power_a_fullgate_receipt.json",
+  "receipt_sha256": "5da09567999aac55c64c166306a35c69b1bd48f974e0e3bdcbb0976fd5120617"
+ },
+ "evidence_capsule": {
+  "note": "immutable checkpoint capsule: every Tier-S/S2/C replicate row incl. all Tier-C full+post-LOCO outcomes and the launch gate row",
+  "path": "docs/f2g_phase_b_power_a_evidence.jsonl",
+  "rows": 4890,
+  "sha256": "515280ed7fa81be0865d9aaf569e54de10c86a75bae20b5427fc20fa9f48e1d6"
  },
  "family": "B2A",
  "pareto_minimal_certified": [

@@ -1,0 +1,313 @@
+{
+ "all_equal": true,
+ "b2a_b3a_binding": "direct-engine families: the estimation driver calls E.b2a_family/E.b3a_family with no reduction, so p/verdict equality is definitional; their binding is the engine attestation above",
+ "checks": [
+  {
+   "T_equal": true,
+   "driver_p": 0.03,
+   "engine_p": 0.03,
+   "fold": "full",
+   "p_equal": true,
+   "verdict_equal": true
+  },
+  {
+   "T_equal": true,
+   "driver_p": 0.16,
+   "engine_p": 0.16,
+   "fold": "loco:C1.S00",
+   "p_equal": true,
+   "verdict_equal": true
+  },
+  {
+   "T_equal": true,
+   "driver_p": 0.015,
+   "engine_p": 0.015,
+   "fold": "loco:C1.S01",
+   "p_equal": true,
+   "verdict_equal": true
+  },
+  {
+   "T_equal": true,
+   "driver_p": 0.09,
+   "engine_p": 0.09,
+   "fold": "loco:C1.S02",
+   "p_equal": true,
+   "verdict_equal": true
+  },
+  {
+   "T_equal": true,
+   "driver_p": 0.03,
+   "engine_p": 0.03,
+   "fold": "loco:C1.S03",
+   "p_equal": true,
+   "verdict_equal": true
+  },
+  {
+   "T_equal": true,
+   "driver_p": 0.015,
+   "engine_p": 0.015,
+   "fold": "loco:C1.S04",
+   "p_equal": true,
+   "verdict_equal": true
+  },
+  {
+   "T_equal": true,
+   "driver_p": 0.015,
+   "engine_p": 0.015,
+   "fold": "loco:C1.S05",
+   "p_equal": true,
+   "verdict_equal": true
+  },
+  {
+   "T_equal": true,
+   "driver_p": 0.015,
+   "engine_p": 0.015,
+   "fold": "loco:C1.S06",
+   "p_equal": true,
+   "verdict_equal": true
+  },
+  {
+   "T_equal": true,
+   "driver_p": 0.03,
+   "engine_p": 0.03,
+   "fold": "loco:C1.S07",
+   "p_equal": true,
+   "verdict_equal": true
+  },
+  {
+   "T_equal": true,
+   "driver_p": 0.015,
+   "engine_p": 0.015,
+   "fold": "loco:C1.S08",
+   "p_equal": true,
+   "verdict_equal": true
+  },
+  {
+   "T_equal": true,
+   "driver_p": 0.03,
+   "engine_p": 0.03,
+   "fold": "loco:C1.S09",
+   "p_equal": true,
+   "verdict_equal": true
+  },
+  {
+   "T_equal": true,
+   "driver_p": 0.02,
+   "engine_p": 0.02,
+   "fold": "loco:C1.S10",
+   "p_equal": true,
+   "verdict_equal": true
+  },
+  {
+   "T_equal": true,
+   "driver_p": 0.03,
+   "engine_p": 0.03,
+   "fold": "loco:C1.S11",
+   "p_equal": true,
+   "verdict_equal": true
+  },
+  {
+   "T_equal": true,
+   "driver_p": 0.045,
+   "engine_p": 0.045,
+   "fold": "loco:C2.S00",
+   "p_equal": true,
+   "verdict_equal": true
+  },
+  {
+   "T_equal": true,
+   "driver_p": 0.02,
+   "engine_p": 0.02,
+   "fold": "loco:C2.S01",
+   "p_equal": true,
+   "verdict_equal": true
+  },
+  {
+   "T_equal": true,
+   "driver_p": 0.01,
+   "engine_p": 0.01,
+   "fold": "loco:C2.S02",
+   "p_equal": true,
+   "verdict_equal": true
+  },
+  {
+   "T_equal": true,
+   "driver_p": 0.04,
+   "engine_p": 0.04,
+   "fold": "loco:C2.S03",
+   "p_equal": true,
+   "verdict_equal": true
+  },
+  {
+   "T_equal": true,
+   "driver_p": 0.025,
+   "engine_p": 0.025,
+   "fold": "loco:C2.S04",
+   "p_equal": true,
+   "verdict_equal": true
+  },
+  {
+   "T_equal": true,
+   "driver_p": 0.035,
+   "engine_p": 0.035,
+   "fold": "loco:C2.S05",
+   "p_equal": true,
+   "verdict_equal": true
+  },
+  {
+   "T_equal": true,
+   "driver_p": 0.035,
+   "engine_p": 0.035,
+   "fold": "loco:C2.S06",
+   "p_equal": true,
+   "verdict_equal": true
+  },
+  {
+   "T_equal": true,
+   "driver_p": 0.03,
+   "engine_p": 0.03,
+   "fold": "loco:C2.S07",
+   "p_equal": true,
+   "verdict_equal": true
+  },
+  {
+   "T_equal": true,
+   "driver_p": 0.025,
+   "engine_p": 0.025,
+   "fold": "loco:C2.S08",
+   "p_equal": true,
+   "verdict_equal": true
+  },
+  {
+   "T_equal": true,
+   "driver_p": 0.015,
+   "engine_p": 0.015,
+   "fold": "loco:C2.S09",
+   "p_equal": true,
+   "verdict_equal": true
+  },
+  {
+   "T_equal": true,
+   "driver_p": 0.02,
+   "engine_p": 0.02,
+   "fold": "loco:C2.S10",
+   "p_equal": true,
+   "verdict_equal": true
+  },
+  {
+   "T_equal": true,
+   "driver_p": 0.045,
+   "engine_p": 0.045,
+   "fold": "loco:C2.S11",
+   "p_equal": true,
+   "verdict_equal": true
+  },
+  {
+   "T_equal": true,
+   "driver_p": 0.015,
+   "engine_p": 0.015,
+   "fold": "loco:C3.S00",
+   "p_equal": true,
+   "verdict_equal": true
+  },
+  {
+   "T_equal": true,
+   "driver_p": 0.015,
+   "engine_p": 0.015,
+   "fold": "loco:C3.S01",
+   "p_equal": true,
+   "verdict_equal": true
+  },
+  {
+   "T_equal": true,
+   "driver_p": 0.02,
+   "engine_p": 0.02,
+   "fold": "loco:C3.S02",
+   "p_equal": true,
+   "verdict_equal": true
+  },
+  {
+   "T_equal": true,
+   "driver_p": 0.025,
+   "engine_p": 0.025,
+   "fold": "loco:C3.S03",
+   "p_equal": true,
+   "verdict_equal": true
+  },
+  {
+   "T_equal": true,
+   "driver_p": 0.015,
+   "engine_p": 0.015,
+   "fold": "loco:C3.S04",
+   "p_equal": true,
+   "verdict_equal": true
+  },
+  {
+   "T_equal": true,
+   "driver_p": 0.04,
+   "engine_p": 0.04,
+   "fold": "loco:C3.S05",
+   "p_equal": true,
+   "verdict_equal": true
+  },
+  {
+   "T_equal": true,
+   "driver_p": 0.02,
+   "engine_p": 0.02,
+   "fold": "loco:C3.S06",
+   "p_equal": true,
+   "verdict_equal": true
+  },
+  {
+   "T_equal": true,
+   "driver_p": 0.02,
+   "engine_p": 0.02,
+   "fold": "loco:C3.S07",
+   "p_equal": true,
+   "verdict_equal": true
+  },
+  {
+   "T_equal": true,
+   "driver_p": 0.015,
+   "engine_p": 0.015,
+   "fold": "loco:C3.S08",
+   "p_equal": true,
+   "verdict_equal": true
+  },
+  {
+   "T_equal": true,
+   "driver_p": 0.01,
+   "engine_p": 0.01,
+   "fold": "loco:C3.S09",
+   "p_equal": true,
+   "verdict_equal": true
+  },
+  {
+   "T_equal": true,
+   "driver_p": 0.055,
+   "engine_p": 0.055,
+   "fold": "loco:C3.S10",
+   "p_equal": true,
+   "verdict_equal": true
+  }
+ ],
+ "driver_commit": "e384e2c",
+ "driver_disk_sha256": "de19e162bb876344faa5b01f0fca8533647aeb56313ad600c37db6b608edff6e",
+ "engine_commit": "493c2b9",
+ "engine_disk_sha256": "fd819da34fe0ec1fc64b44a9d07adc7c65b1e087883f4fa5319a96b1098a818f",
+ "fixture": {
+  "family": "B1A",
+  "n_draws": 199,
+  "point": {
+   "delta_lat": 1.2,
+   "k": 25,
+   "n_e": 10
+  },
+  "rep": 0
+ },
+ "fold_equal_all": true,
+ "folds_checked": 35,
+ "full_equal": true,
+ "per_fold_p_vector_sha256": "d1a3eac06188fe0ac481fbe3c7af0c939debb2aa86b10e60beb3d1bff838b153",
+ "schema": "f2g-phase-b-amended-fullgate-receipt-v1"
+}

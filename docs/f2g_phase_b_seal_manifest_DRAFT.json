@@ -1,6 +1,6 @@
 {
   "schema": "f2g-phase-b-seal-manifest-v1",
-  "status": "DRAFT - annex digests pending; owner seal fields empty until asylum seals",
+  "status": "DRAFT - all annex/results/authority slots populated; owner-seal fields empty; frozen automatic seal condition NOT MET (see power_annexes_amended.seal_condition)",
   "freeze_id": "F2G-PB-R2-FREEZE-CODEX-20260820T0301Z",
   "frozen_doc": {
     "path": "docs/f2g_phase_b_prereg_v1.md",
@@ -42,9 +42,10 @@
   },
   "red_kat_amendment_1": {
     "path": "monitoring/src/test_f2g_phase_b_stats_redkats_grassmann.py",
-    "geospec_commit": "4e6e678",
-    "blob_sha256_lf": "c8d690a7d9ff0e572499f2b7b96dfa929cd581bd884a54490a91d5dca9152c9a",
-    "status": "ADMITTED (codex 55db25a9); full digest routed in grassmann 1f05db8e"
+    "geospec_commit": "ff211ca",
+    "blob_sha256_lf": "295631fed6f836c18bf40975403db7799422f83dc74ea74cf14b8651fdcad2a6",
+    "status": "FINAL ADMITTED (codex 2f68b394); lineage: 2dcf07d -> 45cb5d8 -> 4e6e678 -> 12e63f0 -> ff211ca",
+    "note": "canonical final bar authority (codex 22:19Z repair 5; prior pin 4e6e678 was a stale intermediate)"
   },
   "rng": "PCG64; master seed = first 8 bytes big-endian of frozen_doc.sha256; substreams per frozen doc section (double-pipe formula)",
   "sequencing_after_seal": "engine green x3 vs the admitted bar -> ONE sealed real-data run (hash-bound inputs/outputs) -> codex + cayley verification -> owner decision",
@@ -170,6 +171,17 @@
       "geospec_commit": "ff211ca",
       "lf_sha256": "295631fed6f836c18bf40975403db7799422f83dc74ea74cf14b8651fdcad2a6"
     },
-    "seal_condition": "MET per frozen A5 rule: >=1 certified grid point in a verdict-carrying family (B2A); seal OFFER to asylum follows codex narrow pass"
+    "seal_condition": "NOT MET under the frozen A5 rule (codex 22:19Z repair 1): the rule requires >=1 certified grid point PER verdict-carrying family; B2A is CERTIFIED (frontier m=1..3, Pareto-minimal m=1, 20/20 post-LOCO, LB 0.8609) but B1A and B3A certified zero points and per frozen sec-5 type CANNOT_DETERMINE_NO_POWER. The automatic seal is NOT offered. The registered decision packet returns to asylum: an owner-directed disclosed-shortfall exception seal remains available (labeled owner exception per the recorded prospective/post-outcome boundary, supported by the pre-outcome disposition 1d53db67...), or further amendment, or closure.",
+    "equivalence": {
+      "fullgate_receipt": {
+        "path": "docs/f2g_phase_b_power_a_fullgate_receipt.json",
+        "scope": "full + ALL 35 LOCO folds, source-attested engine 493c2b9, all exactly equal"
+      },
+      "evidence_capsule": {
+        "path": "docs/f2g_phase_b_power_a_evidence.jsonl",
+        "rows": 4890
+      },
+      "strict_verifier": "monitoring/src/f2g_phase_b_power_a_results_verifier_cayley.py (blob-recomputed authorities + negative fixtures; the admitted bar's _results_bound intentionally covers only superseded families)"
+    }
   }
 }

@@ -35,12 +35,17 @@ DIGESTS = {
     "annex_b3a_sha256": "0c5fc14f6ecc4606b4a2548e788f962fd844ef0997ffb271ecf2e456d497f8d0",
 }
 DISCLOSURES = [
-    ("gate-receipt label: the checkpoint gate row's engine_commit_bound "
-     "string reads 'b4a7eee' (hardcoded in the driver before the audit-order "
-     "deltas landed). The gate executed at launch against the working-tree "
-     "module, which was the ADMITTED engine 493c2b9; the byte-equal result "
-     "(full + fold) therefore binds 493c2b9, recorded in digests."),
+    ("the evidence capsule's launch-time gate row carries a stale hardcoded "
+     "label ('b4a7eee'); it is superseded by the SOURCE-ATTESTED full gate "
+     "receipt bound below (codex repair 2): full + ALL 35 LOCO folds proven "
+     "exactly equal against admitted engine 493c2b9 post-run."),
+    ("the admitted bar's _results_bound checker binds the SUPERSEDED-family "
+     "authorities by design and correctly returns False on these amended "
+     "artifacts; conformance for the amended lane is established by the "
+     "committed strict verifier (codex repair 3), not by that checker."),
 ]
+FULLGATE_PATH = "C:/geospec/docs/f2g_phase_b_power_a_fullgate_receipt.json"
+EVIDENCE_PATH = "C:/geospec/docs/f2g_phase_b_power_a_evidence.jsonl"
 
 
 def agg(rows, stage, family):
@@ -76,9 +81,29 @@ def induced_z_b1a():
 def main():
     ckpt, docs = sys.argv[1], sys.argv[2]
     rows = [json.loads(l) for l in open(ckpt, encoding="utf-8") if l.strip()]
-    gate = next(r for r in rows if r.get("stage") == "gate")
     env = {"python": platform.python_version(), "numpy": np.__version__,
            "machine": platform.machine()}
+    import hashlib
+    fg = json.loads(open(FULLGATE_PATH, encoding="utf-8").read())
+    fg_sha = hashlib.sha256(open(FULLGATE_PATH, "rb").read()).hexdigest()
+    ev_sha = hashlib.sha256(open(EVIDENCE_PATH, "rb").read()).hexdigest()
+    ev_rows = sum(1 for l in open(EVIDENCE_PATH, encoding="utf-8")
+                  if l.strip())
+    receipt = {"full_equal": bool(fg["full_equal"]),
+               "fold_equal_all": bool(fg["fold_equal_all"]),
+               "folds_checked": int(fg["folds_checked"]),
+               "all_equal": bool(fg["all_equal"]),
+               "engine_commit_bound": fg["engine_commit"],
+               "engine_disk_sha256": fg["engine_disk_sha256"],
+               "driver_commit_bound": fg["driver_commit"],
+               "driver_disk_sha256": fg["driver_disk_sha256"],
+               "receipt_path": "docs/f2g_phase_b_power_a_fullgate_receipt.json",
+               "receipt_sha256": fg_sha}
+    evidence = {"path": "docs/f2g_phase_b_power_a_evidence.jsonl",
+                "sha256": ev_sha, "rows": ev_rows,
+                "note": "immutable checkpoint capsule: every Tier-S/S2/C "
+                        "replicate row incl. all Tier-C full+post-LOCO "
+                        "outcomes and the launch gate row"}
     for fam, fname in (("B1A", "b1a"), ("B2A", "b2a"), ("B3A", "b3a")):
         s1 = agg(rows, "S1", fam)
         s2 = agg(rows, "S2", fam)
@@ -125,8 +150,8 @@ def main():
             "pareto_minimal_certified": pareto,
             "terminal_type": ("CERTIFIED" if certified else
                               "MDE_NOT_CERTIFIED_BY_REGISTERED_SEARCH"),
-            "equivalence_receipt": {k: v for k, v in gate.items()
-                                    if k not in ("key", "stage")},
+            "equivalence_receipt": receipt,
+            "evidence_capsule": evidence,
             "disclosures": DISCLOSURES,
             "digests": DIGESTS,
             "env": env,

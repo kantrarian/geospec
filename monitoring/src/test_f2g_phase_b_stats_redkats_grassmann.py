@@ -125,6 +125,15 @@ SEAMS (cayley's engine amendment implements BAR-UNEDITED):
       capsule position order per draw, null_runs_by_carrier = per-draw
       {carrier: runs} -- the bar recomputes both carriers' runs from the
       returned common order and refuses on any draw-level mismatch.
+      audit_orders=[order, ...] (codex 1616Z ruling sub-cases): engine
+      recomputes runs for the EXPLICIT requested orders on the same capsules
+      -> result["audit_runs_by_carrier"] (one {carrier: runs} per requested
+      order) -- makes the ruled counterexamples deterministic forever.
+      FRAME SEMANTICS (codex 1616Z RULING, reading (a)): gap, intrinsic
+      refusal, or relational NODESET_MISMATCH terminates the run AND clears
+      the frame reference; the next intrinsically eligible capsule seeds a
+      fresh frame and fresh run; comparing across an excluded position is
+      forbidden bridging.
   b3a_family(panel, *, doc_sha256, n_draws=N_DRAWS, return_null=False,
              exhaustive_space=False)
       selection/typing as admitted B-3 plus K>=2 floor (K==1 day ->
@@ -666,9 +675,26 @@ def amendment2(have_a2):
         pB = ["GG.S1|GG.S3", "GG.S3|GG.S2", "GG.S2|GG.S4"]
         mm = ["GG.S2|GG.S3", "GG.S3|GG.S4", "GG.S4|GG.S5"]
         spec_x = [pA, pA, None, pA, pA, pB]           # A,A,gap,A,A,B
-        spec_y = [pA, None, pA, pA, mm, pA]           # A,gap,A,A,MM,A
-        pay = {"c_x": ["A", "A", "GAP", "A", "A", "B"],
-               "c_y": ["A", "GAP", "A", "A", "MM", "A"]}
+        spec_y = [pA, None, pA, pA, mm, pA]           # A,gap,A,A,frame2,A
+        # capsules carry INTRINSIC state only: partition label + exact frame
+        # (station set) or GAP; NODESET_MISMATCH is NOT baked in -- it is
+        # recomputed RELATIONALLY after each permutation (codex ccc339d:
+        # "eligibility, adjacency, mismatch termination, and runs are
+        # recomputed only AFTER the common permutation")
+        f1 = frozenset(sA)
+        f2 = frozenset(["GG.S2", "GG.S3", "GG.S4", "GG.S5"])
+        REF = ("__REFUSED__", None)   # intrinsic refusal (oracle sentinel)
+        cap = {"c_x": [("A", f1), ("A", f1), None, ("A", f1), ("A", f1),
+                       ("B", f1)],
+               "c_y": [("A", f1), None, ("A", f1), ("A", f1), ("P2", f2),
+                       ("A", f1)],
+               # c_z: post-intrinsic-refusal + post-gap same-frame sub-cases
+               # (codex 1616Z): K4 equal-weight day = FIEDLER_DEGENERATE
+               "c_z": [("A", f1), REF, ("P2", f2), ("P2", f2), None,
+                       ("P2", f2)]}
+        k4 = ["GG.S1|GG.S2", "GG.S1|GG.S3", "GG.S1|GG.S4",
+              "GG.S2|GG.S3", "GG.S2|GG.S4", "GG.S3|GG.S4"]
+        spec_z = [pA, k4, mm, mm, None, mm]
 
         def _carrier(specs, stations):
             n = 60 + len(specs)
@@ -691,36 +717,76 @@ def amendment2(have_a2):
                     "r": r}
 
         pan5k = {"carriers": {"c_x": _carrier(spec_x, sA),
-                              "c_y": _carrier(spec_y, sA)}}
+                              "c_y": _carrier(spec_y, sA),
+                              "c_z": _carrier(spec_z, sA)}}
 
-        def _runs(order, payload):
-            runs, prev = 0, None
+        def _runs(order, capsules):
+            """Frame-consuming run count (codex ccc339d): move intrinsic
+            capsules by the common order; then recompute relational
+            NODESET_MISMATCH, adjacency, and runs. A day whose frame differs
+            from the calendar-adjacent previous ACCEPTED day is refused and
+            terminates; after any gap/refusal the next day starts fresh and
+            is accepted with its own frame."""
+            runs, prev = 0, None      # prev = (partition, frame) if adjacent
             for j in order:
-                p = payload[j]
-                if p in ("GAP", "MM"):
+                c = capsules[j]
+                if c is None or c[0] == "__REFUSED__":
+                    prev = None                       # ruled: reference CLEARS
+                    continue
+                part, frame = c
+                if prev is None:                      # fresh start: accepted
+                    runs += 1
+                    prev = (part, frame)
+                    continue
+                if frame != prev[1]:                  # relational mismatch
                     prev = None
                     continue
-                if p != prev:
+                if part != prev[0]:
                     runs += 1
-                prev = p
+                prev = (part, frame)
             return runs
 
+        RULED_ORDER = [3, 2, 5, 0, 1, 4]              # codex 1616Z draw-7
         r5k = E.b2a_family(pan5k, doc_sha256=AMENDMENT1_SHA, n_draws=199,
-                           return_null=True)
+                           return_null=True, audit_orders=[RULED_ORDER])
         orders = r5k.get("null_orders") or []
         by_car = r5k.get("null_runs_by_carrier") or []
-        ok5k = len(orders) == len(by_car) and len(orders) > 0
-        for o, rb in zip(orders, by_car):
-            for c in ("c_x", "c_y"):
-                if int(rb[c]) != _runs(list(o), pay[c]):
+        null_r = r5k.get("null_R") or []
+        nvd = r5k.get("n_valid_draws")
+        CARS = {"c_x", "c_y", "c_z"}
+        # codex 94cb7b3 binding conjuncts: the audit vector must reach the
+        # verdict-bearing null statistic, not ride beside it
+        ok5k = (len(orders) == len(by_car) == len(null_r) == nvd
+                and len(orders) > 0)
+        for i, (o, rb) in enumerate(zip(orders, by_car)):
+            if sorted(o) != list(range(6)) or set(rb) != CARS:
+                ok5k = False
+                break
+            if int(null_r[i]) != sum(int(v) for v in rb.values()):
+                ok5k = False
+                break
+            for c in CARS:
+                if int(rb[c]) != _runs(list(o), cap[c]):
                     ok5k = False
                     break
             if not ok5k:
                 break
-        obs_ok = r5k["runs_by_carrier"]["c_x"] == _runs(range(6), pay["c_x"]) \
-            and r5k["runs_by_carrier"]["c_y"] == _runs(range(6), pay["c_y"])
-        check(_A5_NAMES[9], ok5k and obs_ok,
-              f"draws_audited={len(orders)} audit_ok={ok5k} obs_ok={obs_ok}")
+        obs_ok = all(r5k["runs_by_carrier"][c] == _runs(range(6), cap[c])
+                     for c in CARS)
+        # permanent ruled sub-cases: (i) the exact draw-7 order -- oracle
+        # self-check AND engine deterministic audit; (ii) post-intrinsic-
+        # refusal + post-gap same-frame via c_z's observed order (in obs_ok)
+        sub_oracle = _runs(RULED_ORDER, cap["c_y"]) == 2
+        aud = (r5k.get("audit_runs_by_carrier") or [{}])[0]
+        sub_engine = all(int(aud.get(c, -1)) == _runs(RULED_ORDER, cap[c])
+                         for c in CARS)
+        obs_z = r5k["runs_by_carrier"]["c_z"] == 3
+        check(_A5_NAMES[9],
+              ok5k and obs_ok and sub_oracle and sub_engine and obs_z,
+              f"draws_audited={len(orders)} n_valid={nvd} audit_ok={ok5k} "
+              f"obs_ok={obs_ok} ruled_order_oracle={sub_oracle} "
+              f"ruled_order_engine={sub_engine} postrefusal_z={obs_z} "
+              f"aud={aud}")
     except Exception as exc:
         check(_A5_NAMES[9], False, f"{type(exc).__name__}: {exc}")
 

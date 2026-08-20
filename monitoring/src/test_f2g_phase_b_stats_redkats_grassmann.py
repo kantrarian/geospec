@@ -120,7 +120,11 @@ SEAMS (cayley's engine amendment implements BAR-UNEDITED):
       evaluation-day capsule per draw, days moved ATOMICALLY (partition/
       refusal/frame/gap metadata together), eligibility+runs recomputed AFTER;
       one-sided LOW: p = (1 + #{R_null <= R_obs})/(N_valid + 1); result
-      carries runs_by_carrier, day_refusals, null_R when return_null.
+      carries runs_by_carrier, day_refusals; return_null adds null_R plus the
+      AUDIT VECTOR (codex 1427Z repair 2): null_orders = the ONE common
+      capsule position order per draw, null_runs_by_carrier = per-draw
+      {carrier: runs} -- the bar recomputes both carriers' runs from the
+      returned common order and refuses on any draw-level mismatch.
   b3a_family(panel, *, doc_sha256, n_draws=N_DRAWS, return_null=False,
              exhaustive_space=False)
       selection/typing as admitted B-3 plus K>=2 floor (K==1 day ->
@@ -166,15 +170,16 @@ B1_RESULTS = os.path.join(_REPO, "docs",
 # AMENDMENT 2: frozen prereg-amendment authority + amended annex authorities
 AMENDMENT1_SHA = ("f3d0830b38869d8b6f0b03d113d45ae0f111e8645bd4a2934582b21e"
                   "48e909e8")
+# re-pinned to the ADMITTED rev-1.3/rev-1.1 authorities (codex 1501Z PASS)
 AMENDED_ANNEX_AUTHORITIES = (
-    ("docs/f2g_phase_b_power_annex_common.md", "2d891ff",
-     "00fd25ba1e477fcaebe1801bcffa4db66c3c63957d0de16a478ed9da2a459314"),
-    ("docs/f2g_phase_b_power_annex_b1a.md", "d3f6407",
-     "7569b5d1899b14eb7714672ffed6c702ed588016a254cabbd85086f69a5f6be9"),
-    ("docs/f2g_phase_b_power_annex_b2a.md", "d3f6407",
-     "3e2e61a87e22604588d576af1e0cbc9d9fc785bda32844005bdad431e5738acb"),
-    ("docs/f2g_phase_b_power_annex_b3a.md", "d3f6407",
-     "bead49242b7b2e16a923c26b00afd21a0031e2a0cf26bda993f7ddfc5255c751"),
+    ("docs/f2g_phase_b_power_annex_common.md", "60ea20e",
+     "b6352e914bf24b3c54663388daa9e71d15a637491c5fec4462abcd6785bc2e8d"),
+    ("docs/f2g_phase_b_power_annex_b1a.md", "a0cc87c",
+     "e7e08454ec5f4ba45dd3092797afe26cbb12727b02a6027a962cfb99fb946a9b"),
+    ("docs/f2g_phase_b_power_annex_b2a.md", "a0cc87c",
+     "1df422a477bd418bd26067b5afdd4211bbb1882f6eff5de5f640fd2d891ceaf6"),
+    ("docs/f2g_phase_b_power_annex_b3a.md", "a0cc87c",
+     "0c5fc14f6ecc4606b4a2548e788f962fd844ef0997ffb271ecf2e456d497f8d0"),
 )
 
 
@@ -423,6 +428,7 @@ _A5_NAMES = (
     "A5g B3A exact star/path/mixed balanced-label enumeration",
     "A5h K=1 day -> DAY_K_UNSCORABLE; m=11 -> K=2 scorable",
     "A5i amended substream vectors (B1A/B2A/B3A @ frozen amendment root)",
+    "A5k joint-capsule atomicity across carriers (per-draw audit vector)",
 )
 
 
@@ -473,12 +479,18 @@ def amendment2(have_a2):
     t_obs = t_all[0]                                  # identity ordering
     exact_p = sum(1 for t in t_all if t is not None and t >= t_obs) / 24.0
     try:
+        # codex 1427Z repair 1: the PRODUCTION equal-block constants are
+        # locked here -- an override fixture alone cannot prove them
+        const_ok = (E.B1A_BLOCKS == 11 and E.B1A_BLOCK_LEN == 10
+                    and E.B1A_WINDOW == 7 and E.B1A_WINDOW_MIN == 4)
         r5a = E.b1a_family(p5a, doc_sha256=AMENDMENT1_SHA, exhaustive=True,
                            power_contract={"certified": True}, n_blocks=4,
                            block_len=10, baseline_len=20, testable_min=10,
                            window=7, window_min=4)
-        ok5a = abs(r5a["p_exact"] - exact_p) < 1e-12 and exact_p >= 1 / 24.0
+        ok5a = const_ok and abs(r5a["p_exact"] - exact_p) < 1e-12 \
+            and exact_p >= 1 / 24.0
         check(_A5_NAMES[0], ok5a,
+              f"constants_11_10_7_4={const_ok} "
               f"engine={r5a.get('p_exact')} exact={exact_p}")
     except Exception as exc:
         check(_A5_NAMES[0], False, f"{type(exc).__name__}: {exc}")
@@ -570,13 +582,21 @@ def amendment2(have_a2):
     try:
         st12 = [f"EE.S{i:02d}" for i in range(12)]
         idx = {s: i for i, s in enumerate(st12)}
+        # codex 1427Z repair 3: fixtures + golden rationals are the ON-FILE
+        # codex enumerations -- all three locked, no fixture drift possible
         star = [tuple(sorted((0, j))) for j in range(1, 8)]
         pth = [(j, j + 1) for j in range(7)]
-        mixed = [tuple(sorted((0, j))) for j in range(1, 4)] \
-            + [(4, 5), (5, 6), (6, 7), (7, 8)]
+        mixed = [(0, 1), (2, 3), (4, 5), (6, 7), (8, 9), (10, 11), (0, 2)]
+        golden = {"star": (9660, 34650), "path": (13176, 34650),
+                  "mixed": (14016, 34650)}
         ok5g, det5g = True, []
         for name, topo in (("star", star), ("path", pth), ("mixed", mixed)):
             exact, total = _balanced_label_exact_p(12, (4, 4, 4), topo, 6)
+            gn, gd = golden[name]
+            if total != gd or abs(exact - gn / gd) > 1e-15:
+                ok5g = False
+                det5g.append(f"{name}: in-bar {exact}*{total} != golden "
+                             f"{gn}/{gd}")
             pan = mk_panel(62, [], seed=57)
             c = pan["carriers"]["c_fix"]
             c["stations"] = st12
@@ -599,12 +619,9 @@ def amendment2(have_a2):
                                exhaustive_space=True)
             d_ev = c["registered_days"][60]
             got = r5g["exact_space_p"].get(d_ev)
-            if got is None or abs(got - exact) > 1e-12 or total != 34650:
+            if got is None or abs(got - exact) > 1e-12:
                 ok5g = False
                 det5g.append(f"{name}: engine={got} exact={exact}")
-            if name == "star" and abs(exact - 0.27878787878787) > 1e-6:
-                ok5g = False
-                det5g.append(f"star exact {exact} != codex 0.278787...")
         check(_A5_NAMES[6], ok5g, "; ".join(det5g))
     except Exception as exc:
         check(_A5_NAMES[6], False, f"{type(exc).__name__}: {exc}")
@@ -635,6 +652,77 @@ def amendment2(have_a2):
               f"m10_unscorable={ok5h1} m11_scorable={ok5h2}")
     except Exception as exc:
         check(_A5_NAMES[7], False, f"{type(exc).__name__}: {exc}")
+
+    # A5k joint-capsule atomicity across carriers (codex 1427Z repair 2):
+    # two BOUND carriers with DIFFERENT gap/refusal masks; the engine returns
+    # a per-draw audit vector (null_orders = the ONE common capsule order per
+    # draw + null_runs_by_carrier); the bar independently recomputes each
+    # carrier's runs from the returned order and the known day payloads -- both
+    # carriers must match DRAW-FOR-DRAW (a factorized per-carrier permutation
+    # cannot survive this with differing masks) -------------------------------
+    try:
+        sA, sB = ["GG.S1", "GG.S2", "GG.S3", "GG.S4"], "GG.S5"
+        pA = ["GG.S1|GG.S2", "GG.S2|GG.S3", "GG.S3|GG.S4"]
+        pB = ["GG.S1|GG.S3", "GG.S3|GG.S2", "GG.S2|GG.S4"]
+        mm = ["GG.S2|GG.S3", "GG.S3|GG.S4", "GG.S4|GG.S5"]
+        spec_x = [pA, pA, None, pA, pA, pB]           # A,A,gap,A,A,B
+        spec_y = [pA, None, pA, pA, mm, pA]           # A,gap,A,A,MM,A
+        pay = {"c_x": ["A", "A", "GAP", "A", "A", "B"],
+               "c_y": ["A", "GAP", "A", "A", "MM", "A"]}
+
+        def _carrier(specs, stations):
+            n = 60 + len(specs)
+            days_ = [day(i) for i in range(n)]
+            r = {}
+            for i, d in enumerate(days_):
+                if i < 60:
+                    for a in range(len(stations) - 1):
+                        e = "|".join(sorted([stations[a], stations[a + 1]]))
+                        r.setdefault(e, {})[d] = 0.5
+                else:
+                    spec = specs[i - 60]
+                    if spec is None:
+                        continue
+                    for e in spec:
+                        r.setdefault(e, {})[d] = 0.8
+            return {"registered_days": days_,
+                    "stations": sorted(set(stations) | {sB}),
+                    "segments": {s: "seg_a" for s in stations + [sB]},
+                    "r": r}
+
+        pan5k = {"carriers": {"c_x": _carrier(spec_x, sA),
+                              "c_y": _carrier(spec_y, sA)}}
+
+        def _runs(order, payload):
+            runs, prev = 0, None
+            for j in order:
+                p = payload[j]
+                if p in ("GAP", "MM"):
+                    prev = None
+                    continue
+                if p != prev:
+                    runs += 1
+                prev = p
+            return runs
+
+        r5k = E.b2a_family(pan5k, doc_sha256=AMENDMENT1_SHA, n_draws=199,
+                           return_null=True)
+        orders = r5k.get("null_orders") or []
+        by_car = r5k.get("null_runs_by_carrier") or []
+        ok5k = len(orders) == len(by_car) and len(orders) > 0
+        for o, rb in zip(orders, by_car):
+            for c in ("c_x", "c_y"):
+                if int(rb[c]) != _runs(list(o), pay[c]):
+                    ok5k = False
+                    break
+            if not ok5k:
+                break
+        obs_ok = r5k["runs_by_carrier"]["c_x"] == _runs(range(6), pay["c_x"]) \
+            and r5k["runs_by_carrier"]["c_y"] == _runs(range(6), pay["c_y"])
+        check(_A5_NAMES[9], ok5k and obs_ok,
+              f"draws_audited={len(orders)} audit_ok={ok5k} obs_ok={obs_ok}")
+    except Exception as exc:
+        check(_A5_NAMES[9], False, f"{type(exc).__name__}: {exc}")
 
     # A5i amended substream vectors -------------------------------------------
     try:

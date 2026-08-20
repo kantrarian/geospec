@@ -2,7 +2,7 @@
 
 **Author:** cayley — **Date:** 2026-08-20 — **Status:** DRAFT until hash-bound in the seal manifest.
 **Family under test:** frozen AMENDMENT 1 §A1 exactly (freeze `F2G-PB-A1-R3-FREEZE-CODEX-20260820T1325Z`, authority `7c3ca7b`, LF sha `f3d0830b38869d8b6f0b03d113d45ae0f111e8645bd4a2934582b21e48e909e8`): statistic `T = Σ_bound-carriers max_(testable edge, 7-day window) windowmean|z|` (≥4 finite cells per scorable window); null = ONE common `S_11` permutation of the eleven equal 10-day blocks per draw, complete group incl. identity, applied atomically to every bound carrier pre-split, full pipeline rerun; pre-bound carrier inventory with family-level `CANNOT_DETERMINE_FAMILY_SCORABILITY` withholding; add-one p, 9,999 draws, frozen valid-draw floor.
-**Inherits:** COMMON PROTOCOL rev-1.2 `docs/f2g_phase_b_power_annex_common.md` @ geospec `2d891ff`, sha256 `00fd25ba1e477fcaebe1801bcffa4db66c3c63957d0de16a478ed9da2a459314` (generator incl. γ=0.05 shared calendar factor, geometry, `B1A` substreams with the frozen-amendment seed root, tiers, certification/stopping, frontier, no-power route, equivalence gate — all normative).
+**Inherits:** COMMON PROTOCOL rev-1.3 `docs/f2g_phase_b_power_annex_common.md` @ geospec `60ea20e`, sha256 `b6352e914bf24b3c54663388daa9e71d15a637491c5fec4462abcd6785bc2e8d` (generator incl. γ=0.05 shared calendar factor, geometry, `B1A` substreams with the frozen-amendment seed root, tiers, certification/stopping, frontier, no-power route, equivalence gate — all normative).
 
 ## Registered effect (unchanged effect class from superseded annex B-1, applied to the amended statistic)
 

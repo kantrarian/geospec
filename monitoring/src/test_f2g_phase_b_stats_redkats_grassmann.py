@@ -132,6 +132,51 @@ def _results(path):
     except Exception:
         return None
 
+
+def _digest_leaves(obj):
+    """Recursively collect string leaves (codex 0431Z repair 1: check the four
+    exact hashes without prescribing irrelevant JSON nesting)."""
+    out = set()
+    if isinstance(obj, dict):
+        for v in obj.values():
+            out |= _digest_leaves(v)
+    elif isinstance(obj, (list, tuple)):
+        for v in obj:
+            out |= _digest_leaves(v)
+    elif isinstance(obj, str):
+        out.add(obj)
+    return out
+
+
+def _results_bound(res):
+    """codex 0431Z repairs 1+2: the four annex digests must appear among the
+    artifact's digest leaves; the equivalence receipt must carry Boolean
+    full_equal AND fold_equal both exactly True (a nonempty receipt is not
+    proof); the digests block must name the driver and engine authorities."""
+    digs = _digest_leaves(res.get("digests"))
+    eq = res.get("equivalence_receipt") or {}
+    dig_keys = set((res.get("digests") or {}).keys()) \
+        if isinstance(res.get("digests"), dict) else set()
+    has_auth = any("driver" in k for k in dig_keys) \
+        and any("engine" in k for k in dig_keys)
+    return ANNEX_SHAS.issubset(digs) \
+        and eq.get("full_equal") is True and eq.get("fold_equal") is True \
+        and has_auth
+
+
+def _lex_first_pareto(cert_pts):
+    """codex 0431Z repair 3: recompute the lexicographically first
+    Pareto-minimal certified point IN-BAR from grid_point coordinates --
+    never trust JSON list order. Returns the point dict (membership in
+    certified_points holds by construction)."""
+    gps = [tuple(p["grid_point"]) for p in cert_pts]
+    minimal = [g for g in gps
+               if not any(q != g and len(q) == len(g)
+                          and all(qi <= gi for qi, gi in zip(q, g))
+                          for q in gps)]
+    rep_gp = sorted(minimal)[0]
+    return next(p for p in cert_pts if tuple(p["grid_point"]) == rep_gp)
+
 HERE_FAILS = []
 _N = [0]
 
@@ -298,10 +343,7 @@ def main():
               "POWER_RESULTS_ABSENT -- expected red until the admitted Tier-C "
               "estimation completes and routes the B-1 results artifact")
     else:
-        digs5 = set((res5.get("digests") or {}).values()) \
-            if isinstance(res5.get("digests"), dict) else set()
-        bound5 = ANNEX_SHAS.issubset(digs5) \
-            and bool(res5.get("equivalence_receipt"))
+        bound5 = _results_bound(res5)
         cert5 = res5.get("certified_points") or []
         if not cert5:
             r5 = E.b1_family(p5, doc_sha256=DOC, n_draws=999,
@@ -320,13 +362,17 @@ def main():
         else:
             try:
                 from scipy.stats import beta as _beta
-                rep5 = (res5.get("pareto_minimal_certified") or [])[0]
+                rep5 = _lex_first_pareto(cert5)
+                claimed5 = res5.get("pareto_minimal_certified") or []
+                claim_ok = any(tuple(p.get("grid_point", ())) ==
+                               tuple(rep5["grid_point"]) for p in claimed5)
                 k5 = int(rep5["post_loco"]["successes"])
                 n5 = int(rep5["post_loco"]["replicates"])
                 lb5 = float(_beta.ppf(0.05, k5, n5 - k5 + 1)) if k5 > 0 else 0.0
-                ok5 = bound5 and lb5 >= 0.80
+                ok5 = bound5 and claim_ok and lb5 >= 0.80
                 check("G5 annex-conditioned planted recovery (REV 2)", ok5,
-                      f"bound={bound5} representative={rep5.get('grid_point')} "
+                      f"bound={bound5} in_claimed_frontier={claim_ok} "
+                      f"representative={rep5.get('grid_point')} "
                       f"post-LOCO {k5}/{n5} 95%LB={lb5:.4f}")
             except Exception as exc:
                 check("G5 annex-conditioned planted recovery (REV 2)", False,

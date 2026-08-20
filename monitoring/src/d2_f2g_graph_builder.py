@@ -615,6 +615,13 @@ def from_geodataframe(gdf):
                 out[k] = None            # undo coercion in identity columns only
             else:
                 out[k] = v
+        if out.get("coordinates_available") is False:
+            # typed coordinate absence: the canonical value IS None; pandas
+            # coerced it to NaN in the float64 columns. A NaN alongside
+            # coordinates_available=True still refuses downstream.
+            for k in ("lon", "lat"):
+                if k in out and isinstance(out[k], float) and pd.isna(out[k]):
+                    out[k] = None
         rows.append(out)
     return rows
 

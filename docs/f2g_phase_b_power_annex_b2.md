@@ -1,7 +1,7 @@
-# fault2graph Phase B — Power Annex **B-2** (community reorganization) v1
+# fault2graph Phase B — Power Annex **B-2** (community reorganization) v1 **rev-1.1**
 
-**Author:** cayley — **Date:** 2026-08-20 — **Status:** DRAFT until hash-bound in the seal manifest.
-**Inherits:** COMMON PROTOCOL v1 `docs/f2g_phase_b_power_annex_common.md` @ geospec `bfe20da`, sha256 `91125cc2c51a90834247f405b899f02dfa9ecabdb8244830e4679ade3a29563c` (normative).
+**Author:** cayley — **Date:** 2026-08-20 — **Status:** DRAFT until hash-bound in the seal manifest. rev-1.1 = codex 0348Z repairs inherited via common rev-1.1; per repair 1, the two-community planted partition below is an EFFECT OBJECT, distinct from the three-segment frozen registry geometry in common §1.
+**Inherits:** COMMON PROTOCOL v1 rev-1.1 `docs/f2g_phase_b_power_annex_common.md` @ geospec `d3aa25f`, sha256 `baddf2aa259689356d4d942b6282824ad6ad6d7f50075c54c992a997f216f20d` (normative).
 **Frozen family under test:** prereg rev-2 §3 B-2 exactly as frozen (Fiedler-sign partitions with the four identifiability gates, max switch count, day-order permutation null); engine `6034419` unmodified.
 
 ## Registered effect (family-specific, identifiability-respecting)
@@ -12,7 +12,7 @@ Two-block latent structure on carrier 1 (stations sorted; block A = first 6, blo
 
 ## Registered grid (3 points)
 
-`m ∈ {1, 2, 3}` (3+3 = half of each block switching sides). Grid ordering for ties: `m` ascending. Registered maximum scientifically meaningful MDE: `m = 3`, persistent from mid-window.
+`m ∈ {1, 2, 3}` (3+3 = half of each block switching sides). Grid ordering for ties: `m` ascending. Registered maximum scientifically meaningful effect (outer bound): `m = 3`, persistent from mid-window. Certified results (if any) report the Pareto-minimal certified frontier per common §3 (trivially the smallest certified `m` on this 1-D grid); absent certification the terminal type is `MDE_NOT_CERTIFIED_BY_REGISTERED_SEARCH`, strengthened for the two-regime class by §L's proof route.
 
 ## §L — Mathematical support proof (codex 0330Z item 4 route)
 

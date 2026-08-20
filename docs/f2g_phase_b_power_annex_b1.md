@@ -1,7 +1,7 @@
-# fault2graph Phase B — Power Annex **B-1** (per-edge anomaly) v1
+# fault2graph Phase B — Power Annex **B-1** (per-edge anomaly) v1 **rev-1.1**
 
-**Author:** cayley — **Date:** 2026-08-20 — **Status:** DRAFT until hash-bound in the seal manifest.
-**Inherits:** COMMON PROTOCOL v1 `docs/f2g_phase_b_power_annex_common.md` @ geospec `bfe20da`, sha256 `91125cc2c51a90834247f405b899f02dfa9ecabdb8244830e4679ade3a29563c` (generator, geometry, randomness, tiers, certification/stopping rules, no-power route, equivalence gate — all normative here).
+**Author:** cayley — **Date:** 2026-08-20 — **Status:** DRAFT until hash-bound in the seal manifest. rev-1.1 = codex 0348Z repairs inherited via common rev-1.1 (post-LOCO selector, terminal type, Pareto frontier).
+**Inherits:** COMMON PROTOCOL v1 rev-1.1 `docs/f2g_phase_b_power_annex_common.md` @ geospec `d3aa25f`, sha256 `baddf2aa259689356d4d942b6282824ad6ad6d7f50075c54c992a997f216f20d` (generator, geometry, randomness, tiers, certification/stopping rules, no-power route, equivalence gate — all normative here).
 **Frozen family under test:** prereg rev-2 §3 B-1 exactly as frozen (carrier-rotation null, sole verdict-bearing max |z|, add-one p, valid-draw floor); engine `6034419` unmodified.
 
 ## Registered effect (family-specific)
@@ -18,13 +18,13 @@ Edge-set latent shift: `delta_lat` is ADDED to `u_ab(d)` (pre-tanh) on the injec
 - `n_e ∈ {3, 10, 33}` edges (33 = half of carrier 1's 66 edges).
 - Grid-coordinate ordering for tie-breaks: `(delta_lat, k, n_e)` ascending.
 
-## Registered maximum scientifically meaningful MDE
+## Registered maximum scientifically meaningful effect (outer bound of the surveyed grid)
 
-`(delta_lat = 2.4, k = 50, n_e = 33)` — a persistent, half-network, saturation-level coherence shift. Any effect requiring MORE than this to certify is beyond scientific meaning for this family; per frozen §5 the family then types every nonpositive `CANNOT_DETERMINE_NO_POWER`.
+`(delta_lat = 2.4, k = 50, n_e = 33)` — a persistent, half-network, saturation-level coherence shift. Any effect beyond this outer bound is beyond scientific meaning for this family. Certified results are reported as the coordinatewise Pareto-minimal certified FRONTIER (common §3); no single point is called the unique MDE. Absent any certified point the family terminal type is `MDE_NOT_CERTIFIED_BY_REGISTERED_SEARCH` and per frozen §5 every nonpositive is typed `CANNOT_DETERMINE_NO_POWER`.
 
 ## Recovery definition & 80% rule
 
-Per common §3: Tier-C replicate recovery = full-data family p ≤ 0.05/3 AND post-LOCO gate pass over all 35 folds; certification = one-sided exact-binomial 95% lower bound on post-LOCO recovery ≥ 0.80 under the registered stopping rule. Tier-S tables are `PRELIMINARY_SMOKE` only.
+Per common §3: Tier-C replicate recovery = full-data family p ≤ 0.05/3 AND post-LOCO gate pass over all 35 folds; candidate selection ranks Tier-S POST-LOCO recovery over the registered top-8 pre-screen; certification = one-sided exact-binomial 95% lower bound on post-LOCO recovery ≥ 0.80 under the registered stopping rule. Tier-S tables are `PRELIMINARY_SMOKE` only.
 
 ## Prior evidence disclosure (not part of the estimate)
 

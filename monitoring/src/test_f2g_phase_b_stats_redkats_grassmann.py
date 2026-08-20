@@ -414,8 +414,8 @@ def a5_annex_binding():
         if got != sha:
             ok = False
             det.append(f"{path}@{commit}: got={got[:16]}")
-    check("A5j amended-annex authority binding (rev-1.2 + B1A/B2A/B3A)",
-          ok, "; ".join(det))
+    check("A5j amended-annex authority binding (ADMITTED rev-1.3 + "
+          "B1A/B2A/B3A rev-1.1)", ok, "; ".join(det))
 
 
 _A5_NAMES = (

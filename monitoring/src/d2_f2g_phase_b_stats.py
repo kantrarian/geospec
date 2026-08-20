@@ -441,3 +441,368 @@ def loco_gate(full_result, fold_results, alpha):
     if n_unscorable:
         out["code"] = "LOCO_FOLD_UNSCORABLE"
     return out
+
+
+# ============================================================================
+# AMENDMENT 1 (frozen F2G-PB-A1-R3-FREEZE-CODEX-20260820T1325Z, authority
+# 7c3ca7b / f3d0830b...): amended families B1A/B2A/B3A supersede B1/B2/B3
+# for verdict purposes; the frozen functions above are retained untouched as
+# evidence surfaces. Bar authority: grassmann AMENDMENT 2 (BAR-UNEDITED).
+# ============================================================================
+
+B1A_BLOCKS = 11
+B1A_BLOCK_LEN = 10
+B1A_WINDOW = 7
+B1A_WINDOW_MIN = 4
+
+
+def _block_order(perm, block_len):
+    return [b * block_len + i for b in perm for i in range(block_len)]
+
+
+def _b1a_load(cdata, n_days):
+    days = [str(d) for d in cdata["registered_days"]]
+    if len(days) != n_days or days != sorted(days) or len(set(days)) != n_days:
+        raise ValueError(
+            f"B1A_REGISTERED_DAYS_MISMATCH: need {n_days} strictly ascending")
+    pos = {d: j for j, d in enumerate(days)}
+    edges = sorted({"|".join(_canonical_edge(e)) for e in cdata["r"]})
+    idx = {e: i for i, e in enumerate(edges)}
+    V = np.full((len(edges), n_days), np.nan)
+    for e, series in cdata["r"].items():
+        i = idx["|".join(_canonical_edge(e))]
+        for d, v in series.items():
+            v = float(v)
+            if d in pos and math.isfinite(v):
+                V[i, pos[d]] = v
+    return V
+
+
+def _b1a_carrier_T(V, order, baseline_len, testable_min, window, window_min):
+    """Per-carrier B1A term: max over (testable edge, window) of the mean of
+    finite |z| cells (scored iff >= window_min finite). None when the carrier
+    has no scorable (edge, window)."""
+    Vr = V[:, order]
+    base = Vr[:, :baseline_len]
+    ev = Vr[:, baseline_len:]
+    cnt = np.isfinite(base).sum(axis=1)
+    rows = np.where(cnt >= testable_min)[0]
+    if rows.size == 0:
+        return None
+    med = np.nanmedian(base[rows], axis=1)
+    mad = np.nanmedian(np.abs(base[rows] - med[:, None]), axis=1)
+    keep = mad > 0
+    rows = rows[keep]
+    if rows.size == 0:
+        return None
+    z = (ev[rows] - med[keep][:, None]) / (MAD_SCALE * mad[keep][:, None])
+    az = np.abs(z)
+    fin = np.isfinite(az)
+    best = None
+    for s in range(0, az.shape[1] - window + 1):
+        wf = fin[:, s:s + window]
+        nf = wf.sum(axis=1)
+        ok = nf >= window_min
+        if not ok.any():
+            continue
+        sums = np.nansum(np.where(wf, az[:, s:s + window], 0.0), axis=1)
+        m = float(np.max(sums[ok] / nf[ok]))
+        if best is None or m > best:
+            best = m
+    return best
+
+
+def b1a_family(panel, *, doc_sha256, n_draws=N_DRAWS, power_contract=None,
+               return_null=False, exhaustive=False, n_blocks=B1A_BLOCKS,
+               block_len=B1A_BLOCK_LEN, baseline_len=BASELINE_DAYS,
+               testable_min=TESTABLE_MIN_BASELINE, window=B1A_WINDOW,
+               window_min=B1A_WINDOW_MIN, fold="full"):
+    n_days = int(n_blocks) * int(block_len)
+    if baseline_len % block_len != 0 or not 0 < baseline_len < n_days:
+        raise ValueError("B1A_SPLIT_NOT_BLOCK_ALIGNED")
+    keys = sorted(panel["carriers"])
+    mats = {k: _b1a_load(panel["carriers"][k], n_days) for k in keys}
+    identity = list(range(n_days))
+
+    def fam_T(order):
+        total = 0.0
+        for k in keys:
+            t = _b1a_carrier_T(mats[k], order, baseline_len, testable_min,
+                               window, window_min)
+            if t is None:
+                return None
+            total += t
+        return total
+
+    T_obs = fam_T(identity)
+    out = {"family": "B1A", "T_obs": T_obs, "n_draws": int(n_draws),
+           "alpha": ALPHA_FAMILY, "fold": str(fold),
+           "bound_carriers": keys, "excluded": {}}
+    if T_obs is None:
+        out.update(p_value=None, n_valid_draws=0,
+                   verdict="CANNOT_DETERMINE_FAMILY_SCORABILITY")
+        if return_null:
+            out["null_T"] = []
+        return out
+    if exhaustive:
+        import itertools
+        ge = tot = 0
+        for perm in itertools.permutations(range(n_blocks)):
+            tot += 1
+            T_p = fam_T(_block_order(perm, block_len))
+            if T_p is not None and T_p >= T_obs:
+                ge += 1
+        out["p_exact"] = ge / tot
+    rng = _rng(doc_sha256, "B1A", fold, "null")
+    null_T = []
+    n_valid = ge_n = 0
+    for _ in range(int(n_draws)):
+        perm = [int(x) for x in rng.permutation(int(n_blocks))]
+        T_d = fam_T(_block_order(perm, block_len))
+        if T_d is None:
+            null_T.append(float("nan"))
+            continue
+        n_valid += 1
+        null_T.append(float(T_d))
+        if T_d >= T_obs:
+            ge_n += 1
+    out["n_valid_draws"] = n_valid
+    if return_null:
+        out["null_T"] = null_T
+    if n_valid < _valid_floor(n_draws):
+        out.update(p_value=None, verdict="CANNOT_DETERMINE_NULL_SUPPORT")
+        return out
+    p = (1 + ge_n) / (n_valid + 1)
+    out["p_value"] = float(p)
+    out["verdict"] = _typed_verdict(p, power_contract)
+    return out
+
+
+def _b2a_day_state(cdata, d):
+    """One day's atomic capsule state: (partition dict or None, refusal code
+    or None). A gap day (nothing measured) is a typed terminating refusal."""
+    ew = {}
+    for e, series in cdata["r"].items():
+        if d in series and math.isfinite(float(series[d])):
+            ew[_canonical_edge(e)] = max(float(series[d]), 0.0)
+    if not ew:
+        return None, "GAP_NO_MEASURED_EDGES"
+    return _b2_partition(ew)
+
+
+def _b2a_runs(states, day_names):
+    """Maximal identical-partition runs over an ordered capsule sequence.
+    Any refusal (gate failure, gap, nodeset mismatch vs the last ACCEPTED
+    day) terminates the current run and is never bridged."""
+    runs = 0
+    refusals = []
+    cur_part = None
+    in_run = False
+    last_nodeset = None
+    accepted = 0
+    for (part, code), d in zip(states, day_names):
+        if code:
+            refusals.append({"day": d, "code": code})
+            in_run = False
+            continue
+        nodeset = frozenset(part)
+        if last_nodeset is not None and nodeset != last_nodeset:
+            refusals.append({"day": d, "code": "NODESET_MISMATCH"})
+            in_run = False
+            continue
+        last_nodeset = nodeset
+        accepted += 1
+        if in_run and part == cur_part:
+            continue
+        runs += 1
+        cur_part = part
+        in_run = True
+    return runs, refusals, accepted
+
+
+def b2a_family(panel, *, doc_sha256, n_draws=N_DRAWS, return_null=False,
+               power_contract=None, fold="full"):
+    keys = sorted(panel["carriers"])
+    caps = {}
+    n_eval = None
+    for k in keys:
+        c = panel["carriers"][k]
+        _b, ev_days = walk_forward_split(c["registered_days"])
+        if n_eval is None:
+            n_eval = len(ev_days)
+        elif len(ev_days) != n_eval:
+            raise ValueError("B2A_JOINT_CAPSULE_LENGTH_MISMATCH")
+        caps[k] = {"days": list(ev_days),
+                   "states": [_b2a_day_state(c, d) for d in ev_days]}
+    R_obs = 0
+    runs_by_carrier = {}
+    day_refusals = []
+    for k in keys:
+        runs, refs, accepted = _b2a_runs(caps[k]["states"], caps[k]["days"])
+        for r_ in refs:
+            r_["carrier"] = k
+        day_refusals.extend(refs)
+        runs_by_carrier[k] = runs
+        if accepted < 2:
+            out = {"family": "B2A", "runs_total": None, "T_obs": None,
+                   "runs_by_carrier": runs_by_carrier,
+                   "day_refusals": day_refusals, "excluded": {},
+                   "n_draws": int(n_draws), "alpha": ALPHA_FAMILY,
+                   "p_value": None, "n_valid_draws": 0,
+                   "verdict": "CANNOT_DETERMINE_FAMILY_SCORABILITY "
+                              "(CARRIER_NO_COMPARABLE_SEQUENCE)"}
+            if return_null:
+                out["null_R"] = []
+            return out
+        R_obs += runs
+    out = {"family": "B2A", "runs_total": int(R_obs), "T_obs": int(R_obs),
+           "runs_by_carrier": runs_by_carrier, "day_refusals": day_refusals,
+           "excluded": {}, "n_draws": int(n_draws), "alpha": ALPHA_FAMILY,
+           "fold": str(fold)}
+    rng = _rng(doc_sha256, "B2A", fold, "null")
+    null_R = []
+    n_valid = le = 0
+    for _ in range(int(n_draws)):
+        perm = [int(x) for x in rng.permutation(n_eval)]
+        R_d = 0
+        for k in keys:
+            st = [caps[k]["states"][i] for i in perm]
+            dn = [caps[k]["days"][i] for i in perm]
+            runs, _refs, _acc = _b2a_runs(st, dn)
+            R_d += runs
+        n_valid += 1
+        null_R.append(int(R_d))
+        if R_d <= R_obs:
+            le += 1
+    out["n_valid_draws"] = n_valid
+    if return_null:
+        out["null_R"] = null_R
+    if n_valid < _valid_floor(n_draws):
+        out.update(p_value=None, verdict="CANNOT_DETERMINE_NULL_SUPPORT")
+        return out
+    p = (1 + le) / (n_valid + 1)
+    out["p_value"] = float(p)
+    out["verdict"] = _typed_verdict(p, power_contract)
+    return out
+
+
+def _balanced_exact_day_p(stations, seg_sizes, chosen, thresh):
+    """Exact probability over all balanced station->segment labelings that
+    the FIXED selected edge set has cross-segment count >= thresh."""
+    import itertools
+    n = len(stations)
+    six = {s: i for i, s in enumerate(stations)}
+    edges_i = [(six[a], six[b]) for a, b in chosen]
+    hits = total = 0
+    pool = list(range(n))
+    for seg1 in itertools.combinations(pool, seg_sizes[0]):
+        rest1 = [s for s in pool if s not in seg1]
+        for seg2 in itertools.combinations(rest1, seg_sizes[1]):
+            lab = {}
+            for s in seg1:
+                lab[s] = 0
+            for s in seg2:
+                lab[s] = 1
+            for s in rest1:
+                if s not in lab:
+                    lab[s] = 2
+            cross = sum(1 for a, b in edges_i if lab[a] != lab[b])
+            total += 1
+            if cross >= thresh:
+                hits += 1
+    return hits / total
+
+
+def b3a_family(panel, *, doc_sha256, n_draws=N_DRAWS, return_null=False,
+               power_contract=None, fold="full", exhaustive_space=False):
+    day_refusals = []
+    selection = {}
+    sel_records = []
+    seg_by_carrier = {}
+    excluded = {}
+    multi = len(panel["carriers"]) > 1
+    for key in sorted(panel["carriers"]):
+        loaded = _load_carrier(panel["carriers"][key])
+        seg_by_carrier[key] = (loaded["stations"], dict(loaded["segments"]))
+        z, exc, tr = _b1_carrier(loaded["V"])
+        _merge_excluded(excluded, exc)
+        edges = loaded["edges"]
+        for j, d in enumerate(loaded["eval_days"]):
+            cells = []
+            if z is not None and z.size:
+                for row_i, zv in zip(tr, z[:, j]):
+                    if np.isfinite(zv):
+                        a, b = edges[row_i].split("|")
+                        cells.append((-abs(float(zv)), a, b))
+            m = len(cells)
+            if m == 0:
+                day_refusals.append({"carrier": key, "day": d,
+                                     "code": "INSUFFICIENT_DAILY_EDGES"})
+                continue
+            K = math.ceil(TOP_DECILE * m)
+            if K < 2:
+                day_refusals.append({"carrier": key, "day": d,
+                                     "code": "DAY_K_UNSCORABLE"})
+                continue
+            cells.sort()
+            chosen = [(a, b) for (_nz, a, b) in cells[:K]]
+            selection[f"{key}::{d}" if multi else d] = \
+                [f"{a}|{b}" for a, b in chosen]
+            sel_records.append((key, d, chosen, K))
+    for r_ in day_refusals:
+        excluded[r_["code"]] = excluded.get(r_["code"], 0) + 1
+    out = {"family": "B3A", "day_refusals": day_refusals,
+           "excluded": excluded, "selection": selection,
+           "n_draws": int(n_draws), "alpha": ALPHA_FAMILY, "fold": str(fold)}
+
+    def cross_count(chosen, seg):
+        return sum(1 for a, b in chosen if seg.get(a) != seg.get(b))
+
+    if not sel_records:
+        out.update(T_obs=None, C_obs=None, p_value=None, n_valid_draws=0,
+                   verdict="CANNOT_DETERMINE_FAMILY_SCORABILITY "
+                           "(NO_SCORABLE_DAYS)")
+        if return_null:
+            out["null_C"] = []
+        return out
+    C_obs = sum(1 for key, _d, chosen, K in sel_records
+                if cross_count(chosen, seg_by_carrier[key][1]) >= K - 1)
+    out["C_obs"] = int(C_obs)
+    out["T_obs"] = int(C_obs)
+    if exhaustive_space:
+        exact = {}
+        for key, d, chosen, K in sel_records:
+            stations, seg = seg_by_carrier[key]
+            labels = sorted(set(seg.values()))
+            sizes = tuple(sum(1 for s in stations if seg[s] == lb)
+                          for lb in labels)
+            exact[f"{key}::{d}" if multi else d] = _balanced_exact_day_p(
+                stations, sizes, chosen, K - 1)
+        out["exact_space_p"] = exact
+    rng = _rng(doc_sha256, "B3A", fold, "null")
+    null_C = []
+    n_valid = ge = 0
+    for _ in range(int(n_draws)):
+        permseg = {}
+        for key in sorted(seg_by_carrier):
+            stations, seg = seg_by_carrier[key]
+            labels = [seg[s] for s in stations]
+            perm = rng.permutation(len(stations))
+            permseg[key] = {stations[i]: labels[perm[i]]
+                            for i in range(len(stations))}
+        C_d = sum(1 for key, _d, chosen, K in sel_records
+                  if cross_count(chosen, permseg[key]) >= K - 1)
+        n_valid += 1
+        null_C.append(int(C_d))
+        if C_d >= C_obs:
+            ge += 1
+    out["n_valid_draws"] = n_valid
+    if return_null:
+        out["null_C"] = null_C
+    if n_valid < _valid_floor(n_draws):
+        out.update(p_value=None, verdict="CANNOT_DETERMINE_NULL_SUPPORT")
+        return out
+    p = (1 + ge) / (n_valid + 1)
+    out["p_value"] = float(p)
+    out["verdict"] = _typed_verdict(p, power_contract)
+    return out

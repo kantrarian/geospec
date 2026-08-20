@@ -98,5 +98,78 @@
       "turkey_kahramanmaras"
     ],
     "carrier_inventory_note": "materialization of the three carriers in the hash-bound Phase-A producer packet df1e37ec... -- not a new selection decision"
+  },
+  "power_annexes_amended": {
+    "note": "amended families under stat_family_amendment_1 (freeze F2G-PB-A1-R3); annexes admitted codex 15:01Z; results = evidence, byte-bound",
+    "B1A": {
+      "annex": {
+        "path": "docs/f2g_phase_b_power_annex_b1a.md",
+        "geospec_commit": "a0cc87c",
+        "sha256": "e7e08454ec5f4ba45dd3092797afe26cbb12727b02a6027a962cfb99fb946a9b"
+      },
+      "results": {
+        "path": "docs/f2g_phase_b_power_annex_b1a_results.json",
+        "geospec_commit": "eb1061e",
+        "sha256": "ece7c1ceb193336294cea63626e322bb6b0b9c3896c022092320d845a1cb7bc0"
+      },
+      "terminal_type": "MDE_NOT_CERTIFIED_BY_REGISTERED_SEARCH"
+    },
+    "B2A": {
+      "annex": {
+        "path": "docs/f2g_phase_b_power_annex_b2a.md",
+        "geospec_commit": "a0cc87c",
+        "sha256": "1df422a477bd418bd26067b5afdd4211bbb1882f6eff5de5f640fd2d891ceaf6"
+      },
+      "results": {
+        "path": "docs/f2g_phase_b_power_annex_b2a_results.json",
+        "geospec_commit": "eb1061e",
+        "sha256": "85b7af49caef7e25265799dbc113203583055da8727a273124abcae287397f3e"
+      },
+      "terminal_type": "CERTIFIED",
+      "certified_points": [
+        {
+          "m": 1
+        },
+        {
+          "m": 2
+        },
+        {
+          "m": 3
+        }
+      ],
+      "pareto_minimal_certified": [
+        {
+          "m": 1
+        }
+      ],
+      "certification": "20/20 post-LOCO each, exact-binomial 95% LB 0.861 >= 0.80"
+    },
+    "B3A": {
+      "annex": {
+        "path": "docs/f2g_phase_b_power_annex_b3a.md",
+        "geospec_commit": "a0cc87c",
+        "sha256": "0c5fc14f6ecc4606b4a2548e788f962fd844ef0997ffb271ecf2e456d497f8d0"
+      },
+      "results": {
+        "path": "docs/f2g_phase_b_power_annex_b3a_results.json",
+        "geospec_commit": "eb1061e",
+        "sha256": "21eb2abfe861f7ace024c2a11d5f563cdad53c77284962220b61ed014358c4d8"
+      },
+      "terminal_type": "MDE_NOT_CERTIFIED_BY_REGISTERED_SEARCH"
+    },
+    "common_protocol": {
+      "path": "docs/f2g_phase_b_power_annex_common.md",
+      "geospec_commit": "60ea20e",
+      "sha256": "b6352e914bf24b3c54663388daa9e71d15a637491c5fec4462abcd6785bc2e8d"
+    },
+    "admitted_engine": {
+      "geospec_commit": "493c2b9",
+      "lf_sha256": "96949d45463f76428d8e0dbab81715d2cc0c48e8164dde5502f87a8153dc5dad"
+    },
+    "admitted_bar": {
+      "geospec_commit": "ff211ca",
+      "lf_sha256": "295631fed6f836c18bf40975403db7799422f83dc74ea74cf14b8651fdcad2a6"
+    },
+    "seal_condition": "MET per frozen A5 rule: >=1 certified grid point in a verdict-carrying family (B2A); seal OFFER to asylum follows codex narrow pass"
   }
 }

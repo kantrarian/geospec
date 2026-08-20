@@ -679,6 +679,68 @@ def main():
     except ImportError as e:
         cap("B15 cross_host_consumer_v1 profile bars", f"obspy absent: {e}")
 
+    # ---- B16: codex final-verify closures (306d1a5d) --------------------------
+    # B16b snapshot-state coverage over the FULL selected registry (core)
+    man16 = {"carrier_key": "c_one", "day": "2026-03-02",
+             "station_ids": ["KO.A01", "KO.A02"],
+             "reason_codes": ["SERIES_UNAVAILABLE:KO.B01"]}
+    uni16 = [{"station_id": s} for s in ("KO.A01", "KO.A02", "KO.B01")]
+    states16 = B.build_snapshot_states(man16,
+                                       ["KO.A01", "KO.A02", "KO.B01",
+                                        "KO.C01"], uni16)
+    check("B16b snapshot states cover the FULL selected registry with typed "
+          "absence (MEASURED / exact manifest reason / NO_BOUND_OBJECT)",
+          states16 == {"KO.A01": "MEASURED", "KO.A02": "MEASURED",
+                       "KO.B01": "SERIES_UNAVAILABLE:KO.B01",
+                       "KO.C01": "NO_BOUND_OBJECT"})
+    ok16b, code16b = refuses(
+        lambda: B.build_snapshot_states(
+            {"carrier_key": "c_one", "day": "2026-03-02",
+             "station_ids": ["KO.A01"], "reason_codes": []},
+            ["KO.A01", "KO.B01"], uni16),
+        "UNEXPLAINED_SELECTED_STATION_ABSENCE")
+    check("B16b2 in-universe selected absence with NO reason REFUSES",
+          ok16b, code16b)
+
+    # B16a carrier-local render (matplotlib-gated)
+    try:
+        mixed = st + [{**st[0], "station_id": "US.MX01",
+                       "carrier_key": "c_two", "lon": -116.5, "lat": 33.8}]
+        ok16a, code16a = refuses(
+            lambda: B.render_map(mixed, edges,
+                                 os.path.join(td, "mix.png")),
+            "RENDER_CARRIER_MIX")
+        two_only = [{**st[0], "station_id": "US.T01", "carrier_key": "c_two",
+                     "lon": -116.5, "lat": 33.8},
+                    {**st[0], "station_id": "US.T02", "carrier_key": "c_two",
+                     "lon": -116.4, "lat": 33.9, "coordinates_available": True}]
+        out16 = B.render_map(two_only, [], os.path.join(td, "ctwo.png"))
+        check("B16a render is carrier-local: mixing REFUSES; a carrier without "
+              "the coordinate-less station reports NO exclusions",
+              ok16a and out16["geometry_excluded_station_ids"] == [],
+              f"{code16a}/{out16['geometry_excluded_station_ids']}")
+    except B.CapabilityUnavailable as e:
+        cap("B16a carrier-local render", str(e))
+
+    # B16c sidecar insertion-order doctor (geopandas-gated)
+    try:
+        import geopandas as gpd16
+        from shapely.geometry import Point as P16
+        rows_a = [{"station_id": "KO.Z01", "alpha": 1, "beta": "x"},
+                  {"station_id": "KO.Z02", "alpha": 2, "beta": "y"}]
+        rows_b = [dict(reversed(list(r.items()))) for r in rows_a]
+        g_a = gpd16.GeoDataFrame(rows_a, geometry=[P16(0, 0), P16(1, 1)],
+                                 crs="EPSG:4326")
+        g_b = gpd16.GeoDataFrame(rows_b, geometry=[P16(0, 0), P16(1, 1)],
+                                 crs="EPSG:4326")
+        sc_a = B._make_sidecar("node", "z", ["KO.Z01", "KO.Z02"], g_a)
+        sc_b = B._make_sidecar("node", "z", ["KO.Z01", "KO.Z02"], g_b)
+        check("B16c sidecar digest is insertion-order independent (canonical "
+              "sorted columns)", sc_a["sha256"] == sc_b["sha256"]
+              and sc_a["columns"] == sorted(sc_a["columns"]))
+    except (ImportError, B.CapabilityUnavailable) as e:
+        cap("B16c sidecar insertion-order doctor", str(e))
+
     res = B.phase_a_result(input_digests={"plan": "x" * 64},
                            code_digests={"builder": "y" * 64},
                            output_digests={}, bar_results={}, status="FIXTURE",

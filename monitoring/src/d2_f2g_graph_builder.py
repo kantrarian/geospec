@@ -506,6 +506,35 @@ def build_coherence_edges(r, manifest, station_table):
     return edges
 
 
+def build_snapshot_states(manifest, selected_ids, universe_records):
+    """codex final-verify closure 2 (A1 typed absence): every SELECTED station
+    of the carrier gets a state -- MEASURED for matrix members; the EXACT
+    manifest reason when the producer recorded one for the station;
+    NO_BOUND_OBJECT only when the reopened root-manifest universe proves zero
+    objects for it; anything else is UNEXPLAINED_SELECTED_STATION_ABSENCE and
+    REFUSES. State is never silently erased."""
+    measured = set(manifest["station_ids"])
+    by_station_reason = {}
+    for code in manifest.get("reason_codes", []):
+        if ":" in code:
+            prefix, sid = code.rsplit(":", 1)
+            by_station_reason.setdefault(sid, code)
+    universe_sids = {r["station_id"] for r in universe_records}
+    states = {}
+    for sid in sorted(selected_ids):
+        if sid in measured:
+            states[sid] = "MEASURED"
+        elif sid in by_station_reason:
+            states[sid] = by_station_reason[sid]
+        elif sid not in universe_sids:
+            states[sid] = "NO_BOUND_OBJECT"
+        else:
+            raise F2GRefusal("UNEXPLAINED_SELECTED_STATION_ABSENCE",
+                             f"{manifest['carrier_key']} {manifest['day']} "
+                             f"{sid}")
+    return states
+
+
 def build_snapshot(campaign_id, carrier_key, day, coherence_edges, station_states,
                    station_index_digest):
     """G(day): one canonical per-day snapshot document. REV 2 (codex F4):
@@ -763,7 +792,10 @@ def _make_sidecar(kind, table, identity_keys, gdf):
     extract, BOUND to the structure by ordered identity keys + canonical
     SHA-256 so values can never float free."""
     rows = from_geodataframe(gdf)      # undoes pandas None->NaN coercion (B11)
-    cols = list(rows[0].keys()) if rows else []
+    # codex final-verify closure 3: column order is CANONICAL (sorted), never
+    # in-memory insertion history -- the digest must be reproducible from the
+    # reopened sorted-key canonical tables alone
+    cols = sorted(rows[0].keys()) if rows else []
     body = {"schema": SIDECAR_SCHEMA, "kind": kind, "table": table,
             "identity_keys": identity_keys, "columns": cols,
             "values": {c: [r[c] for r in rows] for c in cols}}
@@ -847,7 +879,15 @@ RENDER_LABEL = "seismic envelope coherence structure -- not displacement"
 
 
 def render_map(station_table, coherence_edges, out_path, *, title_suffix=""):
-    """Map render; the A3-mandated label is NON-NEGOTIABLE and always drawn."""
+    """Map render; the A3-mandated label is NON-NEGOTIABLE and always drawn.
+    codex final-verify closure 1: a render is CARRIER-LOCAL -- station rows and
+    edges from more than one carrier REFUSE (the caller passes the filtered
+    table), so exclusions are carrier-local and no foreign geometry crushes
+    the frame."""
+    carriers = ({r["carrier_key"] for r in station_table}
+                | {e["carrier_key"] for e in coherence_edges})
+    if len(carriers) > 1:
+        raise F2GRefusal("RENDER_CARRIER_MIX", str(sorted(carriers)))
     try:
         import matplotlib
         matplotlib.use("Agg")

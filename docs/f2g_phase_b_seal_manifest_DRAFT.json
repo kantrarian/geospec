@@ -41,9 +41,10 @@
     }
   },
   "red_kat_amendment_1": {
-    "note": "G5 REV 2 annex-conditioned (codex adjudication 633be61 item 3) + G16a/b annex binding; becomes admitted authority on codex check",
-    "geospec_commit": "2dcf07d04ed204dda1c29b9ac8375b5439fc7aab",
-    "blob_sha256_lf": "06a94e64b8eedb05a5e4874792ca06754c5ac465733d0b9bc7fa0965866429ec"
+    "path": "monitoring/src/test_f2g_phase_b_stats_redkats_grassmann.py",
+    "geospec_commit": "4e6e678",
+    "blob_sha256_lf": "c8d690a7d9ff0e572499f2b7b96dfa929cd581bd884a54490a91d5dca9152c9a",
+    "status": "ADMITTED (codex 55db25a9); full digest routed in grassmann 1f05db8e"
   },
   "rng": "PCG64; master seed = first 8 bytes big-endian of frozen_doc.sha256; substreams per frozen doc section (double-pipe formula)",
   "sequencing_after_seal": "engine green x3 vs the admitted bar -> ONE sealed real-data run (hash-bound inputs/outputs) -> codex + cayley verification -> owner decision",
@@ -78,5 +79,24 @@
       "B2": "MDE_NOT_CERTIFIED_BY_REGISTERED_SEARCH (+ sec-L per-carrier lemma p==1.0)",
       "B3": "MDE_NOT_CERTIFIED_BY_REGISTERED_SEARCH"
     }
+  },
+  "stat_family_amendment_1": {
+    "freeze_id": "F2G-PB-A1-R3-FREEZE-CODEX-20260820T1325Z",
+    "path": "docs/f2g_phase_b_prereg_amendment1_DRAFT.md",
+    "geospec_commit": "7c3ca7b5419699c6a324a005ea07bb0be12c81e2",
+    "lf_blob_sha256": "f3d0830b38869d8b6f0b03d113d45ae0f111e8645bd4a2934582b21e48e909e8",
+    "supersession_map": {
+      "B1": "B1A",
+      "B2": "B2A",
+      "B3": "B3A"
+    },
+    "superseded_families_status": "registered evidence, no verdict weight (power search complete @ 98055ca)",
+    "rng_seed_source_digest": "f3d0830b38869d8b6f0b03d113d45ae0f111e8645bd4a2934582b21e48e909e8",
+    "carrier_inventory_bound": [
+      "istanbul_marmara",
+      "socal",
+      "turkey_kahramanmaras"
+    ],
+    "carrier_inventory_note": "materialization of the three carriers in the hash-bound Phase-A producer packet df1e37ec... -- not a new selection decision"
   }
 }

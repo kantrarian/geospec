@@ -587,7 +587,9 @@ def to_geodataframes(station_table, near_edges):
         raise CapabilityUnavailable(f"geopandas/shapely: {exc}")
     sg = gpd.GeoDataFrame(
         station_table,
-        geometry=[Point(r["lon"], r["lat"]) for r in station_table],
+        geometry=[Point(r["lon"], r["lat"])
+                  if r.get("coordinates_available", True) else None
+                  for r in station_table],
         crs=SOURCE_CRS)
     ng = gpd.GeoDataFrame(near_edges) if near_edges else None
     return {"station": sg, "near": ng}

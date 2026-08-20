@@ -31,11 +31,13 @@ by codex R1.2 306d1a5-successor note f24eb2e (2026-08-20 0237Z):
      INSUFFICIENT_DAILY_EDGES; space null permutes station->segment labels
      within carrier preserving exact segment sizes; NEVER conditions on B-1
      verdict/BY significance.
-  R5 substream seeds = first 8 big-endian bytes of
-     SHA256(doc_sha_hex_ascii | family | fold | purpose) with b"|" separators
-     (separator pin is grassmann's concretization -- R1.2 lane open); LOCO is
+  R5 substream seeds per prereg rev-2 section (a44819d): seed_material =
+     UTF-8("<frozen_doc_sha256_hex_lowercase>||<family>||<fold>||<purpose>")
+     with DOUBLE-pipe separators, family tokens {B1, B2, B3}, fold in
+     {full} + {loco:<STATION_ID>}, purpose in {null, power}; seed = first 8
+     bytes of SHA256(seed_material) as big-endian uint64 -> PCG64; LOCO is
      a conjunctive gate only (every scorable fold must independently pass; a
-     missing fold withholds; LOCO can never promote).
+     missing fold withholds -> LOCO_FOLD_UNSCORABLE; never promotes).
 
 PINNED SEAMS (module monitoring/src/d2_f2g_phase_b_stats.py):
   walk_forward_split(registered_days) -> (baseline_days, eval_days)
@@ -352,13 +354,20 @@ def main():
     check("G13 B-3 deterministic selection + small-day", ok13a and ok13b,
           f"sel={sel} expect={expect} smallday={ok13b}")
 
-    # G14 substream seed exact vector -------------------------------------------
-    exp = int.from_bytes(hashlib.sha256(
-        DOC.encode("ascii") + b"|" + b"B-1" + b"|" + b"full" + b"|" + b"null")
-        .digest()[:8], "big")
-    got = E.derive_substream_seed(DOC, "B-1", "full", "null")
-    check("G14 substream seed exact vector", got == exp,
-          f"got={got} expect={exp}")
+    # G14 substream seed exact vector (prereg rev-2 formula verbatim) -----------
+    ok14 = True
+    det14 = []
+    for fam, fold, purpose in (("B1", "full", "null"),
+                               ("B2", "loco:KO.GEML", "null"),
+                               ("B3", "full", "power")):
+        exp = int.from_bytes(hashlib.sha256(
+            f"{DOC}||{fam}||{fold}||{purpose}".encode("utf-8"))
+            .digest()[:8], "big")
+        got = E.derive_substream_seed(DOC, fam, fold, purpose)
+        if got != exp:
+            ok14 = False
+            det14.append(f"{fam}/{fold}/{purpose}: got={got} expect={exp}")
+    check("G14 substream seed exact vector", ok14, "; ".join(det14))
 
     # G15 LOCO conjunctive gate --------------------------------------------------
     a = E.ALPHA_FAMILY

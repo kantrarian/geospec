@@ -1,0 +1,185 @@
+{
+ "certified_points": [
+  {
+   "lb95": 0.8608916593317347,
+   "point": {
+    "m": 1
+   },
+   "post_loco": {
+    "replicates": 20,
+    "successes": 20
+   },
+   "ub95": 1.0
+  },
+  {
+   "lb95": 0.8608916593317347,
+   "point": {
+    "m": 2
+   },
+   "post_loco": {
+    "replicates": 20,
+    "successes": 20
+   },
+   "ub95": 1.0
+  },
+  {
+   "lb95": 0.8608916593317347,
+   "point": {
+    "m": 3
+   },
+   "post_loco": {
+    "replicates": 20,
+    "successes": 20
+   },
+   "ub95": 1.0
+  }
+ ],
+ "digests": {
+  "admitted_bar_lf_sha256": "295631fed6f836c18bf40975403db7799422f83dc74ea74cf14b8651fdcad2a6",
+  "annex_b1a_sha256": "e7e08454ec5f4ba45dd3092797afe26cbb12727b02a6027a962cfb99fb946a9b",
+  "annex_b2a_sha256": "1df422a477bd418bd26067b5afdd4211bbb1882f6eff5de5f640fd2d891ceaf6",
+  "annex_b3a_sha256": "0c5fc14f6ecc4606b4a2548e788f962fd844ef0997ffb271ecf2e456d497f8d0",
+  "annex_common_rev13_sha256": "b6352e914bf24b3c54663388daa9e71d15a637491c5fec4462abcd6785bc2e8d",
+  "engine": "d2_f2g_phase_b_stats.py @ 493c2b9",
+  "engine_lf_sha256": "96949d45463f76428d8e0dbab81715d2cc0c48e8164dde5502f87a8153dc5dad",
+  "estimation_driver_commit": "e384e2c (audit deltas inert to estimation)",
+  "frozen_amendment_sha256": "f3d0830b38869d8b6f0b03d113d45ae0f111e8645bd4a2934582b21e48e909e8"
+ },
+ "disclosures": [
+  "gate-receipt label: the checkpoint gate row's engine_commit_bound string reads 'b4a7eee' (hardcoded in the driver before the audit-order deltas landed). The gate executed at launch against the working-tree module, which was the ADMITTED engine 493c2b9; the byte-equal result (full + fold) therefore binds 493c2b9, recorded in digests."
+ ],
+ "env": {
+  "machine": "AMD64",
+  "numpy": "2.5.2",
+  "python": "3.12.10"
+ },
+ "equivalence_receipt": {
+  "driver_fold_p": 0.03,
+  "driver_p": 0.03,
+  "engine_commit_bound": "b4a7eee",
+  "engine_fold_p": 0.03,
+  "engine_p": 0.03,
+  "fold_equal": true,
+  "full_equal": true
+ },
+ "family": "B2A",
+ "pareto_minimal_certified": [
+  {
+   "lb95": 0.8608916593317347,
+   "point": {
+    "m": 1
+   },
+   "post_loco": {
+    "replicates": 20,
+    "successes": 20
+   },
+   "ub95": 1.0
+  }
+ ],
+ "schema": "f2g-phase-b-power-results-v1",
+ "terminal_type": "CERTIFIED",
+ "tier_c": {
+  "candidates": [
+   {
+    "lb95": 0.8608916593317347,
+    "point": {
+     "m": 1
+    },
+    "post_loco": {
+     "replicates": 20,
+     "successes": 20
+    },
+    "stopping": "CERTIFIED@R=20",
+    "ub95": 1.0,
+    "verdict": "CERTIFIED"
+   },
+   {
+    "lb95": 0.8608916593317347,
+    "point": {
+     "m": 2
+    },
+    "post_loco": {
+     "replicates": 20,
+     "successes": 20
+    },
+    "stopping": "CERTIFIED@R=20",
+    "ub95": 1.0,
+    "verdict": "CERTIFIED"
+   },
+   {
+    "lb95": 0.8608916593317347,
+    "point": {
+     "m": 3
+    },
+    "post_loco": {
+     "replicates": 20,
+     "successes": 20
+    },
+    "stopping": "CERTIFIED@R=20",
+    "ub95": 1.0,
+    "verdict": "CERTIFIED"
+   }
+  ],
+  "label": "CERTIFICATION",
+  "n_draws": 9999
+ },
+ "tier_s1": {
+  "label": "PRELIMINARY_SMOKE",
+  "n_draws": 999,
+  "replicates": 50,
+  "table": [
+   {
+    "n": 50,
+    "point": {
+     "m": 1
+    },
+    "pre_loco_recovery": 1.0
+   },
+   {
+    "n": 50,
+    "point": {
+     "m": 2
+    },
+    "pre_loco_recovery": 1.0
+   },
+   {
+    "n": 50,
+    "point": {
+     "m": 3
+    },
+    "pre_loco_recovery": 1.0
+   }
+  ]
+ },
+ "tier_s2": {
+  "label": "PRELIMINARY_SMOKE",
+  "n_draws": 999,
+  "replicates": 50,
+  "table": [
+   {
+    "n": 50,
+    "point": {
+     "m": 1
+    },
+    "post_loco_recovery": 1.0,
+    "pre_loco_recovery": 1.0
+   },
+   {
+    "n": 50,
+    "point": {
+     "m": 2
+    },
+    "post_loco_recovery": 1.0,
+    "pre_loco_recovery": 1.0
+   },
+   {
+    "n": 50,
+    "point": {
+     "m": 3
+    },
+    "post_loco_recovery": 1.0,
+    "pre_loco_recovery": 1.0
+   }
+  ]
+ }
+}

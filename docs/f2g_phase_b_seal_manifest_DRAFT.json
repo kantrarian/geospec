@@ -51,9 +51,13 @@
   "sequencing_after_seal": "engine green x3 vs the admitted bar -> ONE sealed real-data run (hash-bound inputs/outputs) -> codex + cayley verification -> owner decision",
   "standing": "Phase B only; Phase C + waveform surrogates out of scope; no publication; no forecast/displacement claims; Lambda_geo INCONCLUSIVE",
   "owner_seal": {
-    "quote": null,
-    "quote_sha256": null,
-    "timestamp_utc": null
+    "type": "OWNER_EXCEPTION_SEAL_DISCLOSED_SHORTFALL",
+    "quote": "a is fine",
+    "quote_sha256": "435cb785fbd59a5edd6d87edb3efa1eb84c7bbc14c3f2c0c298fd41bff0f7066",
+    "timestamp_utc": "2026-08-20T22:28:03Z",
+    "decision": "asylum selects option (a) of the decision packet ef3d2878: ONE sealed real-data evaluation with B2A verdict-bearing at certified power (frontier m=1..3, Pareto-minimal m=1) and B1A/B3A reporting typed CANNOT_DETERMINE_NO_POWER non-answers",
+    "labeling": "owner exception per codex's recorded prospective/post-outcome boundary (5db12d86 as digest-corrected): the frozen automatic per-family condition is NOT MET (B1A/B3A uncertified, disclosed shortfall); the pre-outcome disposition 1d53db67... supports this exception prospectively",
+    "effective": "upon codex narrow re-pass PASS over a2e1e33; NO real-graph access before that pass; all standing non-claims hold (no forecast skill, no displacement language, no publication, Lambda_geo INCONCLUSIVE)"
   },
   "power_results": {
     "note": "codex 0431Z repair 4: evidence artifacts byte-bound (not registered content); each drives G5 REV 2 and the owner seal decision",

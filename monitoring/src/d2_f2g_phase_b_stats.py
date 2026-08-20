@@ -662,7 +662,7 @@ def _b2a_runs_dyn(states, order):
 
 
 def b2a_family(panel, *, doc_sha256, n_draws=N_DRAWS, return_null=False,
-               power_contract=None, fold="full"):
+               power_contract=None, fold="full", audit_orders=None):
     keys = sorted(panel["carriers"])
     caps = {}
     n_eval = None
@@ -700,6 +700,13 @@ def b2a_family(panel, *, doc_sha256, n_draws=N_DRAWS, return_null=False,
            "runs_by_carrier": runs_by_carrier, "day_refusals": day_refusals,
            "excluded": {}, "n_draws": int(n_draws), "alpha": ALPHA_FAMILY,
            "fold": str(fold)}
+    if audit_orders:
+        # codex 1616Z ruling sub-cases: deterministic recomputation for the
+        # EXPLICIT requested orders on the same moved capsules
+        out["audit_runs_by_carrier"] = [
+            {k: int(_b2a_runs_dyn(caps[k]["states"], [int(i) for i in o]))
+             for k in keys}
+            for o in audit_orders]
     rng = _rng(doc_sha256, "B2A", fold, "null")
     null_R = []
     null_orders = []

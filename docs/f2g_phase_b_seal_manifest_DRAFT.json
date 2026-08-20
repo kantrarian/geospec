@@ -1,6 +1,6 @@
 {
   "schema": "f2g-phase-b-seal-manifest-v1",
-  "status": "DRAFT - all annex/results/authority slots populated; owner-seal fields empty; frozen automatic seal condition NOT MET (see power_annexes_amended.seal_condition)",
+  "status": "DRAFT - all technical slots populated; OWNER-EXCEPTION SEAL RECORDED (option a, quote-sha 435cb785...) but TECHNICALLY PENDING codex narrow re-pass; frozen automatic seal condition NOT MET (B1A/B3A disclosed shortfall)",
   "freeze_id": "F2G-PB-R2-FREEZE-CODEX-20260820T0301Z",
   "frozen_doc": {
     "path": "docs/f2g_phase_b_prereg_v1.md",
@@ -114,8 +114,8 @@
       },
       "results": {
         "path": "docs/f2g_phase_b_power_annex_b1a_results.json",
-        "geospec_commit": "eb1061e",
-        "sha256": "ece7c1ceb193336294cea63626e322bb6b0b9c3896c022092320d845a1cb7bc0"
+        "geospec_commit": "4d6e427",
+        "git_blob_sha256": "2707a714e7ea13b3d1b76ef16706198e3c5efb631e8b9997db2e851d6cbcbe7f"
       },
       "terminal_type": "MDE_NOT_CERTIFIED_BY_REGISTERED_SEARCH"
     },
@@ -127,8 +127,8 @@
       },
       "results": {
         "path": "docs/f2g_phase_b_power_annex_b2a_results.json",
-        "geospec_commit": "eb1061e",
-        "sha256": "85b7af49caef7e25265799dbc113203583055da8727a273124abcae287397f3e"
+        "geospec_commit": "4d6e427",
+        "git_blob_sha256": "a18df7ea35b5e7017e65338223c89d37fd0b30369638b0616526019c86cac477"
       },
       "terminal_type": "CERTIFIED",
       "certified_points": [
@@ -157,8 +157,8 @@
       },
       "results": {
         "path": "docs/f2g_phase_b_power_annex_b3a_results.json",
-        "geospec_commit": "eb1061e",
-        "sha256": "21eb2abfe861f7ace024c2a11d5f563cdad53c77284962220b61ed014358c4d8"
+        "geospec_commit": "4d6e427",
+        "git_blob_sha256": "a00d975e0c18ba055a7e8e97de398e432037c607d7dbf76baf341404989504d0"
       },
       "terminal_type": "MDE_NOT_CERTIFIED_BY_REGISTERED_SEARCH"
     },
@@ -179,13 +179,23 @@
     "equivalence": {
       "fullgate_receipt": {
         "path": "docs/f2g_phase_b_power_a_fullgate_receipt.json",
+        "geospec_commit": "4d6e427",
+        "git_blob_sha256": "5da09567999aac55c64c166306a35c69b1bd48f974e0e3bdcbb0976fd5120617",
         "scope": "full + ALL 35 LOCO folds, source-attested engine 493c2b9, all exactly equal"
       },
       "evidence_capsule": {
         "path": "docs/f2g_phase_b_power_a_evidence.jsonl",
-        "rows": 4890
+        "geospec_commit": "4d6e427",
+        "git_blob_sha256": "982898707a97dbfb9c520a51d51b9d49dc49f049a9c13bd6ac6bef12307b5778",
+        "rows": 4890,
+        "authority_note": "committed LF git blob; the CRLF checkout hash matches no committed object and is a refusing verifier fixture"
       },
-      "strict_verifier": "monitoring/src/f2g_phase_b_power_a_results_verifier_cayley.py (blob-recomputed authorities + negative fixtures; the admitted bar's _results_bound intentionally covers only superseded families)"
+      "strict_verifier": {
+        "path": "monitoring/src/f2g_phase_b_power_a_results_verifier_cayley.py",
+        "geospec_commit": "4d6e427",
+        "git_blob_sha256": "622bc8063503dee6891ff4f38dc051673b07c5d71a54bdafd019f3dcd0317081",
+        "note": "blob-recomputed authorities + 5 refusing negative fixtures; the admitted bar's _results_bound intentionally covers only superseded families"
+      }
     }
   }
 }

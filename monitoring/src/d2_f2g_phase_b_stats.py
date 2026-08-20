@@ -147,9 +147,13 @@ def _b1_stat(loaded, offsets=None):
 
 
 def _typed_verdict(p, power_contract):
+    # bar AMENDMENT 1 G16b: power_contract carries {"certified": bool, ...};
+    # not-certified => typed no-power, certified => plain NEGATIVE. The
+    # original bar's {"passed": True} form stays accepted for its fixtures.
     if p <= ALPHA_FAMILY:
         return "POSITIVE_PRE_LOCO"
-    if power_contract is not None and power_contract.get("passed") is True:
+    if power_contract is not None and (power_contract.get("certified") is True
+                                       or power_contract.get("passed") is True):
         return "NEGATIVE"
     return "CANNOT_DETERMINE_NO_POWER"
 

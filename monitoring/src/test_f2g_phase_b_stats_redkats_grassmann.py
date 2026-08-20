@@ -93,6 +93,44 @@ representative; each point carries grid_point + post_loco {successes,
 replicates}), terminal_type (when none certified), equivalence_receipt,
 digests (must include the four annex sha256s above). This amendment becomes
 the admitted authority only after its commit/digest is routed and checked.
+
+AMENDMENT 2 (append-only; prereg Amendment 1 rev-3 FROZEN
+F2G-PB-A1-R3-FREEZE-CODEX-20260820T1325Z, doc 7c3ca7b blob f3d0830b...; the
+mandatory sec-A5 red-KAT classes). Amended families B1A/B2A/B3A supersede
+B1/B2/B3 (which retain evidence status, no verdict weight). PINNED AMENDED
+SEAMS (cayley's engine amendment implements BAR-UNEDITED):
+  b1a_family(panel, *, doc_sha256, n_draws=N_DRAWS, power_contract=...,
+             return_null=False, exhaustive=False,
+             n_blocks=B1A_BLOCKS, block_len=B1A_BLOCK_LEN,
+             baseline_len=BASELINE_DAYS, testable_min=TESTABLE_MIN_BASELINE,
+             window=B1A_WINDOW, window_min=B1A_WINDOW_MIN) -> result
+      T = sum over BOUND carriers of max (testable edge, 7d-window) mean|z|
+      (window scored iff >= 4 finite cells); null = ONE common S_n_blocks
+      equal-block day permutation per draw applied to EVERY carrier's full
+      vector pre-split, complete group INCLUDING identity; exhaustive=True
+      enumerates the full group -> result["p_exact"] = #{T_perm >= T_obs}/|G|;
+      a bound carrier without a scorable window -> family verdict
+      CANNOT_DETERMINE_FAMILY_SCORABILITY (never silent exclusion); fixture
+      parameterization is bar-pinned, PRODUCTION values locked as constants
+      B1A_BLOCKS=11, B1A_BLOCK_LEN=10, B1A_WINDOW=7, B1A_WINDOW_MIN=4.
+  b2a_family(panel, *, doc_sha256, n_draws=N_DRAWS, return_null=False)
+      R_total = sum over bound carriers of maximal identical-partition run
+      count over CALENDAR-ADJACENT eligible days; gap/mismatch TERMINATES a
+      run (never bridged); null = ONE common permutation of the joint
+      evaluation-day capsule per draw, days moved ATOMICALLY (partition/
+      refusal/frame/gap metadata together), eligibility+runs recomputed AFTER;
+      one-sided LOW: p = (1 + #{R_null <= R_obs})/(N_valid + 1); result
+      carries runs_by_carrier, day_refusals, null_R when return_null.
+  b3a_family(panel, *, doc_sha256, n_draws=N_DRAWS, return_null=False,
+             exhaustive_space=False)
+      selection/typing as admitted B-3 plus K>=2 floor (K==1 day ->
+      DAY_K_UNSCORABLE, counts disclosed); C = count of scorable (carrier,
+      day)s with f >= (K-1)/K, one-sided HIGH; space null = ONE shared-
+      registry station->segment relabeling per draw preserving exact
+      per-carrier segment sizes, selections FIXED; exhaustive_space=True ->
+      result["exact_space_p"] = {day: exact balanced-label enumeration p}.
+  Substream tokens B1A/B2A/B3A, seed root = the FROZEN AMENDMENT sha
+  f3d0830b... (NOT the base doc sha), same double-pipe grammar.
 """
 import hashlib
 import json
@@ -124,6 +162,72 @@ ANNEX_AUTHORITIES = (
 ANNEX_SHAS = {sha for _p, _c, sha in ANNEX_AUTHORITIES}
 B1_RESULTS = os.path.join(_REPO, "docs",
                           "f2g_phase_b_power_annex_b1_results.json")
+
+# AMENDMENT 2: frozen prereg-amendment authority + amended annex authorities
+AMENDMENT1_SHA = ("f3d0830b38869d8b6f0b03d113d45ae0f111e8645bd4a2934582b21e"
+                  "48e909e8")
+AMENDED_ANNEX_AUTHORITIES = (
+    ("docs/f2g_phase_b_power_annex_common.md", "2d891ff",
+     "00fd25ba1e477fcaebe1801bcffa4db66c3c63957d0de16a478ed9da2a459314"),
+    ("docs/f2g_phase_b_power_annex_b1a.md", "d3f6407",
+     "7569b5d1899b14eb7714672ffed6c702ed588016a254cabbd85086f69a5f6be9"),
+    ("docs/f2g_phase_b_power_annex_b2a.md", "d3f6407",
+     "3e2e61a87e22604588d576af1e0cbc9d9fc785bda32844005bdad431e5738acb"),
+    ("docs/f2g_phase_b_power_annex_b3a.md", "d3f6407",
+     "bead49242b7b2e16a923c26b00afd21a0031e2a0cf26bda993f7ddfc5255c751"),
+)
+
+
+def _b1a_small_T(series_by_edge, order, base_len, w, wmin):
+    """In-bar independent reimplementation of the B1A statistic for the
+    exhaustive-orbit KAT (single carrier): day order applied to the FULL
+    vector, positional split, median/1.4826*MAD from baseline, max over
+    (edge, w-window) of mean|z| over finite cells (scored iff >= wmin)."""
+    best = None
+    for vals in series_by_edge.values():
+        v = np.asarray(vals, dtype=float)[list(order)]
+        base = v[:base_len]
+        fb = base[np.isfinite(base)]
+        if fb.size == 0:
+            continue
+        med = float(np.median(fb))
+        mad = float(np.median(np.abs(fb - med)))
+        if mad == 0:
+            continue
+        z = (v[base_len:] - med) / (1.4826 * mad)
+        for s in range(0, z.size - w + 1):
+            win = z[s:s + w]
+            fin = win[np.isfinite(win)]
+            if fin.size >= wmin:
+                m = float(np.mean(np.abs(fin)))
+                if best is None or m > best:
+                    best = m
+    return best
+
+
+def _balanced_label_exact_p(n_stations, sizes, edges, thresh):
+    """In-bar exact enumeration over all balanced station->segment labelings
+    (multinomial C(12;4,4,4) = 34650 for the registered frame): probability
+    that the FIXED selected edge set has cross-segment count >= thresh."""
+    import itertools
+    stations = list(range(n_stations))
+    hits = total = 0
+    for seg1 in itertools.combinations(stations, sizes[0]):
+        rest1 = [s for s in stations if s not in seg1]
+        for seg2 in itertools.combinations(rest1, sizes[1]):
+            lab = {}
+            for s in seg1:
+                lab[s] = 0
+            for s in seg2:
+                lab[s] = 1
+            for s in rest1:
+                if s not in lab:
+                    lab[s] = 2
+            cross = sum(1 for a, b in edges if lab[a] != lab[b])
+            total += 1
+            if cross >= thresh:
+                hits += 1
+    return hits / total, total
 
 
 def _results(path):
@@ -290,10 +394,271 @@ def g16c():
           f"fake_accepted={not ok} real_bound_ok={ok_real}")
 
 
+def a5_annex_binding():
+    """AMENDMENT 2: the amended-family annex authorities (common rev-1.2 +
+    B1A/B2A/B3A v1), recomputed from pinned commits -- engine-independent."""
+    ok, det = True, []
+    for path, commit, sha in AMENDED_ANNEX_AUTHORITIES:
+        try:
+            raw = subprocess.run(
+                ["git", "-C", _REPO, "cat-file", "blob", f"{commit}:{path}"],
+                capture_output=True).stdout
+            got = hashlib.sha256(raw).hexdigest()
+        except Exception as exc:
+            got = f"ERROR:{exc}"
+        if got != sha:
+            ok = False
+            det.append(f"{path}@{commit}: got={got[:16]}")
+    check("A5j amended-annex authority binding (rev-1.2 + B1A/B2A/B3A)",
+          ok, "; ".join(det))
+
+
+_A5_NAMES = (
+    "A5a exhaustive-orbit calibration (engine == exact enumeration)",
+    "A5b paired-carrier synchrony (2 identical carriers == 2x one, per draw)",
+    "A5c bound-carrier unscorable -> family withholding",
+    "A5d gap terminates runs (A,A,[gap],A,A == 2) + atomic null recompute",
+    "A5e mixed nodeset never bridged",
+    "A5f planted two-regime -> B2A p at the add-one floor",
+    "A5g B3A exact star/path/mixed balanced-label enumeration",
+    "A5h K=1 day -> DAY_K_UNSCORABLE; m=11 -> K=2 scorable",
+    "A5i amended substream vectors (B1A/B2A/B3A @ frozen amendment root)",
+)
+
+
+def _b2_panel(day_specs, stations_all):
+    """B2A fixture: 60 trivial baseline days + one eval day per spec.
+    spec = list of 'A|B' edges (eligible day), None (gap: nothing measured),
+    or a different-frame edge list (nodeset mismatch)."""
+    n = 60 + len(day_specs)
+    days_ = [day(i) for i in range(n)]
+    r = {}
+    for i, d in enumerate(days_):
+        if i < 60:
+            for a in range(len(stations_all) - 1):
+                e = "|".join(sorted([stations_all[a], stations_all[a + 1]]))
+                r.setdefault(e, {})[d] = 0.5
+        else:
+            spec = day_specs[i - 60]
+            if spec is None:
+                continue
+            for e in spec:
+                r.setdefault(e, {})[d] = 0.8
+    return {"carriers": {"c_fix": {
+        "registered_days": days_, "stations": sorted(stations_all),
+        "segments": {s: "seg_a" for s in stations_all}, "r": r}}}
+
+
+def amendment2(have_a2):
+    if not have_a2:
+        for nm in _A5_NAMES:
+            check(nm, False, "ENGINE_AMENDMENT_ABSENT (expected red until "
+                             "cayley's b1a/b2a/b3a land)")
+        return
+
+    # A5a exhaustive-orbit calibration: 4 equal blocks of 10, exact S_4 ------
+    import itertools
+    e5a = ["AA.S1|AA.S2", "AA.S1|AA.S3"]
+    p5a = mk_panel(40, e5a, seed=51)
+    plant(p5a, e5a[:1], 30, 5, 6.0)                  # eval-region plant
+    series = {e: [p5a["carriers"]["c_fix"]["r"][e][d]
+                  for d in p5a["carriers"]["c_fix"]["registered_days"]]
+              for e in e5a}
+    exceed = 0
+    orders = []
+    for perm in itertools.permutations(range(4)):
+        order = [b * 10 + i for b in perm for i in range(10)]
+        orders.append(order)
+    t_all = [_b1a_small_T(series, o, 20, 7, 4) for o in orders]
+    t_obs = t_all[0]                                  # identity ordering
+    exact_p = sum(1 for t in t_all if t is not None and t >= t_obs) / 24.0
+    try:
+        r5a = E.b1a_family(p5a, doc_sha256=AMENDMENT1_SHA, exhaustive=True,
+                           power_contract={"certified": True}, n_blocks=4,
+                           block_len=10, baseline_len=20, testable_min=10,
+                           window=7, window_min=4)
+        ok5a = abs(r5a["p_exact"] - exact_p) < 1e-12 and exact_p >= 1 / 24.0
+        check(_A5_NAMES[0], ok5a,
+              f"engine={r5a.get('p_exact')} exact={exact_p}")
+    except Exception as exc:
+        check(_A5_NAMES[0], False, f"{type(exc).__name__}: {exc}")
+
+    # A5b paired-carrier synchrony: joint law, draw-for-draw ------------------
+    try:
+        p1 = mk_panel(40, e5a, seed=52)
+        p2 = {"carriers": {
+            "c_a": json.loads(json.dumps(p1["carriers"]["c_fix"])),
+            "c_b": json.loads(json.dumps(p1["carriers"]["c_fix"]))}}
+        ra = E.b1a_family(p1, doc_sha256=AMENDMENT1_SHA, n_draws=199,
+                         power_contract={"certified": True}, return_null=True,
+                         n_blocks=4, block_len=10, baseline_len=20,
+                         testable_min=10, window=7, window_min=4)
+        rb = E.b1a_family(p2, doc_sha256=AMENDMENT1_SHA, n_draws=199,
+                         power_contract={"certified": True}, return_null=True,
+                         n_blocks=4, block_len=10, baseline_len=20,
+                         testable_min=10, window=7, window_min=4)
+        na, nb = np.asarray(ra["null_T"]), np.asarray(rb["null_T"])
+        ok5b = ra["T_obs"] * 2 == rb["T_obs"] and np.allclose(na * 2, nb) \
+            and na.size == nb.size
+        check(_A5_NAMES[1], ok5b,
+              f"T1={ra.get('T_obs')} T2={rb.get('T_obs')} "
+              f"null2x={bool(np.allclose(na * 2, nb))}")
+    except Exception as exc:
+        check(_A5_NAMES[1], False, f"{type(exc).__name__}: {exc}")
+
+    # A5c bound-carrier unscorable -> family withholding ----------------------
+    try:
+        p3 = {"carriers": {
+            "c_a": json.loads(json.dumps(
+                mk_panel(40, e5a, seed=53)["carriers"]["c_fix"])),
+            "c_dead": json.loads(json.dumps(
+                mk_panel(40, e5a, seed=54)["carriers"]["c_fix"]))}}
+        cd = p3["carriers"]["c_dead"]
+        for d in cd["registered_days"][20:]:
+            for e in list(cd["r"]):
+                cd["r"][e].pop(d, None)               # no scorable window
+        r5c = E.b1a_family(p3, doc_sha256=AMENDMENT1_SHA, n_draws=99,
+                           power_contract={"certified": True}, n_blocks=4,
+                           block_len=10, baseline_len=20, testable_min=10,
+                           window=7, window_min=4)
+        ok5c = "CANNOT_DETERMINE_FAMILY_SCORABILITY" in str(r5c["verdict"])
+        check(_A5_NAMES[2], ok5c, f"verdict={r5c.get('verdict')}")
+    except Exception as exc:
+        check(_A5_NAMES[2], False, f"{type(exc).__name__}: {exc}")
+
+    # A5d gap terminates runs + atomic null recompute -------------------------
+    sts = ["DD.S1", "DD.S2", "DD.S3", "DD.S4"]
+    pathA = ["DD.S1|DD.S2", "DD.S2|DD.S3", "DD.S3|DD.S4"]
+    try:
+        pan5d = _b2_panel([pathA, pathA, None, pathA, pathA], sts)
+        r5d = E.b2a_family(pan5d, doc_sha256=AMENDMENT1_SHA, n_draws=199,
+                           return_null=True)
+        nr = set(int(x) for x in r5d["null_R"])
+        ok5d = r5d["runs_total"] == 2 and nr <= {1, 2} and len(nr) == 2
+        check(_A5_NAMES[3], ok5d,
+              f"R_obs={r5d.get('runs_total')} null_R_values={sorted(nr)}")
+    except Exception as exc:
+        check(_A5_NAMES[3], False, f"{type(exc).__name__}: {exc}")
+
+    # A5e mixed nodeset never bridged -----------------------------------------
+    try:
+        alt = ["DD.S2|DD.S3", "DD.S3|DD.S4", "DD.S4|DD.S5"]
+        pan5e = _b2_panel([pathA, alt, pathA], sts + ["DD.S5"])
+        r5e = E.b2a_family(pan5e, doc_sha256=AMENDMENT1_SHA, n_draws=99)
+        ok5e = r5e["runs_total"] == 2 and any(
+            x.get("code") == "NODESET_MISMATCH"
+            for x in r5e.get("day_refusals", []))
+        check(_A5_NAMES[4], ok5e,
+              f"R={r5e.get('runs_total')} refusals={r5e.get('day_refusals')}")
+    except Exception as exc:
+        check(_A5_NAMES[4], False, f"{type(exc).__name__}: {exc}")
+
+    # A5f planted two-regime -> p at the add-one floor ------------------------
+    try:
+        pathB = ["DD.S1|DD.S3", "DD.S3|DD.S2", "DD.S2|DD.S4"]
+        pan5f = _b2_panel([pathA] * 12 + [pathB] * 12, sts)
+        r5f = E.b2a_family(pan5f, doc_sha256=AMENDMENT1_SHA, n_draws=999)
+        floor = 1.0 / (r5f["n_valid_draws"] + 1)
+        ok5f = r5f["runs_total"] == 2 and abs(r5f["p_value"] - floor) < 1e-12
+        check(_A5_NAMES[5], ok5f,
+              f"R={r5f.get('runs_total')} p={r5f.get('p_value')} "
+              f"floor={floor}")
+    except Exception as exc:
+        check(_A5_NAMES[5], False, f"{type(exc).__name__}: {exc}")
+
+    # A5g B3A exact enumeration: star / path / mixed on 12 stations 4/4/4 -----
+    try:
+        st12 = [f"EE.S{i:02d}" for i in range(12)]
+        idx = {s: i for i, s in enumerate(st12)}
+        star = [tuple(sorted((0, j))) for j in range(1, 8)]
+        pth = [(j, j + 1) for j in range(7)]
+        mixed = [tuple(sorted((0, j))) for j in range(1, 4)] \
+            + [(4, 5), (5, 6), (6, 7), (7, 8)]
+        ok5g, det5g = True, []
+        for name, topo in (("star", star), ("path", pth), ("mixed", mixed)):
+            exact, total = _balanced_label_exact_p(12, (4, 4, 4), topo, 6)
+            pan = mk_panel(62, [], seed=57)
+            c = pan["carriers"]["c_fix"]
+            c["stations"] = st12
+            c["segments"] = {s: f"seg_{i // 4 + 1}" for i, s in
+                             enumerate(st12)}
+            c["r"] = {}
+            topo_edges = {"|".join(sorted((st12[a], st12[b])))
+                          for a, b in topo}
+            all_edges = ["|".join(sorted((st12[a], st12[b])))
+                         for a in range(12) for b in range(a + 1, 12)]
+            for i, d in enumerate(c["registered_days"]):
+                for e in all_edges:
+                    if i < 60:
+                        c["r"].setdefault(e, {})[d] = \
+                            0.001 if i % 2 == 0 else -0.001
+                    else:
+                        c["r"].setdefault(e, {})[d] = \
+                            0.5 if e in topo_edges else 0.01
+            r5g = E.b3a_family(pan, doc_sha256=AMENDMENT1_SHA,
+                               exhaustive_space=True)
+            d_ev = c["registered_days"][60]
+            got = r5g["exact_space_p"].get(d_ev)
+            if got is None or abs(got - exact) > 1e-12 or total != 34650:
+                ok5g = False
+                det5g.append(f"{name}: engine={got} exact={exact}")
+            if name == "star" and abs(exact - 0.27878787878787) > 1e-6:
+                ok5g = False
+                det5g.append(f"star exact {exact} != codex 0.278787...")
+        check(_A5_NAMES[6], ok5g, "; ".join(det5g))
+    except Exception as exc:
+        check(_A5_NAMES[6], False, f"{type(exc).__name__}: {exc}")
+
+    # A5h K floor: m=10 -> K=1 unscorable; m=11 -> K=2 ------------------------
+    try:
+        e10 = [f"FF.S1|FF.S{j:02d}" for j in range(2, 12)]     # m = 10
+        pan10 = mk_panel(62, e10, seed=58, sigma=0.0)
+        c10 = pan10["carriers"]["c_fix"]
+        for i, d in enumerate(c10["registered_days"]):
+            for e in e10:
+                c10["r"][e][d] = (0.001 if i % 2 == 0 else -0.001) \
+                    if i < 60 else 0.01
+        r5h = E.b3a_family(pan10, doc_sha256=AMENDMENT1_SHA, n_draws=99)
+        ok5h1 = any("DAY_K_UNSCORABLE" in str(x)
+                    for x in r5h.get("day_refusals", []))
+        e11 = e10 + ["FF.S1|FF.S12"]                            # m = 11
+        pan11 = mk_panel(62, e11, seed=59, sigma=0.0)
+        c11 = pan11["carriers"]["c_fix"]
+        for i, d in enumerate(c11["registered_days"]):
+            for e in e11:
+                c11["r"][e][d] = (0.001 if i % 2 == 0 else -0.001) \
+                    if i < 60 else 0.01
+        r5h2 = E.b3a_family(pan11, doc_sha256=AMENDMENT1_SHA, n_draws=99)
+        ok5h2 = not any("DAY_K_UNSCORABLE" in str(x)
+                        for x in r5h2.get("day_refusals", []))
+        check(_A5_NAMES[7], ok5h1 and ok5h2,
+              f"m10_unscorable={ok5h1} m11_scorable={ok5h2}")
+    except Exception as exc:
+        check(_A5_NAMES[7], False, f"{type(exc).__name__}: {exc}")
+
+    # A5i amended substream vectors -------------------------------------------
+    try:
+        ok5i, det5i = True, []
+        for fam, fold, purpose in (("B1A", "full", "null"),
+                                   ("B2A", "loco:KO.GEML", "null"),
+                                   ("B3A", "full", "power")):
+            exp = int.from_bytes(hashlib.sha256(
+                f"{AMENDMENT1_SHA}||{fam}||{fold}||{purpose}"
+                .encode("utf-8")).digest()[:8], "big")
+            got = E.derive_substream_seed(AMENDMENT1_SHA, fam, fold, purpose)
+            if got != exp:
+                ok5i = False
+                det5i.append(f"{fam}/{fold}/{purpose}")
+        check(_A5_NAMES[8], ok5i, "; ".join(det5i))
+    except Exception as exc:
+        check(_A5_NAMES[8], False, f"{type(exc).__name__}: {exc}")
+
+
 def main():
     g7a()                       # engine-independent: runs (and must pass) NOW
     g16a()                      # engine-independent: annex bytes bind NOW
     g16c()                      # engine-independent: authority-bypass lock
+    a5_annex_binding()          # engine-independent: amended annexes bind NOW
     if not HAVE:
         for nm in ("G1 seams+constants", "G2 walk-forward split",
                    "G3 testable floor 45", "G4 degenerate baseline",
@@ -310,6 +675,7 @@ def main():
                    "G15 LOCO conjunctive gate",
                    "G16b power-contract typing (certified flag)"):
             check(nm, False, "ENGINE_ABSENT")
+        amendment2(False)
         return
 
     # G1 seams + registered constants ------------------------------------------
@@ -589,6 +955,10 @@ def main():
     check("G16b power-contract typing (certified flag)", ok16b,
           f"not_certified={r16n.get('verdict')} "
           f"certified={r16c.get('verdict')}")
+
+    # ---- AMENDMENT 2: the mandatory frozen sec-A5 classes --------------------
+    amendment2(all(callable(getattr(E, f, None))
+                   for f in ("b1a_family", "b2a_family", "b3a_family")))
 
 
 main()

@@ -33,10 +33,11 @@
   "receipt_sha256": "5da09567999aac55c64c166306a35c69b1bd48f974e0e3bdcbb0976fd5120617"
  },
  "evidence_capsule": {
+  "authority": "the committed LF git blob (git cat-file), never the checkout representation",
+  "git_blob_sha256": "982898707a97dbfb9c520a51d51b9d49dc49f049a9c13bd6ac6bef12307b5778",
   "note": "immutable checkpoint capsule: every Tier-S/S2/C replicate row incl. all Tier-C full+post-LOCO outcomes and the launch gate row",
   "path": "docs/f2g_phase_b_power_a_evidence.jsonl",
-  "rows": 4890,
-  "sha256": "515280ed7fa81be0865d9aaf569e54de10c86a75bae20b5427fc20fa9f48e1d6"
+  "rows": 4890
  },
  "family": "B3A",
  "pareto_minimal_certified": [],

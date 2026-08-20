@@ -84,10 +84,18 @@ def main():
     env = {"python": platform.python_version(), "numpy": np.__version__,
            "machine": platform.machine()}
     import hashlib
+    import subprocess
     fg = json.loads(open(FULLGATE_PATH, encoding="utf-8").read())
     fg_sha = hashlib.sha256(open(FULLGATE_PATH, "rb").read()).hexdigest()
-    ev_sha = hashlib.sha256(open(EVIDENCE_PATH, "rb").read()).hexdigest()
-    ev_rows = sum(1 for l in open(EVIDENCE_PATH, encoding="utf-8")
+    # codex 22:32Z repair 1: the evidence authority is the COMMITTED GIT BLOB
+    # (LF-normalized), never the mutable checkout -- the driver's text-mode
+    # appends leave CRLF on disk and a checkout hash matches no committed
+    # object.
+    ev_blob = subprocess.check_output(
+        ["git", "cat-file", "blob",
+         "HEAD:docs/f2g_phase_b_power_a_evidence.jsonl"], cwd=r"C:\geospec")
+    ev_sha = hashlib.sha256(ev_blob).hexdigest()
+    ev_rows = sum(1 for l in ev_blob.decode("utf-8").splitlines()
                   if l.strip())
     receipt = {"full_equal": bool(fg["full_equal"]),
                "fold_equal_all": bool(fg["fold_equal_all"]),
@@ -100,7 +108,9 @@ def main():
                "receipt_path": "docs/f2g_phase_b_power_a_fullgate_receipt.json",
                "receipt_sha256": fg_sha}
     evidence = {"path": "docs/f2g_phase_b_power_a_evidence.jsonl",
-                "sha256": ev_sha, "rows": ev_rows,
+                "git_blob_sha256": ev_sha, "rows": ev_rows,
+                "authority": "the committed LF git blob (git cat-file), "
+                             "never the checkout representation",
                 "note": "immutable checkpoint capsule: every Tier-S/S2/C "
                         "replicate row incl. all Tier-C full+post-LOCO "
                         "outcomes and the launch gate row"}

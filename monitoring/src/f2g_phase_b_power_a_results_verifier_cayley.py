@@ -83,9 +83,12 @@ def verify(res, repo=REPO, check_files=True):
         except Exception:
             errs.append("fullgate receipt unreadable")
         try:
-            raw = open(f"{repo}/{ev['path']}", "rb").read()
-            if hashlib.sha256(raw).hexdigest() != ev.get("sha256"):
-                errs.append("evidence capsule sha mismatch")
+            # codex 22:32Z repair 1: verify against the COMMITTED GIT BLOB,
+            # never the checkout (CRLF conversion must not be able to pass)
+            raw = subprocess.check_output(
+                ["git", "cat-file", "blob", f"HEAD:{ev['path']}"], cwd=repo)
+            if hashlib.sha256(raw).hexdigest() != ev.get("git_blob_sha256"):
+                errs.append("evidence capsule git-blob sha mismatch")
             n = sum(1 for l in raw.decode("utf-8").splitlines() if l.strip())
             if n != ev.get("rows"):
                 errs.append("evidence row count mismatch")
@@ -150,8 +153,18 @@ def main():
     t4 = copy.deepcopy(arts["b3a"])
     t4["terminal_type"] = "CERTIFIED"
     neg.append(("terminal-flip", t4))
+    t5 = copy.deepcopy(arts["b2a"])
+    blob = subprocess.check_output(
+        ["git", "cat-file", "blob",
+         f"HEAD:{t5['evidence_capsule']['path']}"], cwd=REPO)
+    crlf = blob.replace(b"\n", b"\r\n")
+    t5["evidence_capsule"]["git_blob_sha256"] = hashlib.sha256(
+        crlf).hexdigest()
+    neg.append(("crlf-checkout-hash", t5))
     for name, t in neg:
-        errs = verify(t, check_files=False)
+        # the CRLF fixture must exercise the file/blob path; the others are
+        # structural and skip file IO
+        errs = verify(t, check_files=(name == "crlf-checkout-hash"))
         refused = bool(errs)
         print(f"[neg:{name}] {'REFUSED (correct)' if refused else 'ACCEPTED -- VERIFIER DEFECT'}")
         ok = ok and refused

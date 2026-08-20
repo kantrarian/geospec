@@ -661,22 +661,33 @@ def b2a_family(panel, *, doc_sha256, n_draws=N_DRAWS, return_null=False,
            "fold": str(fold)}
     rng = _rng(doc_sha256, "B2A", fold, "null")
     null_R = []
+    null_orders = []
+    null_rbc = []
     n_valid = le = 0
     for _ in range(int(n_draws)):
         perm = [int(x) for x in rng.permutation(n_eval)]
         R_d = 0
+        rbc = {}
         for k in keys:
             st = [caps[k]["states"][i] for i in perm]
             dn = [caps[k]["days"][i] for i in perm]
             runs, _refs, _acc = _b2a_runs(st, dn)
+            rbc[k] = int(runs)
             R_d += runs
         n_valid += 1
         null_R.append(int(R_d))
+        # A5k audit vector (codex 1427Z repair 2 + binding closure): the ONE
+        # common capsule position order per draw + per-carrier runs; null_R[i]
+        # is by construction sum(null_runs_by_carrier[i].values()).
+        null_orders.append(perm)
+        null_rbc.append(rbc)
         if R_d <= R_obs:
             le += 1
     out["n_valid_draws"] = n_valid
     if return_null:
         out["null_R"] = null_R
+        out["null_orders"] = null_orders
+        out["null_runs_by_carrier"] = null_rbc
     if n_valid < _valid_floor(n_draws):
         out.update(p_value=None, verdict="CANNOT_DETERMINE_NULL_SUPPORT")
         return out

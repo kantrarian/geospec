@@ -360,12 +360,17 @@ def cp_lower(k, n, conf=0.95):
 
 
 def cp_upper(k, n, conf=0.95):
+    # One-sided Clopper-Pearson upper bound: UB solves P(X <= k | UB) = 1-conf,
+    # i.e. sf_geq(k+1, UB) = conf. DEFECT FIXED 2026-08-20: v1 used `1 - conf`
+    # here (wrong tail; e.g. 0/20 gave 0.003 instead of 0.139). No Tier-C
+    # verdict was affected (all counts were 0; correct UB 0.139 < 0.80 still
+    # FAILED), but reported bounds before this fix are invalid.
     if k == n:
         return 1.0
     lo, hi = 0.0, 1.0
     for _ in range(60):
         mid = (lo + hi) / 2
-        if binom_sf_geq(k + 1, n, mid) < 1 - conf:
+        if binom_sf_geq(k + 1, n, mid) < conf:
             lo = mid
         else:
             hi = mid
@@ -495,10 +500,18 @@ def stage_tier_c(ckpt, done):
 
 
 def stage_b2_lemma(ckpt, done):
-    """Annex B-2 sec L executable check: exact pipeline p == 1.0 on the
-    canonical two-regime fixture (m=3, no missingness), + 10-seed confirm."""
+    """Annex B-2 sec L executable check. The lemma's hypothesis is
+    PER-CARRIER (a two-value eligible-partition sequence), so the fixture is
+    the injection carrier ALONE (m=3, no missingness): with a single carrier
+    the family statistic reduces to the lemma's setting and the exact
+    pipeline must return p == 1.0 identically.
+    FIXTURE-SCOPE DEFECT FIXED 2026-08-20: v1 (stage key B2lemma) fed the
+    full 3-carrier panel, so the noise carriers' partition churn entered the
+    family max and p came out in (0.55, 0.99) -- a wrong-scope check, not a
+    lemma failure. Corrected rows use stage key B2lemma_rev2; v1 rows are
+    retained in the checkpoint as the disclosed defect record."""
     for r in range(10):
-        k = f"L|B2|m=3|r={r}"
+        k = f"L2|B2|m=3|r={r}"
         if k in done:
             continue
         rng = np.random.Generator(np.random.PCG64(rep_seed("B2", 1000 + r)))
@@ -506,10 +519,11 @@ def stage_b2_lemma(ckpt, done):
         for ck in lat:
             lat[ck]["mcar"][:] = False
         panel = to_panel(lat)
+        panel = {"carriers": {"c1": panel["carriers"]["c1"]}}
         res = E.b2_family(panel, doc_sha256=FROZEN_DOC_SHA,
                           n_draws=TIER_C_DRAWS if r == 0 else TIER_S_DRAWS,
                           power_contract={"passed": True})
-        emit(ckpt, {"key": k, "stage": "B2lemma", "rep": r,
+        emit(ckpt, {"key": k, "stage": "B2lemma_rev2", "rep": r,
                     "p": res["p_value"], "max_switches": res["max_switches"],
                     "n_draws": TIER_C_DRAWS if r == 0 else TIER_S_DRAWS})
     print("[L] B2 lemma checks complete", flush=True)

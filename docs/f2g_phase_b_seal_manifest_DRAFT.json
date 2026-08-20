@@ -48,5 +48,35 @@
   "rng": "PCG64; master seed = first 8 bytes big-endian of frozen_doc.sha256; substreams per frozen doc section (double-pipe formula)",
   "sequencing_after_seal": "engine green x3 vs the admitted bar -> ONE sealed real-data run (hash-bound inputs/outputs) -> codex + cayley verification -> owner decision",
   "standing": "Phase B only; Phase C + waveform surrogates out of scope; no publication; no forecast/displacement claims; Lambda_geo INCONCLUSIVE",
-  "owner_seal": {"quote": null, "quote_sha256": null, "timestamp_utc": null}
+  "owner_seal": {
+    "quote": null,
+    "quote_sha256": null,
+    "timestamp_utc": null
+  },
+  "power_results": {
+    "note": "codex 0431Z repair 4: evidence artifacts byte-bound (not registered content); each drives G5 REV 2 and the owner seal decision",
+    "B1": {
+      "path": "docs/f2g_phase_b_power_annex_b1_results.json",
+      "geospec_commit": "98055ca",
+      "sha256": "653ee670878a1123e85146dc74e63e61760473e3e62669738926b80ac384e83f",
+      "equivalence_receipt": "full_equal=true fold_equal=true (driver d4edfb2 vs engine 6034419)"
+    },
+    "B2": {
+      "path": "docs/f2g_phase_b_power_annex_b2_results.json",
+      "geospec_commit": "98055ca",
+      "sha256": "424c3b8420b07aea69df66519db55d2f405363e6e4a044e98e1355e58c0c6d74",
+      "equivalence_receipt": "full_equal=true fold_equal=true (driver d4edfb2 vs engine 6034419)"
+    },
+    "B3": {
+      "path": "docs/f2g_phase_b_power_annex_b3_results.json",
+      "geospec_commit": "98055ca",
+      "sha256": "9b7bc2e27dcca998375af9f8ea1b5c95efa029e7ff41d0cc2c705685c78a4cd7",
+      "equivalence_receipt": "full_equal=true fold_equal=true (driver d4edfb2 vs engine 6034419)"
+    },
+    "terminal_types": {
+      "B1": "MDE_NOT_CERTIFIED_BY_REGISTERED_SEARCH",
+      "B2": "MDE_NOT_CERTIFIED_BY_REGISTERED_SEARCH (+ sec-L per-carrier lemma p==1.0)",
+      "B3": "MDE_NOT_CERTIFIED_BY_REGISTERED_SEARCH"
+    }
+  }
 }

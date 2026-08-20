@@ -18,10 +18,32 @@
     "author": "grassmann (cross-authored; cayley implements bar-unedited)"
   },
   "power_annexes": {
-    "note": "rev-2 section 5 + codex repair 3: each annex binds generator, effect scale/grid, prevalence, duration, replicate count, 80% rule, and maximum scientifically meaningful MDE, BEFORE seal; missing/failed power => CANNOT_DETERMINE_NO_POWER",
-    "B1": {"path": null, "geospec_commit": null, "sha256": null},
-    "B2": {"path": null, "geospec_commit": null, "sha256": null},
-    "B3": {"path": null, "geospec_commit": null, "sha256": null}
+    "note": "rev-1.1 authorities admitted by codex verify-once PASS 2026-08-20T0400Z; family annexes reference the common protocol BY DIGEST; results artifacts are evidence, not registered content; no certified point => nonpositives typed CANNOT_DETERMINE_NO_POWER",
+    "common": {
+      "path": "docs/f2g_phase_b_power_annex_common.md",
+      "geospec_commit": "d3aa25f4f174d5864f25e036bde07e91417328ca",
+      "sha256": "baddf2aa259689356d4d942b6282824ad6ad6d7f50075c54c992a997f216f20d"
+    },
+    "B1": {
+      "path": "docs/f2g_phase_b_power_annex_b1.md",
+      "geospec_commit": "b816f88fdce4f2328334e928500b559900b9cee5",
+      "sha256": "fb2883f5a9be84f2197b79291b116a799a3a2c5cc86afc69cc34fea064a4e14a"
+    },
+    "B2": {
+      "path": "docs/f2g_phase_b_power_annex_b2.md",
+      "geospec_commit": "b816f88fdce4f2328334e928500b559900b9cee5",
+      "sha256": "dca9dede6b91e35e6dd55ed6104dd3b4c29d2f8dfc8b6ef615187df91b5cb05c"
+    },
+    "B3": {
+      "path": "docs/f2g_phase_b_power_annex_b3.md",
+      "geospec_commit": "b816f88fdce4f2328334e928500b559900b9cee5",
+      "sha256": "9414bd597134ebbcac8dc2d199a111521a23b0d59af6bc40ab0e803cd3495dc2"
+    }
+  },
+  "red_kat_amendment_1": {
+    "note": "G5 REV 2 annex-conditioned (codex adjudication 633be61 item 3) + G16a/b annex binding; commit/sha filled on routing, becomes admitted authority on codex check",
+    "geospec_commit": null,
+    "blob_sha256_lf": null
   },
   "rng": "PCG64; master seed = first 8 bytes big-endian of frozen_doc.sha256; substreams per frozen doc section (double-pipe formula)",
   "sequencing_after_seal": "engine green x3 vs the admitted bar -> ONE sealed real-data run (hash-bound inputs/outputs) -> codex + cayley verification -> owner decision",

@@ -67,12 +67,70 @@ FIXTURE PANEL SCHEMA (fixture-panel-v1, this bar's authority):
 FIXTURE-ONLY (prereg governing rule): nothing in this bar touches the Phase-A
 artifact, any real graph, or any waveform. No claims; Lambda_geo INCONCLUSIVE.
 EXPECTED RED until cayley's engine lands. grassmann 2026-08-20.
+
+AMENDMENT 1 (append-only lane of freeze F2G-PB-R2-FREEZE-CODEX-20260820T0301Z;
+G5 REV explicitly adjudicated by codex 633be61 item 3; annex authorities
+admitted by codex 0400Z pass): G5 is now ANNEX-CONDITIONED and G16a/b/c bind
+the rev-1.1 power-annex authorities:
+  common  docs/f2g_phase_b_power_annex_common.md @ d3aa25f  sha256 baddf2aa...
+  B-1     docs/f2g_phase_b_power_annex_b1.md     @ b816f88  sha256 fb2883f5...
+  B-2     docs/f2g_phase_b_power_annex_b2.md     @ b816f88  sha256 dca9dede...
+  B-3     docs/f2g_phase_b_power_annex_b3.md     @ b816f88  sha256 9414bd59...
+G5 REV 2 semantics (codex 633be61 item 3 verbatim): with the B-1 results
+artifact (docs/f2g_phase_b_power_annex_b1_results.json, evidence lane) ABSENT,
+G5 reds typed POWER_RESULTS_ABSENT (expected until Tier-C completes). Present
++ zero certified points (terminal MDE_NOT_CERTIFIED_BY_REGISTERED_SEARCH):
+G5 passes ONLY when the annex-bound planted run is nonpositive and typed
+exactly CANNOT_DETERMINE_NO_POWER -- never NEGATIVE, never a fabricated
+positive requirement. Present + >=1 certified point: the representative is the
+lexicographically FIRST Pareto-minimal certified point and G5 recomputes the
+registered replicate-level post-LOCO recovery bound in-bar (one-sided exact
+binomial 95% lower bound >= 0.80 via Clopper-Pearson) from the recorded
+replicate outcomes -- never a single cherry-picked fixture.
+Results-artifact minimal schema pinned here (R1.2 lane open): keys
+certified_points (list), pareto_minimal_certified (list, lex-first =
+representative; each point carries grid_point + post_loco {successes,
+replicates}), terminal_type (when none certified), equivalence_receipt,
+digests (must include the four annex sha256s above). This amendment becomes
+the admitted authority only after its commit/digest is routed and checked.
 """
 import hashlib
+import json
 import math
+import os
+import subprocess
 import sys
 
 import numpy as np
+
+_HERE = os.path.dirname(os.path.abspath(__file__))
+_REPO = os.path.abspath(os.path.join(_HERE, "..", ".."))
+
+# AMENDMENT 1: admitted rev-1.1 power-annex authorities (codex 0400Z pass)
+ANNEX_AUTHORITIES = (
+    ("docs/f2g_phase_b_power_annex_common.md",
+     "d3aa25f4f174d5864f25e036bde07e91417328ca",
+     "baddf2aa259689356d4d942b6282824ad6ad6d7f50075c54c992a997f216f20d"),
+    ("docs/f2g_phase_b_power_annex_b1.md",
+     "b816f88fdce4f2328334e928500b559900b9cee5",
+     "fb2883f5a9be84f2197b79291b116a799a3a2c5cc86afc69cc34fea064a4e14a"),
+    ("docs/f2g_phase_b_power_annex_b2.md",
+     "b816f88fdce4f2328334e928500b559900b9cee5",
+     "dca9dede6b91e35e6dd55ed6104dd3b4c29d2f8dfc8b6ef615187df91b5cb05c"),
+    ("docs/f2g_phase_b_power_annex_b3.md",
+     "b816f88fdce4f2328334e928500b559900b9cee5",
+     "9414bd597134ebbcac8dc2d199a111521a23b0d59af6bc40ab0e803cd3495dc2"),
+)
+ANNEX_SHAS = {sha for _p, _c, sha in ANNEX_AUTHORITIES}
+B1_RESULTS = os.path.join(_REPO, "docs",
+                          "f2g_phase_b_power_annex_b1_results.json")
+
+
+def _results(path):
+    try:
+        return json.loads(open(path, "rb").read().decode("utf-8"))
+    except Exception:
+        return None
 
 HERE_FAILS = []
 _N = [0]
@@ -144,12 +202,32 @@ def g7a():
           "a circular shift of computed z changed max|z| -- impossible")
 
 
+def g16a():
+    """AMENDMENT 1: the four admitted rev-1.1 annex authorities, recomputed
+    from the pinned commits' committed bytes -- engine-independent."""
+    ok, det = True, []
+    for path, commit, sha in ANNEX_AUTHORITIES:
+        try:
+            raw = subprocess.run(
+                ["git", "-C", _REPO, "cat-file", "blob", f"{commit}:{path}"],
+                capture_output=True).stdout
+            got = hashlib.sha256(raw).hexdigest()
+        except Exception as exc:
+            got = f"ERROR:{exc}"
+        if got != sha:
+            ok = False
+            det.append(f"{path}@{commit[:7]}: got={got[:16]} expect={sha[:16]}")
+    check("G16a annex authority binding (rev-1.1 bytes)", ok, "; ".join(det))
+
+
 def main():
     g7a()                       # engine-independent: runs (and must pass) NOW
+    g16a()                      # engine-independent: annex bytes bind NOW
     if not HAVE:
         for nm in ("G1 seams+constants", "G2 walk-forward split",
                    "G3 testable floor 45", "G4 degenerate baseline",
-                   "G5 planted-signal recovery", "G6 null uniformity",
+                   "G5 annex-conditioned planted recovery (REV 2)",
+                   "G6 null uniformity",
                    "G7b engine null is NOT the degenerate z-shift",
                    "G8 dependence preservation (common rotation)",
                    "G9 no-testable-edges -> typed CANNOT_DETERMINE",
@@ -158,7 +236,8 @@ def main():
                    "G12 B-2 identifiability refusals",
                    "G13 B-3 deterministic selection + small-day",
                    "G14 substream seed exact vector",
-                   "G15 LOCO conjunctive gate"):
+                   "G15 LOCO conjunctive gate",
+                   "G16b power-contract typing (certified flag)"):
             check(nm, False, "ENGINE_ABSENT")
         return
 
@@ -206,13 +285,52 @@ def main():
     ok4 = r4["excluded"].get("DEGENERATE_BASELINE", 0) == 1
     check("G4 degenerate baseline", ok4, f"excluded={r4['excluded']}")
 
-    # G5 planted recovery -------------------------------------------------------
+    # G5 REV 2 -- ANNEX-CONDITIONED (codex adjudication 633be61 item 3;
+    # the unconditional must-reject expectation is incompatible with frozen
+    # section 5 when no MDE is certified: the frozen carrier-rotation null has
+    # a structural power ceiling at this data scale -- cayley 556941e, held
+    # as EXPECTED POWER-CONTRACT RED by codex pending the annex) ---------------
     edges5 = [f"AA.S{i}|AA.S{j}" for i in range(1, 7) for j in range(i + 1, 7)]
     p5 = plant(mk_panel(100, edges5, seed=5), edges5[:3], 75, 3, 12.0)
-    r5 = E.b1_family(p5, doc_sha256=DOC, n_draws=999,
-                     power_contract={"passed": True})
-    ok5 = r5["p_value"] is not None and r5["p_value"] <= E.ALPHA_FAMILY
-    check("G5 planted-signal recovery", ok5, f"p={r5.get('p_value')}")
+    res5 = _results(B1_RESULTS)
+    if res5 is None:
+        check("G5 annex-conditioned planted recovery (REV 2)", False,
+              "POWER_RESULTS_ABSENT -- expected red until the admitted Tier-C "
+              "estimation completes and routes the B-1 results artifact")
+    else:
+        digs5 = set((res5.get("digests") or {}).values()) \
+            if isinstance(res5.get("digests"), dict) else set()
+        bound5 = ANNEX_SHAS.issubset(digs5) \
+            and bool(res5.get("equivalence_receipt"))
+        cert5 = res5.get("certified_points") or []
+        if not cert5:
+            r5 = E.b1_family(p5, doc_sha256=DOC, n_draws=999,
+                             power_contract={
+                                 "certified": False,
+                                 "terminal": res5.get("terminal_type")})
+            v5 = str(r5.get("verdict"))
+            ok5 = bound5 \
+                and res5.get("terminal_type") \
+                == "MDE_NOT_CERTIFIED_BY_REGISTERED_SEARCH" \
+                and "CANNOT_DETERMINE_NO_POWER" in v5 \
+                and "POSITIVE" not in v5.upper() and v5 != "NEGATIVE"
+            check("G5 annex-conditioned planted recovery (REV 2)", ok5,
+                  f"bound={bound5} terminal={res5.get('terminal_type')} "
+                  f"verdict={v5}")
+        else:
+            try:
+                from scipy.stats import beta as _beta
+                rep5 = (res5.get("pareto_minimal_certified") or [])[0]
+                k5 = int(rep5["post_loco"]["successes"])
+                n5 = int(rep5["post_loco"]["replicates"])
+                lb5 = float(_beta.ppf(0.05, k5, n5 - k5 + 1)) if k5 > 0 else 0.0
+                ok5 = bound5 and lb5 >= 0.80
+                check("G5 annex-conditioned planted recovery (REV 2)", ok5,
+                      f"bound={bound5} representative={rep5.get('grid_point')} "
+                      f"post-LOCO {k5}/{n5} 95%LB={lb5:.4f}")
+            except Exception as exc:
+                check("G5 annex-conditioned planted recovery (REV 2)", False,
+                      f"{type(exc).__name__}: {exc}")
 
     # G6 null uniformity --------------------------------------------------------
     ps = []
@@ -383,6 +501,22 @@ def main():
     check("G15 LOCO conjunctive gate", ok15,
           f"all={g1.get('pass')} onefail={g2.get('pass')} "
           f"missing={g3.get('pass')} promote={g4.get('pass')}")
+
+    # G16b power-contract typing (AMENDMENT 1): a not-certified contract types
+    # exactly CANNOT_DETERMINE_NO_POWER; a certified contract must NOT --------
+    p16 = mk_panel(100, edges5[:6], seed=16)
+    r16n = E.b1_family(p16, doc_sha256=DOC, n_draws=199,
+                       power_contract={
+                           "certified": False,
+                           "terminal":
+                               "MDE_NOT_CERTIFIED_BY_REGISTERED_SEARCH"})
+    r16c = E.b1_family(p16, doc_sha256=DOC, n_draws=199,
+                       power_contract={"certified": True})
+    ok16b = "CANNOT_DETERMINE_NO_POWER" in str(r16n.get("verdict")) \
+        and "CANNOT_DETERMINE_NO_POWER" not in str(r16c.get("verdict"))
+    check("G16b power-contract typing (certified flag)", ok16b,
+          f"not_certified={r16n.get('verdict')} "
+          f"certified={r16c.get('verdict')}")
 
 
 main()

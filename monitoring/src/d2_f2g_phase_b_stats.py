@@ -620,44 +620,28 @@ def _b2a_runs(states, day_names):
     return runs, refusals, accepted
 
 
-def _b2a_payload(states, day_names):
-    """Freeze each day's capsule PAYLOAD in the OBSERVED calendar frame:
-    (partition, None) for accepted days, (None, code) for refused days --
-    including NODESET_MISMATCH typing determined once against the previous
-    ACCEPTED day in calendar order. Per codex 1427Z repair 2, the refusal is
-    capsule metadata that MOVES ATOMICALLY with the day under the common
-    permutation; it is never re-derived per draw."""
-    payload = []
-    refusals = []
-    last_nodeset = None
-    accepted = 0
-    for (part, code), d in zip(states, day_names):
-        if code:
-            payload.append((None, code))
-            refusals.append({"day": d, "code": code})
-            continue
-        nodeset = frozenset(part)
-        if last_nodeset is not None and nodeset != last_nodeset:
-            payload.append((None, "NODESET_MISMATCH"))
-            refusals.append({"day": d, "code": "NODESET_MISMATCH"})
-            continue
-        last_nodeset = nodeset
-        accepted += 1
-        payload.append((part, None))
-    return payload, refusals, accepted
-
-
-def _b2a_runs_over(payload, order):
-    """Maximal identical-partition runs over an ordered sequence of FIXED
-    capsule payloads: any refused payload terminates (never bridged)."""
+def _b2a_runs_dyn(states, order):
+    """Runs over one ordered sequence of moved capsules, per the frozen sec-A2
+    authority as adjudicated by codex (ccc339d5): each capsule moves its
+    INTRINSIC state atomically (partition, intrinsic gate refusal, gap, exact
+    nodeset/frame); the RELATIONAL NODESET_MISMATCH, adjacency, and runs are
+    RECOMPUTED after the common permutation (mismatch judged against the last
+    ACCEPTED day in the permuted order). Any refusal terminates a run and is
+    never bridged."""
     runs = 0
     cur_part = None
     in_run = False
+    last_nodeset = None
     for i in order:
-        part, code = payload[i]
+        part, code = states[i]
         if code:
             in_run = False
             continue
+        nodeset = frozenset(part)
+        if last_nodeset is not None and nodeset != last_nodeset:
+            in_run = False
+            continue
+        last_nodeset = nodeset
         if in_run and part == cur_part:
             continue
         runs += 1
@@ -678,17 +662,13 @@ def b2a_family(panel, *, doc_sha256, n_draws=N_DRAWS, return_null=False,
             n_eval = len(ev_days)
         elif len(ev_days) != n_eval:
             raise ValueError("B2A_JOINT_CAPSULE_LENGTH_MISMATCH")
-        states = [_b2a_day_state(c, d) for d in ev_days]
-        payload, refs, accepted = _b2a_payload(states, list(ev_days))
-        caps[k] = {"days": list(ev_days), "payload": payload,
-                   "refs": refs, "accepted": accepted}
+        caps[k] = {"days": list(ev_days),
+                   "states": [_b2a_day_state(c, d) for d in ev_days]}
     R_obs = 0
     runs_by_carrier = {}
     day_refusals = []
-    identity = list(range(n_eval))
     for k in keys:
-        runs = _b2a_runs_over(caps[k]["payload"], identity)
-        refs, accepted = caps[k]["refs"], caps[k]["accepted"]
+        runs, refs, accepted = _b2a_runs(caps[k]["states"], caps[k]["days"])
         for r_ in refs:
             r_["carrier"] = k
         day_refusals.extend(refs)
@@ -719,7 +699,7 @@ def b2a_family(panel, *, doc_sha256, n_draws=N_DRAWS, return_null=False,
         R_d = 0
         rbc = {}
         for k in keys:
-            runs = _b2a_runs_over(caps[k]["payload"], perm)
+            runs = _b2a_runs_dyn(caps[k]["states"], perm)
             rbc[k] = int(runs)
             R_d += runs
         n_valid += 1

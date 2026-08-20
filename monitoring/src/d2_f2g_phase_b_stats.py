@@ -602,13 +602,19 @@ def _b2a_runs(states, day_names):
     accepted = 0
     for (part, code), d in zip(states, day_names):
         if code:
+            # codex ruling 8621baf2: every excluded position clears the
+            # frame-comparison reference (never bridge a gap/refusal)
             refusals.append({"day": d, "code": code})
             in_run = False
+            cur_part = None
+            last_nodeset = None
             continue
         nodeset = frozenset(part)
         if last_nodeset is not None and nodeset != last_nodeset:
             refusals.append({"day": d, "code": "NODESET_MISMATCH"})
             in_run = False
+            cur_part = None
+            last_nodeset = None
             continue
         last_nodeset = nodeset
         accepted += 1
@@ -635,11 +641,16 @@ def _b2a_runs_dyn(states, order):
     for i in order:
         part, code = states[i]
         if code:
+            # codex ruling 8621baf2: excluded positions clear the reference
             in_run = False
+            cur_part = None
+            last_nodeset = None
             continue
         nodeset = frozenset(part)
         if last_nodeset is not None and nodeset != last_nodeset:
             in_run = False
+            cur_part = None
+            last_nodeset = None
             continue
         last_nodeset = nodeset
         if in_run and part == cur_part:

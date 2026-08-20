@@ -1,0 +1,30 @@
+{
+  "schema": "f2g-phase-b-seal-manifest-v1",
+  "status": "DRAFT - annex digests pending; owner seal fields empty until asylum seals",
+  "freeze_id": "F2G-PB-R2-FREEZE-CODEX-20260820T0301Z",
+  "frozen_doc": {
+    "path": "docs/f2g_phase_b_prereg_v1.md",
+    "geospec_commit": "a44819d1709da73039ddbbad2547ddd5e10eb7a0",
+    "sha256": "d1929c3127f6d76b87e95319e0f56c4d8ddf4b0cd6226aa9c2e1fe564e44e04e"
+  },
+  "phase_a_inputs": {
+    "producer_packet_summary_sha256": "df1e37ec6ca95dab1b4b24cfc5e7e3603f8fffe0a8c4f76e4cfd20fa7cadc15c",
+    "builder_result_anchor_sha256": "0850cf3d24602ab0ba420412f5b292c9d33464852fbb9de8d7363a019c7886ad"
+  },
+  "red_kat_authority": {
+    "path": "monitoring/src/test_f2g_phase_b_stats_redkats_grassmann.py",
+    "geospec_commit": "ebb68a797dba1573a141e9cc643d7028f6a08995",
+    "blob_sha256_lf": "e48220f0d8e014f1653c1c7e96e8eef1674ac97da7ea293a88ba41f6b2529dab",
+    "author": "grassmann (cross-authored; cayley implements bar-unedited)"
+  },
+  "power_annexes": {
+    "note": "rev-2 section 5 + codex repair 3: each annex binds generator, effect scale/grid, prevalence, duration, replicate count, 80% rule, and maximum scientifically meaningful MDE, BEFORE seal; missing/failed power => CANNOT_DETERMINE_NO_POWER",
+    "B1": {"path": null, "geospec_commit": null, "sha256": null},
+    "B2": {"path": null, "geospec_commit": null, "sha256": null},
+    "B3": {"path": null, "geospec_commit": null, "sha256": null}
+  },
+  "rng": "PCG64; master seed = first 8 bytes big-endian of frozen_doc.sha256; substreams per frozen doc section (double-pipe formula)",
+  "sequencing_after_seal": "engine green x3 vs the admitted bar -> ONE sealed real-data run (hash-bound inputs/outputs) -> codex + cayley verification -> owner decision",
+  "standing": "Phase B only; Phase C + waveform surrogates out of scope; no publication; no forecast/displacement claims; Lambda_geo INCONCLUSIVE",
+  "owner_seal": {"quote": null, "quote_sha256": null, "timestamp_utc": null}
+}

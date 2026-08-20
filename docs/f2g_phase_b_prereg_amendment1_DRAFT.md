@@ -1,48 +1,59 @@
-# fault2graph Phase B — Preregistration AMENDMENT 1 (owner-directed) — DRAFT pending codex adjudication
+# fault2graph Phase B — Preregistration AMENDMENT 1 **rev-2** (owner-directed) — DRAFT pending codex adjudication
 
-**Author:** cayley — **Date:** 2026-08-20 — **Status:** DRAFT. Enters force only on codex adjudication + freeze under the amendment lane of `F2G-PB-R2-FREEZE-CODEX-20260820T0301Z` ("any change requires an explicit append-only amendment … with a new digest"). Until then the frozen rev-2 statistics stand untouched.
+**Author:** cayley — **Date:** 2026-08-20 — **Status:** DRAFT rev-2, incorporating codex R1.2 findings 1–5 (note 0505Z, reviewed `9b4b5d9`/`b5aa3263…`) in full. Enters force only on codex adjudication + freeze under the amendment lane of `F2G-PB-R2-FREEZE-CODEX-20260820T0301Z`. Until then the frozen rev-2 statistics stand untouched.
 
-**Owner authorization:** asylum in-session 2026-08-20 04:47Z selected option **(ii) amend-before-seal** from the receipt packet's framing (`38435f29`), owner_quote `"ii"`, owner_quote_sha256 `5d7f49449ab22deac22d767b89549c554134c8e47de4d38e748049875c83503b`.
+**Owner authorization:** asylum in-session 2026-08-20 04:47Z selected option **(ii) amend-before-seal** (`38435f29` framing), owner_quote `"ii"`, owner_quote_sha256 `5d7f49449ab22deac22d767b89549c554134c8e47de4d38e748049875c83503b`.
 
-**Why (evidence, all registered):** the frozen families' power search completed at geospec `98055ca`: Tier-S 0/3,750 recoveries over the full 75-point grid; Tier-C 9/9 FAILED 0/20; terminals `MDE_NOT_CERTIFIED_BY_REGISTERED_SEARCH` ×3. Mechanisms on file: identity/near-identity rotation floor + max-statistic extreme-value fragility (B-1); day-order permutation degeneracy of max-switch, per-carrier lemma p ≡ 1 (B-2); max-over-days null inflation + K-quantization (B-3); and the bounded-correlation noise ceiling (saturation injection |z| ≈ 2.6 < panel noise max ≈ 3.9). Each amended statistic below targets those mechanisms directly.
+**Evidence basis:** frozen-family power search complete at `98055ca` (Tier-S 0/3,750; Tier-C 9/9 FAILED 0/20; terminals `MDE_NOT_CERTIFIED_BY_REGISTERED_SEARCH` ×3); mechanisms on file (identity-floor + extreme-value fragility; §L permutation degeneracy; max-over-days inflation + K-quantization; bounded-domain noise ceiling).
 
 ## A0. Outcome-blindness addendum
 
-No localization statistic has been computed on the Phase-A real graphs by any party at any point. All exposure since rev-2 is synthetic-fixture power surfaces (registered artifacts). Supersession therefore spends no real-data degrees of freedom: the amended families are registered pre-data, same as rev-2 was.
+No localization statistic has ever been computed on the Phase-A real graphs by any party. All exposure since the rev-2 freeze is synthetic-fixture power surfaces (registered artifacts). Supersession spends no real-data degrees of freedom.
 
-## A1. Family B-1′ — persistent per-edge anomaly (supersedes B-1 for verdict purposes)
+## A0b. The joint null transform (codex findings 1 + 2, resolved together)
 
-- **Statistic:** `T = Σ_carriers max_{(testable edge, window)} meanz(edge, window)` in |z|, where a window is `w = 7` consecutive registered evaluation days, scored iff ≥ 4 finite z cells in it (unscored windows typed, disclosed); z, testability floor, MAD degeneracy exactly as frozen §3 B-1. The per-carrier term is the max over that carrier's scorable (edge, window) pairs of the window mean of |z|.
-- **Carrier inclusion (fixed pre-draw):** carriers with ≥1 scorable observed window enter the sum; a carrier without one is typed `CARRIER_NO_SCORABLE_WINDOW` and excluded from observed AND every draw. A draw in which an included carrier has no scorable window is an invalid draw (typed).
-- **Null:** joint carrier rotation exactly as frozen (one common offset per carrier per draw, full-vector pre-split rotation, complete pipeline rerun) with ONE registered change: the offset is uniform on `{1, …, n_c − 1}` — **the identity offset 0 is excluded** (it reproduces T_obs by construction and consumed 55%+ of the α budget). Draw semantics, add-one p, N = 9,999, valid-draw floor: unchanged.
-- **Why this repairs the mechanisms:** the sum across carriers gives the null ~110³-combination support (near-identity must co-occur in all included carriers, prob ~1e-6, vs the frozen single-max floor ~1/110); the 7-day window mean divides the noise ceiling by ≈ √7 while persistent signal retains its full amplitude (fixture arithmetic: noise window-max ≈ 1.4 vs saturation signal ≈ 2.6 — separation where the frozen max had inversion).
-- Persistence sub-statistic: dropped (the window IS the persistence requirement). Sub-`w` transients are registered NON-claims for this family; the power annex quantifies dilution.
+All temporal nulls in this amendment are **COMMON JOINT transforms drawn from a COMPLETE group including the identity**:
+
+- Finding 1 (calibration): the null samples the ENTIRE registered group — no element, identity included, is deleted. Add-one p over 9,999 draws; the frozen valid-draw floor applies.
+- Finding 2 (joint structure): one transform per draw acts on the SHARED CALENDAR and carries every included carrier with it — same-day cross-carrier dependence is preserved exactly in every draw. No factorized product null is registered anywhere in this amendment, and no independence justification is claimed.
+- **The group (A1): joint day-block permutation.** Partition each carrier's registered 110-position sequence into consecutive blocks of length `ℓ = 7` (15 full blocks + one 5-position remainder block, positions frozen). A draw is ONE uniform permutation of the 16 block indices, applied identically to every included carrier's full day vector (values, station states, missingness move together) BEFORE the positional 60/remainder split; the complete pipeline is rerun per draw. H0 is joint cross-carrier day-block exchangeability — within-block temporal dependence (≤ ℓ) is preserved; the group has `16! ≈ 2.1e13` elements, so the identity carries no floor (contrast: the frozen per-carrier rotation group had ≤ 110 elements and the identity consumed >55% of α). Exhaustive-orbit KAT required (A5): on a small registered block structure, engine p must equal exact full-orbit enumeration, including a case where the identity contributes an exceedance.
+- **The group (A2): joint calendar permutation** of eligible-day order (§A2), same completeness and commonality requirements.
+- **A3's null is spatial, not temporal:** ONE station→segment relabeling of the SHARED (disjoint-union) registry per draw, preserving each carrier's exact segment sizes. Because carrier registries are disjoint, this joint law coincides with simultaneous within-carrier relabelings — stated explicitly rather than silently assumed (finding 2).
+
+## A1. Family B-1′ — persistent per-edge anomaly (supersedes B-1)
+
+- **Statistic:** `T = Σ_{c ∈ INCLUDED} max_{(testable edge, window)} windowmean|z|`, window = `w = 7` consecutive registered evaluation days, scored iff ≥ 4 finite z cells; z, testability floor, MAD degeneracy exactly as frozen §3 B-1.
+- **Carrier inclusion (fixed pre-draw):** carriers with ≥ 1 scorable observed window enter; others typed `CARRIER_NO_SCORABLE_WINDOW`, excluded from observed and every draw. A draw in which an included carrier has no scorable window is invalid (typed).
+- **Null:** the A0b joint block-permutation group, complete, identity included, add-one, 9,999, floor.
+- **Support statement (finding 5):** the null support is the block-permutation group cardinality (16! for the registered 110-day/ℓ=7 structure) — not a per-carrier product claim. Window averaging is registered as a POWER HYPOTHESIS (noise-maximum reduction of order √w under weak temporal dependence with the full 7 cells; less when only 4 cells score) to be MEASURED by the annex, not a guaranteed divisor.
+- Sub-`w` transients are registered non-claims; the annex quantifies dilution.
 
 ## A2. Family B-2′ — temporal community coherence (supersedes B-2)
 
-- **Eligibility, gates, orientation, comparability:** exactly as frozen §3 B-2 (all four typed refusal codes retained).
-- **Statistic:** `R_total = Σ_carriers (count of maximal runs of identical partitions over the carrier's comparable eligible-day sequence)`, **one-sided LOW**: temporal regime structure yields FEW long runs; permutation shatters them. (Identical partition = same station set and same signed membership.)
-- **Null:** independent within-carrier day-order permutation of the eligible partitions per draw (frozen B-2 null), recomputing adjacency, comparability, and runs. `p = (1 + #{R_null ≤ R_obs}) / (N_valid + 1)`, N = 9,999, floor unchanged. Carrier-inclusion semantics as A1.
-- **Why:** the frozen max-switch is inside the null support with probability 1 for two-regime alternatives (§L lemma, p ≡ 1 exactly); the runs count is the classical statistic that day-order permutation genuinely destroys — a planted two-regime carrier moves R from ~2 to permuted-typical ~25, giving p at the add-one floor.
+- **Eligibility, gates, orientation:** exactly as frozen §3 B-2 (all four typed refusal codes retained).
+- **Executability contract (finding 3, codex wording adopted):** a carrier enters only with ≥ 2 eligible partitions AND ≥ 1 comparable adjacency, else typed `CARRIER_NO_COMPARABLE_SEQUENCE`. Runs are computed over CALENDAR-ADJACENT eligible days only: any excluded calendar day (gap) or frame mismatch (`NODESET_MISMATCH`) TERMINATES a run and is never bridged — `A,A,[gap],A,A` is two runs (mandatory KAT); mixed node sets never become comparable by deletion.
+- **Statistic:** `R_total = Σ_{c ∈ INCLUDED} (count of maximal runs of identical partitions)`, one-sided LOW.
+- **Null:** ONE permutation of the shared eligible-calendar slot order per draw (fixed slots: each carrier's eligible days at their calendar positions; the permutation reorders calendar positions jointly for all carriers; each carrier's partitions ride their days), runs recomputed under the IDENTICAL termination rules. Complete group, identity included, add-one; `p = (1 + #{R_null ≤ R_obs}) / (N_valid + 1)`.
 
 ## A3. Family B-3′ — boundary concentration (supersedes B-3)
 
-- **Selection:** exactly as frozen §3 B-3 (deterministic `(−|z|, station_a, station_b)` sort, `K = ceil(0.10·m)`, `INSUFFICIENT_DAILY_EDGES` typing, non-conditioning clause).
-- **Statistic:** `C = count of selectable (carrier, day)s with f(d) ≥ (K_d − 1)/K_d` (one-below-saturation at that day's own K), **one-sided HIGH**.
-- **Null:** the frozen space null (one within-carrier station→segment label permutation per draw, exact size preservation, selections FIXED), recomputing C per draw. Add-one p, N = 9,999, floor unchanged.
-- **Why:** the frozen max-over-days gave the null ~50 chances per draw at one saturated day (base cross-rate 0.727 under the three-segment frame); a COUNT of near-saturated days needs the null to produce many simultaneously — expected ~2 of 132 under permuted labels vs ~k for a persistent planted enrichment.
+- **Selection:** exactly as frozen §3 B-3 (deterministic sort, `K = ceil(0.10·m)`, typed refusals, non-conditioning clause).
+- **Scorability floor (finding 4):** a selectable day requires `K ≥ 2`; `K = 1` days are typed `DAY_K_UNSCORABLE` (the `(K−1)/K` threshold degenerates to 0 at K = 1), counts disclosed.
+- **Statistic:** `C = count of scorable (carrier, day)s with f(d) ≥ (K_d − 1)/K_d`, one-sided HIGH.
+- **Null:** the A0b joint relabeling (one shared-registry draw, exact per-carrier segment sizes, selections FIXED), C recomputed per draw, add-one, 9,999, floor.
+- **No null-expectation claim is registered** (finding 4: the prior "~2 of 132" figure was false — exact 4/4/4 enumeration for an allowed 7-edge star gives P(cross ≥ 6) ≈ 0.2788, ~37 of 132 days; topology drives the base rate). Exact balanced-label enumeration KATs for star/path/mixed selected-edge topologies are mandated (A5). Power certification remains the sole decision surface.
 
 ## A4. Multiplicity, gates, randomness
 
-- Top-level Bonferroni α = 0.05/3 across A1–A3, unchanged. LOCO conjunctive gate, valid-draw floors, add-one rule, diagnostics (raw + Holm + BY): all frozen semantics carry over verbatim.
-- Substream family tokens: **`B1A`, `B2A`, `B3A`** (fresh streams; the frozen B1/B2/B3 streams are consumed evidence). Fold/purpose grammar unchanged. `frozen_doc_sha256` in the seed material = the sha256 of THIS amendment's bytes as frozen by codex — the adjudication freeze fixes every amended seed.
+- α = 0.05/3 across A1–A3; LOCO conjunctive gate, valid-draw floors, add-one, diagnostics (raw + Holm + BY): frozen semantics verbatim.
+- Substream tokens `B1A`/`B2A`/`B3A`, fold/purpose grammar unchanged; seed root = the sha256 of THIS amendment's bytes as frozen by codex (the freeze fixes every seed; the RNG seed-source digest is bound in the manifest per A6).
 
-## A5. Sequencing to seal (all before any real-data contact)
+## A5. Sequencing to seal
 
-codex adjudication + freeze of this amendment → grassmann red-KAT amendment 2 (mandatory degeneracy-class reds: planted two-regime must yield B-2′ p at the add-one floor, NOT 1; A1 identity-exclusion + draw-semantics checks; A3 count determinism incl. per-day K) → engine amendment (new family functions; frozen functions retained as evidence surfaces) → **NEW power annexes for B1A/B2A/B3A** under the SAME common protocol machinery (tanh station-factor generator, three-segment geometry, Tier-S/Tier-C, post-LOCO endpoint, Clopper-Pearson stopping, Pareto frontier, flat digests) → **owner seal is offered ONLY IF at least one grid point certifies per verdict-carrying family**; any family that again fails certification types `CANNOT_DETERMINE_NO_POWER` and returns to asylum with options (i)/(iii). No promise of certification is made here — the annexes decide.
+codex adjudication + freeze → grassmann red-KAT amendment (mandatory classes: exhaustive-orbit calibration KAT incl. identity-exceedance case; paired-carrier synchrony KATs — perfectly synchronous carriers must retain their declared synchrony under every null draw; `A,A,[gap],A,A` two-runs KAT; mixed-nodeset non-bridging; B-3′ exact star/path/mixed enumeration KATs; K=1 unscorable typing; planted two-regime must yield B-2′ p at the add-one floor) → engine amendment (frozen functions retained as evidence surfaces) → **NEW power annexes for B1A/B2A/B3A** on the same common-protocol machinery, with the generator EXTENDED to instantiate the registered joint carrier law: a shared calendar-day factor `G(d) ~ N(0,1)` common to all carriers with registered weight `γ = 0.05` enters every latent `u_ab(d)` (+ a large-γ synchrony fixture for the paired-carrier KATs) → **owner seal offered ONLY IF ≥ 1 grid point certifies per verdict-carrying family**; any family failing again types `CANNOT_DETERMINE_NO_POWER` and returns to asylum with options (i)/(iii). No certification promise — the annexes decide.
 
-## A6. Supersession and standing
+## A6. Manifest binding and supersession (finding 5)
 
-Frozen B-1/B-2/B-3 remain registered; their completed power searches stand as evidence; they carry NO verdict weight for the sealed run. Every standing non-claim holds: Phase C owner-gated, no waveform lane, no forecast/displacement language, no publication, Λ_geo INCONCLUSIVE.
+On freeze, this amendment binds under the distinct manifest key **`stat_family_amendment_1`** (separate from `red_kat_amendment_1`): path + commit + full LF-blob sha256, the supersession map `B1→B1A, B2→B2A, B3→B3A` (frozen families remain registered evidence with no verdict weight), and the RNG seed-source digest. All standing non-claims hold: Phase C owner-gated, no waveform lane, no forecast/displacement language, no publication, Λ_geo INCONCLUSIVE.
 
-*Amendment 1 DRAFT — cayley. Append-only lane of F2G-PB-R2; no force until codex freeze.*
+*Amendment 1 rev-2 DRAFT — cayley. Append-only lane of F2G-PB-R2; no force until codex freeze.*

@@ -8,14 +8,15 @@
   "annex_b2a_sha256": "8eb73a0004113bfe4bce9951c33fcf11fd4df540d9d119898556e887502e97bf",
   "annex_b3a_sha256": "6e63b993611d072327a61628aa28183b732164fbbd2668330086c96092cf29b1",
   "annex_common_rev16_sha256": "44f8ddd9dd175679c0feca398dd2d549454e8b3ee429a037a13f6362f88bf31a",
-  "assembler_lf_sha256": "1114ed3ffb69182c168e0ed711a99f05e414e5e4ce30252029d3b86d16ef4c5a",
-  "driver_lf_sha256": "0f2d20f13367230211716d80939b685b90be771bfb6b4b9f218d468008f29034",
+  "assembler_lf_sha256": "7a1e3874f3836f5434ccc3f1bbb6cef8a18270c82206143ea6301630128e398c",
+  "base_driver_lf_sha256": "5cbf543f4f1a239707ad3c5eee458b01c35ac9093d354cc3e32b0ea164f41e78",
+  "driver_lf_sha256": "d0df4d38b0c03438112db1fdc3d2b61d00014ce9925ae7aed652f9ab8f6bbd74",
   "engine_lf_sha256": "4a39d3fbdc543e8c64e7b8a068bcb384d320361973bce68fc0b2b219c27968f1",
   "frozen_amendment2_sha256": "58b513b6c30b70c8014510788da9d7d819ce8971ca59b7dfdc11c57a1664586f"
  },
  "env": {
-  "numpy": "2.5.2",
-  "python": "3.12.10"
+  "numpy": "2.5.1",
+  "python": "3.14.0"
  },
  "equivalence_receipt": {
   "all_equal": true,
@@ -25,15 +26,33 @@
   "full_equal": true
  },
  "evidence_capsule": {
-  "geospec_commit": "dde8f1b",
-  "git_blob_sha256": "68043f36a955f753fc9f432ddf7a06ca8b1f3e03d50708d95dfb6a05a3f26122",
-  "path": "docs/f2g_phase_b_power_cal_evidence.jsonl",
-  "rows": 4881
+  "geospec_commit": "06173301d9eeb6ce3a1e1c4d71867fe6a613eabc",
+  "git_blob_sha256": "a596f180b8c1812af27ff7e7a2cb536d0f388be9bed70aa89e1ed40bf6606bb1",
+  "path": "docs/fixtures/f2g_phase_b_power_cal_evidence_fixture.jsonl",
+  "purpose": "fixture",
+  "rows": 4891
  },
  "family": "B2A",
  "induced_effect_report": {
+  "edges_with_robust_fit": 66,
   "family": "B2A",
-  "note": "per-family induced-effect summaries ride the registered corner replicate"
+  "injected_cells_changed": 619,
+  "registered_replicate": {
+   "point": {
+    "m": 3
+   },
+   "rep": 0
+  },
+  "robust_z_shift": {
+   "max": 5.811537268035428,
+   "mean": -4.213819229027477,
+   "median": 1.7822211829948207,
+   "min": -21.319957012534417,
+   "n": 619,
+   "q25": -12.442738911848153,
+   "q75": 3.777725906864634
+  },
+  "units": "robust_z"
  },
  "panel_reopen_sample": [
   {

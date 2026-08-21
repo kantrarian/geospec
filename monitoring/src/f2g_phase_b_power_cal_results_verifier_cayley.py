@@ -211,7 +211,7 @@ def _load_modules(repo, reasons):
     try:
         for name, key in MODULES:
             commit, path = PINS[key]
-            ap = os.path.join(repo, path)
+            ap = os.path.abspath(os.path.join(repo, path))
             try:
                 pinned = _blob(repo, commit, path)
             except Exception as exc:
@@ -232,7 +232,9 @@ def _load_modules(repo, reasons):
                 reasons.append(f"DEPENDENCY_UNATTESTED: {name} failed to "
                                f"load from attested path ({exc})")
                 return None
-            if getattr(mod, "__file__", None) != ap:
+            got = getattr(mod, "__file__", None)
+            if got is None or os.path.normcase(os.path.abspath(got)) != \
+                    os.path.normcase(ap):
                 reasons.append(f"DEPENDENCY_UNATTESTED: {name} __file__ is "
                                "not the attested path")
                 return None
@@ -878,7 +880,9 @@ def _rowneg_inner(repo, case):
         rows.append(dict(next(r for r in rows
                               if r.get("stage") == "gate")))
     elif case == "duplicate-header-row":
-        rows.append(dict(rows[0]))
+        h2 = dict(rows[0])
+        h2["key"] = "header2"
+        rows.append(h2)
     elif case == "tied-selector-kat":
         vr = _validate_and_reconstruct(rows, repo, PD, reasons)
         payload = {"reasons": reasons}
@@ -897,42 +901,59 @@ def _rowneg_inner(repo, case):
 
 
 def self_test(repo, fixture_docs=None):
-    """Permanent negative matrix; every negative must refuse with typed
-    reasons, the positive fixture must PASS, the injected-base-driver
-    reproduction must be provably inert (IMMUNE_PASS)."""
+    """Permanent negative matrix. Every negative must refuse WITH ITS
+    TYPED REASON (a refusal for an unrelated reason -- e.g. a broken
+    positive path -- is recorded as a DEFECT, never as a pass), the
+    positive fixture must PASS, and the injected-base-driver reproduction
+    must be provably inert (IMMUNE_PASS)."""
     results = {}
     ok_all = True
 
-    def rec(name, refused):
-        results[name] = "REFUSED" if refused else "ACCEPTED -- DEFECT"
+    def rec(name, ok, reasons, expect):
+        refused = (not ok) and any(expect in str(r) for r in reasons)
+        results[name] = (f"REFUSED ({expect})" if refused else
+                         ("DEFECT -- ACCEPTED" if ok else
+                          "DEFECT -- refused without the typed reason: "
+                          + "; ".join(map(str, reasons[:3]))))
         return refused
 
     cal_sha = _sha(_blob(repo, *CAL_AUTH_REF))
     geo = {"schema": SCHEMA, "family": "B2A",
            "calendar_authority_mode": "bound",
            "calendar_authority_sha256": cal_sha}
-    ok, _r = verify(geo, repo, expected_family="B2A", check_files=True)
-    ok_all &= rec("geometry-only-schema-shaped", not ok)
-    ok, _r = verify(dict(geo, schema="NOT-THE-REGISTERED-SCHEMA"), repo,
-                    expected_family="B2A", check_files=False)
-    ok_all &= rec("wrong-schema", not ok)
-    ok, _r = verify(geo, repo, expected_family="B1A", check_files=False)
-    ok_all &= rec("wrong-family-in-file", not ok)
+    ok, r = verify(geo, repo, expected_family="B2A", check_files=True)
+    ok_all &= rec("geometry-only-schema-shaped", ok, r,
+                  "RESULT_SCHEMA_MISSING")
+    ok, r = verify(dict(geo, schema="NOT-THE-REGISTERED-SCHEMA"), repo,
+                   expected_family="B2A", check_files=False)
+    ok_all &= rec("wrong-schema", ok, r, "RESULT_SCHEMA_MISSING")
+    ok, r = verify(geo, repo, expected_family="B1A", check_files=False)
+    ok_all &= rec("wrong-family-in-file", ok, r, "expected")
     # stale-pin attestation refusals (executable mutated-dependency forms)
     bad = dict(PINS)
     bad["driver_lf_sha256"] = (
         "7028324", "monitoring/src/f2g_phase_b_power_estimation_cal_cayley.py")
-    ok_all &= rec("mutated-dependency", bool(_attest_sources(repo, bad)))
+    att = _attest_sources(repo, bad)
+    ok_all &= rec("mutated-dependency", not att, att,
+                  "DEPENDENCY_UNATTESTED")
     bad = dict(PINS)
     bad["base_driver_lf_sha256"] = (
         "d4edfb2", "monitoring/src/f2g_phase_b_power_estimation_cayley.py")
-    ok_all &= rec("mutated-base-driver", bool(_attest_sources(repo, bad)))
+    att = _attest_sources(repo, bad)
+    ok_all &= rec("mutated-base-driver", not att, att,
+                  "DEPENDENCY_UNATTESTED")
     # evidence-row negatives (clean-subprocess, doctored committed capsule)
-    for case in ("string-false", "sample-vs-evidence-digest",
-                 "extra-unselected-stage-row", "offgrid-cverdict-row",
-                 "duplicate-gate-row", "duplicate-header-row"):
+    ROWNEG_EXPECT = {
+        "string-false": "EVIDENCE_ROW_TYPE",
+        "sample-vs-evidence-digest": "EVIDENCE_DIGEST_INCONSISTENT",
+        "extra-unselected-stage-row": "EVIDENCE_SELECTION_CLOSURE",
+        "offgrid-cverdict-row": "outside the registered",
+        "duplicate-gate-row": "duplicate key",
+        "duplicate-header-row": "CAPSULE_PURPOSE_MISMATCH",
+    }
+    for case, expect in ROWNEG_EXPECT.items():
         rr = _rowneg(repo, case)
-        ok_all &= rec(case, bool(rr["reasons"]))
+        ok_all &= rec(case, not rr["reasons"], rr["reasons"], expect)
     # tied-selector KAT: derived B3A selection == the registered exact order
     kat = _rowneg(repo, "tied-selector-kat")
     exp8 = [[0.3, 3, 10], [0.3, 3, 25], [0.3, 3, 50], [0.3, 8, 10],
@@ -978,34 +999,38 @@ def self_test(repo, fixture_docs=None):
         t1 = copy.deepcopy(base)
         t1["evidence_capsule"]["path"] = \
             "docs/f2g_phase_b_power_a_evidence.jsonl"
-        ok, _r = verify(t1, repo, expected_family="B2A", check_files=True,
-                        expected_purpose="fixture")
-        ok_all &= rec("unrelated-committed-evidence", not ok)
+        ok, r = verify(t1, repo, expected_family="B2A", check_files=True,
+                       expected_purpose="fixture")
+        ok_all &= rec("unrelated-committed-evidence", ok, r,
+                      "CAPSULE_PURPOSE_MISMATCH")
         t2 = copy.deepcopy(base)
         if t2["tier_c"]["candidates"]:
             t2["tier_c"]["candidates"][0]["verdict"] = "CERTIFIED"
             t2["tier_c"]["candidates"][0]["post_loco"]["successes"] = 0
             t2["certified_points"] = [t2["tier_c"]["candidates"][0]]
             t2["terminal_type"] = "CERTIFIED"
-        ok, _r = verify(t2, repo, expected_family="B2A", check_files=True,
-                        expected_purpose="fixture")
-        ok_all &= rec("zero-labeled-certified", not ok)
+        ok, r = verify(t2, repo, expected_family="B2A", check_files=True,
+                       expected_purpose="fixture")
+        ok_all &= rec("zero-labeled-certified", ok, r,
+                      "RESULT_NOT_DERIVED_FROM_EVIDENCE")
         t3 = copy.deepcopy(base)
         t3["tier_s1"]["table"][0]["pre_loco_recovery"] = 0.98
-        ok, _r = verify(t3, repo, expected_family="B2A", check_files=True,
-                        expected_purpose="fixture")
-        ok_all &= rec("aggregate-mismatch", not ok)
+        ok, r = verify(t3, repo, expected_family="B2A", check_files=True,
+                       expected_purpose="fixture")
+        ok_all &= rec("aggregate-mismatch", ok, r,
+                      "RESULT_NOT_DERIVED_FROM_EVIDENCE: tier_s1.table")
         t4 = copy.deepcopy(base)
         if len(t4["tier_s1"]["table"]) >= 2:
             t4["tier_s1"]["table"][1] = dict(t4["tier_s1"]["table"][0])
-        ok, _r = verify(t4, repo, expected_family="B2A", check_files=True,
-                        expected_purpose="fixture")
-        ok_all &= rec("duplicate-registered-point", not ok)
+        ok, r = verify(t4, repo, expected_family="B2A", check_files=True,
+                       expected_purpose="fixture")
+        ok_all &= rec("duplicate-registered-point", ok, r,
+                      "RESULT_NOT_DERIVED_FROM_EVIDENCE: tier_s1.table")
         t5 = copy.deepcopy(base)
         t5["panel_reopen_sample"] = t5["panel_reopen_sample"][:-1]
-        ok, _r = verify(t5, repo, expected_family="B2A", check_files=True,
-                        expected_purpose="fixture")
-        ok_all &= rec("missing-reopen-rep", not ok)
+        ok, r = verify(t5, repo, expected_family="B2A", check_files=True,
+                       expected_purpose="fixture")
+        ok_all &= rec("missing-reopen-rep", ok, r, "panel_reopen_sample")
         # finding-4 reproductions
         t6 = copy.deepcopy(base)
         t6["tier_s1"]["replicates"] = 1
@@ -1024,18 +1049,21 @@ def self_test(repo, fixture_docs=None):
         ok_all &= (not ok and hit)
         t7 = copy.deepcopy(base)
         del t7["evidence_capsule"]["geospec_commit"]
-        ok, _r = verify(t7, repo, expected_family="B2A", check_files=True,
-                        expected_purpose="fixture")
-        ok_all &= rec("missing-commit-no-default", not ok)
+        ok, r = verify(t7, repo, expected_family="B2A", check_files=True,
+                       expected_purpose="fixture")
+        ok_all &= rec("missing-commit-no-default", ok, r,
+                      "RESULT_SCHEMA_MISSING: evidence_capsule")
         # finding-5 reproductions at the artifact surface
         t8 = copy.deepcopy(base)
         t8["evidence_capsule"]["purpose"] = "production"
-        ok, _r = verify(t8, repo, expected_family="B2A", check_files=True,
-                        expected_purpose="fixture")
-        ok_all &= rec("fixture-relabeled-production", not ok)
-        ok, _r = verify(base, repo, expected_family="B2A",
-                        check_files=True, expected_purpose="production")
-        ok_all &= rec("fixture-under-production-expectation", not ok)
+        ok, r = verify(t8, repo, expected_family="B2A", check_files=True,
+                       expected_purpose="fixture")
+        ok_all &= rec("fixture-relabeled-production", ok, r,
+                      "CAPSULE_PURPOSE_MISMATCH")
+        ok, r = verify(base, repo, expected_family="B2A",
+                       check_files=True, expected_purpose="production")
+        ok_all &= rec("fixture-under-production-expectation", ok, r,
+                      "CAPSULE_PURPOSE_MISMATCH")
         # finding-3 reproduction: an artifact assembled under the OLD
         # JSON-key-order selector must refuse against reconstruction
         t9 = copy.deepcopy(base3)
@@ -1043,22 +1071,24 @@ def self_test(repo, fixture_docs=None):
         for row in t9["tier_s2"]["table"]:
             if row["point"] == {"delta_lat": 0.6, "n_cross": 3, "k": 25}:
                 row["point"] = old_pt
-        ok, _r = verify(t9, repo, expected_family="B3A", check_files=True,
-                        expected_purpose="fixture")
-        ok_all &= rec("wrong-selector-order", not ok)
+        ok, r = verify(t9, repo, expected_family="B3A", check_files=True,
+                       expected_purpose="fixture")
+        ok_all &= rec("wrong-selector-order", ok, r,
+                      "RESULT_NOT_DERIVED_FROM_EVIDENCE")
         # package-level checks
         arts = {"B1A": json.loads(open(
             f"{fixture_docs}/f2g_phase_b_power_annex_b1a_cal_results.json",
             encoding="utf-8").read()), "B2A": base, "B3A": base3}
-        ok, _r = verify_package_objs(arts, repo, expected_purpose="fixture")
-        results["package-consistent-positive"] = ("PASS" if ok
-                                                  else "FAIL -- DEFECT")
+        ok, r = verify_package_objs(arts, repo, expected_purpose="fixture")
+        results["package-consistent-positive"] = (
+            "PASS" if ok else "DEFECT: " + "; ".join(map(str, r[:3])))
         ok_all &= ok
         artsx = dict(arts, B1A=copy.deepcopy(arts["B1A"]))
         artsx["B1A"]["env"] = {"python": "0.0.0", "numpy": "0.0.0"}
-        ok, _r = verify_package_objs(artsx, repo,
-                                     expected_purpose="fixture")
-        ok_all &= rec("package-inconsistent-env", not ok)
+        ok, r = verify_package_objs(artsx, repo,
+                                    expected_purpose="fixture")
+        ok_all &= rec("package-inconsistent-env", ok, r,
+                      "PACKAGE_INCONSISTENT")
     return ok_all, results
 
 

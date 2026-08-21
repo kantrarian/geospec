@@ -8,14 +8,15 @@
   "annex_b2a_sha256": "8eb73a0004113bfe4bce9951c33fcf11fd4df540d9d119898556e887502e97bf",
   "annex_b3a_sha256": "6e63b993611d072327a61628aa28183b732164fbbd2668330086c96092cf29b1",
   "annex_common_rev16_sha256": "44f8ddd9dd175679c0feca398dd2d549454e8b3ee429a037a13f6362f88bf31a",
-  "assembler_lf_sha256": "1114ed3ffb69182c168e0ed711a99f05e414e5e4ce30252029d3b86d16ef4c5a",
-  "driver_lf_sha256": "0f2d20f13367230211716d80939b685b90be771bfb6b4b9f218d468008f29034",
+  "assembler_lf_sha256": "7a1e3874f3836f5434ccc3f1bbb6cef8a18270c82206143ea6301630128e398c",
+  "base_driver_lf_sha256": "5cbf543f4f1a239707ad3c5eee458b01c35ac9093d354cc3e32b0ea164f41e78",
+  "driver_lf_sha256": "d0df4d38b0c03438112db1fdc3d2b61d00014ce9925ae7aed652f9ab8f6bbd74",
   "engine_lf_sha256": "4a39d3fbdc543e8c64e7b8a068bcb384d320361973bce68fc0b2b219c27968f1",
   "frozen_amendment2_sha256": "58b513b6c30b70c8014510788da9d7d819ce8971ca59b7dfdc11c57a1664586f"
  },
  "env": {
-  "numpy": "2.5.2",
-  "python": "3.12.10"
+  "numpy": "2.5.1",
+  "python": "3.14.0"
  },
  "equivalence_receipt": {
   "all_equal": true,
@@ -25,15 +26,35 @@
   "full_equal": true
  },
  "evidence_capsule": {
-  "geospec_commit": "dde8f1b",
-  "git_blob_sha256": "68043f36a955f753fc9f432ddf7a06ca8b1f3e03d50708d95dfb6a05a3f26122",
-  "path": "docs/f2g_phase_b_power_cal_evidence.jsonl",
-  "rows": 4881
+  "geospec_commit": "06173301d9eeb6ce3a1e1c4d71867fe6a613eabc",
+  "git_blob_sha256": "a596f180b8c1812af27ff7e7a2cb536d0f388be9bed70aa89e1ed40bf6606bb1",
+  "path": "docs/fixtures/f2g_phase_b_power_cal_evidence_fixture.jsonl",
+  "purpose": "fixture",
+  "rows": 4891
  },
  "family": "B3A",
  "induced_effect_report": {
+  "edges_with_robust_fit": 66,
   "family": "B3A",
-  "note": "per-family induced-effect summaries ride the registered corner replicate"
+  "injected_cells_changed": 247,
+  "registered_replicate": {
+   "point": {
+    "delta_lat": 2.4,
+    "k": 50,
+    "n_cross": 8
+   },
+   "rep": 0
+  },
+  "robust_z_shift": {
+   "max": 7.211454689319488,
+   "mean": 2.676715583826751,
+   "median": 2.4624718071807155,
+   "min": 0.6289943056957327,
+   "n": 247,
+   "q25": 1.8843340046449488,
+   "q75": 3.2583187851422633
+  },
+  "units": "robust_z"
  },
  "panel_reopen_sample": [
   {
@@ -478,206 +499,6 @@
   },
   {
    "family": "B3A",
-   "panel_sha256": "20ff47717c7f700624a8708cc29b62968aca4f36382ca71c01e765cf5afdec7a",
-   "point": {
-    "delta_lat": 0.3,
-    "k": 10,
-    "n_cross": 8
-   },
-   "rep": 0
-  },
-  {
-   "family": "B3A",
-   "panel_sha256": "864407b46403ec25740acd8f23151840ba4c238262299a9d2632f670861887a0",
-   "point": {
-    "delta_lat": 0.3,
-    "k": 10,
-    "n_cross": 8
-   },
-   "rep": 1
-  },
-  {
-   "family": "B3A",
-   "panel_sha256": "4a30d5186cabbd3e9595e47f7769c7d2ea3d5f5a3b1d9f5057a60fd80bfdaee3",
-   "point": {
-    "delta_lat": 0.3,
-    "k": 10,
-    "n_cross": 8
-   },
-   "rep": 2
-  },
-  {
-   "family": "B3A",
-   "panel_sha256": "d15fbb664b048262f28f29274559195a49581141c247ae62b03fddbfb0465675",
-   "point": {
-    "delta_lat": 0.3,
-    "k": 10,
-    "n_cross": 8
-   },
-   "rep": 3
-  },
-  {
-   "family": "B3A",
-   "panel_sha256": "14b05f085b78c8a50237523a736d385f8ed3e362ee9d6ee1dee0e4ba2c025190",
-   "point": {
-    "delta_lat": 0.3,
-    "k": 10,
-    "n_cross": 8
-   },
-   "rep": 4
-  },
-  {
-   "family": "B3A",
-   "panel_sha256": "9d0a121a21e512e802847a6a8df90c891edad2eb9a20086864bf2daabd4e73d4",
-   "point": {
-    "delta_lat": 0.3,
-    "k": 10,
-    "n_cross": 8
-   },
-   "rep": 5
-  },
-  {
-   "family": "B3A",
-   "panel_sha256": "4b0c44198e07e9f12042d66ca9c9611b1a9627fb16b72845f4379643e2755bbe",
-   "point": {
-    "delta_lat": 0.3,
-    "k": 10,
-    "n_cross": 8
-   },
-   "rep": 6
-  },
-  {
-   "family": "B3A",
-   "panel_sha256": "a1acd010382330b6644d67576b909abb4e867501b84ec8748f88fde813ea3e38",
-   "point": {
-    "delta_lat": 0.3,
-    "k": 10,
-    "n_cross": 8
-   },
-   "rep": 7
-  },
-  {
-   "family": "B3A",
-   "panel_sha256": "3a0487bf64cb937fb65db32f64dc90e5161fc8e2926200d5a95b74c1d1e2ddc4",
-   "point": {
-    "delta_lat": 0.3,
-    "k": 10,
-    "n_cross": 8
-   },
-   "rep": 8
-  },
-  {
-   "family": "B3A",
-   "panel_sha256": "30e19b790035b13093efeafba6b3ee11bf8628f90f315d1233ecfd46de6f87bf",
-   "point": {
-    "delta_lat": 0.3,
-    "k": 10,
-    "n_cross": 8
-   },
-   "rep": 9
-  },
-  {
-   "family": "B3A",
-   "panel_sha256": "5b22736b1b566b508e21708e253328edcb1c299f51a3e7fe23c0b97ff7fdf813",
-   "point": {
-    "delta_lat": 0.3,
-    "k": 10,
-    "n_cross": 8
-   },
-   "rep": 10
-  },
-  {
-   "family": "B3A",
-   "panel_sha256": "147ceccdc7d6fdee1d24d3f4dc4b0b827c6de99fe4d6bdf5ac542a8602686c8d",
-   "point": {
-    "delta_lat": 0.3,
-    "k": 10,
-    "n_cross": 8
-   },
-   "rep": 11
-  },
-  {
-   "family": "B3A",
-   "panel_sha256": "d36a2725bc06aeb90ae20aa5fe096bbc39d74bb45d769afe2e48309539bdf43a",
-   "point": {
-    "delta_lat": 0.3,
-    "k": 10,
-    "n_cross": 8
-   },
-   "rep": 12
-  },
-  {
-   "family": "B3A",
-   "panel_sha256": "8574c91f60b1ae923be5c6f31e20e50254e4d34dd55eea4267a81e73f697df1e",
-   "point": {
-    "delta_lat": 0.3,
-    "k": 10,
-    "n_cross": 8
-   },
-   "rep": 13
-  },
-  {
-   "family": "B3A",
-   "panel_sha256": "62fc1d0e4c9daa4acf18a5dc0837344c00b2ce5101c856940941e793bc648b63",
-   "point": {
-    "delta_lat": 0.3,
-    "k": 10,
-    "n_cross": 8
-   },
-   "rep": 14
-  },
-  {
-   "family": "B3A",
-   "panel_sha256": "152f83a61aa83710d5a1072e229c0fd8059e26e89516e70a205dcf16c138a31e",
-   "point": {
-    "delta_lat": 0.3,
-    "k": 10,
-    "n_cross": 8
-   },
-   "rep": 15
-  },
-  {
-   "family": "B3A",
-   "panel_sha256": "a80566bdc6522a4ea07ee5ef6aceaac0a348e9360f4f0b7d3d0c97fe2aabfd9f",
-   "point": {
-    "delta_lat": 0.3,
-    "k": 10,
-    "n_cross": 8
-   },
-   "rep": 16
-  },
-  {
-   "family": "B3A",
-   "panel_sha256": "504acabf6f3cd8d04c149625d5feadfe09feddd34d89ab9bc9d83fae08367ae9",
-   "point": {
-    "delta_lat": 0.3,
-    "k": 10,
-    "n_cross": 8
-   },
-   "rep": 17
-  },
-  {
-   "family": "B3A",
-   "panel_sha256": "9c76b2722dbef93547713f9fec1c1c088b1001a646c474125ffd8882eb9edf01",
-   "point": {
-    "delta_lat": 0.3,
-    "k": 10,
-    "n_cross": 8
-   },
-   "rep": 18
-  },
-  {
-   "family": "B3A",
-   "panel_sha256": "e3ffce7713f4a3b2e979fd64eb0026fa6c681d1e9b072d70689c279d8765a11f",
-   "point": {
-    "delta_lat": 0.3,
-    "k": 10,
-    "n_cross": 8
-   },
-   "rep": 19
-  },
-  {
-   "family": "B3A",
    "panel_sha256": "dc6b5346479babf5da0c3d18c3bafbc52dcc6f044bcc95dacd18118cd4e15b5b",
    "point": {
     "delta_lat": 0.3,
@@ -875,6 +696,206 @@
     "n_cross": 3
    },
    "rep": 19
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "74dab2ca30e6c0f2ab31e02b1d4f484934a41cb2c4fab756bd4d030619f9483d",
+   "point": {
+    "delta_lat": 0.3,
+    "k": 50,
+    "n_cross": 3
+   },
+   "rep": 0
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "6352c8bf7768481295c245e64e3c50b5cd118674ab5f9fe2a562b01d6c36b1f4",
+   "point": {
+    "delta_lat": 0.3,
+    "k": 50,
+    "n_cross": 3
+   },
+   "rep": 1
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "bce201beb72851f07d36dc076cc5048ef7dc2ea54f46d3ec3da1fd8d1bb73c4e",
+   "point": {
+    "delta_lat": 0.3,
+    "k": 50,
+    "n_cross": 3
+   },
+   "rep": 2
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "d5fd5e61e5cec946d27dacec97e1b1869756f5f62adb3b849b3a4f7020788cea",
+   "point": {
+    "delta_lat": 0.3,
+    "k": 50,
+    "n_cross": 3
+   },
+   "rep": 3
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "4551aded26f9615af532bb8ee95a895a3683dde4f4320b7ce992b616aa434e90",
+   "point": {
+    "delta_lat": 0.3,
+    "k": 50,
+    "n_cross": 3
+   },
+   "rep": 4
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "07c4ba1b1c94aeb7be0f43806d688bad9698ac90db1706a18579e8664e9acc7a",
+   "point": {
+    "delta_lat": 0.3,
+    "k": 50,
+    "n_cross": 3
+   },
+   "rep": 5
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "dbdbade066cd5e2931391e7b432fa021812f16192a83d293aa9c8c519cb779ce",
+   "point": {
+    "delta_lat": 0.3,
+    "k": 50,
+    "n_cross": 3
+   },
+   "rep": 6
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "327a42e048ef8ff7b1235d7908e714afeccf9f9a490755524e4bdde044b8b6e9",
+   "point": {
+    "delta_lat": 0.3,
+    "k": 50,
+    "n_cross": 3
+   },
+   "rep": 7
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "10741d30a5eb030d1a21ca6ddb0837cc2cafc0bbdb2c228b4a734c75f9a7ef40",
+   "point": {
+    "delta_lat": 0.3,
+    "k": 50,
+    "n_cross": 3
+   },
+   "rep": 8
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "9aa6b87c772de33850b268b3c48499582499b1f6d2473ffa73969eaac40b524e",
+   "point": {
+    "delta_lat": 0.3,
+    "k": 50,
+    "n_cross": 3
+   },
+   "rep": 9
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "4e43894d0d0370f9761abdcbcfc9465e5e81ff34d5aa6027def7810addefc7e1",
+   "point": {
+    "delta_lat": 0.3,
+    "k": 50,
+    "n_cross": 3
+   },
+   "rep": 10
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "f174e4d58dd82a44ab166bdee90ec9134f2220455da6cf7d4c8c8c9aaab6fa89",
+   "point": {
+    "delta_lat": 0.3,
+    "k": 50,
+    "n_cross": 3
+   },
+   "rep": 11
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "8dd550b9db75c49eb9904d8f39635bb10c1b37abc37bf0a227f29df8616463ae",
+   "point": {
+    "delta_lat": 0.3,
+    "k": 50,
+    "n_cross": 3
+   },
+   "rep": 12
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "e891da88895d7b488861010fc0f9f2203aa2d6c7a3795793ed7adeb47b46f86d",
+   "point": {
+    "delta_lat": 0.3,
+    "k": 50,
+    "n_cross": 3
+   },
+   "rep": 13
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "994176cb977bd7309d7544d3939f264f2542428e3c423fa7a1802c937b1beb6f",
+   "point": {
+    "delta_lat": 0.3,
+    "k": 50,
+    "n_cross": 3
+   },
+   "rep": 14
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "d2dd4c5b1e8e3c2e27e5b55c9655003938b0a431ba0667d7d9e0728648794501",
+   "point": {
+    "delta_lat": 0.3,
+    "k": 50,
+    "n_cross": 3
+   },
+   "rep": 15
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "0f72a7f147e2c4709fb0dba13f1e4701f032656aab48d2a4c87ab6ba12957cf1",
+   "point": {
+    "delta_lat": 0.3,
+    "k": 50,
+    "n_cross": 3
+   },
+   "rep": 16
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "fffaafe5037fa5ba637f2387197cffcb8b3f069baa78d2c0a7bb0ee000159307",
+   "point": {
+    "delta_lat": 0.3,
+    "k": 50,
+    "n_cross": 3
+   },
+   "rep": 17
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "0fce26a81f710f03f9bdb29525a9740106deaa7aa5e8e54554d5ab56c88d1a09",
+   "point": {
+    "delta_lat": 0.3,
+    "k": 50,
+    "n_cross": 3
+   },
+   "rep": 18
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "fc47f5d876f61f2b2aaf3d0ab98e35e9dc291c7f00ba496c8efcf5b0e3ddf7d4",
+   "point": {
+    "delta_lat": 0.3,
+    "k": 50,
+    "n_cross": 3
+   },
+   "rep": 19
   }
  ],
  "pareto_lex_representative": null,
@@ -902,8 +923,8 @@
     "lb95": 0.0,
     "point": {
      "delta_lat": 0.3,
-     "k": 10,
-     "n_cross": 8
+     "k": 25,
+     "n_cross": 3
     },
     "post_loco": {
      "replicates": 20,
@@ -917,7 +938,7 @@
     "lb95": 0.0,
     "point": {
      "delta_lat": 0.3,
-     "k": 25,
+     "k": 50,
      "n_cross": 3
     },
     "post_loco": {
@@ -1174,6 +1195,26 @@
     "n": 50,
     "point": {
      "delta_lat": 0.3,
+     "k": 25,
+     "n_cross": 3
+    },
+    "post_loco_recovery": 0.0,
+    "pre_loco_recovery": 0.0
+   },
+   {
+    "n": 50,
+    "point": {
+     "delta_lat": 0.3,
+     "k": 50,
+     "n_cross": 3
+    },
+    "post_loco_recovery": 0.0,
+    "pre_loco_recovery": 0.0
+   },
+   {
+    "n": 50,
+    "point": {
+     "delta_lat": 0.3,
      "k": 10,
      "n_cross": 8
     },
@@ -1185,27 +1226,7 @@
     "point": {
      "delta_lat": 0.3,
      "k": 25,
-     "n_cross": 3
-    },
-    "post_loco_recovery": 0.0,
-    "pre_loco_recovery": 0.0
-   },
-   {
-    "n": 50,
-    "point": {
-     "delta_lat": 0.3,
-     "k": 25,
      "n_cross": 8
-    },
-    "post_loco_recovery": 0.0,
-    "pre_loco_recovery": 0.0
-   },
-   {
-    "n": 50,
-    "point": {
-     "delta_lat": 0.3,
-     "k": 50,
-     "n_cross": 3
     },
     "post_loco_recovery": 0.0,
     "pre_loco_recovery": 0.0
@@ -1234,8 +1255,8 @@
     "n": 50,
     "point": {
      "delta_lat": 0.6,
-     "k": 10,
-     "n_cross": 8
+     "k": 25,
+     "n_cross": 3
     },
     "post_loco_recovery": 0.0,
     "pre_loco_recovery": 0.0

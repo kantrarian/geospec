@@ -45,6 +45,16 @@ B1A_GRID = [{"delta_lat": d, "k": k, "n_e": n}
 B2A_GRID = [{"m": m} for m in (1, 2, 3)]
 B3A_GRID = [{"delta_lat": d, "n_cross": n, "k": k}
             for d in (0.3, 0.6, 1.2, 2.4) for n in (3, 8) for k in (10, 25, 50)]
+# registered per-family coordinate order (codex 5-fix recheck, finding 3):
+# ALL ranking tie-breaks, Pareto lex representatives, and selector orderings
+# use these explicit coordinate tuples -- never JSON key order.
+COORD_ORDER = {"B1A": ("delta_lat", "k", "n_e"), "B2A": ("m",),
+               "B3A": ("delta_lat", "n_cross", "k")}
+EVIDENCE_SCHEMA = "f2g-phase-b-power-cal-evidence-v1"
+
+
+def ckey(family, point):
+    return tuple(point[k] for k in COORD_ORDER[family])
 
 _AUTH = E._cal_bound_authority()
 assert ((E.CAL_POSITIONS, E.CAL_BASELINE_POSITIONS, E.CAL_EVAL_POSITIONS,
@@ -87,7 +97,11 @@ def eval_mask_days(ck):
     return [d for d in MASKS[ck] if CAL_POS[d] >= 72]
 
 
-def make_panel(family, point, r):
+def make_panel(family, point, r, inject=True):
+    """inject=False emits the SAME replicate with the family effect
+    suppressed (all rng draws still consumed in the registered order, so
+    every non-injected cell is byte-identical). Used only by the
+    induced-effect report; inject=True output is unchanged."""
     rng = np.random.Generator(np.random.PCG64(rep_seed(family, r)))
     G = rng.standard_normal(len(CAL))
     lat = {}
@@ -114,10 +128,11 @@ def make_panel(family, point, r):
             for st in sts[6:6 + m]:
                 swapped[st] = 0
             cut = days_.index(onset)
+            post = swapped if inject else block
             for j, e in enumerate(eds):
                 a, b = e.split("|")
                 u[j, :cut] += 0.9 if block[a] == block[b] else -0.5
-                u[j, cut:] += 0.9 if swapped[a] == swapped[b] else -0.5
+                u[j, cut:] += 0.9 if post[a] == post[b] else -0.5
         lat[ck] = {"u": u, "mcar": mcar, "edges": eds, "days": days_}
     if family in ("B1A", "B3A"):
         ck0 = CARRIERS[0]
@@ -140,9 +155,10 @@ def make_panel(family, point, r):
         inj_days = interval & set(MASKS[ck0])
         idx = {e: j for j, e in enumerate(lat[ck0]["edges"])}
         dpos = {d: j for j, d in enumerate(lat[ck0]["days"])}
-        for e in targets:
-            for d in inj_days:
-                lat[ck0]["u"][idx[e], dpos[d]] += d_
+        if inject:
+            for e in targets:
+                for d in inj_days:
+                    lat[ck0]["u"][idx[e], dpos[d]] += d_
     carriers = {}
     for ck in CARRIERS:
         L = lat[ck]
@@ -167,6 +183,62 @@ def panel_digest(panel):
     return hashlib.sha256(json.dumps(panel, sort_keys=True,
                                      separators=(",", ":"))
                           .encode("utf-8")).hexdigest()
+
+
+def corner_point(family):
+    """Registered corner = maximal grid point under the registered
+    coordinate order (COORD_ORDER)."""
+    return max(grid_of(family), key=lambda p: ckey(family, p))
+
+
+def induced_effect_report(family):
+    """Common-annex sec 1/sec 5 quantitative promise: the empirically
+    induced robust-z distribution of the injected cells, riding the
+    registered corner replicate (corner point, rep 0). Deterministic from
+    the attested driver alone: the injected panel is diffed against the
+    SAME replicate with the effect suppressed; per-edge robust fits come
+    from the effect-free baseline positions (identical in both panels)."""
+    p = corner_point(family)
+    p1 = make_panel(family, p, 0, inject=True)
+    p0 = make_panel(family, p, 0, inject=False)
+    ck0 = CARRIERS[0]
+    r1 = p1["carriers"][ck0]["r"]
+    r0 = p0["carriers"][ck0]["r"]
+    fits = {}
+    for e, row in r0.items():
+        base = [v for d, v in row.items() if CAL_POS[d] < 72]
+        if len(base) < E.TESTABLE_MIN_BASELINE:
+            continue
+        med = float(np.median(base))
+        mad = float(np.median(np.abs(np.asarray(base) - med)))
+        if mad > 0:
+            fits[e] = (med, mad)
+    n_changed = 0
+    shifts = []
+    for e, row1 in r1.items():
+        row0 = r0.get(e, {})
+        for d, v1 in row1.items():
+            v0 = row0.get(d)
+            if v0 is None or v1 == v0:
+                continue
+            n_changed += 1
+            if e in fits:
+                med, mad = fits[e]
+                shifts.append((v1 - v0) / (E.MAD_SCALE * mad))
+    dist = None
+    if shifts:
+        a = np.asarray(sorted(shifts))
+        dist = {"n": int(a.size), "mean": float(a.mean()),
+                "min": float(a.min()),
+                "q25": float(np.quantile(a, 0.25)),
+                "median": float(np.quantile(a, 0.50)),
+                "q75": float(np.quantile(a, 0.75)),
+                "max": float(a.max())}
+    return {"family": family, "units": "robust_z",
+            "registered_replicate": {"point": p, "rep": 0},
+            "injected_cells_changed": n_changed,
+            "edges_with_robust_fit": len(fits),
+            "robust_z_shift": dist}
 
 
 def all_stations():
@@ -380,15 +452,21 @@ def stage_s1(ckpt, done):
 
 
 def s_rank(done, family, stage, field):
+    """Rank by recovery desc; ties broken by the REGISTERED coordinate
+    order (finding 3). Flags are strict booleans: any non-bool refuses."""
     from collections import defaultdict
     agg = defaultdict(list)
     for row in done.values():
         if row.get("stage") == stage and row.get("family") == family:
-            agg[json.dumps(row["point"], sort_keys=True)].append(
-                bool(row[field]))
+            v = row[field]
+            if type(v) is not bool:
+                raise ValueError(f"EVIDENCE_ROW_TYPE: {row['key']} "
+                                 f"{field}={v!r} is not a strict boolean")
+            agg[json.dumps(row["point"], sort_keys=True)].append(v is True)
     ranked = sorted(agg.items(),
-                    key=lambda kv: (-sum(kv[1]) / len(kv[1]), kv[0]))
-    return [(json.loads(pk), sum(v) / len(v)) for pk, v in ranked]
+                    key=lambda kv: (-sum(kv[1]) / len(kv[1]),
+                                    ckey(family, json.loads(kv[0]))))
+    return [(json.loads(pj), sum(v) / len(v)) for pj, v in ranked]
 
 
 def stage_s2(ckpt, done):
@@ -412,6 +490,11 @@ def stage_c(ckpt, done):
     for family in ("B1A", "B2A", "B3A"):
         for point, _post in s_rank(done, family, "S2",
                                    "post")[:D0.TIER_C_CANDIDATES]:
+            kv = D0.key_of("Cv", family, point, 0)
+            if kv in done:
+                print(f"[C] {family} {point} verdict already recorded -- "
+                      "skipping (idempotent)", flush=True)
+                continue
             n_run = successes = 0
             verdict = None
             for r in range(40):
@@ -440,7 +523,7 @@ def stage_c(ckpt, done):
                                if D0.cp_lower(successes, 40) >= 0.80 else
                                ("FAILED" if D0.cp_upper(successes, 40) < 0.80
                                 else "CANNOT_DETERMINE_POWER_ESTIMATE"))
-            D0.emit(ckpt, {"key": D0.key_of("Cv", family, point, 0),
+            D0.emit(ckpt, {"key": kv,
                            "stage": "Cverdict", "family": family,
                            "point": point, "n": n_run,
                            "successes": successes,
@@ -457,14 +540,39 @@ def main():
     ap.add_argument("--stages", default="gate,S1,S2,C")
     args = ap.parse_args()
     stages = args.stages.split(",")
-    if "gate" in stages:
-        gate = equivalence_gate()
-        print(f"[gate] {json.dumps(gate)}", flush=True)
-        if not gate["all_equal"]:
-            print("EQUIVALENCE GATE FAILED -- no tables admissible; direct "
-                  "engine fallback required", flush=True)
+    # finding 5: the checkpoint binds its purpose. A fresh checkpoint gets a
+    # production header; an existing checkpoint whose header is absent or
+    # non-production (e.g. the tracked FIXTURE capsule) is REFUSED -- fixture
+    # keys must never be treated as completed production work.
+    done = D0.load_done(args.ckpt)
+    if done:
+        hdr = done.get("header")
+        if (not hdr or hdr.get("stage") != "header"
+                or hdr.get("purpose") != "production"):
+            print("CHECKPOINT_PURPOSE_MISMATCH: existing checkpoint lacks a "
+                  "production purpose header (fixture or legacy capsule) -- "
+                  "refusing to resume", flush=True)
             sys.exit(2)
-        D0.emit(args.ckpt, {"key": "gateCal", "stage": "gate", **gate})
+    else:
+        D0.emit(args.ckpt, {"key": "header", "stage": "header",
+                            "purpose": "production",
+                            "schema": EVIDENCE_SCHEMA,
+                            "calendar_authority_sha256":
+                                E.CAL_AUTHORITY_SHA256,
+                            "amendment2_sha256": AMENDMENT2_SHA})
+        done = D0.load_done(args.ckpt)
+    if "gate" in stages:
+        if "gateCal" in done:
+            print("[gate] already recorded -- skipping (idempotent)",
+                  flush=True)
+        else:
+            gate = equivalence_gate()
+            print(f"[gate] {json.dumps(gate)}", flush=True)
+            if not gate["all_equal"]:
+                print("EQUIVALENCE GATE FAILED -- no tables admissible; "
+                      "direct engine fallback required", flush=True)
+                sys.exit(2)
+            D0.emit(args.ckpt, {"key": "gateCal", "stage": "gate", **gate})
     done = D0.load_done(args.ckpt)
     if "S1" in stages:
         stage_s1(args.ckpt, done)

@@ -164,7 +164,9 @@ PINNED CALENDAR SEAMS (cayley's engine amendment implements BAR-UNEDITED):
     canonical blob sha 3aaaec58...) -- ANY deviation refuses typed
     CALENDAR_AUTHORITY_MISMATCH / CARRIER_MASK_MISMATCH; values on days
     outside a carrier's mask refuse UNTYPED_ABSENCE. mode "fixture":
-    explicit disclosed geometry for fixtures/power panels (never sealable).
+    UNIT FIXTURES ONLY -- never admissible as a power-estimation input
+    (codex 0131Z lock; every generated power panel is bound-mode and the
+    power-result verifier refuses non-bound typed POWER_GEOMETRY_UNBOUND).
   b1a_family_cal(panel, *, doc_sha256, n_draws=N_DRAWS, power_contract=...,
                  return_null=False, exhaustive=False) -> result
       132 positions; baseline = calendar positions 1-72, eval = 73-132;
@@ -912,6 +914,7 @@ _C_NAMES = (
     "C5 sec-B3 permanent negatives (6 classes)",
     "C6 B1A compression negative (calendar vs present-day windows)",
     "C7 Amendment-2 seed-root vectors (fresh root)",
+    "C8 power-geometry lock at the generator/verifier seam",
 )
 
 
@@ -1124,6 +1127,86 @@ def amendment3(have_engine, have_cal):
                   f"engine={r6r.get('T_obs')}")
         except Exception as exc:
             check(_C_NAMES[5], False, f"{type(exc).__name__}: {exc}")
+
+    # C8 power-geometry lock at the ACTUAL generator/verifier seam
+    # (codex 0131Z repair 4): exact bound synthetic panel passes; fixture-mode
+    # / mutated geometry refuses at the admissible-power surface --------------
+    _cwd = os.getcwd()
+    try:
+        os.chdir(_REPO)      # the driver resolves git blobs relative to cwd
+        import f2g_phase_b_power_estimation_cal_cayley as PD
+        have_pd = True
+    except ImportError:
+        have_pd = False
+    finally:
+        os.chdir(_cwd)
+    if not have_pd or auth is None or not have_cal:
+        check(_C_NAMES[7], False,
+              "POWER_DRIVER_ABSENT or prerequisites unavailable")
+    else:
+        try:
+            os.chdir(_REPO)
+            pt8 = PD.grid_of("B1A")[0]
+            p8 = PD.make_panel("B1A", pt8, 0)
+            cal8 = auth["shared_calendar_days"]
+            ok_gen = (p8.get("calendar_authority_mode") == "bound"
+                      and p8.get("shared_calendar_days") == cal8
+                      and set(p8["carriers"]) == set(auth["carrier_masks"]))
+            for c, cc in p8["carriers"].items():
+                mask = sorted(auth["carrier_masks"][c]["registered_days"])
+                if sorted(cc["registered_days"]) != mask:
+                    ok_gen = False
+                for series in cc["r"].values():
+                    if not set(series).issubset(set(mask)):
+                        ok_gen = False
+            r8 = E.b1a_family_cal(p8, doc_sha256=AMENDMENT2_SHA, n_draws=9,
+                                  power_contract={"certified": True})
+            ok_accept = r8.get("p_value") is not None or \
+                "CANNOT_DETERMINE" in str(r8.get("verdict"))
+            ok_digest = PD.panel_digest(p8) == PD.panel_digest(
+                PD.make_panel("B1A", pt8, 0)) \
+                and PD.panel_digest(p8) != PD.panel_digest(
+                    PD.make_panel("B1A", pt8, 1))
+            # verifier half: the CALENDAR-LANE results verifier (pinned name,
+            # R1.2 lane open; the a-lane verifier is NOT this seam and is
+            # additionally host-locked to REPO="C:/geospec" -- finding routed).
+            # Doctored geometry echoes must refuse typed; the verifier must
+            # accept a repo path argument (portable, never hardcoded).
+            try:
+                import f2g_phase_b_power_cal_results_verifier_cayley as PV
+                have_pv = True
+            except ImportError:
+                have_pv = False
+            if not have_pv:
+                ok_ver = False
+                det_ver = "CAL_VERIFIER_ABSENT (expected red until the " \
+                          "calendar-lane verifier lands, portable repo arg)"
+            else:
+                def v_refuses(res):
+                    try:
+                        ok, reasons = PV.verify(res, repo=_REPO,
+                                                check_files=False)
+                        return (not ok) and any(
+                            "POWER_GEOMETRY_UNBOUND" in str(x)
+                            for x in reasons)
+                    except Exception as exc:
+                        return "POWER_GEOMETRY_UNBOUND" in str(exc)
+                base_echo = {"family": "B1A",
+                             "calendar_authority_mode": "bound",
+                             "calendar_authority_sha256": CAL_AUTHORITY[2]}
+                bad1 = dict(base_echo, calendar_authority_mode="fixture")
+                bad2 = {k: v for k, v in base_echo.items()
+                        if k != "calendar_authority_mode"}
+                bad3 = dict(base_echo, calendar_authority_sha256="ab" * 32)
+                ok_ver = all(v_refuses(b) for b in (bad1, bad2, bad3))
+                det_ver = f"verifier_refuses={ok_ver}"
+            check(_C_NAMES[7], ok_gen and ok_accept and ok_digest and ok_ver,
+                  f"gen_bound={ok_gen} engine_accepts={ok_accept} "
+                  f"digest_det={ok_digest} {det_ver}")
+        except Exception as exc:
+            check(_C_NAMES[7], False, f"{type(exc).__name__}: {exc}")
+        finally:
+            os.chdir(_cwd)
 
     # C7 fresh seed-root vectors (runs with the admitted seam) ---------------
     if not have_engine:

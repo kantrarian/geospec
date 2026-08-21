@@ -76,6 +76,21 @@ def _load_pinned_driver(repo):
     return PD
 
 
+def _scan_stage_c(ev_rows, fam, expected, reasons):
+    """Collect Stage-C evidence keys; a DUPLICATE (family, canonical point,
+    rep) key refuses typed and never silently overwrites (codex 0244Z)."""
+    ev_c_seen = set()
+    for row in ev_rows:
+        if row.get("stage") == "C" and row.get("family") == fam:
+            ck = (fam, json.dumps(row["point"], sort_keys=True),
+                  row["rep"])
+            if ck in ev_c_seen:
+                reasons.append(f"duplicate Stage-C evidence key: {ck}")
+                continue
+            ev_c_seen.add(ck)
+            expected[ck] = row.get("panel_sha256")
+
+
 def verify(res, repo, check_files=True):
     reasons = []
     # ---- geometry lock (always) ----
@@ -137,10 +152,7 @@ def verify(res, repo, check_files=True):
         if fam in GRID_SIZES:
             for pt in PD.grid_of(fam):
                 expected[(fam, json.dumps(pt, sort_keys=True), 0)] = None
-        for row in ev_rows:
-            if row.get("stage") == "C" and row.get("family") == fam:
-                expected[(fam, json.dumps(row["point"], sort_keys=True),
-                          row["rep"])] = row.get("panel_sha256")
+        _scan_stage_c(ev_rows, fam, expected, reasons)
         seen = set()
         for row in sample:
             key = (row.get("family"), json.dumps(row.get("point"),
@@ -178,30 +190,42 @@ def verify(res, repo, check_files=True):
         t = res.get(tier) or {}
         if t.get("label") != lbl or t.get("n_draws") != nd:
             reasons.append(f"{tier} label/draws wrong")
+    # codex 0244Z repair: exact canonical-key MULTISETS at every tier -- a
+    # duplicate point can never displace a registered grid member
+    from collections import Counter
+
+    def pkeys(rows):
+        return [json.dumps(x.get("point"), sort_keys=True,
+                           separators=(",", ":")) for x in rows]
+
     s1t = (res.get("tier_s1") or {}).get("table") or []
-    if fam in GRID_SIZES and len(s1t) != GRID_SIZES[fam]:
-        reasons.append(f"tier_s1 cardinality {len(s1t)} != "
-                       f"{GRID_SIZES[fam]}")
     s2t = (res.get("tier_s2") or {}).get("table") or []
-    if s1t and s2t:
+    cands = (res.get("tier_c") or {}).get("candidates") or []
+    grid_keys = []
+    if fam in GRID_SIZES:
+        try:
+            PD2 = _load_pinned_driver(repo)
+            grid_keys = [json.dumps(p, sort_keys=True,
+                                    separators=(",", ":"))
+                         for p in PD2.grid_of(fam)]
+        except Exception as exc:
+            reasons.append(f"registered grid unreadable: {exc}")
+    if grid_keys and Counter(pkeys(s1t)) != Counter(grid_keys):
+        reasons.append("tier_s1 is not exactly the registered grid")
+    if s1t:
         rank1 = sorted(s1t, key=lambda x: (-x.get("pre_loco_recovery", 0),
                                            json.dumps(x.get("point"),
                                                       sort_keys=True)))
-        want_s2 = {json.dumps(x["point"], sort_keys=True)
-                   for x in rank1[:min(8, len(rank1))]}
-        got_s2 = {json.dumps(x["point"], sort_keys=True) for x in s2t}
-        if got_s2 != want_s2:
-            reasons.append("tier_s2 selection not the registered top-8")
-    cands = (res.get("tier_c") or {}).get("candidates") or []
-    if s2t and cands:
+        want_s2_list = pkeys(rank1[:min(8, len(grid_keys) or len(rank1))])
+        if Counter(pkeys(s2t)) != Counter(want_s2_list):
+            reasons.append("tier_s2 is not exactly the registered top-8")
+    if s2t:
         rank2 = sorted(s2t, key=lambda x: (-x.get("post_loco_recovery", 0),
                                            json.dumps(x.get("point"),
                                                       sort_keys=True)))
-        want_c = {json.dumps(x["point"], sort_keys=True)
-                  for x in rank2[:min(3, len(rank2))]}
-        got_c = {json.dumps(x["point"], sort_keys=True) for x in cands}
-        if got_c != want_c:
-            reasons.append("tier_c candidates not the registered top-3")
+        want_c_list = pkeys(rank2[:min(3, len(s2t))])
+        if Counter(pkeys(cands)) != Counter(want_c_list):
+            reasons.append("tier_c is not exactly the registered top-3")
     if not cands:
         reasons.append("tier_c candidates empty")
     import f2g_phase_b_power_estimation_cayley as D0
@@ -257,12 +281,48 @@ def self_test(repo):
                         if k not in ("admitted_bar_lf_sha256",
                                      "driver_lf_sha256")}
     negatives["missing-bar-driver-pin"] = nopin
+    # sixth permanent negative (codex 0244Z): B2A tier-membership collapse --
+    # duplicate {m:1} displacing {m:3} must refuse via exact multisets
+    member = dict(full)
+    member["family"] = "B2A"
+    member["tier_s1"] = {"label": "PRELIMINARY_SMOKE", "n_draws": 999,
+                         "table": [
+                             {"point": {"m": 1}, "pre_loco_recovery": 1.0},
+                             {"point": {"m": 1}, "pre_loco_recovery": 1.0},
+                             {"point": {"m": 2}, "pre_loco_recovery": 1.0}]}
+    member["tier_s2"] = {"label": "PRELIMINARY_SMOKE", "n_draws": 999,
+                         "table": [
+                             {"point": {"m": 1}, "post_loco_recovery": 1.0},
+                             {"point": {"m": 2}, "post_loco_recovery": 1.0}]}
+    member["tier_c"] = {"label": "CERTIFICATION", "n_draws": 9999,
+                        "candidates": [
+                            {"point": {"m": 1},
+                             "post_loco": {"successes": 20,
+                                           "replicates": 20},
+                             "lb95": 0.0, "ub95": 1.0}]}
+    negatives["tier-membership-collapse"] = member
     results = {}
     ok_all = True
     for name, res in negatives.items():
         ok, reasons = verify(res, repo=repo, check_files=True)
-        results[name] = "REFUSED" if not ok else "ACCEPTED -- DEFECT"
-        ok_all = ok_all and not ok
+        refused = not ok
+        if name == "tier-membership-collapse":
+            refused = refused and any("registered grid" in str(x)
+                                      or "top-8" in str(x)
+                                      or "top-3" in str(x) for x in reasons)
+        results[name] = "REFUSED" if refused else "ACCEPTED -- DEFECT"
+        ok_all = ok_all and refused
+    # seventh permanent negative: duplicate Stage-C evidence key (unit seam)
+    dup_reasons = []
+    _scan_stage_c([{"stage": "C", "family": "B2A", "point": {"m": 1},
+                    "rep": 0, "panel_sha256": "aa"},
+                   {"stage": "C", "family": "B2A", "point": {"m": 1},
+                    "rep": 0, "panel_sha256": "bb"}],
+                  "B2A", {}, dup_reasons)
+    dup_ok = any("duplicate Stage-C" in str(x) for x in dup_reasons)
+    results["duplicate-stage-c-evidence"] = ("REFUSED" if dup_ok
+                                             else "ACCEPTED -- DEFECT")
+    ok_all = ok_all and dup_ok
     return ok_all, results
 
 

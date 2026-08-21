@@ -47,6 +47,9 @@ B3A_GRID = [{"delta_lat": d, "n_cross": n, "k": k}
             for d in (0.3, 0.6, 1.2, 2.4) for n in (3, 8) for k in (10, 25, 50)]
 
 _AUTH = E._cal_bound_authority()
+assert ((E.CAL_POSITIONS, E.CAL_BASELINE_POSITIONS, E.CAL_EVAL_POSITIONS,
+         E.B1A_CAL_BLOCK_LEN, E.B1A_CAL_BLOCKS) == (132, 72, 60, 12, 11)
+        ), "CAL_CONSTANTS_DRIFT"
 CAL = list(_AUTH["shared_calendar_days"])
 CAL_POS = {d: i for i, d in enumerate(CAL)}
 CARRIERS = sorted(_AUTH["carrier_masks"])
@@ -103,7 +106,7 @@ def make_panel(family, point, r):
             u[j] = D0.MU0 + GAMMA * gvec + s[six[a]] + s[six[b]] + eps[j]
         if family == "B2A" and ck == CARRIERS[0]:
             m = point["m"]
-            onset = next(d for d in days_ if CAL_POS[d] >= 96)
+            onset = next(d for d in days_ if CAL_POS[d] >= 102)  # calendar position 103, 1-based
             block = {st: (0 if i < 6 else 1) for i, st in enumerate(sts)}
             swapped = dict(block)
             for st in sts[6 - m:6]:
@@ -126,10 +129,15 @@ def make_panel(family, point, r):
             seg = segments_of(ck0)
             targets = [e for e in lat[ck0]["edges"]
                        if seg[e.split("|")[0]] != seg[e.split("|")[1]]][:n_e]
-        emd = eval_mask_days(ck0)
-        max_start = len(emd) - k
-        start = 0 if max_start <= 0 else int(rng.integers(0, max_start + 1))
-        inj_days = set(emd[start:start + k])
+        # codex 0138Z fix 1: seeded length-k interval of consecutive TARGET
+        # CALENDAR POSITIONS wholly within 73-132 (0-based 72..131); inject
+        # ONLY at positions present in the carrier's frozen mask; absences
+        # stay absent. k=50 = calendar duration, not present observations.
+        max_start = 60 - k
+        start = 72 + (0 if max_start <= 0
+                      else int(rng.integers(0, max_start + 1)))
+        interval = set(CAL[start:start + k])
+        inj_days = interval & set(MASKS[ck0])
         idx = {e: j for j, e in enumerate(lat[ck0]["edges"])}
         dpos = {d: j for j, d in enumerate(lat[ck0]["days"])}
         for e in targets:

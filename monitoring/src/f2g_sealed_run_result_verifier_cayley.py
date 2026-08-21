@@ -55,6 +55,42 @@ RESULT_KEYS = {"schema", "generated_utc", "seal", "run_uuid",
                "codex_instrument_pass", "input_manifest", "sources",
                "checkpoint", "env", "panel_sha256", "n_draws", "alpha",
                "families", "typing_note", "non_claims"}
+# codex 1521 lease-receipt closure (convergence option A): the packaged
+# reservation must BE the winning remote receipt, independently verifiable
+RESERVATION_KEYS = {"schema", "run_uuid", "auth_sha256",
+                    "manifest_sha256", "driver_sha256",
+                    "instrument_sha256", "verifier_sha256",
+                    "engine_sha256", "lease_ref", "lease_commit",
+                    "ckpt_path", "created_utc"}
+RESERVATION_SCHEMA = "f2g-sealed-run-reservation-v2"
+LEASE_REF = "refs/f2g/fire-lease"
+LEASE_PAYLOAD_KEYS = {"schema", "run_uuid", "auth_sha256", "host",
+                      "created_utc"}
+LEASE_PAYLOAD_SCHEMA = "f2g-fire-lease-v1"
+
+
+def _verify_lease_receipt(resv, result, remote_sha, payload):
+    """Pure receipt check (unit-KATable): the remote ref must equal the
+    reservation's lease commit and the lease payload must bind this run.
+    Returns None on pass, else a typed reason."""
+    if remote_sha is None or remote_sha != resv.get("lease_commit"):
+        return ("LEASE_RECEIPT: remote fire-lease ref is not the "
+                "reservation's lease commit")
+    if not isinstance(payload, dict) or \
+            set(payload) != LEASE_PAYLOAD_KEYS:
+        return "LEASE_RECEIPT: lease payload keyset"
+    if payload["schema"] != LEASE_PAYLOAD_SCHEMA:
+        return "LEASE_RECEIPT: lease payload schema"
+    if payload["run_uuid"] != result.get("run_uuid"):
+        return "LEASE_RECEIPT: lease payload run_uuid mismatch"
+    if payload["auth_sha256"] != \
+            result.get("fire_authorization_sha256"):
+        return "LEASE_RECEIPT: lease payload auth mismatch"
+    if not (isinstance(payload["host"], str) and payload["host"]) or \
+            not (isinstance(payload["created_utc"], str)
+                 and payload["created_utc"]):
+        return "LEASE_RECEIPT: lease payload host/UTC malformed"
+    return None
 SOURCES_KEYS = {"driver_sha256", "instrument_sha256", "verifier_sha256",
                 "engine_sha256"}
 STAGE_FIELDS = {
@@ -183,21 +219,49 @@ def verify(repo, result, ckpt_path, expected_draws=9999, bind_git=True,
             reasons.append(f"CAPSULE: family {fam} keyset")
             return False, reasons
     resv = result["reservation"]
-    if not isinstance(resv, dict) or \
-            resv.get("run_uuid") != result["run_uuid"] or \
-            resv.get("auth_sha256") != \
+    if not isinstance(resv, dict) or set(resv) != RESERVATION_KEYS:
+        reasons.append("CAPSULE: reservation keyset not exactly the "
+                       "driver's v2 keyset")
+        return False, reasons
+    if resv["schema"] != RESERVATION_SCHEMA or \
+            resv["lease_ref"] != LEASE_REF or \
+            not (isinstance(resv["created_utc"], str)
+                 and resv["created_utc"]) or \
+            resv["run_uuid"] != result["run_uuid"] or \
+            resv["auth_sha256"] != \
             result["fire_authorization_sha256"] or \
-            resv.get("manifest_sha256") != \
+            resv["manifest_sha256"] != \
             result["input_manifest"].get("sha256") or \
-            resv.get("driver_sha256") != \
+            resv["driver_sha256"] != \
             result["sources"].get("driver_sha256") or \
-            resv.get("instrument_sha256") != \
+            resv["instrument_sha256"] != \
             result["sources"].get("instrument_sha256") or \
-            resv.get("verifier_sha256") != \
+            resv["verifier_sha256"] != \
             result["sources"].get("verifier_sha256") or \
-            resv.get("ckpt_path") != result["checkpoint"].get("path"):
+            resv["engine_sha256"] != \
+            result["sources"].get("engine_sha256") or \
+            resv["ckpt_path"] != result["checkpoint"].get("path"):
         reasons.append("CAPSULE: reservation does not bind the result's "
-                       "authorities")
+                       "authorities (schema/ref/engine/UTC closed)")
+    if bind_git:
+        # the packaged reservation must BE the winning remote receipt
+        try:
+            out = subprocess.check_output(
+                ["git", "ls-remote", "origin", LEASE_REF],
+                cwd=repo).decode().strip()
+            remote_sha = out.split()[0] if out else None
+            payload = None
+            if remote_sha:
+                subprocess.run(["git", "fetch", "-q", "origin",
+                                LEASE_REF], cwd=repo,
+                               capture_output=True)
+                pb = _blob(repo, f"{remote_sha}:lease.json")
+                payload = json.loads(pb) if pb else None
+            bad = _verify_lease_receipt(resv, result, remote_sha, payload)
+            if bad:
+                reasons.append(bad)
+        except Exception as exc:
+            reasons.append(f"LEASE_RECEIPT: remote unverifiable ({exc})")
     if result["n_draws"] != expected_draws:
         reasons.append(f"WRONG_DRAWS: {result['n_draws']} != "
                        f"{expected_draws}")
@@ -434,7 +498,7 @@ def _fixture_run(repo, scratch, tree_maker, tag, draws):
                            "instrument_sha256": ins_sha,
                            "verifier_sha256": ver_sha,
                            "engine_sha256": eng_sha,
-                           "lease_ref": "refs/f2g/kat",
+                           "lease_ref": LEASE_REF,
                            "lease_commit": "l" * 40,
                            "ckpt_path": CANONICAL_CKPT,
                            "created_utc": "KAT"},
@@ -525,6 +589,46 @@ def self_test(repo, scratch):
     ok, r = dv(mut_res=lambda x: x["reservation"].update(
         run_uuid="0" * 32))
     ok_all &= rec("reservation-mutation", ok, r, "CAPSULE: reservation")
+    # codex 1521 exact reproduction: forged lease_ref + extra field
+    ok, r = dv(mut_res=lambda x: x["reservation"].update(
+        lease_ref="refs/f2g/forged", unexpected="accepted-extra-field"))
+    ok_all &= rec("lease-ref-and-extra-reservation-field", ok, r,
+                  "CAPSULE: reservation keyset")
+    ok, r = dv(mut_res=lambda x: x["reservation"].update(
+        lease_ref="refs/f2g/forged"))
+    ok_all &= rec("wrong-lease-ref", ok, r, "CAPSULE: reservation")
+    ok, r = dv(mut_res=lambda x: x["reservation"].update(
+        schema="f2g-sealed-run-reservation-v1"))
+    ok_all &= rec("reservation-schema-downgrade", ok, r,
+                  "CAPSULE: reservation")
+    # lease-receipt UNIT refusals (the bind_git remote surface, pure fn)
+    good_payload = {"schema": LEASE_PAYLOAD_SCHEMA,
+                    "run_uuid": res["run_uuid"],
+                    "auth_sha256": res["fire_authorization_sha256"],
+                    "host": "kat-host", "created_utc": "2026-01-01T00:00:00Z"}
+    unit = [
+        ("lease-remote-missing", None, dict(good_payload)),
+        ("lease-remote-wrong-commit", "0" * 40, dict(good_payload)),
+        ("lease-payload-extra-key",
+         res["reservation"]["lease_commit"],
+         dict(good_payload, extra=1)),
+        ("lease-payload-wrong-run",
+         res["reservation"]["lease_commit"],
+         dict(good_payload, run_uuid="0" * 32)),
+        ("lease-payload-wrong-auth",
+         res["reservation"]["lease_commit"],
+         dict(good_payload, auth_sha256="0" * 64)),
+    ]
+    for name, rsha, pay in unit:
+        bad = _verify_lease_receipt(res["reservation"], res, rsha, pay)
+        refused = bad is not None and "LEASE_RECEIPT" in bad
+        results[name] = (f"REFUSED ({bad})" if refused
+                         else "DEFECT -- ACCEPTED")
+        ok_all &= refused
+    assert _verify_lease_receipt(res["reservation"], res,
+                                 res["reservation"]["lease_commit"],
+                                 good_payload) is None
+    results["lease-receipt-positive"] = "PASS (unit)"
     # R3 attestation
     ok, r = dv(mut_res=lambda x: x["sources"].update(
         verifier_sha256="0" * 64))

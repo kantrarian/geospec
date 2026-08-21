@@ -201,6 +201,11 @@ def build_panel(repo, snapshots_dir, allow_real=False):
     cal, masks = load_calendar(repo)
     reg = load_registry(repo)
     carriers = {}
+    campaign = None
+    algorithm = None
+    EDGE_FIELDS = {"type", "campaign_id", "carrier_key", "day",
+                   "algorithm_id", "station_index_digest", "station_a",
+                   "station_b", "r", "unit", "n_overlap"}
     for ck in CARRIERS:
         stations = set(reg[ck]["stations"])
         r = {}
@@ -210,17 +215,58 @@ def build_panel(repo, snapshots_dir, allow_real=False):
                 raise RuntimeError(f"MISSING_REGISTERED_SNAPSHOT: "
                                    f"{ck}/{day}")
             snap = json.loads(open(p, encoding="utf-8").read())
-            if snap.get("kind") != "daily_snapshot" or \
+            # full build_snapshot frame contract (codex pre-fire fix 4)
+            if snap.get("schema") != "f2g-graph-v1" or \
+                    snap.get("kind") != "daily_snapshot" or \
                     snap.get("carrier_key") != ck or \
                     snap.get("day") != day:
                 raise RuntimeError(f"SNAPSHOT_FIELD_MISMATCH: {ck}/{day}")
+            if campaign is None:
+                campaign = snap.get("campaign_id")
+            if not campaign or snap.get("campaign_id") != campaign:
+                raise RuntimeError(f"CAMPAIGN_MIX: {ck}/{day}")
+            idx = snap.get("station_index_digest")
+            if not isinstance(idx, str) or not idx:
+                raise RuntimeError(f"INDEX_DIGEST_MISSING: {ck}/{day}")
+            states = snap.get("station_states")
+            if not isinstance(states, dict) or \
+                    set(states) != stations:
+                raise RuntimeError(f"STATE_KEYS_MISMATCH: {ck}/{day} "
+                                   "station_states keys != the selected "
+                                   "registry")
+            for sid, sv in states.items():
+                if not (sv == "MEASURED" or sv == "NO_BOUND_OBJECT"
+                        or (isinstance(sv, str) and ":" in sv)):
+                    raise RuntimeError(f"STATE_VOCAB: {ck}/{day} {sid} "
+                                       f"state {sv!r}")
             seen = set()
             for e in snap.get("coheres_with", []):
+                if set(e) != EDGE_FIELDS:
+                    raise RuntimeError(f"EDGE_FIELD_SET: {ck}/{day} "
+                                       f"{sorted(set(e) ^ EDGE_FIELDS)}")
+                if e["type"] != "coheres_with" or \
+                        e["campaign_id"] != campaign or \
+                        e["carrier_key"] != ck or e["day"] != day:
+                    raise RuntimeError(f"EDGE_FRAME_MISMATCH: {ck}/{day}")
+                if e["station_index_digest"] != idx:
+                    raise RuntimeError(f"INDEX_MIX: {ck}/{day} "
+                                       f"{e['station_a']}|{e['station_b']}")
+                if algorithm is None:
+                    algorithm = e["algorithm_id"]
+                if not algorithm or e["algorithm_id"] != algorithm:
+                    raise RuntimeError(f"ALGORITHM_MIX: {ck}/{day}")
+                if e["unit"] != 1:
+                    raise RuntimeError(f"UNIT_MISMATCH: {ck}/{day}")
+                if type(e["n_overlap"]) is not int or e["n_overlap"] <= 0:
+                    raise RuntimeError(f"SUPPORT_MISSING: {ck}/{day}")
                 a, b = e["station_a"], e["station_b"]
                 if a >= b:
                     raise RuntimeError(f"PAIR_ORDER: {ck}/{day} {a}|{b}")
                 if a not in stations or b not in stations:
                     raise RuntimeError(f"UNSELECTED_STATION_EDGE: "
+                                       f"{ck}/{day} {a}|{b}")
+                if states[a] != "MEASURED" or states[b] != "MEASURED":
+                    raise RuntimeError(f"EDGE_FOR_UNMEASURED_STATION: "
                                        f"{ck}/{day} {a}|{b}")
                 if (a, b) in seen:
                     raise RuntimeError(f"DUPLICATE_PAIR: {ck}/{day} "
@@ -287,22 +333,30 @@ def _hval(*parts):
 
 
 def make_synthetic_tree(repo, root):
+    """Genuine build_snapshot-shaped capsule (codex pre-fire fix 4): real
+    schema/kind strings, one campaign, one algorithm, a deterministic
+    per-carrier station-index digest, station_states over EXACTLY the
+    selected registry (all MEASURED), full edge field sets."""
     cal, masks = load_calendar(repo)
     reg = load_registry(repo)
     for ck in CARRIERS:
         os.makedirs(os.path.join(root, ck), exist_ok=True)
         sts = sorted(reg[ck]["stations"])
+        idx = hashlib.sha256(("kat-index|" + "|".join(sts))
+                             .encode()).hexdigest()
         pairs = [(a, b) for i, a in enumerate(sts) for b in sts[i + 1:]]
         for day in masks[ck]:
-            rows = [{"type": "coheres_with", "campaign_id": "kat",
-                     "carrier_key": ck, "day": day, "algorithm_id": "kat",
-                     "station_index_digest": "kat0", "station_a": a,
+            rows = [{"type": "coheres_with", "campaign_id": "kat-campaign",
+                     "carrier_key": ck, "day": day,
+                     "algorithm_id": "kat-alg",
+                     "station_index_digest": idx, "station_a": a,
                      "station_b": b, "r": _hval(ck, day, a, b),
                      "unit": 1, "n_overlap": 100}
                     for a, b in pairs]
-            snap = {"schema": "kat", "kind": "daily_snapshot",
-                    "campaign_id": "kat", "carrier_key": ck, "day": day,
-                    "station_index_digest": "kat0", "station_states": {},
+            snap = {"schema": "f2g-graph-v1", "kind": "daily_snapshot",
+                    "campaign_id": "kat-campaign", "carrier_key": ck,
+                    "day": day, "station_index_digest": idx,
+                    "station_states": {s: "MEASURED" for s in sts},
                     "coheres_with": rows}
             with open(os.path.join(root, ck, f"{day}.json"), "w",
                       encoding="utf-8", newline="\n") as f:
@@ -369,8 +423,8 @@ def run_kats(repo, scratch):
         shutil.copy(os.path.join(root, ck0, f"{d0}.json"),
                     os.path.join(root, ck0, f"{absent}.json"))
 
-    def _rewrite(root, fn):
-        p = os.path.join(root, ck0, f"{d0}.json")
+    def _rewrite(root, fn, day=None):
+        p = os.path.join(root, ck0, f"{day or d0}.json")
         s = json.loads(open(p, encoding="utf-8").read())
         fn(s)
         json.dump(s, open(p, "w", encoding="utf-8", newline="\n"))
@@ -390,6 +444,54 @@ def run_kats(repo, scratch):
     doctor("day-field-mismatch", lambda r: _rewrite(
         r, lambda s: s.update(day="1999-01-01")),
         "SNAPSHOT_FIELD_MISMATCH")
+    # codex pre-fire fix 4: full frame-contract refusals
+    doctor("wrong-snapshot-schema", lambda r: _rewrite(
+        r, lambda s: s.update(schema="not-f2g-graph")),
+        "SNAPSHOT_FIELD_MISMATCH")
+    # doctor a LATER day so the campaign pin (set by day 1) catches it at
+    # the snapshot level rather than the edge-frame level
+    doctor("campaign-mix", lambda r: _rewrite(
+        r, lambda s: s.update(campaign_id="other-campaign",
+                              coheres_with=[dict(e, campaign_id=
+                                                 "other-campaign")
+                                            for e in s["coheres_with"]]),
+        day=masks[ck0][1]),
+        "CAMPAIGN_MIX")
+    doctor("state-keys-mismatch", lambda r: _rewrite(
+        r, lambda s: s["station_states"].pop(
+            sorted(s["station_states"])[0])),
+        "STATE_KEYS_MISMATCH")
+    doctor("state-vocab", lambda r: _rewrite(
+        r, lambda s: s["station_states"].update(
+            {sorted(s["station_states"])[0]: "banana"})),
+        "STATE_VOCAB")
+    doctor("edge-field-set", lambda r: _rewrite(
+        r, lambda s: s["coheres_with"][0].pop("n_overlap")),
+        "EDGE_FIELD_SET")
+    doctor("edge-frame-mismatch", lambda r: _rewrite(
+        r, lambda s: s["coheres_with"][0].update(day="1999-01-01")),
+        "EDGE_FRAME_MISMATCH")
+    doctor("mixed-index", lambda r: _rewrite(
+        r, lambda s: s["coheres_with"][0].update(
+            station_index_digest="other-index")),
+        "INDEX_MIX")
+    doctor("algorithm-mix", lambda r: _rewrite(
+        r, lambda s: s["coheres_with"][1].update(algorithm_id="alg-2")),
+        "ALGORITHM_MIX")
+    doctor("unit-mismatch", lambda r: _rewrite(
+        r, lambda s: s["coheres_with"][0].update(unit=2)),
+        "UNIT_MISMATCH")
+    doctor("support-missing", lambda r: _rewrite(
+        r, lambda s: s["coheres_with"][0].update(n_overlap=0)),
+        "SUPPORT_MISSING")
+
+    def m_unmeasured(root):
+        def fn(s):
+            e0 = s["coheres_with"][0]
+            s["station_states"][e0["station_a"]] = "NO_BOUND_OBJECT"
+        _rewrite(root, fn)
+    doctor("edge-for-unmeasured-station", m_unmeasured,
+           "EDGE_FOR_UNMEASURED_STATION")
     print(f"ALL SEALED-INSTRUMENT KATS PASS ({time.time()-t0:.0f}s, "
           f"synthetic panel digest {dig[:12]}...)")
 

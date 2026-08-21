@@ -1,6 +1,6 @@
 {
   "schema": "f2g-phase-b-seal-manifest-v1",
-  "status": "DRAFT - CALENDAR-FRAME (Amendment 2) technical slots populated from the TRUE-GEOMETRY campaign (capsule de56a683, artifacts 9387d5c, verifier v5 + package PASS under production purpose); frozen automatic per-family seal condition NOT MET (B2A certified entire grid, B1A/B3A zero -> typed CANNOT_DETERMINE_NO_POWER); the recorded owner-exception seal 435cb785 does NOT auto-carry per codex non-carryover ruling -- AWAITING codex re-pass of the calendar-frame close, then a FRESH asylum seal decision",
+  "status": "SEALED (owner exception, disclosed shortfall) - calendar-frame close codex-passed (v5.1 production re-pass 2026-08-21-1313) and the FRESH asylum seal recorded 2026-08-21T13:23:30Z (owner_seal_cal_fresh, quote sha bb94a28b, effective immediately); the ONE authorized real-data run is PENDING the codex pre-fire instrument check (v2 under their WORKS-WITH-FIX 1359 findings); frozen automatic per-family condition remains NOT MET (disclosed: B1A/B3A zero certified points); prior seal 435cb785 historical only; Lambda_geo INCONCLUSIVE; no publication",
   "freeze_id": "F2G-PB-R2-FREEZE-CODEX-20260820T0301Z",
   "frozen_doc": {
     "path": "docs/f2g_phase_b_prereg_v1.md",

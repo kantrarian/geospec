@@ -1,0 +1,68 @@
+{
+ "amendment2_sha256": "58b513b6c30b70c8014510788da9d7d819ce8971ca59b7dfdc11c57a1664586f",
+ "anchor": {
+  "artifact_path": "data/phase_a_builder_artifact_v1/phase_a_result.json",
+  "repo_path": "docs/evidence_phase_a_result_anchor.json",
+  "sha256": "0850cf3d24602ab0ba420412f5b292c9d33464852fbb9de8d7363a019c7886ad"
+ },
+ "calendar_authority": {
+  "commit": "8111805",
+  "path": "docs/f2g_phase_b_shared_calendar_v1.json",
+  "sha256": "3aaaec5872933adf3e7f0daa7beb840e11b793a41d7c387ad4800c078fc65111"
+ },
+ "engine": {
+  "commit": "24b0d8f",
+  "lf_sha256": "4a39d3fbdc543e8c64e7b8a068bcb384d320361973bce68fc0b2b219c27968f1",
+  "path": "monitoring/src/d2_f2g_phase_b_stats.py"
+ },
+ "generated_utc": "2026-08-21T13:50:49Z",
+ "one_shot": "at most ONE real-data run; the driver refuses if the sealed result artifact already exists",
+ "power_contracts": {
+  "B1A": null,
+  "B2A": {
+   "certified": true,
+   "certified_points": [
+    {
+     "m": 1
+    },
+    {
+     "m": 2
+    },
+    {
+     "m": 3
+    }
+   ],
+   "lb95": 0.8608916593317347,
+   "results_blob_sha256": "e08589b4e882158220fac970ba22d7be6fa1bd02f0ab0f2dadb0d9577b59ad0e",
+   "results_commit": "9387d5c",
+   "results_path": "docs/f2g_phase_b_power_annex_b2a_cal_results.json"
+  },
+  "B3A": null
+ },
+ "read_disclosure": "this manifest was built with BYTE HASHING only; no snapshot value was parsed",
+ "registry": {
+  "note": "KO.KHMN geometry-excluded but data-selected; it is a LOCO fold like every other station",
+  "selected_counts": {
+   "istanbul_marmara": 12,
+   "socal_coachella": 12,
+   "turkey_kahramanmaras": 11
+  },
+  "source": "data/phase_a_builder_artifact_v1/tables/member_of.jsonl"
+ },
+ "schema": "f2g-sealed-run-input-manifest-v1",
+ "seal": {
+  "geospec_commit": "931ec65",
+  "manifest_block": "owner_seal_cal_fresh",
+  "quote_sha256": "bb94a28bec0060d7d45b799f17536c499539f324da0f58ac3a1edcfdf594a7e4"
+ },
+ "snapshots": {
+  "count": 330,
+  "digest_authority": "anchor.output_digests (byte-verified per file)",
+  "per_carrier_days": {
+   "istanbul_marmara": 111,
+   "socal_coachella": 108,
+   "turkey_kahramanmaras": 111
+  }
+ },
+ "verdict_typing": "B2A verdict-bearing (certified contract); B1A/B3A power_contract=None -> nonpositives type CANNOT_DETERMINE_NO_POWER (frozen sec-5)"
+}

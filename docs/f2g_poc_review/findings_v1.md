@@ -56,3 +56,16 @@ AFAD/KOERI regional catalogs for TR completeness (istanbul's 0 is a catalog arti
 thresholds w/ local catalogs, longer windows; (2) candidate registered feature class:
 risk-delta/rolling-z (NOT level); (3) confidence-artifact check before anything graduates;
 (4) persistence baseline is MANDATORY in any registered skill comparison.
+
+## CORRECTION to F4 RESULTS v1 (2026-08-21, append-only; codex window-2 R1)
+
+codex identified three leaks in the F4 v1 pilot implementation: (1) the logistic scaler
+(mean/std) was fit on ALL rows before the temporal cut; (2) corpus-B rows were appended
+region-by-region and split at 70% of the CONCATENATED array -- not a global temporal split, so
+train/test overlap in time across regions; (3) 7-day labels overlap, invalidating iid CI
+reasoning. **The corpus-B delta (logistic 0.590 vs persistence 0.545) is therefore
+NON-QUANTITATIVE and stands only as hypothesis-generation provenance for the M-F4 annex.** The
+corpus-A null conclusions are unaffected in direction (models UNDERPERFORMED baselines there)
+but carry the same implementation caveats. The M-F4 registered design (window-2 prereg v0.2)
+supersedes this pilot: issue-time predictions, calibration-only fitting, global temporal
+discipline, region-aware moving-block inference.

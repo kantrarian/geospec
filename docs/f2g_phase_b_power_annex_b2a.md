@@ -2,7 +2,7 @@
 
 **Author:** cayley — **Date:** 2026-08-20 — **Status:** DRAFT until hash-bound in the seal manifest.
 **Family under test:** frozen AMENDMENT 1 §A2 exactly (freeze `F2G-PB-A1-R3`, authority `7c3ca7b` / `f3d0830b…`): statistic `R_total = Σ_bound-carriers (maximal runs of identical partitions over calendar-adjacent eligible days)`, one-sided LOW; null = ONE common permutation of the entire fixed 50-position joint evaluation-day capsule per draw (partitions, typed refusals, frames, gap metadata atomic; recompute after), complete group incl. identity; gaps and `NODESET_MISMATCH` terminate runs, never bridged; carrier binding + family-level withholding per frozen §A2; `p = (1 + #{R_null ≤ R_obs})/(N_valid + 1)`, 9,999 draws, floor.
-**Inherits:** COMMON PROTOCOL rev-1.3 @ `60ea20e`, sha256 `b6352e914bf24b3c54663388daa9e71d15a637491c5fec4462abcd6785bc2e8d` (normative).
+**Inherits:** COMMON PROTOCOL rev-1.4 @ `3b0c355`, sha256 `6bde55e84c8845fd9967628bf1170e063faf2f26a50849661630838b87ffa768` (calendar-frame lane sec 6 normative) (normative).
 
 ## Registered effect (unchanged effect class from superseded annex B-2)
 

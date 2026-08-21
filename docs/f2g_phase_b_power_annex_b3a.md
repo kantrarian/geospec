@@ -2,7 +2,7 @@
 
 **Author:** cayley — **Date:** 2026-08-20 — **Status:** DRAFT until hash-bound in the seal manifest.
 **Family under test:** frozen AMENDMENT 1 §A3 exactly (freeze `F2G-PB-A1-R3`, authority `7c3ca7b` / `f3d0830b…`): selection per frozen §3 B-3 (deterministic sort, `K = ceil(0.10·m)`, typed refusals, non-conditioning); scorability floor `K ≥ 2` (`DAY_K_UNSCORABLE` typed); statistic `C = count of scorable (carrier, day)s with f(d) ≥ (K_d − 1)/K_d`, one-sided HIGH; null = ONE station→segment relabeling of the shared disjoint-union registry per draw (exact per-carrier segment sizes, selections FIXED), C recomputed; NO null-expectation claim registered (topology drives the base rate — codex enumeration on file); add-one p, 9,999 draws, floor.
-**Inherits:** COMMON PROTOCOL rev-1.3 @ `60ea20e`, sha256 `b6352e914bf24b3c54663388daa9e71d15a637491c5fec4462abcd6785bc2e8d` (normative; three-segment frozen geometry 4/4/4 / 4/4/4 / 4/4/3).
+**Inherits:** COMMON PROTOCOL rev-1.4 @ `3b0c355`, sha256 `6bde55e84c8845fd9967628bf1170e063faf2f26a50849661630838b87ffa768` (calendar-frame lane sec 6 normative) (normative; three-segment frozen geometry 4/4/4 / 4/4/4 / 4/4/3).
 
 ## Registered effect (unchanged effect class from superseded annex B-3)
 

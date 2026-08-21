@@ -1,0 +1,97 @@
+{
+ "generated_utc": "2026-08-21T21:51:02Z",
+ "pins": {
+  "annex_b1b": {
+   "blob_sha256": "2cc6edefdc353e0e7e5ee783902279f5e7d141d3eaea8c5cd66ba48877a8597b",
+   "commit": "4bd196772c4dee745b43d17ef89715a772bae7c6",
+   "path": "docs/f2g_window2_freeze/annex_b1b.md"
+  },
+  "annex_b2b": {
+   "blob_sha256": "211f945b32f921cb1d22e8961b2f9a532acf3e08db12f731c4a4b0b088498935",
+   "commit": "4bd196772c4dee745b43d17ef89715a772bae7c6",
+   "path": "docs/f2g_window2_freeze/annex_b2b.md"
+  },
+  "annex_mf4": {
+   "blob_sha256": "ffcd0faa2ff2112ef45793304fba00311882ce99915ab1544a950a28cf3a7b4a",
+   "commit": "4bd196772c4dee745b43d17ef89715a772bae7c6",
+   "path": "docs/f2g_window2_freeze/annex_mf4.md"
+  },
+  "candidate_pool": {
+   "blob_sha256": "15d0e32c51c027dc144c5c6d57ec5f100a59374f6248abfc5c56ee38628ddc67",
+   "commit": "350c5f5e178c4e103988d7e01080e8706433f823",
+   "path": "monitoring/src/d2_campaign_v2_candidate_pool.json"
+  },
+  "cascadia_capsule": {
+   "blob_sha256": "90dab1c7c7f81deb8c5cea9547e2d727cdb330946eb3206d6532d9fb7305a12e",
+   "commit": "4bd196772c4dee745b43d17ef89715a772bae7c6",
+   "path": "docs/f2g_window2_freeze/cascadia_carrier_capsule.md"
+  },
+  "cascadia_receipt": {
+   "blob_sha256": "d4256792bf85edf855a4dbaf7841982824a020cd5e075c103d832248c513a847",
+   "commit": "4bd196772c4dee745b43d17ef89715a772bae7c6",
+   "path": "docs/f2g_window2_freeze/receipts/cascadia_UW_CC_CN_HHZ.txt"
+  },
+  "engine_b2a_b3a": {
+   "blob_sha256": "4a39d3fbdc543e8c64e7b8a068bcb384d320361973bce68fc0b2b219c27968f1",
+   "commit": "24b0d8f647d089d0bcdb70ea3dd4879c67b49b98",
+   "path": "monitoring/src/d2_f2g_phase_b_stats.py"
+  },
+  "mag1_coverage_admission": {
+   "blob_sha256": "58372b47c0022ddaaa12824041cc3456a9bb30fccbf1f18718f8f715025839ef",
+   "commit": "9d5767f5200cedbf0ee4c05423cb42bbc1bf6747",
+   "path": "docs/mag1_coverage_admission_v1.md"
+  },
+  "mag1_design_v02": {
+   "blob_sha256": "777624f03c60857038f4aea0bf3bdca235dc8fbd6595444c37ff72a16e07e9c0",
+   "commit": "a338e19fe321e97c591304a3590b1fe7b6e81f9a",
+   "path": "docs/mag1_channel_design_DRAFT.md"
+  },
+  "mag1_instantiation": {
+   "blob_sha256": "b415f9f33800d9f886382f1af5f4009d0ba9c2d9652a47df840bc317fb23fd46",
+   "commit": "4bd196772c4dee745b43d17ef89715a772bae7c6",
+   "path": "docs/f2g_window2_freeze/mag1_instantiation.md"
+  },
+  "phaseb_annex_common_rev16": {
+   "blob_sha256": "44f8ddd9dd175679c0feca398dd2d549454e8b3ee429a037a13f6362f88bf31a",
+   "commit": "feb20bb6317dbdc679bdc0dec55c9cb59ec55409",
+   "path": "docs/f2g_phase_b_power_annex_common.md"
+  },
+  "poc_findings_nonquant": {
+   "blob_sha256": "49ace3787a658cd5e7a92ea78c3d7f97e852c71fcdbb4a71ad39a0b99f4f62af",
+   "commit": "5ccd533a8cc41a4279826f35bea33a7ef7546a27",
+   "path": "docs/f2g_poc_review/findings_v1.md"
+  },
+  "prereg_v03": {
+   "blob_sha256": "0ed87943b11349cf79dcae05a7ed99248f7e63d746242c86194b7fca47903a07",
+   "commit": "5ccd533a8cc41a4279826f35bea33a7ef7546a27",
+   "path": "docs/f2g_window2_prereg_DRAFT.md"
+  },
+  "region_polygons": {
+   "blob_sha256": "90acfd35fc05bd9b4f178837ebbd2ff7e44b6211a422e47bfbcfa230c1b8f913",
+   "commit": "214f8f34e991fd77a1fe2bb0ac938d2cce84d9e3",
+   "path": "monitoring/src/fault_segments.py"
+  },
+  "sealed_driver": {
+   "blob_sha256": "d9c45ac6e7258a5bafa5998dc921d46922a78d2b8163cd9af7c96e332a0a2110",
+   "commit": "246fd8a9e6884694b3da1bfd1d13af73b4b6d31e",
+   "path": "monitoring/src/f2g_sealed_run_driver_cayley.py"
+  },
+  "sealed_instrument": {
+   "blob_sha256": "c4fdd95f0cd21bdb03588b0e9a5cec4a88c36b644ca6fdac917721521fecfa13",
+   "commit": "246fd8a9e6884694b3da1bfd1d13af73b4b6d31e",
+   "path": "monitoring/src/f2g_sealed_run_instrument_cayley.py"
+  },
+  "sealed_verifier": {
+   "blob_sha256": "5d00195fc64b64aa9e34899c3d5f5135b3eb902e0394edd9679ccf1547c87f5a",
+   "commit": "702d1d3b62a945848088784aee31c2e998cf7993",
+   "path": "monitoring/src/f2g_sealed_run_result_verifier_cayley.py"
+  },
+  "selection_constants": {
+   "blob_sha256": "f64a2bd19724d817aba7910d78925341cbc8d61b6e938b904b9683d16939fd12",
+   "commit": "4bd196772c4dee745b43d17ef89715a772bae7c6",
+   "path": "docs/f2g_window2_freeze/selection_constants.md"
+  }
+ },
+ "rule": "the freeze verifier reopens every pinned blob and refuses on absence, mismatch, dirty substitution, or any unlisted dependency; later edits to any pinned path do not alter the registered method",
+ "schema": "f2g-window2-byte-pin-manifest-v1"
+}

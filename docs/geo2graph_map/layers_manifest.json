@@ -1,0 +1,107 @@
+{
+ "carrier_metric_crs": {
+  "istanbul_marmara": "EPSG:32635",
+  "socal_coachella": "EPSG:32611",
+  "turkey_kahramanmaras": "EPSG:32637"
+ },
+ "exporter_lf_sha256": "904335446375f20f768e65e173104d992023752c2f4dba61baedb1c84548dbe1",
+ "generated_utc": "2026-08-21T13:44:19Z",
+ "inputs": [
+  {
+   "path": "data/phase_a_builder_artifact_v1/tables/station.jsonl",
+   "sha256": "c8e8342b9b622fe8841217e6759be01aaebf0755c03a18f522ab8b6c0b7ed5ef"
+  },
+  {
+   "path": "data/phase_a_builder_artifact_v1/tables/near.jsonl",
+   "sha256": "1ea9fd651f1596573012f121a465bfaac7629d806616522294dbe6ff556a9a23"
+  },
+  {
+   "path": "data/phase_a_builder_artifact_v1/tables/segment.jsonl",
+   "sha256": "fffc58840bf65df2d09c4f12c09db5fc871fbcfefbef6d44cf7bf9a09306cd96"
+  },
+  {
+   "path": "data/phase_a_builder_artifact_v1/tables/member_of.jsonl",
+   "sha256": "4bd3e7719fc59bde12d5b798bbee7167f26980563a5e7fbfb675eb4a3bb5e1d6"
+  },
+  {
+   "path": "data/phase_a_builder_artifact_v1/tables/contains.jsonl",
+   "sha256": "5e5a34f119a56b2b513902f0be06c56cf2bf63f0a269ffb6c2c72ceafc9d88c7"
+  },
+  {
+   "path": "docs/evidence_phase_a_result_anchor.json",
+   "sha256": "0850cf3d24602ab0ba420412f5b292c9d33464852fbb9de8d7363a019c7886ad"
+  },
+  {
+   "path": "docs/f2g_phase_b_shared_calendar_v1.json",
+   "sha256": "3aaaec5872933adf3e7f0daa7beb840e11b793a41d7c387ad4800c078fc65111"
+  },
+  {
+   "path": "monitoring/src/fault_segments.py",
+   "sha256": "13834b75f396ca3c03705ef759587c9040a5c1c88a9e8081071b476d24b19ff0"
+  }
+ ],
+ "layers": [
+  {
+   "claim_status": "geometry",
+   "count_plotted": 109,
+   "count_typed_absent": 1,
+   "id": "station",
+   "source": "data/phase_a_builder_artifact_v1/tables/station.jsonl"
+  },
+  {
+   "claim_status": "geometry",
+   "count": 206,
+   "id": "near_edge",
+   "note": "k=3 kNN geometric proximity, true metres in the pinned per-carrier CRS; NOT coherence edges",
+   "source": "data/phase_a_builder_artifact_v1/tables/near.jsonl"
+  },
+  {
+   "claim_status": "geometry",
+   "count": 9,
+   "id": "segment_box",
+   "note": "coarse candidate-pool polygons, not fault traces",
+   "source": "data/phase_a_builder_artifact_v1/tables/segment.jsonl"
+  },
+  {
+   "claim_status": "legacy-fault-registry",
+   "count": 9,
+   "id": "fault_polygon",
+   "note": "attitude/trace context only; the legacy station list in that module is NOT used",
+   "source": "monitoring/src/fault_segments.py"
+  },
+  {
+   "claim_status": "calendar-metadata",
+   "id": "calendar_metadata",
+   "per_carrier": {
+    "istanbul_marmara": {
+     "absent_days": 21,
+     "registered_days": 111
+    },
+    "socal_coachella": {
+     "absent_days": 24,
+     "registered_days": 108
+    },
+    "turkey_kahramanmaras": {
+     "absent_days": 21,
+     "registered_days": 111
+    }
+   },
+   "source": "docs/f2g_phase_b_shared_calendar_v1.json"
+  }
+ ],
+ "non_claims": "fault2graph network GEOMETRY only -- no measurement data; method validation status: INCONCLUSIVE; no earthquake forecast, precursor, or displacement claims; segment boxes are coarse pool polygons, not fault traces",
+ "read_discipline": "allowlisted r-free sources only; snapshots/, deltas/, pyg_sidecar_ledger.json NEVER opened (real-graph measurement values, sealed)",
+ "registry": {
+  "pool_stations": 110,
+  "selected_stations": 35
+ },
+ "schema": "geo2graph-map-layers-v1",
+ "typed_absences": [
+  {
+   "carrier_key": "turkey_kahramanmaras",
+   "reason": "coordinates_available=false (typed absence; never invented)",
+   "segment_name": "east_anatolian_central",
+   "station_id": "KO.KHMN"
+  }
+ ]
+}

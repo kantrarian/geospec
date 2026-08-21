@@ -63,8 +63,6 @@ PROVIDER_NAMES = {
                           "(network CI)",
     "turkey_kahramanmaras_KO": "KOERI/Bogazici University EIDA FDSN "
                                "station service (network KO)",
-    "turkey_kahramanmaras_TU": "KOERI/AFAD EIDA FDSN station service "
-                               "(network TU)",
 }
 FORBIDDEN_TOKENS = ("registered_days", "absent_days", "calendar",
                     "snapshot", "deltas", "pyg_sidecar",
@@ -192,9 +190,21 @@ def main(repo):
             else g["coordinates"][0])
         for lon, lat in pts:
             assert -125.0 <= lon <= 45.0 and 25.0 <= lat <= 45.0
+    # codex 1554 map fix 2: provenance from the PLOTTED (carrier, network)
+    # pairs only; every included receipt must be HTTP 200 with no error
+    used_pairs = {(f["properties"]["carrier_key"],
+                   f["properties"]["network"]) for f in feats
+                  if f["properties"]["layer"] == "station"
+                  and f["geometry"] is not None}
+    used_keys = {f"{ck}_{net}" for ck, net in used_pairs}
+    assert used_keys == {"istanbul_marmara_KO", "socal_coachella_CI",
+                         "turkey_kahramanmaras_KO"}, used_keys
     prov = {}
-    for key, rec in receipts.items():
-        prov[key] = {"provider": PROVIDER_NAMES.get(key, key),
+    for key in sorted(used_keys):
+        rec = receipts[key]
+        assert rec["status"] == 200 and rec.get("error") is None, \
+            (key, rec["status"], rec.get("error"))
+        prov[key] = {"provider": PROVIDER_NAMES[key],
                      "fdsn_station_query_url": rec["url"],
                      "receipt_sha256": rec["sha256"],
                      "http_status": rec["status"]}
@@ -218,7 +228,7 @@ def main(repo):
                         "NO coordinate -- every plotted coordinate is "
                         "provider-confirmed"},
             "attribution": "Station metadata: SCEDC (Caltech); "
-                           "KOERI/Bogazici University EIDA; AFAD. Map "
+                           "KOERI/Bogazici University EIDA. Map "
                            "tiles: (c) OpenStreetMap contributors. "
                            "Leaflet (BSD-2-Clause), loaded from the "
                            "pinned unpkg CDN at view time.",
@@ -254,9 +264,15 @@ def main(repo):
         .replace("__MANIFEST__", json.dumps(manifest)) \
         .replace("__BANNER__", NON_CLAIMS)
     html_b = html.encode("utf-8")
-    # forbidden-token KAT over the PUBLIC bytes (codex 1524 item 1)
-    for name, blob_ in (("geojson", geo_b), ("manifest", man_b),
-                        ("html", html_b)):
+    # forbidden-token KAT over ALL FIVE publication files (codex 1554
+    # map fix 1: the committed blobs are the publication tree; README +
+    # LICENSE must exist beside the generated three and scan clean)
+    pub = [("geojson", geo_b), ("manifest", man_b), ("html", html_b)]
+    for static in ("README.md", "LICENSE"):
+        p = os.path.join(repo, OUT_DIR, static)
+        assert os.path.exists(p), f"PUBLICATION_FILE_MISSING: {static}"
+        pub.append((static, open(p, "rb").read()))
+    for name, blob_ in pub:
         low = blob_.decode("utf-8").lower()
         for tok in FORBIDDEN_TOKENS:
             assert tok.lower() not in low, \

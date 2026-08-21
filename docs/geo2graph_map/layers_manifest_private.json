@@ -1,5 +1,5 @@
 {
- "exporter_lf_sha256": "ad5849ce7021ed14c6a8afff754d2e9a6a9cde13b9ee8d99a894c08e1b73ecfe",
+ "exporter_lf_sha256": "93ad1764b8a14b2b0753bae5146c025b923202586b7147ab8bc11a3f16a4e26b",
  "inputs": [
   {
    "path": "data/phase_a_builder_artifact_v1/tables/station.jsonl",
@@ -28,8 +28,8 @@
  ],
  "outputs": {
   "geojson_sha256": "64d4ec3f8c2f31113bce21e70ad430d061d4b9fc52260bc3bc49705caf33f6e3",
-  "html_sha256": "678ea8d27c46c043c1028eb84c6d1384949258fab78fec591b9e472d190fb8bd",
-  "manifest_sha256": "6c1fdf14a88ffff84ca91949850df8fd47467dc31dcb7381395811208fc86d68"
+  "html_sha256": "de80a5e61e92b293c6dbb78599c146c4ca56228626ea3c07b268d501b6da40cf",
+  "manifest_sha256": "f2d4d88136c571ac345fa647fe0b5e87fcdeea8bae120538e74d94f493aa9ad9"
  },
  "pool_blob": {
   "ref": "HEAD:monitoring/src/d2_campaign_v2_candidate_pool.json",

@@ -69,6 +69,19 @@ LEASE_PAYLOAD_KEYS = {"schema", "run_uuid", "auth_sha256", "host",
 LEASE_PAYLOAD_SCHEMA = "f2g-fire-lease-v1"
 
 
+def _valid_utc(value):
+    """codex 1554 attached repair (verbatim): canonical driver
+    %Y-%m-%dT%H:%M:%SZ round-trip validation."""
+    import time as _time
+    if not isinstance(value, str):
+        return False
+    try:
+        parsed = _time.strptime(value, "%Y-%m-%dT%H:%M:%SZ")
+    except ValueError:
+        return False
+    return _time.strftime("%Y-%m-%dT%H:%M:%SZ", parsed) == value
+
+
 def _verify_lease_receipt(resv, result, remote_sha, payload):
     """Pure receipt check (unit-KATable): the remote ref must equal the
     reservation's lease commit and the lease payload must bind this run.
@@ -86,9 +99,9 @@ def _verify_lease_receipt(resv, result, remote_sha, payload):
     if payload["auth_sha256"] != \
             result.get("fire_authorization_sha256"):
         return "LEASE_RECEIPT: lease payload auth mismatch"
-    if not (isinstance(payload["host"], str) and payload["host"]) or \
-            not (isinstance(payload["created_utc"], str)
-                 and payload["created_utc"]):
+    if not (isinstance(payload["host"], str)
+            and payload["host"].strip()) or \
+            not _valid_utc(payload["created_utc"]):
         return "LEASE_RECEIPT: lease payload host/UTC malformed"
     return None
 SOURCES_KEYS = {"driver_sha256", "instrument_sha256", "verifier_sha256",
@@ -225,8 +238,7 @@ def verify(repo, result, ckpt_path, expected_draws=9999, bind_git=True,
         return False, reasons
     if resv["schema"] != RESERVATION_SCHEMA or \
             resv["lease_ref"] != LEASE_REF or \
-            not (isinstance(resv["created_utc"], str)
-                 and resv["created_utc"]) or \
+            not _valid_utc(resv["created_utc"]) or \
             resv["run_uuid"] != result["run_uuid"] or \
             resv["auth_sha256"] != \
             result["fire_authorization_sha256"] or \
@@ -501,7 +513,7 @@ def _fixture_run(repo, scratch, tree_maker, tag, draws):
                            "lease_ref": LEASE_REF,
                            "lease_commit": "l" * 40,
                            "ckpt_path": CANONICAL_CKPT,
-                           "created_utc": "KAT"},
+                           "created_utc": "2026-01-01T00:00:00Z"},
            "fire_authorization_sha256": "a" * 64,
            "codex_instrument_pass": auth["codex_pass_note"],
            "input_manifest": {"path": I.MANIFEST_OUT,
@@ -601,6 +613,10 @@ def self_test(repo, scratch):
         schema="f2g-sealed-run-reservation-v1"))
     ok_all &= rec("reservation-schema-downgrade", ok, r,
                   "CAPSULE: reservation")
+    ok, r = dv(mut_res=lambda x: x["reservation"].update(
+        created_utc="not-a-utc-timestamp"))
+    ok_all &= rec("reservation-malformed-utc", ok, r,
+                  "CAPSULE: reservation")
     # lease-receipt UNIT refusals (the bind_git remote surface, pure fn)
     good_payload = {"schema": LEASE_PAYLOAD_SCHEMA,
                     "run_uuid": res["run_uuid"],
@@ -618,6 +634,13 @@ def self_test(repo, scratch):
         ("lease-payload-wrong-auth",
          res["reservation"]["lease_commit"],
          dict(good_payload, auth_sha256="0" * 64)),
+        # codex 1554 fix: canonical UTC + nonblank host, not truthiness
+        ("lease-payload-blank-host",
+         res["reservation"]["lease_commit"],
+         dict(good_payload, host="   ")),
+        ("lease-payload-malformed-utc",
+         res["reservation"]["lease_commit"],
+         dict(good_payload, created_utc="not-a-utc-timestamp")),
     ]
     for name, rsha, pay in unit:
         bad = _verify_lease_receipt(res["reservation"], res, rsha, pay)

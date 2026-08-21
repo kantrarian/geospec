@@ -6,7 +6,7 @@
  },
  "disclosure": "No measurement-valued source or measurement artifact is included in this publication. Source artifacts not included here cannot be independently reconstructed from these hashes alone.",
  "distance_semantics": "near_edge distance_m is the projected Euclidean distance in metres in the listed per-carrier UTM CRS",
- "generated_utc": "2026-08-21T15:41:14Z",
+ "generated_utc": "2026-08-21T16:33:11Z",
  "layers": [
   {
    "claim_status": "geometry",
@@ -29,7 +29,7 @@
  ],
  "non_claims": "seismic-network GEOMETRY only -- no measurement data; method validation status: INCONCLUSIVE; no earthquake forecast, precursor, or displacement claims; segment boxes are coarse station-grouping polygons, not fault traces",
  "provenance": {
-  "attribution": "Station metadata: SCEDC (Caltech); KOERI/Bogazici University EIDA; AFAD. Map tiles: (c) OpenStreetMap contributors. Leaflet (BSD-2-Clause), loaded from the pinned unpkg CDN at view time.",
+  "attribution": "Station metadata: SCEDC (Caltech); KOERI/Bogazici University EIDA. Map tiles: (c) OpenStreetMap contributors. Leaflet (BSD-2-Clause), loaded from the pinned unpkg CDN at view time.",
   "coordinate_source_vocabulary": {
    "fdsn": "coordinate from the provider's FDSN station metadata (retrieval query + receipt hash above)",
    "note": "the sole station without provider metadata (KO.KHMN) is published as a typed absence with NO coordinate -- every plotted coordinate is provider-confirmed",
@@ -53,12 +53,6 @@
     "http_status": 200,
     "provider": "KOERI/Bogazici University EIDA FDSN station service (network KO)",
     "receipt_sha256": "6f62ebb68a9652f523c8491bd7bfa2d34605e3a1bc24de4271cc3097002abb2a"
-   },
-   "turkey_kahramanmaras_TU": {
-    "fdsn_station_query_url": "http://eida.koeri.boun.edu.tr/fdsnws/station/1/query?net=TU&cha=HHZ&level=channel&format=text&minlatitude=35.8500&maxlatitude=39.1500&minlongitude=34.8500&maxlongitude=40.1500&starttime=2026-03-01T00:00:00&endtime=2026-07-11T00:00:00&nodata=404",
-    "http_status": 404,
-    "provider": "KOERI/AFAD EIDA FDSN station service (network TU)",
-    "receipt_sha256": "668492e6242a88d02c4cc8c6b1fdae06f234c19167c1b959b89a21cac4ae4449"
    }
   }
  },

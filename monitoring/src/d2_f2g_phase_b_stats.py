@@ -863,3 +863,410 @@ def b3a_family(panel, *, doc_sha256, n_draws=N_DRAWS, return_null=False,
     out["p_value"] = float(p)
     out["verdict"] = _typed_verdict(p, power_contract)
     return out
+
+
+# ============================================================================
+# AMENDMENT 2 (frozen F2G-PB-A2-R2-FREEZE-CODEX-20260821T005735Z, authority
+# 337571c / 58b513b6...): CALENDAR-FRAME families b1a_family_cal /
+# b2a_family_cal / b3a_family_cal on the 132-position shared calendar with
+# typed NO_REGISTERED_SNAPSHOT absences (never synthesized, never
+# compressed). All prior functions retained untouched as evidence surfaces.
+# Bar authority: grassmann AMENDMENT 3 (BAR-UNEDITED).
+# ============================================================================
+
+import subprocess as _subprocess
+
+CAL_POSITIONS = 132
+CAL_BASELINE_POSITIONS = 72
+CAL_EVAL_POSITIONS = 60
+B1A_CAL_BLOCKS = 11
+B1A_CAL_BLOCK_LEN = 12
+CAL_AUTHORITY_SHA256 = ("3aaaec5872933adf3e7f0daa7beb840e11b793a41d7c387ad4"
+                        "800c078fc65111")
+_CAL_AUTHORITY_REF = ("8111805", "docs/f2g_phase_b_shared_calendar_v1.json")
+_CAL_REPO = __import__("os").path.abspath(
+    __import__("os").path.join(__import__("os").path.dirname(
+        __import__("os").path.abspath(__file__)), "..", ".."))
+
+
+def _cal_bound_authority():
+    import json as _json
+    raw = _subprocess.check_output(
+        ["git", "cat-file", "blob",
+         f"{_CAL_AUTHORITY_REF[0]}:{_CAL_AUTHORITY_REF[1]}"], cwd=_CAL_REPO)
+    if hashlib.sha256(raw).hexdigest() != CAL_AUTHORITY_SHA256:
+        raise ValueError("CALENDAR_AUTHORITY_MISMATCH: bound authority blob "
+                         "digest mismatch")
+    return _json.loads(raw.decode("utf-8"))
+
+
+def _cal_load(panel):
+    """Validate a fixture-panel-cal-v1 panel and build per-carrier matrices
+    over the 132 CALENDAR positions. NO_REGISTERED_SNAPSHOT = NaN at its own
+    position; never deleted or compressed. Returns (calendar, carriers dict
+    with V/edges/stations/segments/registered_days)."""
+    if panel.get("schema") != "fixture-panel-cal-v1":
+        raise ValueError("CAL_PANEL_SCHEMA_MISMATCH")
+    mode = panel.get("calendar_authority_mode")
+    cal = [str(d) for d in panel["shared_calendar_days"]]
+    if mode == "bound":
+        auth = _cal_bound_authority()
+        if cal != list(auth["shared_calendar_days"]):
+            raise ValueError("CALENDAR_AUTHORITY_MISMATCH: panel calendar "
+                             "differs from the bound authority")
+        masks = auth["carrier_masks"]
+        if sorted(panel["carriers"]) != sorted(masks):
+            raise ValueError("CARRIER_MASK_MISMATCH: carrier set differs "
+                             "from the bound authority")
+        for ck, c in panel["carriers"].items():
+            if [str(d) for d in c["registered_days"]] != \
+                    list(masks[ck]["registered_days"]):
+                raise ValueError(f"CARRIER_MASK_MISMATCH: {ck} registered "
+                                 "days differ from the bound mask")
+    elif mode == "fixture":
+        if len(cal) != len(set(cal)) or cal != sorted(cal):
+            raise ValueError("CAL_FIXTURE_CALENDAR_INVALID")
+    else:
+        raise ValueError("CAL_AUTHORITY_MODE_INVALID")
+    pos = {d: j for j, d in enumerate(cal)}
+    out = {}
+    for ck in sorted(panel["carriers"]):
+        c = panel["carriers"][ck]
+        reg = [str(d) for d in c["registered_days"]]
+        regset = set(reg)
+        if not regset <= set(cal):
+            raise ValueError(f"CARRIER_MASK_MISMATCH: {ck} mask outside "
+                             "the shared calendar")
+        edges = sorted({"|".join(_canonical_edge(e)) for e in c["r"]})
+        idx = {e: i for i, e in enumerate(edges)}
+        V = np.full((len(edges), len(cal)), np.nan)
+        for e, series in c["r"].items():
+            i = idx["|".join(_canonical_edge(e))]
+            for d, v in series.items():
+                d = str(d)
+                if d not in regset:
+                    raise ValueError(
+                        f"UNTYPED_ABSENCE: {ck} value on {d} outside the "
+                        "carrier's registered mask")
+                v = float(v)
+                if math.isfinite(v):
+                    V[i, pos[d]] = v
+        out[ck] = {"V": V, "edges": edges,
+                   "stations": sorted(c.get("stations", [])),
+                   "segments": dict(c.get("segments", {})),
+                   "registered_days": reg}
+    return cal, out
+
+
+def _b1a_cal_carrier_T(V, order):
+    """Per-carrier calendar-frame B1A term (frozen B1A window rule): windows
+    = length-7 intervals of consecutive TARGET CALENDAR POSITIONS wholly in
+    73-132; absences occupy positions as NaN; score iff >= 4/7 finite; mean
+    over finite only; max over exact calendar windows."""
+    Vr = V[:, order]
+    base = Vr[:, :CAL_BASELINE_POSITIONS]
+    ev = Vr[:, CAL_BASELINE_POSITIONS:]
+    cnt = np.isfinite(base).sum(axis=1)
+    rows = np.where(cnt >= TESTABLE_MIN_BASELINE)[0]
+    if rows.size == 0:
+        return None
+    med = np.nanmedian(base[rows], axis=1)
+    mad = np.nanmedian(np.abs(base[rows] - med[:, None]), axis=1)
+    keep = mad > 0
+    rows = rows[keep]
+    if rows.size == 0:
+        return None
+    z = (ev[rows] - med[keep][:, None]) / (MAD_SCALE * mad[keep][:, None])
+    az = np.abs(z)
+    fin = np.isfinite(az)
+    w, wmin = B1A_WINDOW, B1A_WINDOW_MIN
+    best = None
+    for s in range(0, az.shape[1] - w + 1):
+        wf = fin[:, s:s + w]
+        nf = wf.sum(axis=1)
+        ok = nf >= wmin
+        if not ok.any():
+            continue
+        sums = np.nansum(np.where(wf, az[:, s:s + w], 0.0), axis=1)
+        m = float(np.max(sums[ok] / nf[ok]))
+        if best is None or m > best:
+            best = m
+    return best
+
+
+def _cal_block_order(perm):
+    return [b * B1A_CAL_BLOCK_LEN + i for b in perm
+            for i in range(B1A_CAL_BLOCK_LEN)]
+
+
+def b1a_family_cal(panel, *, doc_sha256, n_draws=N_DRAWS, power_contract=None,
+                   return_null=False, exhaustive=False, fold="full"):
+    cal, carriers = _cal_load(panel)
+    if len(cal) != CAL_POSITIONS:
+        raise ValueError("CALENDAR_AUTHORITY_MISMATCH: calendar length "
+                         f"{len(cal)} != {CAL_POSITIONS}")
+    keys = sorted(carriers)
+
+    def fam_T(order):
+        total = 0.0
+        for k in keys:
+            t = _b1a_cal_carrier_T(carriers[k]["V"], order)
+            if t is None:
+                return None
+            total += t
+        return total
+
+    identity = list(range(CAL_POSITIONS))
+    T_obs = fam_T(identity)
+    out = {"family": "B1A", "frame": "calendar-v2", "T_obs": T_obs,
+           "n_draws": int(n_draws), "alpha": ALPHA_FAMILY,
+           "fold": str(fold), "bound_carriers": keys,
+           "registered_counts": {k: len(carriers[k]["registered_days"])
+                                 for k in keys},
+           "excluded": {}}
+    if T_obs is None:
+        out.update(p_value=None, n_valid_draws=0,
+                   verdict="CANNOT_DETERMINE_FAMILY_SCORABILITY")
+        if return_null:
+            out["null_T"] = []
+        return out
+    if exhaustive:
+        import itertools
+        ge = tot = 0
+        for perm in itertools.permutations(range(B1A_CAL_BLOCKS)):
+            tot += 1
+            T_p = fam_T(_cal_block_order(perm))
+            if T_p is not None and T_p >= T_obs:
+                ge += 1
+        out["p_exact"] = ge / tot
+    rng = _rng(doc_sha256, "B1A", fold, "null")
+    null_T = []
+    n_valid = ge_n = 0
+    for _ in range(int(n_draws)):
+        perm = [int(x) for x in rng.permutation(B1A_CAL_BLOCKS)]
+        T_d = fam_T(_cal_block_order(perm))
+        if T_d is None:
+            null_T.append(float("nan"))
+            continue
+        n_valid += 1
+        null_T.append(float(T_d))
+        if T_d >= T_obs:
+            ge_n += 1
+    out["n_valid_draws"] = n_valid
+    if return_null:
+        out["null_T"] = null_T
+    if n_valid < _valid_floor(n_draws):
+        out.update(p_value=None, verdict="CANNOT_DETERMINE_NULL_SUPPORT")
+        return out
+    p = (1 + ge_n) / (n_valid + 1)
+    out["p_value"] = float(p)
+    out["verdict"] = _typed_verdict(p, power_contract)
+    return out
+
+
+def _b2a_cal_states(panel_carrier, cal, regset):
+    """One carrier's 60 evaluation calendar capsules: intrinsic state per
+    POSITION -- NO_REGISTERED_SNAPSHOT for absent days (typed, terminating,
+    atomic), else the settled gate-level day state."""
+    states = []
+    for d in cal[CAL_BASELINE_POSITIONS:]:
+        if d not in regset:
+            states.append((None, "NO_REGISTERED_SNAPSHOT"))
+        else:
+            states.append(_b2a_day_state(panel_carrier, d))
+    return states
+
+
+def b2a_family_cal(panel, *, doc_sha256, n_draws=N_DRAWS, return_null=False,
+                   power_contract=None, fold="full", audit_orders=None):
+    cal, carriers = _cal_load(panel)
+    if len(cal) != CAL_POSITIONS:
+        raise ValueError("CALENDAR_AUTHORITY_MISMATCH: calendar length "
+                         f"{len(cal)} != {CAL_POSITIONS}")
+    keys = sorted(carriers)
+    caps = {}
+    day_refusals = []
+    runs_by_carrier = {}
+    R_obs = 0
+    eval_days = cal[CAL_BASELINE_POSITIONS:]
+    for k in keys:
+        regset = set(carriers[k]["registered_days"])
+        src = {"r": {e: panel["carriers"][k]["r"][e]
+                     for e in panel["carriers"][k]["r"]}}
+        states = _b2a_cal_states(src, cal, regset)
+        caps[k] = states
+        runs, refs, accepted = _b2a_runs(states, eval_days)
+        for r_ in refs:
+            r_["carrier"] = k
+        day_refusals.extend(refs)
+        runs_by_carrier[k] = runs
+        if accepted < 2:
+            out = {"family": "B2A", "frame": "calendar-v2",
+                   "runs_total": None, "T_obs": None,
+                   "runs_by_carrier": runs_by_carrier,
+                   "day_refusals": day_refusals, "excluded": {},
+                   "n_draws": int(n_draws), "alpha": ALPHA_FAMILY,
+                   "p_value": None, "n_valid_draws": 0,
+                   "verdict": "CANNOT_DETERMINE_FAMILY_SCORABILITY "
+                              "(CARRIER_NO_COMPARABLE_SEQUENCE)"}
+            if return_null:
+                out["null_R"] = []
+            return out
+        R_obs += runs
+    out = {"family": "B2A", "frame": "calendar-v2", "runs_total": int(R_obs),
+           "T_obs": int(R_obs), "runs_by_carrier": runs_by_carrier,
+           "day_refusals": day_refusals, "excluded": {},
+           "n_draws": int(n_draws), "alpha": ALPHA_FAMILY, "fold": str(fold)}
+    if audit_orders:
+        out["audit_runs_by_carrier"] = [
+            {k: int(_b2a_runs_dyn(caps[k], [int(i) for i in o]))
+             for k in keys}
+            for o in audit_orders]
+    rng = _rng(doc_sha256, "B2A", fold, "null")
+    null_R = []
+    null_orders = []
+    null_rbc = []
+    n_valid = le = 0
+    for _ in range(int(n_draws)):
+        perm = [int(x) for x in rng.permutation(CAL_EVAL_POSITIONS)]
+        R_d = 0
+        rbc = {}
+        for k in keys:
+            runs = _b2a_runs_dyn(caps[k], perm)
+            rbc[k] = int(runs)
+            R_d += runs
+        n_valid += 1
+        null_R.append(int(R_d))
+        null_orders.append(perm)
+        null_rbc.append(rbc)
+        if R_d <= R_obs:
+            le += 1
+    out["n_valid_draws"] = n_valid
+    if return_null:
+        out["null_R"] = null_R
+        out["null_orders"] = null_orders
+        out["null_runs_by_carrier"] = null_rbc
+    if n_valid < _valid_floor(n_draws):
+        out.update(p_value=None, verdict="CANNOT_DETERMINE_NULL_SUPPORT")
+        return out
+    p = (1 + le) / (n_valid + 1)
+    out["p_value"] = float(p)
+    out["verdict"] = _typed_verdict(p, power_contract)
+    return out
+
+
+def b3a_family_cal(panel, *, doc_sha256, n_draws=N_DRAWS, return_null=False,
+                   power_contract=None, fold="full", exhaustive_space=False):
+    cal, carriers = _cal_load(panel)
+    if len(cal) != CAL_POSITIONS:
+        raise ValueError("CALENDAR_AUTHORITY_MISMATCH: calendar length "
+                         f"{len(cal)} != {CAL_POSITIONS}")
+    day_refusals = []
+    selection = {}
+    sel_records = []
+    seg_by_carrier = {}
+    excluded = {}
+    multi = len(carriers) > 1
+    eval_days = cal[CAL_BASELINE_POSITIONS:]
+    for key in sorted(carriers):
+        C = carriers[key]
+        seg_by_carrier[key] = (C["stations"], dict(C["segments"]))
+        base = C["V"][:, :CAL_BASELINE_POSITIONS]
+        ev = C["V"][:, CAL_BASELINE_POSITIONS:]
+        cnt = np.isfinite(base).sum(axis=1)
+        rows = np.where(cnt >= TESTABLE_MIN_BASELINE)[0]
+        z = None
+        kept = []
+        if rows.size:
+            med = np.nanmedian(base[rows], axis=1)
+            mad = np.nanmedian(np.abs(base[rows] - med[:, None]), axis=1)
+            keep = mad > 0
+            kept = rows[keep].tolist()
+            if kept:
+                z = (ev[rows[keep]] - med[keep][:, None]) / \
+                    (MAD_SCALE * mad[keep][:, None])
+        regset = set(C["registered_days"])
+        for j, d in enumerate(eval_days):
+            if d not in regset:
+                day_refusals.append({"carrier": key, "day": d,
+                                     "code": "NO_REGISTERED_SNAPSHOT"})
+                continue
+            cells = []
+            if z is not None:
+                for row_i, zv in zip(kept, z[:, j]):
+                    if np.isfinite(zv):
+                        a, b = C["edges"][row_i].split("|")
+                        cells.append((-abs(float(zv)), a, b))
+            m = len(cells)
+            if m == 0:
+                day_refusals.append({"carrier": key, "day": d,
+                                     "code": "INSUFFICIENT_DAILY_EDGES"})
+                continue
+            K = math.ceil(TOP_DECILE * m)
+            if K < 2:
+                day_refusals.append({"carrier": key, "day": d,
+                                     "code": "DAY_K_UNSCORABLE"})
+                continue
+            cells.sort()
+            chosen = [(a, b) for (_nz, a, b) in cells[:K]]
+            selection[f"{key}::{d}" if multi else d] = \
+                [f"{a}|{b}" for a, b in chosen]
+            sel_records.append((key, d, chosen, K))
+    for r_ in day_refusals:
+        excluded[r_["code"]] = excluded.get(r_["code"], 0) + 1
+    out = {"family": "B3A", "frame": "calendar-v2",
+           "day_refusals": day_refusals, "excluded": excluded,
+           "selection": selection, "n_draws": int(n_draws),
+           "alpha": ALPHA_FAMILY, "fold": str(fold)}
+
+    def cross_count(chosen, seg):
+        return sum(1 for a, b in chosen if seg.get(a) != seg.get(b))
+
+    if not sel_records:
+        out.update(T_obs=None, C_obs=None, p_value=None, n_valid_draws=0,
+                   verdict="CANNOT_DETERMINE_FAMILY_SCORABILITY "
+                           "(NO_SCORABLE_DAYS)")
+        if return_null:
+            out["null_C"] = []
+        return out
+    C_obs = sum(1 for key, _d, chosen, K in sel_records
+                if cross_count(chosen, seg_by_carrier[key][1]) >= K - 1)
+    out["C_obs"] = int(C_obs)
+    out["T_obs"] = int(C_obs)
+    if exhaustive_space:
+        exact = {}
+        for key, d, chosen, K in sel_records:
+            stations, seg = seg_by_carrier[key]
+            labels = sorted(set(seg.values()))
+            sizes = tuple(sum(1 for s in stations if seg[s] == lb)
+                          for lb in labels)
+            exact[f"{key}::{d}" if multi else d] = _balanced_exact_day_p(
+                stations, sizes, chosen, K - 1)
+        out["exact_space_p"] = exact
+    rng = _rng(doc_sha256, "B3A", fold, "null")
+    null_C = []
+    n_valid = ge = 0
+    for _ in range(int(n_draws)):
+        permseg = {}
+        for key in sorted(seg_by_carrier):
+            stations, seg = seg_by_carrier[key]
+            labels = [seg[s] for s in stations]
+            perm = rng.permutation(len(stations))
+            permseg[key] = {stations[i]: labels[perm[i]]
+                            for i in range(len(stations))}
+        C_d = sum(1 for key, _d, chosen, K in sel_records
+                  if cross_count(chosen, permseg[key]) >= K - 1)
+        n_valid += 1
+        null_C.append(int(C_d))
+        if C_d >= C_obs:
+            ge += 1
+    out["n_valid_draws"] = n_valid
+    if return_null:
+        out["null_C"] = null_C
+    if n_valid < _valid_floor(n_draws):
+        out.update(p_value=None, verdict="CANNOT_DETERMINE_NULL_SUPPORT")
+        return out
+    p = (1 + ge) / (n_valid + 1)
+    out["p_value"] = float(p)
+    out["verdict"] = _typed_verdict(p, power_contract)
+    return out

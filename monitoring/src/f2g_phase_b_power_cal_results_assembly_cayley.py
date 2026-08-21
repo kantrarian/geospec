@@ -2,21 +2,28 @@
 # -*- coding: utf-8 -*-
 """CAL results ASSEMBLER (cayley) -- FIXTURE-ONLY, pinned producer of the
 exact registered result schema f2g-phase-b-power-cal-results-v1 (codex
-0307Z consolidated repair 1: the independent verifier reconstructs from the
-committed evidence and compares against artifacts THIS assembler emits; one
-schema shared by producer and verifier).
+0307Z consolidated repair 1 + codex 5-fix recheck findings 1/3/4/5: the
+independent verifier reconstructs from the committed evidence and compares
+against artifacts THIS assembler emits; one schema shared by producer and
+verifier).
 
-Every claim-bearing field is DERIVED from the evidence capsule rows:
-tier tables from S1/S2 rows, Tier-C candidate outcomes + verdict/stopping
-from the sequential C rows under the registered R=20/R=40 Clopper-Pearson
-stopping semantics, certified_points = exactly the derived-CERTIFIED
-candidates, terminal from that set, the complete coordinatewise
-Pareto-minimal certified frontier + the registered lexicographic
-representative, the equivalence receipt from the gate row, and the panel
-reopen sample (rep 0 of every registered grid point + every Stage-C row).
-Usage: assembler.py <evidence_jsonl> <evidence_commit> <docs_dir>
-(<evidence_commit> = the geospec commit whose blob of the canonical path is
-the capsule authority; the artifact binds commit+path+blob sha.)
+Every claim-bearing field is DERIVED from the evidence capsule rows under
+STRICT typing (flags must be Python booleans; a JSON string "false" raises
+EVIDENCE_ROW_TYPE): tier tables from S1/S2 rows, Tier-C candidate outcomes
++ verdict/stopping from the sequential C rows under the registered R=20/
+R=40 Clopper-Pearson stopping semantics, certified_points = exactly the
+derived-CERTIFIED candidates, terminal from that set, the coordinatewise
+Pareto-minimal certified frontier ordered by the REGISTERED coordinate
+order (driver ckey -- finding 3; never JSON key order) with its lex
+representative, the equivalence receipt from the gate row, the panel
+reopen sample (rep 0 of every registered grid point CARRYING THE S1
+EVIDENCE ROW'S DIGEST -- finding 1 binding -- plus every Stage-C row), and
+the quantitative induced-effect report from the attested driver
+(annex sec 5). The capsule's FIRST row must be a purpose header; purpose
+selects the registered repo path (fixture -> docs/fixtures/, production ->
+the canonical path) and is echoed in the artifact evidence triple, which
+binds the FULL commit id + path + blob sha + row count (finding 4/5).
+Usage: assembler.py <evidence_jsonl> <evidence_commit> <repo> <docs_dir>
 """
 import hashlib
 import json
@@ -32,6 +39,10 @@ import f2g_phase_b_power_estimation_cal_cayley as PD
 
 SCHEMA = "f2g-phase-b-power-cal-results-v1"
 CANONICAL_EVIDENCE_PATH = "docs/f2g_phase_b_power_cal_evidence.jsonl"
+FIXTURE_EVIDENCE_PATH = \
+    "docs/fixtures/f2g_phase_b_power_cal_evidence_fixture.jsonl"
+PURPOSE_PATHS = {"production": CANONICAL_EVIDENCE_PATH,
+                 "fixture": FIXTURE_EVIDENCE_PATH}
 # authority pins recomputed from the repo's pinned blobs (never the gate row)
 PIN_REFS = {
     "frozen_amendment2_sha256": ("337571c",
@@ -40,7 +51,9 @@ PIN_REFS = {
     "admitted_bar_lf_sha256": (
         "89673dc", "monitoring/src/test_f2g_phase_b_stats_redkats_grassmann.py"),
     "driver_lf_sha256": (
-        "975638d", "monitoring/src/f2g_phase_b_power_estimation_cal_cayley.py"),
+        "60509f7", "monitoring/src/f2g_phase_b_power_estimation_cal_cayley.py"),
+    "base_driver_lf_sha256": (
+        "60509f7", "monitoring/src/f2g_phase_b_power_estimation_cayley.py"),
     "annex_common_rev16_sha256": ("feb20bb",
                                   "docs/f2g_phase_b_power_annex_common.md"),
     "annex_b1a_sha256": ("feb20bb", "docs/f2g_phase_b_power_annex_b1a.md"),
@@ -80,15 +93,24 @@ def cp_upper(k, n, conf=0.95):
     return hi
 
 
+def sflag(row, field):
+    """Strict boolean read: refuses truthy strings and every non-bool."""
+    v = row.get(field)
+    if type(v) is not bool:
+        raise ValueError(f"EVIDENCE_ROW_TYPE: {row.get('key')} "
+                         f"{field}={v!r} is not a strict boolean")
+    return v is True
+
+
 def derive_candidate(rows_c):
-    """Sequential C reps -> (n_stop, successes, lb, ub, verdict, stopping)
-    under the registered stopping semantics; refuses non-sequential reps."""
+    """Sequential C reps -> (n_stop, successes, verdict) under the
+    registered stopping semantics; refuses non-sequential reps."""
     reps = sorted(r["rep"] for r in rows_c)
     if reps != list(range(len(reps))):
         raise ValueError(f"C reps not sequential: {reps}")
     succ = 0
     for i, r in enumerate(sorted(rows_c, key=lambda x: x["rep"])):
-        succ += bool(r["post"])
+        succ += sflag(r, "post")
         n = i + 1
         if n == 20:
             if cp_lower(succ, 20) >= 0.80:
@@ -109,19 +131,40 @@ def pk(point):
 
 
 def assemble(evidence_path, evidence_commit, repo, docs_dir):
-    raw = subprocess.check_output(
-        ["git", "cat-file", "blob",
-         f"{evidence_commit}:{CANONICAL_EVIDENCE_PATH}"], cwd=repo)
     disk = open(evidence_path, "rb").read().replace(b"\r\n", b"\n")
-    if hashlib.sha256(disk).hexdigest() != \
-            hashlib.sha256(raw).hexdigest():
+    disk_rows = [json.loads(l) for l in disk.decode("utf-8").splitlines()
+                 if l.strip()]
+    if not disk_rows or disk_rows[0].get("stage") != "header":
+        raise ValueError("CAPSULE_PURPOSE_MISSING: first evidence row must "
+                         "be the purpose header")
+    headers = [r for r in disk_rows if r.get("stage") == "header"]
+    if len(headers) != 1:
+        raise ValueError("CAPSULE_PURPOSE_MISMATCH: exactly one header row "
+                         "required")
+    purpose = headers[0].get("purpose")
+    if purpose not in PURPOSE_PATHS:
+        raise ValueError(f"CAPSULE_PURPOSE_MISMATCH: unknown purpose "
+                         f"{purpose!r}")
+    rel_path = PURPOSE_PATHS[purpose]
+    raw = subprocess.check_output(
+        ["git", "cat-file", "blob", f"{evidence_commit}:{rel_path}"],
+        cwd=repo)
+    if hashlib.sha256(disk).hexdigest() != hashlib.sha256(raw).hexdigest():
         raise ValueError("EVIDENCE_NOT_THE_COMMITTED_BLOB")
+    full_commit = subprocess.check_output(
+        ["git", "rev-parse", f"{evidence_commit}^{{commit}}"],
+        cwd=repo).decode().strip()
     ev_sha = hashlib.sha256(raw).hexdigest()
     rows = [json.loads(l) for l in raw.decode("utf-8").splitlines()
             if l.strip()]
     gate = next(r for r in rows if r.get("stage") == "gate")
     self_bytes = open(__file__, "rb").read().replace(b"\r\n", b"\n")
     assembler_sha = hashlib.sha256(self_bytes).hexdigest()
+    pin_digests = {}
+    for k, (c, p) in PIN_REFS.items():
+        blob = subprocess.check_output(
+            ["git", "cat-file", "blob", f"{c}:{p}"], cwd=repo)
+        pin_digests[k] = hashlib.sha256(blob).hexdigest()
     for fam, fname in (("B1A", "b1a"), ("B2A", "b2a"), ("B3A", "b3a")):
         grid = PD.grid_of(fam)
         by_stage = defaultdict(lambda: defaultdict(list))
@@ -129,6 +172,17 @@ def assemble(evidence_path, evidence_commit, repo, docs_dir):
             if r.get("family") == fam and r.get("stage") in ("S1", "S2",
                                                              "C"):
                 by_stage[r["stage"]][pk(r["point"])].append(r)
+        # cross-stage digest consistency: one panel per (point, rep)
+        dig_of = {}
+        for st in ("S1", "S2", "C"):
+            for pj, v in by_stage[st].items():
+                for x in v:
+                    key = (pj, x["rep"])
+                    prev = dig_of.get(key)
+                    if prev is not None and prev != x.get("panel_sha256"):
+                        raise ValueError(
+                            f"EVIDENCE_DIGEST_INCONSISTENT: {fam} {key}")
+                    dig_of[key] = x.get("panel_sha256")
         s1_table = []
         for p in grid:
             v = by_stage["S1"].get(pk(p), [])
@@ -136,12 +190,12 @@ def assemble(evidence_path, evidence_commit, repo, docs_dir):
             if reps != list(range(50)):
                 raise ValueError(f"{fam} S1 {pk(p)}: reps {len(reps)}!=50")
             s1_table.append({"point": p,
-                             "pre_loco_recovery": sum(bool(x["pre"])
+                             "pre_loco_recovery": sum(sflag(x, "pre")
                                                       for x in v) / 50,
                              "n": 50})
         rank1 = sorted(s1_table,
                        key=lambda x: (-x["pre_loco_recovery"],
-                                      pk(x["point"])))
+                                      PD.ckey(fam, x["point"])))
         s2_points = [x["point"] for x in rank1[:min(8, len(grid))]]
         s2_table = []
         for p in s2_points:
@@ -150,14 +204,14 @@ def assemble(evidence_path, evidence_commit, repo, docs_dir):
             if reps != list(range(50)):
                 raise ValueError(f"{fam} S2 {pk(p)}: reps {len(reps)}!=50")
             s2_table.append({"point": p,
-                             "pre_loco_recovery": sum(bool(x["pre"])
+                             "pre_loco_recovery": sum(sflag(x, "pre")
                                                       for x in v) / 50,
-                             "post_loco_recovery": sum(bool(x["post"])
+                             "post_loco_recovery": sum(sflag(x, "post")
                                                        for x in v) / 50,
                              "n": 50})
         rank2 = sorted(s2_table,
                        key=lambda x: (-x["post_loco_recovery"],
-                                      pk(x["point"])))
+                                      PD.ckey(fam, x["point"])))
         c_points = [x["point"] for x in rank2[:min(3, len(s2_table))]]
         candidates = []
         for p in c_points:
@@ -173,7 +227,9 @@ def assemble(evidence_path, evidence_commit, repo, docs_dir):
                                "verdict": verdict,
                                "stopping": f"{verdict}@R={n}"})
         certified = [c for c in candidates if c["verdict"] == "CERTIFIED"]
-        # coordinatewise Pareto-minimal frontier over certified points
+
+        # coordinatewise Pareto-minimal frontier over certified points,
+        # ordered by the REGISTERED coordinate order (finding 3)
         def dominates(a, b):
             ka, kb = a["point"], b["point"]
             keys = sorted(ka)
@@ -182,10 +238,14 @@ def assemble(evidence_path, evidence_commit, repo, docs_dir):
         pareto = [c for c in certified
                   if not any(dominates(o, c) for o in certified
                              if o is not c)]
-        pareto = sorted(pareto, key=lambda c: pk(c["point"]))
-        reopen = [{"family": fam, "point": p, "rep": 0,
-                   "panel_sha256": PD.panel_digest(
-                       PD.make_panel(fam, p, 0))} for p in grid]
+        pareto = sorted(pareto, key=lambda c: PD.ckey(fam, c["point"]))
+        # reopen sample: rep 0 of every grid point BOUND TO the S1 evidence
+        # row's digest (finding 1), plus every Stage-C evidence row
+        reopen = []
+        for p in grid:
+            s1r0 = [x for x in by_stage["S1"][pk(p)] if x["rep"] == 0]
+            reopen.append({"family": fam, "point": p, "rep": 0,
+                           "panel_sha256": s1r0[0]["panel_sha256"]})
         for p in c_points:
             for r in sorted(by_stage["C"][pk(p)], key=lambda x: x["rep"]):
                 reopen.append({"family": fam, "point": p, "rep": r["rep"],
@@ -195,25 +255,19 @@ def assemble(evidence_path, evidence_commit, repo, docs_dir):
             "family": fam,
             "calendar_authority_mode": "bound",
             "calendar_authority_sha256": PD.E.CAL_AUTHORITY_SHA256,
-            "digests": dict(
-                {k: subprocess.check_output(
-                    ["git", "cat-file", "blob", f"{c}:{p}"],
-                    cwd=repo) and hashlib.sha256(
-                        subprocess.check_output(
-                            ["git", "cat-file", "blob", f"{c}:{p}"],
-                            cwd=repo)).hexdigest()
-                 for k, (c, p) in PIN_REFS.items()},
-                assembler_lf_sha256=assembler_sha),
+            "digests": dict(pin_digests,
+                            assembler_lf_sha256=assembler_sha),
             "equivalence_receipt": {
                 "full_equal": gate.get("full_equal"),
                 "fold_equal_all": gate.get("fold_equal_all"),
                 "folds_checked": gate.get("folds_checked"),
                 "all_equal": gate.get("all_equal"),
                 "engine_commit_bound": gate.get("engine_commit_bound")},
-            "evidence_capsule": {"geospec_commit": evidence_commit,
-                                 "path": CANONICAL_EVIDENCE_PATH,
+            "evidence_capsule": {"geospec_commit": full_commit,
+                                 "path": rel_path,
                                  "git_blob_sha256": ev_sha,
-                                 "rows": len(rows)},
+                                 "rows": len(rows),
+                                 "purpose": purpose},
             "tier_s1": {"label": "PRELIMINARY_SMOKE", "n_draws": 999,
                         "replicates": 50, "table": s1_table},
             "tier_s2": {"label": "PRELIMINARY_SMOKE", "n_draws": 999,
@@ -227,10 +281,7 @@ def assemble(evidence_path, evidence_commit, repo, docs_dir):
             "terminal_type": ("CERTIFIED" if certified else
                               "MDE_NOT_CERTIFIED_BY_REGISTERED_SEARCH"),
             "panel_reopen_sample": reopen,
-            "induced_effect_report": {
-                "note": "per-family induced-effect summaries ride the "
-                        "registered corner replicate",
-                "family": fam},
+            "induced_effect_report": PD.induced_effect_report(fam),
             "env": {"python": platform.python_version(),
                     "numpy": np.__version__},
         }

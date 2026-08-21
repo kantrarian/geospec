@@ -132,6 +132,23 @@ def _num(v):
     return type(v) in (int, float)
 
 
+# grassmann 0913Z finding (host-locked ulp): the CP bisection routes p**i
+# through platform libm pow, so recomputed lb95/ub95 can differ from the
+# recorded values by one ulp ACROSS HOSTS while every decision surface
+# (successes, n, verdict, stopping, thresholds re-derived locally) is
+# host-stable. The two informational bound floats -- and ONLY those two
+# fields -- are therefore compared with a fixed absolute tolerance five
+# orders above libm noise and ~11 below any decision-relevant magnitude.
+# Every discrete/decision surface stays bit-exact. Residual class: a true
+# bound within one ulp of the 0.80 threshold could still refuse cross-host
+# (fail-closed, never fail-open).
+BOUND_ABS_TOL = 1e-12
+
+
+def _close(a, b):
+    return _num(a) and _num(b) and abs(a - b) <= BOUND_ABS_TOL
+
+
 def _binom_sf_geq(k, n, p):
     return sum(math.comb(n, i) * p ** i * (1 - p) ** (n - i)
                for i in range(k, n + 1))
@@ -502,8 +519,8 @@ def _validate_and_reconstruct(rows, repo, PD, reasons):
                 return None
             cv = cvs[0]
             if cv["n"] != n_stop or cv["successes"] != succ or \
-                    cv["lb95"] != cp_lower(succ, n_stop) or \
-                    cv["ub95"] != cp_upper(succ, n_stop) or \
+                    not _close(cv["lb95"], cp_lower(succ, n_stop)) or \
+                    not _close(cv["ub95"], cp_upper(succ, n_stop)) or \
                     cv["verdict"] != verdict:
                 reasons.append(f"EVIDENCE_STOPPING: {fam} {pk(p)} Cverdict "
                                "row not derived-consistent")
@@ -547,6 +564,30 @@ def _validate_and_reconstruct(rows, repo, PD, reasons):
 def _cmp(name, got, want, reasons):
     if json.dumps(got, sort_keys=True) != json.dumps(want, sort_keys=True):
         reasons.append(f"RESULT_NOT_DERIVED_FROM_EVIDENCE: {name}")
+
+
+def _cmp_cands(name, got, want, reasons):
+    """Candidate-list comparison: bit-exact on every field EXCEPT the two
+    informational bound floats lb95/ub95, which use BOUND_ABS_TOL (the
+    grassmann host-locked-ulp repair). Shape/count mismatches refuse."""
+    def strip(c):
+        return {k: v for k, v in c.items() if k not in ("lb95", "ub95")} \
+            if isinstance(c, dict) else c
+    if not isinstance(got, list) or not isinstance(want, list) or \
+            len(got) != len(want):
+        reasons.append(f"RESULT_NOT_DERIVED_FROM_EVIDENCE: {name}")
+        return
+    for g, w in zip(got, want):
+        if json.dumps(strip(g), sort_keys=True) != \
+                json.dumps(strip(w), sort_keys=True):
+            reasons.append(f"RESULT_NOT_DERIVED_FROM_EVIDENCE: {name}")
+            return
+        if not isinstance(g, dict) or \
+                not _close(g.get("lb95"), w.get("lb95")) or \
+                not _close(g.get("ub95"), w.get("ub95")):
+            reasons.append(f"RESULT_NOT_DERIVED_FROM_EVIDENCE: {name} "
+                           "lb95/ub95 beyond tolerance")
+            return
 
 
 def _verify_inner(res, repo, expected_family, check_files,
@@ -717,12 +758,13 @@ def _verify_inner(res, repo, expected_family, check_files,
              reasons)
         _cmp("tier_s2.table", res["tier_s2"].get("table"), recon["s2"],
              reasons)
-        _cmp("tier_c.candidates", res["tier_c"].get("candidates"),
-             recon["cands"], reasons)
-        _cmp("certified_points", res["certified_points"],
-             recon["certified"], reasons)
-        _cmp("pareto_minimal_certified", res["pareto_minimal_certified"],
-             recon["pareto"], reasons)
+        _cmp_cands("tier_c.candidates", res["tier_c"].get("candidates"),
+                   recon["cands"], reasons)
+        _cmp_cands("certified_points", res["certified_points"],
+                   recon["certified"], reasons)
+        _cmp_cands("pareto_minimal_certified",
+                   res["pareto_minimal_certified"], recon["pareto"],
+                   reasons)
         _cmp("pareto_lex_representative",
              res["pareto_lex_representative"],
              recon["pareto"][0]["point"] if recon["pareto"] else None,
@@ -883,6 +925,11 @@ def _rowneg_inner(repo, case):
         h2 = dict(rows[0])
         h2["key"] = "header2"
         rows.append(h2)
+    elif case == "cverdict-bounds-beyond-tolerance":
+        for r in rows:
+            if r.get("stage") == "Cverdict":
+                r["ub95"] = r["ub95"] + 1e-9
+                break
     elif case == "tied-selector-kat":
         vr = _validate_and_reconstruct(rows, repo, PD, reasons)
         payload = {"reasons": reasons}
@@ -950,6 +997,7 @@ def self_test(repo, fixture_docs=None):
         "offgrid-cverdict-row": "outside the registered",
         "duplicate-gate-row": "duplicate key",
         "duplicate-header-row": "CAPSULE_PURPOSE_MISMATCH",
+        "cverdict-bounds-beyond-tolerance": "EVIDENCE_STOPPING",
     }
     for case, expect in ROWNEG_EXPECT.items():
         rr = _rowneg(repo, case)
@@ -1075,6 +1123,27 @@ def self_test(repo, fixture_docs=None):
                        expected_purpose="fixture")
         ok_all &= rec("wrong-selector-order", ok, r,
                       "RESULT_NOT_DERIVED_FROM_EVIDENCE")
+        # grassmann host-locked-ulp repair semantics: a bound moved beyond
+        # the fixed tolerance refuses; a one-ulp (cross-host libm pow)
+        # difference in the two informational bound floats passes
+        import math as _math
+        t10 = copy.deepcopy(base)
+        t10["tier_c"]["candidates"][0]["ub95"] += 1e-9
+        ok, r = verify(t10, repo, expected_family="B2A", check_files=True,
+                       expected_purpose="fixture")
+        ok_all &= rec("bounds-beyond-tolerance", ok, r,
+                      "lb95/ub95 beyond tolerance")
+        t11 = copy.deepcopy(base)
+        for c in t11["tier_c"]["candidates"]:
+            c["ub95"] = _math.nextafter(c["ub95"], 1.0)
+            c["lb95"] = _math.nextafter(c["lb95"], 1.0)
+        ok, r = verify(t11, repo, expected_family="B2A", check_files=True,
+                       expected_purpose="fixture")
+        results["bounds-one-ulp-pass"] = (
+            "PASS (cross-host libm ulp tolerated on the two bound floats "
+            "only)" if ok else
+            "DEFECT: " + "; ".join(map(str, r[:3])))
+        ok_all &= ok
         # package-level checks
         arts = {"B1A": json.loads(open(
             f"{fixture_docs}/f2g_phase_b_power_annex_b1a_cal_results.json",

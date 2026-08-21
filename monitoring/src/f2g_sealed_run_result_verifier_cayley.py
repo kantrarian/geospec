@@ -1,28 +1,30 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""SEALED-RUN RESULT VERIFIER (cayley) -- frozen BEFORE the fire (codex
-pre-fire fix 5).
+"""SEALED-RUN RESULT VERIFIER v2.1 (cayley) -- frozen BEFORE the fire.
 
-verify(repo, result, ckpt_path, expected_draws, bind_git, snapshots_dir):
-independently validates the sealed result artifact against its evidence
-checkpoint: exact result schema; git bindings (manifest / authorization /
-driver / instrument / engine blob shas, canonical checkpoint path + LF
-sha, reservation); VERIFIER-LOCAL schema-closed checkpoint loading (exact
-per-stage field sets, no duplicates, no unknown stages, header == the
-result's binding tuple); panel REBUILT from the bound inputs and digest-
-matched; evidence selection closure (exactly one full row per family;
-LOCO rows present iff the full-data p passes alpha, station set exactly
-the 35-fold registry); EVERY full and fold row RECOMPUTED through the
-attested engine at the recorded draw count and compared field-by-field;
-the LOCO gate recomputed; and the frozen typing rule enforced
-independently (a B1A/B3A nonpositive promoted past
-CANNOT_DETERMINE_NO_POWER refuses TYPING_PROMOTION -- certified-contract
-verdicts only where the contract derives from the pinned results blob).
-self_test runs the negative matrix on synthetic-tree fixtures (49-draw
-fixture runs; production verification always expected_draws=9999 with
-bind_git=True). Positive fixture is fold-free (synthetic nulls are
-nonpositive); fold-path code is exercised by the closure negatives --
-DISCLOSED.
+v2.1 = v2 + codex second-pass residuals 2/3/5:
+  R2  the result claim capsule is SCHEMA-CLOSED: families exactly
+      B1A/B2A/B3A each with exactly full/loco_folds/loco_gate; result
+      seal == the committed manifest's seal; codex_instrument_pass ==
+      the authorization's note object; canonical manifest path; exact
+      sources/checkpoint keysets; header codex-note sha == the
+      authorization note sha; reservation run UUID + authorities +
+      lease == the result and header; REGISTERED typing note and
+      non-claims strings exact.
+  R3  executed-bytes attestation: the verifier SELF-ATTESTS (its own
+      disk LF bytes must equal sources.verifier_sha256) and confirms the
+      IMPORTED instrument and engine modules' __file__ bytes against the
+      recorded shas; in bind_git mode every source must also equal its
+      HEAD blob and the engine the frozen 24b0d8f blob.
+  R5  a PLANTED-POSITIVE fixture (power-lane B2A m=3 generator remapped
+      onto the real registry) executes one full positive, all 35 folds,
+      and the conjunctive gate through the production verify path;
+      missing-fold / extra-fold / mutated-fold / wrong-fold-station /
+      mutated-gate are pinned refusals.
+Everything from v2 stands: verifier-local schema-closed checkpoint
+loading, panel rebuild + digest match, selection closure, EVERY full and
+fold row RECOMPUTED at the recorded draws, gate recomputation, and
+independent typing enforcement (TYPING_PROMOTION refusal).
 """
 import hashlib
 import json
@@ -32,23 +34,34 @@ import sys
 
 import f2g_sealed_run_instrument_cayley as I
 
-RESULT_SCHEMA = "f2g-sealed-run-result-v2"
-EVIDENCE_SCHEMA = "f2g-sealed-run-evidence-v2"
+RESULT_SCHEMA = "f2g-sealed-run-result-v2.1"
+EVIDENCE_SCHEMA = "f2g-sealed-run-evidence-v2.1"
 CANONICAL_CKPT = "docs/f2g_sealed_run_evidence.jsonl"
 AUTH_PATH = "docs/f2g_sealed_run_fire_authorization.json"
-RESERVATION_PATH = "docs/f2g_sealed_run_reservation.json"
 DRIVER_REL = "monitoring/src/f2g_sealed_run_driver_cayley.py"
 INSTRUMENT_REL = "monitoring/src/f2g_sealed_run_instrument_cayley.py"
 FAMS = ("B1A", "B2A", "B3A")
+REGISTERED_TYPING_NOTE = (
+    "B2A verdict-bearing under the certified power contract; B1A/B3A "
+    "nonpositives are typed CANNOT_DETERMINE_NO_POWER non-answers, never "
+    "'no signal'")
+REGISTERED_NON_CLAIMS = (
+    "no earthquake forecast, precursor, or displacement claims; "
+    "Lambda_geo remains INCONCLUSIVE; this result reports the registered "
+    "Phase-B family statistics on the sealed Phase-A graph series and "
+    "nothing else")
 RESULT_KEYS = {"schema", "generated_utc", "seal", "run_uuid",
                "reservation", "fire_authorization_sha256",
                "codex_instrument_pass", "input_manifest", "sources",
                "checkpoint", "env", "panel_sha256", "n_draws", "alpha",
                "families", "typing_note", "non_claims"}
+SOURCES_KEYS = {"driver_sha256", "instrument_sha256", "verifier_sha256",
+                "engine_sha256"}
 STAGE_FIELDS = {
     "header": {"key", "stage", "schema", "purpose", "run_uuid",
                "codex_note_sha256", "auth_sha256", "manifest_sha256",
-               "driver_sha256", "instrument_sha256", "engine_sha256"},
+               "driver_sha256", "instrument_sha256", "verifier_sha256",
+               "engine_sha256", "lease_commit"},
     "panel": {"key", "stage", "panel_sha256"},
     "full": {"key", "stage", "family", "result", "panel_sha256", "dt"},
     "loco": {"key", "stage", "family", "station", "result",
@@ -91,6 +104,12 @@ def _load_ckpt(path, reasons):
         if r["key"] in done:
             reasons.append(f"CHECKPOINT_DUPLICATE_KEY: {r['key']}")
             return None
+        if st == "header" and (r["key"] != "header" or i != 0):
+            reasons.append("CHECKPOINT_HEADER_MISMATCH: header placement")
+            return None
+        if st == "panel" and r["key"] != "panel":
+            reasons.append("CHECKPOINT_ROW_SCHEMA: panel key")
+            return None
         if st == "full" and (r["family"] not in FAMS or
                              r["key"] != f"full|{r['family']}"):
             reasons.append(f"CHECKPOINT_ROW_SCHEMA: {r['key']}")
@@ -105,7 +124,10 @@ def _load_ckpt(path, reasons):
 
 
 def verify(repo, result, ckpt_path, expected_draws=9999, bind_git=True,
-           snapshots_dir=None):
+           snapshots_dir=None, manifest=None, auth=None):
+    """manifest/auth: parsed committed documents. In bind_git mode they
+    are loaded from HEAD (arguments ignored); fixture mode must supply
+    both so the capsule-closure equalities always execute."""
     reasons = []
     if not isinstance(result, dict) or \
             result.get("schema") != RESULT_SCHEMA:
@@ -115,6 +137,67 @@ def verify(repo, result, ckpt_path, expected_draws=9999, bind_git=True,
     if missing or extra:
         return False, [f"RESULT_SCHEMA: missing {sorted(missing)} "
                        f"extra {sorted(extra)}"]
+    if bind_git:
+        mb = _blob(repo, "HEAD:" + I.MANIFEST_OUT)
+        ab = _blob(repo, "HEAD:" + AUTH_PATH)
+        if mb is None or ab is None:
+            return False, ["BINDING: manifest/authorization not in HEAD"]
+        manifest = json.loads(mb)
+        auth = json.loads(ab)
+        if _sha(mb) != result["input_manifest"].get("sha256"):
+            reasons.append("BINDING: input manifest")
+        if _sha(ab) != result["fire_authorization_sha256"]:
+            reasons.append("BINDING: fire authorization")
+    if manifest is None or auth is None:
+        return False, ["VERIFIER_USAGE: fixture mode requires manifest "
+                       "and auth documents"]
+    # ---- R2: capsule closure ----
+    if result["input_manifest"].get("path") != I.MANIFEST_OUT:
+        reasons.append("CAPSULE: manifest path not canonical")
+    if json.dumps(result["seal"], sort_keys=True) != \
+            json.dumps(manifest.get("seal"), sort_keys=True):
+        reasons.append("CAPSULE: result seal != manifest seal")
+    if json.dumps(result["codex_instrument_pass"], sort_keys=True) != \
+            json.dumps(auth.get("codex_pass_note"), sort_keys=True):
+        reasons.append("CAPSULE: codex_instrument_pass != authorization "
+                       "note")
+    if result["typing_note"] != REGISTERED_TYPING_NOTE:
+        reasons.append("CAPSULE: typing_note not the registered text")
+    if result["non_claims"] != REGISTERED_NON_CLAIMS:
+        reasons.append("CAPSULE: non_claims not the registered text")
+    if not isinstance(result["sources"], dict) or \
+            set(result["sources"]) != SOURCES_KEYS:
+        reasons.append("CAPSULE: sources keyset")
+        return False, reasons
+    if not isinstance(result["checkpoint"], dict) or \
+            set(result["checkpoint"]) != {"path", "sha256"}:
+        reasons.append("CAPSULE: checkpoint keyset")
+        return False, reasons
+    fam_obj = result["families"]
+    if not isinstance(fam_obj, dict) or set(fam_obj) != set(FAMS):
+        reasons.append("CAPSULE: families must be exactly B1A/B2A/B3A")
+        return False, reasons
+    for fam in FAMS:
+        if not isinstance(fam_obj[fam], dict) or \
+                set(fam_obj[fam]) != {"full", "loco_folds", "loco_gate"}:
+            reasons.append(f"CAPSULE: family {fam} keyset")
+            return False, reasons
+    resv = result["reservation"]
+    if not isinstance(resv, dict) or \
+            resv.get("run_uuid") != result["run_uuid"] or \
+            resv.get("auth_sha256") != \
+            result["fire_authorization_sha256"] or \
+            resv.get("manifest_sha256") != \
+            result["input_manifest"].get("sha256") or \
+            resv.get("driver_sha256") != \
+            result["sources"].get("driver_sha256") or \
+            resv.get("instrument_sha256") != \
+            result["sources"].get("instrument_sha256") or \
+            resv.get("verifier_sha256") != \
+            result["sources"].get("verifier_sha256") or \
+            resv.get("ckpt_path") != result["checkpoint"].get("path"):
+        reasons.append("CAPSULE: reservation does not bind the result's "
+                       "authorities")
     if result["n_draws"] != expected_draws:
         reasons.append(f"WRONG_DRAWS: {result['n_draws']} != "
                        f"{expected_draws}")
@@ -123,29 +206,32 @@ def verify(repo, result, ckpt_path, expected_draws=9999, bind_git=True,
             set(envd) != {"python", "numpy", "platform"} or \
             not all(isinstance(envd[k], str) and envd[k] for k in envd):
         reasons.append("RESULT_SCHEMA: env")
-    # ---- git bindings (production) ----
+    # ---- R3: executed-bytes attestation ----
+    if _sha(_lf(os.path.abspath(__file__))) != \
+            result["sources"].get("verifier_sha256"):
+        reasons.append("SOURCE_UNATTESTED: verifier self-attestation")
+    if _sha(_lf(I.__file__)) != \
+            result["sources"].get("instrument_sha256"):
+        reasons.append("SOURCE_UNATTESTED: imported instrument bytes")
     if bind_git:
-        man = _blob(repo, "HEAD:" + I.MANIFEST_OUT)
-        if man is None or _sha(man) != \
-                result["input_manifest"].get("sha256"):
-            reasons.append("BINDING: input manifest")
-        auth = _blob(repo, "HEAD:" + AUTH_PATH)
-        if auth is None or _sha(auth) != \
-                result["fire_authorization_sha256"]:
-            reasons.append("BINDING: fire authorization")
         for rel, key in ((DRIVER_REL, "driver_sha256"),
                          (INSTRUMENT_REL, "instrument_sha256"),
                          (I.ENGINE_PATH, "engine_sha256")):
             b = _blob(repo, "HEAD:" + rel)
             if b is None or _sha(b) != result["sources"].get(key):
                 reasons.append(f"BINDING: {key}")
+        vb = _blob(repo, "HEAD:" +
+                   "monitoring/src/f2g_sealed_run_result_verifier_"
+                   "cayley.py")
+        if vb is None or _sha(vb) != \
+                result["sources"].get("verifier_sha256"):
+            reasons.append("BINDING: verifier_sha256")
+        fz = _blob(repo, f"{I.ENGINE_COMMIT}:{I.ENGINE_PATH}")
+        if fz is None or _sha(fz) != \
+                result["sources"].get("engine_sha256"):
+            reasons.append("BINDING: engine != frozen 24b0d8f blob")
         if result["checkpoint"].get("path") != CANONICAL_CKPT:
             reasons.append("BINDING: checkpoint path not canonical")
-        rp = os.path.join(repo, RESERVATION_PATH)
-        if not os.path.exists(rp) or json.loads(
-                open(rp, encoding="utf-8").read()) != \
-                result["reservation"]:
-            reasons.append("BINDING: reservation")
     if not os.path.exists(ckpt_path) or \
             _sha(_lf(ckpt_path)) != result["checkpoint"].get("sha256"):
         reasons.append("BINDING: checkpoint sha")
@@ -157,6 +243,8 @@ def verify(repo, result, ckpt_path, expected_draws=9999, bind_git=True,
     if hdr.get("schema") != EVIDENCE_SCHEMA or \
             hdr.get("purpose") != "sealed-run-production" or \
             hdr.get("run_uuid") != result["run_uuid"] or \
+            hdr.get("codex_note_sha256") != \
+            (auth.get("codex_pass_note") or {}).get("blob_sha256") or \
             hdr.get("auth_sha256") != \
             result["fire_authorization_sha256"] or \
             hdr.get("manifest_sha256") != \
@@ -165,8 +253,11 @@ def verify(repo, result, ckpt_path, expected_draws=9999, bind_git=True,
             result["sources"].get("driver_sha256") or \
             hdr.get("instrument_sha256") != \
             result["sources"].get("instrument_sha256") or \
+            hdr.get("verifier_sha256") != \
+            result["sources"].get("verifier_sha256") or \
             hdr.get("engine_sha256") != \
-            result["sources"].get("engine_sha256"):
+            result["sources"].get("engine_sha256") or \
+            hdr.get("lease_commit") != resv.get("lease_commit"):
         reasons.append("CHECKPOINT_HEADER_MISMATCH: header does not bind "
                        "the result's authorities")
         return False, reasons
@@ -174,11 +265,15 @@ def verify(repo, result, ckpt_path, expected_draws=9999, bind_git=True,
     sys.path.insert(0, os.path.join(repo, "monitoring", "src"))
     os.chdir(repo)
     import d2_f2g_phase_b_stats as E
+    if _sha(_lf(E.__file__)) != result["sources"].get("engine_sha256"):
+        reasons.append("SOURCE_UNATTESTED: imported engine bytes")
+        return False, reasons
     if result["alpha"] != E.ALPHA_FAMILY:
         reasons.append("WRONG_ALPHA")
     sdir = snapshots_dir or os.path.join(repo, I.ARTIFACT_ROOT,
                                          "snapshots")
-    panel = I.build_panel(repo, sdir, allow_real=True)
+    panel = I.build_panel(repo, sdir,
+                          allow_real=snapshots_dir is None)
     pdig = I.panel_digest(panel)
     if pdig != result["panel_sha256"] or \
             done.get("panel", {}).get("panel_sha256") != pdig:
@@ -188,7 +283,7 @@ def verify(repo, result, ckpt_path, expected_draws=9999, bind_git=True,
         if r["stage"] in ("full", "loco") and r["panel_sha256"] != pdig:
             reasons.append(f"PANEL_MISMATCH: row {k}")
             return False, reasons
-    # ---- selection closure ----
+    # ---- selection closure + recomputation ----
     fulls = {r["family"]: r for r in done.values()
              if r["stage"] == "full"}
     if set(fulls) != set(FAMS):
@@ -198,7 +293,6 @@ def verify(repo, result, ckpt_path, expected_draws=9999, bind_git=True,
     alpha = E.ALPHA_FAMILY
     fams_fn = {"B1A": E.b1a_family_cal, "B2A": E.b2a_family_cal,
                "B3A": E.b3a_family_cal}
-    # contracts derive from the pinned results blob, never the result echo
     b2a_blob = _blob(repo, f"{I.RESULTS_COMMIT}:{I.B2A_RESULTS_PATH}")
     b2a_res = json.loads(b2a_blob)
     if b2a_res.get("terminal_type") != "CERTIFIED":
@@ -215,8 +309,7 @@ def verify(repo, result, ckpt_path, expected_draws=9999, bind_git=True,
     for fam in FAMS:
         locos = {r["station"]: r for r in done.values()
                  if r["stage"] == "loco" and r["family"] == fam}
-        full_row = fulls[fam]
-        full = full_row["result"]
+        full = fulls[fam]["result"]
         p = full.get("p_value")
         positive = p is not None and p <= alpha
         if positive and sorted(locos) != sorted(stations):
@@ -227,18 +320,16 @@ def verify(repo, result, ckpt_path, expected_draws=9999, bind_git=True,
             reasons.append(f"CLOSURE: {fam} nonpositive but LOCO rows "
                            "present")
             return False, reasons
-        # ---- recompute the full row ----
         re_full = fams_fn[fam](panel, doc_sha256=I.AMENDMENT2_SHA,
                                n_draws=result["n_draws"],
                                power_contract=contracts[fam])
         if json.dumps(re_full, sort_keys=True) != \
                 json.dumps(full, sort_keys=True):
             reasons.append(f"RESULT_NOT_RECOMPUTED: {fam} full row")
-        rf = result["families"].get(fam, {})
+        rf = result["families"][fam]
         if json.dumps(rf.get("full"), sort_keys=True) != \
                 json.dumps(re_full, sort_keys=True):
             reasons.append(f"RESULT_NOT_RECOMPUTED: {fam} result.full")
-        # ---- typing enforcement (independent of recompute) ----
         v = (rf.get("full") or {}).get("verdict")
         if fam in ("B1A", "B3A") and not positive and \
                 v != "CANNOT_DETERMINE_NO_POWER":
@@ -247,7 +338,6 @@ def verify(repo, result, ckpt_path, expected_draws=9999, bind_git=True,
         if fam == "B2A" and not positive and v != "NEGATIVE":
             reasons.append(f"TYPING: B2A nonpositive must be NEGATIVE "
                            f"(certified contract), got {v!r}")
-        # ---- folds + gate ----
         if positive:
             fold_list = []
             for st in stations:
@@ -279,62 +369,91 @@ def verify(repo, result, ckpt_path, expected_draws=9999, bind_git=True,
 
 # ---------------------- fixture self-test ----------------------
 
-def _fixture_run(repo, scratch, draws=49):
-    """Build a complete synthetic sealed-run fixture (tree -> panel ->
-    49-draw run -> ckpt + result) using the driver's shared run core."""
+def _fixture_docs(repo, ver_sha, ins_sha, eng_sha):
+    """Fixture manifest+auth documents carrying REAL attestable source
+    shas (so self/imported attestation always executes) and placeholder
+    binding shas for the git-only surfaces."""
+    manifest = {"seal": {"kat-seal": True}}
+    auth = {"schema": "f2g-sealed-run-fire-authorization-v2",
+            "codex_pass_note": {"path": "kat-note.md",
+                                "blob_sha256": "n" * 64,
+                                "ref": "kat-ref"},
+            "driver_blob_sha256": "d" * 64,
+            "instrument_blob_sha256": ins_sha,
+            "verifier_blob_sha256": ver_sha,
+            "manifest_sha256": "m" * 64,
+            "seal_quote_sha256": "s" * 64}
+    return manifest, auth
+
+
+def _fixture_run(repo, scratch, tree_maker, tag, draws):
+    """Complete synthetic sealed-run fixture via the driver's run core."""
     import f2g_sealed_run_driver_cayley as D
     sys.path.insert(0, os.path.join(repo, "monitoring", "src"))
     os.chdir(repo)
     import d2_f2g_phase_b_stats as E
-    tree = I.make_synthetic_tree(repo, os.path.join(scratch,
-                                                    "srv_fixture_tree"))
+    ver_sha = _sha(_lf(os.path.abspath(__file__)))
+    ins_sha = _sha(_lf(I.__file__))
+    eng_sha = _sha(_lf(E.__file__))
+    manifest, auth = _fixture_docs(repo, ver_sha, ins_sha, eng_sha)
+    tree = tree_maker(repo, os.path.join(scratch, f"srv_{tag}_tree"))
     panel = I.build_panel(repo, tree)
     pdig = I.panel_digest(panel)
-    ck = os.path.join(scratch, "srv_fixture_ckpt.jsonl")
+    ck = os.path.join(scratch, f"srv_{tag}_ckpt.jsonl")
     if os.path.exists(ck):
         os.unlink(ck)
     hdr = {"key": "header", "stage": "header", "schema": EVIDENCE_SCHEMA,
            "purpose": "sealed-run-production", "run_uuid": "f" * 32,
            "codex_note_sha256": "n" * 64, "auth_sha256": "a" * 64,
            "manifest_sha256": "m" * 64, "driver_sha256": "d" * 64,
-           "instrument_sha256": "i" * 64, "engine_sha256": "e" * 64}
+           "instrument_sha256": ins_sha, "verifier_sha256": ver_sha,
+           "engine_sha256": eng_sha, "lease_commit": "l" * 40}
     D.emit(ck, hdr)
     D.emit(ck, {"key": "panel", "stage": "panel", "panel_sha256": pdig})
     done = {"header": hdr, "panel": {"panel_sha256": pdig}}
+    b2a_blob = _blob(repo, f"{I.RESULTS_COMMIT}:{I.B2A_RESULTS_PATH}")
+    b2a_res = json.loads(b2a_blob)
     contracts = {"B1A": None, "B3A": None,
-                 "B2A": json.loads(_blob(
-                     repo, f"{I.RESULTS_COMMIT}:{I.B2A_RESULTS_PATH}"))}
-    # rebuild the derived contract exactly as verify() does
-    b2a_res = contracts["B2A"]
-    contracts["B2A"] = {"certified": True,
-                        "results_commit": I.RESULTS_COMMIT,
-                        "results_path": I.B2A_RESULTS_PATH,
-                        "results_blob_sha256": _sha(_blob(
-                            repo,
-                            f"{I.RESULTS_COMMIT}:{I.B2A_RESULTS_PATH}")),
-                        "certified_points":
-                            [c["point"] for c in
-                             b2a_res["certified_points"]],
-                        "lb95": b2a_res["certified_points"][0]["lb95"]}
+                 "B2A": {"certified": True,
+                         "results_commit": I.RESULTS_COMMIT,
+                         "results_path": I.B2A_RESULTS_PATH,
+                         "results_blob_sha256": _sha(b2a_blob),
+                         "certified_points":
+                             [c["point"] for c in
+                              b2a_res["certified_points"]],
+                         "lb95": b2a_res["certified_points"][0]["lb95"]}}
     results = D.run_families(E, panel, pdig, contracts, draws, ck,
                              I.all_stations(repo), done)
     res = {"schema": RESULT_SCHEMA, "generated_utc": "KAT",
-           "seal": {"kat": True}, "run_uuid": "f" * 32,
-           "reservation": {"kat": True},
+           "seal": manifest["seal"], "run_uuid": "f" * 32,
+           "reservation": {"schema": "f2g-sealed-run-reservation-v2",
+                           "run_uuid": "f" * 32,
+                           "auth_sha256": "a" * 64,
+                           "manifest_sha256": "m" * 64,
+                           "driver_sha256": "d" * 64,
+                           "instrument_sha256": ins_sha,
+                           "verifier_sha256": ver_sha,
+                           "engine_sha256": eng_sha,
+                           "lease_ref": "refs/f2g/kat",
+                           "lease_commit": "l" * 40,
+                           "ckpt_path": CANONICAL_CKPT,
+                           "created_utc": "KAT"},
            "fire_authorization_sha256": "a" * 64,
-           "codex_instrument_pass": {"kat": True},
+           "codex_instrument_pass": auth["codex_pass_note"],
            "input_manifest": {"path": I.MANIFEST_OUT,
                               "sha256": "m" * 64},
            "sources": {"driver_sha256": "d" * 64,
-                       "instrument_sha256": "i" * 64,
-                       "engine_sha256": "e" * 64},
+                       "instrument_sha256": ins_sha,
+                       "verifier_sha256": ver_sha,
+                       "engine_sha256": eng_sha},
            "checkpoint": {"path": CANONICAL_CKPT,
                           "sha256": _sha(_lf(ck))},
            "env": {"python": "kat", "numpy": "kat", "platform": "kat"},
            "panel_sha256": pdig, "n_draws": draws,
            "alpha": E.ALPHA_FAMILY, "families": results,
-           "typing_note": "kat", "non_claims": "kat"}
-    return tree, ck, res
+           "typing_note": REGISTERED_TYPING_NOTE,
+           "non_claims": REGISTERED_NON_CLAIMS}
+    return tree, ck, res, manifest, auth
 
 
 def self_test(repo, scratch):
@@ -349,21 +468,24 @@ def self_test(repo, scratch):
                           + "; ".join(map(str, reasons[:3]))))
         return refused
 
-    tree, ck, res = _fixture_run(repo, scratch)
-    ok, r = verify(repo, res, ck, expected_draws=49, bind_git=False,
-                   snapshots_dir=tree)
-    results["positive-fixture"] = ("PASS" if ok else
-                                   "DEFECT: " + "; ".join(map(str,
-                                                              r[:4])))
-    ok_all &= ok
     import copy
+    # ---------- nonpositive fixture ----------
+    tree, ck, res, man, auth = _fixture_run(
+        repo, scratch, I.make_synthetic_tree, "null", 49)
+    ok, r = verify(repo, res, ck, expected_draws=49, bind_git=False,
+                   snapshots_dir=tree, manifest=man, auth=auth)
+    results["positive-fixture-null"] = ("PASS" if ok else "DEFECT: "
+                                        + "; ".join(map(str, r[:4])))
+    ok_all &= ok
 
-    def dv(mut_res=None, mut_ck=None, expected_draws=49):
-        r2 = copy.deepcopy(res)
-        ck2 = ck
+    def dv(mut_res=None, mut_ck=None, expected_draws=49, base=None):
+        b = base or (tree, ck, res)
+        t_, c_, r_ = b
+        r2 = copy.deepcopy(r_)
+        ck2 = c_
         if mut_ck is not None:
-            ck2 = ck + ".mut"
-            rows = [json.loads(l) for l in open(ck, encoding="utf-8")
+            ck2 = c_ + ".mut"
+            rows = [json.loads(l) for l in open(c_, encoding="utf-8")
                     if l.strip()]
             rows = mut_ck(rows)
             with open(ck2, "w", encoding="utf-8", newline="\n") as f:
@@ -373,61 +495,114 @@ def self_test(repo, scratch):
         if mut_res is not None:
             mut_res(r2)
         return verify(repo, r2, ck2, expected_draws=expected_draws,
-                      bind_git=False, snapshots_dir=tree)
+                      bind_git=False, snapshots_dir=t_, manifest=man,
+                      auth=auth)
 
+    # R2 combined capsule mutation (codex's exact reproduction)
+    def combo(x):
+        x["seal"] = {"forged": True}
+        x["codex_instrument_pass"] = {"forged": True}
+        x["typing_note"] = "whatever"
+        x["non_claims"] = "whatever"
+        x["families"]["EXTRA"] = {"full": {"p_value": 0.0001,
+                                           "verdict": "POSITIVE"},
+                                  "loco_folds": None, "loco_gate": None}
+    ok, r = dv(mut_res=combo)
+    ok_all &= rec("combined-capsule-mutation", ok, r, "CAPSULE")
+    ok, r = dv(mut_res=lambda x: x.update(seal={"forged": True}))
+    ok_all &= rec("seal-mutation", ok, r, "CAPSULE: result seal")
+    ok, r = dv(mut_res=lambda x: x.update(
+        codex_instrument_pass={"forged": True}))
+    ok_all &= rec("codex-pass-mutation", ok, r,
+                  "CAPSULE: codex_instrument_pass")
+    ok, r = dv(mut_res=lambda x: x.update(typing_note="promoted"))
+    ok_all &= rec("typing-note-mutation", ok, r, "CAPSULE: typing_note")
+    ok, r = dv(mut_res=lambda x: x.update(non_claims="claims!"))
+    ok_all &= rec("non-claims-mutation", ok, r, "CAPSULE: non_claims")
+    ok, r = dv(mut_res=lambda x: x["families"].update(
+        EXTRA={"full": {}, "loco_folds": None, "loco_gate": None}))
+    ok_all &= rec("extra-family", ok, r, "CAPSULE: families")
+    ok, r = dv(mut_res=lambda x: x["reservation"].update(
+        run_uuid="0" * 32))
+    ok_all &= rec("reservation-mutation", ok, r, "CAPSULE: reservation")
+    # R3 attestation
+    ok, r = dv(mut_res=lambda x: x["sources"].update(
+        verifier_sha256="0" * 64))
+    ok_all &= rec("wrong-verifier-sha", ok, r, "SOURCE_UNATTESTED")
+    ok, r = dv(mut_res=lambda x: (x["sources"].update(
+        engine_sha256="0" * 64), x["reservation"].update(
+        engine_sha256="0" * 64)))
+    ok_all &= rec("wrong-engine-sha", ok, r,
+                  "CHECKPOINT_HEADER_MISMATCH")
+    # v2 negatives retained
     ok, r = dv(mut_res=lambda x: x["families"]["B1A"]["full"].update(
         verdict="NEGATIVE"))
     ok_all &= rec("typing-promotion", ok, r, "RESULT_NOT_RECOMPUTED")
-    ok, r = dv(mut_res=lambda x: x["families"]["B2A"]["full"].update(
-        p_value=0.0001))
-    ok_all &= rec("result-field-mutation", ok, r,
-                  "RESULT_NOT_RECOMPUTED")
     ok, r = dv(expected_draws=9999)
     ok_all &= rec("wrong-draws", ok, r, "WRONG_DRAWS")
-    ok, r = dv(mut_ck=lambda rows: rows + [dict(
-        rows[-1], key="full|B2A")])
+    ok, r = dv(mut_ck=lambda rows: rows + [dict(rows[-1],
+                                                key="full|B2A")])
     ok_all &= rec("duplicate-key", ok, r, "CHECKPOINT_DUPLICATE_KEY")
-    ok, r = dv(mut_ck=lambda rows: rows + [{"key": "x", "stage": "weird"}])
-    ok_all &= rec("unknown-stage", ok, r, "CHECKPOINT_UNKNOWN_STAGE")
-
-    def fake_full(rows):
-        # an injected positive without its 35 folds trips selection
-        # closure before recompute even runs -- the registered expectation
-        for row in rows:
-            if row.get("key") == "full|B2A":
-                row["result"] = dict(row["result"], p_value=0.0001,
-                                     verdict="POSITIVE_PRE_LOCO")
-        return rows
-    ok, r = dv(mut_ck=fake_full)
-    ok_all &= rec("fake-full-row", ok, r, "CLOSURE")
-
-    def fake_fold(rows):
-        rows.append({"key": "loco|B1A|XX.FAKE", "stage": "loco",
-                     "family": "B1A", "station": "XX.FAKE",
-                     "result": {"p_value": 0.5}, "panel_sha256":
-                     res["panel_sha256"], "dt": 0.0})
-        return rows
-    ok, r = dv(mut_ck=fake_fold)
-    ok_all &= rec("fake-fold-on-nonpositive", ok, r, "CLOSURE")
-
-    def hdr_mut(rows):
-        rows[0] = dict(rows[0], run_uuid="0" * 32)
-        return rows
-    ok, r = dv(mut_ck=hdr_mut)
+    ok, r = dv(mut_ck=lambda rows: [dict(rows[0], run_uuid="0" * 32)]
+               + rows[1:])
     ok_all &= rec("header-mismatch", ok, r, "CHECKPOINT_HEADER_MISMATCH")
-
-    def panel_mut(rows):
-        for row in rows:
-            if row.get("stage") == "panel":
-                row["panel_sha256"] = "0" * 64
-        return rows
-    ok, r = dv(mut_ck=panel_mut)
-    ok_all &= rec("panel-mismatch", ok, r, "PANEL_MISMATCH")
     r2 = copy.deepcopy(res)
     r2["checkpoint"]["sha256"] = "0" * 64
     ok, r = verify(repo, r2, ck, expected_draws=49, bind_git=False,
-                   snapshots_dir=tree)
+                   snapshots_dir=tree, manifest=man, auth=auth)
     ok_all &= rec("ckpt-bytes-changed", ok, r, "BINDING: checkpoint sha")
+    # ---------- R5: planted-positive fixture (full LOCO branch) ----------
+    ptree, pck, pres, man, auth = _fixture_run(
+        repo, scratch, I.make_positive_tree, "positive", 99)
+    b2a_p = pres["families"]["B2A"]["full"].get("p_value")
+    gate = pres["families"]["B2A"].get("loco_gate")
+    assert b2a_p is not None and b2a_p <= pres["alpha"] and gate, \
+        ("planted positive did not go positive", b2a_p)
+    ok, r = verify(repo, pres, pck, expected_draws=99, bind_git=False,
+                   snapshots_dir=ptree, manifest=man, auth=auth)
+    results["positive-fixture-loco"] = (
+        f"PASS (B2A full p={b2a_p}, 35 folds + gate recomputed through "
+        f"the production path; gate pass={gate.get('pass')})" if ok else
+        "DEFECT: " + "; ".join(map(str, r[:4])))
+    ok_all &= ok
+    pbase = (ptree, pck, pres)
+
+    def pv(mut_res=None, mut_ck=None):
+        return dv(mut_res=mut_res, mut_ck=mut_ck, expected_draws=99,
+                  base=pbase)
+
+    ok, r = pv(mut_ck=lambda rows: [x for x in rows
+                                    if x.get("key") !=
+                                    f"loco|B2A|{sorted(I.all_stations(repo))[0]}"])
+    ok_all &= rec("missing-fold", ok, r, "CLOSURE")
+    ok, r = pv(mut_ck=lambda rows: rows + [{
+        "key": "loco|B2A|XX.FAKE", "stage": "loco", "family": "B2A",
+        "station": "XX.FAKE", "result": {"p_value": 0.01},
+        "panel_sha256": pres["panel_sha256"], "dt": 0.0}])
+    ok_all &= rec("extra-fold", ok, r, "CLOSURE")
+
+    def mut_fold(rows):
+        for row in rows:
+            if row.get("stage") == "loco" and row["family"] == "B2A":
+                row["result"] = dict(row["result"], p_value=0.9)
+                break
+        return rows
+    ok, r = pv(mut_ck=mut_fold)
+    ok_all &= rec("mutated-fold", ok, r, "RESULT_NOT_RECOMPUTED")
+
+    def wrong_station(rows):
+        sts = [row for row in rows if row.get("stage") == "loco"]
+        a, b = sts[0], sts[1]
+        a_st, b_st = a["station"], b["station"]
+        a["station"], a["key"] = b_st, f"loco|B2A|{b_st}"
+        b["station"], b["key"] = a_st, f"loco|B2A|{a_st}"
+        return rows
+    ok, r = pv(mut_ck=wrong_station)
+    ok_all &= rec("wrong-fold-station", ok, r, "RESULT_NOT_RECOMPUTED")
+    ok, r = pv(mut_res=lambda x: x["families"]["B2A"]["loco_gate"]
+               .update(pass_=True) or x["families"]["B2A"]["loco_gate"]
+               .update(n_pass=99))
+    ok_all &= rec("mutated-gate", ok, r, "RESULT_NOT_RECOMPUTED")
     return ok_all, results
 
 

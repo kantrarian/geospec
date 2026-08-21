@@ -59,6 +59,16 @@ def _sha_bytes(b):
     return hashlib.sha256(b).hexdigest()
 
 
+def station_index_digest(measured_ids):
+    """The matrix producer's canonical station-index digest (codex v2
+    residual 4, formula per their reproduction of the producer contract):
+    sha256 of canonical-JSON bytes of the SORTED MEASURED station ids
+    (sort_keys=True, separators=(',',':'), allow_nan=False) plus LF."""
+    b = json.dumps(sorted(measured_ids), sort_keys=True,
+                   separators=(",", ":"), allow_nan=False).encode("utf-8")
+    return hashlib.sha256(b + b"\n").hexdigest()
+
+
 def _sha_file(p):
     return _sha_bytes(open(p, "rb").read())
 
@@ -239,7 +249,16 @@ def build_panel(repo, snapshots_dir, allow_real=False):
                         or (isinstance(sv, str) and ":" in sv)):
                     raise RuntimeError(f"STATE_VOCAB: {ck}/{day} {sid} "
                                        f"state {sv!r}")
+            # codex v2 residual 4: the snapshot digest must BE the
+            # producer digest of its own MEASURED index, not merely a
+            # self-consistent label
+            measured = [s for s, v in states.items() if v == "MEASURED"]
+            if idx != station_index_digest(measured):
+                raise RuntimeError(f"INDEX_DIGEST_WRONG: {ck}/{day} "
+                                   "snapshot digest is not the producer "
+                                   "digest of its MEASURED station index")
             seen = set()
+            prev_pair = None
             for e in snap.get("coheres_with", []):
                 if set(e) != EDGE_FIELDS:
                     raise RuntimeError(f"EDGE_FIELD_SET: {ck}/{day} "
@@ -271,6 +290,12 @@ def build_panel(repo, snapshots_dir, allow_real=False):
                 if (a, b) in seen:
                     raise RuntimeError(f"DUPLICATE_PAIR: {ck}/{day} "
                                        f"{a}|{b}")
+                # codex v2 residual 4: the builder emits edges sorted by
+                # (station_a, station_b); a shuffled list refuses
+                if prev_pair is not None and (a, b) <= prev_pair:
+                    raise RuntimeError(f"EDGE_ORDER: {ck}/{day} "
+                                       f"{a}|{b} out of canonical sort")
+                prev_pair = (a, b)
                 seen.add((a, b))
                 v = e["r"]
                 if type(v) not in (int, float) or v != v or \
@@ -342,8 +367,7 @@ def make_synthetic_tree(repo, root):
     for ck in CARRIERS:
         os.makedirs(os.path.join(root, ck), exist_ok=True)
         sts = sorted(reg[ck]["stations"])
-        idx = hashlib.sha256(("kat-index|" + "|".join(sts))
-                             .encode()).hexdigest()
+        idx = station_index_digest(sts)
         pairs = [(a, b) for i, a in enumerate(sts) for b in sts[i + 1:]]
         for day in masks[ck]:
             rows = [{"type": "coheres_with", "campaign_id": "kat-campaign",
@@ -357,6 +381,46 @@ def make_synthetic_tree(repo, root):
                     "campaign_id": "kat-campaign", "carrier_key": ck,
                     "day": day, "station_index_digest": idx,
                     "station_states": {s: "MEASURED" for s in sts},
+                    "coheres_with": rows}
+            with open(os.path.join(root, ck, f"{day}.json"), "w",
+                      encoding="utf-8", newline="\n") as f:
+                json.dump(snap, f, sort_keys=True)
+    return root
+
+
+def make_positive_tree(repo, root):
+    """Planted-positive fixture tree (codex v2 residual 5): values come
+    from the power lane's certified B2A effect generator (m=3, rep 0)
+    remapped onto the REAL selected registry names, so B2A goes
+    FULL-POSITIVE and all 35 LOCO folds + the conjunctive gate execute
+    through the production verifier path at the fixture draw count.
+    Fixture-only; synthetic values."""
+    import f2g_phase_b_power_estimation_cal_cayley as PD
+    panel = PD.make_panel("B2A", {"m": 3}, 0)
+    cal, masks = load_calendar(repo)
+    reg = load_registry(repo)
+    for ck in CARRIERS:
+        os.makedirs(os.path.join(root, ck), exist_ok=True)
+        sts_real = sorted(reg[ck]["stations"])
+        smap = dict(zip(PD.stations_of(ck), sts_real))
+        idx = station_index_digest(sts_real)
+        per_day = {}
+        for e, row in panel["carriers"][ck]["r"].items():
+            a_s, b_s = e.split("|")
+            a, b = sorted((smap[a_s], smap[b_s]))
+            for day, v in row.items():
+                per_day.setdefault(day, []).append((a, b, v))
+        for day in masks[ck]:
+            rows = [{"type": "coheres_with",
+                     "campaign_id": "kat-campaign", "carrier_key": ck,
+                     "day": day, "algorithm_id": "kat-alg",
+                     "station_index_digest": idx, "station_a": a,
+                     "station_b": b, "r": v, "unit": 1, "n_overlap": 100}
+                    for a, b, v in sorted(per_day.get(day, []))]
+            snap = {"schema": "f2g-graph-v1", "kind": "daily_snapshot",
+                    "campaign_id": "kat-campaign", "carrier_key": ck,
+                    "day": day, "station_index_digest": idx,
+                    "station_states": {s: "MEASURED" for s in sts_real},
                     "coheres_with": rows}
             with open(os.path.join(root, ck, f"{day}.json"), "w",
                       encoding="utf-8", newline="\n") as f:
@@ -489,9 +553,30 @@ def run_kats(repo, scratch):
         def fn(s):
             e0 = s["coheres_with"][0]
             s["station_states"][e0["station_a"]] = "NO_BOUND_OBJECT"
+            # keep the index digest SELF-CONSISTENT with the reduced
+            # MEASURED set so the EDGE check (not the digest check) is
+            # what refuses the unmeasured endpoint
+            idx2 = station_index_digest(
+                [k for k, v in s["station_states"].items()
+                 if v == "MEASURED"])
+            s["station_index_digest"] = idx2
+            for e in s["coheres_with"]:
+                e["station_index_digest"] = idx2
         _rewrite(root, fn)
     doctor("edge-for-unmeasured-station", m_unmeasured,
            "EDGE_FOR_UNMEASURED_STATION")
+    # codex v2 residual 4: a SELF-CONSISTENT wrong digest (snapshot AND
+    # every edge carry the same false label) must refuse against the
+    # recomputed producer digest; a shuffled edge list must refuse
+    doctor("wrong-digest-self-consistent", lambda r: _rewrite(
+        r, lambda s: (s.update(station_index_digest="0" * 64),
+                      [e.update(station_index_digest="0" * 64)
+                       for e in s["coheres_with"]])),
+        "INDEX_DIGEST_WRONG")
+    doctor("shuffled-edges", lambda r: _rewrite(
+        r, lambda s: s.update(coheres_with=list(
+            reversed(s["coheres_with"])))),
+        "EDGE_ORDER")
     print(f"ALL SEALED-INSTRUMENT KATS PASS ({time.time()-t0:.0f}s, "
           f"synthetic panel digest {dig[:12]}...)")
 

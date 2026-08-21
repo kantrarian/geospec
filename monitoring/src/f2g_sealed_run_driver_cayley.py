@@ -1,37 +1,32 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""SEALED-RUN FIRE DRIVER v2 (cayley) -- the ONE real-data run.
+"""SEALED-RUN FIRE DRIVER v2.1 (cayley) -- the ONE real-data run.
 
 Authorized: fresh owner seal option (a) (owner_seal_cal_fresh @ 931ec65).
-v2 implements the codex pre-fire WORKS-WITH-FIX findings 1/2/3/5:
+v2.1 = v2 + the codex second-pass residuals:
 
-GATE CHAIN (every gate BEFORE any real snapshot parse):
-  A. FIRE AUTHORIZATION (finding 1): a committed record at AUTH_PATH must
-     bind the codex PASS note (geospec path + blob sha), THIS driver's and
-     the instrument's exact blob shas, the input-manifest sha, and the
-     seal quote sha. --codex-pass must equal the recorded note ref; the
-     note blob, both source blobs, and the working-tree bytes must all
-     match. An arbitrary string can no longer open the gate.
-  B. ONE-SHOT (finding 2): the result path must be absent on disk, in
-     HEAD, and in `git log --all` history; a process LOCK (exclusive
-     create) admits exactly one process; a durable RESERVATION (exclusive
-     create, run UUID + all binding shas + the canonical checkpoint path)
-     is created before allow_real=True. A restart may ONLY resume the
-     same reservation and the canonical checkpoint (--resume); stale
-     locks are never auto-stolen (operator removes after confirming no
-     live process -- disclosed manual step).
-  C. CHECKPOINT (finding 3): one canonical checkpoint path; on first fire
-     it must be ABSENT; on resume it is loaded schema-closed (exact
-     per-stage field sets, no duplicate keys, no unknown stages, header
-     must equal the full binding tuple, every row bound to the rebuilt
-     panel digest). The frozen sealed-result verifier independently
-     recomputes every cached row after the run.
-  D. CLOSURE (finding 5): the input manifest is REBUILT at fire time and
-     compared to the committed manifest (generated_utc normalized); the
-     B2A power contract is re-derived from the pinned results blob and
-     exact-checked; the result artifact binds run UUID, reservation,
-     authorization, source/engine shas, checkpoint path+sha, and the
-     runtime environment.
+  R1  ONE-SHOT PER AUTHORIZED EXPERIMENT: the local lock and reservation
+      live under `git rev-parse --git-common-dir` (shared by every
+      worktree of the clone), and a REMOTE ATOMIC FIRE LEASE is acquired
+      before allow_real=True -- an orphan commit carrying the run UUID is
+      pushed expect-absent to refs/f2g/fire-lease and then read back; the
+      remote ref-update serialization guarantees exactly one winner
+      across clones and hosts. The lease commit is bound into the
+      reservation, checkpoint header, and result.
+  R3  EXECUTED-BYTES ATTESTATION: driver, instrument, RESULT VERIFIER,
+      and engine must each satisfy disk == HEAD == the recorded
+      registered blob before any real parse (engine additionally ==
+      the frozen 24b0d8f blob). The authorization schema (v2) binds the
+      verifier blob too; one canonical sha per source rides the
+      reservation, checkpoint header, and result.
+  (R2/R4/R5 live in the instrument and result verifier.)
+
+Gates from v2 unchanged: committed fire-authorization record binding the
+codex PASS note; --codex-pass must equal the recorded ref; one-shot
+across disk + HEAD + git log --all; canonical checkpoint absent on first
+fire; schema-closed resume loader; fire-time manifest rebuild comparison;
+B2A contract re-derivation; typed refusals everywhere; checkpointed
+idempotent run core; hash-sealed result artifact.
 Usage: driver.py <repo> --codex-pass <ref> [--resume]
 """
 import argparse
@@ -47,20 +42,30 @@ import f2g_sealed_run_instrument_cayley as I
 
 RESULT_PATH = "docs/f2g_sealed_run_result.json"
 CANONICAL_CKPT = "docs/f2g_sealed_run_evidence.jsonl"
-RESERVATION_PATH = "docs/f2g_sealed_run_reservation.json"
 AUTH_PATH = "docs/f2g_sealed_run_fire_authorization.json"
-LOCK_PATH = "docs/.f2g_sealed_run.lock"
-AUTH_SCHEMA = "f2g-sealed-run-fire-authorization-v1"
-EVIDENCE_SCHEMA = "f2g-sealed-run-evidence-v2"
+AUTH_SCHEMA = "f2g-sealed-run-fire-authorization-v2"
+EVIDENCE_SCHEMA = "f2g-sealed-run-evidence-v2.1"
+LEASE_REF = "refs/f2g/fire-lease"
 SEAL_QUOTE_SHA = ("bb94a28bec0060d7d45b799f17536c499539f324da0f58ac3a1edcf"
                   "df594a7e4")
 DRIVER_REL = "monitoring/src/f2g_sealed_run_driver_cayley.py"
 INSTRUMENT_REL = "monitoring/src/f2g_sealed_run_instrument_cayley.py"
+VERIFIER_REL = "monitoring/src/f2g_sealed_run_result_verifier_cayley.py"
 FAMS = ("B1A", "B2A", "B3A")
+REGISTERED_TYPING_NOTE = (
+    "B2A verdict-bearing under the certified power contract; B1A/B3A "
+    "nonpositives are typed CANNOT_DETERMINE_NO_POWER non-answers, never "
+    "'no signal'")
+REGISTERED_NON_CLAIMS = (
+    "no earthquake forecast, precursor, or displacement claims; "
+    "Lambda_geo remains INCONCLUSIVE; this result reports the registered "
+    "Phase-B family statistics on the sealed Phase-A graph series and "
+    "nothing else")
 STAGE_FIELDS = {
     "header": {"key", "stage", "schema", "purpose", "run_uuid",
                "codex_note_sha256", "auth_sha256", "manifest_sha256",
-               "driver_sha256", "instrument_sha256", "engine_sha256"},
+               "driver_sha256", "instrument_sha256", "verifier_sha256",
+               "engine_sha256", "lease_commit"},
     "panel": {"key", "stage", "panel_sha256"},
     "full": {"key", "stage", "family", "result", "panel_sha256", "dt"},
     "loco": {"key", "stage", "family", "station", "result",
@@ -85,20 +90,29 @@ def blob(repo, ref):
         return None
 
 
+def git_out(repo, *args):
+    return subprocess.check_output(["git", *args], cwd=repo).decode()
+
+
+def common_dir(repo):
+    d = git_out(repo, "rev-parse", "--git-common-dir").strip()
+    return d if os.path.isabs(d) else os.path.join(repo, d)
+
+
 def refuse(code, detail=""):
     print(f"{code}{': ' + detail if detail else ''}")
     sys.exit(2)
 
 
 def check_auth_record(auth, codex_pass_arg, resolve):
-    """Finding-1 attestation. resolve(rel) -> (disk_lf_sha, head_blob_sha)
-    is injected so KATs can exercise every refusal. Returns None on pass,
-    else a typed reason string."""
+    """Finding-1 attestation (v2.1: verifier bound too). resolve(rel) ->
+    (disk_lf_sha, head_blob_sha). Returns None on pass, else a typed
+    reason."""
     if not isinstance(auth, dict) or auth.get("schema") != AUTH_SCHEMA:
         return "AUTH_SCHEMA"
     need = {"schema", "codex_pass_note", "driver_blob_sha256",
-            "instrument_blob_sha256", "manifest_sha256",
-            "seal_quote_sha256"}
+            "instrument_blob_sha256", "verifier_blob_sha256",
+            "manifest_sha256", "seal_quote_sha256"}
     if set(auth) != need:
         return "AUTH_SCHEMA"
     note = auth["codex_pass_note"]
@@ -112,22 +126,55 @@ def check_auth_record(auth, codex_pass_arg, resolve):
     d, h = resolve(note["path"])
     if h is None or h != note["blob_sha256"] or d != h:
         return "AUTH_NOTE_UNATTESTED"
-    d, h = resolve(DRIVER_REL)
-    if h is None or h != auth["driver_blob_sha256"] or d != h:
-        return "SOURCE_UNATTESTED: driver"
-    d, h = resolve(INSTRUMENT_REL)
-    if h is None or h != auth["instrument_blob_sha256"] or d != h:
-        return "SOURCE_UNATTESTED: instrument"
+    for rel, key in ((DRIVER_REL, "driver_blob_sha256"),
+                     (INSTRUMENT_REL, "instrument_blob_sha256"),
+                     (VERIFIER_REL, "verifier_blob_sha256")):
+        d, h = resolve(rel)
+        if h is None or h != auth[key] or d != h:
+            return f"SOURCE_UNATTESTED: {rel.rsplit('/', 1)[-1]}"
     d, h = resolve(I.MANIFEST_OUT)
     if h is None or h != auth["manifest_sha256"] or d != h:
         return "MANIFEST_MISMATCH"
     return None
 
 
+def acquire_lease(repo, ref, payload):
+    """Remote atomic fire lease (residual 1): expect-absent create of an
+    orphan commit at `ref` on origin, then read-back verification -- the
+    remote serializes ref updates, so exactly one contender's commit can
+    be the ref value. Returns (won, lease_commit_sha, remote_sha)."""
+    existing = git_out(repo, "ls-remote", "origin", ref).strip()
+    if existing:
+        return False, None, existing.split()[0]
+    p = subprocess.run(["git", "hash-object", "-w", "--stdin"],
+                       input=json.dumps(payload, sort_keys=True)
+                       .encode() + b"\n", cwd=repo,
+                       capture_output=True)
+    bsha = p.stdout.decode().strip()
+    p = subprocess.run(["git", "mktree"],
+                       input=f"100644 blob {bsha}\tlease.json\n".encode(),
+                       cwd=repo, capture_output=True)
+    tsha = p.stdout.decode().strip()
+    csha = subprocess.run(
+        ["git", "commit-tree", tsha, "-m",
+         f"f2g fire lease {payload.get('run_uuid', '')}"],
+        cwd=repo, capture_output=True,
+        env=dict(os.environ,
+                 GIT_AUTHOR_NAME="cayley",
+                 GIT_AUTHOR_EMAIL="mail.rjmathews@gmail.com",
+                 GIT_COMMITTER_NAME="cayley",
+                 GIT_COMMITTER_EMAIL="mail.rjmathews@gmail.com")) \
+        .stdout.decode().strip()
+    subprocess.run(["git", "push", "origin", f"{csha}:{ref}"], cwd=repo,
+                   capture_output=True)
+    after = git_out(repo, "ls-remote", "origin", ref).strip()
+    remote_sha = after.split()[0] if after else None
+    return (remote_sha == csha), csha, remote_sha
+
+
 def load_ckpt_strict(path, expect_header):
-    """Finding-3 schema-closed loader. Refuses duplicates, unknown
-    stages, malformed rows, and any header not equal to the full binding
-    tuple. Returns {key: row}."""
+    """Schema-closed loader (finding 3; v2.1 adds exact-one header/panel
+    key enforcement)."""
     done = {}
     rows = [json.loads(l) for l in open(path, encoding="utf-8")
             if l.strip()]
@@ -142,7 +189,7 @@ def load_ckpt_strict(path, expect_header):
         if r["key"] in done:
             raise RuntimeError(f"CHECKPOINT_DUPLICATE_KEY: {r['key']}")
         if st == "header":
-            if i != 0 or r != expect_header:
+            if r["key"] != "header" or i != 0 or r != expect_header:
                 raise RuntimeError("CHECKPOINT_HEADER_MISMATCH")
         elif st == "panel":
             if r["key"] != "panel":
@@ -165,8 +212,6 @@ def emit(path, row):
 
 
 def derive_b2a_contract(repo, manifest):
-    """Finding-5: the B2A contract must re-derive from the pinned results
-    blob, never be trusted from the manifest echo."""
     raw = blob(repo, f"{I.RESULTS_COMMIT}:{I.B2A_RESULTS_PATH}")
     if raw is None:
         return "CONTRACT_DERIVATION_MISMATCH: results blob unreadable"
@@ -184,8 +229,7 @@ def derive_b2a_contract(repo, manifest):
 
 def run_families(E, panel, pdig, contracts, n_draws, ckpt, stations,
                  done):
-    """Shared run core (also used by the result verifier's fixture
-    harness). Emits checkpoint rows; returns per-family results."""
+    """Shared run core (also the result verifier's fixture harness)."""
     alpha = E.ALPHA_FAMILY
     fams = {"B1A": E.b1a_family_cal, "B2A": E.b2a_family_cal,
             "B3A": E.b3a_family_cal}
@@ -258,7 +302,7 @@ def main():
         h = blob(repo, f"HEAD:{rel}")
         return d, (sha_b(h) if h is not None else None)
 
-    # gate A: fire authorization
+    # gate A: fire authorization (attested, v2 schema incl verifier)
     auth_blob = blob(repo, f"HEAD:{AUTH_PATH}")
     if auth_blob is None:
         refuse("AUTH_MISSING", "no committed fire-authorization record")
@@ -270,7 +314,16 @@ def main():
     if bad:
         refuse(bad)
     auth_sha = sha_b(auth_blob)
-    # gate D1: manifest rebuild comparison (generated_utc normalized)
+    # gate A2 (residual 3): engine executed bytes == HEAD == frozen blob
+    eng_disk = sha_b(lf(os.path.join(repo, I.ENGINE_PATH)))
+    eng_head = blob(repo, f"HEAD:{I.ENGINE_PATH}")
+    eng_frozen = blob(repo, f"{I.ENGINE_COMMIT}:{I.ENGINE_PATH}")
+    if eng_head is None or eng_frozen is None or \
+            eng_disk != sha_b(eng_head) or eng_disk != sha_b(eng_frozen):
+        refuse("SOURCE_UNATTESTED: engine (disk/HEAD/frozen 24b0d8f "
+               "disagree)")
+    engine_sha = eng_disk
+    # gate D1: manifest rebuild comparison
     man_blob = blob(repo, f"HEAD:{I.MANIFEST_OUT}")
     committed = json.loads(man_blob)
     rebuilt = I.build_input_manifest(repo, write=False)
@@ -278,48 +331,60 @@ def main():
     a.pop("generated_utc", None)
     b2.pop("generated_utc", None)
     if json.dumps(a, sort_keys=True) != json.dumps(b2, sort_keys=True):
-        refuse("MANIFEST_DRIFT", "rebuilt manifest differs from committed")
+        refuse("MANIFEST_DRIFT")
     bad = derive_b2a_contract(repo, committed)
     if bad:
         refuse(bad)
-    # gate B: one-shot across disk, HEAD, and ALL history
+    # gate B: one-shot across disk, HEAD, history
     if os.path.exists(os.path.join(repo, RESULT_PATH)):
         refuse("ONE_SHOT_REFUSAL", "result exists on disk")
     if blob(repo, f"HEAD:{RESULT_PATH}") is not None:
         refuse("ONE_SHOT_REFUSAL", "result exists in HEAD")
-    hist = subprocess.check_output(
-        ["git", "log", "--all", "--oneline", "--", RESULT_PATH],
-        cwd=repo).decode().strip()
-    if hist:
+    if git_out(repo, "log", "--all", "--oneline", "--",
+               RESULT_PATH).strip():
         refuse("HISTORY_ONE_SHOT", "result path appears in git history")
-    # process lock (exclusive; stale locks are an operator decision)
+    # residual 1: lock + reservation in the COMMON git dir (shared by
+    # every worktree of this clone)
+    cdir = common_dir(repo)
+    lock_path = os.path.join(cdir, "f2g_sealed_run.lock")
+    res_path = os.path.join(cdir, "f2g_sealed_run_reservation.json")
     try:
-        lock_fd = os.open(os.path.join(repo, LOCK_PATH),
-                          os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        lock_fd = os.open(lock_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
     except FileExistsError:
         refuse("LOCK_HELD", "another process holds the run lock (remove "
                "manually ONLY after confirming no live process)")
     try:
-        engine_sha = sha_b(blob(repo, f"HEAD:{I.ENGINE_PATH}"))
-        res_path = os.path.join(repo, RESERVATION_PATH)
         ck_path = os.path.join(repo, CANONICAL_CKPT)
         if not args.resume:
             if os.path.exists(res_path):
-                refuse("RESERVATION_EXISTS", "use --resume for the same "
-                       "reservation")
+                refuse("RESERVATION_EXISTS", "use --resume")
             if os.path.exists(ck_path) or \
                     blob(repo, f"HEAD:{CANONICAL_CKPT}") is not None:
-                refuse("CHECKPOINT_PREEXISTS", "canonical checkpoint must "
-                       "be absent on first fire")
+                refuse("CHECKPOINT_PREEXISTS")
             run_uuid = os.urandom(16).hex()
-            reservation = {"schema": "f2g-sealed-run-reservation-v1",
+            # residual 1: remote atomic fire lease BEFORE allow_real
+            won, lease_commit, remote_sha = acquire_lease(
+                repo, LEASE_REF,
+                {"schema": "f2g-fire-lease-v1", "run_uuid": run_uuid,
+                 "auth_sha256": auth_sha,
+                 "host": platform.node(),
+                 "created_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ",
+                                              time.gmtime())})
+            if not won:
+                refuse("LEASE_LOST", f"remote fire lease already held "
+                       f"({remote_sha})")
+            reservation = {"schema": "f2g-sealed-run-reservation-v2",
                            "run_uuid": run_uuid,
                            "auth_sha256": auth_sha,
                            "manifest_sha256": sha_b(man_blob),
                            "driver_sha256": auth["driver_blob_sha256"],
                            "instrument_sha256":
                                auth["instrument_blob_sha256"],
+                           "verifier_sha256":
+                               auth["verifier_blob_sha256"],
                            "engine_sha256": engine_sha,
+                           "lease_ref": LEASE_REF,
+                           "lease_commit": lease_commit,
                            "ckpt_path": CANONICAL_CKPT,
                            "created_utc": time.strftime(
                                "%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
@@ -328,19 +393,27 @@ def main():
                 json.dump(reservation, f, indent=1, sort_keys=True)
         else:
             if not os.path.exists(res_path):
-                refuse("RESERVATION_MISSING", "--resume without a "
-                       "reservation")
+                refuse("RESERVATION_MISSING")
             reservation = json.loads(open(res_path,
                                           encoding="utf-8").read())
             if reservation.get("auth_sha256") != auth_sha or \
-                    reservation.get("manifest_sha256") != sha_b(man_blob) \
-                    or reservation.get("driver_sha256") != \
+                    reservation.get("manifest_sha256") != \
+                    sha_b(man_blob) or \
+                    reservation.get("driver_sha256") != \
                     auth["driver_blob_sha256"] or \
                     reservation.get("instrument_sha256") != \
                     auth["instrument_blob_sha256"] or \
+                    reservation.get("verifier_sha256") != \
+                    auth["verifier_blob_sha256"] or \
                     reservation.get("ckpt_path") != CANONICAL_CKPT:
                 refuse("RESERVATION_MISMATCH")
             run_uuid = reservation["run_uuid"]
+            held = git_out(repo, "ls-remote", "origin",
+                           LEASE_REF).strip()
+            if not held or held.split()[0] != \
+                    reservation.get("lease_commit"):
+                refuse("LEASE_MISMATCH", "remote lease is not this "
+                       "reservation's lease commit")
         header = {"key": "header", "stage": "header",
                   "schema": EVIDENCE_SCHEMA,
                   "purpose": "sealed-run-production",
@@ -351,7 +424,9 @@ def main():
                   "manifest_sha256": sha_b(man_blob),
                   "driver_sha256": auth["driver_blob_sha256"],
                   "instrument_sha256": auth["instrument_blob_sha256"],
-                  "engine_sha256": engine_sha}
+                  "verifier_sha256": auth["verifier_blob_sha256"],
+                  "engine_sha256": engine_sha,
+                  "lease_commit": reservation["lease_commit"]}
         if os.path.exists(ck_path):
             done = load_ckpt_strict(ck_path, header)
         else:
@@ -369,8 +444,7 @@ def main():
               f"({time.time()-t0:.0f}s)", flush=True)
         if "panel" in done:
             if done["panel"]["panel_sha256"] != pdig:
-                refuse("CHECKPOINT_PANEL_MISMATCH", "resumed checkpoint "
-                       "was built from different inputs")
+                refuse("CHECKPOINT_PANEL_MISMATCH")
         else:
             emit(ck_path, {"key": "panel", "stage": "panel",
                            "panel_sha256": pdig})
@@ -381,7 +455,7 @@ def main():
                                I.all_stations(repo), done)
         import numpy as np
         out = {
-            "schema": "f2g-sealed-run-result-v2",
+            "schema": "f2g-sealed-run-result-v2.1",
             "generated_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ",
                                            time.gmtime()),
             "seal": committed["seal"],
@@ -394,6 +468,7 @@ def main():
             "sources": {"driver_sha256": auth["driver_blob_sha256"],
                         "instrument_sha256":
                             auth["instrument_blob_sha256"],
+                        "verifier_sha256": auth["verifier_blob_sha256"],
                         "engine_sha256": engine_sha},
             "checkpoint": {"path": CANONICAL_CKPT,
                            "sha256": sha_b(lf(ck_path))},
@@ -404,15 +479,8 @@ def main():
             "n_draws": 9999,
             "alpha": E.ALPHA_FAMILY,
             "families": results,
-            "typing_note": "B2A verdict-bearing under the certified "
-                           "power contract; B1A/B3A nonpositives are "
-                           "typed CANNOT_DETERMINE_NO_POWER non-answers, "
-                           "never 'no signal'",
-            "non_claims": "no earthquake forecast, precursor, or "
-                          "displacement claims; Lambda_geo remains "
-                          "INCONCLUSIVE; this result reports the "
-                          "registered Phase-B family statistics on the "
-                          "sealed Phase-A graph series and nothing else",
+            "typing_note": REGISTERED_TYPING_NOTE,
+            "non_claims": REGISTERED_NON_CLAIMS,
         }
         with open(os.path.join(repo, RESULT_PATH), "w", encoding="utf-8",
                   newline="\n") as f:
@@ -423,7 +491,7 @@ def main():
     finally:
         os.close(lock_fd)
         try:
-            os.unlink(os.path.join(repo, LOCK_PATH))
+            os.unlink(lock_path)
         except OSError:
             pass
 

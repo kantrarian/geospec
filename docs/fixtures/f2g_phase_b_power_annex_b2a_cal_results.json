@@ -1,0 +1,652 @@
+{
+ "calendar_authority_mode": "bound",
+ "calendar_authority_sha256": "3aaaec5872933adf3e7f0daa7beb840e11b793a41d7c387ad4800c078fc65111",
+ "certified_points": [],
+ "digests": {
+  "admitted_bar_lf_sha256": "52055d45884304639ac8640fa827be2d3102c3d87b85df36378c215eae60f208",
+  "annex_b1a_sha256": "c7223c5c687234ea9538c73643722ea4fb16ec35ee76a6827ad0a90fae260dbe",
+  "annex_b2a_sha256": "8eb73a0004113bfe4bce9951c33fcf11fd4df540d9d119898556e887502e97bf",
+  "annex_b3a_sha256": "6e63b993611d072327a61628aa28183b732164fbbd2668330086c96092cf29b1",
+  "annex_common_rev16_sha256": "44f8ddd9dd175679c0feca398dd2d549454e8b3ee429a037a13f6362f88bf31a",
+  "assembler_lf_sha256": "1114ed3ffb69182c168e0ed711a99f05e414e5e4ce30252029d3b86d16ef4c5a",
+  "driver_lf_sha256": "0f2d20f13367230211716d80939b685b90be771bfb6b4b9f218d468008f29034",
+  "engine_lf_sha256": "4a39d3fbdc543e8c64e7b8a068bcb384d320361973bce68fc0b2b219c27968f1",
+  "frozen_amendment2_sha256": "58b513b6c30b70c8014510788da9d7d819ce8971ca59b7dfdc11c57a1664586f"
+ },
+ "env": {
+  "numpy": "2.5.2",
+  "python": "3.12.10"
+ },
+ "equivalence_receipt": {
+  "all_equal": true,
+  "engine_commit_bound": "24b0d8f",
+  "fold_equal_all": true,
+  "folds_checked": 35,
+  "full_equal": true
+ },
+ "evidence_capsule": {
+  "geospec_commit": "dde8f1b",
+  "git_blob_sha256": "68043f36a955f753fc9f432ddf7a06ca8b1f3e03d50708d95dfb6a05a3f26122",
+  "path": "docs/f2g_phase_b_power_cal_evidence.jsonl",
+  "rows": 4881
+ },
+ "family": "B2A",
+ "induced_effect_report": {
+  "family": "B2A",
+  "note": "per-family induced-effect summaries ride the registered corner replicate"
+ },
+ "panel_reopen_sample": [
+  {
+   "family": "B2A",
+   "panel_sha256": "feff68a158d8448ce5abc0e3f6fd0e2e0ab986297362dd39be20121c9ade0c90",
+   "point": {
+    "m": 1
+   },
+   "rep": 0
+  },
+  {
+   "family": "B2A",
+   "panel_sha256": "3a7e4c5d90768a8a083dec7a6e1470d64e04d814df59b11204506ee9417a38fa",
+   "point": {
+    "m": 2
+   },
+   "rep": 0
+  },
+  {
+   "family": "B2A",
+   "panel_sha256": "f8edb408afdbd6d09731157098bb8f1cb6961fb6572d2043dadb82a4413d1179",
+   "point": {
+    "m": 3
+   },
+   "rep": 0
+  },
+  {
+   "family": "B2A",
+   "panel_sha256": "feff68a158d8448ce5abc0e3f6fd0e2e0ab986297362dd39be20121c9ade0c90",
+   "point": {
+    "m": 1
+   },
+   "rep": 0
+  },
+  {
+   "family": "B2A",
+   "panel_sha256": "922888706ddaf203bf7989acd19599180d9ed8f483c1bb745f0664ab26156424",
+   "point": {
+    "m": 1
+   },
+   "rep": 1
+  },
+  {
+   "family": "B2A",
+   "panel_sha256": "4863d63fd97e5d399200e74975187115af6ec7d683c597645e94a367753b5b92",
+   "point": {
+    "m": 1
+   },
+   "rep": 2
+  },
+  {
+   "family": "B2A",
+   "panel_sha256": "d6c2252d6addd1646b7c2b1a91915a040b7772067268481a2ca521d032d2606b",
+   "point": {
+    "m": 1
+   },
+   "rep": 3
+  },
+  {
+   "family": "B2A",
+   "panel_sha256": "e1d54df0db5facc620336051397446090a2caaf70345366cf00a3497f800707b",
+   "point": {
+    "m": 1
+   },
+   "rep": 4
+  },
+  {
+   "family": "B2A",
+   "panel_sha256": "718a47c8eb98d2321ffe77895535759ed58b155dd4feae28acbbbfa75811588b",
+   "point": {
+    "m": 1
+   },
+   "rep": 5
+  },
+  {
+   "family": "B2A",
+   "panel_sha256": "99e65b8fb5858d3ef97674e4d8a355f8c3b89ec2b2a5d1947e0086f7df8d2357",
+   "point": {
+    "m": 1
+   },
+   "rep": 6
+  },
+  {
+   "family": "B2A",
+   "panel_sha256": "fd68e2ca8b605fbc0f74f410aae34755acc42c28e50cbd74fc8ea5695868eb20",
+   "point": {
+    "m": 1
+   },
+   "rep": 7
+  },
+  {
+   "family": "B2A",
+   "panel_sha256": "24dc07a9c974eca260951c3664b29ea41b3550b10530e647bcb55fbb08056c8c",
+   "point": {
+    "m": 1
+   },
+   "rep": 8
+  },
+  {
+   "family": "B2A",
+   "panel_sha256": "3d9eb3697502dd617a622fd7d821ba3cfc6b13c3bf1e67f803c85ef6ba3a0027",
+   "point": {
+    "m": 1
+   },
+   "rep": 9
+  },
+  {
+   "family": "B2A",
+   "panel_sha256": "26d2fff6c0635461cfa49bea81d5464f7b555571de376afa59a8ee317c46a443",
+   "point": {
+    "m": 1
+   },
+   "rep": 10
+  },
+  {
+   "family": "B2A",
+   "panel_sha256": "9caef8f61de3a133083347c85885ad505b5bf8d5135004b45f836260886928b3",
+   "point": {
+    "m": 1
+   },
+   "rep": 11
+  },
+  {
+   "family": "B2A",
+   "panel_sha256": "c7d9a2aed472274043ccd4bf070f8a2454fd136247e03d9cdfcbef231ab6cf3e",
+   "point": {
+    "m": 1
+   },
+   "rep": 12
+  },
+  {
+   "family": "B2A",
+   "panel_sha256": "3a409b20ca517ec34b4619eba3bd475cc47307600ff3bf68d7199073d1b634cd",
+   "point": {
+    "m": 1
+   },
+   "rep": 13
+  },
+  {
+   "family": "B2A",
+   "panel_sha256": "2422ae5f2085b51077e6924ba0569ea5a558940b819e444c2557e02af48e2377",
+   "point": {
+    "m": 1
+   },
+   "rep": 14
+  },
+  {
+   "family": "B2A",
+   "panel_sha256": "04b2854b107a6bd02dbf894a7a09aea5455f3ff15bb0ecfff0b76fd8b7e777e1",
+   "point": {
+    "m": 1
+   },
+   "rep": 15
+  },
+  {
+   "family": "B2A",
+   "panel_sha256": "398b4ccdce62e53304f28ec1ffbd34887fbbf239bc983ee6b2f193425284e6ff",
+   "point": {
+    "m": 1
+   },
+   "rep": 16
+  },
+  {
+   "family": "B2A",
+   "panel_sha256": "bd0fde8f3d23ad5531c04af1531c109d1e019cfa2d7aff5709cf8b03632ac833",
+   "point": {
+    "m": 1
+   },
+   "rep": 17
+  },
+  {
+   "family": "B2A",
+   "panel_sha256": "17b2676f5a357ae8e50652e207c592ca40079593fa6a9cf2c0641e92411f1e9d",
+   "point": {
+    "m": 1
+   },
+   "rep": 18
+  },
+  {
+   "family": "B2A",
+   "panel_sha256": "0026db97f735b22bb5a32821c4d360acce968d3a06184576a6aa39e04255219a",
+   "point": {
+    "m": 1
+   },
+   "rep": 19
+  },
+  {
+   "family": "B2A",
+   "panel_sha256": "3a7e4c5d90768a8a083dec7a6e1470d64e04d814df59b11204506ee9417a38fa",
+   "point": {
+    "m": 2
+   },
+   "rep": 0
+  },
+  {
+   "family": "B2A",
+   "panel_sha256": "5b0afeb61f950dceb1ac126342fe4f8263cf45e035b75e4d0fd396c6407962f6",
+   "point": {
+    "m": 2
+   },
+   "rep": 1
+  },
+  {
+   "family": "B2A",
+   "panel_sha256": "72dcc07493ec8adf45e0783b15cb592f44686a210b5e318aeecdedf97ddb60dd",
+   "point": {
+    "m": 2
+   },
+   "rep": 2
+  },
+  {
+   "family": "B2A",
+   "panel_sha256": "4bfca367060d70312714fc1a4cf217843722b418fa687c3773f627447891c9ca",
+   "point": {
+    "m": 2
+   },
+   "rep": 3
+  },
+  {
+   "family": "B2A",
+   "panel_sha256": "eadb95f066af773840969859d8cb281d9bdc6edfa81dae6227a213a85eecb1b4",
+   "point": {
+    "m": 2
+   },
+   "rep": 4
+  },
+  {
+   "family": "B2A",
+   "panel_sha256": "8cfb36008ec931c15a146ff0f3facb488d7ae8fade371bf44076d2886fb636f1",
+   "point": {
+    "m": 2
+   },
+   "rep": 5
+  },
+  {
+   "family": "B2A",
+   "panel_sha256": "03b3c73dcfb9181d3726a2e171cba490c174d12d47b642cd25a8211efa7631d7",
+   "point": {
+    "m": 2
+   },
+   "rep": 6
+  },
+  {
+   "family": "B2A",
+   "panel_sha256": "bbcf57547c2469f913f42f49023d495a5c23262096330d5c5e47929bc74287cb",
+   "point": {
+    "m": 2
+   },
+   "rep": 7
+  },
+  {
+   "family": "B2A",
+   "panel_sha256": "caba679d23312026588c45ef40a35353e0ff0ae488e513037b32d083a8dd4b42",
+   "point": {
+    "m": 2
+   },
+   "rep": 8
+  },
+  {
+   "family": "B2A",
+   "panel_sha256": "03d08714bb56ba3b95b442ff6c6db9df79d3f6a3867ee914dc0c735ed4cea7c7",
+   "point": {
+    "m": 2
+   },
+   "rep": 9
+  },
+  {
+   "family": "B2A",
+   "panel_sha256": "f915be25bf1039d91e90c2ef93e2b9e0687c8038df9f7b397f0bec18b17fc63a",
+   "point": {
+    "m": 2
+   },
+   "rep": 10
+  },
+  {
+   "family": "B2A",
+   "panel_sha256": "0f439d97dd65dc2902ed634fba34ddbfe2cd138d22bd919288a26f32163fc988",
+   "point": {
+    "m": 2
+   },
+   "rep": 11
+  },
+  {
+   "family": "B2A",
+   "panel_sha256": "fd009b8153b079edcb2972b1c79914564646b87bc800c0149d6e3bcbda932309",
+   "point": {
+    "m": 2
+   },
+   "rep": 12
+  },
+  {
+   "family": "B2A",
+   "panel_sha256": "816e5b4d6122565112725f20444b15aa398ecf7c94fc6f3aa4f41d8e6242a36b",
+   "point": {
+    "m": 2
+   },
+   "rep": 13
+  },
+  {
+   "family": "B2A",
+   "panel_sha256": "30c44209fa72659666da84da5c4a0edb1920b74d231ef1d63ffb6a1859cf4b8f",
+   "point": {
+    "m": 2
+   },
+   "rep": 14
+  },
+  {
+   "family": "B2A",
+   "panel_sha256": "d35053a938481d44c58af42c502b9cd8d85c8330b7e8e2bb83cefd01427798a6",
+   "point": {
+    "m": 2
+   },
+   "rep": 15
+  },
+  {
+   "family": "B2A",
+   "panel_sha256": "c90e93515024b441fdc8b4bcee0e91415dabde1b60471e91a90cc9746d369ae9",
+   "point": {
+    "m": 2
+   },
+   "rep": 16
+  },
+  {
+   "family": "B2A",
+   "panel_sha256": "67c4b4b01c5b9c7973ad55c3d0ae87a4d46c6737c494aa8eaa9c33239bb24fff",
+   "point": {
+    "m": 2
+   },
+   "rep": 17
+  },
+  {
+   "family": "B2A",
+   "panel_sha256": "ce8c81191a308e3c4cf55639231a515ed9052fde9bfd771c995c6c7dcabc0e7a",
+   "point": {
+    "m": 2
+   },
+   "rep": 18
+  },
+  {
+   "family": "B2A",
+   "panel_sha256": "ecd0b35b34d70fb015e429eea2928da454937e1ddbcf43706e5a480ace1c6457",
+   "point": {
+    "m": 2
+   },
+   "rep": 19
+  },
+  {
+   "family": "B2A",
+   "panel_sha256": "f8edb408afdbd6d09731157098bb8f1cb6961fb6572d2043dadb82a4413d1179",
+   "point": {
+    "m": 3
+   },
+   "rep": 0
+  },
+  {
+   "family": "B2A",
+   "panel_sha256": "6a5063348a000d99fc3fd063e18c6879759fc5298c002e98b69e8921ab360979",
+   "point": {
+    "m": 3
+   },
+   "rep": 1
+  },
+  {
+   "family": "B2A",
+   "panel_sha256": "69e9e748ec80b6422b0386ceee1b266e092ce08cc193ba1c1ae187f159bee3d8",
+   "point": {
+    "m": 3
+   },
+   "rep": 2
+  },
+  {
+   "family": "B2A",
+   "panel_sha256": "cf3799bb2e1c8bb4c95ad3b1708f133d0b695d9698762f4ac7894b163366aeca",
+   "point": {
+    "m": 3
+   },
+   "rep": 3
+  },
+  {
+   "family": "B2A",
+   "panel_sha256": "5343ce54cb7c85fe52e3a2a58a52e2068fdc2c7236c392e0cfc7fe134e2a5f1e",
+   "point": {
+    "m": 3
+   },
+   "rep": 4
+  },
+  {
+   "family": "B2A",
+   "panel_sha256": "05334266cbfc666f477e4a8a6e8eb3b98ace647146678ac761773d4c5fde3d4a",
+   "point": {
+    "m": 3
+   },
+   "rep": 5
+  },
+  {
+   "family": "B2A",
+   "panel_sha256": "9445ba87815b8c96463f217c3fe9cdd2f0baa38ec5a5ab75ad5d43eac0abbd62",
+   "point": {
+    "m": 3
+   },
+   "rep": 6
+  },
+  {
+   "family": "B2A",
+   "panel_sha256": "4b926f435e298fcb9d14fe711a656c96f82a952bb2aa6b1b011b4e56fdb6f469",
+   "point": {
+    "m": 3
+   },
+   "rep": 7
+  },
+  {
+   "family": "B2A",
+   "panel_sha256": "3cf5d9a786244fdc7b2641d5ba3edd4fbc62b897e923f8209b1a7f1e8f3a7d24",
+   "point": {
+    "m": 3
+   },
+   "rep": 8
+  },
+  {
+   "family": "B2A",
+   "panel_sha256": "4f2619e8c978843043e3fb05fd506284e436eafd9d6f92d3aae5d7703a91e69b",
+   "point": {
+    "m": 3
+   },
+   "rep": 9
+  },
+  {
+   "family": "B2A",
+   "panel_sha256": "e03b41a3feb9dbe44223c64698589118ee17f4e8907e26520df3853d983b77cf",
+   "point": {
+    "m": 3
+   },
+   "rep": 10
+  },
+  {
+   "family": "B2A",
+   "panel_sha256": "f0578c265a7a88deb20c4097da922cfa0e83586216a84a9af36388a7a3e123c0",
+   "point": {
+    "m": 3
+   },
+   "rep": 11
+  },
+  {
+   "family": "B2A",
+   "panel_sha256": "79e4953109b50c4df94f3f31004cc542da9c43fea3155193a56e35b67a69a439",
+   "point": {
+    "m": 3
+   },
+   "rep": 12
+  },
+  {
+   "family": "B2A",
+   "panel_sha256": "4681bef2b58b5cd045df638ec3f2bb0a384cf1426faa4f8182a1deaf5f842bf7",
+   "point": {
+    "m": 3
+   },
+   "rep": 13
+  },
+  {
+   "family": "B2A",
+   "panel_sha256": "9743e0765dd9aa4da9136a71088efd015aac9310af20e3657bd0de28bfa89c87",
+   "point": {
+    "m": 3
+   },
+   "rep": 14
+  },
+  {
+   "family": "B2A",
+   "panel_sha256": "3787ffd0cbfc53be485028f631d26487be11644157ad69ec35535888eac9570d",
+   "point": {
+    "m": 3
+   },
+   "rep": 15
+  },
+  {
+   "family": "B2A",
+   "panel_sha256": "c731c620bfcb3b0e26260076a16c5822ebd9e324ee46b0ef0c6b3386763b23c8",
+   "point": {
+    "m": 3
+   },
+   "rep": 16
+  },
+  {
+   "family": "B2A",
+   "panel_sha256": "66f33c78c68eaee783cbabe271a96fe711ea591ce1602271ba2cf5b8d8828ad4",
+   "point": {
+    "m": 3
+   },
+   "rep": 17
+  },
+  {
+   "family": "B2A",
+   "panel_sha256": "4b2264b875c92ad48f53784666c93d276aece73458dc533b7f28fed009705295",
+   "point": {
+    "m": 3
+   },
+   "rep": 18
+  },
+  {
+   "family": "B2A",
+   "panel_sha256": "63c1ace808b4a4b95b2c6d14d4e1f2407909b2a6a43d35e0e004532ad0ca0977",
+   "point": {
+    "m": 3
+   },
+   "rep": 19
+  }
+ ],
+ "pareto_lex_representative": null,
+ "pareto_minimal_certified": [],
+ "schema": "f2g-phase-b-power-cal-results-v1",
+ "terminal_type": "MDE_NOT_CERTIFIED_BY_REGISTERED_SEARCH",
+ "tier_c": {
+  "candidates": [
+   {
+    "lb95": 0.0,
+    "point": {
+     "m": 1
+    },
+    "post_loco": {
+     "replicates": 20,
+     "successes": 0
+    },
+    "stopping": "FAILED@R=20",
+    "ub95": 0.13910834066826516,
+    "verdict": "FAILED"
+   },
+   {
+    "lb95": 0.0,
+    "point": {
+     "m": 2
+    },
+    "post_loco": {
+     "replicates": 20,
+     "successes": 0
+    },
+    "stopping": "FAILED@R=20",
+    "ub95": 0.13910834066826516,
+    "verdict": "FAILED"
+   },
+   {
+    "lb95": 0.0,
+    "point": {
+     "m": 3
+    },
+    "post_loco": {
+     "replicates": 20,
+     "successes": 0
+    },
+    "stopping": "FAILED@R=20",
+    "ub95": 0.13910834066826516,
+    "verdict": "FAILED"
+   }
+  ],
+  "label": "CERTIFICATION",
+  "n_draws": 9999
+ },
+ "tier_s1": {
+  "label": "PRELIMINARY_SMOKE",
+  "n_draws": 999,
+  "replicates": 50,
+  "table": [
+   {
+    "n": 50,
+    "point": {
+     "m": 1
+    },
+    "pre_loco_recovery": 0.0
+   },
+   {
+    "n": 50,
+    "point": {
+     "m": 2
+    },
+    "pre_loco_recovery": 0.0
+   },
+   {
+    "n": 50,
+    "point": {
+     "m": 3
+    },
+    "pre_loco_recovery": 0.0
+   }
+  ]
+ },
+ "tier_s2": {
+  "label": "PRELIMINARY_SMOKE",
+  "n_draws": 999,
+  "replicates": 50,
+  "table": [
+   {
+    "n": 50,
+    "point": {
+     "m": 1
+    },
+    "post_loco_recovery": 0.0,
+    "pre_loco_recovery": 0.0
+   },
+   {
+    "n": 50,
+    "point": {
+     "m": 2
+    },
+    "post_loco_recovery": 0.0,
+    "pre_loco_recovery": 0.0
+   },
+   {
+    "n": 50,
+    "point": {
+     "m": 3
+    },
+    "post_loco_recovery": 0.0,
+    "pre_loco_recovery": 0.0
+   }
+  ]
+ }
+}

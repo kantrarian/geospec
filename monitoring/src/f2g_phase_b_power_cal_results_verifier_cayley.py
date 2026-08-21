@@ -454,8 +454,11 @@ def self_test(repo, fixture_docs=None):
     ok, _ = verify(geo, repo, expected_family="B1A", check_files=False)
     ok_all &= rec("wrong-family-in-file", not ok)
     bad_pins = dict(PINS)
-    bad_pins["driver_lf_sha256"] = ("975638d",
-                                    "docs/f2g_phase_b_shared_calendar_v1.json")
+    # pin the driver to its STALE v1 commit (7028324): that blob genuinely
+    # differs from the current checkout, so attestation must refuse -- the
+    # executable form of a mutated/cached dependency
+    bad_pins["driver_lf_sha256"] = (
+        "7028324", "monitoring/src/f2g_phase_b_power_estimation_cal_cayley.py")
     att = _attest_sources(repo, bad_pins)
     ok_all &= rec("mutated-dependency", bool(att))
     if fixture_docs:

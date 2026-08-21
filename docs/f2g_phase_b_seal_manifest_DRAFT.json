@@ -282,6 +282,15 @@
       "verification": "verifier v5 independent reconstruction PASS x3 + package PASS under expected_purpose=production (schema-closed rows, selection closure, evidence-bound reopen digests, attested subprocess imports incl base driver)"
     },
     "seal_condition_cal": "NOT MET under the frozen A5 per-family rule: B2A CERTIFIED (entire grid, Pareto-minimal m=1) but B1A and B3A certified zero points and per frozen sec-5 type CANNOT_DETERMINE_NO_POWER. The automatic seal is not offered. The decision returns to asylum FRESH (prior exception seal does not carry): (a) owner-directed disclosed-shortfall exception seal -> ONE sealed real-data run with B2A verdict-bearing at certified power and B1A/B3A reporting typed non-answers; (b) further amendment; (c) closure.",
-    "sequencing": "codex re-pass of THIS calendar-frame close -> fresh asylum seal decision -> at most ONE sealed real-data run -> codex + grassmann verification -> owner decision on the verdicts. NO Phase-A real-graph r values read before the seal."
+    "sequencing": "codex re-pass of THIS calendar-frame close -> fresh asylum seal decision -> at most ONE sealed real-data run -> codex + grassmann verification -> owner decision on the verdicts. NO Phase-A real-graph r values read before the seal.",
+    "owner_seal_cal_fresh": {
+      "type": "OWNER_EXCEPTION_SEAL_DISCLOSED_SHORTFALL",
+      "quote": "first a. then go and start the geometry build",
+      "quote_sha256": "bb94a28bec0060d7d45b799f17536c499539f324da0f58ac3a1edcfdf594a7e4",
+      "timestamp_utc": "2026-08-21T13:23:30Z",
+      "decision": "asylum, in-session, selects option (a) FRESH for the calendar frame: ONE sealed real-data evaluation with B2A verdict-bearing at certified power (true-geometry certification: entire grid m=1/2/3 20/20 post-LOCO, LB95 0.8609, Pareto-minimal m=1) and B1A/B3A reporting typed CANNOT_DETERMINE_NO_POWER non-answers",
+      "labeling": "owner exception, disclosed shortfall (frozen A5 automatic condition NOT MET: B1A/B3A certified zero points); FRESH decision made AFTER the true-geometry re-estimation and AFTER codex's production re-pass (2026-08-21-1313 note, PASS 'may proceed to asylum's fresh seal decision') -- post-outcome on the POWER campaign, pre-outcome on the real-data run; prior seal 435cb785 remains historical only",
+      "effective": "IMMEDIATE upon this record. Standing non-claims hold: no forecast skill, no displacement language, no publication, Lambda_geo INCONCLUSIVE. Run discipline: sealed-run instrument (adapter + hash-sealed input/output manifest) is built and routed to codex for one instrument check BEFORE the single fire; NO Phase-A real-graph r values are read before that instrument check passes; at most ONE real-data run"
+    }
   }
 }

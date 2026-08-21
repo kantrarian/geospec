@@ -144,6 +144,52 @@ SEAMS (cayley's engine amendment implements BAR-UNEDITED):
       result["exact_space_p"] = {day: exact balanced-label enumeration p}.
   Substream tokens B1A/B2A/B3A, seed root = the FROZEN AMENDMENT sha
   f3d0830b... (NOT the base doc sha), same double-pipe grammar.
+
+AMENDMENT 3 (append-only; prereg AMENDMENT 2 rev-2 FROZEN
+F2G-PB-A2-R2-FREEZE-CODEX-20260821T005735Z, doc 337571c blob 58b513b6...,
+5578 bytes -- the calendar-frame contract after the day-count seam STOP).
+This is the codex-mandated MASK-EXACT RED-BAR step: prove the engine on the
+EXACT 111/108/111 masks, misaligned start, within-span gaps; bind the
+calendar-list DIGEST + Phase-A anchor (never lengths alone); every frozen
+sec-B3 permanent negative + the B1A compression negative.
+PINNED CALENDAR SEAMS (cayley's engine amendment implements BAR-UNEDITED):
+  Panel schema fixture-panel-cal-v1:
+    {"schema": "fixture-panel-cal-v1",
+     "calendar_authority_mode": "bound" | "fixture",
+     "shared_calendar_days": [132 ISO days],
+     "carriers": {c: {"registered_days": [subset], "stations", "segments",
+                      "r": {"A|B": {day: float}}}}}
+    mode "bound": the engine MUST verify calendar+masks byte-equal to its
+    bound authority (docs/f2g_phase_b_shared_calendar_v1.json @ 8111805,
+    canonical blob sha 3aaaec58...) -- ANY deviation refuses typed
+    CALENDAR_AUTHORITY_MISMATCH / CARRIER_MASK_MISMATCH; values on days
+    outside a carrier's mask refuse UNTYPED_ABSENCE. mode "fixture":
+    explicit disclosed geometry for fixtures/power panels (never sealable).
+  b1a_family_cal(panel, *, doc_sha256, n_draws=N_DRAWS, power_contract=...,
+                 return_null=False, exhaustive=False) -> result
+      132 positions; baseline = calendar positions 1-72, eval = 73-132;
+      testable floor >= 45 finite among the 72 baseline POSITIONS; windows =
+      length-7 intervals of consecutive TARGET CALENDAR POSITIONS wholly in
+      73-132; NO_REGISTERED_SNAPSHOT occupies its position (non-finite,
+      never deleted/compressed); window scores iff >= 4/7 finite, mean over
+      finite only; max over exact calendar windows; transform = one common
+      S_11 action on eleven 12-day blocks incl identity, pre-split, full
+      rerun per draw.
+  b2a_family_cal(panel, *, doc_sha256, n_draws=N_DRAWS, return_null=False,
+                 audit_orders=None) -> result
+      the 60-position joint evaluation calendar capsule, one common S_60
+      order incl identity; typed absences EXPOSE and TERMINATE gaps --
+      registered-position compression never bridges (settled A5k semantics
+      on the calendar frame).
+  b3a_family_cal(panel, *, doc_sha256, n_draws=N_DRAWS, return_null=False,
+                 exhaustive_space=False) -> result
+      same 60-position frame; spatial null unchanged in kind; m/K>=2/f
+      surface recomputed on this frame.
+  Constants: CAL_POSITIONS=132, CAL_BASELINE_POSITIONS=72,
+             CAL_EVAL_POSITIONS=60, B1A_CAL_BLOCKS=11, B1A_CAL_BLOCK_LEN=12,
+             CAL_AUTHORITY_SHA256="3aaaec58..." (full 64 in module).
+  Seed root for calendar-frame streams = the FROZEN AMENDMENT-2 sha
+  58b513b6... (fresh root; every Amendment-1-rooted stream is consumed).
 """
 import hashlib
 import json
@@ -190,6 +236,56 @@ AMENDED_ANNEX_AUTHORITIES = (
     ("docs/f2g_phase_b_power_annex_b3a.md", "a0cc87c",
      "0c5fc14f6ecc4606b4a2548e788f962fd844ef0997ffb271ecf2e456d497f8d0"),
 )
+
+
+# AMENDMENT 3: frozen Amendment-2 authority + dual-witness calendar authority
+AMENDMENT2_SHA = ("58b513b6c30b70c8014510788da9d7d819ce8971ca59b7dfdc11c57a"
+                  "1664586f")
+CAL_AUTHORITY = ("docs/f2g_phase_b_shared_calendar_v1.json", "8111805",
+                 "3aaaec5872933adf3e7f0daa7beb840e11b793a41d7c387ad4800c078fc65111")
+CAL_WITNESS = ("docs/f2g_phase_b_shared_calendar_v1_producer_corroboration"
+               ".json", "d6a9cdb",
+               "c8047bff7ee0f7d93fb67c3c53950dc88de2eef5b38983f09538609eec554e0b")
+AMENDMENT2_AUTHORITY = ("docs/f2g_phase_b_prereg_amendment2_DRAFT.md",
+                        "337571c", AMENDMENT2_SHA)
+
+
+def _blob(commit, path):
+    return subprocess.run(["git", "-C", _REPO, "cat-file", "blob",
+                           f"{commit}:{path}"], capture_output=True).stdout
+
+
+def _load_cal_authority():
+    raw = _blob(CAL_AUTHORITY[1], CAL_AUTHORITY[0])
+    if hashlib.sha256(raw).hexdigest() != CAL_AUTHORITY[2]:
+        raise ValueError("CAL_AUTHORITY_DIGEST_MISMATCH")
+    return json.loads(raw.decode("utf-8"))
+
+
+def _b1a_cal_T(carrier_r, calendar, base_n=72, w=7, wmin=4):
+    """In-bar independent calendar-position B1A statistic (frozen B1 window
+    rule): z from the 72 baseline POSITIONS' finite values (median/1.4826*MAD),
+    windows = length-7 consecutive TARGET CALENDAR POSITIONS wholly in eval;
+    scored iff >= 4/7 finite; mean over finite only; max over windows."""
+    best = None
+    for series in carrier_r.values():
+        vals = np.array([series.get(d, np.nan) for d in calendar], dtype=float)
+        fb = vals[:base_n][np.isfinite(vals[:base_n])]
+        if fb.size == 0:
+            continue
+        med = float(np.median(fb))
+        mad = float(np.median(np.abs(fb - med)))
+        if mad == 0:
+            continue
+        z = (vals[base_n:] - med) / (1.4826 * mad)
+        for s in range(0, z.size - w + 1):
+            win = z[s:s + w]
+            fin = win[np.isfinite(win)]
+            if fin.size >= wmin:
+                m = float(np.mean(np.abs(fin)))
+                if best is None or m > best:
+                    best = m
+    return best
 
 
 def _b1a_small_T(series_by_edge, order, base_len, w, wmin):
@@ -808,6 +904,249 @@ def amendment2(have_a2):
         check(_A5_NAMES[8], False, f"{type(exc).__name__}: {exc}")
 
 
+_C_NAMES = (
+    "C1 calendar dual-witness + Amendment-2 authority binding",
+    "C2 present engine FAILS CLOSED on the true geometry",
+    "C3 calendar seams + constants",
+    "C4 mask-exact acceptance (bound mode, true masks)",
+    "C5 sec-B3 permanent negatives (6 classes)",
+    "C6 B1A compression negative (calendar vs present-day windows)",
+    "C7 Amendment-2 seed-root vectors (fresh root)",
+)
+
+
+def c1_authority():
+    """Engine-independent: both calendar witnesses byte-exact + set-identical;
+    frozen Amendment-2 doc byte-exact; 132 consecutive civil days; exact
+    111/108/111 masks with misaligned start."""
+    try:
+        ok, det = True, []
+        raw_a = _blob(CAL_AUTHORITY[1], CAL_AUTHORITY[0])
+        raw_w = _blob(CAL_WITNESS[1], CAL_WITNESS[0])
+        raw_d = _blob(AMENDMENT2_AUTHORITY[1], AMENDMENT2_AUTHORITY[0])
+        for nm, raw, sha in (("authority", raw_a, CAL_AUTHORITY[2]),
+                             ("witness", raw_w, CAL_WITNESS[2]),
+                             ("amendment2", raw_d, AMENDMENT2_SHA)):
+            if hashlib.sha256(raw).hexdigest() != sha:
+                ok = False
+                det.append(f"{nm} digest mismatch")
+        a = json.loads(raw_a.decode("utf-8"))
+        wjs = json.loads(raw_w.decode("utf-8"))
+        cal = a["shared_calendar_days"]
+        from datetime import date, timedelta
+        d0 = date(2026, 3, 1)
+        expect_cal = [(d0 + timedelta(days=i)).isoformat() for i in range(132)]
+        if cal != expect_cal or wjs["shared_calendar_days"] != expect_cal:
+            ok = False
+            det.append("calendar not the 132 consecutive civil days")
+        counts = {"istanbul_marmara": 111, "socal_coachella": 108,
+                  "turkey_kahramanmaras": 111}
+        for c, n in counts.items():
+            da = sorted(a["carrier_masks"][c]["registered_days"])
+            dw = wjs["registered_day_masks"][c]
+            if len(da) != n or da != dw:
+                ok = False
+                det.append(f"{c}: authority {len(da)} vs witness {len(dw)}")
+        if sorted(a["carrier_masks"]["socal_coachella"]["registered_days"])[0] \
+                != "2026-03-04":
+            ok = False
+            det.append("socal misaligned start missing")
+        check(_C_NAMES[0], ok, "; ".join(det))
+        return a if ok else None
+    except Exception as exc:
+        check(_C_NAMES[0], False, f"{type(exc).__name__}: {exc}")
+        return None
+
+
+def _true_geometry_panel_v1(auth, seed=71):
+    """fixture-panel-v1-shaped panel at the REAL geometry (masks from the
+    authority) -- used to red-prove the PRESENT engine fails closed."""
+    rng = np.random.default_rng(seed)
+    carriers = {}
+    for i, c in enumerate(sorted(auth["carrier_masks"])):
+        days_ = sorted(auth["carrier_masks"][c]["registered_days"])
+        sts = [f"C{i}.S1", f"C{i}.S2", f"C{i}.S3"]
+        edges = [f"C{i}.S1|C{i}.S2", f"C{i}.S2|C{i}.S3"]
+        r = {e: {d: float(v) for d, v in
+                 zip(days_, 0.3 + 0.1 * rng.standard_normal(len(days_)))}
+             for e in edges}
+        carriers[c] = {"registered_days": days_, "stations": sts,
+                       "segments": {s: "seg_a" for s in sts}, "r": r}
+    return {"carriers": carriers}
+
+
+def amendment3(have_engine, have_cal):
+    auth = c1_authority()
+
+    # C2: the admitted engine must REFUSE the real geometry, typed ----------
+    if not have_engine or auth is None:
+        check(_C_NAMES[1], False, "ENGINE_ABSENT or authority unavailable")
+    else:
+        pan = _true_geometry_panel_v1(auth)
+        try:
+            E.b1a_family(pan, doc_sha256=AMENDMENT1_SHA, n_draws=9,
+                         power_contract={"certified": True})
+            ok_b1 = False
+            det_b1 = "accepted 111/108/111 under the 110-frame"
+        except Exception as exc:
+            ok_b1 = "B1A_REGISTERED_DAYS_MISMATCH" in str(exc)
+            det_b1 = str(exc)[:70]
+        try:
+            E.b2a_family(pan, doc_sha256=AMENDMENT1_SHA, n_draws=9)
+            ok_b2 = False
+            det_b2 = "accepted 51/48/51 capsule"
+        except Exception as exc:
+            ok_b2 = "B2A_JOINT_CAPSULE_LENGTH_MISMATCH" in str(exc)
+            det_b2 = str(exc)[:70]
+        check(_C_NAMES[1], ok_b1 and ok_b2, f"b1a: {det_b1} / b2a: {det_b2}")
+
+    if not have_cal:
+        for nm in _C_NAMES[2:6]:
+            check(nm, False, "CAL_ENGINE_ABSENT (expected red until cayley's "
+                             "calendar-frame engine amendment lands)")
+    elif auth is not None:
+        cal = auth["shared_calendar_days"]
+
+        def bound_panel():
+            p = _true_geometry_panel_v1(auth, seed=72)
+            return {"schema": "fixture-panel-cal-v1",
+                    "calendar_authority_mode": "bound",
+                    "shared_calendar_days": list(cal),
+                    "carriers": p["carriers"]}
+
+        # C3 seams + constants -------------------------------------------------
+        ok3 = (E.CAL_POSITIONS == 132 and E.CAL_BASELINE_POSITIONS == 72
+               and E.CAL_EVAL_POSITIONS == 60 and E.B1A_CAL_BLOCKS == 11
+               and E.B1A_CAL_BLOCK_LEN == 12
+               and E.CAL_AUTHORITY_SHA256 == CAL_AUTHORITY[2])
+        check(_C_NAMES[2], ok3)
+
+        # C4 mask-exact acceptance --------------------------------------------
+        try:
+            r4 = E.b1a_family_cal(bound_panel(), doc_sha256=AMENDMENT2_SHA,
+                                  n_draws=49,
+                                  power_contract={"certified": True})
+            ok4 = r4.get("registered_counts") == {
+                "istanbul_marmara": 111, "socal_coachella": 108,
+                "turkey_kahramanmaras": 111} and (
+                r4.get("p_value") is not None
+                or "CANNOT_DETERMINE" in str(r4.get("verdict")))
+            check(_C_NAMES[3], ok4,
+                  f"counts={r4.get('registered_counts')} "
+                  f"verdict={r4.get('verdict')}")
+        except Exception as exc:
+            check(_C_NAMES[3], False, f"{type(exc).__name__}: {exc}")
+
+        # C5 permanent negatives ----------------------------------------------
+        def refuses(mutate, code):
+            p = bound_panel()
+            mutate(p)
+            try:
+                E.b1a_family_cal(p, doc_sha256=AMENDMENT2_SHA, n_draws=9,
+                                 power_contract={"certified": True})
+                return False, f"{code}: ACCEPTED"
+            except Exception as exc:
+                return code in str(exc), f"{code}: {str(exc)[:50]}"
+
+        def m_reorder(p):
+            p["shared_calendar_days"][10], p["shared_calendar_days"][11] = \
+                p["shared_calendar_days"][11], p["shared_calendar_days"][10]
+
+        def m_missing(p):
+            del p["shared_calendar_days"][50]
+
+        def m_extra(p):
+            p["shared_calendar_days"].append("2026-07-11")
+
+        def m_wrongmask(p):
+            p["carriers"]["socal_coachella"]["registered_days"] = list(
+                p["carriers"]["istanbul_marmara"]["registered_days"])
+
+        def m_untyped(p):
+            c = p["carriers"]["istanbul_marmara"]
+            absent = sorted(set(cal) - set(c["registered_days"]))[0]
+            e = sorted(c["r"])[0]
+            c["r"][e][absent] = 0.5
+
+        def m_trunc(p):
+            c = p["carriers"]["turkey_kahramanmaras"]
+            c["registered_days"] = c["registered_days"][:-5]
+
+        results5 = [
+            refuses(m_reorder, "CALENDAR_AUTHORITY_MISMATCH"),
+            refuses(m_missing, "CALENDAR_AUTHORITY_MISMATCH"),
+            refuses(m_extra, "CALENDAR_AUTHORITY_MISMATCH"),
+            refuses(m_wrongmask, "CARRIER_MASK_MISMATCH"),
+            refuses(m_untyped, "UNTYPED_ABSENCE"),
+            refuses(m_trunc, "CARRIER_MASK_MISMATCH"),
+        ]
+        check(_C_NAMES[4], all(ok for ok, _ in results5),
+              "; ".join(d for ok, d in results5 if not ok))
+
+        # C6 compression negative ---------------------------------------------
+        try:
+            sts6 = ["HH.S1", "HH.S2"]
+            e6 = "HH.S1|HH.S2"
+            r6 = {}
+            for i, d in enumerate(cal[:72]):
+                r6[d] = 0.001 if i % 2 == 0 else -0.001
+            small = {0: 0.01, 1: 0.01, 2: 0.01, 3: 0.01}
+            for off, v in small.items():
+                r6[cal[72 + off]] = v
+            for off in (7, 11, 15, 19, 23, 27, 31):     # sparse big values
+                r6[cal[72 + off]] = 0.10
+            pan6 = {"schema": "fixture-panel-cal-v1",
+                    "calendar_authority_mode": "fixture",
+                    "shared_calendar_days": list(cal),
+                    "carriers": {"c_fix": {
+                        "registered_days": sorted(r6),
+                        "stations": sts6,
+                        "segments": {s: "seg_a" for s in sts6},
+                        "r": {e6: dict(r6)}}}}
+            cal_expected = _b1a_cal_T({e6: r6}, cal)
+            # present-day compression answer (the FORBIDDEN rule): windows of
+            # 7 consecutive PRESENT eval days
+            pres = [d for d in cal[72:] if d in r6]
+            fb = np.array([r6[d] for d in cal[:72]])
+            med, mad = float(np.median(fb)), float(
+                np.median(np.abs(fb - np.median(fb))))
+            zp = np.array([(r6[d] - med) / (1.4826 * mad) for d in pres])
+            comp = max(float(np.mean(np.abs(zp[s:s + 7])))
+                       for s in range(0, zp.size - 6))
+            r6r = E.b1a_family_cal(pan6, doc_sha256=AMENDMENT2_SHA,
+                                   n_draws=9,
+                                   power_contract={"certified": True})
+            ok6 = cal_expected is not None \
+                and abs(comp - cal_expected) > 1e-6 \
+                and abs(r6r["T_obs"] - cal_expected) < 1e-9
+            check(_C_NAMES[5], ok6,
+                  f"calendar={cal_expected} compressed={comp} "
+                  f"engine={r6r.get('T_obs')}")
+        except Exception as exc:
+            check(_C_NAMES[5], False, f"{type(exc).__name__}: {exc}")
+
+    # C7 fresh seed-root vectors (runs with the admitted seam) ---------------
+    if not have_engine:
+        check(_C_NAMES[6], False, "ENGINE_ABSENT")
+    else:
+        try:
+            ok7, det7 = True, []
+            for fam, fold, purpose in (("B1A", "full", "null"),
+                                       ("B2A", "full", "power"),
+                                       ("B3A", "loco:KO.GEML", "null")):
+                exp = int.from_bytes(hashlib.sha256(
+                    f"{AMENDMENT2_SHA}||{fam}||{fold}||{purpose}"
+                    .encode("utf-8")).digest()[:8], "big")
+                got = E.derive_substream_seed(AMENDMENT2_SHA, fam, fold,
+                                              purpose)
+                if got != exp:
+                    ok7 = False
+                    det7.append(f"{fam}/{fold}/{purpose}")
+            check(_C_NAMES[6], ok7, "; ".join(det7))
+        except Exception as exc:
+            check(_C_NAMES[6], False, f"{type(exc).__name__}: {exc}")
+
+
 def main():
     g7a()                       # engine-independent: runs (and must pass) NOW
     g16a()                      # engine-independent: annex bytes bind NOW
@@ -830,6 +1169,7 @@ def main():
                    "G16b power-contract typing (certified flag)"):
             check(nm, False, "ENGINE_ABSENT")
         amendment2(False)
+        amendment3(False, False)
         return
 
     # G1 seams + registered constants ------------------------------------------
@@ -1113,6 +1453,11 @@ def main():
     # ---- AMENDMENT 2: the mandatory frozen sec-A5 classes --------------------
     amendment2(all(callable(getattr(E, f, None))
                    for f in ("b1a_family", "b2a_family", "b3a_family")))
+
+    # ---- AMENDMENT 3: the calendar-frame mask-exact red bar ------------------
+    amendment3(True, all(callable(getattr(E, f, None))
+                         for f in ("b1a_family_cal", "b2a_family_cal",
+                                   "b3a_family_cal")))
 
 
 main()

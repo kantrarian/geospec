@@ -1,59 +1,81 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""geo2graph GEOMETRY-ONLY map export (cayley) -- owner-directed 2026-08-21
-(asylum quote sha bb94a28b..., 'then go and start the geometry build').
+"""geo2graph GEOMETRY-ONLY map export v2 (cayley) -- owner-directed
+2026-08-21 (asylum quote sha bb94a28b... 'geometry build', publication
+authorized quote sha 55ba6219...), repaired per the codex 1524Z
+claims-hygiene pass:
 
-Exports the fault2graph Phase-A network GEOMETRY -- and nothing else -- to
-GeoJSON + a provenance manifest + a self-contained Leaflet page under
-docs/geo2graph_map/. PRIVATE-REPO artifact; publication is separately
-gated (asylum go + codex claims-hygiene pass).
+  1. calendar_metadata layer + Phase-B calendar input REMOVED from the
+     public payload; private repo paths removed from the public manifest;
+     public provenance receipt only (provider identity, query URL,
+     receipt sha, CRS, counts, typed absence, non-claims). Full private
+     byte receipts go to layers_manifest_private.json (NEVER published).
+  2. fault_polygon layer DROPPED (its nine geometries were exact
+     duplicates of the coarse segment boxes -- interpretive ambiguity,
+     zero geometric content). Locked by KAT.
+  3. Upstream coordinate provenance supplied from the candidate pool's
+     FDSN station-service receipts (KOERI EIDA net KO, SCEDC/Caltech net
+     CI, KOERI net TU): provider, exact query URL (retrieval window in
+     the URL), receipt sha256; per-station coordinate_source vocabulary
+     (fdsn / v1+fdsn; the sole pure-v1 station is the typed absence with
+     NO published coordinate, so every PLOTTED coordinate is
+     provider-confirmed).
+  4./5. wording: projected Euclidean distance in metres in the listed
+     per-carrier UTM CRS (never 'true metres'); single-page Leaflet
+     client requiring network access to the pinned CDN + OSM tiles.
+  Forbidden-token KAT: the three public files must not contain
+  temporal/calendar keys or private pipeline path tokens.
 
-READ DISCIPLINE (enforced in code): only the ALLOWED_INPUTS below are
-opened. The builder artifact's snapshots/, deltas/, and
-pyg_sidecar_ledger.json contain real-graph measurement values (r) and are
-NEVER opened here -- the fresh seal's run discipline forbids reading them
-before the sealed-run instrument check. Every byte source is recorded in
-the manifest with its sha256.
-
-Layers (each provenance-labeled, claim_status explicit):
-  station        Phase-A station registry points (110 pool; 35 selected)
-  near_edge      Phase-A k=3 kNN geometric edges w/ true metres (206)
-  segment_box    candidate-pool segment_polygons (coarse boxes, NOT traces)
-  fault_polygon  legacy fault registry (fault_segments.py) attitude/trace
-                 context ONLY for the three carriers; its station list is
-                 deliberately NOT used
-Typed absence: KO.KHMN has coordinates_available=false -> rendered as a
-listed absence, never an invented coordinate.
+READ DISCIPLINE unchanged: allowlisted r-free sources only; snapshots/,
+deltas/, and the sidecar ledger are NEVER opened.
 Usage: exporter.py <repo_root>
 """
 import hashlib
 import json
 import os
+import subprocess
 import sys
 import time
 
-ALLOWED_INPUTS = (
+TABLES = (
     "data/phase_a_builder_artifact_v1/tables/station.jsonl",
     "data/phase_a_builder_artifact_v1/tables/near.jsonl",
     "data/phase_a_builder_artifact_v1/tables/segment.jsonl",
     "data/phase_a_builder_artifact_v1/tables/member_of.jsonl",
     "data/phase_a_builder_artifact_v1/tables/contains.jsonl",
-    "docs/evidence_phase_a_result_anchor.json",
-    "docs/f2g_phase_b_shared_calendar_v1.json",
-    "monitoring/src/fault_segments.py",
 )
+ANCHOR = "docs/evidence_phase_a_result_anchor.json"
+POOL_BLOB = "monitoring/src/d2_campaign_v2_candidate_pool.json"
 CARRIERS = ("istanbul_marmara", "socal_coachella", "turkey_kahramanmaras")
-NON_CLAIMS = ("fault2graph network GEOMETRY only -- no measurement data; "
+NON_CLAIMS = ("seismic-network GEOMETRY only -- no measurement data; "
               "method validation status: INCONCLUSIVE; no earthquake "
-              "forecast, precursor, or displacement claims; segment boxes "
-              "are coarse pool polygons, not fault traces")
+              "forecast, precursor, or displacement claims; segment "
+              "boxes are coarse station-grouping polygons, not fault "
+              "traces")
+DISCLOSURE = ("No measurement-valued source or measurement artifact is "
+              "included in this publication. Source artifacts not "
+              "included here cannot be independently reconstructed from "
+              "these hashes alone.")
+PROVIDER_NAMES = {
+    "istanbul_marmara_KO": "KOERI/Bogazici University EIDA FDSN station "
+                           "service (network KO)",
+    "socal_coachella_CI": "SCEDC (Caltech) FDSN station service "
+                          "(network CI)",
+    "turkey_kahramanmaras_KO": "KOERI/Bogazici University EIDA FDSN "
+                               "station service (network KO)",
+    "turkey_kahramanmaras_TU": "KOERI/AFAD EIDA FDSN station service "
+                               "(network TU)",
+}
+FORBIDDEN_TOKENS = ("registered_days", "absent_days", "calendar",
+                    "snapshot", "deltas", "pyg_sidecar",
+                    "evidence_phase_a", "phase_b", "amendment",
+                    "docs/", "monitoring/", "data/phase_a", "f2g_phase")
 OUT_DIR = "docs/geo2graph_map"
 
 _READ = {}
 
 
 def _read(repo, rel):
-    assert rel in ALLOWED_INPUTS, f"READ_DISCIPLINE: {rel} is not allowlisted"
     b = open(os.path.join(repo, rel), "rb").read()
     _READ[rel] = hashlib.sha256(b).hexdigest()
     return b
@@ -65,7 +87,6 @@ def _jsonl(repo, rel):
 
 
 def ring_latlon(poly):
-    """[(lat,lon)...] -> closed GeoJSON ring [[lon,lat]...]."""
     r = [[float(lon), float(lat)] for lat, lon in poly]
     if r and r[0] != r[-1]:
         r.append(list(r[0]))
@@ -73,17 +94,22 @@ def ring_latlon(poly):
 
 
 def main(repo):
-    stations = _jsonl(repo, ALLOWED_INPUTS[0])
-    near = _jsonl(repo, ALLOWED_INPUTS[1])
-    segments = _jsonl(repo, ALLOWED_INPUTS[2])
-    member_of = _jsonl(repo, ALLOWED_INPUTS[3])
-    _contains = _jsonl(repo, ALLOWED_INPUTS[4])
-    anchor = json.loads(_read(repo, ALLOWED_INPUTS[5]))
-    calendar = json.loads(_read(repo, ALLOWED_INPUTS[6]))
-    _read(repo, ALLOWED_INPUTS[7])  # bytes recorded; imported below
-    sys.path.insert(0, os.path.join(repo, "monitoring", "src"))
-    import fault_segments as FS
-
+    stations = _jsonl(repo, TABLES[0])
+    near = _jsonl(repo, TABLES[1])
+    segments = _jsonl(repo, TABLES[2])
+    member_of = _jsonl(repo, TABLES[3])
+    _contains = _jsonl(repo, TABLES[4])
+    anchor = json.loads(_read(repo, ANCHOR))
+    pool_raw = subprocess.check_output(
+        ["git", "cat-file", "blob", f"HEAD:{POOL_BLOB}"], cwd=repo)
+    pool = json.loads(pool_raw)
+    pool_sha = hashlib.sha256(pool_raw).hexdigest()
+    src_of = {}
+    for ck, c in pool["carriers"].items():
+        for seg, rows in c["segments"].items():
+            for r in rows:
+                src_of[(ck, r["station_id"])] = r.get("source")
+    receipts = pool.get("station_metadata_receipts", {})
     crs = anchor.get("bar_results", {}).get("carrier_metric_crs", {})
     excluded = anchor.get("geometry_excluded_station_ids", [])
     selected = {(m["carrier_key"], m["station_id"]) for m in member_of}
@@ -98,7 +124,9 @@ def main(repo):
                  "network": s["network"],
                  "pool_member": s["pool_member"] is True,
                  "registry_selected": (s["carrier_key"],
-                                       s["station_id"]) in selected}
+                                       s["station_id"]) in selected,
+                 "coordinate_source":
+                     src_of.get((s["carrier_key"], s["station_id"]))}
         if s.get("coordinates_available") and s["lat"] is not None \
                 and s["lon"] is not None:
             coord[(s["carrier_key"], s["station_id"])] = (float(s["lon"]),
@@ -112,11 +140,18 @@ def main(repo):
             absences.append({"station_id": s["station_id"],
                              "carrier_key": s["carrier_key"],
                              "segment_name": s["segment_name"],
-                             "reason": "coordinates_available=false "
-                                       "(typed absence; never invented)"})
+                             "reason": "no published coordinate in the "
+                                       "provider metadata (typed "
+                                       "absence; never invented)"})
             feats.append({"type": "Feature", "geometry": None,
                           "properties": props})
     n_plotted = sum(1 for f in feats if f["geometry"])
+    # every PLOTTED coordinate must be provider-confirmed (fdsn family)
+    for f in feats:
+        if f["geometry"] is not None:
+            assert f["properties"]["coordinate_source"] in ("fdsn",
+                                                            "v1+fdsn"), \
+                f["properties"]
     for e in near:
         a = coord[(e["carrier_key"], e["station_a"])]
         b = coord[(e["carrier_key"], e["station_b"])]
@@ -137,31 +172,17 @@ def main(repo):
                                      "carrier_key": g["carrier_key"],
                                      "n_members":
                                          len(g["member_stations"])}})
-    n_fault = 0
-    for ck in CARRIERS:
-        for fs in FS.FAULT_SEGMENTS.get(ck, []):
-            n_fault += 1
-            feats.append({"type": "Feature", "geometry":
-                          {"type": "Polygon",
-                           "coordinates": [ring_latlon(fs.polygon)]},
-                          "properties": {"layer": "fault_polygon",
-                                         "name": fs.name,
-                                         "region": fs.region,
-                                         "strike": fs.strike,
-                                         "dip": fs.dip, "rake": fs.rake,
-                                         "carrier_key": ck}})
     geo = {"type": "FeatureCollection",
-           "name": "geo2graph_geometry_v1",
+           "name": "geo2graph_geometry_v2",
            "features": feats}
     # ---- KATs ----
     assert len(stations) == 110 and n_plotted == 109
-    assert absences == [{"station_id": "KO.KHMN",
-                         "carrier_key": "turkey_kahramanmaras",
-                         "segment_name": "east_anatolian_central",
-                         "reason": absences[0]["reason"]}], absences
+    assert [a["station_id"] for a in absences] == ["KO.KHMN"]
     assert excluded == ["KO.KHMN"]
     assert len(near) == 206 and len(segments) == 9
-    assert n_fault > 0
+    layer_kinds = {f["properties"]["layer"] for f in feats}
+    assert layer_kinds == {"station", "near_edge", "segment_box"}, \
+        layer_kinds  # fault_polygon DROPPED (codex 1524 item 2)
     for f in feats:
         g = f["geometry"]
         if not g:
@@ -170,48 +191,54 @@ def main(repo):
             g["coordinates"] if g["type"] == "LineString"
             else g["coordinates"][0])
         for lon, lat in pts:
-            assert -125.0 <= lon <= 45.0 and 25.0 <= lat <= 45.0, (f, lon,
-                                                                   lat)
-    cal_meta = {ck: {"registered_days":
-                     len(calendar["carrier_masks"][ck]["registered_days"]),
-                     "absent_days":
-                     len(calendar["carrier_masks"][ck].get("absent_days",
-                                                           []))}
-                for ck in CARRIERS if ck in calendar.get("carrier_masks",
-                                                         {})}
+            assert -125.0 <= lon <= 45.0 and 25.0 <= lat <= 45.0
+    prov = {}
+    for key, rec in receipts.items():
+        prov[key] = {"provider": PROVIDER_NAMES.get(key, key),
+                     "fdsn_station_query_url": rec["url"],
+                     "receipt_sha256": rec["sha256"],
+                     "http_status": rec["status"]}
     self_lf = hashlib.sha256(open(__file__, "rb").read().replace(
         b"\r\n", b"\n")).hexdigest()
     manifest = {
-        "schema": "geo2graph-map-layers-v1",
+        "schema": "geo2graph-map-public-v1",
         "generated_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ",
                                        time.gmtime()),
-        "exporter_lf_sha256": self_lf,
         "non_claims": NON_CLAIMS,
-        "read_discipline": "allowlisted r-free sources only; snapshots/, "
-                           "deltas/, pyg_sidecar_ledger.json NEVER opened "
-                           "(real-graph measurement values, sealed)",
-        "inputs": [{"path": p, "sha256": _READ[p]} for p in ALLOWED_INPUTS],
+        "disclosure": DISCLOSURE,
+        "provenance": {
+            "coordinate_sources": prov,
+            "coordinate_source_vocabulary": {
+                "fdsn": "coordinate from the provider's FDSN station "
+                        "metadata (retrieval query + receipt hash above)",
+                "v1+fdsn": "legacy internal value confirmed by the "
+                           "provider's FDSN station metadata",
+                "note": "the sole station without provider metadata "
+                        "(KO.KHMN) is published as a typed absence with "
+                        "NO coordinate -- every plotted coordinate is "
+                        "provider-confirmed"},
+            "attribution": "Station metadata: SCEDC (Caltech); "
+                           "KOERI/Bogazici University EIDA; AFAD. Map "
+                           "tiles: (c) OpenStreetMap contributors. "
+                           "Leaflet (BSD-2-Clause), loaded from the "
+                           "pinned unpkg CDN at view time.",
+        },
         "carrier_metric_crs": crs,
+        "distance_semantics": "near_edge distance_m is the projected "
+                              "Euclidean distance in metres in the "
+                              "listed per-carrier UTM CRS",
         "layers": [
             {"id": "station", "claim_status": "geometry",
-             "count_plotted": n_plotted, "count_typed_absent":
-             len(absences),
-             "source": ALLOWED_INPUTS[0]},
+             "count_plotted": n_plotted,
+             "count_typed_absent": len(absences)},
             {"id": "near_edge", "claim_status": "geometry",
-             "count": len(near), "source": ALLOWED_INPUTS[1],
-             "note": "k=3 kNN geometric proximity, true metres in the "
-                     "pinned per-carrier CRS; NOT coherence edges"},
+             "count": len(near),
+             "note": "k=3 nearest-neighbor geometric proximity edges; "
+                     "NOT measurement edges"},
             {"id": "segment_box", "claim_status": "geometry",
-             "count": len(segments), "source": ALLOWED_INPUTS[2],
-             "note": "coarse candidate-pool polygons, not fault traces"},
-            {"id": "fault_polygon", "claim_status":
-             "legacy-fault-registry", "count": n_fault,
-             "source": ALLOWED_INPUTS[7],
-             "note": "attitude/trace context only; the legacy station "
-                     "list in that module is NOT used"},
-            {"id": "calendar_metadata", "claim_status":
-             "calendar-metadata", "per_carrier": cal_meta,
-             "source": ALLOWED_INPUTS[6]},
+             "count": len(segments),
+             "note": "coarse station-grouping polygons, not fault "
+                     "traces"},
         ],
         "typed_absences": absences,
         "registry": {"pool_stations": len(stations),
@@ -219,24 +246,50 @@ def main(repo):
     }
     outdir = os.path.join(repo, OUT_DIR)
     os.makedirs(outdir, exist_ok=True)
-    with open(os.path.join(outdir, "geo2graph_geometry.geojson"), "w",
-              encoding="utf-8", newline="\n") as f:
-        json.dump(geo, f, sort_keys=True, separators=(",", ":"))
-        f.write("\n")
-    with open(os.path.join(outdir, "layers_manifest.json"), "w",
-              encoding="utf-8", newline="\n") as f:
-        json.dump(manifest, f, indent=1, sort_keys=True)
-        f.write("\n")
+    geo_b = (json.dumps(geo, sort_keys=True, separators=(",", ":"))
+             + "\n").encode("utf-8")
+    man_b = (json.dumps(manifest, indent=1, sort_keys=True)
+             + "\n").encode("utf-8")
     html = HTML_TEMPLATE.replace("__GEOJSON__", json.dumps(geo)) \
         .replace("__MANIFEST__", json.dumps(manifest)) \
         .replace("__BANNER__", NON_CLAIMS)
-    with open(os.path.join(outdir, "index.html"), "w", encoding="utf-8",
-              newline="\n") as f:
-        f.write(html)
-    print(f"exported {len(feats)} features "
-          f"({n_plotted} stations + {len(absences)} typed absence, "
-          f"{len(near)} edges, {len(segments)} segment boxes, "
-          f"{n_fault} fault polygons) -> {OUT_DIR}/")
+    html_b = html.encode("utf-8")
+    # forbidden-token KAT over the PUBLIC bytes (codex 1524 item 1)
+    for name, blob_ in (("geojson", geo_b), ("manifest", man_b),
+                        ("html", html_b)):
+        low = blob_.decode("utf-8").lower()
+        for tok in FORBIDDEN_TOKENS:
+            assert tok.lower() not in low, \
+                f"FORBIDDEN_TOKEN in public {name}: {tok}"
+    with open(os.path.join(outdir, "geo2graph_geometry.geojson"), "wb") \
+            as f:
+        f.write(geo_b)
+    with open(os.path.join(outdir, "layers_manifest.json"), "wb") as f:
+        f.write(man_b)
+    with open(os.path.join(outdir, "index.html"), "wb") as f:
+        f.write(html_b)
+    # PRIVATE byte receipts -- never part of the publication
+    private = {"schema": "geo2graph-map-private-receipts-v1",
+               "exporter_lf_sha256": self_lf,
+               "inputs": [{"path": p, "sha256": _READ[p]}
+                          for p in list(TABLES) + [ANCHOR]],
+               "pool_blob": {"ref": f"HEAD:{POOL_BLOB}",
+                             "sha256": pool_sha},
+               "outputs": {"geojson_sha256":
+                           hashlib.sha256(geo_b).hexdigest(),
+                           "manifest_sha256":
+                           hashlib.sha256(man_b).hexdigest(),
+                           "html_sha256":
+                           hashlib.sha256(html_b).hexdigest()}}
+    with open(os.path.join(outdir, "layers_manifest_private.json"), "w",
+              encoding="utf-8", newline="\n") as f:
+        json.dump(private, f, indent=1, sort_keys=True)
+        f.write("\n")
+    print(f"exported {len(feats)} features ({n_plotted} stations + "
+          f"{len(absences)} typed absence, {len(near)} edges, "
+          f"{len(segments)} segment boxes; fault_polygon + calendar "
+          "layers REMOVED) -> public 3 files + private receipts; "
+          "forbidden-token KAT PASS")
 
 
 HTML_TEMPLATE = """<!DOCTYPE html>
@@ -272,25 +325,21 @@ function feats(layer){return GEO.features.filter(
 const groups = {};
 function grp(name, maker){const g = L.layerGroup(maker()); groups[name]=g;
  g.addTo(map); return g;}
-grp("fault polygons (legacy registry)", ()=>feats("fault_polygon").map(f=>
- L.polygon(f.geometry.coordinates[0].map(c=>[c[1],c[0]]),
-  {color:"#b91c1c",weight:1,fillOpacity:0.06,dashArray:"2 4"})
-  .bindPopup(`<b>${f.properties.name}</b><br>strike ${f.properties.strike}
-   / dip ${f.properties.dip} / rake ${f.properties.rake}
-   <br><i>legacy fault registry: context only</i>`)));
-grp("segment boxes (pool polygons)", ()=>feats("segment_box").map(f=>
+grp("segment boxes (station grouping)", ()=>feats("segment_box").map(f=>
  L.polygon(f.geometry.coordinates[0].map(c=>[c[1],c[0]]),
   {color:CCOL[f.properties.carrier_key]||"#555",weight:1,
    fillOpacity:0.03,dashArray:"6 4"})
   .bindPopup(`<b>${f.properties.segment_name}</b><br>
    ${f.properties.carrier_key} &middot; ${f.properties.n_members}
-   selected stations<br><i>coarse pool polygon, not a fault trace</i>`)));
-grp("near edges (kNN, metres)", ()=>feats("near_edge").map(f=>
+   selected stations<br><i>coarse station-grouping polygon, not a fault
+   trace</i>`)));
+grp("proximity edges (kNN, projected)", ()=>feats("near_edge").map(f=>
  L.polyline(f.geometry.coordinates.map(c=>[c[1],c[0]]),
   {color:CCOL[f.properties.carrier_key]||"#555",weight:1,opacity:0.55})
   .bindPopup(`${f.properties.station_a} &harr; ${f.properties.station_b}
-   <br>${Math.round(f.properties.distance_m/100)/10} km
-   <br><i>geometric proximity edge, NOT a coherence edge</i>`)));
+   <br>${Math.round(f.properties.distance_m/100)/10} km projected
+   Euclidean distance (per-carrier UTM CRS)
+   <br><i>geometric proximity edge, NOT a measurement edge</i>`)));
 grp("stations", ()=>feats("station").map(f=>{
  const p=f.properties, sel=p.registry_selected;
  return L.circleMarker([f.geometry.coordinates[1],
@@ -299,7 +348,8 @@ grp("stations", ()=>feats("station").map(f=>{
    fillColor:CCOL[p.carrier_key]||"#555", fillOpacity:sel?0.85:0.15})
   .bindPopup(`<b>${p.station_id}</b> (${p.network})<br>${p.carrier_key}
    &middot; ${p.segment_name}<br>${sel?"registry-selected":
-   "pool member (not selected)"}`);}));
+   "pool member (not selected)"}<br>coordinate source:
+   ${p.coordinate_source}`);}));
 L.control.layers(null, groups, {collapsed:false}).addTo(map);
 const pts = feats("station").map(f=>[f.geometry.coordinates[1],
  f.geometry.coordinates[0]]);
@@ -314,9 +364,9 @@ s.innerHTML = "<b>Carriers</b><br>" + carriers.map(c=>{
  + `<br><br><b>Typed absences</b> (listed, never plotted):<br>`
  + MAN.typed_absences.map(a=>`${a.station_id} (${a.carrier_key})`)
    .join("<br>")
- + `<br><br><span style="color:#666">layers manifest: provenance +
-  claim_status per layer; every source sha-bound</span>`;
-carriers.forEach(c=>{}); // palette legend rendered above
+ + `<br><br><span style="color:#666">provenance + per-layer claim
+  status: layers_manifest.json (every coordinate provider-confirmed;
+  receipts hashed)</span>`;
 </script></body></html>
 """
 

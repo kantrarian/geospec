@@ -1,0 +1,13 @@
+{
+ "codex_pass_note": {
+  "blob_sha256": "3591fed6ebd071c870a257c781e11871f2b271d62326bce7bae9d229d5f3f86d",
+  "path": "docs/f2g_sealed_run_codex_pass.md",
+  "ref": "docs/f2g_sealed_run_codex_pass.md"
+ },
+ "driver_blob_sha256": "d9c45ac6e7258a5bafa5998dc921d46922a78d2b8163cd9af7c96e332a0a2110",
+ "instrument_blob_sha256": "c4fdd95f0cd21bdb03588b0e9a5cec4a88c36b644ca6fdac917721521fecfa13",
+ "manifest_sha256": "9e816eb9f4734927cf45f0f1a165b26acfec53602a159d22e9af96d43d64cb19",
+ "schema": "f2g-sealed-run-fire-authorization-v2",
+ "seal_quote_sha256": "bb94a28bec0060d7d45b799f17536c499539f324da0f58ac3a1edcfdf594a7e4",
+ "verifier_blob_sha256": "5d00195fc64b64aa9e34899c3d5f5135b3eb902e0394edd9679ccf1547c87f5a"
+}

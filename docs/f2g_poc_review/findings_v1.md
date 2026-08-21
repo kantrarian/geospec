@@ -33,3 +33,26 @@ INTERPRETABLE models (gradient-boosted trees / symbolic regression -- Haefner-st
 not deep nets at this data scale), strict temporal cross-validation INSIDE the exploratory data;
 surfaced features graduate ONLY via next-window prereg. Label scarcity is the honest constraint:
 anomaly/self-supervised framings and small-event labels are the workarounds.
+
+## F4 RESULTS v1 (2026-08-21) -- EXPLORATORY, zero claim weight
+
+**Corpus A (Phase-A graphs, M>=3.5 ComCat labels, 7d horizon):** label-starved and null.
+istanbul: 0 catalog events (ComCat completeness artifact for TR -- NOT evidence of quiet);
+socal: 6 events, all AUCs < 0.5 (noise); turkey: 10 events and the PERSISTENCE BASELINE (0.668)
+BEATS every model (logistic 0.628, GBT 0.415). The anti-apophenia guardrail worked exactly as
+intended: naive "graph features predict events" would have been a clustering artifact. v1 verdict:
+NO evidence of graph-feature lift over persistence in this corpus at these label counts.
+
+**Corpus B (14-region monitor archive, 3,536 region-days, 613 positive labels, M>=4.0):** one
+weak but real-looking delta -- logistic 0.590 vs persistence 0.545 (GBT 0.557). Permutation
+ranking: recent_event (persistence itself), then CONFIDENCE, dRISK (day-change), roll_z_risk;
+**risk LEVEL itself has NEGATIVE test importance**. Exploratory hypothesis surfaced for
+graduation: *risk-CHANGE/rolling-z features may carry marginal information beyond persistence
+while the headline risk level does not* (the 'confidence' importance needs an artifact check --
+it encodes method availability/agreement and may proxy active periods).
+
+**Window-2 prereg inputs from F4 v1:** (1) label supply is the binding constraint -- use
+AFAD/KOERI regional catalogs for TR completeness (istanbul's 0 is a catalog artifact), lower
+thresholds w/ local catalogs, longer windows; (2) candidate registered feature class:
+risk-delta/rolling-z (NOT level); (3) confidence-artifact check before anything graduates;
+(4) persistence baseline is MANDATORY in any registered skill comparison.

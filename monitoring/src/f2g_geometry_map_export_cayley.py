@@ -69,6 +69,11 @@ FORBIDDEN_TOKENS = ("registered_days", "absent_days", "calendar",
                     "evidence_phase_a", "phase_b", "amendment",
                     "docs/", "monitoring/", "data/phase_a", "f2g_phase")
 OUT_DIR = "docs/geo2graph_map"
+PRIVATE_OUT_DIR = "docs/geo2graph_map_private"
+PUBLICATION_FILES = {
+    "index.html", "geo2graph_geometry.geojson", "layers_manifest.json",
+    "README.md", "LICENSE",
+}
 
 _READ = {}
 
@@ -284,7 +289,16 @@ def main(repo):
         f.write(man_b)
     with open(os.path.join(outdir, "index.html"), "wb") as f:
         f.write(html_b)
-    # PRIVATE byte receipts -- never part of the publication
+    # codex 1648 packaging delta: the public directory must contain
+    # EXACTLY the five publication files -- wholesale copy can never leak
+    actual_public_tree = {
+        name for name in os.listdir(outdir)
+        if os.path.isfile(os.path.join(outdir, name))
+    }
+    assert actual_public_tree == PUBLICATION_FILES, \
+        ("PUBLICATION_TREE_NOT_EXACT", actual_public_tree)
+    # PRIVATE byte receipts -- never part of the publication; live in a
+    # SEPARATE private directory (codex 1648)
     private = {"schema": "geo2graph-map-private-receipts-v1",
                "exporter_lf_sha256": self_lf,
                "inputs": [{"path": p, "sha256": _READ[p]}
@@ -297,7 +311,10 @@ def main(repo):
                            hashlib.sha256(man_b).hexdigest(),
                            "html_sha256":
                            hashlib.sha256(html_b).hexdigest()}}
-    with open(os.path.join(outdir, "layers_manifest_private.json"), "w",
+    private_outdir = os.path.join(repo, PRIVATE_OUT_DIR)
+    os.makedirs(private_outdir, exist_ok=True)
+    with open(os.path.join(private_outdir,
+                           "layers_manifest_private.json"), "w",
               encoding="utf-8", newline="\n") as f:
         json.dump(private, f, indent=1, sort_keys=True)
         f.write("\n")

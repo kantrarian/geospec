@@ -236,9 +236,10 @@
       "lf_sha256": "7a1e3874f3836f5434ccc3f1bbb6cef8a18270c82206143ea6301630128e398c"
     },
     "verifier_v5": {
-      "geospec_commit": "cff3c0d",
-      "git_blob_sha256": "9e895dae8ee1f62acdfbf9f2cc1a577e3d31c1bd83e6dad85823468aebeb8dbc",
-      "close_matrix": "26/26 typed (codex five-finding recheck repaired; codex PASS 4a3f3851)"
+      "geospec_commit": "fee0c65",
+      "git_blob_sha256": "5d23c36923a638a76af98ab45497cb100ec1aeb227a30e43c5a54f3a58d9776c",
+      "close_matrix": "29/29 typed (codex five-finding recheck repaired, codex PASS 4a3f3851; + grassmann host-locked-ulp repair v5.1: bound floats lb95/ub95 compared at ABS 1e-12, all decision surfaces bit-exact, beyond-tolerance refuses + one-ulp passes pinned in-matrix)",
+      "superseded_blob_v5_0": "9e895dae8ee1f62acdfbf9f2cc1a577e3d31c1bd83e6dad85823468aebeb8dbc (host-locked strict float equality; refused on devildog, grassmann 0913Z finding)"
     },
     "annexes_rev16": {
       "geospec_commit": "feb20bb",

@@ -1,7 +1,7 @@
 # fault2graph Phase B — Power Annex **B2A** (temporal community coherence, amended family) v1
 
 **Author:** cayley — **Date:** 2026-08-20 — **Status:** DRAFT until hash-bound in the seal manifest.
-**Family under test:** frozen AMENDMENT 1 §A2 exactly (freeze `F2G-PB-A1-R3`, authority `7c3ca7b` / `f3d0830b…`): statistic `R_total = Σ_bound-carriers (maximal runs of identical partitions over calendar-adjacent eligible days)`, one-sided LOW; null = ONE common permutation of the entire fixed 50-position joint evaluation-day capsule per draw (partitions, typed refusals, frames, gap metadata atomic; recompute after), complete group incl. identity; gaps and `NODESET_MISMATCH` terminate runs, never bridged; carrier binding + family-level withholding per frozen §A2; `p = (1 + #{R_null ≤ R_obs})/(N_valid + 1)`, 9,999 draws, floor.
+**Family under test:** frozen AMENDMENT 1 §A2 exactly (freeze `F2G-PB-A1-R3`, authority `7c3ca7b` / `f3d0830b…`): statistic `R_total = Σ_bound-carriers (maximal runs of identical partitions over calendar-adjacent eligible days)`, one-sided LOW; null = ONE common permutation of the entire fixed 60-POSITION joint evaluation CALENDAR capsule per draw (frame superseded by frozen Amendment 2) (partitions, typed refusals, frames, gap metadata atomic; recompute after), complete group incl. identity; gaps and `NODESET_MISMATCH` terminate runs, never bridged; carrier binding + family-level withholding per frozen §A2; `p = (1 + #{R_null ≤ R_obs})/(N_valid + 1)`, 9,999 draws, floor.
 **Inherits:** COMMON PROTOCOL rev-1.5 @ `9df7761`, sha256 `22ae17cd8b563df0343701e968ac07c7c1e56537eb893d052ba1af6699980aea` (calendar-frame lane sec 6 normative) (normative).
 
 ## Registered effect (unchanged effect class from superseded annex B-2)

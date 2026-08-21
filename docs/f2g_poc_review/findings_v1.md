@@ -69,3 +69,10 @@ corpus-A null conclusions are unaffected in direction (models UNDERPERFORMED bas
 but carry the same implementation caveats. The M-F4 registered design (window-2 prereg v0.2)
 supersedes this pilot: issue-time predictions, calibration-only fitting, global temporal
 discipline, region-aware moving-block inference.
+
+## ADDENDUM to the F4 CORRECTION (2026-08-21, append-only; codex window-2 R2 fix 5)
+
+All Corpus-A and Corpus-B pilot point estimates, comparisons, confidence statements, and
+directional conclusions are NON-QUANTITATIVE; the tables remain historical hypothesis-provenance
+only. No clean-rerun conclusion is claimed. The frozen M-F4 design, not any pilot direction, is
+the sole basis for prospective evaluation.

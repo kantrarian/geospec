@@ -1,108 +1,227 @@
 {
- "generated_utc": "2026-08-22T01:02:08Z",
- "manifest_class": "DESIGN manifest (codex freeze-review fix 2): pins the registered design/contract bytes. A closed execution-manifest-v1 (generator/verifier, selection + adapter + accrual implementations, typed MAG capsules, calibration ledgers, bars, producer code) plus an executable verifier that reopens every pin, checks repository identity + the execution allowlist, and refuses missing/mismatched/dirty/unlisted inputs are REQUIRED PRESTART deliverables. Until that verifier exists, any 18-pin recheck is a manifest integrity walk, not a fire-verifier PASS.",
+ "design_target_commit": "bc6805321cd028712c498d0f858d5abbb22b99e0",
+ "generated_utc": "2026-08-22T01:15:32Z",
+ "manifest_class": "DESIGN manifest (codex freeze-review fix 2): pins the registered design/contract bytes. A closed execution-manifest-v1 (generator/verifier, selection + adapter + accrual implementations, typed MAG capsules, calibration ledgers, bars, producer code) plus an executable verifier that reopens every pin, checks repository identity + the execution allowlist, and refuses missing/mismatched/dirty/unlisted inputs are REQUIRED PRESTART deliverables. Until that verifier exists, a listed-pin integrity walk is not a fire-verifier PASS.",
+ "pin_count": 27,
  "pins": {
   "annex_b1b": {
-   "blob_sha256": "0e5310ad07acd1c382fd764997576fb9a3e73d2820074b9cf722b523b6a44c5e",
-   "commit": "3b4f7d23089876fe0e9bb76c2d94c4da17974693",
+   "blob_sha256": "0b01e48781bf579146d21b7b44485f99b4e15a2672d3eb526cc4e09a4fe2581a",
+   "commit": "bc6805321cd028712c498d0f858d5abbb22b99e0",
+   "imported_section": "whole-file",
+   "imported_section_sha256": "0b01e48781bf579146d21b7b44485f99b4e15a2672d3eb526cc4e09a4fe2581a",
+   "object_id": "markdown-contract",
    "path": "docs/f2g_window2_freeze/annex_b1b.md"
   },
   "annex_b2b": {
    "blob_sha256": "211f945b32f921cb1d22e8961b2f9a532acf3e08db12f731c4a4b0b088498935",
    "commit": "4bd196772c4dee745b43d17ef89715a772bae7c6",
+   "imported_section": "whole-file",
+   "imported_section_sha256": "211f945b32f921cb1d22e8961b2f9a532acf3e08db12f731c4a4b0b088498935",
+   "object_id": "markdown-contract",
    "path": "docs/f2g_window2_freeze/annex_b2b.md"
   },
   "annex_mf4": {
    "blob_sha256": "04ef9e7cfcca6ccb4b92873d58d9391c0916997fd7ecbba33eca5fe960cb5569",
    "commit": "3b4f7d23089876fe0e9bb76c2d94c4da17974693",
+   "imported_section": "whole-file",
+   "imported_section_sha256": "04ef9e7cfcca6ccb4b92873d58d9391c0916997fd7ecbba33eca5fe960cb5569",
+   "object_id": "markdown-contract",
    "path": "docs/f2g_window2_freeze/annex_mf4.md"
   },
   "candidate_pool": {
    "blob_sha256": "15d0e32c51c027dc144c5c6d57ec5f100a59374f6248abfc5c56ee38628ddc67",
    "commit": "350c5f5e178c4e103988d7e01080e8706433f823",
+   "imported_section": "whole-file",
+   "imported_section_sha256": "15d0e32c51c027dc144c5c6d57ec5f100a59374f6248abfc5c56ee38628ddc67",
+   "object_id": "json-object",
    "path": "monitoring/src/d2_campaign_v2_candidate_pool.json"
   },
   "cascadia_capsule": {
    "blob_sha256": "71c7097ca34bb7b68a3f39dcf187f83539e386dd59b01f805dafd1d04f02e4bb",
    "commit": "3b4f7d23089876fe0e9bb76c2d94c4da17974693",
+   "imported_section": "whole-file",
+   "imported_section_sha256": "71c7097ca34bb7b68a3f39dcf187f83539e386dd59b01f805dafd1d04f02e4bb",
+   "object_id": "markdown-contract",
    "path": "docs/f2g_window2_freeze/cascadia_carrier_capsule.md"
   },
   "cascadia_receipt": {
    "blob_sha256": "d4256792bf85edf855a4dbaf7841982824a020cd5e075c103d832248c513a847",
    "commit": "4bd196772c4dee745b43d17ef89715a772bae7c6",
+   "imported_section": "whole-file",
+   "imported_section_sha256": "d4256792bf85edf855a4dbaf7841982824a020cd5e075c103d832248c513a847",
+   "object_id": "fdsn-station-text",
    "path": "docs/f2g_window2_freeze/receipts/cascadia_UW_CC_CN_HHZ.txt"
   },
   "cascadia_receipt_envelope": {
    "blob_sha256": "b188023778d3f8dc994630796e2953e8dc97e225a14d85f9125ce3106169b65b",
    "commit": "3b4f7d23089876fe0e9bb76c2d94c4da17974693",
+   "imported_section": "whole-file",
+   "imported_section_sha256": "b188023778d3f8dc994630796e2953e8dc97e225a14d85f9125ce3106169b65b",
+   "object_id": "json-object",
    "path": "docs/f2g_window2_freeze/receipts/cascadia_UW_CC_CN_HHZ.envelope.json"
   },
   "engine_b2a_b3a": {
    "blob_sha256": "4a39d3fbdc543e8c64e7b8a068bcb384d320361973bce68fc0b2b219c27968f1",
    "commit": "24b0d8f647d089d0bcdb70ea3dd4879c67b49b98",
+   "imported_section": "whole-file",
+   "imported_section_sha256": "4a39d3fbdc543e8c64e7b8a068bcb384d320361973bce68fc0b2b219c27968f1",
+   "object_id": "python-source",
    "path": "monitoring/src/d2_f2g_phase_b_stats.py"
+  },
+  "mag1_band_b_sos": {
+   "blob_sha256": "3f334f950897df0ff43c7eb21d9c9cf9e0eae8617a2afafcae43a70fc257aae7",
+   "commit": "bc6805321cd028712c498d0f858d5abbb22b99e0",
+   "imported_section": "whole-file",
+   "imported_section_sha256": "3f334f950897df0ff43c7eb21d9c9cf9e0eae8617a2afafcae43a70fc257aae7",
+   "object_id": "json-object",
+   "path": "docs/f2g_window2_freeze/mag1_band_b_sos.json"
   },
   "mag1_coverage_admission": {
    "blob_sha256": "58372b47c0022ddaaa12824041cc3456a9bb30fccbf1f18718f8f715025839ef",
    "commit": "9d5767f5200cedbf0ee4c05423cb42bbc1bf6747",
+   "imported_section": "whole-file",
+   "imported_section_sha256": "58372b47c0022ddaaa12824041cc3456a9bb30fccbf1f18718f8f715025839ef",
+   "object_id": "markdown-contract",
    "path": "docs/mag1_coverage_admission_v1.md"
   },
   "mag1_design_v02": {
    "blob_sha256": "777624f03c60857038f4aea0bf3bdca235dc8fbd6595444c37ff72a16e07e9c0",
    "commit": "a338e19fe321e97c591304a3590b1fe7b6e81f9a",
+   "imported_section": "whole-file",
+   "imported_section_sha256": "777624f03c60857038f4aea0bf3bdca235dc8fbd6595444c37ff72a16e07e9c0",
+   "object_id": "markdown-contract",
    "path": "docs/mag1_channel_design_DRAFT.md"
   },
   "mag1_instantiation": {
-   "blob_sha256": "9b21fffb76ec181527f503df6e4c4bd70e8ab3b8b16df44903cdb533f37b2a53",
-   "commit": "3b4f7d23089876fe0e9bb76c2d94c4da17974693",
+   "blob_sha256": "2d0de2b5c4f7202fbdbe8325518a5b96ccc8ade33c45b300a9fd7940fd562051",
+   "commit": "bc6805321cd028712c498d0f858d5abbb22b99e0",
+   "imported_section": "whole-file",
+   "imported_section_sha256": "2d0de2b5c4f7202fbdbe8325518a5b96ccc8ade33c45b300a9fd7940fd562051",
+   "object_id": "markdown-contract",
    "path": "docs/f2g_window2_freeze/mag1_instantiation.md"
+  },
+  "mag_new_capsule": {
+   "blob_sha256": "4e4fe40656ee2d6d8480e7ccdc91a3ce3a344a080bc67e8c1901028d5e2a129f",
+   "commit": "bc6805321cd028712c498d0f858d5abbb22b99e0",
+   "imported_section": "whole-file",
+   "imported_section_sha256": "4e4fe40656ee2d6d8480e7ccdc91a3ce3a344a080bc67e8c1901028d5e2a129f",
+   "object_id": "json-object",
+   "path": "docs/f2g_window2_freeze/mag_capsule_new.json"
+  },
+  "mag_new_probe_body": {
+   "blob_sha256": "2bcdbb1295156383b08db5dce532a627d2098da2b60c467755935341c1a91143",
+   "commit": "bc6805321cd028712c498d0f858d5abbb22b99e0",
+   "imported_section": "whole-file",
+   "imported_section_sha256": "2bcdbb1295156383b08db5dce532a627d2098da2b60c467755935341c1a91143",
+   "object_id": "json-object",
+   "path": "docs/f2g_window2_freeze/receipts/mag_new_probe.json"
+  },
+  "mag_new_probe_envelope": {
+   "blob_sha256": "98a339df884a6bd73e516be2a364a6228689390686fc4207fe97ed3e3ef69d5a",
+   "commit": "bc6805321cd028712c498d0f858d5abbb22b99e0",
+   "imported_section": "whole-file",
+   "imported_section_sha256": "98a339df884a6bd73e516be2a364a6228689390686fc4207fe97ed3e3ef69d5a",
+   "object_id": "json-object",
+   "path": "docs/f2g_window2_freeze/receipts/mag_new_probe.envelope.json"
+  },
+  "mag_vic_capsule": {
+   "blob_sha256": "275b64e38495c904730ac8f2a87896b3fbce36df8b6ce68e00c5b3ee119edc13",
+   "commit": "bc6805321cd028712c498d0f858d5abbb22b99e0",
+   "imported_section": "whole-file",
+   "imported_section_sha256": "275b64e38495c904730ac8f2a87896b3fbce36df8b6ce68e00c5b3ee119edc13",
+   "object_id": "json-object",
+   "path": "docs/f2g_window2_freeze/mag_capsule_vic.json"
+  },
+  "mag_vic_probe_body": {
+   "blob_sha256": "24a9bbe3c53851f261552bc0e425c2d9a032d8890b411bf716e4a7388864c526",
+   "commit": "bc6805321cd028712c498d0f858d5abbb22b99e0",
+   "imported_section": "whole-file",
+   "imported_section_sha256": "24a9bbe3c53851f261552bc0e425c2d9a032d8890b411bf716e4a7388864c526",
+   "object_id": "json-object",
+   "path": "docs/f2g_window2_freeze/receipts/mag_vic_probe.json"
+  },
+  "mag_vic_probe_envelope": {
+   "blob_sha256": "5bd60f9dc76c5607cbfb7525b26594e405c7db8bfc574a4931f7dc9651d3f1b3",
+   "commit": "bc6805321cd028712c498d0f858d5abbb22b99e0",
+   "imported_section": "whole-file",
+   "imported_section_sha256": "5bd60f9dc76c5607cbfb7525b26594e405c7db8bfc574a4931f7dc9651d3f1b3",
+   "object_id": "json-object",
+   "path": "docs/f2g_window2_freeze/receipts/mag_vic_probe.envelope.json"
   },
   "phase_a_graph_builder": {
    "blob_sha256": "8b1b3783f30d1e907d39f7e82d27c711280bc3f18aa793308de85e5e523808a5",
    "commit": "93117e092cfbf9bb8801355c49556123c3ca0d62",
+   "imported_section": "whole-file",
+   "imported_section_sha256": "8b1b3783f30d1e907d39f7e82d27c711280bc3f18aa793308de85e5e523808a5",
+   "object_id": "python-source",
    "path": "monitoring/src/d2_f2g_graph_builder.py"
   },
   "phaseb_annex_common_rev16": {
    "blob_sha256": "44f8ddd9dd175679c0feca398dd2d549454e8b3ee429a037a13f6362f88bf31a",
    "commit": "feb20bb6317dbdc679bdc0dec55c9cb59ec55409",
+   "imported_section": "whole-file",
+   "imported_section_sha256": "44f8ddd9dd175679c0feca398dd2d549454e8b3ee429a037a13f6362f88bf31a",
+   "object_id": "markdown-contract",
    "path": "docs/f2g_phase_b_power_annex_common.md"
   },
   "poc_findings_nonquant": {
    "blob_sha256": "49ace3787a658cd5e7a92ea78c3d7f97e852c71fcdbb4a71ad39a0b99f4f62af",
    "commit": "5ccd533a8cc41a4279826f35bea33a7ef7546a27",
+   "imported_section": "whole-file",
+   "imported_section_sha256": "49ace3787a658cd5e7a92ea78c3d7f97e852c71fcdbb4a71ad39a0b99f4f62af",
+   "object_id": "markdown-contract",
    "path": "docs/f2g_poc_review/findings_v1.md"
   },
   "prereg_v03": {
    "blob_sha256": "0ed87943b11349cf79dcae05a7ed99248f7e63d746242c86194b7fca47903a07",
    "commit": "5ccd533a8cc41a4279826f35bea33a7ef7546a27",
+   "imported_section": "whole-file",
+   "imported_section_sha256": "0ed87943b11349cf79dcae05a7ed99248f7e63d746242c86194b7fca47903a07",
+   "object_id": "markdown-contract",
    "path": "docs/f2g_window2_prereg_DRAFT.md"
   },
   "region_polygons": {
    "blob_sha256": "90acfd35fc05bd9b4f178837ebbd2ff7e44b6211a422e47bfbcfa230c1b8f913",
    "commit": "214f8f34e991fd77a1fe2bb0ac938d2cce84d9e3",
+   "imported_section": "whole-file",
+   "imported_section_sha256": "90acfd35fc05bd9b4f178837ebbd2ff7e44b6211a422e47bfbcfa230c1b8f913",
+   "object_id": "python-source",
    "path": "monitoring/src/fault_segments.py"
   },
   "sealed_driver": {
    "blob_sha256": "d9c45ac6e7258a5bafa5998dc921d46922a78d2b8163cd9af7c96e332a0a2110",
    "commit": "246fd8a9e6884694b3da1bfd1d13af73b4b6d31e",
+   "imported_section": "whole-file",
+   "imported_section_sha256": "d9c45ac6e7258a5bafa5998dc921d46922a78d2b8163cd9af7c96e332a0a2110",
+   "object_id": "python-source",
    "path": "monitoring/src/f2g_sealed_run_driver_cayley.py"
   },
   "sealed_instrument": {
    "blob_sha256": "c4fdd95f0cd21bdb03588b0e9a5cec4a88c36b644ca6fdac917721521fecfa13",
    "commit": "246fd8a9e6884694b3da1bfd1d13af73b4b6d31e",
+   "imported_section": "whole-file",
+   "imported_section_sha256": "c4fdd95f0cd21bdb03588b0e9a5cec4a88c36b644ca6fdac917721521fecfa13",
+   "object_id": "python-source",
    "path": "monitoring/src/f2g_sealed_run_instrument_cayley.py"
   },
   "sealed_verifier": {
    "blob_sha256": "5d00195fc64b64aa9e34899c3d5f5135b3eb902e0394edd9679ccf1547c87f5a",
    "commit": "702d1d3b62a945848088784aee31c2e998cf7993",
+   "imported_section": "whole-file",
+   "imported_section_sha256": "5d00195fc64b64aa9e34899c3d5f5135b3eb902e0394edd9679ccf1547c87f5a",
+   "object_id": "python-source",
    "path": "monitoring/src/f2g_sealed_run_result_verifier_cayley.py"
   },
   "selection_constants": {
    "blob_sha256": "f64a2bd19724d817aba7910d78925341cbc8d61b6e938b904b9683d16939fd12",
    "commit": "4bd196772c4dee745b43d17ef89715a772bae7c6",
+   "imported_section": "whole-file",
+   "imported_section_sha256": "f64a2bd19724d817aba7910d78925341cbc8d61b6e938b904b9683d16939fd12",
+   "object_id": "markdown-contract",
    "path": "docs/f2g_window2_freeze/selection_constants.md"
   }
  },
  "repository_url": "https://github.com/kantrarian/geospec",
- "schema": "f2g-window2-design-manifest-v2"
+ "schema": "f2g-window2-design-manifest-v2.1",
+ "target_ref": "origin/master"
 }

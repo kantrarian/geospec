@@ -872,13 +872,46 @@ def _validate_daily_series(series, days, side):
                 f"M2_NONFINITE_INPUT: {side} {d} -> {v!r}")
 
 
+def _validate_day_index(days):
+    """codex 1815Z item 5: ONE exact temporal carrier, validated
+    BEFORE capsule construction -- canonical ISO days, ALREADY
+    strictly increasing (never silently sorted), unique, and equal to
+    the FULL registered calendar-day index over the interval (gaps are
+    typed absence on an EXISTING day, never a compressed lag
+    geometry). Typed M2_DAY_INDEX_INVALID."""
+    from datetime import date, timedelta
+    days = [str(d) for d in days]
+    if len(days) < 2:
+        raise Mag1Refusal("M2_DAY_INDEX_INVALID: < 2 days")
+    parsed = []
+    for d in days:
+        try:
+            parsed.append(date.fromisoformat(d))
+        except ValueError:
+            raise Mag1Refusal(
+                f"M2_DAY_INDEX_INVALID: non-canonical label {d!r}")
+    for a, b in zip(parsed, parsed[1:]):
+        if b <= a:
+            raise Mag1Refusal(
+                "M2_DAY_INDEX_INVALID: not strictly increasing at "
+                f"{b.isoformat()} (duplicates/reorder refuse; never "
+                "silently sorted)")
+        if b - a != timedelta(days=1):
+            raise Mag1Refusal(
+                f"M2_DAY_INDEX_INVALID: gap {a.isoformat()} -> "
+                f"{b.isoformat()} (absence must be None on an "
+                "existing registered day)")
+    return days
+
+
 def m2_feature_capsule(mag_by_day, days, *, subtraction_ledger_digest,
                        sos_digest, source_input_digest):
     """The REGISTERED M2 null object (option A, grassmann 1509Z ruling;
-    codex 1519Z binding): the typed daily-feature capsule -- ordered
-    days, energy/absence typing, surviving support, and the three
-    provenance digests. Prevalidates non-finite values HERE."""
-    days = sorted(str(d) for d in days)
+    codex 1519Z binding + 1815Z item-5 temporal carrier): the typed
+    daily-feature capsule -- the EXACT validated full-day index,
+    energy/absence typing, surviving support, and the three provenance
+    digests. Prevalidates the day index AND non-finite values HERE."""
+    days = _validate_day_index(days)
     _validate_daily_series(mag_by_day, days, "magnetic")
     entries = []
     for d in days:
@@ -940,7 +973,7 @@ def m2_pairing(mag_by_day, graph_by_day, days, *,
     null loop catches ONLY the registered insufficient-overlap
     refusal. The returned operation_record binds both comparison sides
     per codex 1519Z."""
-    days = sorted(str(d) for d in days)
+    days = _validate_day_index(days)   # never silently sorted
     capsule = m2_feature_capsule(
         mag_by_day, days,
         subtraction_ledger_digest=subtraction_ledger_digest,
@@ -1106,6 +1139,31 @@ def _selftest_b():
                        for e in cap61["entries"]},
                       {d: gr_d[d] for d in d61}, d61)
     assert isinstance(stat61, float)         # exactly 60 finite pairs
+
+    # codex 1815Z item 5 doctors: duplicate / reordered / gapped /
+    # invalid / extra day labels ALL refuse before the observed stat
+    d60u = days[:60]
+    m60 = {d: mag_d[d] for d in d60}
+    g60 = {d: gr_d[d] for d in d60}
+    for bad_days, label in (
+            (d60[:59] + [d60[58]], "duplicate"),
+            (d60[:30] + [d60[31], d60[30]] + d60[32:], "reordered"),
+            (d60[:30] + d60[31:] + [days[60]], "gapped"),
+            (d60[:59] + ["2026-13-99"], "invalid"),
+            (d60 + ["not-a-day"], "extra-invalid")):
+        try:
+            m2_pairing(m60, g60, bad_days, **DIG)
+            raise AssertionError(f"{label} day index must refuse")
+        except Mag1Refusal as e:
+            assert "M2_DAY_INDEX_INVALID" in str(e), (label, str(e))
+    # the codex duplicate-inflation repro: 59 unique + 1 repeat can no
+    # longer reach support 60
+    try:
+        m2_feature_capsule({d: mag_d[d] for d in d60},
+                           d60[:59] + [d60[58]], **DIG)
+        raise AssertionError("duplicate labels must refuse")
+    except Mag1Refusal as e:
+        assert "M2_DAY_INDEX_INVALID" in str(e)
 
     # codex 1423Z item 1 fixture: raw recomputation is NOT equivalent
     # to capsule permutation -- byte-identical target day, neighbor

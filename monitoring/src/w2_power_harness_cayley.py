@@ -367,28 +367,103 @@ CAL_POSITIONS = _pb.B1A_CAL_BLOCKS * _pb.B1A_CAL_BLOCK_LEN   # 132
 CAL_BASELINE = 72
 
 
-def _require_bound(capsule):
-    """POWER_GEOMETRY_UNBOUND unless the capsule is a well-formed
-    BOUND geometry: schema, bound flag, authority digests, 132-day
-    calendar, per-carrier masks/registries/segments."""
-    def refuse(detail):
-        raise PowerHarnessError(f"POWER_GEOMETRY_UNBOUND: {detail}")
+GEOMETRY_CAPSULE_FIELDS = {
+    "schema", "bound", "calendar_authority_mode",
+    "calendar_authority_sha256", "calendar_authority_ref",
+    "seed_authority_sha256", "shared_calendar_days", "carrier_masks",
+    "registries", "segments", "effect_grids", "capsule_digest"}
+
+
+def _geometry_capsule_digest(capsule):
+    body = {k: capsule[k] for k in sorted(capsule)
+            if k != "capsule_digest"}
+    return hashlib.sha256(json.dumps(
+        body, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest()
+
+
+def _validate_geometry_capsule(capsule, family, point):
+    """codex 1815Z item 2: CLOSED capsule schema, bound-mode-only,
+    recomputed whole-capsule digest, structural geometry checks, and
+    family/point membership in the capsule's REGISTERED effect grids.
+    All refusals fire BEFORE any replicate runs."""
+    def refuse(code, detail):
+        raise PowerHarnessError(f"{code}: {detail}")
     if not isinstance(capsule, dict) or \
-            capsule.get("schema") != BOUND_GEOMETRY_SCHEMA:
-        refuse(f"schema={capsule.get('schema') if isinstance(capsule, dict) else type(capsule).__name__}")
-    if capsule.get("bound") is not True:
-        refuse("bound flag absent")
-    for k in ("calendar_authority_sha256", "seed_authority_sha256",
-              "shared_calendar_days", "carrier_masks", "registries",
-              "segments"):
-        if not capsule.get(k):
-            refuse(f"missing {k}")
+            set(capsule) != GEOMETRY_CAPSULE_FIELDS:
+        refuse("POWER_GEOMETRY_UNBOUND",
+               "capsule schema not closed: "
+               f"{sorted(set(capsule) ^ GEOMETRY_CAPSULE_FIELDS) if isinstance(capsule, dict) else type(capsule).__name__}")
+    if capsule["schema"] != BOUND_GEOMETRY_SCHEMA or \
+            capsule["bound"] is not True:
+        refuse("POWER_GEOMETRY_UNBOUND", "schema/bound flag invalid")
+    if capsule["calendar_authority_mode"] != "bound":
+        refuse("POWER_GEOMETRY_UNBOUND",
+               f"mode {capsule['calendar_authority_mode']!r} is not "
+               "'bound' (fixture mode never certifies)")
+    if _geometry_capsule_digest(capsule) != capsule["capsule_digest"]:
+        refuse("POWER_GEOMETRY_UNBOUND", "capsule digest mismatch")
     if len(capsule["shared_calendar_days"]) != CAL_POSITIONS:
-        refuse(f"calendar length {len(capsule['shared_calendar_days'])}"
-               f" != {CAL_POSITIONS}")
-    if sorted(capsule["carrier_masks"]) != sorted(capsule["registries"]):
-        refuse("carrier set mismatch between masks and registries")
+        refuse("POWER_GEOMETRY_UNBOUND",
+               f"calendar length != {CAL_POSITIONS}")
+    if sorted(capsule["carrier_masks"]) != \
+            sorted(capsule["registries"]) or \
+            sorted(capsule["carrier_masks"]) != \
+            sorted(capsule["segments"]):
+        refuse("POWER_GEOMETRY_UNBOUND",
+               "carrier set mismatch across masks/registries/segments")
+    grid = capsule["effect_grids"].get(family)
+    if grid is None or point not in grid:
+        refuse("POWER_POINT_OFF_GRID",
+               f"{family} {point} not in the registered effect grid")
     return capsule
+
+
+def _load_bound_geometry(repo, geometry_ref):
+    """The content-addressed, MANIFEST-PINNED capsule loader: the ref
+    names {manifest_commit, path}; the path must be a BOUND pin of the
+    execution manifest at that commit; the capsule bytes reopen from
+    the pin's git object and must hash to the pin. Caller dicts are
+    structurally impossible here."""
+    if not isinstance(geometry_ref, dict) or \
+            set(geometry_ref) != {"manifest_commit", "path"}:
+        raise PowerHarnessError(
+            "POWER_GEOMETRY_REF_INVALID: certification takes a "
+            "{manifest_commit, path} reference, never a capsule dict")
+    import subprocess
+    mc = geometry_ref["manifest_commit"]
+    p = subprocess.run(
+        ["git", "-C", repo, "cat-file", "blob",
+         f"{mc}:docs/f2g_window2_execution/execution_manifest.json"],
+        capture_output=True)
+    if p.returncode != 0:
+        raise PowerHarnessError(
+            f"POWER_GEOMETRY_REF_INVALID: manifest unreadable at {mc}")
+    man = json.loads(p.stdout.decode("utf-8"))
+    pin = None
+    for slot in man["slots"].values():
+        if slot["status"] != "BOUND":
+            continue
+        for cand in slot["pins"]:
+            if cand["path"] == geometry_ref["path"]:
+                pin = cand
+    if pin is None:
+        raise PowerHarnessError(
+            f"POWER_GEOMETRY_NOT_MANIFEST_PINNED: "
+            f"{geometry_ref['path']} is not a BOUND pin at {mc}")
+    p = subprocess.run(["git", "-C", repo, "cat-file", "blob",
+                        f"{pin['commit']}:{pin['path']}"],
+                       capture_output=True)
+    if p.returncode != 0 or hashlib.sha256(p.stdout).hexdigest() != \
+            pin["blob_sha256"]:
+        raise PowerHarnessError(
+            "POWER_GEOMETRY_UNBOUND: pinned capsule bytes unreadable "
+            "or divergent")
+    try:
+        return json.loads(p.stdout.decode("utf-8"))
+    except ValueError:
+        raise PowerHarnessError(
+            "POWER_GEOMETRY_UNBOUND: pinned bytes are not a capsule")
 
 
 def rep_seed_registered(seed_authority_sha, family, r):
@@ -565,18 +640,38 @@ def replicate_pvalues_bound(panel_cal, views, n_draws, doc_sha):
     return out, frames
 
 
-def run_point_certification(capsule, family, point, **overrides):
-    """THE ONLY PATH to certifiable records. Constructs (never
-    accepts) R=20/40, n_draws=9,999, and the registered seed grammar
-    from the capsule's frozen seed authority; requires a verified
-    BOUND geometry capsule. Any override kwarg refuses
-    POWER_CERTIFICATION_CONFIG_UNBOUND."""
+def run_point_certification(repo, geometry_ref, family, point,
+                            **overrides):
+    """THE ONLY PATH to certifiable records (codex 1815Z item 2 shape):
+    takes a {manifest_commit, path} REFERENCE to a manifest-pinned
+    geometry capsule -- never a caller dict. Reopens the exact pinned
+    bytes, closes the capsule schema, recomputes the whole-capsule
+    digest, requires bound mode, verifies the calendar-authority bytes
+    against the capsule's recorded sha, and validates the family/point
+    against the capsule's REGISTERED effect grids -- ALL before any
+    replicate. Constructs (never accepts) R=20/40, n_draws=9,999, and
+    the registered seed grammar. Results bind the capsule digest and
+    point."""
     if overrides:
         raise PowerHarnessError(
             f"POWER_CERTIFICATION_CONFIG_UNBOUND: "
             f"{sorted(overrides)} -- certification constructs its "
             "own R/n_draws/seed authority")
-    _require_bound(capsule)
+    capsule = _load_bound_geometry(repo, geometry_ref)
+    _validate_geometry_capsule(capsule, family, point)
+    # calendar-authority bytes must reopen and hash to the capsule's
+    # recorded sha (the window-2 bound authority is a PRESTART
+    # deliverable -- until committed, this refuses, which is honest)
+    import subprocess
+    ref = capsule["calendar_authority_ref"]
+    p = subprocess.run(["git", "-C", repo, "cat-file", "blob",
+                        f"{ref['commit']}:{ref['path']}"],
+                       capture_output=True)
+    if p.returncode != 0 or hashlib.sha256(p.stdout).hexdigest() != \
+            capsule["calendar_authority_sha256"]:
+        raise PowerHarnessError(
+            "POWER_GEOMETRY_UNBOUND: calendar authority bytes absent "
+            "or divergent from the capsule's recorded sha")
     doc_sha = capsule["seed_authority_sha256"]
 
     def success(r):
@@ -588,6 +683,8 @@ def run_point_certification(capsule, family, point, **overrides):
     rec = certify(success, r_first=R_FIRST, r_max=R_MAX)
     rec.update(family=family, point=point, tier="CERTIFICATION",
                n_draws=CERT_N_DRAWS, certifiable=True,
+               geometry_capsule_digest=capsule["capsule_digest"],
+               geometry_ref=dict(geometry_ref),
                seed_authority_sha256=doc_sha,
                calendar_authority_sha256=
                    capsule["calendar_authority_sha256"])
@@ -685,15 +782,64 @@ def _selftest():
         raise AssertionError("tier knob must not exist")
     except TypeError:
         pass
-    for bad_cap, label in (({"schema": "nope"}, "wrong schema"),
-                           (dict(fixture_geometry(),
-                                 schema=BOUND_GEOMETRY_SCHEMA),
-                            "fixture geometry")):
+    repo_g = os.path.abspath(os.path.join(_HERE, "..", ".."))
+    # caller dicts are structurally impossible (codex 1815Z item 2)
+    for bad_ref, code, label in (
+            ({"schema": "nope"}, "POWER_GEOMETRY_REF_INVALID",
+             "caller dict"),
+            (dict(fixture_geometry(), schema=BOUND_GEOMETRY_SCHEMA,
+                  bound=True), "POWER_GEOMETRY_REF_INVALID",
+             "forged bound dict"),
+            ({"manifest_commit": "86bbb4d",
+              "path": "docs/nonexistent.json"},
+             "POWER_GEOMETRY_NOT_MANIFEST_PINNED", "unpinned path"),
+            ({"manifest_commit": "86bbb4d",
+              "path": "monitoring/src/w2_selection.py"},
+             "POWER_GEOMETRY_UNBOUND", "pinned non-capsule")):
         try:
-            run_point_certification(bad_cap, "B2B", {"m": 2})
+            run_point_certification(repo_g, bad_ref, "B2B", {"m": 2})
             raise AssertionError(f"{label} must refuse")
         except PowerHarnessError as e:
-            assert "POWER_GEOMETRY_UNBOUND" in str(e), (label, str(e))
+            assert code in str(e), (label, str(e))
+
+    # unit validators: a well-formed bound capsule passes; every
+    # doctored field refuses BEFORE any replicate
+    def mk_capsule(**mut):
+        cap = {"schema": BOUND_GEOMETRY_SCHEMA, "bound": True,
+               "calendar_authority_mode": "bound",
+               "calendar_authority_sha256": "a" * 64,
+               "calendar_authority_ref": {"commit": "x", "path": "y"},
+               "seed_authority_sha256": "b" * 64,
+               "shared_calendar_days": [f"C{i:03d}"
+                                        for i in range(132)],
+               "carrier_masks": {"c1": {"registered_days": ["C000"]}},
+               "registries": {"c1": ["S0"]},
+               "segments": {"c1": {"S0": "sA"}},
+               "effect_grids": {"B2B": [{"m": 2}]}}
+        cap.update(mut)
+        cap["capsule_digest"] = _geometry_capsule_digest(cap)
+        cap.update({k: v for k, v in mut.items()
+                    if k == "capsule_digest"})
+        return cap
+    _validate_geometry_capsule(mk_capsule(), "B2B", {"m": 2})
+    for mut, code, label in (
+            ({"calendar_authority_mode": "fixture"},
+             "POWER_GEOMETRY_UNBOUND", "fixture mode"),
+            ({"bound": False}, "POWER_GEOMETRY_UNBOUND",
+             "forged bound"),
+            ({"capsule_digest": "0" * 64}, "POWER_GEOMETRY_UNBOUND",
+             "digest mismatch")):
+        try:
+            _validate_geometry_capsule(mk_capsule(**mut), "B2B",
+                                       {"m": 2})
+            raise AssertionError(f"{label} must refuse")
+        except PowerHarnessError as e:
+            assert code in str(e), (label, str(e))
+    try:
+        _validate_geometry_capsule(mk_capsule(), "B2B", {"m": 9})
+        raise AssertionError("off-grid point must refuse")
+    except PowerHarnessError as e:
+        assert "POWER_POINT_OFF_GRID" in str(e)
 
     # three-carrier BOUND-mechanism capsule (fixture calendar mode so
     # the pinned seams accept; the window-2 bound authority + seam
@@ -719,7 +865,10 @@ def _selftest():
     # config-override doctors fire BEFORE any compute
     for ov in ({"n_draws": 99}, {"r_first": 5}, {"tier": "X"}):
         try:
-            run_point_certification(cap3, "B2A", {"m": 2}, **ov)
+            run_point_certification(
+                repo_g, {"manifest_commit": "86bbb4d",
+                         "path": "monitoring/src/w2_selection.py"},
+                "B2A", {"m": 2}, **ov)
             raise AssertionError(f"override {ov} must refuse")
         except PowerHarnessError as e:
             assert "POWER_CERTIFICATION_CONFIG_UNBOUND" in str(e)

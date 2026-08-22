@@ -110,6 +110,71 @@ def runtime_allowlist_check(repo, manifest_commit):
             "pins_checked": len(checked), "pins": checked}
 
 
+def assemble_prestart_admission(repo, manifest_commit, bindings,
+                                owner_authorization):
+    """codex 1815Z item 1: builds the CLOSED admission capsule with
+    LIVE verification. Refuses typed PRESTART_ADMISSION_REFUSED when:
+    the execution verifier's --prestart walk is not a zero-OPEN PASS
+    (today's OPEN manifests refuse here); the runtime allowlist fails;
+    or the owner authorization is not a closed binding record whose
+    binds match the EXACT manifest commit/blob, lanes, lease, and
+    window uuid."""
+    import f2g_execution_manifest_verifier_cayley as EMV
+
+    def refuse(detail):
+        raise InstrumentRefusal(f"PRESTART_ADMISSION_REFUSED: {detail}")
+    verdict = EMV.verify(repo, manifest_commit, prestart=True)
+    if verdict.get("verdict") != "PASS" or \
+            verdict.get("slots_open", -1) != 0:
+        refuse(f"execution verifier --prestart is not a zero-OPEN "
+               f"PASS at {manifest_commit}: "
+               f"{[t['reason'] for t in verdict.get('typed_reasons', [])][:4]}")
+    allowlist = runtime_allowlist_check(repo, manifest_commit)
+    raw = _git(repo, ["cat-file", "blob",
+                      f"{verdict['manifest_commit']}:"
+                      f"{EXEC_MANIFEST_PATH}"], binary=True)
+    blob_sha = hashlib.sha256(raw).hexdigest()
+    if not isinstance(owner_authorization, dict) or \
+            set(owner_authorization) != {"quote", "quote_sha256",
+                                         "binds"}:
+        refuse("owner authorization is not a closed binding record "
+               "(bare strings refuse)")
+    oa = owner_authorization
+    if hashlib.sha256(str(oa["quote"]).encode()).hexdigest() != \
+            oa["quote_sha256"]:
+        refuse("owner quote digest mismatch")
+    binds = oa["binds"]
+    if binds.get("manifest_blob_sha256") != blob_sha or \
+            str(binds.get("manifest_commit")) != str(manifest_commit):
+        refuse("owner binding does not match the exact manifest "
+               "commit/blob (manifest changed after the binding?)")
+    if sorted(binds.get("lanes", ())) != \
+            sorted(bindings.get("lane_uuids", ())) or \
+            binds.get("lease") != bindings.get("remote_lease") or \
+            binds.get("window_uuid") != \
+            bindings.get("global_window_uuid"):
+        refuse("owner binding diverges from the bindings' "
+               "lanes/lease/window")
+    admission = {"schema": WB.ADMISSION_SCHEMA,
+                 "manifest_commit": str(manifest_commit),
+                 "manifest_blob_sha256": blob_sha,
+                 "prestart_verifier": {
+                     "verdict": verdict["verdict"],
+                     "mode": verdict["mode"],
+                     "slots_open": verdict["slots_open"],
+                     "manifest_commit": verdict["manifest_commit"]},
+                 "allowlist": {"pins_checked":
+                               allowlist["pins_checked"]},
+                 "owner": {"quote": oa["quote"],
+                           "quote_sha256": oa["quote_sha256"],
+                           "binds": dict(binds)},
+                 "lanes": list(bindings["lane_uuids"]),
+                 "lease": bindings["remote_lease"],
+                 "window_uuid": bindings["global_window_uuid"]}
+    admission["admission_digest"] = WB.admission_digest(admission)
+    return admission
+
+
 class PersistentLedger:
     """File-backed w2_barrier.BarrierLedger: save-after-every-append,
     replay-on-load, chain verified both ways."""
@@ -184,9 +249,27 @@ class PersistentLedger:
                 led._selector_power = p["power"]
 
     # -------- wrapped operations (live clock injected here) --------
-    def prestart(self, bindings):
-        self.ledger.prestart(bindings, self._clock())
+    def prestart(self, bindings, admission):
+        """Low-level pass-through: the ADMISSION CAPSULE is required
+        (the barrier refuses bare bindings). Production callers use
+        prestart_production, which BUILDS the capsule with live
+        verification."""
+        self.ledger.prestart(bindings, self._clock(), admission)
         self.save()
+
+    def prestart_production(self, repo, manifest_commit, bindings,
+                            owner_authorization):
+        """THE production prestart entry point (codex 1815Z item 1):
+        constructs and verifies the closed admission capsule LIVE --
+        execution verifier in --prestart mode (must be a zero-OPEN
+        PASS), runtime allowlist over those bytes, and the owner
+        authorization independently verified against the exact
+        manifest blob / lanes / lease / window -- then drives the
+        barrier."""
+        admission = assemble_prestart_admission(
+            repo, manifest_commit, bindings, owner_authorization)
+        self.prestart(bindings, admission)
+        return admission
 
     def accrue_prediction(self, lease, region, issue_day, row_digest):
         self.ledger.accrue_prediction(lease, region, issue_day,
@@ -431,18 +514,24 @@ def _selftest():
     tmpdir = tempfile.mkdtemp(prefix="w2_accrual_kat_")
     path = os.path.join(tmpdir, "ledger.json")
 
-    def bindings(lease):
+    def bindings(lease, lanes=("graph", "mag1")):
         return {k: f"digest-{k}" for k in WB.REQUIRED_BINDINGS
                 if k not in ("remote_lease", "lane_uuids",
-                             "owner_authorization")} | {
+                             "owner_authorization",
+                             "code_manifest")} | {
+            "code_manifest": {"execution_manifest_commit": "kat-mc",
+                              "execution_manifest_blob_sha256":
+                                  "kat-mb"},
             "remote_lease": lease,
-            "lane_uuids": ["graph", "mag1"],
+            "lane_uuids": list(lanes),
+            "global_window_uuid": "kat-window",
             "owner_authorization": "kat-owner-quote"}
 
     # lifecycle with persistence: prestart + predictions, then RELOAD
     fake = ["2026-09-01"]
     pl = PersistentLedger(path, clock=lambda: fake[0])
-    pl.prestart(bindings("kat-lease-1"))
+    b1_ = bindings("kat-lease-1")
+    pl.prestart(b1_, WB._admission(b1_))
     day = pl.ledger.evaluation_start.isoformat()
     fake[0] = day                    # clock advances into the window
     pl.accrue_prediction("kat-lease-1", "ra", day, "row-1")
@@ -465,6 +554,40 @@ def _selftest():
         raise AssertionError("state must forbid second prestart")
     except WB.BarrierRefusal as e:
         assert "STATE_INVALID" in str(e)
+
+    # codex 1815Z item-1 production-path doctors: the CURRENT OPEN
+    # manifest can NEVER cross into ACCRUAL through the production
+    # entry point; forged owner records refuse
+    repo = os.path.abspath(os.path.join(_HERE, "..", ".."))
+    try:
+        assemble_prestart_admission(repo, "86bbb4d", b1_,
+                                    "not-a-seal")
+        raise AssertionError("OPEN manifest must refuse admission")
+    except InstrumentRefusal as e:
+        assert "PRESTART_ADMISSION_REFUSED" in str(e) \
+            and "SLOT_OPEN" in str(e)
+    q = "the owner quote"
+    oa_good_shape = {"quote": q, "quote_sha256":
+                     hashlib.sha256(q.encode()).hexdigest(),
+                     "binds": {"manifest_commit": "86bbb4d",
+                               "manifest_blob_sha256": "wrong",
+                               "lanes": ["graph", "mag1"],
+                               "lease": "kat-lease-1",
+                               "window_uuid": "kat-window"}}
+    try:
+        assemble_prestart_admission(repo, "86bbb4d", b1_,
+                                    oa_good_shape)
+        raise AssertionError("must refuse before owner checks too")
+    except InstrumentRefusal as e:
+        assert "PRESTART_ADMISSION_REFUSED" in str(e)
+    # barrier-level: bare bindings refuse even with valid-shape state
+    try:
+        PersistentLedger(os.path.join(tmpdir, "bare.json"),
+                         clock=lambda: "2026-09-01").prestart(
+            bindings("kat-lease-bare"), None)
+        raise AssertionError("bare bindings must refuse")
+    except WB.BarrierRefusal as e:
+        assert "PRESTART_ADMISSION_REFUSED" in str(e)
 
     # tampered file -> chain broken on load
     doc = json.load(open(path))
@@ -547,7 +670,7 @@ def _selftest():
     assert b["models"]["design_manifest_commit"].startswith("5fba544")
     pl3 = PersistentLedger(os.path.join(tmpdir, "l3.json"),
                            clock=lambda: "2026-09-01")
-    pl3.prestart(b)                    # assembled dict passes the gate
+    pl3.prestart(b, WB._admission(b))  # assembled dict + admission
     assert pl3.ledger.state == "ACCRUAL"
 
     # --- seam layer 2 KATs: adapter -> REAL engine end-to-end ---
@@ -614,12 +737,8 @@ def _selftest():
     fake2 = ["2026-09-01"]
     pl4 = PersistentLedger(os.path.join(tmpdir, "l4.json"),
                            clock=lambda: fake2[0])
-    pl4.prestart(dict(_bindings := {
-        k: f"digest-{k}" for k in WB.REQUIRED_BINDINGS
-        if k not in ("remote_lease", "lane_uuids",
-                     "owner_authorization")},
-        remote_lease="kat-lease-4", lane_uuids=["mf4"],
-        owner_authorization="kat-owner"))
+    b4_ = bindings("kat-lease-4", lanes=("mf4",))
+    pl4.prestart(b4_, WB._admission(b4_))
     d0 = pl4.ledger.evaluation_start.isoformat()
     fake2[0] = d0
 

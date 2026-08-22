@@ -264,14 +264,17 @@ def run_mag_calibration(repo, feeds, cutoff, producer_identity):
     return {"receipt": rec_path, "results": out}
 
 
-def verify_receipt(repo, receipt_rel, *, expected_cutoff=None,
-                   expected_producer=None, expected_runner_sha=None):
-    """codex 1358Z item 4: verification covers PROVENANCE, not just
-    output content. Closes the receipt schema, recomputes the INPUT
-    feed digest from the persisted carrier, recomputes every output
-    ledger digest, and -- when expectations are supplied -- compares
-    cutoff, producer identity, and the executed-runner sha against
-    them. Any divergence refuses CALIBRATION_RECEIPT_MISMATCH."""
+def verify_receipt(repo, receipt_rel, *, expected_cutoff,
+                   expected_producer, expected_runner_sha=None):
+    """codex 1358Z item 4 + 1815Z item 3: NO claim-bearing defaults.
+    Expected cutoff and pinned producer identity are REQUIRED on every
+    call; the executing runner is ALWAYS compared (to
+    expected_runner_sha when a manifest pin is supplied, else to the
+    executing bytes -- a supplied pin also must match the executing
+    bytes). The lane enum and every nested result schema are CLOSED.
+    The exact required ledger keyset is DERIVED from the persisted
+    input feed and must be EQUAL -- an empty or subset result refuses.
+    Any divergence refuses CALIBRATION_RECEIPT_MISMATCH."""
     with open(os.path.join(repo, receipt_rel.replace("/", os.sep)),
               encoding="utf-8") as f:
         rec = json.load(f)
@@ -280,26 +283,25 @@ def verify_receipt(repo, receipt_rel, *, expected_cutoff=None,
         raise CalibrationRunnerError(
             f"CALIBRATION_RECEIPT_MISMATCH: {detail}")
 
-    want_fields = (RECEIPT_FIELDS_MF4 if rec.get("lane") == "MF4"
+    if rec.get("lane") not in ("MF4", "MAG"):
+        refuse(f"lane not in the closed enum: {rec.get('lane')!r}")
+    want_fields = (RECEIPT_FIELDS_MF4 if rec["lane"] == "MF4"
                    else RECEIPT_FIELDS_MAG)
     if set(rec) != want_fields:
-        refuse(f"receipt schema not closed: {sorted(set(rec) ^ want_fields)}")
+        refuse(f"receipt schema not closed: "
+               f"{sorted(set(rec) ^ want_fields)}")
     if rec["schema"] != "f2g-w2-calibration-receipt-v1":
         refuse(f"schema id {rec['schema']!r}")
-    if expected_cutoff is not None and rec["cutoff"] != \
-            str(expected_cutoff):
+    if rec["cutoff"] != str(expected_cutoff):
         refuse(f"cutoff {rec['cutoff']} != expected {expected_cutoff}")
-    if expected_producer is not None and rec["producer_identity"] != \
-            dict(expected_producer):
+    if rec["producer_identity"] != dict(expected_producer):
         refuse("producer identity diverges from the pinned identity")
+    if rec["runner_source_sha256_normalized"] != _self_sha():
+        refuse("runner sha claim does not match the executing runner")
     if expected_runner_sha is not None and \
             rec["runner_source_sha256_normalized"] != \
             expected_runner_sha:
         refuse("runner sha diverges from the manifest pin")
-    # the receipt's OWN runner claim must match the executing bytes
-    if rec["runner_source_sha256_normalized"] != _self_sha() and \
-            expected_runner_sha is None:
-        refuse("runner sha claim does not match the executing runner")
 
     def check(path_rel, want, what):
         with open(os.path.join(repo, path_rel.replace("/", os.sep)),
@@ -308,20 +310,50 @@ def verify_receipt(repo, receipt_rel, *, expected_cutoff=None,
         if got != want:
             refuse(f"{what} {path_rel} {got[:12]} != {want[:12]}")
 
-    # input carrier recomputation (independently reopenable)
+    # input carrier recomputation (independently reopenable) + the
+    # REQUIRED keyset derived from it
     check(rec["input_feed_path"], rec["input_feed_sha256"], "input")
+    with open(os.path.join(repo, rec["input_feed_path"]
+                           .replace("/", os.sep)),
+              encoding="utf-8") as f:
+        feed = json.load(f)
     n = 0
     if rec["lane"] == "MF4":
         check(rec["ledger_path"], rec["ledger_sha256"], "output")
         n = 1
     else:
-        for obs in rec["results"]["observatories"].values():
+        res = rec["results"]
+        if set(res) != {"observatories", "m3"}:
+            refuse(f"results schema not closed: {sorted(res)}")
+        want_obs = set(feed)
+        if set(res["observatories"]) != want_obs:
+            refuse(f"observatory set {sorted(res['observatories'])} "
+                   f"!= required {sorted(want_obs)} (derived from the "
+                   "persisted feed)")
+        want_m3 = {f"{o}:{feed[o]['m3_reference']}:{c}"
+                   for o in feed if feed[o].get("m3_reference")
+                   for c in ("X", "Y")}
+        if set(res["m3"]) != want_m3:
+            refuse(f"m3 set {sorted(res['m3'])} != required "
+                   f"{sorted(want_m3)}")
+        for oname, obs in res["observatories"].items():
+            if set(obs) != {"input_feed_sha256", "components"}:
+                refuse(f"observatory schema not closed: {oname}")
+            if set(obs["components"]) != {"X", "Y"}:
+                refuse(f"component set not closed: {oname}")
             for c in obs["components"].values():
+                if set(c) != {"ledger_path", "ledger_sha256",
+                              "ledger_digest_field"}:
+                    refuse(f"component schema not closed: {oname}")
                 check(c["ledger_path"], c["ledger_sha256"], "output")
                 n += 1
-        for m3 in rec["results"]["m3"].values():
+        for key, m3 in res["m3"].items():
+            if set(m3) != {"ledger_path", "ledger_sha256"}:
+                refuse(f"m3 schema not closed: {key}")
             check(m3["ledger_path"], m3["ledger_sha256"], "output")
             n += 1
+    if n == 0:
+        refuse("zero-ledger receipt")
     return {"verified_ledgers": n, "lane": rec["lane"],
             "provenance_checked": True}
 
@@ -350,7 +382,9 @@ def _selftest():
             "bboxes": {"ra": bbox, "rb": bbox},
             "regions": ["ra", "rb"]}
     res = run_mf4_calibration(repo, feed, "2026-02-09", producer)
-    v = verify_receipt(repo, res["receipt"])
+    v = verify_receipt(repo, res["receipt"],
+                       expected_cutoff="2026-02-09",
+                       expected_producer=producer)
     assert v == {"verified_ledgers": 1, "lane": "MF4",
                  "provenance_checked": True}
     # codex item 3 (MF4): a post-cutoff risk row refuses typed
@@ -370,7 +404,9 @@ def _selftest():
     led["intercept"] = 99.9
     json.dump(led, open(lp, "w"))
     try:
-        verify_receipt(repo, res["receipt"])
+        verify_receipt(repo, res["receipt"],
+                       expected_cutoff="2026-02-09",
+                       expected_producer=producer)
         raise AssertionError("tampered ledger must refuse")
     except CalibrationRunnerError as e:
         assert "CALIBRATION_RECEIPT_MISMATCH" in str(e)
@@ -410,6 +446,63 @@ def _selftest():
         raise AssertionError("absent M3 reference must refuse")
     except CalibrationRunnerError as e:
         assert "MAG_M3_REFERENCE_ABSENT" in str(e)
+
+    # provenance + keyset doctor battery FIRST, while the disk state
+    # (receipt + input carrier) is the coherent two-observatory run
+    rec_path = os.path.join(repo, res["receipt"].replace("/", os.sep))
+    orig = open(rec_path, encoding="utf-8").read()
+
+    def doctor(mut, label, **expect):
+        rec = json.loads(orig)
+        mut(rec)
+        json.dump(rec, open(rec_path, "w"))
+        try:
+            verify_receipt(repo, res["receipt"],
+                           expected_cutoff="2026-08-24",
+                           expected_producer=producer, **expect)
+            raise AssertionError(f"{label} must refuse")
+        except CalibrationRunnerError as e:
+            assert "CALIBRATION_RECEIPT_MISMATCH" in str(e), \
+                (label, str(e))
+        finally:
+            open(rec_path, "w").write(orig)
+    doctor(lambda r: r.__setitem__("cutoff", "2027-01-01"),
+           "doctored cutoff")
+    doctor(lambda r: r["producer_identity"].__setitem__(
+        "name", "evil"), "doctored producer")
+    doctor(lambda r: r.__setitem__(
+        "runner_source_sha256_normalized", "0" * 64),
+        "doctored runner sha")
+    doctor(lambda r: r.__setitem__("extra_field", 1),
+           "receipt schema not closed")
+    # codex 1815Z item-3 doctors: derived-keyset equality + closed
+    # nested schemas + lane enum (the forged-empty-receipt class)
+    doctor(lambda r: r["results"].__setitem__(
+        "observatories", {}), "empty observatories")
+    doctor(lambda r: r["results"]["m3"].pop("FRN:TUC:X"),
+           "removed M3 entry")
+    doctor(lambda r: r.__setitem__("lane", "EVIL"), "changed lane")
+    doctor(lambda r: r["results"]["observatories"]["FRN"]
+           .__setitem__("extra", 1), "extra nested field")
+    doctor(lambda r: r.__setitem__(
+        "results", {"observatories": {}, "m3": {}}),
+        "zero-ledger receipt")
+    # doctored INPUT CARRIER file -> input digest recomputation catches
+    fp = os.path.join(repo, "docs/f2g_window2_execution/calibration/"
+                      "mag_input_feeds.json".replace("/", os.sep))
+    saved_feed = open(fp, encoding="utf-8").read()
+    fdoc = json.loads(saved_feed)
+    fdoc["TUC"]["lon_east"] = -119.0
+    json.dump(fdoc, open(fp, "w"))
+    try:
+        verify_receipt(repo, res["receipt"],
+                       expected_cutoff="2026-08-24",
+                       expected_producer=producer)
+        raise AssertionError("doctored input carrier must refuse")
+    except CalibrationRunnerError as e:
+        assert "CALIBRATION_RECEIPT_MISMATCH" in str(e)
+    finally:
+        open(fp, "w").write(saved_feed)
 
     # codex item 3 doctors (the exact KAT list)
     def expect_refuse(feeds_d, cutoff, code, label):
@@ -473,50 +566,6 @@ def _selftest():
         X=f_al["TUC"]["components"]["X"][:2999])
     expect_refuse(f_al, "2026-08-24",
                   "CALIBRATION_TIME_INDEX_INVALID", "misaligned")
-
-    # codex item 4 doctors: provenance fields + input carrier + schema
-    rec_path = os.path.join(repo, res["receipt"].replace("/", os.sep))
-    orig = open(rec_path, encoding="utf-8").read()
-
-    def doctor(mut, label, **expect):
-        rec = json.loads(orig)
-        mut(rec)
-        json.dump(rec, open(rec_path, "w"))
-        try:
-            verify_receipt(repo, res["receipt"],
-                           expected_cutoff="2026-08-24",
-                           expected_producer=producer, **expect)
-            raise AssertionError(f"{label} must refuse")
-        except CalibrationRunnerError as e:
-            assert "CALIBRATION_RECEIPT_MISMATCH" in str(e), \
-                (label, str(e))
-        finally:
-            open(rec_path, "w").write(orig)
-    doctor(lambda r: r.__setitem__("cutoff", "2027-01-01"),
-           "doctored cutoff")
-    doctor(lambda r: r["producer_identity"].__setitem__(
-        "name", "evil"), "doctored producer")
-    doctor(lambda r: r.__setitem__(
-        "runner_source_sha256_normalized", "0" * 64),
-        "doctored runner sha")
-    doctor(lambda r: r.__setitem__("extra_field", 1),
-           "receipt schema not closed")
-    # doctored INPUT CARRIER file -> input digest recomputation catches
-    fp = os.path.join(repo, "docs/f2g_window2_execution/calibration/"
-                      "mag_input_feeds.json".replace("/", os.sep))
-    saved_feed = open(fp, encoding="utf-8").read()
-    fdoc = json.loads(saved_feed)
-    fdoc["TUC"]["lon_east"] = -119.0
-    json.dump(fdoc, open(fp, "w"))
-    try:
-        verify_receipt(repo, res["receipt"],
-                       expected_cutoff="2026-08-24",
-                       expected_producer=producer)
-        raise AssertionError("doctored input carrier must refuse")
-    except CalibrationRunnerError as e:
-        assert "CALIBRATION_RECEIPT_MISMATCH" in str(e)
-    finally:
-        open(fp, "w").write(saved_feed)
 
     print("w2_calibration_runner selftest: ALL PASS")
 

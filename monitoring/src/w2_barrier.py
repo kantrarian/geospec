@@ -68,6 +68,19 @@ REQUIRED_BINDINGS = (
     "hypothesis_registries", "adapters", "mf4_model_scaler",
     "power_envelope", "global_window_uuid", "remote_lease",
     "lane_uuids", "owner_authorization")
+ADMISSION_SCHEMA = "f2g-w2-prestart-admission-v1"
+ADMISSION_FIELDS = {"schema", "manifest_commit",
+                    "manifest_blob_sha256", "prestart_verifier",
+                    "allowlist", "owner", "lanes", "lease",
+                    "window_uuid", "admission_digest"}
+
+
+def admission_digest(admission):
+    body = {k: admission[k] for k in sorted(admission)
+            if k != "admission_digest"}
+    return hashlib.sha256(json.dumps(
+        body, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest()
 
 
 class BarrierRefusal(ValueError):
@@ -136,8 +149,83 @@ class BarrierLedger:
                 f"STATE_INVALID: {self.state} not in {states}")
 
     # ---------------- stage 1: PRESTART ----------------
-    def prestart(self, bindings, now_utc_day):
+    @staticmethod
+    def _validate_admission(admission, bindings):
+        """codex 1815Z item 1: the barrier REFUSES bare truthy binding
+        dictionaries. PRESTART requires a closed ADMISSION CAPSULE
+        whose internal consistency is validated here (the LIVE
+        re-verification -- execution verifier --prestart + runtime
+        allowlist -- runs in the production instrument that BUILT the
+        capsule; this layer is the pure state machine)."""
+        def refuse(detail):
+            raise BarrierRefusal(f"PRESTART_ADMISSION_REFUSED: {detail}")
+        if not isinstance(admission, dict):
+            refuse("bare bindings refused -- a closed admission "
+                   "capsule is required")
+        if set(admission) != ADMISSION_FIELDS or \
+                admission.get("schema") != ADMISSION_SCHEMA:
+            refuse("admission schema not closed")
+        body = {k: admission[k] for k in sorted(admission)
+                if k != "admission_digest"}
+        got = hashlib.sha256(json.dumps(
+            body, sort_keys=True,
+            separators=(",", ":")).encode()).hexdigest()
+        if got != admission["admission_digest"]:
+            refuse("admission digest mismatch")
+        pv = admission["prestart_verifier"]
+        if pv.get("verdict") != "PASS" or pv.get("mode") != \
+                "prestart" or pv.get("slots_open") != 0:
+            refuse(f"prestart verifier verdict not a zero-OPEN PASS: "
+                   f"{pv.get('verdict')}/{pv.get('slots_open')}")
+        if not str(pv.get("manifest_commit", "")).startswith(
+                str(admission["manifest_commit"])[:12]) and \
+                str(admission["manifest_commit"]) != \
+                str(pv.get("manifest_commit", "")):
+            refuse("stale verifier receipt: verdict manifest differs "
+                   "from the admission manifest")
+        al = admission["allowlist"]
+        if not al.get("pins_checked", 0) > 0:
+            refuse("allowlist report absent or empty")
+        owner = admission["owner"]
+        if not isinstance(owner, dict) or \
+                set(owner) != {"quote", "quote_sha256", "binds"}:
+            refuse("owner authorization is not a closed binding "
+                   "record")
+        if hashlib.sha256(str(owner["quote"]).encode()).hexdigest() \
+                != owner["quote_sha256"]:
+            refuse("owner quote digest mismatch")
+        b = owner["binds"]
+        if set(b) != {"manifest_commit", "manifest_blob_sha256",
+                      "lanes", "lease", "window_uuid"}:
+            refuse("owner binding fields not closed")
+        if b["manifest_blob_sha256"] != \
+                admission["manifest_blob_sha256"] or \
+                str(b["manifest_commit"]) != \
+                str(admission["manifest_commit"]):
+            refuse("manifest changed after the owner binding")
+        if sorted(b["lanes"]) != sorted(admission["lanes"]) or \
+                b["lease"] != admission["lease"] or \
+                b["window_uuid"] != admission["window_uuid"]:
+            refuse("owner binding diverges from the admission")
+        # cross-check the bindings the barrier is about to accept
+        if bindings.get("remote_lease") != admission["lease"]:
+            refuse("bindings lease differs from the admitted lease")
+        if sorted(bindings.get("lane_uuids", ())) != \
+                sorted(admission["lanes"]):
+            refuse("bindings lanes differ from the admitted lanes")
+        if bindings.get("global_window_uuid") != \
+                admission["window_uuid"]:
+            refuse("bindings window uuid differs from the admission")
+        cm = bindings.get("code_manifest")
+        if not (isinstance(cm, dict) and
+                cm.get("execution_manifest_blob_sha256") ==
+                admission["manifest_blob_sha256"]):
+            refuse("bindings code_manifest does not carry the "
+                   "admitted manifest blob sha")
+
+    def prestart(self, bindings, now_utc_day, admission=None):
         self._require_state("DESIGN_CLOSED")
+        self._validate_admission(admission, bindings)
         missing = [k for k in REQUIRED_BINDINGS
                    if not bindings.get(k)]
         if "owner_authorization" in missing or "lane_uuids" in missing:
@@ -379,27 +467,95 @@ def _expect(fn, code):
 def _bindings(lease="lease-1"):
     return {k: f"digest-{k}" for k in REQUIRED_BINDINGS
             if k not in ("remote_lease", "lane_uuids",
-                         "owner_authorization")} | {
+                         "owner_authorization", "code_manifest")} | {
+        "code_manifest": {"execution_manifest_commit": "kat-mc",
+                          "execution_manifest_blob_sha256": "kat-mb"},
         "remote_lease": lease,
         "lane_uuids": ["graph", "mag1", "mf4"],
+        "global_window_uuid": "kat-window",
         "owner_authorization": "asylum-seal-digest"}
+
+
+def _admission(bindings, **mut):
+    """Internally-consistent KAT admission capsule (the barrier layer
+    validates consistency; LIVE verification lives in the production
+    instrument). `mut` doctors individual fields AFTER digesting
+    unless it doctors the digest itself."""
+    owner_quote = "kat-owner-quote"
+    adm = {"schema": ADMISSION_SCHEMA, "manifest_commit": "kat-mc",
+           "manifest_blob_sha256":
+               bindings["code_manifest"]
+               ["execution_manifest_blob_sha256"],
+           "prestart_verifier": {"verdict": "PASS",
+                                 "mode": "prestart",
+                                 "slots_open": 0,
+                                 "manifest_commit": "kat-mc"},
+           "allowlist": {"pins_checked": 3},
+           "owner": {"quote": owner_quote,
+                     "quote_sha256": hashlib.sha256(
+                         owner_quote.encode()).hexdigest(),
+                     "binds": {"manifest_commit": "kat-mc",
+                               "manifest_blob_sha256":
+                                   bindings["code_manifest"]
+                                   ["execution_manifest_blob_sha256"],
+                               "lanes": list(bindings["lane_uuids"]),
+                               "lease": bindings["remote_lease"],
+                               "window_uuid":
+                                   bindings["global_window_uuid"]}},
+           "lanes": list(bindings["lane_uuids"]),
+           "lease": bindings["remote_lease"],
+           "window_uuid": bindings["global_window_uuid"]}
+    adm.update({k: v for k, v in mut.items()
+                if k != "admission_digest"})
+    adm["admission_digest"] = admission_digest(adm)
+    if "admission_digest" in mut:
+        adm["admission_digest"] = mut["admission_digest"]
+    return adm
 
 
 def _selftest():
     # PRESTART refusals: missing authorization; incomplete; reused lease
     led = BarrierLedger()
     b = _bindings()
+    adm = _admission(b)
     b_no_auth = dict(b, owner_authorization="")
-    _expect(lambda: BarrierLedger().prestart(b_no_auth, "2026-09-01"),
-            "MISSING_LANE_AUTHORIZATION")
+    _expect(lambda: BarrierLedger().prestart(
+        b_no_auth, "2026-09-01", _admission(b_no_auth)),
+        "MISSING_LANE_AUTHORIZATION")
     b_no_env = dict(b, power_envelope="")
-    _expect(lambda: BarrierLedger().prestart(b_no_env, "2026-09-01"),
-            "PRESTART_INCOMPLETE")
+    _expect(lambda: BarrierLedger().prestart(
+        b_no_env, "2026-09-01", _admission(b_no_env)),
+        "PRESTART_INCOMPLETE")
     _expect(lambda: BarrierLedger(used_leases={"lease-1"})
-            .prestart(b, "2026-09-01"), "REUSED_GLOBAL_LEASE")
+            .prestart(b, "2026-09-01", adm), "REUSED_GLOBAL_LEASE")
+
+    # codex 1815Z item 1 doctors: bare bindings; stale verifier
+    # receipt; manifest changed after the owner binding; non-PASS /
+    # OPEN-slot verdicts; doctored digest
+    _expect(lambda: BarrierLedger().prestart(b, "2026-09-01"),
+            "PRESTART_ADMISSION_REFUSED")
+    _expect(lambda: BarrierLedger().prestart(b, "2026-09-01",
+                                             "not-a-capsule"),
+            "PRESTART_ADMISSION_REFUSED")
+    _expect(lambda: BarrierLedger().prestart(
+        b, "2026-09-01", _admission(b, prestart_verifier={
+            "verdict": "PASS", "mode": "prestart", "slots_open": 0,
+            "manifest_commit": "OTHER-COMMIT"})),
+        "PRESTART_ADMISSION_REFUSED")     # stale receipt
+    _expect(lambda: BarrierLedger().prestart(
+        b, "2026-09-01", _admission(b, manifest_blob_sha256="drifted")),
+        "PRESTART_ADMISSION_REFUSED")     # manifest changed post-binding
+    _expect(lambda: BarrierLedger().prestart(
+        b, "2026-09-01", _admission(b, prestart_verifier={
+            "verdict": "REFUSE", "mode": "prestart", "slots_open": 2,
+            "manifest_commit": "kat-mc"})),
+        "PRESTART_ADMISSION_REFUSED")     # OPEN manifest class
+    _expect(lambda: BarrierLedger().prestart(
+        b, "2026-09-01", _admission(b, admission_digest="0" * 64)),
+        "PRESTART_ADMISSION_REFUSED")
 
     # happy prestart fixes the window
-    led.prestart(b, "2026-09-01")
+    led.prestart(b, "2026-09-01", adm)
     assert led.state == "ACCRUAL"
     assert led.evaluation_start.isoformat() == "2026-09-02"
     assert led.evaluation_end.isoformat() == "2027-01-11"
@@ -463,7 +619,8 @@ def _selftest():
 
     # post-first-fire source change -> typed window-3 terminal
     led2 = BarrierLedger()
-    led2.prestart(_bindings("lease-2"), "2026-09-01")
+    b2_ = _bindings("lease-2")
+    led2.prestart(b2_, "2026-09-01", _admission(b2_))
     _expect(lambda: led2.rebind_source("lease-2", "engine blob"),
             "BINDING_IMMUTABLE_AFTER_PRESTART")
     assert led2.state == "ACCRUAL"          # no terminal pre-fire
@@ -473,7 +630,8 @@ def _selftest():
 
     # cross-lane release + embargo on a fresh full lifecycle
     led3 = BarrierLedger()
-    led3.prestart(_bindings("lease-3"), "2026-09-01")
+    b3_ = _bindings("lease-3")
+    led3.prestart(b3_, "2026-09-01", _admission(b3_))
     led3.close_support_barrier("lease-3", "2027-01-19", "non_analyst")
     for lane in ("graph", "mag1", "mf4"):
         led3.record_owner_seal("lease-3", lane, f"seal-{lane}")

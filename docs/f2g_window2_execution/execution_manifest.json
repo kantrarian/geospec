@@ -2,32 +2,85 @@
  "design_manifest_blob_sha256": "d6decbd6ab5814bc005ce69c538311ff1b11cb1d13c19e2999e03a92bc7cca1f",
  "design_manifest_commit": "5fba5446cd96722fb86021df5065a46b8a1a78f5",
  "design_target_commit": "12161f6cf2000b2d4aa86fe659f834839ac0d27b",
- "execution_target_commit": "7ee77c7cd33d67861a8102f557dd79acbc49b044",
- "generated_utc": "2026-08-22T02:10:17Z",
+ "execution_target_commit": "d23b06ff6b7b3e104b68923b76dde7eec19f45cb",
+ "generated_utc": "2026-08-22T13:34:47Z",
  "manifest_state": "OPEN",
  "repository_url": "https://github.com/kantrarian/geospec",
  "schema": "f2g-window2-execution-manifest-v1",
  "slots": {
   "accrual_impl": {
-   "note": "sealed prediction accrual + two-stage barrier instruments",
+   "note": "barrier state machine + production instrument (core + 3 seam layers) + accrual-lane engines (W-BARRIER/W-MF4/W-MAG green)",
    "owner": "cayley",
-   "pins": [],
-   "status": "OPEN"
+   "pins": [
+    {
+     "blob_sha256": "9d217d0ac7d43e8db38f859d0e9768238eb37b49c40d82b33b1ccc97334ad56e",
+     "commit": "0d46ec2129b0df99e7be6300b1d6d11fe64b591c",
+     "path": "monitoring/src/w2_barrier.py"
+    },
+    {
+     "blob_sha256": "6d0b7d2aacdf4b443ba03b24d2533532221b5e8e7cc1531e8fd1e2f67ed92aeb",
+     "commit": "7e0057067f1008a3fe0947370698e52b6ff19772",
+     "path": "monitoring/src/w2_accrual_instrument_cayley.py"
+    },
+    {
+     "blob_sha256": "f9ea9b33d0c9819f78b40782c3c3880e193c017ff749671c392a25f3e004ccef",
+     "commit": "c56065b9b02720e0b33731c1c9dc136e0c918971",
+     "path": "monitoring/src/w2_mf4.py"
+    },
+    {
+     "blob_sha256": "998732fdefb701585292a36c5534b142d5091af11861538c7ec90970900e1c2c",
+     "commit": "f6273827b890091c7f154fb5a379ae22d662bf3a",
+     "path": "monitoring/src/w2_mag1.py"
+    }
+   ],
+   "status": "BOUND"
   },
   "adapter_impl": {
-   "note": "window-2 family adapter (B2A/B2B/B1B/B3A) over the frozen graph",
+   "note": "family engines + registry resolution (W-CAS/W-B2B/W-B1B green; panel assembly pinned under accrual)",
    "owner": "cayley",
-   "pins": [],
-   "status": "OPEN"
+   "pins": [
+    {
+     "blob_sha256": "ed9b5a0e41cadb1bc89f9a627746af40ad35a306388001358887173e3dc67c93",
+     "commit": "6a610b49f6804102cdc85cd4414af3ee010b922e",
+     "path": "monitoring/src/w2_cascadia.py"
+    },
+    {
+     "blob_sha256": "837342e707ae2602c52b1d80b7687b0b0583226b850e78b28d65b432cb08e69a",
+     "commit": "7b4d09731cb35471b124fd7235c1fbc75197b500",
+     "path": "monitoring/src/w2_b2b.py"
+    },
+    {
+     "blob_sha256": "65ab21bfa7fb89942b8297032ae5360f99bebab3c16c1e6fd3e04ed3392f1273",
+     "commit": "3f8b467cf3893d516c93fdc0dfeb85cb55957164",
+     "path": "monitoring/src/w2_b1b.py"
+    }
+   ],
+   "status": "BOUND"
   },
   "bars": {
-   "note": "executable bar file(s); families must equal the required 8 when BOUND",
+   "families": [
+    "W-SEL",
+    "W-CAS",
+    "W-B2B",
+    "W-B1B",
+    "W-MF4",
+    "W-MAG",
+    "W-BARRIER",
+    "W-PIN"
+   ],
+   "note": "the complete window-2 bar, 11/11 green @ 8aecf96 (grassmann's 0916Z completion declaration)",
    "owner": "grassmann",
-   "pins": [],
-   "status": "OPEN"
+   "pins": [
+    {
+     "blob_sha256": "810ebdaa8b61787a0721abe62622225cf32b745178b25f5b95d8c29a76ca5221",
+     "commit": "b79d6115c16644fe3cfa56ad85e7e4725d606843",
+     "path": "monitoring/src/test_f2g_window2_redkats_grassmann.py"
+    }
+   ],
+   "status": "BOUND"
   },
   "calibration_ledgers": {
-   "note": "MAG-1 subtraction coefficients + diagnostics, pre-evaluation",
+   "note": "MF4/MAG subtraction coefficients + diagnostics -- PRODUCED at the availability cutoff, pre-evaluation only",
    "owner": "cayley",
    "pins": [],
    "status": "OPEN"
@@ -49,8 +102,8 @@
    "owner": "cayley",
    "pins": [
     {
-     "blob_sha256": "4ba381158e402ce0244072001d816d190011146d1350c8dca4c68547c949db5f",
-     "commit": "7ee77c7cd33d67861a8102f557dd79acbc49b044",
+     "blob_sha256": "ace3c7dd7d81448f22e95def8b3fdee6cb6dfaf531bbd32d66bb64413ce3cb77",
+     "commit": "d23b06ff6b7b3e104b68923b76dde7eec19f45cb",
      "path": "monitoring/src/f2g_execution_manifest_gen_cayley.py"
     }
    ],
@@ -69,22 +122,74 @@
    "status": "BOUND"
   },
   "mag_capsules": {
-   "note": "typed at-freeze station capsules IZN/FRN/TUC (VIC/NEW already design-pinned)",
+   "note": "IZN/FRN/TUC typed capsules + probe bodies + envelopes (VIC/NEW already design-pinned; W-MAG frame paths green)",
    "owner": "cayley",
-   "pins": [],
-   "status": "OPEN"
+   "pins": [
+    {
+     "blob_sha256": "b1f0c98f8ae9585c8ac15815501ac532706207c6eca9fbc770098ce20cd7bd8e",
+     "commit": "f6273827b890091c7f154fb5a379ae22d662bf3a",
+     "path": "docs/f2g_window2_freeze/mag_capsule_izn.json"
+    },
+    {
+     "blob_sha256": "86aa2244a7527554c491a2ae05d7635cd2b81117eea877a6e2c316eaf1fd19bd",
+     "commit": "f6273827b890091c7f154fb5a379ae22d662bf3a",
+     "path": "docs/f2g_window2_freeze/mag_capsule_frn.json"
+    },
+    {
+     "blob_sha256": "699972b86dd0fb7758176529a1c3a0ff5903200dd900e156628aba1a5a45c30c",
+     "commit": "f6273827b890091c7f154fb5a379ae22d662bf3a",
+     "path": "docs/f2g_window2_freeze/mag_capsule_tuc.json"
+    },
+    {
+     "blob_sha256": "e3b5e0be9d2554549f3574d5ec1d88e9a949a366eaa49961458fc0501f4b9501",
+     "commit": "f6273827b890091c7f154fb5a379ae22d662bf3a",
+     "path": "docs/f2g_window2_freeze/receipts/mag_izn_probe.json"
+    },
+    {
+     "blob_sha256": "4f387bcb8c39bac13f65ea7431ee076355098373f92b52fc77f2244ddf12c8e6",
+     "commit": "f6273827b890091c7f154fb5a379ae22d662bf3a",
+     "path": "docs/f2g_window2_freeze/receipts/mag_izn_probe.envelope.json"
+    },
+    {
+     "blob_sha256": "6176a3baad14f028e047202a01f6f86483948742dd1e25841229a921d5e8df52",
+     "commit": "f6273827b890091c7f154fb5a379ae22d662bf3a",
+     "path": "docs/f2g_window2_freeze/receipts/mag_frn_probe.json"
+    },
+    {
+     "blob_sha256": "b410775a7c8cb49b05ac1f5c2a0fd0d01ca1e6e188cc59f0170e9b2e0ae6fa90",
+     "commit": "f6273827b890091c7f154fb5a379ae22d662bf3a",
+     "path": "docs/f2g_window2_freeze/receipts/mag_frn_probe.envelope.json"
+    },
+    {
+     "blob_sha256": "0eace370136741958f622ab88cc3fa2f0a2131375cd4109c2b277435924663bc",
+     "commit": "f6273827b890091c7f154fb5a379ae22d662bf3a",
+     "path": "docs/f2g_window2_freeze/receipts/mag_tuc_probe.json"
+    },
+    {
+     "blob_sha256": "361dc73e837986fd4c23ce395803782b299310fa3a5822e34faebe6f0c6a5c0c",
+     "commit": "f6273827b890091c7f154fb5a379ae22d662bf3a",
+     "path": "docs/f2g_window2_freeze/receipts/mag_tuc_probe.envelope.json"
+    }
+   ],
+   "status": "BOUND"
   },
   "producer_code": {
-   "note": "accrual producers (seismic + MAG raw byte acquisition)",
+   "note": "accrual producers (seismic + MAG raw byte acquisition; s4t-lane build next per 0916Z)",
    "owner": "grassmann",
    "pins": [],
    "status": "OPEN"
   },
   "selection_impl": {
-   "note": "cutoff-stable selection per prereg v0.3 + selection_constants.md",
+   "note": "cutoff-stable selection REV 2 (codex 3xP1 repaired; W-SEL-b green incl production locks)",
    "owner": "cayley",
-   "pins": [],
-   "status": "OPEN"
+   "pins": [
+    {
+     "blob_sha256": "7d1b89d3e3f3a98eb73edd1258bee80adb5dab1ee51bf95a15584657d6170718",
+     "commit": "03242f843b5164c16f7f8e97b417f9e940155d1b",
+     "path": "monitoring/src/w2_selection.py"
+    }
+   ],
+   "status": "BOUND"
   }
  },
  "target_ref": "origin/master"

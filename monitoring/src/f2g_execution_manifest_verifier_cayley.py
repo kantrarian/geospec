@@ -376,9 +376,12 @@ def kat(repo, manifest_commit):
     case("slot-bound-without-pins",
          _has(_verify_obj(repo, full, d), "SLOT_BOUND_WITHOUT_PINS"))
 
-    # 10. open with pins
+    # 10. open with pins (pick an OPEN slot dynamically -- slots flip
+    # BOUND over the manifest's life)
+    open_name = next(n for n in sorted(base["slots"])
+                     if base["slots"][n]["status"] == "OPEN")
     d = copy.deepcopy(base)
-    d["slots"]["bars"]["pins"] = \
+    d["slots"][open_name]["pins"] = \
         copy.deepcopy(base["slots"]["design_pin_verifier"]["pins"])
     case("slot-open-with-pins",
          _has(_verify_obj(repo, full, d), "SLOT_OPEN_WITH_PINS"))

@@ -789,10 +789,126 @@ def w_b1b():
         check("B1B annex KATs", False, f"{type(exc).__name__}: {exc}")
 
 
+# ---- W-MF4: annex KATs wired vs w2_mf4 -------------------------------------
+def w_mf4():
+    try:
+        import w2_mf4 as WM
+        from datetime import date as _date, timedelta as _td
+
+        ok_const = (WM.H_DAYS == 7 and WM.BLOCK_LEN == 14
+                    and WM.B_REPLICATES == 999
+                    and WM.CAL_START == "2025-10-18" and WM.MAG_MIN == 4.0
+                    and WM.ROLL_MIN_PRIOR == 4 and WM.ROLL_WINDOW == 7)
+
+        def days(a, b):
+            d0, d1 = _date.fromisoformat(a), _date.fromisoformat(b)
+            out = []
+            while d0 <= d1:
+                out.append(d0.isoformat())
+                d0 += _td(days=1)
+            return out
+
+        span = days("2025-10-01", "2026-02-10")
+        regions = ["R0", "R1", "R2"]
+        bboxes = {r: {"min_lat": 10.0 * i, "max_lat": 10.0 * i + 5,
+                      "min_lon": 10.0 * i, "max_lon": 10.0 * i + 5}
+                  for i, r in enumerate(regions)}
+        # deterministic arithmetic, never language hash() (salted per
+        # process -- a nondeterministic fixture and the banned class)
+        risk = {r: {d: 0.1 + 0.05 * (((ri * 31 + di * 7) % 7) / 7.0)
+                    for di, d in enumerate(span)}
+                for ri, r in enumerate(regions)}
+        events = []
+        for i, r in enumerate(regions):
+            for dd in ("2025-11-05", "2025-12-01", "2025-12-20",
+                       "2026-01-10"):
+                events.append({"day": dd, "mag": 4.5,
+                               "lat": 10.0 * i + 2, "lon": 10.0 * i + 2})
+
+        led = WM.calibrate(risk, events, bboxes, regions,
+                           freeze_day="2026-02-05",
+                           snapshot_end="2026-02-05")
+        # (1) label-maturity BYTE-LOCK: an event AFTER the snapshot end
+        # cannot touch training rows -> digest + coefficients byte-equal
+        led2 = WM.calibrate(risk, events + [{"day": "2026-02-07",
+                                             "mag": 5.5, "lat": 2.0,
+                                             "lon": 2.0}],
+                            bboxes, regions, freeze_day="2026-02-05",
+                            snapshot_end="2026-02-05")
+        ok_lock = (led["training_digest"] == led2["training_digest"]
+                   and led["coef"] == led2["coef"]
+                   and led["intercept"] == led2["intercept"])
+        # (2) CALIBRATION_LABEL_NOT_MATURE: past the matured bound
+        try:
+            WM.calibrate(risk, events, bboxes, regions,
+                         freeze_day="2026-02-05",
+                         snapshot_end="2026-02-05",
+                         requested_issue_end="2026-01-30")
+            ok_mature = False
+        except Exception as exc:
+            ok_mature = "CALIBRATION_LABEL_NOT_MATURE" in str(exc)
+        # (3) issue-time violation + typed no-prediction rows
+        try:
+            WM.features({"2026-02-01": 0.1, "2026-02-02": 0.1},
+                        events, bboxes["R0"], "2026-02-01")
+            ok_issue = False
+        except Exception as exc:
+            ok_issue = "ISSUE_TIME_VIOLATION" in str(exc)
+        # (4) immutable signed rows + duplicate + persistence baseline
+        r0series = {d: risk["R0"][d] for d in days("2026-01-20",
+                                                   "2026-02-01")}
+        row = WM.predict_row(led, r0series, events, bboxes["R0"], "R0",
+                             "2026-02-01", "2026-02-01T00:05:00Z")
+        ok_row = WM.verify_row(dict(row)) and "p_persistence" in row \
+            and "p_model" in row
+        bad = dict(row, p_model=0.999)
+        try:
+            WM.verify_row(bad)
+            ok_mut = False
+        except Exception as exc:
+            ok_mut = "PREDICTION_ROW_MUTATED" in str(exc)
+        rows = WM.append_row([], row)
+        try:
+            WM.append_row(rows, row)
+            ok_dup = False
+        except Exception as exc:
+            ok_dup = "PREDICTION_ROW_DUPLICATE" in str(exc)
+        # typed no-prediction (missing prior day) emits a typing row
+        row_t = WM.predict_row(led, {"2026-02-01": 0.1}, events,
+                               bboxes["R0"], "R0", "2026-02-01", "t")
+        ok_typed = "typing" in row_t and "NO_PREDICTION" in row_t["typing"]
+        # (5) endpoint: zero-class + the >1/3 no-drop rule
+        eval_days = days("2026-02-01", "2026-02-04")
+        pred_rows = []
+        for r in regions:
+            for d in eval_days:
+                s = {k: risk[r][k] for k in days("2026-01-20", d)}
+                pr = WM.predict_row(led, s, events, bboxes[r], r, d, "t")
+                if "typing" not in pr:
+                    pred_rows = WM.append_row(pred_rows, pr)
+        ev_eval = events + [{"day": "2026-02-03", "mag": 4.4,
+                             "lat": 2.0, "lon": 2.0}]   # R0 only has class 1
+        res = WM.score_endpoint(pred_rows, ev_eval, bboxes, regions,
+                                eval_days, "ab" * 32, b=99)
+        txt = json.dumps(res, default=str)
+        ok_nodrop = "ENDPOINT_UNSCORABLE" in txt \
+            and "R1" in txt and "R2" in txt   # 2/3 zero-class -> no-drop
+        check("MF4 annex KATs (constants, label-maturity byte-lock, "
+              "not-mature refusal, issue-time, immutable/dup rows + typed "
+              "no-prediction, persistence baseline, zero-class no-drop)",
+              ok_const and ok_lock and ok_mature and ok_issue and ok_row
+              and ok_mut and ok_dup and ok_typed and ok_nodrop,
+              f"const={ok_const} lock={ok_lock} mature={ok_mature} "
+              f"issue={ok_issue} row={ok_row} mut={ok_mut} dup={ok_dup} "
+              f"typed={ok_typed} nodrop={ok_nodrop}")
+    except ImportError:
+        check("MF4 annex KATs", False, "W2_ENGINE_ABSENT")
+    except Exception as exc:
+        check("MF4 annex KATs", False, f"{type(exc).__name__}: {exc}")
+
+
 # ---- engine-gated classes: typed red until cayley's surfaces land ----------
 _GATED = (
-    "MF4 annex KATs (label maturity byte-lock, zero-class/no-drop, "
-    "immutable rows, persistence baseline, block constants)",
     "MAG annex KATs (apply-never-refit, VIC XYZS/S-exclusion + 4 frame "
     "refusals, SOS byte equality, MAG-UNTESTABLE, 3-primary Holm)",
 )
@@ -807,6 +923,7 @@ def main():
     w_b2b()
     w_barrier()
     w_b1b()
+    w_mf4()
     for nm in _GATED:
         check(nm, False, "W2_ENGINE_ABSENT (expected red; fixture spec "
                          "frozen in the bar header)")

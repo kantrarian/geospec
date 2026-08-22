@@ -65,18 +65,30 @@ RECEIPT_FIELDS_MAG = {"schema", "lane", "cutoff", "input_feed_sha256",
 
 
 def _validate_mag_times(obs, times, cutoff):
-    """codex 1358Z item 3: unique, strictly increasing,
-    minute-resolution stamps inside [CAL_EPOCH, cutoff]."""
-    from datetime import datetime
+    """codex 1358Z item 3 + the 1721Z canonical-frame grammar (their
+    producer item 4 applies to this runner identically): one timestamp
+    frame -- canonical UTC. Timezone-AWARE parsing; naive stamps are
+    UTC by declaration and 'Z' is UTC; any NON-UTC offset refuses (a
+    +14:00 stamp under a naive strip would pass the wrong UTC day).
+    Interval/order/uniqueness checks run on the NORMALIZED UTC
+    instants."""
+    from datetime import datetime, timezone
     prev = None
     for t in times:
         try:
-            dt = datetime.fromisoformat(str(t).replace("Z", ""))
+            dt = datetime.fromisoformat(
+                str(t).replace("Z", "+00:00"))
         except ValueError:
             raise CalibrationRunnerError(
                 f"CALIBRATION_TIME_INDEX_INVALID: {obs} unparseable "
                 f"{t!r}")
-        day = dt.date().isoformat()
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        elif dt.utcoffset() != timezone.utc.utcoffset(None):
+            raise CalibrationRunnerError(
+                f"CALIBRATION_TIME_INDEX_INVALID: {obs} non-UTC "
+                f"offset in {t!r} (canonical frame is UTC)")
+        day = dt.astimezone(timezone.utc).date().isoformat()
         if day < CAL_EPOCH_DAY or day > str(cutoff):
             raise CalibrationRunnerError(
                 f"CALIBRATION_AFTER_CUTOFF: {obs} {t} outside "
@@ -442,6 +454,18 @@ def _selftest():
     f_mr["FRN"]["weather"] = {"symh": weather["symh"][:2999]}
     expect_refuse(f_mr, "2026-08-24", "M3_TIME_INDEX_MISMATCH",
                   "missing-row")
+    # codex 1721Z canonical-frame doctors: a non-UTC offset refuses
+    # even when its LOCAL date sits inside the window (the +14:00
+    # trap); 'Z' and naive-as-UTC both pass
+    f_tz = {"TUC": obs_feed("TUC", None)}
+    f_tz["TUC"]["times"] = list(times)
+    f_tz["TUC"]["times"][0] = "2026-01-01T00:00:00+14:00"
+    expect_refuse(f_tz, "2026-08-24",
+                  "CALIBRATION_TIME_INDEX_INVALID", "non-utc-offset")
+    f_z = {"TUC": obs_feed("TUC", None)}
+    f_z["TUC"]["times"] = [t + "Z" for t in times]
+    run_mag_calibration(repo, f_z, "2026-08-24", producer)  # Z ok
+
     # misaligned series/times (the new alignment guard)
     f_al = {"TUC": obs_feed("TUC", None)}
     f_al["TUC"]["components"] = dict(

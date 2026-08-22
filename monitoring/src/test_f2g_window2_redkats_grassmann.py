@@ -544,6 +544,152 @@ def w_b2b():
         check("B2B annex KATs", False, f"{type(exc).__name__}: {exc}")
 
 
+# ---- W-BARRIER: the sec-2 state machine + sec-5 selector -------------------
+def w_barrier():
+    try:
+        import w2_barrier as WBAR
+
+        def expect(fn, code):
+            try:
+                fn()
+                return False
+            except Exception as exc:
+                return code in str(exc)
+
+        def bindings(lease="LEASE-1"):
+            return {k: f"sha-{k}" for k in WBAR.REQUIRED_BINDINGS
+                    if k not in ("remote_lease", "lane_uuids")} | {
+                "remote_lease": lease,
+                "lane_uuids": ["seismic", "mf4", "mag1"]}
+
+        def fresh():
+            led = WBAR.BarrierLedger()
+            led.prestart(bindings(), "2026-08-25")
+            return led
+
+        # lifecycle happy path with independent boundary expectations
+        L = fresh()
+        ok_dates = (L.evaluation_start.isoformat() == "2026-08-26"
+                    and L.evaluation_end.isoformat() == "2027-01-04"
+                    and L.maturity_tail_end.isoformat() == "2027-01-11")
+        L.accrue_prediction("LEASE-1", "cascadia", "2026-08-26", "d1",
+                            "2026-08-26")
+        L.producer_receipt("LEASE-1", "r1")
+        L.close_support_barrier("LEASE-1", "2027-01-12", "non_analyst")
+        for lane in ("seismic", "mf4", "mag1"):
+            L.record_owner_seal("LEASE-1", lane, f"seal-{lane}")
+            L.final_fire("LEASE-1", lane, f"res-{lane}")
+            L.record_verifier_pass("LEASE-1", lane, f"ver-{lane}")
+        L.release("LEASE-1")
+        ok_happy = L.state == "RELEASED" and L.verify_chain() \
+            and L.read_result("LEASE-1", "mf4")["result_digest"] == "res-mf4"
+
+        # the nine sec-2 refusals + the additional typed classes
+        R = []
+        R.append(expect(lambda: fresh().accrue_prediction(
+            "LEASE-1", "r", "2026-08-26", "d", "2026-09-05"),
+            "LATE_OR_REVISED_PREDICTION"))               # late emit
+        led2 = fresh()
+        led2.accrue_prediction("LEASE-1", "r", "2026-08-26", "d",
+                               "2026-08-26")
+        R.append(expect(lambda: led2.accrue_prediction(
+            "LEASE-1", "r", "2026-08-26", "d2", "2026-08-27"),
+            "LATE_OR_REVISED_PREDICTION"))               # duplicate
+        R.append(expect(lambda: fresh().read_labels("non_analyst"),
+                        "EARLY_LABEL_ACCESS"))
+        R.append(expect(lambda: fresh().inspect_support(True),
+                        "SEMANTIC_SUPPORT_INSPECTION"))
+        R.append(expect(lambda: fresh().close_support_barrier(
+            "LEASE-1", "2027-01-11", "non_analyst"),
+            "MISSING_MATURITY_TAIL"))                    # == tail refuses
+        led3 = fresh()
+        led3.close_support_barrier("LEASE-1", "2027-01-12", "non_analyst")
+        led3.record_owner_seal("LEASE-1", "seismic", "s")
+        led3.final_fire("LEASE-1", "seismic", "res")
+        led3.record_verifier_pass("LEASE-1", "seismic", "v")
+        R.append(expect(lambda: led3.release("LEASE-1"),
+                        "CROSS_LANE_RELEASE_BEFORE_TERMINALS"))
+        R.append(expect(lambda: WBAR.BarrierLedger().prestart(
+            {k: v for k, v in bindings().items()
+             if k != "owner_authorization"}, "2026-08-25"),
+            "MISSING_LANE_AUTHORIZATION"))
+        led4 = fresh()
+        led4.close_support_barrier("LEASE-1", "2027-01-12", "non_analyst")
+        R.append(expect(lambda: led4.final_fire("LEASE-1", "mf4", "r"),
+                        "VALUE_FIRE_SEAL_MISSING"))      # unsealed fire
+        R.append(expect(lambda: fresh().add_lane("LEASE-1", "extra"),
+                        "LATE_LANE_ADDITION"))
+        R.append(expect(lambda: WBAR.BarrierLedger(
+            used_leases=("LEASE-1",)).prestart(bindings(), "2026-08-25"),
+            "REUSED_GLOBAL_LEASE"))
+        R.append(expect(lambda: fresh().producer_receipt("WRONG", "r"),
+                        "GLOBAL_LEASE_INCORRECT"))
+        # rebind BEFORE any fire refuses WITHOUT the terminal
+        led5 = fresh()
+        ok_rebind_pre = expect(lambda: led5.rebind_source(
+            "LEASE-1", "adapter"), "BINDING_IMMUTABLE_AFTER_PRESTART") \
+            and led5.state == "ACCRUAL"
+        # rebind AFTER first fire -> WINDOW3_TERMINAL
+        R.append(expect(lambda: led3.rebind_source("LEASE-1", "engine"),
+                        "POST_FIRST_FIRE_SOURCE_CHANGE"))
+        ok_w3 = led3.state == "WINDOW3_TERMINAL"
+        R.append(expect(lambda: fresh().record_verdict_row(
+            "LEASE-1", "2026-08-20"), "PRE_BARRIER_VERDICT_ROW"))
+        R.append(expect(lambda: fresh().read_result("LEASE-1", "mf4"),
+                        "EMBARGO_VIOLATION"))
+        # chain tamper-evidence
+        led6 = fresh()
+        led6.events[0]["payload"]["lanes"] = ["doctored"]
+        ok_chain = expect(led6.verify_chain, "LEDGER_CHAIN_BROKEN")
+
+        # sec-5 selector + Holm with a hand-derived expectation
+        led7 = fresh()
+        power = {h: {"cp_lcb": v, "graph": list(WBAR.GRAPH_MEMBERS)}
+                 for h, v in (("B2A", 0.861), ("B2B", 0.83),
+                              ("B1B", 0.42), ("B3A", 0.10))}
+        S = led7.commit_selector(power)
+        ok_sel = sorted(S) == ["B2A", "B2B"]
+        ok_once = expect(lambda: led7.commit_selector(power),
+                         "SELECTOR_ALREADY_COMMITTED")
+        ok_relax = expect(lambda: led7.recertify_selector(
+            {h: power[h] for h in ("B2A", "B2B", "B1B")}),
+            "SELECTOR_RECERTIFICATION_REFUSED")
+        part = {h: dict(power[h], graph=["B2A", "B2B", "B1B"])
+                for h in power}
+        ok_full = expect(lambda: WBAR.BarrierLedger().commit_selector(part),
+                         "SELECTOR_GRAPH_NOT_FULL")
+        # Holm hand-check: S={B2A,B2B}; p={B2A:.020,B2B:.030}; order B2A
+        # first at alpha/2=.025 -> REJECT; then B2B at alpha/1=.05 ->
+        # REJECT; B3A p=.0001 stays typed OUTSIDE
+        hv = led7.holm_graph_lane({"B2A": 0.020, "B2B": 0.030,
+                                   "B1B": 0.90, "B3A": 0.0001})
+        ok_holm = (hv["verdicts"] == {"B2A": "REJECT", "B2B": "REJECT",
+                                      "B1B": "CANNOT_DETERMINE_NO_POWER",
+                                      "B3A": "CANNOT_DETERMINE_NO_POWER"})
+        # and the step-down stop: p={B2A:.030,B2B:.030} -> B2A at .025
+        # fails -> BOTH NO_REJECT
+        hv2 = led7.holm_graph_lane({"B2A": 0.030, "B2B": 0.030,
+                                    "B1B": 0.9, "B3A": 0.9})
+        ok_holm2 = hv2["verdicts"]["B2A"] == "NO_REJECT" \
+            and hv2["verdicts"]["B2B"] == "NO_REJECT"
+
+        ok_all = (ok_dates and ok_happy and all(R) and ok_rebind_pre
+                  and ok_w3 and ok_chain and ok_sel and ok_once
+                  and ok_relax and ok_full and ok_holm and ok_holm2)
+        check("BARRIER state machine + selector (lifecycle, 14 typed "
+              "refusals, window-3 terminal, chain tamper, Holm-S-once + "
+              "hand-derived Holm)", ok_all,
+              f"dates={ok_dates} happy={ok_happy} refusals={R} "
+              f"rebind_pre={ok_rebind_pre} w3={ok_w3} chain={ok_chain} "
+              f"sel={ok_sel}/{ok_once}/{ok_relax}/{ok_full} "
+              f"holm={ok_holm}/{ok_holm2}")
+    except ImportError:
+        check("BARRIER state machine + selector", False, "W2_ENGINE_ABSENT")
+    except Exception as exc:
+        check("BARRIER state machine + selector", False,
+              f"{type(exc).__name__}: {exc}")
+
+
 # ---- engine-gated classes: typed red until cayley's surfaces land ----------
 _GATED = (
     "B1B annex KATs (endpoint invariance, 8/(max(2,3)) fixture x4 paths, "
@@ -553,9 +699,6 @@ _GATED = (
     "immutable rows, persistence baseline, block constants)",
     "MAG annex KATs (apply-never-refit, VIC XYZS/S-exclusion + 4 frame "
     "refusals, SOS byte equality, MAG-UNTESTABLE, 3-primary Holm)",
-    "BARRIER state machine (9 typed refusals, pre-barrier verdict row, "
-    "window-3 typing, embargo integrity, Holm-S once + 4->3 refusal, "
-    "5 cross-lane KATs)",
 )
 
 
@@ -566,6 +709,7 @@ def main():
     w_sel_b()
     w_cas_b()
     w_b2b()
+    w_barrier()
     for nm in _GATED:
         check(nm, False, "W2_ENGINE_ABSENT (expected red; fixture spec "
                          "frozen in the bar header)")

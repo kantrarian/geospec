@@ -223,6 +223,94 @@ class PersistentLedger:
         return s
 
 
+# ===================================================================
+# SEAM LAYER 1 (built on the RATIFIED barrier pins + codex-repaired
+# selection REV 2; grassmann 0610Z: "accrual seam layers unblocked"):
+# PRESTART binding assembly + selection execution. Later layers
+# (per-lane accrual runners, adapter panel builds) follow their pins'
+# formal ratification in the remaining bar cycles.
+# ===================================================================
+import w2_selection as WS
+
+DESIGN_MANIFEST_PATH = "docs/f2g_window2_freeze/byte_pin_manifest.json"
+W2_CARRIERS = ("istanbul_marmara", "socal_coachella",
+               "turkey_kahramanmaras", "cascadia")
+
+
+def assemble_prestart_bindings(repo, *, execution_manifest_commit,
+                               mf4_model_scaler_digest,
+                               power_envelope_digest,
+                               global_window_uuid, remote_lease,
+                               lane_uuids, owner_authorization,
+                               hypothesis_registries_digest,
+                               calibration_fits_digest,
+                               adapters_digest):
+    """Builds the eleven-class PRESTART bindings dict. What is
+    resolvable from git is RESOLVED here (execution-manifest blob sha =
+    code_manifest; the models class carries the design-manifest linkage
+    blob sha); everything else is passed through and must be non-empty
+    (the barrier re-validates on prestart -- this assembler adds no
+    policy, only resolution)."""
+    exec_blob = _git(repo, ["cat-file", "blob",
+                            f"{execution_manifest_commit}:"
+                            f"{EXEC_MANIFEST_PATH}"], binary=True)
+    exec_obj = json.loads(exec_blob.decode("utf-8"))
+    dm_commit = exec_obj["design_manifest_commit"]
+    dm_blob = _git(repo, ["cat-file", "blob",
+                          f"{dm_commit}:{DESIGN_MANIFEST_PATH}"],
+                   binary=True)
+    return {
+        "code_manifest": {
+            "execution_manifest_commit": execution_manifest_commit,
+            "execution_manifest_blob_sha256":
+                hashlib.sha256(exec_blob).hexdigest()},
+        "models": {
+            "design_manifest_commit": dm_commit,
+            "design_manifest_blob_sha256":
+                hashlib.sha256(dm_blob).hexdigest()},
+        "calibration_fits": calibration_fits_digest,
+        "hypothesis_registries": hypothesis_registries_digest,
+        "adapters": adapters_digest,
+        "mf4_model_scaler": mf4_model_scaler_digest,
+        "power_envelope": power_envelope_digest,
+        "global_window_uuid": global_window_uuid,
+        "remote_lease": remote_lease,
+        "lane_uuids": list(lane_uuids),
+        "owner_authorization": owner_authorization,
+    }
+
+
+def execute_selection(day_records_by_carrier, cutoff):
+    """The cutoff-stable selection execution: w2_selection PRODUCTION
+    path per carrier (frozen caps; 90-day frame + presence derivation +
+    churn all engine-enforced). A typed carrier refusal
+    (INSUFFICIENT_POOL) is RECORDED, never a crash and never a silent
+    drop; frame/input violations (SelectionInputInvalid) propagate --
+    they are instrument-feed defects, not carrier outcomes. Returns the
+    registry record with a digest for the PRESTART hypothesis-registry
+    binding."""
+    registries = {}
+    for carrier in W2_CARRIERS:
+        if carrier not in day_records_by_carrier:
+            raise InstrumentRefusal(
+                f"SELECTION_FEED_MISSING: {carrier}")
+        try:
+            r = WS.select(carrier, day_records_by_carrier[carrier],
+                          cutoff)
+            registries[carrier] = {
+                "selected": r["selected"], "churn": r["churn"],
+                "typing": r["typing"]}
+        except WS.InsufficientPool as e:
+            registries[carrier] = {"selected": None, "churn": None,
+                                   "typing": str(e)}
+    record = {"schema": "f2g-w2-selection-registry-v1",
+              "cutoff": str(cutoff), "registries": registries}
+    record["registry_digest"] = hashlib.sha256(json.dumps(
+        record, sort_keys=True,
+        separators=(",", ":")).encode()).hexdigest()
+    return record
+
+
 # ---------------------------------------------------------------- selftest
 def _selftest():
     import tempfile
@@ -297,6 +385,51 @@ def _selftest():
             f.write(saved)
     rep = runtime_allowlist_check(repo, "9d2f034")   # restored clean
     assert rep["pins_checked"] == 3
+
+    # --- seam layer 1 KATs ---
+    from datetime import date as _date, timedelta as _td
+    cut = "2026-08-20"
+    days90 = [(_date(2026, 8, 20) - _td(days=89 - i)).isoformat()
+              for i in range(90)]
+    sts = [f"S{i:02d}" for i in range(18)]
+    full = {d: list(sts) for d in days90}
+    thin = {d: ["T0", "T1"] for d in days90}      # pool 2 < min 8
+    feeds = {"istanbul_marmara": full, "socal_coachella": full,
+             "turkey_kahramanmaras": thin, "cascadia": full}
+    rec = execute_selection(feeds, cut)
+    assert len(rec["registries"]["cascadia"]["selected"]) == 16
+    assert len(rec["registries"]["socal_coachella"]["selected"]) == 18
+    tk = rec["registries"]["turkey_kahramanmaras"]
+    assert tk["selected"] is None \
+        and "INSUFFICIENT_POOL" in tk["typing"]
+    assert rec["registry_digest"] == execute_selection(
+        feeds, cut)["registry_digest"]            # deterministic
+    try:
+        execute_selection({k: v for k, v in feeds.items()
+                           if k != "cascadia"}, cut)
+        raise AssertionError("missing carrier feed must refuse")
+    except InstrumentRefusal as e:
+        assert "SELECTION_FEED_MISSING" in str(e)
+    try:
+        execute_selection(dict(feeds, cascadia={days90[0]: sts}), cut)
+        raise AssertionError("bad frame must propagate")
+    except WS.SelectionInputInvalid as e:
+        assert "LOOKBACK_FRAME_INVALID" in str(e)
+
+    b = assemble_prestart_bindings(
+        repo, execution_manifest_commit="9d2f034",
+        mf4_model_scaler_digest="kat-mf4", power_envelope_digest="kat-env",
+        global_window_uuid="kat-uuid", remote_lease="kat-lease-b",
+        lane_uuids=["graph", "mag1", "mf4"],
+        owner_authorization="kat-owner",
+        hypothesis_registries_digest="kat-reg",
+        calibration_fits_digest="kat-cal", adapters_digest="kat-adp")
+    assert set(b) == set(WB.REQUIRED_BINDINGS)
+    assert b["models"]["design_manifest_commit"].startswith("5fba544")
+    pl3 = PersistentLedger(os.path.join(tmpdir, "l3.json"),
+                           clock=lambda: "2026-09-01")
+    pl3.prestart(b)                    # assembled dict passes the gate
+    assert pl3.ledger.state == "ACCRUAL"
 
     print("w2_accrual_instrument selftest: ALL PASS")
 

@@ -84,9 +84,21 @@ PRIMARIES = (("istanbul_marmara", "M2"), ("socal_coachella", "M3"),
              ("cascadia", "M3"))
 
 # registered frame conventions: orientation -> (identity components,
-# excluded scalar channel)
+# excluded scalar channel). SENSOR conventions authorize the
+# component-map path (VIC-style, codex revision-3 binding); REPORTED
+# conventions authorize the map-less path (NEW/FRN/TUC-style: the
+# provider's reported elements are already geographic -- codex
+# revision-2 accepted NEW's typed frame on exactly this basis; the
+# physical sensor_orientation (e.g. HDZ) is metadata, not the
+# conversion authority, in that path).
 FRAME_CONVENTIONS = {"XYZS": (("X", "Y", "Z"), "S"),
                      "XYZF": (("X", "Y", "Z"), "F")}
+REPORTED_CONVENTIONS = {"XYZF": (("X", "Y", "Z"), "F")}
+# non-identity SENSOR conventions (IZN): X = H cos D, Y = H sin D,
+# Z identity, scalar S EXCLUDED; the capsule must pin
+# declination_units == "degrees" (GIN JSON serves D in degrees --
+# value-plausibility bound vs IGRF in the capsule authority)
+ANGULAR_CONVENTIONS = {"HDZS": (("H", "D", "Z"), "S")}
 
 
 class Mag1Refusal(ValueError):
@@ -218,16 +230,79 @@ def load_capsule(name, repo=None):
 def convert_frame(capsule, arrays, source_orientation):
     """Capsule-driven typed frame conversion -> (X_north, Y_east,
     Z_down) ndarrays (nulls -> NaN). The excluded scalar channel is
-    NEVER returned in the horizontal pair (structural non-leak)."""
-    orient = capsule.get("sensor_orientation")
-    if orient is None or orient not in FRAME_CONVENTIONS:
-        raise Mag1Refusal(f"FRAME_NOT_CLOSED: sensor_orientation="
-                          f"{orient!r} has no registered conversion")
-    if source_orientation != orient:
-        raise Mag1Refusal(
-            f"FRAME_NOT_CLOSED: capsule orientation {orient!r} != "
-            f"source {source_orientation!r}")
-    comps, excluded = FRAME_CONVENTIONS[orient]
+    NEVER returned in the horizontal pair (structural non-leak).
+
+    Two registered paths (defect fix, 0430Z: keying the map-less case
+    on sensor_orientation would refuse the REAL pinned NEW capsule):
+    - component_map PRESENT: sensor_orientation is the authority and
+      must be a registered SENSOR convention matching the source
+      (VIC path, codex revision-3 binding).
+    - component_map ABSENT: reported_orientation must be a registered
+      REPORTED convention (identity geographic elements); the source
+      must report the same; sensor_orientation is metadata only
+      (NEW path, codex revision-2 acceptance)."""
+    if capsule.get("component_map"):
+        orient = capsule.get("sensor_orientation")
+        if orient is not None and orient in ANGULAR_CONVENTIONS:
+            # IZN path: registered NON-IDENTITY conversion
+            if source_orientation != orient:
+                raise Mag1Refusal(
+                    f"FRAME_NOT_CLOSED: capsule orientation "
+                    f"{orient!r} != source {source_orientation!r}")
+            if capsule.get("declination_units") != "degrees":
+                raise Mag1Refusal(
+                    "FRAME_NOT_CLOSED: declination_units must be "
+                    f"pinned 'degrees', got "
+                    f"{capsule.get('declination_units')!r}")
+            need, _excl = ANGULAR_CONVENTIONS[orient]
+            for key in need:
+                if key not in arrays:
+                    raise Mag1Refusal(
+                        f"FRAME_NOT_CLOSED: component array {key!r} "
+                        "absent from source")
+            conv = {k: np.array(
+                [float("nan") if x is None else float(x)
+                 for x in arrays[k]], dtype=float) for k in need}
+            lens = {len(v) for v in conv.values()}
+            if len(lens) != 1:
+                raise Mag1Refusal(
+                    f"FRAME_NOT_CLOSED: component length mismatch "
+                    f"{sorted(lens)}")
+            d_rad = np.deg2rad(conv["D"])
+            return (conv["H"] * np.cos(d_rad),
+                    conv["H"] * np.sin(d_rad), conv["Z"])
+        if orient is None or orient not in FRAME_CONVENTIONS:
+            raise Mag1Refusal(f"FRAME_NOT_CLOSED: sensor_orientation="
+                              f"{orient!r} has no registered conversion")
+        if source_orientation != orient:
+            raise Mag1Refusal(
+                f"FRAME_NOT_CLOSED: capsule orientation {orient!r} != "
+                f"source {source_orientation!r}")
+        comps, excluded = FRAME_CONVENTIONS[orient]
+    else:
+        rep = capsule.get("reported_orientation")
+        if rep is None or rep not in REPORTED_CONVENTIONS:
+            raise Mag1Refusal(
+                f"FRAME_NOT_CLOSED: no component_map and "
+                f"reported_orientation={rep!r} is not a registered "
+                "reported convention")
+        if source_orientation != rep:
+            raise Mag1Refusal(
+                f"FRAME_NOT_CLOSED: capsule reported {rep!r} != "
+                f"source {source_orientation!r}")
+        comps, excluded = REPORTED_CONVENTIONS[rep]
+        for key in ("X", "Y", "Z"):
+            if key not in arrays:
+                raise Mag1Refusal(f"FRAME_NOT_CLOSED: component array "
+                                  f"{key!r} absent from source")
+        picks = {k: np.array([float("nan") if x is None else float(x)
+                              for x in arrays[k]], dtype=float)
+                 for k in ("X", "Y", "Z")}
+        lens = {len(v) for v in picks.values()}
+        if len(lens) != 1:
+            raise Mag1Refusal(f"FRAME_NOT_CLOSED: component length "
+                              f"mismatch {sorted(lens)}")
+        return picks["X"], picks["Y"], picks["Z"]
     cmap = capsule.get("component_map") or {}
     picks = {}
     for axis, key in (("geographic_X_north", "X"),
@@ -255,6 +330,20 @@ def convert_frame(capsule, arrays, source_orientation):
         raise Mag1Refusal(f"FRAME_NOT_CLOSED: component length "
                           f"mismatch {sorted(lens)}")
     return picks["X"], picks["Y"], picks["Z"]
+
+
+def usgs_arrays(body):
+    """USGS geomag ws body -> {element: [values]} (nulls stay None;
+    sentinel rule: ws nulls = missing)."""
+    return {v["metadata"]["element"]: v["values"]
+            for v in body.get("values", [])}
+
+
+def gin_arrays(body):
+    """INTERMAGNET GIN JSON body -> {element: [values]} (top-level
+    arrays; GIN JSON nulls = missing)."""
+    return {k: v for k, v in body.items()
+            if isinstance(v, list) and k != "datetime"}
 
 
 def horizontal_residual(r_x, r_y):
@@ -383,6 +472,56 @@ def _selftest():
     try:
         convert_frame(cap, body_no_z, "XYZS")
         raise AssertionError("omitted component array must refuse")
+    except Mag1Refusal as e:
+        assert "FRAME_NOT_CLOSED" in str(e)
+
+    # NEW capsule (map-less REPORTED path -- the 0430Z defect fix):
+    # reported XYZF is the authority; sensor HDZ is metadata only
+    cap_n, body_n = load_capsule("new")
+    arrs = usgs_arrays(body_n)
+    src_rep = body_n["metadata"]["intermagnet"]["reported_orientation"]
+    xn, yn, zn = convert_frame(cap_n, arrs, src_rep)
+    assert len(xn) == 1441 and xn[0] == 17536.623
+    assert "F" in arrs        # F exists in the source...
+    # ...but has no structural path into the horizontal pair
+    cn = json.loads(json.dumps(cap_n))
+    cn["reported_orientation"] = "HDZF"
+    try:
+        convert_frame(cn, arrs, "HDZF")
+        raise AssertionError("unregistered reported convention must "
+                             "refuse")
+    except Mag1Refusal as e:
+        assert "FRAME_NOT_CLOSED" in str(e)
+    try:
+        convert_frame(cap_n, {"X": arrs["X"], "Y": arrs["Y"]},
+                      src_rep)
+        raise AssertionError("missing Z must refuse")
+    except Mag1Refusal as e:
+        assert "FRAME_NOT_CLOSED" in str(e)
+
+    # IZN angular path (HDZS): exact hand fixture X = H cos D,
+    # Y = H sin D (degrees); declination-units + missing-D refusals
+    cap_i = {"schema": "f2g-mag-input-capsule-v1",
+             "sensor_orientation": "HDZS",
+             "component_map": {"geographic_X_north": "H*cos(D)",
+                               "geographic_Y_east": "H*sin(D)",
+                               "geographic_Z_down": "Z",
+                               "S": "EXCLUDED"},
+             "declination_units": "degrees"}
+    arrs_i = {"H": [100.0], "D": [30.0], "Z": [50.0], "S": [999.0]}
+    xi, yi, zi = convert_frame(cap_i, arrs_i, "HDZS")
+    assert abs(xi[0] - 100.0 * math.cos(math.radians(30.0))) < 1e-9
+    assert abs(yi[0] - 50.0) < 1e-9 and zi[0] == 50.0
+    ci = json.loads(json.dumps(cap_i))
+    ci["declination_units"] = "minutes"
+    try:
+        convert_frame(ci, arrs_i, "HDZS")
+        raise AssertionError("non-degree declination must refuse")
+    except Mag1Refusal as e:
+        assert "FRAME_NOT_CLOSED" in str(e)
+    try:
+        convert_frame(cap_i, {"H": [1.0], "Z": [1.0]}, "HDZS")
+        raise AssertionError("missing D must refuse")
     except Mag1Refusal as e:
         assert "FRAME_NOT_CLOSED" in str(e)
 

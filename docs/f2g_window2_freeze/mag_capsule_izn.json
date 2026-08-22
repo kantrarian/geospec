@@ -1,0 +1,43 @@
+{
+ "cadence_seconds": 60,
+ "carrier": "istanbul_marmara",
+ "component_map": {
+  "S": "EXCLUDED -- scalar total-field channel; never enters the horizontal-vector statistic sqrt(rX^2 + rY^2)",
+  "geographic_X_north": "H*cos(D)",
+  "geographic_Y_east": "H*sin(D)",
+  "geographic_Z_down": "Z"
+ },
+ "component_map_authority": "the pinned GIN probe body @info (sensor_orientation HDZS + arrays H/D/Z/S) under the INTERMAGNET HDZ convention (H horizontal magnitude, D declination east-positive, Z down); GIN JSON serves D in DEGREES -- probe value ~6.02 matches Iznik's IGRF-2026 declination (~6 deg E), excluding the minutes-of-arc reading (would imply 0.1 deg)",
+ "coordinates_lat_lon": [
+  40.5,
+  29.7
+ ],
+ "declination_units": "degrees",
+ "frame_kats_w_mag": [
+  "mutated sensor_orientation -> FRAME_NOT_CLOSED",
+  "omitted sensor_orientation -> FRAME_NOT_CLOSED",
+  "omitted any of H/D/Z arrays -> FRAME_NOT_CLOSED",
+  "declination_units != degrees -> FRAME_NOT_CLOSED",
+  "S leaked into the horizontal vector -> refuse"
+ ],
+ "iaga_code": "IZN",
+ "observatory": "IZN",
+ "probe_body_sha256": "e3b5e0be9d2554549f3574d5ec1d88e9a949a366eaa49961458fc0501f4b9501",
+ "probe_envelope": "docs/f2g_window2_freeze/receipts/mag_izn_probe.envelope.json",
+ "product_class": "adjusted-or-reported",
+ "provider": "INTERMAGNET GIN (Iznik, Turkey)",
+ "recomputed_coverage_samples": 1440,
+ "recorded_elements": [
+  "H",
+  "D",
+  "Z",
+  "S"
+ ],
+ "reported_orientation": "Unknown",
+ "role": "local (M1, M2)",
+ "schema": "f2g-mag-input-capsule-v1",
+ "sensor_orientation": "HDZS",
+ "sentinel_note": "GIN JSON nulls = missing",
+ "source_data_type": "reported",
+ "units": "nT (H/Z/S); degrees (D)"
+}

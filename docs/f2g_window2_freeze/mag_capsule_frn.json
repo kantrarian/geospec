@@ -1,0 +1,21 @@
+{
+ "cadence_seconds": 60,
+ "carrier": "socal_coachella",
+ "coordinates_lat_lon": [
+  37.091,
+  -119.718
+ ],
+ "iaga_code": "FRN",
+ "observatory": "FRN",
+ "probe_body_sha256": "6176a3baad14f028e047202a01f6f86483948742dd1e25841229a921d5e8df52",
+ "probe_envelope": "docs/f2g_window2_freeze/receipts/mag_frn_probe.envelope.json",
+ "product_class": "adjusted",
+ "provider": "USGS geomagnetism program",
+ "recomputed_coverage_samples": 1441,
+ "reported_orientation": "XYZF",
+ "role": "local (M1, M2, M3)",
+ "schema": "f2g-mag-input-capsule-v1",
+ "sensor_orientation": "HDZ",
+ "sentinel_note": "USGS ws nulls = missing",
+ "source_data_type": "adjusted"
+}

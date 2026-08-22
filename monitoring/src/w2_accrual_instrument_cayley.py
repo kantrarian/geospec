@@ -311,6 +311,57 @@ def execute_selection(day_records_by_carrier, cutoff):
     return record
 
 
+# ===================================================================
+# SEAM LAYER 2 (on grassmann's 0710Z W-B1B green + formal B1B pin
+# ratification; B2B pins ratified at REV 2): the ADAPTER -- window-2
+# family panel assembly from producer day capsules. The MF4 per-lane
+# runner holds one more cycle for W-MF4's formal ratification.
+# ===================================================================
+import f2g_sealed_run_instrument_cayley as SRI  # pinned digest formula
+
+
+def build_family_panel(calendar, registry_record, producer_days):
+    """Assembles the graph-family panel (w2_b2b/w2_b1b shape) from
+    producer day capsules. Content-auth BEFORE use: every capsule's
+    station_index_digest is recomputed via the PINNED producer formula
+    (imported from the sealed instrument, never reimplemented) and must
+    match -- typed STATION_INDEX_DIGEST_MISMATCH. The adapter assembles
+    SHAPE only; family policy (measured/edge consistency, gates,
+    floors) lives in the engines. Carriers the frozen selection rule
+    typed out (INSUFFICIENT_POOL) are carried as typed_exclusions in
+    panel metadata -- recorded, never silently absent."""
+    panel = {"calendar": sorted(str(d) for d in calendar),
+             "carriers": {}, "typed_exclusions": {}}
+    for carrier in sorted(registry_record["registries"]):
+        reg = registry_record["registries"][carrier]
+        if reg["selected"] is None:
+            panel["typed_exclusions"][carrier] = reg["typing"]
+            continue
+        days_data = producer_days.get(carrier)
+        if days_data is None:
+            raise InstrumentRefusal(f"PRODUCER_FEED_MISSING: {carrier}")
+        measured = {}
+        r = {}
+        registered = []
+        for day in sorted(days_data):
+            cap = days_data[day]
+            got = SRI.station_index_digest(cap["measured"])
+            if got != cap["station_index_digest"]:
+                raise InstrumentRefusal(
+                    f"STATION_INDEX_DIGEST_MISMATCH: {carrier} {day} "
+                    f"got={got[:12]} recorded="
+                    f"{str(cap['station_index_digest'])[:12]}")
+            registered.append(day)
+            measured[day] = sorted(cap["measured"])
+            for e, v in cap.get("edges", {}).items():
+                r.setdefault(e, {})[day] = float(v)
+        panel["carriers"][carrier] = {
+            "registry": list(reg["selected"]),
+            "registered_days": registered,
+            "measured": measured, "r": r}
+    return panel
+
+
 # ---------------------------------------------------------------- selftest
 def _selftest():
     import tempfile
@@ -430,6 +481,51 @@ def _selftest():
                            clock=lambda: "2026-09-01")
     pl3.prestart(b)                    # assembled dict passes the gate
     assert pl3.ledger.state == "ACCRUAL"
+
+    # --- seam layer 2 KATs: adapter -> REAL engine end-to-end ---
+    import w2_b2b as W2B
+    A = [f"A{i}" for i in range(5)]
+    Bs = [f"B{i}" for i in range(5)]
+    reg10 = sorted(A + Bs)
+    cal6 = [f"2026-10-{i:02d}" for i in range(1, 7)]
+
+    def mk_edges(cluster_a, cluster_b, strong=5.0, weak=0.1):
+        ew = {}
+        nodes = list(cluster_a) + list(cluster_b)
+        for i, x in enumerate(nodes):
+            for y in nodes[i + 1:]:
+                same = (x in cluster_a) == (y in cluster_a)
+                ew["|".join(sorted((x, y)))] = strong if same else weak
+        return ew
+
+    prod = {"cascadia": {
+        d: {"measured": reg10,
+            "station_index_digest": SRI.station_index_digest(reg10),
+            "edges": mk_edges(A, Bs)} for d in cal6}}
+    reg_rec = {"registries": {
+        "cascadia": {"selected": reg10, "churn": 1.0, "typing": None},
+        "turkey_kahramanmaras": {"selected": None, "churn": None,
+                                 "typing": "INSUFFICIENT_POOL: kat"}}}
+    panel = build_family_panel(cal6, reg_rec, prod)
+    assert panel["typed_exclusions"]["turkey_kahramanmaras"] \
+        .startswith("INSUFFICIENT_POOL")
+    res = W2B.w2_b2b_family(panel, doc_sha256="ab" * 32, n_draws=49)
+    assert res["runs_by_carrier"]["cascadia"] == 1 \
+        and res["p_value"] == 1.0, res      # adapter -> engine e2e
+
+    bad = json.loads(json.dumps(prod))
+    bad["cascadia"][cal6[2]]["station_index_digest"] = "0" * 64
+    try:
+        build_family_panel(cal6, reg_rec, bad)
+        raise AssertionError("doctored digest must refuse")
+    except InstrumentRefusal as e:
+        assert "STATION_INDEX_DIGEST_MISMATCH" in str(e)
+    try:
+        build_family_panel(cal6, {"registries": {
+            "cascadia": reg_rec["registries"]["cascadia"]}}, {})
+        raise AssertionError("missing producer feed must refuse")
+    except InstrumentRefusal as e:
+        assert "PRODUCER_FEED_MISSING" in str(e)
 
     print("w2_accrual_instrument selftest: ALL PASS")
 

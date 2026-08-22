@@ -67,7 +67,9 @@ BOUND_SLOTS = {
         "note": "sec-6 power machinery (certification path constructs "
                 "its own config; bound-geometry gate; codex items 1+2 "
                 "repaired)",
-        "paths": ["monitoring/src/w2_power_harness_cayley.py"]},
+        "paths": ["monitoring/src/w2_power_harness_cayley.py",
+                  "docs/f2g_window2_execution/"
+                  "loco_composition_amendment_v1.md"]},
     "calibration_runner": {
         "owner": "cayley",
         "note": "calibration-ledger production runner (temporal "

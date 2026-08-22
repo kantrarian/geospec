@@ -362,6 +362,69 @@ def build_family_panel(calendar, registry_record, producer_days):
     return panel
 
 
+# ===================================================================
+# SEAM LAYER 3 (on grassmann's 0811Z W-MF4 green + formal MF4 pin
+# ratification): the MF4 per-lane accrual runner -- the last held
+# layer. MAG-dependent duties (calibration-ledger production at the
+# cutoff) remain, but no layer now waits on W-MAG's wiring.
+# ===================================================================
+import w2_mf4 as MF4
+
+
+def emit_mf4_predictions(pl, mf4_ledger, lease, feeds, regions,
+                         bboxes, issue_day):
+    """One accrual tick: for every admitted region, build the sealed
+    prediction row and record it. Order of operations: engine row ->
+    verify -> BARRIER ACCRUE (the chain is the authority) -> return.
+    The instrument's only data touch is MECHANICAL: the risk series is
+    sliced to rows dated <= issue_day (canonicalization, not policy);
+    the engine still enforces ISSUE_TIME_VIOLATION fail-closed behind
+    it. Typed no-prediction days emit typing rows and are ACCRUED like
+    any prediction-of-record -- never silent. Emission timing and
+    duplicates are refused by the barrier (LATE_OR_REVISED_PREDICTION);
+    embargo means nothing here reads a row back."""
+    rows = []
+    for region in sorted(regions):
+        feed = feeds.get(region)
+        if feed is None:
+            raise InstrumentRefusal(f"MF4_FEED_MISSING: {region}")
+        risk = {d: v for d, v in feed["risk_series"].items()
+                if str(d) <= str(issue_day)}
+        row = MF4.predict_row(mf4_ledger, risk, feed["events_view"],
+                              bboxes[region], region, issue_day,
+                              now_utc())
+        MF4.verify_row(row)
+        pl.accrue_prediction(lease, region, str(issue_day),
+                             row["row_digest"])
+        rows.append(row)
+    return rows
+
+
+def append_rows_store(store_path, rows):
+    """Append-only embargoed JSONL row store. Duplicate (region,
+    issue_day) refuses (PREDICTION_ROW_DUPLICATE) -- second guard
+    behind the barrier's; every stored row re-verifies its digest on
+    the way in. Nothing here reads rows back out; release-time access
+    goes through the barrier's embargo gate."""
+    seen = set()
+    if os.path.exists(store_path):
+        with open(store_path, "r", encoding="utf-8") as f:
+            for line in f:
+                r = json.loads(line)
+                seen.add((r["region"], r["issue_day"]))
+    with open(store_path, "a", encoding="utf-8", newline="\n") as f:
+        for row in rows:
+            MF4.verify_row(row)
+            key = (row["region"], row["issue_day"])
+            if key in seen:
+                raise MF4.Mf4Refusal(
+                    f"PREDICTION_ROW_DUPLICATE: {key} (store)")
+            f.write(json.dumps(row, sort_keys=True,
+                               separators=(",", ":")) + "\n")
+            seen.add(key)
+    return len(rows)
+
+
 # ---------------------------------------------------------------- selftest
 def _selftest():
     import tempfile
@@ -526,6 +589,81 @@ def _selftest():
         raise AssertionError("missing producer feed must refuse")
     except InstrumentRefusal as e:
         assert "PRODUCER_FEED_MISSING" in str(e)
+
+    # --- seam layer 3 KATs: MF4 runner through the REAL engine +
+    # REAL barrier chain ---
+    import numpy as _np
+    bbox_k = {"min_lat": 30.0, "max_lat": 40.0,
+              "min_lon": -125.0, "max_lon": -115.0}
+    bboxes_k = {"ra": bbox_k, "rb": bbox_k}
+    rngk = _np.random.Generator(_np.random.PCG64(13))
+    cal_days = [(_date(2025, 10, 10) + _td(days=i)).isoformat()
+                for i in range(120)]
+    risk_k = {r: {d: float(rngk.uniform(0, 1)) for d in cal_days}
+              for r in ("ra", "rb")}
+    ev_k = [{"day": (_date(2025, 11, 1) + _td(days=7 * i)).isoformat(),
+             "lat": 35.0, "lon": -120.0, "mag": 4.5} for i in range(8)]
+    mf4_led = MF4.calibrate(risk_k, ev_k, bboxes_k, ["ra", "rb"],
+                            "2026-02-10", "2026-02-08")
+
+    fake2 = ["2026-09-01"]
+    pl4 = PersistentLedger(os.path.join(tmpdir, "l4.json"),
+                           clock=lambda: fake2[0])
+    pl4.prestart(dict(_bindings := {
+        k: f"digest-{k}" for k in WB.REQUIRED_BINDINGS
+        if k not in ("remote_lease", "lane_uuids",
+                     "owner_authorization")},
+        remote_lease="kat-lease-4", lane_uuids=["mf4"],
+        owner_authorization="kat-owner"))
+    d0 = pl4.ledger.evaluation_start.isoformat()
+    fake2[0] = d0
+
+    # feeds carry FULL history incl the issue day + one FUTURE-dated
+    # row: the mechanical slice removes the future row (the engine
+    # would refuse it fail-closed otherwise)
+    d_future = (pl4.ledger.evaluation_start + _td(days=1)).isoformat()
+    hist_days = [(_date(2026, 8, 20) + _td(days=i)).isoformat()
+                 for i in range(14)]
+    hist_days = [d for d in hist_days if d <= d0] + [d0, d_future]
+    feeds = {r: {"risk_series": {d: 0.5 for d in dict.fromkeys(
+        hist_days)}, "events_view": ev_k} for r in ("ra", "rb")}
+    rows = emit_mf4_predictions(pl4, mf4_led, "kat-lease-4", feeds,
+                                ["ra", "rb"], bboxes_k, d0)
+    assert len(rows) == 2 and all("p_model" in r for r in rows)
+    assert sum(1 for ev in pl4.ledger.events
+               if ev["kind"] == "PREDICTION") == 2
+    # duplicate emission refuses AT THE BARRIER
+    try:
+        emit_mf4_predictions(pl4, mf4_led, "kat-lease-4", feeds,
+                             ["ra"], bboxes_k, d0)
+        raise AssertionError("duplicate emission must refuse")
+    except WB.BarrierRefusal as e:
+        assert "LATE_OR_REVISED_PREDICTION" in str(e)
+    # typed no-prediction day (no prior-day risk) emits + accrues
+    d1 = (pl4.ledger.evaluation_start + _td(days=3)).isoformat()
+    fake2[0] = d1
+    feeds_thin = {"ra": {"risk_series": {d1: 0.5},
+                         "events_view": ev_k}}
+    rows2 = emit_mf4_predictions(pl4, mf4_led, "kat-lease-4",
+                                 feeds_thin, ["ra"], bboxes_k, d1)
+    assert "typing" in rows2[0] \
+        and "NO_PREDICTION" in rows2[0]["typing"]
+    assert sum(1 for ev in pl4.ledger.events
+               if ev["kind"] == "PREDICTION") == 3
+    try:
+        emit_mf4_predictions(pl4, mf4_led, "kat-lease-4", {},
+                             ["ra"], bboxes_k, d1)
+        raise AssertionError("missing feed must refuse")
+    except InstrumentRefusal as e:
+        assert "MF4_FEED_MISSING" in str(e)
+    # row store: append + duplicate guard + digest verify on the way in
+    store = os.path.join(tmpdir, "mf4_rows.jsonl")
+    assert append_rows_store(store, rows) == 2
+    try:
+        append_rows_store(store, rows[:1])
+        raise AssertionError("store duplicate must refuse")
+    except MF4.Mf4Refusal as e:
+        assert "PREDICTION_ROW_DUPLICATE" in str(e)
 
     print("w2_accrual_instrument selftest: ALL PASS")
 

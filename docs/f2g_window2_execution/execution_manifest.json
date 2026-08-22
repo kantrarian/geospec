@@ -2,8 +2,8 @@
  "design_manifest_blob_sha256": "d6decbd6ab5814bc005ce69c538311ff1b11cb1d13c19e2999e03a92bc7cca1f",
  "design_manifest_commit": "5fba5446cd96722fb86021df5065a46b8a1a78f5",
  "design_target_commit": "12161f6cf2000b2d4aa86fe659f834839ac0d27b",
- "execution_target_commit": "e20ae0bbd5f2bf851eafa456acb19287370dbd5a",
- "generated_utc": "2026-08-22T13:37:51Z",
+ "execution_target_commit": "fe384f18b45d2e3381c21e87cd6c9f775e425f00",
+ "generated_utc": "2026-08-22T13:40:47Z",
  "manifest_state": "OPEN",
  "repository_url": "https://github.com/kantrarian/geospec",
  "schema": "f2g-window2-execution-manifest-v1",
@@ -18,8 +18,8 @@
      "path": "monitoring/src/w2_barrier.py"
     },
     {
-     "blob_sha256": "6d0b7d2aacdf4b443ba03b24d2533532221b5e8e7cc1531e8fd1e2f67ed92aeb",
-     "commit": "7e0057067f1008a3fe0947370698e52b6ff19772",
+     "blob_sha256": "40d1878bcd89a5433feb4ed30cabca29caf5590f05d47f7fa47e3fa2f4986271",
+     "commit": "fe384f18b45d2e3381c21e87cd6c9f775e425f00",
      "path": "monitoring/src/w2_accrual_instrument_cayley.py"
     },
     {
@@ -72,8 +72,8 @@
    "owner": "grassmann",
    "pins": [
     {
-     "blob_sha256": "810ebdaa8b61787a0721abe62622225cf32b745178b25f5b95d8c29a76ca5221",
-     "commit": "b79d6115c16644fe3cfa56ad85e7e4725d606843",
+     "blob_sha256": "be4cc1a242a260f41c7f6d8cea58282d6f9b521278e151b62f2e57b9c713c9f5",
+     "commit": "8aecf96b6a512726cd33e8e722bb029515cdebe9",
      "path": "monitoring/src/test_f2g_window2_redkats_grassmann.py"
     }
    ],
@@ -103,7 +103,7 @@
    "pins": [
     {
      "blob_sha256": "ace3c7dd7d81448f22e95def8b3fdee6cb6dfaf531bbd32d66bb64413ce3cb77",
-     "commit": "d23b06ff6b7b3e104b68923b76dde7eec19f45cb",
+     "commit": "5967d69151d77e2bbd1620348e3b80bad1ffc60d",
      "path": "monitoring/src/f2g_execution_manifest_gen_cayley.py"
     }
    ],
@@ -115,7 +115,7 @@
    "pins": [
     {
      "blob_sha256": "9265bc447031ea8859df25067825971d591cef43608aab4bdd54042c6e1f344e",
-     "commit": "e20ae0bbd5f2bf851eafa456acb19287370dbd5a",
+     "commit": "8016ddf81572860e0036bae44312bea968bbd1fd",
      "path": "monitoring/src/f2g_execution_manifest_verifier_cayley.py"
     }
    ],

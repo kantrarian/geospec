@@ -371,7 +371,8 @@ GEOMETRY_CAPSULE_FIELDS = {
     "schema", "bound", "calendar_authority_mode",
     "calendar_authority_sha256", "calendar_authority_ref",
     "seed_authority_sha256", "shared_calendar_days", "carrier_masks",
-    "registries", "segments", "effect_grids", "capsule_digest"}
+    "registries", "segments", "effect_grids",
+    "loco_registry_carrier", "capsule_digest"}
 
 
 def _geometry_capsule_digest(capsule):
@@ -640,6 +641,73 @@ def replicate_pvalues_bound(panel_cal, views, n_draws, doc_sha):
     return out, frames
 
 
+def b1b_loco_project(b1b_view, station):
+    """LOCO fold projection (amendment v1): remove the named station
+    and its incident edges from the B1B view of the SAME replicate --
+    every other raw value byte-identical; no panel regeneration."""
+    out = {"calendar": list(b1b_view["calendar"]), "carriers": {}}
+    for ck, c in b1b_view["carriers"].items():
+        reg = [s for s in c["registry"] if s != station]
+        out["carriers"][ck] = {
+            "registry": reg,
+            "registered_days": list(c["registered_days"]),
+            "r": {e: dict(ser) for e, ser in c["r"].items()
+                  if station not in e.split("|")}}
+    return out
+
+
+def verify_fold_set(folds_run, loco_registry):
+    """Amendment v1: the fold set must be EXACTLY the NEW registry --
+    missing, extra, duplicate, or wrong-station folds refuse the
+    certification artifact (an audit failure, never an ordinary
+    non-recovery)."""
+    want = sorted(loco_registry)
+    if sorted(folds_run) != want or len(folds_run) != len(want):
+        raise PowerHarnessError(
+            f"POWER_LOCO_FOLD_SET_INVALID: ran {sorted(folds_run)} "
+            f"!= registry {want}")
+    return True
+
+
+def _b1b_loco_recovery(views, pv_full, capsule, n_draws, doc_sha,
+                       fold_counter=None):
+    """recover_B1B per the amendment: full-Holm rejection AND every
+    same-replicate fold-substituted Holm rejection. Early-exit without
+    folds on full-Holm non-rejection. Typed/no-p fold => False."""
+    if "B1B" not in holm_rejects(pv_full):
+        return False
+    loco_ck = capsule["loco_registry_carrier"]
+    registry = capsule["registries"][loco_ck]
+    folds_run = []
+    ok = True
+    for s in sorted(registry):
+        folds_run.append(s)
+        if fold_counter is not None:
+            fold_counter.append(s)
+        proj = b1b_loco_project(views["b1b"], s)
+        b = capsule.get("b1b_geometry", {})
+        try:
+            r_s = _b1b.w2_b1b_family(
+                proj, doc_sha256=doc_sha, n_draws=n_draws,
+                fold=f"loco:{s}",
+                n_blocks=b.get("n_blocks", _pb.B1A_CAL_BLOCKS),
+                block_len=b.get("block_len", _pb.B1A_CAL_BLOCK_LEN),
+                baseline_positions=b.get("baseline_positions",
+                                         CAL_BASELINE),
+                testable_min=b.get("testable_min",
+                                   _pb.TESTABLE_MIN_BASELINE))
+            p_s = r_s.get("p_value")
+        except _b1b.PanelInvalid:
+            p_s = None        # typed structural refusal = no-p class
+        if p_s is None:
+            ok = False        # typed no-p = non-recovery, keep folds
+            continue          # running so the fold SET stays exact
+        if "B1B" not in holm_rejects(dict(pv_full, B1B=p_s)):
+            ok = False
+    verify_fold_set(folds_run, registry)
+    return ok
+
+
 def run_point_certification(repo, geometry_ref, family, point,
                             **overrides):
     """THE ONLY PATH to certifiable records (codex 1815Z item 2 shape):
@@ -679,6 +747,14 @@ def run_point_certification(repo, geometry_ref, family, point,
                                                    point, r)
         pv, _frames = replicate_pvalues_bound(panel_cal, views,
                                               CERT_N_DRAWS, doc_sha)
+        if family == "B1B" and "gain" not in point:
+            # amendment v1: detection-class B1B recovery = full-Holm
+            # AND every same-replicate LOCO-substituted Holm. The
+            # gain-step SPECIFICITY class stays pre-LOCO (anti-rescue)
+            # and never reaches this branch (run_artifact_class owns
+            # it; a detection run on a gain point is off-grid anyway).
+            return _b1b_loco_recovery(views, pv, capsule,
+                                      CERT_N_DRAWS, doc_sha)
         return family in holm_rejects(pv)
     rec = certify(success, r_first=R_FIRST, r_max=R_MAX)
     rec.update(family=family, point=point, tier="CERTIFICATION",
@@ -815,7 +891,8 @@ def _selftest():
                "carrier_masks": {"c1": {"registered_days": ["C000"]}},
                "registries": {"c1": ["S0"]},
                "segments": {"c1": {"S0": "sA"}},
-               "effect_grids": {"B2B": [{"m": 2}]}}
+               "effect_grids": {"B2B": [{"m": 2}]},
+               "loco_registry_carrier": "c1"}
         cap.update(mut)
         cap["capsule_digest"] = _geometry_capsule_digest(cap)
         cap.update({k: v for k, v in mut.items()
@@ -909,6 +986,71 @@ def _selftest():
         and frames3["B3A"] == "calendar-v2"
     assert frames3["B2B"] == "calendar-w2" \
         and frames3["B1B"] == "calendar-w2"
+
+    # --- LOCO amendment v1 KATs (codex 1933Z, grassmann-ratified) ---
+    # KAT 1: Holm SUBSTITUTION, not p <= .05 -- the exact hand fixture
+    pv_full = {"B1B": 0.001, "B2A": 0.010, "B2B": 0.024, "B3A": 0.8}
+    assert "B1B" in holm_rejects(pv_full)
+    assert "B1B" not in holm_rejects(dict(pv_full, B1B=0.030))
+    assert 0.030 <= 0.05    # the trap the substitution rule closes
+
+    # projection: exactly the named station + incident edges leave;
+    # every other raw value byte-identical
+    b1b_view = {"calendar": ["D0", "D1"],
+                "carriers": {"cx": {
+                    "registry": ["A", "B", "C"],
+                    "registered_days": ["D0", "D1"],
+                    "r": {"A|B": {"D0": 1.0}, "A|C": {"D1": 2.0},
+                          "B|C": {"D0": 3.0, "D1": 4.0}}}}}
+    proj = b1b_loco_project(b1b_view, "A")
+    assert proj["carriers"]["cx"]["registry"] == ["B", "C"]
+    assert set(proj["carriers"]["cx"]["r"]) == {"B|C"}
+    assert proj["carriers"]["cx"]["r"]["B|C"] == \
+        b1b_view["carriers"]["cx"]["r"]["B|C"]   # byte-identical rest
+
+    # fold-set audit: missing / extra / duplicate / wrong-station all
+    # refuse the ARTIFACT (never counted as ordinary failure)
+    regA = ["S1", "S2", "S3"]
+    verify_fold_set(["S3", "S1", "S2"], regA)   # order-free exactness
+    for bad, label in ((["S1", "S2"], "missing"),
+                       (["S1", "S2", "S3", "S4"], "extra"),
+                       (["S1", "S2", "S2"], "duplicate"),
+                       (["S1", "S2", "S9"], "wrong-station")):
+        try:
+            verify_fold_set(bad, regA)
+            raise AssertionError(f"{label} fold set must refuse")
+        except PowerHarnessError as e:
+            assert "POWER_LOCO_FOLD_SET_INVALID" in str(e)
+
+    # early-exit: full-Holm non-rejection runs ZERO folds
+    cap_l = dict(mk_capsule(), registries={"c1": ["S0", "S1"]},
+                 carrier_masks={"c1": {"registered_days": ["C000"]}},
+                 segments={"c1": {"S0": "sA", "S1": "sB"}})
+    cap_l["capsule_digest"] = _geometry_capsule_digest(
+        {k: v for k, v in cap_l.items() if k != "capsule_digest"})
+    counter = []
+    r = _b1b_loco_recovery({"b1b": b1b_view},
+                           {"B1B": 0.9, "B2A": 0.9, "B2B": 0.9,
+                            "B3A": 0.9},
+                           cap_l, 99, "ab" * 32, fold_counter=counter)
+    assert r is False and counter == []      # licensed early-exit
+
+    # typed-no-p folds: a 2-station loco registry degenerates every
+    # projection (structural typed refusal) -> recovery False with the
+    # FULL fold set still run (the audit stays exact)
+    counter2 = []
+    r = _b1b_loco_recovery(
+        {"b1b": {"calendar": ["D0", "D1"],
+                 "carriers": {"c1": {"registry": ["S0", "S1"],
+                                     "registered_days": ["D0", "D1"],
+                                     "r": {"S0|S1": {"D0": 1.0}}}}}},
+        {"B1B": 0.001, "B2A": 0.9, "B2B": 0.9, "B3A": 0.9},
+        cap_l, 99, "ab" * 32, fold_counter=counter2)
+    assert r is False and sorted(counter2) == ["S0", "S1"]
+
+    # anti-rescue is structural: run_artifact_class has no LOCO path
+    import inspect
+    assert "loco" not in inspect.getsource(run_artifact_class).lower()
 
     print("w2_power_harness selftest: ALL PASS "
           "(fixture-tier mechanism only)")

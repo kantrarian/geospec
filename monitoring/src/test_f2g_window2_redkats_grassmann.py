@@ -558,13 +558,18 @@ def w_barrier():
 
         def bindings(lease="LEASE-1"):
             return {k: f"sha-{k}" for k in WBAR.REQUIRED_BINDINGS
-                    if k not in ("remote_lease", "lane_uuids")} | {
+                    if k not in ("remote_lease", "lane_uuids",
+                                 "code_manifest")} | {
                 "remote_lease": lease,
-                "lane_uuids": ["seismic", "mf4", "mag1"]}
+                "lane_uuids": ["seismic", "mf4", "mag1"],
+                "code_manifest": {
+                    "execution_manifest_commit": "bar-mc",
+                    "execution_manifest_blob_sha256": "bar-mb"}}
 
         def fresh():
             led = WBAR.BarrierLedger()
-            led.prestart(bindings(), "2026-08-25")
+            b = bindings()
+            led.prestart(b, "2026-08-25", WBAR._admission(b))
             return led
 
         # lifecycle happy path with independent boundary expectations
@@ -609,9 +614,10 @@ def w_barrier():
         led3.record_verifier_pass("LEASE-1", "seismic", "v")
         R.append(expect(lambda: led3.release("LEASE-1"),
                         "CROSS_LANE_RELEASE_BEFORE_TERMINALS"))
+        b_noauth = {k: v for k, v in bindings().items()
+                    if k != "owner_authorization"}
         R.append(expect(lambda: WBAR.BarrierLedger().prestart(
-            {k: v for k, v in bindings().items()
-             if k != "owner_authorization"}, "2026-08-25"),
+            b_noauth, "2026-08-25", WBAR._admission(b_noauth)),
             "MISSING_LANE_AUTHORIZATION"))
         led4 = fresh()
         led4.close_support_barrier("LEASE-1", "2027-01-12", "non_analyst")
@@ -619,9 +625,41 @@ def w_barrier():
                         "VALUE_FIRE_SEAL_MISSING"))      # unsealed fire
         R.append(expect(lambda: fresh().add_lane("LEASE-1", "extra"),
                         "LATE_LANE_ADDITION"))
+        b_reuse = bindings()
         R.append(expect(lambda: WBAR.BarrierLedger(
-            used_leases=("LEASE-1",)).prestart(bindings(), "2026-08-25"),
+            used_leases=("LEASE-1",)).prestart(
+                b_reuse, "2026-08-25", WBAR._admission(b_reuse)),
             "REUSED_GLOBAL_LEASE"))
+        # 1815Z item-1 admission doctors (the composed PRESTART gate):
+        # bare bindings, non-capsule, doctored digest, stale verifier
+        # receipt, OPEN-manifest class, post-binding manifest drift
+        b_adm = bindings()
+        R.append(expect(lambda: WBAR.BarrierLedger().prestart(
+            b_adm, "2026-08-25"), "PRESTART_ADMISSION_REFUSED"))
+        R.append(expect(lambda: WBAR.BarrierLedger().prestart(
+            b_adm, "2026-08-25", "not-a-capsule"),
+            "PRESTART_ADMISSION_REFUSED"))
+        R.append(expect(lambda: WBAR.BarrierLedger().prestart(
+            b_adm, "2026-08-25",
+            WBAR._admission(b_adm, admission_digest="0" * 64)),
+            "PRESTART_ADMISSION_REFUSED"))
+        R.append(expect(lambda: WBAR.BarrierLedger().prestart(
+            b_adm, "2026-08-25", WBAR._admission(
+                b_adm, prestart_verifier={
+                    "verdict": "PASS", "mode": "prestart",
+                    "slots_open": 0,
+                    "manifest_commit": "SOME-OTHER"})),
+            "PRESTART_ADMISSION_REFUSED"))     # stale receipt
+        R.append(expect(lambda: WBAR.BarrierLedger().prestart(
+            b_adm, "2026-08-25", WBAR._admission(
+                b_adm, prestart_verifier={
+                    "verdict": "REFUSE", "mode": "prestart",
+                    "slots_open": 2, "manifest_commit": "kat-mc"})),
+            "PRESTART_ADMISSION_REFUSED"))     # OPEN-manifest class
+        R.append(expect(lambda: WBAR.BarrierLedger().prestart(
+            b_adm, "2026-08-25", WBAR._admission(
+                b_adm, manifest_blob_sha256="drifted")),
+            "PRESTART_ADMISSION_REFUSED"))     # post-binding drift
         R.append(expect(lambda: fresh().producer_receipt("WRONG", "r"),
                         "GLOBAL_LEASE_INCORRECT"))
         # rebind BEFORE any fire refuses WITHOUT the terminal
@@ -1382,17 +1420,61 @@ def w_mag_null():
             and res61["n_null"] == 54 \
             and np.isfinite(res61["T_obs"])
 
+        # (5) 1815Z item-5 temporal-carrier doctors: the codex
+        # duplicate-inflation repro (59 unique + 1 repeat), reordered,
+        # gapped, invalid, extra -- all refuse BEFORE the statistic
+        dup = days60[:59] + [days60[10]]
+        ok_didx = refuses(lambda: WMG.m2_pairing(m60, g60, dup, **kw),
+                          "M2_DAY_INDEX_INVALID") \
+            and refuses(lambda: WMG.m2_pairing(
+                m60, g60, list(reversed(days60)), **kw),
+                "M2_DAY_INDEX_INVALID") \
+            and refuses(lambda: WMG.m2_pairing(
+                m60, g60, days60[:30] + days60[31:], **kw),
+                "M2_DAY_INDEX_INVALID") \
+            and refuses(lambda: WMG.m2_pairing(
+                m60, g60, ["not-a-day"] + days60[1:], **kw),
+                "M2_DAY_INDEX_INVALID")
+
+        # (2-adjacent) the certification data gate is unmintable from
+        # the bar side: a forged caller geometry dict must refuse
+        # before any replicate
+        try:
+            import w2_power_harness_cayley as WPH
+
+            def _forge(ref, code):
+                try:
+                    WPH.run_point_certification(_REPO, ref, "B2A",
+                                                {"m": 3})
+                    return False
+                except Exception as exc:
+                    return code in str(exc)
+            mc9 = subprocess.run(
+                ["git", "-C", _REPO, "log", "-1", "--format=%H", "--",
+                 "docs/f2g_window2_execution/execution_manifest.json"],
+                capture_output=True, text=True).stdout.strip()
+            ok_forge = _forge(
+                {"bound": True, "schema": "forged", "registries": {},
+                 "segments": {}}, "POWER_GEOMETRY_REF_INVALID") \
+                and _forge({"manifest_commit": mc9,
+                            "path": "docs/never/pinned.json"},
+                           "POWER_GEOMETRY_NOT_MANIFEST_PINNED")
+        except ImportError:
+            ok_forge = False
+
         check("MAG-NULL feature-capsule null (raw non-equivalence "
               "reproduced, full in-bar oracle EXACT incl offset "
               "census, capsule+graph+impl binding recomputed, "
               "non-finite boundary doctors, 61-day finite-floor "
-              "boundary)",
+              "boundary, temporal-carrier doctors, forged-geometry "
+              "gate)",
               ok_const and ok_nonlocal and ok_oracle and ok_support
-              and ok_capd and ok_bind and ok_nf and ok_floor,
+              and ok_capd and ok_bind and ok_nf and ok_floor
+              and ok_didx and ok_forge,
               f"const={ok_const} nonlocal={ok_nonlocal} "
               f"oracle={ok_oracle} support={ok_support} "
               f"capd={ok_capd} bind={ok_bind} nf={ok_nf} "
-              f"floor={ok_floor}")
+              f"floor={ok_floor} didx={ok_didx} forge={ok_forge}")
     except ImportError:
         check("MAG-NULL feature-capsule null", False,
               "W2_ENGINE_ABSENT")

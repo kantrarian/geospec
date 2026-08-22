@@ -215,33 +215,71 @@ def build_day_capsule(envelope):
     return capsule, receipt
 
 
+RECEIPT_KEYS = {"schema", "lane", "input_envelope_sha256",
+                "operation", "output_sha256", "producer_identity"}
+DAY_CAPSULE_OP_KEYS = {"carrier", "day", "source"}
+
+
 def assemble_producer_days(carrier, capsules_by_day, receipts_by_day):
     """{day: capsule} + {day: capsule receipt} -> the adapter's
-    per-carrier producer feed. Each per-day receipt is re-verified
-    against its capsule bytes before aggregation; the aggregate receipt
-    binds every per-day envelope digest."""
+    per-carrier producer feed. codex 1815Z item 4: every receipt is
+    CLOSED and fully verified at aggregation -- schema/lane, producer
+    pin, carrier, EXACT day (the cross-day replay class), source
+    identity, envelope digest, output digest -- and the capsule and
+    receipt day-key sets must be exactly equal (no extras)."""
     if carrier not in W2_CARRIERS:
         raise ProducerRefusal(f"PRODUCER_UNKNOWN_CARRIER: {carrier!r}")
+    cap_days = {str(d) for d in capsules_by_day}
+    rec_days = {str(d) for d in receipts_by_day}
+    if cap_days != rec_days:
+        raise ProducerRefusal(
+            f"PRODUCER_RECEIPT_MISMATCH: day-key sets differ -- "
+            f"capsules_only={sorted(cap_days - rec_days)[:4]} "
+            f"receipts_only={sorted(rec_days - cap_days)[:4]}")
+    ident = producer_identity()
     out = {}
     env_by_day = {}
     for day in sorted(capsules_by_day):
+        day = str(day)
         try:
-            date.fromisoformat(str(day))
+            date.fromisoformat(day)
         except ValueError:
             raise ProducerRefusal(f"PRODUCER_DAY_INVALID: {day!r}")
-        rec = receipts_by_day.get(day)
-        if rec is None:
-            raise ProducerRefusal(f"PRODUCER_RECEIPT_MISSING: {day}")
+        rec = receipts_by_day[day]
+        if not isinstance(rec, dict) or set(rec) != RECEIPT_KEYS \
+                or rec.get("schema") != RECEIPT_SCHEMA:
+            raise ProducerRefusal(
+                f"PRODUCER_RECEIPT_NOT_CLOSED: {day}")
+        if rec["lane"] != "DAY_CAPSULE":
+            raise ProducerRefusal(
+                f"PRODUCER_RECEIPT_MISMATCH: {day} lane "
+                f"{rec['lane']!r} != DAY_CAPSULE")
+        if rec["producer_identity"] != ident:
+            raise ProducerRefusal(
+                f"PRODUCER_RECEIPT_MISMATCH: {day} producer identity "
+                "is not this producer's pin")
+        op = rec["operation"]
+        if not isinstance(op, dict) or set(op) != DAY_CAPSULE_OP_KEYS:
+            raise ProducerRefusal(
+                f"PRODUCER_RECEIPT_NOT_CLOSED: {day} operation record")
+        if op["day"] != day:
+            raise ProducerRefusal(
+                f"PRODUCER_RECEIPT_MISMATCH: {day} receipt is for day "
+                f"{op['day']!r} (cross-day replay)")
+        if op["carrier"] != carrier:
+            raise ProducerRefusal(
+                f"PRODUCER_RECEIPT_MISMATCH: {day} receipt carrier "
+                f"{op['carrier']!r} != {carrier}")
+        if not isinstance(op["source"], dict) \
+                or set(op["source"]) != SOURCE_KEYS:
+            raise ProducerRefusal(
+                f"PRODUCER_RECEIPT_NOT_CLOSED: {day} source identity")
         if rec["output_sha256"] != _canon_digest(capsules_by_day[day]):
             raise ProducerRefusal(
                 f"PRODUCER_RECEIPT_MISMATCH: {day} capsule bytes do "
                 "not match their receipt")
-        if rec["operation"].get("carrier") != carrier:
-            raise ProducerRefusal(
-                f"PRODUCER_RECEIPT_MISMATCH: {day} receipt carrier "
-                f"{rec['operation'].get('carrier')!r} != {carrier}")
-        out[str(day)] = capsules_by_day[day]
-        env_by_day[str(day)] = rec["input_envelope_sha256"]
+        out[day] = capsules_by_day[day]
+        env_by_day[day] = rec["input_envelope_sha256"]
     artifact = {carrier: out}
     receipt = _receipt("DAY_CAPSULES_AGGREGATE",
                        _canon_digest(env_by_day),
@@ -584,11 +622,61 @@ def _selftest():
     assert refuses(
         lambda: assemble_producer_days("cascadia", caps2, recs),
         "PRODUCER_RECEIPT_MISMATCH")
+    # day-key sets must be exactly equal (missing AND extra receipts)
     assert refuses(
         lambda: assemble_producer_days("cascadia", caps,
                                        {d: recs[d]
                                         for d in cal6[1:]}),
-        "PRODUCER_RECEIPT_MISSING")
+        "PRODUCER_RECEIPT_MISMATCH")
+    extra_recs = dict(recs)
+    extra_recs["2026-10-09"] = recs[cal6[0]]
+    assert refuses(
+        lambda: assemble_producer_days("cascadia", caps, extra_recs),
+        "PRODUCER_RECEIPT_MISMATCH")
+    # codex 1815Z item-4 doctors:
+    # (a) the cross-day replay verbatim -- identical capsule bytes
+    # under a NEW day key with the day-1 receipt supplied for it
+    day1, day2 = cal6[0], "2026-10-09"
+    replay_caps = {day1: caps[day1], day2: caps[day1]}
+    replay_recs = {day1: recs[day1], day2: recs[day1]}
+    assert refuses(
+        lambda: assemble_producer_days("cascadia", replay_caps,
+                                       replay_recs),
+        "PRODUCER_RECEIPT_MISMATCH")
+    # (b) cross-carrier receipt
+    cc_cap, cc_rec = build_day_capsule(
+        {"schema": ENV_DAYCAPSULE, "carrier": "istanbul_marmara",
+         "day": "2026-10-01", "station_ids": reg10, "matrix": big,
+         "measured": reg10, "source": src})
+    assert refuses(
+        lambda: assemble_producer_days(
+            "cascadia", {"2026-10-01": cc_cap},
+            {"2026-10-01": cc_rec}),
+        "PRODUCER_RECEIPT_MISMATCH")
+    # (c) doctored producer identity (cross-producer)
+    fp_recs = json.loads(json.dumps(recs))
+    fp_recs[cal6[1]]["producer_identity"]["code_blob_sha256"] = \
+        "0" * 64
+    assert refuses(
+        lambda: assemble_producer_days("cascadia", caps, fp_recs),
+        "PRODUCER_RECEIPT_MISMATCH")
+    # (d) wrong lane
+    wl_recs = json.loads(json.dumps(recs))
+    wl_recs[cal6[2]]["lane"] = "MAG_FEED"
+    assert refuses(
+        lambda: assemble_producer_days("cascadia", caps, wl_recs),
+        "PRODUCER_RECEIPT_MISMATCH")
+    # (e) non-closed receipt (extra field) + non-closed operation
+    nc_recs = json.loads(json.dumps(recs))
+    nc_recs[cal6[3]]["surprise"] = 1
+    assert refuses(
+        lambda: assemble_producer_days("cascadia", caps, nc_recs),
+        "PRODUCER_RECEIPT_NOT_CLOSED")
+    no_recs = json.loads(json.dumps(recs))
+    del no_recs[cal6[4]]["operation"]["day"]
+    assert refuses(
+        lambda: assemble_producer_days("cascadia", caps, no_recs),
+        "PRODUCER_RECEIPT_NOT_CLOSED")
 
     # --- selection: wrapper artifact + production select e2e ---
     cut = "2026-08-24"
@@ -640,7 +728,8 @@ def _selftest():
     out = CAL.run_mf4_calibration(repo, mf4_feed, "2026-02-09",
                                   producer_identity())
     v = CAL.verify_receipt(repo, out["receipt"],
-                           expected_cutoff="2026-02-09")
+                           expected_cutoff="2026-02-09",
+                           expected_producer=producer_identity())
     assert v["lane"] == "MF4"
     mf4_feed2, mf4_rec2 = build_mf4_feed(mf4_env())
     assert mf4_rec2["output_sha256"] == mf4_rec["output_sha256"]
@@ -686,7 +775,8 @@ def _selftest():
     assert feeds["FRN"]["times"][0] == "2026-01-01T00:00Z"
     out = CAL.run_mag_calibration(repo, feeds, cut,
                                   producer_identity())
-    v = CAL.verify_receipt(repo, out["receipt"], expected_cutoff=cut)
+    v = CAL.verify_receipt(repo, out["receipt"], expected_cutoff=cut,
+                           expected_producer=producer_identity())
     assert v["lane"] == "MAG"
     assert "FRN:TUC:X" in out["results"]["m3"]
     # the +14:00 wrong-UTC-day trap (codex item 4 reproduction)

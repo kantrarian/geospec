@@ -36,24 +36,66 @@ BOUND_SLOTS = {
         "owner": "cayley",
         "note": "design-pin walk executable (landed b755ce1)",
         "paths": ["monitoring/src/f2g_design_pin_verifier_cayley.py"]},
+    # bound at bar-sweep completion (grassmann 0916Z: 11/11 green,
+    # "execution-manifest-v1 can pin the complete bar") per the
+    # bind-on-bar-green policy
+    "selection_impl": {
+        "owner": "cayley",
+        "note": "cutoff-stable selection REV 2 (codex 3xP1 repaired; "
+                "W-SEL-b green incl production locks)",
+        "paths": ["monitoring/src/w2_selection.py"]},
+    "adapter_impl": {
+        "owner": "cayley",
+        "note": "family engines + registry resolution (W-CAS/W-B2B/"
+                "W-B1B green; panel assembly pinned under accrual)",
+        "paths": ["monitoring/src/w2_cascadia.py",
+                  "monitoring/src/w2_b2b.py",
+                  "monitoring/src/w2_b1b.py"]},
+    "accrual_impl": {
+        "owner": "cayley",
+        "note": "barrier state machine + production instrument (core + "
+                "3 seam layers) + accrual-lane engines (W-BARRIER/"
+                "W-MF4/W-MAG green)",
+        "paths": ["monitoring/src/w2_barrier.py",
+                  "monitoring/src/w2_accrual_instrument_cayley.py",
+                  "monitoring/src/w2_mf4.py",
+                  "monitoring/src/w2_mag1.py"]},
+    "mag_capsules": {
+        "owner": "cayley",
+        "note": "IZN/FRN/TUC typed capsules + probe bodies + envelopes "
+                "(VIC/NEW already design-pinned; W-MAG frame paths "
+                "green)",
+        "paths": ["docs/f2g_window2_freeze/mag_capsule_izn.json",
+                  "docs/f2g_window2_freeze/mag_capsule_frn.json",
+                  "docs/f2g_window2_freeze/mag_capsule_tuc.json",
+                  "docs/f2g_window2_freeze/receipts/mag_izn_probe.json",
+                  "docs/f2g_window2_freeze/receipts/"
+                  "mag_izn_probe.envelope.json",
+                  "docs/f2g_window2_freeze/receipts/mag_frn_probe.json",
+                  "docs/f2g_window2_freeze/receipts/"
+                  "mag_frn_probe.envelope.json",
+                  "docs/f2g_window2_freeze/receipts/mag_tuc_probe.json",
+                  "docs/f2g_window2_freeze/receipts/"
+                  "mag_tuc_probe.envelope.json"]},
+    "bars": {
+        "owner": "grassmann",
+        "note": "the complete window-2 bar, 11/11 green @ 8aecf96 "
+                "(grassmann's 0916Z completion declaration)",
+        "paths": ["monitoring/src/"
+                  "test_f2g_window2_redkats_grassmann.py"],
+        "families": ["W-SEL", "W-CAS", "W-B2B", "W-B1B", "W-MF4",
+                     "W-MAG", "W-BARRIER", "W-PIN"]},
 }
 # NOTE: the schema doc is design-adjacent prose, deliberately NOT a slot
 
 OPEN_SLOTS = {
-    "selection_impl": ("cayley", "cutoff-stable selection per prereg "
-                                 "v0.3 + selection_constants.md"),
-    "adapter_impl": ("cayley", "window-2 family adapter (B2A/B2B/B1B/"
-                               "B3A) over the frozen graph"),
-    "accrual_impl": ("cayley", "sealed prediction accrual + two-stage "
-                               "barrier instruments"),
-    "mag_capsules": ("cayley", "typed at-freeze station capsules IZN/"
-                               "FRN/TUC (VIC/NEW already design-pinned)"),
-    "calibration_ledgers": ("cayley", "MAG-1 subtraction coefficients + "
-                                      "diagnostics, pre-evaluation"),
-    "bars": ("grassmann", "executable bar file(s); families must equal "
-                          "the required 8 when BOUND"),
+    "calibration_ledgers": ("cayley", "MF4/MAG subtraction "
+                                      "coefficients + diagnostics -- "
+                                      "PRODUCED at the availability "
+                                      "cutoff, pre-evaluation only"),
     "producer_code": ("grassmann", "accrual producers (seismic + MAG "
-                                   "raw byte acquisition)"),
+                                   "raw byte acquisition; s4t-lane "
+                                   "build next per 0916Z)"),
 }
 
 
@@ -90,6 +132,8 @@ def main(repo, target, design_manifest_commit):
                        "note": spec["note"],
                        "pins": [pin(repo, target_full, p)
                                 for p in spec["paths"]]}
+        if "families" in spec:
+            slots[name]["families"] = list(spec["families"])
     for name, (owner, note) in OPEN_SLOTS.items():
         slots[name] = {"status": "OPEN", "owner": owner, "note": note,
                        "pins": []}

@@ -1,9 +1,21 @@
 {
  "cadence_seconds": 60,
- "components_note": "recorded elements per GIN metadata; canonical XYZ conversion per typed-capsule schema at freeze",
+ "component_map": {
+  "S": "EXCLUDED -- scalar total-field channel; never enters the horizontal-vector statistic sqrt(rX^2 + rY^2)",
+  "geographic_X_north": "X",
+  "geographic_Y_east": "Y",
+  "geographic_Z_down": "Z"
+ },
+ "component_map_authority": "the pinned GIN probe body @info block (sensor_orientation XYZS + arrays X/Y/Z/S; body sha pinned in design-manifest) under the INTERMAGNET convention that XYZS reports geographic X/Y/Z plus an independent scalar S",
  "coordinates_lat_lon": [
   48.52,
   -123.42
+ ],
+ "frame_kats_w_mag": [
+  "mutated sensor_orientation -> FRAME_NOT_CLOSED",
+  "omitted sensor_orientation -> FRAME_NOT_CLOSED",
+  "omitted any of X/Y/Z arrays -> FRAME_NOT_CLOSED",
+  "S leaked into the horizontal vector -> refuse"
  ],
  "iaga_code": "VIC",
  "inside_cascadia_bbox": true,
@@ -13,6 +25,17 @@
  "product_class": "adjusted-or-reported",
  "provider": "NRCan via INTERMAGNET GIN",
  "recomputed_coverage_samples": 1440,
+ "recorded_elements": [
+  "X",
+  "Y",
+  "Z",
+  "S"
+ ],
+ "reported_orientation": "Unknown",
  "schema": "f2g-mag-input-capsule-v1",
- "sentinel_note": "GIN JSON nulls = missing"
+ "sensor_orientation": "XYZS",
+ "sentinel_note": "GIN JSON nulls = missing",
+ "source_data_type": "reported",
+ "source_longitude_convention": "east-positive 0-360 (body 236.58 == -123.42)",
+ "units": "nT"
 }

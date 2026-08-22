@@ -480,8 +480,13 @@ def _selftest():
     # runtime allowlist: clean walk over the real BOUND pins, then a
     # doctored on-disk module must be NAMED in the violation
     repo = os.path.abspath(os.path.join(_HERE, "..", ".."))
-    rep = runtime_allowlist_check(repo, "9d2f034")
-    assert rep["pins_checked"] == 3 and rep["manifest_state"] == "OPEN"
+    # resolve the CURRENT manifest commit dynamically -- slots flip
+    # BOUND over the manifest's life and the allowlist must track it
+    man_commit = _git(repo, ["log", "-1", "--format=%h", "HEAD", "--",
+                             EXEC_MANIFEST_PATH])
+    rep = runtime_allowlist_check(repo, man_commit)
+    assert rep["pins_checked"] >= 3 and rep["manifest_state"] in (
+        "OPEN", "CLOSED")
     target = os.path.join(
         repo, "monitoring", "src", "f2g_design_pin_verifier_cayley.py")
     saved = open(target, "rb").read()
@@ -489,7 +494,7 @@ def _selftest():
         with open(target, "ab") as f:
             f.write(b"\n# doctored\n")
         try:
-            runtime_allowlist_check(repo, "9d2f034")
+            runtime_allowlist_check(repo, man_commit)
             raise AssertionError("doctored disk module must refuse")
         except InstrumentRefusal as e:
             assert "RUNTIME_ALLOWLIST_VIOLATION" in str(e) \
@@ -497,8 +502,8 @@ def _selftest():
     finally:
         with open(target, "wb") as f:
             f.write(saved)
-    rep = runtime_allowlist_check(repo, "9d2f034")   # restored clean
-    assert rep["pins_checked"] == 3
+    rep = runtime_allowlist_check(repo, man_commit)   # restored clean
+    assert rep["pins_checked"] >= 3
 
     # --- seam layer 1 KATs ---
     from datetime import date as _date, timedelta as _td
@@ -531,7 +536,7 @@ def _selftest():
         assert "LOOKBACK_FRAME_INVALID" in str(e)
 
     b = assemble_prestart_bindings(
-        repo, execution_manifest_commit="9d2f034",
+        repo, execution_manifest_commit=man_commit,
         mf4_model_scaler_digest="kat-mf4", power_envelope_digest="kat-env",
         global_window_uuid="kat-uuid", remote_lease="kat-lease-b",
         lane_uuids=["graph", "mag1", "mf4"],

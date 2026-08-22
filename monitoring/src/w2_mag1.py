@@ -408,5 +408,404 @@ def _selftest():
     print("w2_mag1 selftest (part A): ALL PASS")
 
 
+# ===================================================================
+# PART B -- subtraction fit/apply ledger + M1/M2/M3 machinery
+#
+# Interpretation pins for part B (disclosed, R1.2-able; the two
+# STATISTIC-TYPE pins below are heavier than usual and carry an
+# explicit R1.2 window -- the frozen texts pin the null geometry, lag
+# set, overlap floor, and feature definitions but not the pairing
+# statistic's correlation type or the M1 window statistic's exact
+# robust form):
+# - M2 pairing statistic := max over the frozen lag set {0,+-1,+-2,+-3}
+#   of the SPEARMAN (midrank) correlation between the daily magnetic
+#   feature and the daily graph series on the exact shared-day mask;
+#   one-sided HIGH. [R1.2 WINDOW]
+# - M1/M3 window statistic := median of squared residual over the
+#   window's admissible minutes (the same robust band-energy form as
+#   the M2 daily feature). [R1.2 WINDOW]
+# - M2 whole-day rotation commutes with the per-day-local daily
+#   feature (energy depends only on that day's minutes and the
+#   mag/weather pair rotates JOINTLY), so the null is implemented as
+#   rotation of the daily feature vector -- an EXACT equivalence, not
+#   an approximation; the weather pairing is preserved structurally.
+# - M1 onset-hour class := floor(hour/6) (four 6-hour classes);
+#   pseudo-onset candidates overlapping the event window are excluded;
+#   pool < n_controls refuses typed (never silently reduced).
+# - Subtraction fit floor: masked rows >= 2 x design columns and full
+#   column rank (typed SUBTRACTION_*); apply verifies the ledger
+#   digest (typed LEDGER_MUTATED) and NEVER recomputes coefficients.
+# ===================================================================
+from datetime import datetime as _dt
+
+M2_LAGS = (0, 1, -1, 2, -2, 3, -3)
+M2_MIN_OVERLAP = 60
+M2_EXCLUDED_OFFSET = 3
+M1_N_CONTROLS = 999
+LST_HARMONIC_HOURS = (24.0, 12.0, 8.0)
+SEASONAL_DAYS = (365.25, 182.63)
+CAL_EPOCH = "2026-01-01"
+
+
+def _frac_days(times_iso):
+    ep = _dt.fromisoformat(CAL_EPOCH + "T00:00:00")
+    out = np.empty(len(times_iso), dtype=float)
+    for i, t in enumerate(times_iso):
+        d = _dt.fromisoformat(str(t).replace("Z", ""))
+        out[i] = (d - ep).total_seconds() / 86400.0
+    return out
+
+
+def build_design_matrix(times_iso, lon_east, weather):
+    """Frozen regressor design: intercept + weather columns (aligned
+    arrays, producer-acquired per capsule fill policy) + local-solar-
+    time harmonics (24/12/8 h sin+cos) + seasonal harmonics (365.25 d,
+    182.63 d sin+cos). Returns (X, column_names)."""
+    t = _frac_days(times_iso)
+    lst_hours = ((t % 1.0) * 24.0 + lon_east / 15.0) % 24.0
+    cols = [np.ones(len(t))]
+    names = ["intercept"]
+    for name in sorted(weather):
+        cols.append(np.asarray(weather[name], dtype=float))
+        names.append(f"weather:{name}")
+    for hh in LST_HARMONIC_HOURS:
+        w = 2.0 * math.pi * lst_hours / hh
+        cols.append(np.sin(w))
+        names.append(f"lst_sin_{hh}h")
+        cols.append(np.cos(w))
+        names.append(f"lst_cos_{hh}h")
+    for dd in SEASONAL_DAYS:
+        w = 2.0 * math.pi * t / dd
+        cols.append(np.sin(w))
+        names.append(f"seasonal_sin_{dd}d")
+        cols.append(np.cos(w))
+        names.append(f"seasonal_cos_{dd}d")
+    return np.column_stack(cols), names
+
+
+def _ledger_digest(names, coef, meta):
+    return hashlib.sha256(json.dumps(
+        {"columns": names, "coef": coef, "meta": meta},
+        sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+
+
+def fit_subtraction(times_iso, values, lon_east, weather, meta=None):
+    """Fit ONCE on the calibration interval; returns the frozen
+    ledger. Typed refusals on support/rank."""
+    X, names = build_design_matrix(times_iso, lon_east, weather)
+    y = np.asarray(values, dtype=float)
+    mask = np.isfinite(y) & np.isfinite(X).all(axis=1)
+    if int(mask.sum()) < 2 * X.shape[1]:
+        raise Mag1Refusal(
+            f"SUBTRACTION_INSUFFICIENT_SUPPORT: {int(mask.sum())} "
+            f"rows < 2x{X.shape[1]} columns")
+    Xm = X[mask]
+    if np.linalg.matrix_rank(Xm) < X.shape[1]:
+        raise Mag1Refusal("SUBTRACTION_DESIGN_RANK_DEFICIENT")
+    coef, *_ = np.linalg.lstsq(Xm, y[mask], rcond=None)
+    meta = dict(meta or {})
+    meta.setdefault("lon_east", lon_east)
+    coefs = [float(c) for c in coef]
+    return {"columns": names, "coef": coefs, "meta": meta,
+            "digest": _ledger_digest(names, coefs, meta)}
+
+
+def apply_subtraction(ledger, times_iso, values, weather):
+    """APPLY-NEVER-REFIT: residual = y - X @ frozen_coef. The ledger
+    digest is verified first; coefficients are never recomputed."""
+    if ledger.get("digest") != _ledger_digest(
+            ledger["columns"], ledger["coef"], ledger["meta"]):
+        raise Mag1Refusal("LEDGER_MUTATED")
+    X, names = build_design_matrix(times_iso,
+                                   ledger["meta"]["lon_east"], weather)
+    if names != ledger["columns"]:
+        raise Mag1Refusal(f"LEDGER_DESIGN_MISMATCH: {names[:3]}...")
+    y = np.asarray(values, dtype=float)
+    return y - X @ np.asarray(ledger["coef"], dtype=float)
+
+
+def fit_m3_reference(local_resid, ref_resid, weather_cols, meta=None):
+    """M3 innovation regression, SAME fit-once discipline: local
+    residual ~ reference residual + space-weather terms (frozen at
+    calibration; codex binding interpretation)."""
+    cols = [np.ones(len(local_resid)),
+            np.asarray(ref_resid, dtype=float)]
+    names = ["intercept", "reference_residual"]
+    for name in sorted(weather_cols):
+        cols.append(np.asarray(weather_cols[name], dtype=float))
+        names.append(f"weather:{name}")
+    X = np.column_stack(cols)
+    y = np.asarray(local_resid, dtype=float)
+    mask = np.isfinite(y) & np.isfinite(X).all(axis=1)
+    if int(mask.sum()) < 2 * X.shape[1]:
+        raise Mag1Refusal("M3_INSUFFICIENT_SUPPORT")
+    if np.linalg.matrix_rank(X[mask]) < X.shape[1]:
+        raise Mag1Refusal("M3_DESIGN_RANK_DEFICIENT")
+    coef, *_ = np.linalg.lstsq(X[mask], y[mask], rcond=None)
+    meta = dict(meta or {})
+    coefs = [float(c) for c in coef]
+    return {"columns": names, "coef": coefs, "meta": meta,
+            "digest": _ledger_digest(names, coefs, meta)}
+
+
+def apply_m3(ledger, local_resid, ref_resid, weather_cols):
+    """Innovation under the FROZEN M3 ledger (apply-never-refit)."""
+    if ledger.get("digest") != _ledger_digest(
+            ledger["columns"], ledger["coef"], ledger["meta"]):
+        raise Mag1Refusal("LEDGER_MUTATED")
+    cols = [np.ones(len(local_resid)),
+            np.asarray(ref_resid, dtype=float)]
+    for name in sorted(weather_cols):
+        cols.append(np.asarray(weather_cols[name], dtype=float))
+    X = np.column_stack(cols)
+    return np.asarray(local_resid, dtype=float) \
+        - X @ np.asarray(ledger["coef"], dtype=float)
+
+
+def window_energy(filtered, a, b, min_support=1):
+    """M1/M3 window statistic [R1.2 WINDOW pin]: median of squared
+    residual over the window's admissible (finite) minutes."""
+    chunk = np.asarray(filtered[a:b], dtype=float)
+    fin = chunk[np.isfinite(chunk)]
+    if fin.size < min_support:
+        raise Mag1Refusal(
+            f"M1_WINDOW_SUPPORT_INSUFFICIENT: {fin.size} < "
+            f"{min_support}")
+    return float(np.median(fin ** 2))
+
+
+def _quarter(day_iso):
+    return (int(str(day_iso)[5:7]) - 1) // 3
+
+
+def m1_controls(event_onset_day, event_onset_hour, duration_days,
+                admissible_days, record_days, rng,
+                n_controls=M1_N_CONTROLS):
+    """Blocked pseudo-onset sampler: candidates share the event's
+    season QUARTER, its onset-hour CLASS (floor(hour/6)), and its
+    duration; the window must lie fully inside admissible days with NO
+    circular wrap; candidates overlapping the event window are
+    excluded. Pool < n_controls refuses typed."""
+    adm = set(str(d) for d in admissible_days)
+    rec = sorted(str(d) for d in record_days)
+    q = _quarter(event_onset_day)
+    hclass = int(event_onset_hour) // 6
+    hours = [h for h in range(24) if h // 6 == hclass]
+    from datetime import date as _date, timedelta as _td
+
+    def day_seq(d0):
+        dd = _date.fromisoformat(d0)
+        return [(dd + _td(days=i)).isoformat()
+                for i in range(duration_days)]
+
+    ev_days = set(day_seq(str(event_onset_day)))
+    pool = []
+    for d0 in rec:
+        if _quarter(d0) != q:
+            continue
+        seq = day_seq(d0)
+        if seq[-1] > rec[-1]:            # no wrap: window must fit
+            continue
+        if not all(s in adm for s in seq):
+            continue
+        if set(seq) & ev_days:           # exclude event overlap
+            continue
+        for h in hours:
+            pool.append((d0, h))
+    if len(pool) < n_controls:
+        raise Mag1Refusal(
+            f"M1_CONTROL_POOL_INSUFFICIENT: {len(pool)} < "
+            f"{n_controls}")
+    idx = rng.choice(len(pool), size=n_controls, replace=False)
+    return [pool[int(i)] for i in idx]
+
+
+def m1_p(event_stat, control_stats):
+    """One-sided HIGH add-one rank p among the sampled controls."""
+    c = np.asarray(control_stats, dtype=float)
+    c = c[np.isfinite(c)]
+    if c.size == 0:
+        raise Mag1Refusal("M1_NO_VALID_CONTROLS")
+    return float((1 + int((c >= event_stat).sum())) / (c.size + 1))
+
+
+def _spearman(a, b):
+    """Midrank Spearman correlation (no scipy.stats dependency)."""
+    def ranks(x):
+        order = np.argsort(x, kind="mergesort")
+        rk = np.empty(len(x), dtype=float)
+        sx = np.asarray(x)[order]
+        i = 0
+        while i < len(x):
+            j = i
+            while j + 1 < len(x) and sx[j + 1] == sx[i]:
+                j += 1
+            rk[order[i:j + 1]] = (i + j) / 2.0 + 1.0
+            i = j + 1
+        return rk
+    ra, rb = ranks(np.asarray(a, float)), ranks(np.asarray(b, float))
+    ra -= ra.mean()
+    rb -= rb.mean()
+    den = math.sqrt(float((ra ** 2).sum()) * float((rb ** 2).sum()))
+    if den == 0.0:
+        return 0.0
+    return float((ra * rb).sum() / den)
+
+
+def _m2_stat(mag_by_day, graph_by_day, days):
+    """Max-over-frozen-lags Spearman on the exact shared-day mask
+    [R1.2 WINDOW pin]; typed overlap floor per lag."""
+    pos = {d: i for i, d in enumerate(days)}
+    best = None
+    for lag in M2_LAGS:
+        pairs = []
+        for d in days:
+            i = pos[d]
+            j = i + lag
+            if 0 <= j < len(days):
+                m = mag_by_day.get(days[j])
+                g = graph_by_day.get(d)
+                if m is not None and g is not None:
+                    pairs.append((m, g))
+        if len(pairs) < M2_MIN_OVERLAP:
+            continue
+        rho = _spearman([p[0] for p in pairs], [p[1] for p in pairs])
+        if best is None or rho > best:
+            best = rho
+    if best is None:
+        raise Mag1Refusal(
+            f"M2_OVERLAP_INSUFFICIENT: no lag reaches "
+            f"{M2_MIN_OVERLAP} shared days")
+    return best
+
+
+def m2_pairing(mag_by_day, graph_by_day, days):
+    """The M2 endpoint: observed statistic + exhaustive whole-day
+    rotation null (offsets with |offset| <= 3 excluded; the mag/
+    weather pair rotates jointly so rotating the per-day-local feature
+    vector is EXACT -- see the part-B pin block). One-sided HIGH,
+    add-one p over valid rotations."""
+    days = sorted(str(d) for d in days)
+    obs = _m2_stat(mag_by_day, graph_by_day, days)
+    n = len(days)
+    null_stats = []
+    for off in range(n):
+        if min(off, n - off) <= M2_EXCLUDED_OFFSET:
+            continue
+        rot = {days[(i + off) % n]: mag_by_day.get(days[i])
+               for i in range(n)}
+        try:
+            null_stats.append(_m2_stat(rot, graph_by_day, days))
+        except Mag1Refusal:
+            continue
+    if not null_stats:
+        raise Mag1Refusal("M2_NULL_EMPTY")
+    ge = sum(1 for s in null_stats if s >= obs)
+    return {"endpoint": "M2", "T_obs": obs,
+            "n_null": len(null_stats),
+            "p_value": float((1 + ge) / (len(null_stats) + 1)),
+            "lags": list(M2_LAGS), "min_overlap": M2_MIN_OVERLAP,
+            "excluded_offsets": M2_EXCLUDED_OFFSET}
+
+
+def _selftest_b():
+    rng = np.random.Generator(np.random.PCG64(21))
+    n = 4000
+    from datetime import timedelta as _tdm
+    times = [(_dt(2026, 1, 1) + _tdm(minutes=i)).isoformat()
+             for i in range(n)]
+    weather = {"symh": rng.normal(size=n)}
+    lon = -123.42
+
+    # fit/apply: planted linear model recovers; residual ~ noise
+    X, names = build_design_matrix(times, lon, weather)
+    truth = rng.normal(size=X.shape[1])
+    y = X @ truth + rng.normal(0, 0.01, size=n)
+    led = fit_subtraction(times, y, lon, weather)
+    resid = apply_subtraction(led, times, y, weather)
+    assert float(np.abs(resid).mean()) < 0.05, np.abs(resid).mean()
+
+    # apply-never-refit: NEW data through the SAME ledger uses frozen
+    # coefficients (residual biased when the world changed -- no refit)
+    y2 = X @ (truth + 1.0) + rng.normal(0, 0.01, size=n)
+    r2 = apply_subtraction(led, times, y2, weather)
+    assert float(np.abs(r2).mean()) > 0.5   # frozen coefs, honest bias
+    hacked = dict(led, coef=[c * 1.01 for c in led["coef"]])
+    try:
+        apply_subtraction(hacked, times, y, weather)
+        raise AssertionError("mutated ledger must refuse")
+    except Mag1Refusal as e:
+        assert "LEDGER_MUTATED" in str(e)
+
+    # M3 same discipline
+    ref = rng.normal(size=n)
+    local = 0.7 * ref + weather["symh"] * 0.2 + rng.normal(0, 0.01,
+                                                           size=n)
+    l3 = fit_m3_reference(local, ref, {"symh": weather["symh"]})
+    innov = apply_m3(l3, local, ref, {"symh": weather["symh"]})
+    assert float(np.abs(innov).mean()) < 0.05
+
+    # M1 sampler: blocking + pool + overlap-exclusion + no-wrap
+    from datetime import date as _date, timedelta as _td
+    record = [( _date(2026, 1, 1) + _td(days=i)).isoformat()
+              for i in range(88)]           # Q1 2026
+    adm = record
+    ctrls = m1_controls("2026-02-10", 3, 3, adm, record,
+                        np.random.Generator(np.random.PCG64(2)),
+                        n_controls=200)
+    assert len(ctrls) == 200
+    ev = {(_date(2026, 2, 10) + _td(days=i)).isoformat()
+          for i in range(3)}
+    for d0, h in ctrls:
+        assert _quarter(d0) == 0 and h // 6 == 0
+        seq = {(_date.fromisoformat(d0) + _td(days=i)).isoformat()
+               for i in range(3)}
+        assert not (seq & ev) and max(seq) <= record[-1]
+    try:
+        m1_controls("2026-02-10", 3, 3, adm, record,
+                    np.random.Generator(np.random.PCG64(2)),
+                    n_controls=10 ** 6)
+        raise AssertionError("small pool must refuse")
+    except Mag1Refusal as e:
+        assert "M1_CONTROL_POOL_INSUFFICIENT" in str(e)
+    assert m1_p(10.0, [1.0] * 99) == 1 / 100
+    assert abs(m1_p(1.0, [2.0] * 99) - 1.0) < 1e-12
+
+    # M2: planted alignment -> small p; rotation destroys it (the
+    # non-identity KAT); overlap floor refuses
+    days = [(_date(2026, 3, 1) + _td(days=i)).isoformat()
+            for i in range(80)]
+    sig = rng.normal(size=80)
+    mag_d = {d: float(sig[i]) for i, d in enumerate(days)}
+    gr_d = {d: float(sig[i] + rng.normal(0, 0.2))
+            for i, d in enumerate(days)}
+    res = m2_pairing(mag_d, gr_d, days)
+    assert res["p_value"] <= 2 / (res["n_null"] + 1), res
+    rot20 = {days[(i + 20) % 80]: mag_d[days[i]] for i in range(80)}
+    assert _m2_stat(rot20, gr_d, days) < res["T_obs"]  # non-identity
+    try:
+        m2_pairing({d: mag_d[d] for d in days[:50]},
+                   {d: gr_d[d] for d in days[:50]}, days[:50])
+        raise AssertionError("overlap < 60 must refuse")
+    except Mag1Refusal as e:
+        assert "M2_OVERLAP_INSUFFICIENT" in str(e)
+
+    # window statistic + typed support floor
+    f = np.full(100, np.nan)
+    f[10:90] = 2.0
+    assert window_energy(f, 0, 100) == 4.0
+    try:
+        window_energy(f, 0, 5, min_support=1)
+        raise AssertionError("empty window must refuse")
+    except Mag1Refusal as e:
+        assert "M1_WINDOW_SUPPORT_INSUFFICIENT" in str(e)
+
+    # frozen constants
+    assert M2_LAGS == (0, 1, -1, 2, -2, 3, -3) \
+        and M2_MIN_OVERLAP == 60 and M1_N_CONTROLS == 999
+    print("w2_mag1 selftest (part B): ALL PASS")
+
+
 if __name__ == "__main__":
     _selftest()
+    _selftest_b()

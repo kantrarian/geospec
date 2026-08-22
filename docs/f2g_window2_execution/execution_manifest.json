@@ -2,8 +2,8 @@
  "design_manifest_blob_sha256": "d6decbd6ab5814bc005ce69c538311ff1b11cb1d13c19e2999e03a92bc7cca1f",
  "design_manifest_commit": "5fba5446cd96722fb86021df5065a46b8a1a78f5",
  "design_target_commit": "12161f6cf2000b2d4aa86fe659f834839ac0d27b",
- "execution_target_commit": "19c32bdd65da8ca99fa0ee3bf349715a3acdfb80",
- "generated_utc": "2026-08-22T17:27:55Z",
+ "execution_target_commit": "eb891e11feeb41352a9cefdd17f5bfcf135c40ea",
+ "generated_utc": "2026-08-22T17:59:37Z",
  "manifest_state": "OPEN",
  "repository_url": "https://github.com/kantrarian/geospec",
  "schema": "f2g-window2-execution-manifest-v1.1",
@@ -58,10 +58,26 @@
    "status": "BOUND"
   },
   "bars": {
-   "note": "held OPEN until the four-group REV 9 incl real execution-capsule KATs is green (codex 1335Z/1358Z disposition); families must equal the 8 when re-BOUND",
+   "families": [
+    "W-SEL",
+    "W-CAS",
+    "W-B2B",
+    "W-B1B",
+    "W-MF4",
+    "W-MAG",
+    "W-BARRIER",
+    "W-PIN"
+   ],
+   "note": "the complete window-2 bar REV 9, 14/14 green @ e35b3bd (four convergence KAT groups; dual-verified by cayley)",
    "owner": "grassmann",
-   "pins": [],
-   "status": "OPEN"
+   "pins": [
+    {
+     "blob_sha256": "4bfa04c2d549ad0f02459e00816af0626ba8fff19462073a7b15cda3879933a6",
+     "commit": "e35b3bd7f2fa800bdbd9006667ad7f616b7341a1",
+     "path": "monitoring/src/test_f2g_window2_redkats_grassmann.py"
+    }
+   ],
+   "status": "BOUND"
   },
   "calibration_ledgers": {
    "note": "MF4/MAG subtraction coefficients + diagnostics -- PRODUCED at the availability cutoff, pre-evaluation only",
@@ -70,7 +86,7 @@
    "status": "OPEN"
   },
   "calibration_runner": {
-   "note": "calibration-ledger production runner (temporal boundary + M3 index equality + provenance-verifying receipts; codex items 3+4 repaired)",
+   "note": "calibration-ledger production runner (temporal boundary + M3 index equality + provenance-verifying receipts; codex items 3+4 repaired + canonical-UTC frame)",
    "owner": "cayley",
    "pins": [
     {
@@ -98,8 +114,8 @@
    "owner": "cayley",
    "pins": [
     {
-     "blob_sha256": "68deba11beaba85a4dbcd037a82bcaf33489dbf54bee99ff587a8b3fd77e23ba",
-     "commit": "f2955cd5f3600f57e9a78a9f4f1e6286b8b966d0",
+     "blob_sha256": "b71557c0884712db3f409540ebe96a6027e154949ee0658ded29ab635ba9965f",
+     "commit": "eb891e11feeb41352a9cefdd17f5bfcf135c40ea",
      "path": "monitoring/src/f2g_execution_manifest_gen_cayley.py"
     }
    ],
@@ -118,10 +134,56 @@
    "status": "BOUND"
   },
   "mag_capsules": {
-   "note": "RELOCATED to docs/f2g_window2_execution/mag_capsules per codex 0451Z/1335Z; re-binds with bars at the REV-9 green (codex 1358Z item 5)",
+   "note": "IZN/FRN/TUC capsules + bodies + envelopes at the RELOCATED execution tree (codex 0451Z); loaded via load_execution_capsule under the dynamic manifest authority; W-MAG-EXEC green",
    "owner": "cayley",
-   "pins": [],
-   "status": "OPEN"
+   "pins": [
+    {
+     "blob_sha256": "d9c4630c6232636f89880839e30aff320319036060fcc20d845bf8582b63a3c5",
+     "commit": "f2955cd5f3600f57e9a78a9f4f1e6286b8b966d0",
+     "path": "docs/f2g_window2_execution/mag_capsules/mag_capsule_izn.json"
+    },
+    {
+     "blob_sha256": "fb6e14341adfe8613e5a728839c0b6031b9097f7948ba7e7251336b39156904d",
+     "commit": "f2955cd5f3600f57e9a78a9f4f1e6286b8b966d0",
+     "path": "docs/f2g_window2_execution/mag_capsules/mag_capsule_frn.json"
+    },
+    {
+     "blob_sha256": "83a272062e38060b30791ad0b237e6823178dcca444784bebc0623d3656442b5",
+     "commit": "f2955cd5f3600f57e9a78a9f4f1e6286b8b966d0",
+     "path": "docs/f2g_window2_execution/mag_capsules/mag_capsule_tuc.json"
+    },
+    {
+     "blob_sha256": "e3b5e0be9d2554549f3574d5ec1d88e9a949a366eaa49961458fc0501f4b9501",
+     "commit": "f2955cd5f3600f57e9a78a9f4f1e6286b8b966d0",
+     "path": "docs/f2g_window2_execution/mag_capsules/receipts/mag_izn_probe.json"
+    },
+    {
+     "blob_sha256": "0f3e377571bfafca2daef621dcdc4128b59e85aed24b3474e596320b2702cd4f",
+     "commit": "f2955cd5f3600f57e9a78a9f4f1e6286b8b966d0",
+     "path": "docs/f2g_window2_execution/mag_capsules/receipts/mag_izn_probe.envelope.json"
+    },
+    {
+     "blob_sha256": "6176a3baad14f028e047202a01f6f86483948742dd1e25841229a921d5e8df52",
+     "commit": "f2955cd5f3600f57e9a78a9f4f1e6286b8b966d0",
+     "path": "docs/f2g_window2_execution/mag_capsules/receipts/mag_frn_probe.json"
+    },
+    {
+     "blob_sha256": "2aace5fc4421f5a8be7f28a29c27ec4cc3db7006cd6400192c94329a813ca295",
+     "commit": "f2955cd5f3600f57e9a78a9f4f1e6286b8b966d0",
+     "path": "docs/f2g_window2_execution/mag_capsules/receipts/mag_frn_probe.envelope.json"
+    },
+    {
+     "blob_sha256": "0eace370136741958f622ab88cc3fa2f0a2131375cd4109c2b277435924663bc",
+     "commit": "f2955cd5f3600f57e9a78a9f4f1e6286b8b966d0",
+     "path": "docs/f2g_window2_execution/mag_capsules/receipts/mag_tuc_probe.json"
+    },
+    {
+     "blob_sha256": "d1d0124c6295f2dcf5a89050cc209e1cff7b3bf3d2846eb7bf74482f0b50ac63",
+     "commit": "f2955cd5f3600f57e9a78a9f4f1e6286b8b966d0",
+     "path": "docs/f2g_window2_execution/mag_capsules/receipts/mag_tuc_probe.envelope.json"
+    }
+   ],
+   "status": "BOUND"
   },
   "power_harness": {
    "note": "sec-6 power machinery (certification path constructs its own config; bound-geometry gate; codex items 1+2 repaired)",
@@ -136,7 +198,7 @@
    "status": "BOUND"
   },
   "producer_code": {
-   "note": "accrual producers (seismic + MAG raw byte acquisition; s4t-lane build next per 0916Z)",
+   "note": "w2_producer REV 2 (575f275) is ONE pin of this slot; stays OPEN per codex 1721Z item 1 until the acquisition surface lands or the staged-envelope trust boundary is registered by schema amendment",
    "owner": "grassmann",
    "pins": [],
    "status": "OPEN"

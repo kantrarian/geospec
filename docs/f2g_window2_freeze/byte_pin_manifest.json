@@ -1,6 +1,6 @@
 {
- "design_target_commit": "bc6805321cd028712c498d0f858d5abbb22b99e0",
- "generated_utc": "2026-08-22T01:15:32Z",
+ "design_target_commit": "12161f6cf2000b2d4aa86fe659f834839ac0d27b",
+ "generated_utc": "2026-08-22T01:33:19Z",
  "manifest_class": "DESIGN manifest (codex freeze-review fix 2): pins the registered design/contract bytes. A closed execution-manifest-v1 (generator/verifier, selection + adapter + accrual implementations, typed MAG capsules, calibration ledgers, bars, producer code) plus an executable verifier that reopens every pin, checks repository identity + the execution allowlist, and refuses missing/mismatched/dirty/unlisted inputs are REQUIRED PRESTART deliverables. Until that verifier exists, a listed-pin integrity walk is not a fire-verifier PASS.",
  "pin_count": 27,
  "pins": {
@@ -125,10 +125,10 @@
    "path": "docs/f2g_window2_freeze/receipts/mag_new_probe.envelope.json"
   },
   "mag_vic_capsule": {
-   "blob_sha256": "275b64e38495c904730ac8f2a87896b3fbce36df8b6ce68e00c5b3ee119edc13",
-   "commit": "bc6805321cd028712c498d0f858d5abbb22b99e0",
+   "blob_sha256": "54564d5d97cadba5070dd169a06ba313583dd23322deaee0fa14c8fe67bf2e9e",
+   "commit": "12161f6cf2000b2d4aa86fe659f834839ac0d27b",
    "imported_section": "whole-file",
-   "imported_section_sha256": "275b64e38495c904730ac8f2a87896b3fbce36df8b6ce68e00c5b3ee119edc13",
+   "imported_section_sha256": "54564d5d97cadba5070dd169a06ba313583dd23322deaee0fa14c8fe67bf2e9e",
    "object_id": "json-object",
    "path": "docs/f2g_window2_freeze/mag_capsule_vic.json"
   },

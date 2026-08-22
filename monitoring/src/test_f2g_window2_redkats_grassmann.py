@@ -690,11 +690,107 @@ def w_barrier():
               f"{type(exc).__name__}: {exc}")
 
 
+# ---- W-B1B: annex KATs wired vs w2_b1b -------------------------------------
+def w_b1b():
+    try:
+        import w2_b1b as WB1
+        import numpy as _np
+        days40 = [f"2026-{7 + i // 28:02d}-{1 + i % 28:02d}"
+                  for i in range(40)]
+        GEO = dict(n_blocks=4, block_len=10, baseline_positions=20,
+                   testable_min=10)
+
+        def carrier(rng, sts, spike_edge=None, spike_pos=(),
+                    spike_val=100.0, sparse=None, gain=None,
+                    gain_from=None):
+            r = {}
+            for i, a in enumerate(sts):
+                for b in sts[i + 1:]:
+                    e = f"{a}|{b}"
+                    ser = {}
+                    for j, d in enumerate(days40):
+                        v = float(rng.normal(0.0, 1.0))
+                        if spike_edge == e and j in spike_pos:
+                            v = spike_val
+                        if gain and gain in (a, b) and j >= gain_from:
+                            v *= 10.0            # single-station gain step
+                        if sparse in (a, b) and j >= 5:
+                            continue             # under-support endpoint
+                        ser[d] = v
+                    r[e] = ser
+            return {"registry": list(sts), "registered_days": list(days40),
+                    "r": r}
+
+        def fam(car, nd=199, **kw):
+            return WB1.w2_b1b_family(
+                {"calendar": days40, "carriers": {"x": car}},
+                doc_sha256="ef" * 32, n_draws=nd, **GEO, **kw)
+
+        sts = [f"N{i}" for i in range(5)]
+        # (1) the exact annex unit fixture + endpoint-order invariance
+        ok1 = abs(WB1.edge_scale(8.0, 2.0, 3.0) - 8.0 / 3.0) < 1e-15 \
+            and WB1.edge_scale(5.5, 2.0, 3.0) == WB1.edge_scale(5.5, 3.0,
+                                                                2.0) \
+            and WB1.RENORM_MIN_SUPPORT == 20 and WB1.WINSOR_C == 8.0
+        # (2) determinism + four-path routing identity: identical calls
+        # bit-identical; loco fold routes the SAME function/panel
+        r2a = fam(carrier(_np.random.default_rng(21), sts),
+                  return_null=True)
+        r2b = fam(carrier(_np.random.default_rng(21), sts),
+                  return_null=True)
+        ok2 = r2a == r2b and fam(carrier(_np.random.default_rng(21), sts),
+                                 fold="loco:N0")["T_obs"] == r2a["T_obs"]
+        # (3) ZERO_SCALE_REFUSAL never-shrink: ONE under-support endpoint
+        # types the WHOLE carrier/family; p None; no partial answer
+        r3 = fam(carrier(_np.random.default_rng(22), sts, sparse="N4"))
+        ok3 = "ZERO_SCALE_REFUSAL" in str(r3.get("verdict")) \
+            and r3.get("p_value") is None and r3.get("T_obs") is None
+        # (4) winsorization binds BEFORE window means: an eval spike of
+        # raw magnitude ~100 caps at 8 -> T_obs <= 8 exactly, yet far
+        # above the noise-only T
+        spike_e = f"{sts[0]}|{sts[1]}"
+        r4 = fam(carrier(_np.random.default_rng(23), sts,
+                         spike_edge=spike_e,
+                         spike_pos=(25, 26, 27, 28, 29, 30, 31)),
+                 nd=99)
+        r4n = fam(carrier(_np.random.default_rng(23), sts), nd=9)
+        ok4 = r4["T_obs"] is not None and r4["T_obs"] <= 8.0 + 1e-12 \
+            and r4["T_obs"] > 6.0 > (r4n["T_obs"] or 0)
+        # (5) gain-step artifact (the KOZT class): x10 from an eval onset
+        # on ONE station's incident edges -- capped ceiling + block
+        # relocation keep it from producing a small p
+        r5 = fam(carrier(_np.random.default_rng(24), sts, gain="N2",
+                         gain_from=25), nd=199)
+        ok5 = r5["p_value"] is not None and r5["p_value"] > 0.05
+        # (6) geometry refusals (typed; PRESTART-fixed geometry contract)
+        try:
+            WB1.w2_b1b_family({"calendar": days40, "carriers": {}},
+                              doc_sha256="ef" * 32, n_draws=9)
+            ok6a = False
+        except Exception as exc:
+            ok6a = "GEOMETRY_ABSENT" in str(exc)
+        try:
+            WB1.w2_b1b_family({"calendar": days40, "carriers": {"x": {}}},
+                              doc_sha256="ef" * 32, n_draws=9, n_blocks=4,
+                              block_len=10, baseline_positions=25)
+            ok6b = False
+        except Exception as exc:
+            ok6b = "GEOMETRY_NOT_BLOCK_ALIGNED" in str(exc)
+        check("B1B annex KATs (edge_scale 8/3 + invariance, determinism + "
+              "four-path routing, ZERO_SCALE never-shrink, winsor cap, "
+              "gain-step artifact, geometry refusals)",
+              ok1 and ok2 and ok3 and ok4 and ok5 and ok6a and ok6b,
+              f"unit={ok1} det={ok2} zeroscale={ok3} winsor={ok4} "
+              f"(T={r4.get('T_obs')}) gain={ok5} (p={r5.get('p_value')}) "
+              f"geo={ok6a}/{ok6b}")
+    except ImportError:
+        check("B1B annex KATs", False, "W2_ENGINE_ABSENT")
+    except Exception as exc:
+        check("B1B annex KATs", False, f"{type(exc).__name__}: {exc}")
+
+
 # ---- engine-gated classes: typed red until cayley's surfaces land ----------
 _GATED = (
-    "B1B annex KATs (endpoint invariance, 8/(max(2,3)) fixture x4 paths, "
-    "ZERO_SCALE_REFUSAL never-shrink, winsor 4-leg identity, gain-step "
-    "specificity, health admission)",
     "MF4 annex KATs (label maturity byte-lock, zero-class/no-drop, "
     "immutable rows, persistence baseline, block constants)",
     "MAG annex KATs (apply-never-refit, VIC XYZS/S-exclusion + 4 frame "
@@ -710,6 +806,7 @@ def main():
     w_cas_b()
     w_b2b()
     w_barrier()
+    w_b1b()
     for nm in _GATED:
         check(nm, False, "W2_ENGINE_ABSENT (expected red; fixture spec "
                          "frozen in the bar header)")

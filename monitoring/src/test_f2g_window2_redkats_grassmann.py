@@ -907,11 +907,124 @@ def w_mf4():
         check("MF4 annex KATs", False, f"{type(exc).__name__}: {exc}")
 
 
-# ---- engine-gated classes: typed red until cayley's surfaces land ----------
-_GATED = (
-    "MAG annex KATs (apply-never-refit, VIC XYZS/S-exclusion + 4 frame "
-    "refusals, SOS byte equality, MAG-UNTESTABLE, 3-primary Holm)",
-)
+# ---- W-MAG: instantiation KATs wired vs w2_mag1 ----------------------------
+def w_mag():
+    try:
+        import w2_mag1 as WMG
+        import numpy as _np
+        ok_const = (WMG.PADLEN == 27 and WMG.CAUSAL_SPAN == 266
+                    and WMG.EDGE_EXCLUSION == 532 and WMG.DAY_FLOOR == 1296
+                    and WMG.SPAN_THRESHOLD == 1e-12)
+        # (1) SOS byte authority from git objects; disclosed scipy path
+        sos, rec = WMG.load_sos(repo=_REPO)
+        ok_sos = sos.shape == (4, 6) and rec["serialized_sha256"] == \
+            WMG.SOS_SERIALIZED_SHA and rec["scipy_local"] is not None \
+            and (rec["regenerated"] is (rec["scipy_local"]
+                                        == WMG.PINNED_SCIPY))
+        # (2) filter chain: segments split on NaN, never interpolate;
+        # edge exclusion exact; short segment -> excluded wholesale
+        ok_seg = (WMG.segment_usable_n(1064) == 0
+                  and WMG.segment_usable_n(1065) == 1)
+        v = _np.sin(_np.arange(4320) / 40.0)
+        v[4200:] = _np.nan
+        f = WMG.band_b_series(v, sos)
+        fin_idx = _np.where(_np.isfinite(f))[0]
+        ok_edge = fin_idx.size > 0 and fin_idx[0] == 532 \
+            and fin_idx[-1] == 4200 - 532 - 1
+        short = _np.ones(1000)
+        ok_short = not _np.any(_np.isfinite(WMG.band_b_series(short, sos)))
+        de = WMG.daily_energy(f, {"d0": (0, 1440), "d1": (1440, 2880),
+                                  "d2": (2880, 4320)})
+        ok_floor = (de["d0"]["typing"] == "DAY_BELOW_FLOOR"
+                    and de["d1"]["typing"] is None
+                    and de["d1"]["surviving"] == 1440
+                    and de["d2"]["typing"] == "DAY_BELOW_FLOOR")
+        # (3) real capsules load with sha-verified bodies; frame doctors
+        cap_v, body_v = WMG.load_capsule("vic", repo=_REPO)
+        cap_n, body_n = WMG.load_capsule("new", repo=_REPO)
+        ok_caps = cap_v.get("sensor_orientation") == "XYZS" \
+            and "probe_body_sha256" in cap_n
+
+        def refuses(fn, code):
+            try:
+                fn()
+                return False
+            except Exception as exc:
+                return code in str(exc)
+
+        arrs = {"X": [1.0, 2.0], "Y": [3.0, 4.0], "Z": [5.0, 6.0],
+                "S": [7.0, 8.0]}
+        cmap = {"geographic_X_north": "X", "geographic_Y_east": "Y",
+                "geographic_Z_down": "Z"}
+        syn = {"sensor_orientation": "XYZS", "component_map": dict(cmap)}
+        x, y, z = WMG.convert_frame(syn, arrs, "XYZS")
+        ok_conv = list(x) == [1.0, 2.0] and list(y) == [3.0, 4.0]
+        # map-less REPORTED path (the NEW defect-fix class)
+        xr, yr, zr = WMG.convert_frame(
+            {"reported_orientation": "XYZF"}, arrs, "XYZF")
+        ok_conv = ok_conv and list(xr) == [1.0, 2.0]
+        # IZN angular path: the pinned hand fixture (H=100, D=30deg)
+        xa, ya, za = WMG.convert_frame(
+            {"sensor_orientation": "HDZS",
+             "component_map": {"present": True},
+             "declination_units": "degrees"},
+            {"H": [100.0], "D": [30.0], "Z": [7.0]}, "HDZS")
+        ok_ang = abs(xa[0] - 86.60254037844388) < 1e-9 \
+            and abs(ya[0] - 50.0) < 1e-9
+        ok_d1 = refuses(lambda: WMG.convert_frame(
+            dict(syn, sensor_orientation="XYZQ"), arrs, "XYZQ"),
+            "FRAME_NOT_CLOSED")
+        ok_d2 = refuses(lambda: WMG.convert_frame(
+            {"sensor_orientation": "XYZS", "component_map":
+             dict(cmap, geographic_X_north="S")}, arrs, "XYZS"),
+            "EXCLUDED_CHANNEL_IN_HORIZONTAL")
+        ok_d3 = refuses(lambda: WMG.convert_frame(
+            syn, {k: v_ for k, v_ in arrs.items() if k != "Y"}, "XYZS"),
+            "FRAME_NOT_CLOSED")
+        # (4) endpoint typing incl the untestable carrier
+        ok_ep = WMG.endpoints_for("cascadia") == ("M1", "M2", "M3") \
+            and refuses(lambda: WMG.endpoints_for("turkey_kahramanmaras"),
+                        "MAG_UNTESTABLE")
+        # (5) internal 3-primary Holm, hand-derived both directions
+        h1 = WMG.holm_internal({("istanbul_marmara", "M2"): 0.010,
+                                ("socal_coachella", "M3"): 0.020,
+                                ("cascadia", "M3"): 0.040})
+        h2 = WMG.holm_internal({("istanbul_marmara", "M2"): 0.020,
+                                ("socal_coachella", "M3"): 0.020,
+                                ("cascadia", "M3"): 0.040})
+        # hand-derived: m=3, alpha .05 -> thresholds .05/3, .05/2, .05/1
+        # h1: .010<=.016667, .020<=.025, .040<=.05 -> all reject
+        # h2: smallest .020 > .016667 -> step-down stops -> none reject
+        ok_h1 = h1["alpha"] == 0.05 \
+            and h1["order"][0] == ["istanbul_marmara", "M2"] \
+            and h1["rejected"] == {"istanbul_marmara:M2": True,
+                                   "socal_coachella:M3": True,
+                                   "cascadia:M3": True}
+        ok_h2 = h2["rejected"] == {"istanbul_marmara:M2": False,
+                                   "socal_coachella:M3": False,
+                                   "cascadia:M3": False} \
+            and refuses(lambda: WMG.holm_internal(
+                {("istanbul_marmara", "M2"): 0.01}),
+                "HOLM_STRUCTURE_MISMATCH")
+        check("MAG instantiation KATs (constants, SOS authority + scipy "
+              "disclosure, filter chain + day floor, capsules + frame "
+              "doctors, MAG_UNTESTABLE, 3-primary Holm both ways)",
+              ok_const and ok_sos and ok_seg and ok_edge and ok_short
+              and ok_floor and ok_caps and ok_conv and ok_ang and ok_d1
+              and ok_d2 and ok_d3 and ok_ep and ok_h1 and ok_h2,
+              f"const={ok_const} sos={ok_sos} seg={ok_seg} edge={ok_edge} "
+              f"short={ok_short} floor={ok_floor} caps={ok_caps} "
+              f"conv={ok_conv} ang={ok_ang} "
+              f"doctors={ok_d1}/{ok_d2}/{ok_d3} ep={ok_ep} "
+              f"holm={ok_h1}/{ok_h2}")
+    except ImportError:
+        check("MAG instantiation KATs", False, "W2_ENGINE_ABSENT")
+    except Exception as exc:
+        check("MAG instantiation KATs", False,
+              f"{type(exc).__name__}: {exc}")
+
+
+_GATED = ()
 
 
 def main():
@@ -924,9 +1037,7 @@ def main():
     w_barrier()
     w_b1b()
     w_mf4()
-    for nm in _GATED:
-        check(nm, False, "W2_ENGINE_ABSENT (expected red; fixture spec "
-                         "frozen in the bar header)")
+    w_mag()
 
 
 main()

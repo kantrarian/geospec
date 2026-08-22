@@ -452,11 +452,100 @@ def w_cas_b():
               f"{type(exc).__name__}: {exc}")
 
 
+# ---- W-B2B: annex KATs wired vs w2_b2b (pins ratified in REV 2) ------------
+def _b2b_day(ca, cb, strong=5.0, weak=0.1):
+    """In-bar edge builder (independent of the engine's selftest helper):
+    strong intra-cluster / weak inter-cluster -> deterministic Fiedler
+    bipartition {ca, cb}."""
+    ew = {}
+    nodes = list(ca) + list(cb)
+    for i, x in enumerate(nodes):
+        for y in nodes[i + 1:]:
+            ew["|".join(sorted((x, y)))] = strong if (x in ca) == (y in ca) \
+                else weak
+    return ew
+
+
+def _b2b_carrier(days, day_edges, measured, registry):
+    r = {}
+    for d, ew, m in zip(days, day_edges, measured):
+        ms = set(m)
+        for e, w in ew.items():
+            a, b = e.split("|")
+            if a in ms and b in ms:      # finite edges only on measured
+                r.setdefault(e, {})[d] = w   # endpoints (ratified pin 3)
+    return {"registry": list(registry), "registered_days": list(days),
+            "measured": {d: sorted(m) for d, m in zip(days, measured)},
+            "r": r}
+
+
+def w_b2b():
+    try:
+        import w2_b2b as WB
+        days = [f"2026-09-{i:02d}" for i in range(1, 7)]
+        A = [f"A{i}" for i in range(5)]
+        B = [f"B{i}" for i in range(5)]
+        reg = A + B                               # floor ceil(20/3) = 7
+
+        def fam(car, nd=199):
+            return WB.w2_b2b_family({"calendar": days,
+                                     "carriers": {"x": car}},
+                                    doc_sha256="cd" * 32, n_draws=nd)
+
+        ok_floorfn = WB.overlap_floor(10) == 7 and WB.overlap_floor(9) == 6
+        # (1) variable-support planted: alternate days drop 3 stations ->
+        # I_d exactly 7 == floor -> comparisons proceed, ONE run survives
+        m_alt = [reg if i % 2 == 0 else reg[:7] for i in range(6)]
+        r1 = fam(_b2b_carrier(days, [_b2b_day(A, B)] * 6, m_alt, reg))
+        ok1 = r1["runs_by_carrier"]["x"] == 1 and not r1.get("day_refusals")
+        # (2) adversarial alternating dropout: overlaps below floor on
+        # every pair -> runs == candidates, every pair typed (ratified pin)
+        m_adv = [reg[:7] if i % 2 == 0 else reg[3:] for i in range(6)]
+        r2 = fam(_b2b_carrier(days, [_b2b_day(A, B)] * 6, m_adv, reg))
+        n_typed2 = sum(1 for x in r2.get("day_refusals", [])
+                       if "INTERSECTION_BELOW_FLOOR" in str(x))
+        ok2 = r2["runs_by_carrier"]["x"] == 6 and n_typed2 == 5
+        # (3) floor boundary at registry 9 (floor 6): shared 6 passes
+        # (1 run over two days); shared 5 refuses typed (2 runs)
+        reg9 = A + B[:4]                          # floor 6
+        d2 = days[:2]
+        shared6 = A[:3] + B[:3]                   # 3/3, both sides >= 2
+        r3a = fam(_b2b_carrier(d2, [_b2b_day(A, B[:4])] * 2,
+                               [reg9, shared6], reg9))
+        shared5 = A[:3] + B[:2]                   # shared 5 < floor 6
+        r3b = fam(_b2b_carrier(d2, [_b2b_day(A, B[:4])] * 2,
+                               [reg9, shared5], reg9))
+        ok3 = (r3a["runs_by_carrier"]["x"] == 1
+               and not r3a.get("day_refusals")
+               and r3b["runs_by_carrier"]["x"] == 2
+               and any("INTERSECTION_BELOW_FLOOR" in str(x)
+                       for x in r3b.get("day_refusals", [])))
+        # (4) label-permutation invariance: swapped cluster arguments ->
+        # identical unordered bipartition -> ONE run
+        r4 = fam(_b2b_carrier(days, [_b2b_day(A, B)] * 3
+                              + [_b2b_day(B, A)] * 3, [reg] * 6, reg))
+        ok4 = r4["runs_by_carrier"]["x"] == 1
+        # (5) segment minimum: a 9/1 partition on the induced set ->
+        # PARTITION_DEGENERATE_SIDE typed
+        lone = ["L0"]
+        r5 = fam(_b2b_carrier(d2, [_b2b_day(reg[:9], lone)] * 2,
+                              [reg[:9] + lone] * 2, reg[:9] + lone))
+        ok5 = any("PARTITION_DEGENERATE_SIDE" in str(x)
+                  for x in r5.get("day_refusals", []))
+        check("B2B annex KATs (planted survival, adversarial dropout, "
+              "floor boundary, label invariance, degenerate side)",
+              ok_floorfn and ok1 and ok2 and ok3 and ok4 and ok5,
+              f"floorfn={ok_floorfn} planted={ok1} adv={ok2} "
+              f"(r={r2['runs_by_carrier']['x']},typed={n_typed2}) "
+              f"boundary={ok3} label={ok4} degen={ok5}")
+    except ImportError:
+        check("B2B annex KATs", False, "W2_ENGINE_ABSENT")
+    except Exception as exc:
+        check("B2B annex KATs", False, f"{type(exc).__name__}: {exc}")
+
+
 # ---- engine-gated classes: typed red until cayley's surfaces land ----------
 _GATED = (
-    "B2B annex KATs (planted churn survival, adversarial dropout, "
-    "floor boundary, label invariance, segment minimum) [engine landed "
-    "7b4d097; fixtures wire in the next REV with the three ratified pins]",
     "B1B annex KATs (endpoint invariance, 8/(max(2,3)) fixture x4 paths, "
     "ZERO_SCALE_REFUSAL never-shrink, winsor 4-leg identity, gain-step "
     "specificity, health admission)",
@@ -476,6 +565,7 @@ def main():
     w_sel_a()
     w_sel_b()
     w_cas_b()
+    w_b2b()
     for nm in _GATED:
         check(nm, False, "W2_ENGINE_ABSENT (expected red; fixture spec "
                          "frozen in the bar header)")

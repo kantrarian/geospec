@@ -54,6 +54,62 @@ class CalibrationRunnerError(ValueError):
     """Typed refusal; the code leads the message."""
 
 
+CAL_EPOCH_DAY = "2026-01-01"
+RECEIPT_FIELDS_MF4 = {"schema", "lane", "cutoff", "input_feed_sha256",
+                      "input_feed_path", "producer_identity",
+                      "runner_source_sha256_normalized", "ledger_path",
+                      "ledger_sha256", "training_digest", "n_rows"}
+RECEIPT_FIELDS_MAG = {"schema", "lane", "cutoff", "input_feed_sha256",
+                      "input_feed_path", "producer_identity",
+                      "runner_source_sha256_normalized", "results"}
+
+
+def _validate_mag_times(obs, times, cutoff):
+    """codex 1358Z item 3: unique, strictly increasing,
+    minute-resolution stamps inside [CAL_EPOCH, cutoff]."""
+    from datetime import datetime
+    prev = None
+    for t in times:
+        try:
+            dt = datetime.fromisoformat(str(t).replace("Z", ""))
+        except ValueError:
+            raise CalibrationRunnerError(
+                f"CALIBRATION_TIME_INDEX_INVALID: {obs} unparseable "
+                f"{t!r}")
+        day = dt.date().isoformat()
+        if day < CAL_EPOCH_DAY or day > str(cutoff):
+            raise CalibrationRunnerError(
+                f"CALIBRATION_AFTER_CUTOFF: {obs} {t} outside "
+                f"[{CAL_EPOCH_DAY}, {cutoff}]")
+        if prev is not None and dt <= prev:
+            raise CalibrationRunnerError(
+                f"CALIBRATION_TIME_INDEX_INVALID: {obs} not strictly "
+                f"increasing at {t}")
+        prev = dt
+
+
+def _validate_mf4_temporal(feed, cutoff):
+    """codex 1358Z item 3 (MF4 side): the registered cutoff/maturity
+    relations bind the feed -- risk rows <= cutoff, catalog events <=
+    snapshot_end, snapshot_end <= freeze_day."""
+    for region, series in feed["risk_by_region"].items():
+        for d in series:
+            if str(d) > str(cutoff):
+                raise CalibrationRunnerError(
+                    f"CALIBRATION_AFTER_CUTOFF: {region} risk row {d} "
+                    f"> cutoff {cutoff}")
+    for ev in feed["catalog_snapshot"]:
+        if str(ev["day"]) > str(feed["snapshot_end"]):
+            raise CalibrationRunnerError(
+                f"CALIBRATION_TIME_INDEX_INVALID: catalog event "
+                f"{ev['day']} beyond snapshot_end "
+                f"{feed['snapshot_end']}")
+    if str(feed["snapshot_end"]) > str(feed["freeze_day"]):
+        raise CalibrationRunnerError(
+            "CALIBRATION_TIME_INDEX_INVALID: snapshot_end after "
+            "freeze_day")
+
+
 def _canon_digest(obj):
     return hashlib.sha256(json.dumps(
         obj, sort_keys=True, separators=(",", ":"),
@@ -81,7 +137,11 @@ def run_mf4_calibration(repo, feed, cutoff, producer_identity):
               "freeze_day", "bboxes", "regions"):
         if k not in feed:
             raise CalibrationRunnerError(f"MF4_FEED_INCOMPLETE: {k}")
+    _validate_mf4_temporal(feed, cutoff)
     feed_digest = _canon_digest(feed)
+    # persist the canonical input carrier (codex item 4: receipts must
+    # be independently reopenable -- the feed bytes ARE the carrier)
+    feed_path = _write(repo, f"{OUT_DIR}/mf4_input_feed.json", feed)
     ledger = MF4.calibrate(feed["risk_by_region"],
                            feed["catalog_snapshot"], feed["bboxes"],
                            feed["regions"], feed["freeze_day"],
@@ -90,6 +150,7 @@ def run_mf4_calibration(repo, feed, cutoff, producer_identity):
     receipt = {"schema": "f2g-w2-calibration-receipt-v1",
                "lane": "MF4", "cutoff": str(cutoff),
                "input_feed_sha256": feed_digest,
+               "input_feed_path": feed_path,
                "producer_identity": dict(producer_identity),
                "runner_source_sha256_normalized": _self_sha(),
                "ledger_path": led_path,
@@ -115,6 +176,14 @@ def run_mag_calibration(repo, feeds, cutoff, producer_identity):
             if k not in feed:
                 raise CalibrationRunnerError(
                     f"MAG_FEED_INCOMPLETE: {obs}:{k}")
+        _validate_mag_times(obs, feed["times"], cutoff)
+        n_t = len(feed["times"])
+        for cname, series in list(feed["components"].items()) + \
+                list(feed["weather"].items()):
+            if len(series) != n_t:
+                raise CalibrationRunnerError(
+                    f"CALIBRATION_TIME_INDEX_INVALID: {obs} series "
+                    f"{cname!r} length {len(series)} != times {n_t}")
         feed_digest = _canon_digest(
             {k: v for k, v in feed.items() if k != "m3_reference"})
         obs_rec = {"input_feed_sha256": feed_digest, "components": {}}
@@ -138,7 +207,9 @@ def run_mag_calibration(repo, feeds, cutoff, producer_identity):
                 led, feed["times"], feed["components"][comp],
                 feed["weather"])
         out["observatories"][obs] = obs_rec
-    # M3 references: local residual ~ reference residual + weather
+    # M3 references: local residual ~ reference residual + weather.
+    # codex item 3: BYTE-EQUAL time indices required between local and
+    # reference -- positional pairing of shifted clocks refuses.
     for obs in sorted(feeds):
         ref = feeds[obs].get("m3_reference")
         if not ref:
@@ -146,6 +217,11 @@ def run_mag_calibration(repo, feeds, cutoff, producer_identity):
         if ref not in residuals:
             raise CalibrationRunnerError(
                 f"MAG_M3_REFERENCE_ABSENT: {obs} -> {ref}")
+        if list(map(str, feeds[obs]["times"])) != \
+                list(map(str, feeds[ref]["times"])):
+            raise CalibrationRunnerError(
+                f"M3_TIME_INDEX_MISMATCH: {obs} vs {ref} time indices "
+                "are not byte-equal")
         for comp in ("X", "Y"):
             led = MAG.fit_m3_reference(
                 residuals[obs][comp], residuals[ref][comp],
@@ -159,8 +235,15 @@ def run_mag_calibration(repo, feeds, cutoff, producer_identity):
             out["m3"][f"{obs}:{ref}:{comp}"] = {
                 "ledger_path": rel,
                 "ledger_sha256": _canon_digest(led)}
+    # persist the canonical input carrier (codex item 4)
+    feed_carrier = {obs: {k: v for k, v in feeds[obs].items()}
+                    for obs in sorted(feeds)}
+    feed_path = _write(repo, f"{OUT_DIR}/mag_input_feeds.json",
+                       feed_carrier)
     receipt = {"schema": "f2g-w2-calibration-receipt-v1",
                "lane": "MAG", "cutoff": str(cutoff),
+               "input_feed_sha256": _canon_digest(feed_carrier),
+               "input_feed_path": feed_path,
                "producer_identity": dict(producer_identity),
                "runner_source_sha256_normalized": _self_sha(),
                "results": out}
@@ -169,35 +252,66 @@ def run_mag_calibration(repo, feeds, cutoff, producer_identity):
     return {"receipt": rec_path, "results": out}
 
 
-def verify_receipt(repo, receipt_rel):
-    """Recompute every output ledger digest from the written artifacts;
-    refuse typed on divergence."""
+def verify_receipt(repo, receipt_rel, *, expected_cutoff=None,
+                   expected_producer=None, expected_runner_sha=None):
+    """codex 1358Z item 4: verification covers PROVENANCE, not just
+    output content. Closes the receipt schema, recomputes the INPUT
+    feed digest from the persisted carrier, recomputes every output
+    ledger digest, and -- when expectations are supplied -- compares
+    cutoff, producer identity, and the executed-runner sha against
+    them. Any divergence refuses CALIBRATION_RECEIPT_MISMATCH."""
     with open(os.path.join(repo, receipt_rel.replace("/", os.sep)),
               encoding="utf-8") as f:
         rec = json.load(f)
 
-    def check(path_rel, want):
+    def refuse(detail):
+        raise CalibrationRunnerError(
+            f"CALIBRATION_RECEIPT_MISMATCH: {detail}")
+
+    want_fields = (RECEIPT_FIELDS_MF4 if rec.get("lane") == "MF4"
+                   else RECEIPT_FIELDS_MAG)
+    if set(rec) != want_fields:
+        refuse(f"receipt schema not closed: {sorted(set(rec) ^ want_fields)}")
+    if rec["schema"] != "f2g-w2-calibration-receipt-v1":
+        refuse(f"schema id {rec['schema']!r}")
+    if expected_cutoff is not None and rec["cutoff"] != \
+            str(expected_cutoff):
+        refuse(f"cutoff {rec['cutoff']} != expected {expected_cutoff}")
+    if expected_producer is not None and rec["producer_identity"] != \
+            dict(expected_producer):
+        refuse("producer identity diverges from the pinned identity")
+    if expected_runner_sha is not None and \
+            rec["runner_source_sha256_normalized"] != \
+            expected_runner_sha:
+        refuse("runner sha diverges from the manifest pin")
+    # the receipt's OWN runner claim must match the executing bytes
+    if rec["runner_source_sha256_normalized"] != _self_sha() and \
+            expected_runner_sha is None:
+        refuse("runner sha claim does not match the executing runner")
+
+    def check(path_rel, want, what):
         with open(os.path.join(repo, path_rel.replace("/", os.sep)),
                   encoding="utf-8") as f:
             got = _canon_digest(json.load(f))
         if got != want:
-            raise CalibrationRunnerError(
-                f"CALIBRATION_RECEIPT_MISMATCH: {path_rel} "
-                f"{got[:12]} != {want[:12]}")
+            refuse(f"{what} {path_rel} {got[:12]} != {want[:12]}")
 
+    # input carrier recomputation (independently reopenable)
+    check(rec["input_feed_path"], rec["input_feed_sha256"], "input")
     n = 0
     if rec["lane"] == "MF4":
-        check(rec["ledger_path"], rec["ledger_sha256"])
+        check(rec["ledger_path"], rec["ledger_sha256"], "output")
         n = 1
     else:
         for obs in rec["results"]["observatories"].values():
             for c in obs["components"].values():
-                check(c["ledger_path"], c["ledger_sha256"])
+                check(c["ledger_path"], c["ledger_sha256"], "output")
                 n += 1
         for m3 in rec["results"]["m3"].values():
-            check(m3["ledger_path"], m3["ledger_sha256"])
+            check(m3["ledger_path"], m3["ledger_sha256"], "output")
             n += 1
-    return {"verified_ledgers": n, "lane": rec["lane"]}
+    return {"verified_ledgers": n, "lane": rec["lane"],
+            "provenance_checked": True}
 
 
 # ---------------------------------------------------------------- selftest
@@ -225,7 +339,16 @@ def _selftest():
             "regions": ["ra", "rb"]}
     res = run_mf4_calibration(repo, feed, "2026-02-09", producer)
     v = verify_receipt(repo, res["receipt"])
-    assert v == {"verified_ledgers": 1, "lane": "MF4"}
+    assert v == {"verified_ledgers": 1, "lane": "MF4",
+                 "provenance_checked": True}
+    # codex item 3 (MF4): a post-cutoff risk row refuses typed
+    bad_feed = json.loads(json.dumps(feed))
+    bad_feed["risk_by_region"]["ra"]["2026-02-10"] = 0.5
+    try:
+        run_mf4_calibration(repo, bad_feed, "2026-02-09", producer)
+        raise AssertionError("post-cutoff risk must refuse")
+    except CalibrationRunnerError as e:
+        assert "CALIBRATION_AFTER_CUTOFF" in str(e)
     # determinism: rerun -> identical ledger digest
     res2 = run_mf4_calibration(repo, feed, "2026-02-09", producer)
     assert res2["ledger_sha256"] == res["ledger_sha256"]
@@ -263,7 +386,9 @@ def _selftest():
     feeds = {"FRN": obs_feed("FRN", "TUC"),
              "TUC": obs_feed("TUC", None)}
     res = run_mag_calibration(repo, feeds, "2026-08-24", producer)
-    v = verify_receipt(repo, res["receipt"])
+    v = verify_receipt(repo, res["receipt"],
+                       expected_cutoff="2026-08-24",
+                       expected_producer=producer)
     assert v["verified_ledgers"] == 6      # 2 obs x2 comps + 2 M3
     assert "FRN:TUC:X" in res["results"]["m3"]
     try:
@@ -273,6 +398,101 @@ def _selftest():
         raise AssertionError("absent M3 reference must refuse")
     except CalibrationRunnerError as e:
         assert "MAG_M3_REFERENCE_ABSENT" in str(e)
+
+    # codex item 3 doctors (the exact KAT list)
+    def expect_refuse(feeds_d, cutoff, code, label):
+        try:
+            run_mag_calibration(repo, feeds_d, cutoff, producer)
+            raise AssertionError(f"{label} must refuse")
+        except CalibrationRunnerError as e:
+            assert code in str(e), (label, str(e))
+    # one-minute-after-cutoff (times run into 01-03; cutoff 01-02)
+    expect_refuse({"TUC": obs_feed("TUC", None)}, "2026-01-02",
+                  "CALIBRATION_AFTER_CUTOFF", "after-cutoff")
+    # duplicate timestamp
+    f_dup = {"TUC": obs_feed("TUC", None)}
+    f_dup["TUC"]["times"] = list(times)
+    f_dup["TUC"]["times"][100] = f_dup["TUC"]["times"][99]
+    expect_refuse(f_dup, "2026-08-24",
+                  "CALIBRATION_TIME_INDEX_INVALID", "duplicate")
+    # reordered timestamps
+    f_re = {"TUC": obs_feed("TUC", None)}
+    f_re["TUC"]["times"] = list(times)
+    f_re["TUC"]["times"][10], f_re["TUC"]["times"][11] = \
+        f_re["TUC"]["times"][11], f_re["TUC"]["times"][10]
+    expect_refuse(f_re, "2026-08-24",
+                  "CALIBRATION_TIME_INDEX_INVALID", "reordered")
+    # shifted-equal-length M3 clocks (codex's exact repro class)
+    f_sh = {"FRN": obs_feed("FRN", "TUC"),
+            "TUC": obs_feed("TUC", None)}
+    f_sh["FRN"]["times"] = [
+        (datetime(2026, 1, 2) + timedelta(minutes=i)).isoformat()
+        for i in range(n)]
+    expect_refuse(f_sh, "2026-08-24", "M3_TIME_INDEX_MISMATCH",
+                  "shifted-clocks")
+    # missing-row (one dropped mid-index; series consistently trimmed
+    # so the per-obs alignment guard passes and the M3 equality check
+    # is what refuses)
+    f_mr = {"FRN": obs_feed("FRN", "TUC"),
+            "TUC": obs_feed("TUC", None)}
+    f_mr["FRN"]["times"] = times[:1500] + times[1501:]
+    f_mr["FRN"]["components"] = {
+        "X": f_mr["FRN"]["components"]["X"][:2999],
+        "Y": f_mr["FRN"]["components"]["Y"][:2999]}
+    f_mr["FRN"]["weather"] = {"symh": weather["symh"][:2999]}
+    expect_refuse(f_mr, "2026-08-24", "M3_TIME_INDEX_MISMATCH",
+                  "missing-row")
+    # misaligned series/times (the new alignment guard)
+    f_al = {"TUC": obs_feed("TUC", None)}
+    f_al["TUC"]["components"] = dict(
+        f_al["TUC"]["components"],
+        X=f_al["TUC"]["components"]["X"][:2999])
+    expect_refuse(f_al, "2026-08-24",
+                  "CALIBRATION_TIME_INDEX_INVALID", "misaligned")
+
+    # codex item 4 doctors: provenance fields + input carrier + schema
+    rec_path = os.path.join(repo, res["receipt"].replace("/", os.sep))
+    orig = open(rec_path, encoding="utf-8").read()
+
+    def doctor(mut, label, **expect):
+        rec = json.loads(orig)
+        mut(rec)
+        json.dump(rec, open(rec_path, "w"))
+        try:
+            verify_receipt(repo, res["receipt"],
+                           expected_cutoff="2026-08-24",
+                           expected_producer=producer, **expect)
+            raise AssertionError(f"{label} must refuse")
+        except CalibrationRunnerError as e:
+            assert "CALIBRATION_RECEIPT_MISMATCH" in str(e), \
+                (label, str(e))
+        finally:
+            open(rec_path, "w").write(orig)
+    doctor(lambda r: r.__setitem__("cutoff", "2027-01-01"),
+           "doctored cutoff")
+    doctor(lambda r: r["producer_identity"].__setitem__(
+        "name", "evil"), "doctored producer")
+    doctor(lambda r: r.__setitem__(
+        "runner_source_sha256_normalized", "0" * 64),
+        "doctored runner sha")
+    doctor(lambda r: r.__setitem__("extra_field", 1),
+           "receipt schema not closed")
+    # doctored INPUT CARRIER file -> input digest recomputation catches
+    fp = os.path.join(repo, "docs/f2g_window2_execution/calibration/"
+                      "mag_input_feeds.json".replace("/", os.sep))
+    saved_feed = open(fp, encoding="utf-8").read()
+    fdoc = json.loads(saved_feed)
+    fdoc["TUC"]["lon_east"] = -119.0
+    json.dump(fdoc, open(fp, "w"))
+    try:
+        verify_receipt(repo, res["receipt"],
+                       expected_cutoff="2026-08-24",
+                       expected_producer=producer)
+        raise AssertionError("doctored input carrier must refuse")
+    except CalibrationRunnerError as e:
+        assert "CALIBRATION_RECEIPT_MISMATCH" in str(e)
+    finally:
+        open(fp, "w").write(saved_feed)
 
     print("w2_calibration_runner selftest: ALL PASS")
 

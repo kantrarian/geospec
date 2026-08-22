@@ -20,7 +20,7 @@ import time
 
 MANIFEST_PATH = "docs/f2g_window2_execution/execution_manifest.json"
 DESIGN_MANIFEST_PATH = "docs/f2g_window2_freeze/byte_pin_manifest.json"
-SCHEMA = "f2g-window2-execution-manifest-v1"
+SCHEMA = "f2g-window2-execution-manifest-v1.1"
 
 BOUND_SLOTS = {
     "execution_generator": {
@@ -60,35 +60,32 @@ BOUND_SLOTS = {
                   "monitoring/src/w2_accrual_instrument_cayley.py",
                   "monitoring/src/w2_mf4.py",
                   "monitoring/src/w2_mag1.py"]},
-    "mag_capsules": {
+    # v1.1 (codex 1358Z item 4/5): the two repaired execution tools
+    # join the runtime allowlist as explicit slots
+    "power_harness": {
         "owner": "cayley",
-        "note": "IZN/FRN/TUC typed capsules + probe bodies + envelopes "
-                "(VIC/NEW already design-pinned; W-MAG frame paths "
-                "green)",
-        "paths": ["docs/f2g_window2_freeze/mag_capsule_izn.json",
-                  "docs/f2g_window2_freeze/mag_capsule_frn.json",
-                  "docs/f2g_window2_freeze/mag_capsule_tuc.json",
-                  "docs/f2g_window2_freeze/receipts/mag_izn_probe.json",
-                  "docs/f2g_window2_freeze/receipts/"
-                  "mag_izn_probe.envelope.json",
-                  "docs/f2g_window2_freeze/receipts/mag_frn_probe.json",
-                  "docs/f2g_window2_freeze/receipts/"
-                  "mag_frn_probe.envelope.json",
-                  "docs/f2g_window2_freeze/receipts/mag_tuc_probe.json",
-                  "docs/f2g_window2_freeze/receipts/"
-                  "mag_tuc_probe.envelope.json"]},
-    "bars": {
-        "owner": "grassmann",
-        "note": "the complete window-2 bar, 11/11 green @ 8aecf96 "
-                "(grassmann's 0916Z completion declaration)",
-        "paths": ["monitoring/src/"
-                  "test_f2g_window2_redkats_grassmann.py"],
-        "families": ["W-SEL", "W-CAS", "W-B2B", "W-B1B", "W-MF4",
-                     "W-MAG", "W-BARRIER", "W-PIN"]},
+        "note": "sec-6 power machinery (certification path constructs "
+                "its own config; bound-geometry gate; codex items 1+2 "
+                "repaired)",
+        "paths": ["monitoring/src/w2_power_harness_cayley.py"]},
+    "calibration_runner": {
+        "owner": "cayley",
+        "note": "calibration-ledger production runner (temporal "
+                "boundary + M3 index equality + provenance-verifying "
+                "receipts; codex items 3+4 repaired)",
+        "paths": ["monitoring/src/w2_calibration_runner_cayley.py"]},
 }
 # NOTE: the schema doc is design-adjacent prose, deliberately NOT a slot
 
 OPEN_SLOTS = {
+    "mag_capsules": ("cayley", "RELOCATED to docs/f2g_window2_execution/"
+                               "mag_capsules per codex 0451Z/1335Z; "
+                               "re-binds with bars at the REV-9 green "
+                               "(codex 1358Z item 5)"),
+    "bars": ("grassmann", "held OPEN until the four-group REV 9 incl "
+                          "real execution-capsule KATs is green "
+                          "(codex 1335Z/1358Z disposition); families "
+                          "must equal the 8 when re-BOUND"),
     "calibration_ledgers": ("cayley", "MF4/MAG subtraction "
                                       "coefficients + diagnostics -- "
                                       "PRODUCED at the availability "

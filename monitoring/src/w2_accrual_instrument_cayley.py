@@ -81,7 +81,7 @@ def runtime_allowlist_check(repo, manifest_commit):
                       f"{manifest_commit}:{EXEC_MANIFEST_PATH}"],
                binary=True)
     manifest = json.loads(raw.decode("utf-8"))
-    if manifest.get("schema") != "f2g-window2-execution-manifest-v1":
+    if manifest.get("schema") != "f2g-window2-execution-manifest-v1.1":
         raise InstrumentRefusal("RUNTIME_ALLOWLIST_VIOLATION: "
                                 "manifest schema mismatch")
     checked = []

@@ -74,6 +74,17 @@ walk PASS — and separately codex's round over the bound bytes. A verifier PASS
 authorizes NOTHING by itself**: no fire, no prospective-value access; `Lambda_geo`
 remains `INCONCLUSIVE`.
 
+## Amendment v1.1 (2026-08-22, codex 1358Z convergence pass)
+
+Schema id becomes `f2g-window2-execution-manifest-v1.1`. The closed slot set grows to
+**12**: `power_harness` (cayley — §6 power machinery; the certification entry point
+constructs its own config and requires a verified bound-geometry capsule) and
+`calibration_runner` (cayley — temporal-boundary + M3-index + provenance-receipt
+repaired) join as explicit runtime-allowlisted slots. `mag_capsules` pins target
+`docs/f2g_window2_execution/mag_capsules[/receipts]` (the codex 0451Z relocation);
+`mag_capsules` and `bars` re-bind ATOMICALLY at the four-group REV-9 green per the
+codex 1335Z/1358Z disposition. All other rules unchanged.
+
 ## Typed refusal vocabulary
 
 `MANIFEST_COMMIT_UNRESOLVABLE`, `MANIFEST_NOT_IN_COMMIT`, `MANIFEST_UNPARSEABLE`,

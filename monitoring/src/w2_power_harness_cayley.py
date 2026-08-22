@@ -314,25 +314,25 @@ def holm_rejects(pvals, alpha=ALPHA_HOLM):
 
 
 def run_point(geom, family, point, *, seed_root, n_draws,
-              r_first=R_FIRST, r_max=R_MAX, tier=TIER_LABEL_FIXTURE):
-    """Detection-class certification record for one grid point."""
+              r_first=R_FIRST, r_max=R_MAX):
+    """FIXTURE-ONLY detection record (codex 1358Z item 1: the fixture
+    and certification entry points are SEPARATE; this path can never
+    emit certifiable records -- there is no tier knob to turn)."""
     def success(r):
         raw = make_panel(geom, family, point, r, seed_root)
         pv = replicate_pvalues(geom, panel_views(geom, raw), n_draws,
                                seed_root)
         return family in holm_rejects(pv)
     rec = certify(success, r_first=r_first, r_max=r_max)
-    rec.update(family=family, point=point, tier=tier,
-               n_draws=int(n_draws),
-               certifiable=(tier != TIER_LABEL_FIXTURE))
+    rec.update(family=family, point=point, tier=TIER_LABEL_FIXTURE,
+               n_draws=int(n_draws), certifiable=False)
     return rec
 
 
-def run_artifact_class(geom, point, *, seed_root, n_draws, R,
-                       tier=TIER_LABEL_FIXTURE):
-    """The B1B specificity gate: FAMILYWISE positive rate on the
-    gain-step class must be <= 0.05. Rate = observed proportion over R
-    (disclosed pin); counts + per-replicate outcomes recorded."""
+def run_artifact_class(geom, point, *, seed_root, n_draws, R):
+    """FIXTURE-ONLY B1B specificity record (same separation rule).
+    Rate = observed proportion over R (disclosed pin); counts +
+    per-replicate outcomes recorded."""
     positives = 0
     outcomes = []
     for r in range(int(R)):
@@ -347,9 +347,251 @@ def run_artifact_class(geom, point, *, seed_root, n_draws, R,
     return {"class": "B1B_GAIN_STEP_SPECIFICITY", "point": point,
             "R": int(R), "positives": positives, "rate": rate,
             "passes": rate <= ARTIFACT_MAX_RATE,
-            "max_rate": ARTIFACT_MAX_RATE, "tier": tier,
-            "outcomes": outcomes,
-            "certifiable": (tier != TIER_LABEL_FIXTURE)}
+            "max_rate": ARTIFACT_MAX_RATE,
+            "tier": TIER_LABEL_FIXTURE, "outcomes": outcomes,
+            "certifiable": False}
+
+
+# ===================================================================
+# CERTIFICATION PATH (codex 1358Z items 1+2). Separate entry points;
+# BOUND geometry capsules; the registered generator draw order and
+# master/substream grammar; the registered CALENDAR engine seams.
+# The window-2 bound calendar authority artifact + its seam binding
+# are PRESTART deliverables -- until they exist, certification runs
+# refuse inside the seams (CALENDAR_AUTHORITY_MISMATCH), which is the
+# honest state.
+# ===================================================================
+BOUND_GEOMETRY_SCHEMA = "f2g-w2-bound-geometry-v1"
+CERT_N_DRAWS = 9999
+CAL_POSITIONS = _pb.B1A_CAL_BLOCKS * _pb.B1A_CAL_BLOCK_LEN   # 132
+CAL_BASELINE = 72
+
+
+def _require_bound(capsule):
+    """POWER_GEOMETRY_UNBOUND unless the capsule is a well-formed
+    BOUND geometry: schema, bound flag, authority digests, 132-day
+    calendar, per-carrier masks/registries/segments."""
+    def refuse(detail):
+        raise PowerHarnessError(f"POWER_GEOMETRY_UNBOUND: {detail}")
+    if not isinstance(capsule, dict) or \
+            capsule.get("schema") != BOUND_GEOMETRY_SCHEMA:
+        refuse(f"schema={capsule.get('schema') if isinstance(capsule, dict) else type(capsule).__name__}")
+    if capsule.get("bound") is not True:
+        refuse("bound flag absent")
+    for k in ("calendar_authority_sha256", "seed_authority_sha256",
+              "shared_calendar_days", "carrier_masks", "registries",
+              "segments"):
+        if not capsule.get(k):
+            refuse(f"missing {k}")
+    if len(capsule["shared_calendar_days"]) != CAL_POSITIONS:
+        refuse(f"calendar length {len(capsule['shared_calendar_days'])}"
+               f" != {CAL_POSITIONS}")
+    if sorted(capsule["carrier_masks"]) != sorted(capsule["registries"]):
+        refuse("carrier set mismatch between masks and registries")
+    return capsule
+
+
+def rep_seed_registered(seed_authority_sha, family, r):
+    """The REGISTERED master/substream grammar, verbatim from the
+    pinned power instrument: one master PCG64 per (authority, family)
+    seeded via derive_substream_seed(auth, family, 'full', 'power');
+    replicate r's seed = the r-th sequential int64 draw."""
+    master = np.random.Generator(np.random.PCG64(
+        _pb.derive_substream_seed(seed_authority_sha, family, "full",
+                                  "power")))
+    return int(master.integers(0, 2 ** 63, size=r + 1,
+                               dtype=np.int64)[r])
+
+
+def make_bound_panels(capsule, family, point, r, inject=True):
+    """Joint ALL-carrier generation over the bound geometry in the
+    REGISTERED draw order (codex item 2): one G over the full shared
+    calendar FIRST, then per SORTED carrier the station noise, edge
+    noise, and MCAR arrays over that carrier's EXACT bound mask.
+    Injection classes apply to the first sorted carrier (the pinned
+    instrument's convention). Typed absences (days outside a mask) are
+    never synthesized. Returns (panel_cal, w2_views, debug)."""
+    cal = [str(d) for d in capsule["shared_calendar_days"]]
+    cpos = {d: i for i, d in enumerate(cal)}
+    carriers = sorted(capsule["carrier_masks"])
+    rng = np.random.Generator(np.random.PCG64(rep_seed_registered(
+        capsule["seed_authority_sha256"], family, r)))
+    G = rng.standard_normal(len(cal))
+    lat = {}
+    for ck in carriers:
+        sts = list(capsule["registries"][ck])
+        eds = _edges_of(sts)
+        days = [str(d) for d in
+                capsule["carrier_masks"][ck]["registered_days"]]
+        s = rng.normal(0.0, SIGMA_S, size=(len(sts), len(days)))
+        eps = rng.normal(0.0, SIGMA_E, size=(len(eds), len(days)))
+        mcar = rng.random((len(eds), len(days))) < MCAR
+        six = {st: i for i, st in enumerate(sts)}
+        gvec = np.array([G[cpos[d]] for d in days])
+        u = np.empty((len(eds), len(days)))
+        for j, e in enumerate(eds):
+            a, b = e.split("|")
+            u[j] = MU0 + GAMMA * gvec + s[six[a]] + s[six[b]] + eps[j]
+        lat[ck] = {"u": u, "mcar": mcar, "edges": eds, "days": days,
+                   "stations": sts}
+    ck0 = carriers[0]
+    L0 = lat[ck0]
+    ev0_pos = CAL_BASELINE
+    day_pos = {d: i for i, d in enumerate(L0["days"])}
+    dropped = {d: set() for d in L0["days"]}
+    gain = {}
+    ev_days0 = [d for d in L0["days"] if cpos[d] >= ev0_pos]
+    if family in ("B2A", "B2B") and inject and \
+            int(point.get("m", 0)) > 0:
+        m = int(point["m"])
+        half = len(L0["stations"]) // 2
+        onset_day = ev_days0[max(1, len(ev_days0) // 3)]
+        onset = day_pos[onset_day]
+        block = {st: (0 if i < half else 1)
+                 for i, st in enumerate(L0["stations"])}
+        swapped = dict(block)
+        for st in L0["stations"][half - m:half]:
+            swapped[st] = 1
+        for st in L0["stations"][half:half + m]:
+            swapped[st] = 0
+        for j, e in enumerate(L0["edges"]):
+            a, b = e.split("|")
+            L0["u"][j, :onset] += 0.9 if block[a] == block[b] else -0.5
+            L0["u"][j, onset:] += 0.9 if swapped[a] == swapped[b] \
+                else -0.5
+    if family == "B2B" and float(point.get("dropout", 0.0)) > 0.0:
+        rate = float(point["dropout"])
+        for d in ev_days0:
+            for st in L0["stations"]:
+                if rng.random() < rate:
+                    dropped[d].add(st)
+    if family == "B1B" and inject:
+        if "gain" in point:
+            gain = {"station": L0["stations"][int(
+                rng.integers(0, len(L0["stations"])))],
+                "g": float(point["gain"]),
+                "onset": day_pos[ev_days0[max(1, len(ev_days0) // 3)]]}
+        else:
+            k = int(point["k"])
+            n_e = int(point["n_e"])
+            d_ = float(point["delta_lat"])
+            starts = [i for i, d in enumerate(L0["days"])
+                      if cpos[d] >= ev0_pos]
+            smax = max(1, len(starts) - k)
+            s0 = starts[0] + int(rng.integers(0, smax))
+            for e in L0["edges"][:n_e]:
+                j = L0["edges"].index(e)
+                L0["u"][j, s0:s0 + k] += d_
+    panel_carriers = {}
+    measured = {}
+    for ck in carriers:
+        L = lat[ck]
+        vals = np.tanh(L["u"])
+        rr = {}
+        for j, e in enumerate(L["edges"]):
+            a, b = e.split("|")
+            row = {}
+            for t, d in enumerate(L["days"]):
+                if L["mcar"][j, t]:
+                    continue
+                if ck == ck0 and (a in dropped.get(d, ())
+                                  or b in dropped.get(d, ())):
+                    continue
+                v = float(vals[j, t])
+                if ck == ck0 and gain and gain["station"] in (a, b) \
+                        and t >= gain["onset"]:
+                    v *= gain["g"]
+                row[d] = v
+            rr[e] = row
+        panel_carriers[ck] = {
+            "registered_days": list(L["days"]),
+            "stations": L["stations"],
+            "segments": dict(capsule["segments"][ck]), "r": rr}
+        measured[ck] = {d: sorted(set(L["stations"])
+                                  - (dropped.get(d, set())
+                                     if ck == ck0 else set()))
+                        for d in L["days"]}
+    panel_cal = {"schema": "fixture-panel-cal-v1",
+                 "calendar_authority_mode":
+                     capsule.get("calendar_authority_mode", "bound"),
+                 "shared_calendar_days": cal,
+                 "carriers": panel_carriers}
+    eval_cal = cal[CAL_BASELINE:]
+    views = {"b2b": {"calendar": eval_cal, "carriers": {}},
+             "b1b": {"calendar": cal, "carriers": {}}}
+    for ck in carriers:
+        c = panel_carriers[ck]
+        ev_set = set(eval_cal)
+        views["b2b"]["carriers"][ck] = {
+            "registry": list(c["stations"]),
+            "registered_days": [d for d in c["registered_days"]
+                                if d in ev_set],
+            "measured": {d: measured[ck][d]
+                         for d in c["registered_days"] if d in ev_set},
+            "r": {e: {d: v for d, v in ser.items() if d in ev_set}
+                  for e, ser in c["r"].items()}}
+        views["b1b"]["carriers"][ck] = {
+            "registry": list(c["stations"]),
+            "registered_days": list(c["registered_days"]),
+            "r": c["r"]}
+    return panel_cal, views, {"G": G, "carriers": carriers}
+
+
+def replicate_pvalues_bound(panel_cal, views, n_draws, doc_sha):
+    """The registered CALENDAR engine seams (codex item 2): B2A/B3A
+    via the pinned *_family_cal entry points; B2B/B1B via the w2
+    engines over the same 132-position calendar geometry."""
+    out = {}
+    frames = {}
+    r1 = _pb.b2a_family_cal(panel_cal, doc_sha256=doc_sha,
+                            n_draws=n_draws)
+    out["B2A"] = r1.get("p_value")
+    frames["B2A"] = r1.get("frame")
+    r2 = _pb.b3a_family_cal(panel_cal, doc_sha256=doc_sha,
+                            n_draws=n_draws)
+    out["B3A"] = r2.get("p_value")
+    frames["B3A"] = r2.get("frame")
+    r3 = _b2b.w2_b2b_family(views["b2b"], doc_sha256=doc_sha,
+                            n_draws=n_draws)
+    out["B2B"] = r3.get("p_value")
+    frames["B2B"] = r3.get("frame")
+    r4 = _b1b.w2_b1b_family(views["b1b"], doc_sha256=doc_sha,
+                            n_draws=n_draws,
+                            n_blocks=_pb.B1A_CAL_BLOCKS,
+                            block_len=_pb.B1A_CAL_BLOCK_LEN,
+                            baseline_positions=CAL_BASELINE)
+    out["B1B"] = r4.get("p_value")
+    frames["B1B"] = r4.get("frame")
+    return out, frames
+
+
+def run_point_certification(capsule, family, point, **overrides):
+    """THE ONLY PATH to certifiable records. Constructs (never
+    accepts) R=20/40, n_draws=9,999, and the registered seed grammar
+    from the capsule's frozen seed authority; requires a verified
+    BOUND geometry capsule. Any override kwarg refuses
+    POWER_CERTIFICATION_CONFIG_UNBOUND."""
+    if overrides:
+        raise PowerHarnessError(
+            f"POWER_CERTIFICATION_CONFIG_UNBOUND: "
+            f"{sorted(overrides)} -- certification constructs its "
+            "own R/n_draws/seed authority")
+    _require_bound(capsule)
+    doc_sha = capsule["seed_authority_sha256"]
+
+    def success(r):
+        panel_cal, views, _dbg = make_bound_panels(capsule, family,
+                                                   point, r)
+        pv, _frames = replicate_pvalues_bound(panel_cal, views,
+                                              CERT_N_DRAWS, doc_sha)
+        return family in holm_rejects(pv)
+    rec = certify(success, r_first=R_FIRST, r_max=R_MAX)
+    rec.update(family=family, point=point, tier="CERTIFICATION",
+               n_draws=CERT_N_DRAWS, certifiable=True,
+               seed_authority_sha256=doc_sha,
+               calendar_authority_sha256=
+                   capsule["calendar_authority_sha256"])
+    return rec
 
 
 # ---------------------------------------------------------------- selftest
@@ -435,6 +677,89 @@ def _selftest():
                              n_draws=99, R=4)
     assert art["certifiable"] is False and 0.0 <= art["rate"] <= 1.0
     assert len(art["outcomes"]) == 4
+
+    # --- codex item 1 doctors: NO path to certifiable from fixtures
+    try:
+        run_point(geom, "B2B", {"m": 1}, seed_root="sr", n_draws=99,
+                  r_first=2, r_max=2, tier="CERTIFICATION")
+        raise AssertionError("tier knob must not exist")
+    except TypeError:
+        pass
+    for bad_cap, label in (({"schema": "nope"}, "wrong schema"),
+                           (dict(fixture_geometry(),
+                                 schema=BOUND_GEOMETRY_SCHEMA),
+                            "fixture geometry")):
+        try:
+            run_point_certification(bad_cap, "B2B", {"m": 2})
+            raise AssertionError(f"{label} must refuse")
+        except PowerHarnessError as e:
+            assert "POWER_GEOMETRY_UNBOUND" in str(e), (label, str(e))
+
+    # three-carrier BOUND-mechanism capsule (fixture calendar mode so
+    # the pinned seams accept; the window-2 bound authority + seam
+    # binding are PRESTART deliverables)
+    cal132 = [f"C{i:03d}" for i in range(132)]
+    holes = set(cal132[80:90])
+    reg3 = {ck: [f"{ck}S{i}" for i in range(6)]
+            for ck in ("c1", "c2", "c3")}
+    cap3 = {"schema": BOUND_GEOMETRY_SCHEMA, "bound": True,
+            "calendar_authority_sha256": "kat-cal-auth",
+            "seed_authority_sha256": "kat-seed-auth",
+            "calendar_authority_mode": "fixture",
+            "shared_calendar_days": cal132,
+            "carrier_masks": {
+                "c1": {"registered_days": cal132},
+                "c2": {"registered_days": [d for d in cal132
+                                           if d not in holes]},
+                "c3": {"registered_days": cal132[:120]}},
+            "registries": reg3,
+            "segments": {ck: {s: ("sA" if i < 3 else "sB")
+                              for i, s in enumerate(reg3[ck])}
+                         for ck in reg3}}
+    # config-override doctors fire BEFORE any compute
+    for ov in ({"n_draws": 99}, {"r_first": 5}, {"tier": "X"}):
+        try:
+            run_point_certification(cap3, "B2A", {"m": 2}, **ov)
+            raise AssertionError(f"override {ov} must refuse")
+        except PowerHarnessError as e:
+            assert "POWER_CERTIFICATION_CONFIG_UNBOUND" in str(e)
+
+    # registered grammar: sequential master-stream property, verbatim
+    ms = np.random.Generator(np.random.PCG64(
+        _pb.derive_substream_seed("kat-seed-auth", "B2A", "full",
+                                  "power")))
+    seq = ms.integers(0, 2 ** 63, size=4, dtype=np.int64)
+    assert rep_seed_registered("kat-seed-auth", "B2A", 3) == int(seq[3])
+    assert rep_seed_registered("kat-seed-auth", "B2A", 0) != \
+        rep_seed_registered("kat-seed-auth", "B3A", 0)
+
+    # joint generation: exact mask preservation, no synthesis on typed
+    # absences, shared-G record, determinism, sorted carrier order
+    panel3, views3, dbg3 = make_bound_panels(cap3, "B2A", {"m": 2}, 0)
+    assert dbg3["carriers"] == ["c1", "c2", "c3"]
+    assert len(dbg3["G"]) == 132
+    for ck in ("c1", "c2", "c3"):
+        assert panel3["carriers"][ck]["registered_days"] == \
+            cap3["carrier_masks"][ck]["registered_days"]
+        for e, ser in panel3["carriers"][ck]["r"].items():
+            for d in ser:
+                assert d in set(cap3["carrier_masks"][ck]
+                                ["registered_days"]), (ck, d)
+    for e, ser in panel3["carriers"]["c2"]["r"].items():
+        assert not (set(ser) & holes)          # typed absences stay absent
+    panel3b, _v, dbg3b = make_bound_panels(cap3, "B2A", {"m": 2}, 0)
+    assert json.dumps(panel3, sort_keys=True) == \
+        json.dumps(panel3b, sort_keys=True)
+    assert np.array_equal(dbg3["G"], dbg3b["G"])
+
+    # every family executes its CALENDAR entry point
+    pv3, frames3 = replicate_pvalues_bound(panel3, views3, 99,
+                                           "ab" * 32)
+    assert set(pv3) == set(GRAPH)
+    assert frames3["B2A"] == "calendar-v2" \
+        and frames3["B3A"] == "calendar-v2"
+    assert frames3["B2B"] == "calendar-w2" \
+        and frames3["B1B"] == "calendar-w2"
 
     print("w2_power_harness selftest: ALL PASS "
           "(fixture-tier mechanism only)")

@@ -227,6 +227,59 @@ def load_capsule(name, repo=None):
     return cap, json.loads(raw.decode("utf-8"))
 
 
+EXEC_MANIFEST_PATH = "docs/f2g_window2_execution/execution_manifest.json"
+EXEC_CAPSULE_DIR = "docs/f2g_window2_execution/mag_capsules"
+EXEC_CAPSULE_NAMES = ("izn", "frn", "tuc")
+
+
+def load_execution_capsule(name, manifest_commit, repo=None):
+    """EXECUTION-capsule loader (codex 1335Z step 2): the authority is
+    the EXECUTION MANIFEST at `manifest_commit` -- its
+    execution_target_commit anchors every read (git objects only,
+    never disk, never the design commit 5fba544). Body sha is verified
+    against the capsule BEFORE parse. When the mag_capsules slot is
+    BOUND, every loaded blob must additionally match its slot pin
+    (typed EXEC_CAPSULE_PIN_MISMATCH); when OPEN the record discloses
+    mode=pre_bind. The design loader (load_capsule) remains the VIC/NEW
+    authority. Returns (capsule, body, record)."""
+    if name not in EXEC_CAPSULE_NAMES:
+        raise Mag1Refusal(f"CAPSULE_UNKNOWN: {name} (execution set is "
+                          f"{EXEC_CAPSULE_NAMES})")
+    man = json.loads(_git_blob(
+        repo, f"{manifest_commit}:{EXEC_MANIFEST_PATH}")
+        .decode("utf-8"))
+    target = man["execution_target_commit"]
+    cap_path = f"{EXEC_CAPSULE_DIR}/mag_capsule_{name}.json"
+    cap_raw = _git_blob(repo, f"{target}:{cap_path}")
+    cap = json.loads(cap_raw.decode("utf-8"))
+    env_path = cap["probe_envelope"]
+    body_path = env_path.replace(".envelope.json", ".json")
+    env_raw = _git_blob(repo, f"{target}:{env_path}")
+    body_raw = _git_blob(repo, f"{target}:{body_path}")
+    got = hashlib.sha256(body_raw).hexdigest()
+    if got != cap["probe_body_sha256"]:
+        raise Mag1Refusal(f"CAPSULE_BODY_SHA_MISMATCH: {name} "
+                          f"{got[:12]}")
+    mode = "pre_bind"
+    slot = man["slots"]["mag_capsules"]
+    if slot["status"] == "BOUND":
+        pins = {p["path"]: p["blob_sha256"] for p in slot["pins"]}
+        for path, raw in ((cap_path, cap_raw), (env_path, env_raw),
+                          (body_path, body_raw)):
+            want = pins.get(path)
+            have = hashlib.sha256(raw).hexdigest()
+            if want is None or have != want:
+                raise Mag1Refusal(
+                    f"EXEC_CAPSULE_PIN_MISMATCH: {path} "
+                    f"have={have[:12]} pin={str(want)[:12]}")
+        mode = "pin_checked"
+    return cap, json.loads(body_raw.decode("utf-8")), {
+        "mode": mode, "manifest_commit": manifest_commit,
+        "execution_target_commit": target,
+        "capsule_path": cap_path, "body_path": body_path,
+        "envelope_path": env_path}
+
+
 def convert_frame(capsule, arrays, source_orientation):
     """Capsule-driven typed frame conversion -> (X_north, Y_east,
     Z_down) ndarrays (nulls -> NaN). The excluded scalar channel is
@@ -563,11 +616,20 @@ def _selftest():
 # - M1/M3 window statistic := median of squared residual over the
 #   window's admissible minutes (the same robust band-energy form as
 #   the M2 daily feature). [R1.2 WINDOW]
-# - M2 whole-day rotation commutes with the per-day-local daily
-#   feature (energy depends only on that day's minutes and the
-#   mag/weather pair rotates JOINTLY), so the null is implemented as
-#   rotation of the daily feature vector -- an EXACT equivalence, not
-#   an approximation; the weather pairing is preserved structurally.
+# - M2 NULL OBJECT (grassmann 1509Z option-A ruling, replacing the
+#   RETRACTED raw-rotation-commutation claim -- codex's 1423Z
+#   sosfiltfilt counterexample shows a day's filtered energy depends
+#   on its neighbors within the filter span, so per-day-locality is
+#   FALSE): the registered M2 null is the EXHAUSTIVE CIRCULAR
+#   PERMUTATION of the TYPED DAILY-FEATURE CAPSULE
+#   (m2_feature_capsule: ordered days, energy/absence typing,
+#   surviving support, subtraction-ledger/SOS/source-input digests),
+#   offsets |off| <= 3 excluded. The inference claim is
+#   exchangeability of the capsule entries under the null; NO raw-pair
+#   equivalence is claimed anywhere. Non-finite validation happens
+#   ONCE at the capsule boundary (M2_NONFINITE_INPUT), BEFORE the
+#   observed statistic and before the rotation loop; the null loop's
+#   catch is narrowed to the registered insufficient-overlap case.
 # - M1 onset-hour class := floor(hour/6) (four 6-hour classes);
 #   pseudo-onset candidates overlapping the event window are excluded;
 #   pool < n_controls refuses typed (never silently reduced).
@@ -791,9 +853,57 @@ def _spearman(a, b):
     return float((ra * rb).sum() / den)
 
 
+class M2OverlapRefusal(Mag1Refusal):
+    """The ONE registered refusal the null loop may catch (codex 1519Z
+    guard: any other refusal must surface, never discard an offset)."""
+
+
+def _validate_daily_series(series, days, side):
+    """Non-finite validation ONCE at the capsule boundary: registered
+    absence is None; any non-None non-finite value refuses
+    M2_NONFINITE_INPUT before ranking, before the observed statistic,
+    before the rotation loop."""
+    for d in days:
+        v = series.get(d)
+        if v is None:
+            continue
+        if not (isinstance(v, (int, float)) and math.isfinite(v)):
+            raise Mag1Refusal(
+                f"M2_NONFINITE_INPUT: {side} {d} -> {v!r}")
+
+
+def m2_feature_capsule(mag_by_day, days, *, subtraction_ledger_digest,
+                       sos_digest, source_input_digest):
+    """The REGISTERED M2 null object (option A, grassmann 1509Z ruling;
+    codex 1519Z binding): the typed daily-feature capsule -- ordered
+    days, energy/absence typing, surviving support, and the three
+    provenance digests. Prevalidates non-finite values HERE."""
+    days = sorted(str(d) for d in days)
+    _validate_daily_series(mag_by_day, days, "magnetic")
+    entries = []
+    for d in days:
+        v = mag_by_day.get(d)
+        entries.append({"day": d,
+                        "energy": None if v is None else float(v),
+                        "typing": "ABSENT" if v is None else None})
+    cap = {"schema": "f2g-m2-daily-feature-capsule-v1",
+           "days": days, "entries": entries,
+           "surviving_support": sum(1 for e in entries
+                                    if e["energy"] is not None),
+           "subtraction_ledger_digest": str(subtraction_ledger_digest),
+           "sos_digest": str(sos_digest),
+           "source_input_digest": str(source_input_digest)}
+    cap["capsule_digest"] = hashlib.sha256(json.dumps(
+        cap, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+    return cap
+
+
 def _m2_stat(mag_by_day, graph_by_day, days):
-    """Max-over-frozen-lags Spearman on the exact shared-day mask
-    [R1.2 WINDOW pin]; typed overlap floor per lag."""
+    """Max-over-frozen-lags Spearman on the exact shared FINITE-day
+    mask (ratified pin); the overlap floor counts FINITE shared pairs
+    only. Inputs are prevalidated at the capsule boundary; this
+    function still admits only finite-finite pairs (defense in
+    depth)."""
     pos = {d: i for i, d in enumerate(days)}
     best = None
     for lag in M2_LAGS:
@@ -804,7 +914,8 @@ def _m2_stat(mag_by_day, graph_by_day, days):
             if 0 <= j < len(days):
                 m = mag_by_day.get(days[j])
                 g = graph_by_day.get(d)
-                if m is not None and g is not None:
+                if m is not None and g is not None \
+                        and math.isfinite(m) and math.isfinite(g):
                     pairs.append((m, g))
         if len(pairs) < M2_MIN_OVERLAP:
             continue
@@ -812,39 +923,70 @@ def _m2_stat(mag_by_day, graph_by_day, days):
         if best is None or rho > best:
             best = rho
     if best is None:
-        raise Mag1Refusal(
+        raise M2OverlapRefusal(
             f"M2_OVERLAP_INSUFFICIENT: no lag reaches "
-            f"{M2_MIN_OVERLAP} shared days")
+            f"{M2_MIN_OVERLAP} finite shared days")
     return best
 
 
-def m2_pairing(mag_by_day, graph_by_day, days):
-    """The M2 endpoint: observed statistic + exhaustive whole-day
-    rotation null (offsets with |offset| <= 3 excluded; the mag/
-    weather pair rotates jointly so rotating the per-day-local feature
-    vector is EXACT -- see the part-B pin block). One-sided HIGH,
-    add-one p over valid rotations."""
+def m2_pairing(mag_by_day, graph_by_day, days, *,
+               subtraction_ledger_digest, sos_digest,
+               source_input_digest):
+    """The M2 endpoint. Null = EXHAUSTIVE circular permutation of the
+    registered typed daily-feature capsule (option A; |offset| <= 3
+    excluded); no raw-pair equivalence is claimed. One-sided HIGH,
+    add-one p over the eligible offsets. Non-finite validation happens
+    at the capsule boundary for BOTH sides before anything else; the
+    null loop catches ONLY the registered insufficient-overlap
+    refusal. The returned operation_record binds both comparison sides
+    per codex 1519Z."""
     days = sorted(str(d) for d in days)
-    obs = _m2_stat(mag_by_day, graph_by_day, days)
+    capsule = m2_feature_capsule(
+        mag_by_day, days,
+        subtraction_ledger_digest=subtraction_ledger_digest,
+        sos_digest=sos_digest,
+        source_input_digest=source_input_digest)
+    _validate_daily_series(graph_by_day, days, "graph")
+    energies = {e["day"]: e["energy"] for e in capsule["entries"]}
+    obs = _m2_stat(energies, graph_by_day, days)
     n = len(days)
     null_stats = []
+    eligible = []
     for off in range(n):
         if min(off, n - off) <= M2_EXCLUDED_OFFSET:
             continue
-        rot = {days[(i + off) % n]: mag_by_day.get(days[i])
+        rot = {days[(i + off) % n]: energies[days[i]]
                for i in range(n)}
         try:
             null_stats.append(_m2_stat(rot, graph_by_day, days))
-        except Mag1Refusal:
+            eligible.append(off)
+        except M2OverlapRefusal:
             continue
     if not null_stats:
         raise Mag1Refusal("M2_NULL_EMPTY")
     ge = sum(1 for s in null_stats if s >= obs)
+    with open(os.path.abspath(__file__), "rb") as f:
+        impl_sha = hashlib.sha256(
+            f.read().replace(b"\r\n", b"\n")).hexdigest()
+    graph_digest = hashlib.sha256(json.dumps(
+        {"days": days, "values": {d: graph_by_day.get(d)
+                                  for d in days}},
+        sort_keys=True, separators=(",", ":")).encode()).hexdigest()
     return {"endpoint": "M2", "T_obs": obs,
             "n_null": len(null_stats),
             "p_value": float((1 + ge) / (len(null_stats) + 1)),
-            "lags": list(M2_LAGS), "min_overlap": M2_MIN_OVERLAP,
-            "excluded_offsets": M2_EXCLUDED_OFFSET}
+            "eligible_offsets": eligible,
+            "operation_record": {
+                "null": "exhaustive circular permutation of the typed "
+                        "daily-feature capsule (option A)",
+                "capsule_digest": capsule["capsule_digest"],
+                "graph_day_index_digest": graph_digest,
+                "lags": list(M2_LAGS),
+                "min_overlap": M2_MIN_OVERLAP,
+                "excluded_offsets_rule":
+                    f"|offset| <= {M2_EXCLUDED_OFFSET}",
+                "implementation_sha256_normalized": impl_sha},
+            "capsule": capsule}
 
 
 def _selftest_b():
@@ -910,24 +1052,79 @@ def _selftest_b():
     assert m1_p(10.0, [1.0] * 99) == 1 / 100
     assert abs(m1_p(1.0, [2.0] * 99) - 1.0) < 1e-12
 
-    # M2: planted alignment -> small p; rotation destroys it (the
-    # non-identity KAT); overlap floor refuses
+    # M2 (capsule-null form): planted alignment -> small p; a rotated
+    # capsule destroys it; overlap floor refuses
+    DIG = {"subtraction_ledger_digest": "kat-led",
+           "sos_digest": "kat-sos", "source_input_digest": "kat-src"}
     days = [(_date(2026, 3, 1) + _td(days=i)).isoformat()
             for i in range(80)]
     sig = rng.normal(size=80)
     mag_d = {d: float(sig[i]) for i, d in enumerate(days)}
     gr_d = {d: float(sig[i] + rng.normal(0, 0.2))
             for i, d in enumerate(days)}
-    res = m2_pairing(mag_d, gr_d, days)
+    res = m2_pairing(mag_d, gr_d, days, **DIG)
     assert res["p_value"] <= 2 / (res["n_null"] + 1), res
     rot20 = {days[(i + 20) % 80]: mag_d[days[i]] for i in range(80)}
     assert _m2_stat(rot20, gr_d, days) < res["T_obs"]  # non-identity
+    # operation record binds both sides + the exact eligible offsets
+    assert res["operation_record"]["capsule_digest"] \
+        == res["capsule"]["capsule_digest"]
+    assert res["eligible_offsets"] == [
+        off for off in range(80) if min(off, 80 - off) > 3]
+    assert res["n_null"] == len(res["eligible_offsets"])
     try:
         m2_pairing({d: mag_d[d] for d in days[:50]},
-                   {d: gr_d[d] for d in days[:50]}, days[:50])
+                   {d: gr_d[d] for d in days[:50]}, days[:50], **DIG)
         raise AssertionError("overlap < 60 must refuse")
     except Mag1Refusal as e:
         assert "M2_OVERLAP_INSUFFICIENT" in str(e)
+
+    # codex 1423Z item 2 doctors: 60-day one-NaN and one-Inf refuse
+    # typed AT THE CAPSULE BOUNDARY; 61-day one-typed-None passes with
+    # exactly 60 finite pairs
+    d60 = days[:60]
+    for bad in (float("nan"), float("inf")):
+        m_bad = {d: mag_d[d] for d in d60}
+        m_bad[d60[30]] = bad
+        try:
+            m2_pairing(m_bad, {d: gr_d[d] for d in d60}, d60, **DIG)
+            raise AssertionError(f"non-finite {bad} must refuse")
+        except Mag1Refusal as e:
+            assert "M2_NONFINITE_INPUT" in str(e)
+        try:
+            m2_feature_capsule(m_bad, d60, **DIG)
+            raise AssertionError("capsule must prevalidate")
+        except Mag1Refusal as e:
+            assert "M2_NONFINITE_INPUT" in str(e)
+    d61 = days[:61]
+    m_abs = {d: mag_d[d] for d in d61}
+    m_abs[d61[30]] = None                    # typed absence, legal
+    cap61 = m2_feature_capsule(m_abs, d61, **DIG)
+    assert cap61["surviving_support"] == 60
+    assert cap61["entries"][30]["typing"] == "ABSENT"
+    stat61 = _m2_stat({e["day"]: e["energy"]
+                       for e in cap61["entries"]},
+                      {d: gr_d[d] for d in d61}, d61)
+    assert isinstance(stat61, float)         # exactly 60 finite pairs
+
+    # codex 1423Z item 1 fixture: raw recomputation is NOT equivalent
+    # to capsule permutation -- byte-identical target day, neighbor
+    # zeros -> in-band tone changes the target day's filtered energy
+    sos_k, _ = load_sos()
+    tone_t = np.arange(7 * DAY_MINUTES) * 60.0
+    tone = 5.0 * np.sin(2 * np.pi * 0.002 * tone_t)
+    base7 = np.zeros(7 * DAY_MINUTES)
+    base7[3 * DAY_MINUTES:4 * DAY_MINUTES] = \
+        tone[3 * DAY_MINUTES:4 * DAY_MINUTES]
+    ngbr7 = base7.copy()
+    ngbr7[2 * DAY_MINUTES:3 * DAY_MINUTES] = \
+        tone[2 * DAY_MINUTES:3 * DAY_MINUTES]
+    sl = {"target": (3 * DAY_MINUTES, 4 * DAY_MINUTES)}
+    e_base = daily_energy(band_b_series(base7, sos_k), sl)["target"]
+    e_ngbr = daily_energy(band_b_series(ngbr7, sos_k), sl)["target"]
+    assert e_base["typing"] is None and e_ngbr["typing"] is None
+    assert abs(e_base["energy"] - e_ngbr["energy"]) > 0, \
+        "neighbor day MUST change target-day energy (non-locality)"
 
     # window statistic + typed support floor
     f = np.full(100, np.nan)

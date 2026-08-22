@@ -32,7 +32,7 @@ import time
 
 MANIFEST_PATH = "docs/f2g_window2_execution/execution_manifest.json"
 DESIGN_MANIFEST_PATH = "docs/f2g_window2_freeze/byte_pin_manifest.json"
-SCHEMA = "f2g-window2-execution-manifest-v1"
+SCHEMA = "f2g-window2-execution-manifest-v1.1"
 TOP_FIELDS = {"schema", "generated_utc", "repository_url",
               "execution_target_commit", "target_ref",
               "design_manifest_commit", "design_manifest_blob_sha256",
@@ -40,7 +40,9 @@ TOP_FIELDS = {"schema", "generated_utc", "repository_url",
 SLOT_SET = {"execution_generator", "execution_verifier",
             "design_pin_verifier", "selection_impl", "adapter_impl",
             "accrual_impl", "mag_capsules", "calibration_ledgers",
-            "bars", "producer_code"}
+            "bars", "producer_code",
+            # v1.1: the repaired execution tools (codex 1358Z)
+            "power_harness", "calibration_runner"}
 SLOT_FIELDS = {"status", "owner", "note", "pins"}
 PIN_FIELDS = {"path", "commit", "blob_sha256"}
 REQUIRED_BAR_FAMILIES = {"W-SEL", "W-CAS", "W-B2B", "W-B1B", "W-MF4",

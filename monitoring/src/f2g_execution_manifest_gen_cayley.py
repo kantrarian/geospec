@@ -72,27 +72,59 @@ BOUND_SLOTS = {
         "owner": "cayley",
         "note": "calibration-ledger production runner (temporal "
                 "boundary + M3 index equality + provenance-verifying "
-                "receipts; codex items 3+4 repaired)",
+                "receipts; codex items 3+4 repaired + canonical-UTC "
+                "frame)",
         "paths": ["monitoring/src/w2_calibration_runner_cayley.py"]},
+    # RE-BOUND ATOMICALLY at bar REV 9 green (codex 1335Z/1358Z
+    # disposition; grassmann 1745Z, 14/14, dual-verified by cayley on
+    # py3.14+py3.11)
+    "mag_capsules": {
+        "owner": "cayley",
+        "note": "IZN/FRN/TUC capsules + bodies + envelopes at the "
+                "RELOCATED execution tree (codex 0451Z); loaded via "
+                "load_execution_capsule under the dynamic manifest "
+                "authority; W-MAG-EXEC green",
+        "paths": ["docs/f2g_window2_execution/mag_capsules/"
+                  "mag_capsule_izn.json",
+                  "docs/f2g_window2_execution/mag_capsules/"
+                  "mag_capsule_frn.json",
+                  "docs/f2g_window2_execution/mag_capsules/"
+                  "mag_capsule_tuc.json",
+                  "docs/f2g_window2_execution/mag_capsules/receipts/"
+                  "mag_izn_probe.json",
+                  "docs/f2g_window2_execution/mag_capsules/receipts/"
+                  "mag_izn_probe.envelope.json",
+                  "docs/f2g_window2_execution/mag_capsules/receipts/"
+                  "mag_frn_probe.json",
+                  "docs/f2g_window2_execution/mag_capsules/receipts/"
+                  "mag_frn_probe.envelope.json",
+                  "docs/f2g_window2_execution/mag_capsules/receipts/"
+                  "mag_tuc_probe.json",
+                  "docs/f2g_window2_execution/mag_capsules/receipts/"
+                  "mag_tuc_probe.envelope.json"]},
+    "bars": {
+        "owner": "grassmann",
+        "note": "the complete window-2 bar REV 9, 14/14 green @ "
+                "e35b3bd (four convergence KAT groups; dual-verified "
+                "by cayley)",
+        "paths": ["monitoring/src/"
+                  "test_f2g_window2_redkats_grassmann.py"],
+        "families": ["W-SEL", "W-CAS", "W-B2B", "W-B1B", "W-MF4",
+                     "W-MAG", "W-BARRIER", "W-PIN"]},
 }
 # NOTE: the schema doc is design-adjacent prose, deliberately NOT a slot
 
 OPEN_SLOTS = {
-    "mag_capsules": ("cayley", "RELOCATED to docs/f2g_window2_execution/"
-                               "mag_capsules per codex 0451Z/1335Z; "
-                               "re-binds with bars at the REV-9 green "
-                               "(codex 1358Z item 5)"),
-    "bars": ("grassmann", "held OPEN until the four-group REV 9 incl "
-                          "real execution-capsule KATs is green "
-                          "(codex 1335Z/1358Z disposition); families "
-                          "must equal the 8 when re-BOUND"),
     "calibration_ledgers": ("cayley", "MF4/MAG subtraction "
                                       "coefficients + diagnostics -- "
                                       "PRODUCED at the availability "
                                       "cutoff, pre-evaluation only"),
-    "producer_code": ("grassmann", "accrual producers (seismic + MAG "
-                                   "raw byte acquisition; s4t-lane "
-                                   "build next per 0916Z)"),
+    "producer_code": ("grassmann", "w2_producer REV 2 (575f275) is "
+                                   "ONE pin of this slot; stays OPEN "
+                                   "per codex 1721Z item 1 until the "
+                                   "acquisition surface lands or the "
+                                   "staged-envelope trust boundary is "
+                                   "registered by schema amendment"),
 }
 
 

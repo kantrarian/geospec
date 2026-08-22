@@ -18,8 +18,16 @@ archive-only resolution may amend this by disclosed amendment only).
 ## Model + baseline
 
 Model: L2 logistic regression (C = 1.0, max_iter = 2000) on {drisk, roll_z_risk, recent_event};
-scaler (mean/std) and coefficients fit ONCE on the CALIBRATION interval = the archive from
-2025-10-18 through the freeze commit day, then FROZEN (apply-never-refit). Baseline:
+scaler (mean/std) and coefficients fit ONCE on the CALIBRATION interval, then FROZEN
+(apply-never-refit). **Calibration interval (codex freeze-review fix 1 — label maturity):**
+issue days from 2025-10-18 through
+`calibration_issue_end = min(freeze_day − H, the latest issue day whose complete (d, d+H] label
+is present in the PINNED pre-freeze calibration-catalog snapshot)`.
+The calibration-catalog receipt, exact training-row digest, admitted region set, scaler,
+coefficients, and fit diagnostics are all pinned at freeze. Any candidate training row after
+`calibration_issue_end` refuses typed `CALIBRATION_LABEL_NOT_MATURE` — never dropped silently,
+never admitted later. **KAT (W-MF4)**: appending an event inside the 7-day tail after the
+snapshot must leave the training digest and coefficients byte-identical. Baseline:
 `recent_event` alone (persistence).
 
 ## Predictions

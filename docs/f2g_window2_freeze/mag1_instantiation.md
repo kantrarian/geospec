@@ -12,8 +12,11 @@ space-weather bytes mechanically during accrual; all analysis post-barrier.
   M3 reference. Endpoints: M1, M2, M3.
 - **turkey_kahramanmaras**: typed MAG_UNTESTABLE (no coverage; may amend by disclosed amendment
   only if the AFAD/TUBITAK search lands pre-freeze).
-- **cascadia**: NOT admitted for MAG-1 window 2 (no probed observatory; candidate NEW/VIC probe
-  is a pre-freeze option, else typed).
+- **cascadia (DISCLOSED PRE-FREEZE AMENDMENT, 2026-08-22 probes)**: **ADMITTED** — VIC
+  (Victoria, NRCan via INTERMAGNET GIN; INSIDE the cascadia bbox, 1-min live-probed) as the
+  local observatory, with **NEW** (Newport, USGS geomag, 1-min XYZF live-probed) as the
+  registered M3 reference (the FRN/TUC pattern). Endpoints: M1, M2, M3. Full receipt envelopes
+  for both probes are captured in the typed input capsules at freeze.
 
 ## Components, frames, capsules
 
@@ -38,9 +41,19 @@ interpretation).
 
 - Family A (quasi-DC step/ramp): daily-mean residual series; detection on day-scale steps/ramps.
 - Family B (ULF band-energy): band **0.001–0.004 Hz** (Nyquist guard: upper edge < half of
-  1/120 Hz), 4th-order Butterworth applied forward-backward (zero-phase), edge exclusion =
-  2 × filter impulse-response span; day admissible iff ≥ 90% of its 1,440 minute samples are
-  non-fill.
+  1/120 Hz). **Exact filter instantiation (codex freeze-review fix 5)**: 4th-order Butterworth
+  bandpass, `scipy.signal.butter(4, [0.001, 0.004], btype='bandpass', fs=1/60, output='sos')`,
+  SciPy **1.18.0**; the numeric SOS coefficient array (shape 4×6) is committed at freeze with
+  canonical-JSON sha256 `77bceec4003b75d11ac671d86fb79342a265a12364fc6101e80decdd6e9a7f29`
+  (cross-host reproduced: identical impulse decay on the reviewer's host). Applied
+  forward-backward via `sosfiltfilt` with `padtype='odd'`, `padlen=` the default. **Causal span
+  = 266 samples** (the last `|h[n]| > 1e-12`); **edge exclusion = 532 samples after each
+  contiguous-segment boundary** for the forward-backward pass. **No silent interpolation**:
+  fill/NaN samples SPLIT the series into contiguous segments; segments shorter than the edge
+  exclusion are typed `FILTER_SUPPORT_INSUFFICIENT`. A day is admissible iff ≥ 90% of its 1,440
+  minute samples SURVIVE (non-fill AND inside a filtered segment after edge exclusion).
+  **KATs (W-MAG)**: impulse boundary (266/267), single NaN, 100-sample gap, short segment,
+  byte-equal band energy dual-host.
 - M1 event/control windows: duration {1, 3, 7} days; pseudo-onset sampling blocked by season
   (quarter), local solar time (onset hour class), duration, and data-quality mask; n = 999
   control windows per event window; no circular wrap.
@@ -60,7 +73,7 @@ pre-subtraction. Certification per family CP-LB ≥ 0.80 through the whole decis
 
 ## Internal multiplicity (imported into v0.3 §5 as a pinned object)
 
-Two admitted carriers × one PRIMARY endpoint each: istanbul = M2 (band-B), socal = M3 (band-B).
-Holm within the MAG-1 lane at alpha 0.05. M1 and family-A endpoints are registered secondaries,
-descriptive/typed unless the primaries reject (fixed-sequence gate within the lane). One named
-lane claim; no omnibus.
+THREE admitted carriers × one PRIMARY endpoint each: istanbul = M2 (band-B), socal = M3
+(band-B), cascadia = M3 (band-B). Holm within the MAG-1 lane at alpha 0.05 over the three
+primaries. M1 and family-A endpoints are registered secondaries, descriptive/typed unless the
+primaries reject (fixed-sequence gate within the lane). One named lane claim; no omnibus.

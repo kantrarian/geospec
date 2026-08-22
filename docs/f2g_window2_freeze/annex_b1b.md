@@ -12,10 +12,16 @@ availability observation may alter admission (typed HEALTH_ADMISSION_VIOLATION o
 
 As the registered B1A calendar pipeline (blocks, baseline fit, window means — pinned by bytes)
 with TWO named transforms applied IDENTICALLY to observed, null, LOCO, and injected panels:
-1. **Per-station robust renormalization**: for station s, each of its edges' z-series is divided
-   by `max(1, MAD_s / median_carrier_MAD)` where `MAD_s` = the MAD of all |z| values on edges
-   incident to s over the BASELINE positions (frozen formula; carrier median over admitted
-   stations; zero/degenerate MAD → typed ZERO_SCALE_REFUSAL for that station's edges).
+1. **Per-station robust renormalization — SYMMETRIC, single-valued per edge (codex
+   freeze-review fix 4)**:
+   `m_s = MAD(finite baseline |z| values on edges incident to s)` (minimum finite support: ≥ 20
+   values, else typed ZERO_SCALE_REFUSAL for s);
+   `m_car = median({m_s over admitted stations})`;
+   `q_s = max(1, m_s / m_car)`;
+   **`z'_(a,b,t) = z_(a,b,t) / max(q_a, q_b)`** — applied ONCE per edge, endpoint-order
+   invariant by construction. Non-finite or non-positive `m_s`/`m_car` → typed
+   ZERO_SCALE_REFUSAL. **KATs (W-B1B)**: endpoint-order invariance; the exact
+   `(z=8, q_A=2, q_B=3) → 8/3` fixture through observed/null/LOCO/injected paths.
 2. **Winsorization**: every |z| value is capped at **c = 8.0** (in robust-z units) BEFORE window
    means. The cap is a statistic transform — never a station or edge deletion.
 Aggregation: family T = max over carriers of the max edge window-mean |z| (B1A form). One-sided

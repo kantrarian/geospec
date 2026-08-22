@@ -1,0 +1,18 @@
+{
+ "cadence_seconds": 60,
+ "components_note": "recorded elements per GIN metadata; canonical XYZ conversion per typed-capsule schema at freeze",
+ "coordinates_lat_lon": [
+  48.52,
+  -123.42
+ ],
+ "iaga_code": "VIC",
+ "inside_cascadia_bbox": true,
+ "observatory": "VIC",
+ "probe_body_sha256": "24a9bbe3c53851f261552bc0e425c2d9a032d8890b411bf716e4a7388864c526",
+ "probe_envelope": "docs/f2g_window2_freeze/receipts/mag_vic_probe.envelope.json",
+ "product_class": "adjusted-or-reported",
+ "provider": "NRCan via INTERMAGNET GIN",
+ "recomputed_coverage_samples": 1440,
+ "schema": "f2g-mag-input-capsule-v1",
+ "sentinel_note": "GIN JSON nulls = missing"
+}

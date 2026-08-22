@@ -1,0 +1,20 @@
+{
+ "cadence_seconds": 60,
+ "coordinates_lat_lon": [
+  48.265,
+  -117.122
+ ],
+ "iaga_code": "NEW",
+ "inside_cascadia_bbox": false,
+ "observatory": "NEW",
+ "probe_body_sha256": "2bcdbb1295156383b08db5dce532a627d2098da2b60c467755935341c1a91143",
+ "probe_envelope": "docs/f2g_window2_freeze/receipts/mag_new_probe.envelope.json",
+ "product_class": "adjusted",
+ "provider": "USGS geomagnetism program",
+ "recomputed_coverage_samples": 1441,
+ "reported_orientation": "XYZF",
+ "role": "regional reference (M3)",
+ "schema": "f2g-mag-input-capsule-v1",
+ "sensor_orientation": "HDZ",
+ "sentinel_note": "USGS ws nulls = missing"
+}

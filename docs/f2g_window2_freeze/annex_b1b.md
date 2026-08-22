@@ -14,14 +14,17 @@ As the registered B1A calendar pipeline (blocks, baseline fit, window means — 
 with TWO named transforms applied IDENTICALLY to observed, null, LOCO, and injected panels:
 1. **Per-station robust renormalization — SYMMETRIC, single-valued per edge (codex
    freeze-review fix 4)**:
-   `m_s = MAD(finite baseline |z| values on edges incident to s)` (minimum finite support: ≥ 20
-   values, else typed ZERO_SCALE_REFUSAL for s);
-   `m_car = median({m_s over admitted stations})`;
-   `q_s = max(1, m_s / m_car)`;
+   Let **`S_req` = the endpoint set of the frozen tested edge set**. EVERY `s ∈ S_req` must have
+   ≥ 20 finite baseline |z| values on incident edges AND finite positive
+   `m_s = MAD(those values)`; **if ANY fails, the WHOLE CARRIER is typed ZERO_SCALE_REFUSAL —
+   no edge deletion, no graph shrinkage** (codex revision-1 fix 4).
+   `m_car = median({m_s : s ∈ S_req})`, required finite/positive (else the same carrier-level
+   refusal); `q_s = max(1, m_s / m_car)`;
    **`z'_(a,b,t) = z_(a,b,t) / max(q_a, q_b)`** — applied ONCE per edge, endpoint-order
-   invariant by construction. Non-finite or non-positive `m_s`/`m_car` → typed
-   ZERO_SCALE_REFUSAL. **KATs (W-B1B)**: endpoint-order invariance; the exact
-   `(z=8, q_A=2, q_B=3) → 8/3` fixture through observed/null/LOCO/injected paths.
+   invariant; the one frozen scale map is applied identically to observed/null/LOCO/injected.
+   **KATs (W-B1B)**: endpoint-order invariance; the exact `(z=8, q_A=2, q_B=3) → 8/3` fixture
+   through all four paths; ONE under-support endpoint in an otherwise valid graph → all four
+   paths REFUSE (never shrink).
 2. **Winsorization**: every |z| value is capped at **c = 8.0** (in robust-z units) BEFORE window
    means. The cap is a statistic transform — never a station or edge deletion.
 Aggregation: family T = max over carriers of the max edge window-mean |z| (B1A form). One-sided

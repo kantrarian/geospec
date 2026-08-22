@@ -288,13 +288,13 @@ def w_sel_b():
         p1 = {"S00": 0.70, "S01": 0.75, "S02": 0.80}
         p1.update({f"S{i + 3:02d}": 0.86 + 0.015 * i for i in range(9)})
         d1 = [sorted(p1)] * 5
-        e1 = WS.select("istanbul_marmara", p1, d1, cap=8)
-        o1 = _ref_select(p1, d1, cap=8)
+        e1 = WS.select_fixture(p1, d1, cap=8)      # REV-3 migration: fixture
+        o1 = _ref_select(p1, d1, cap=8)            # seam per cap policy P1-3
         ok_nom = e1 == o1
         # INSUFFICIENT_POOL at pool == 7
         p3 = {f"T{i}": 0.90 for i in range(7)}
         try:
-            WS.select("cascadia", p3, [sorted(p3)] * 3, cap=16)
+            WS.select_fixture(p3, [sorted(p3)] * 3, cap=16)
             ok_pool = False
         except ValueError as exc:
             ok_pool = "INSUFFICIENT_POOL" in str(exc)
@@ -306,15 +306,55 @@ def w_sel_b():
         p4.update({"A": 0.90, "AB": 0.90})
         d4 = [sorted(stable + ["A", "AB"]) if i % 2 == 0 else sorted(stable)
               for i in range(6)]
-        e4 = WS.select("istanbul_marmara", p4, d4, cap=9)
+        e4 = WS.select_fixture(p4, d4, cap=9)
         o4 = _ref_select(p4, d4, cap=9)
         ok_corner = e4 == o4 and "AB" not in e4["selected"] \
             and "A" in e4["selected"]
-        check("SEL-b engine == oracle (constants, nominal, ties, pool, "
-              "prefix-corner drop-worst)",
-              ok_const and ok_nom and ok_pool and ok_corner,
+        # production-path locks (codex P1-2/P1-3, cayley REV-2 KAT list):
+        from datetime import date as _date, timedelta as _td
+        cutoff = "2026-07-10"
+        days90 = [( _date(2026, 7, 10) - _td(days=i)).isoformat()
+                  for i in range(89, -1, -1)]
+        sts = [f"P{i:02d}" for i in range(10)]
+        recs = {d: list(sts) for d in days90}
+        ep = WS.select("cascadia", recs, cutoff)          # cap=None resolves 16
+        ok_prod = sorted(ep["selected"]) == sts and ep["typing"] is None
+        try:
+            WS.select("cascadia", {d: recs[d] for d in days90[1:]}, cutoff)
+            ok_frame = False
+        except Exception as exc:
+            ok_frame = "LOOKBACK_FRAME_INVALID" in str(exc)
+        try:
+            WS.select("cascadia", recs, cutoff,
+                      presence_declared={s: 89 for s in sts})
+            ok_decl = False
+        except Exception as exc:
+            ok_decl = "PRESENCE_LOOKBACK_MISMATCH" in str(exc)
+        try:
+            WS.select("cascadia", recs, cutoff, cap=15)
+            ok_cap = False
+        except Exception as exc:
+            ok_cap = "CAP_OVERRIDE_REFUSED" in str(exc)
+        ok_cap16 = WS.select("cascadia", recs, cutoff, cap=16) == ep
+        # exact-arithmetic churn lock (cayley REV-2 KAT #1, expected values
+        # frozen): 8 stable + 3 flappy alternating -> J exactly 8/11 -> one
+        # drop (lex-LAST flappy) -> J exactly 4/5 -> exact stop, 10 survive
+        st8 = [f"K{i}" for i in range(8)]
+        fl3 = ["ZA", "ZB", "ZC"]        # sort AFTER the stable set so the
+        p5 = {s: 0.99 for s in st8 + fl3}   # lex-LAST tie drop hits a flapper
+        d5 = [sorted(st8 + fl3) if i % 2 == 0 else sorted(st8)
+              for i in range(6)]
+        e5 = WS.select_fixture(p5, d5, cap=11)
+        o5 = _ref_select(p5, d5, cap=11)
+        ok_exact = e5 == o5 and sorted(e5["selected"]) == sorted(
+            st8 + ["ZA", "ZB"]) and e5["typing"] is None
+        check("SEL-b engine == oracle (constants, fixture path, production "
+              "path, frame/decl/cap refusals, exact-churn lock)",
+              ok_const and ok_nom and ok_pool and ok_corner and ok_prod
+              and ok_frame and ok_decl and ok_cap and ok_cap16 and ok_exact,
               f"const={ok_const} nom={ok_nom} pool={ok_pool} "
-              f"corner={ok_corner} (e={e4.get('selected') if ok_const else ''})")
+              f"corner={ok_corner} prod={ok_prod} frame={ok_frame} "
+              f"decl={ok_decl} cap={ok_cap}/{ok_cap16} exact={ok_exact}")
     except ImportError:
         check("SEL-b engine == oracle", False, "W2_ENGINE_ABSENT")
     except Exception as exc:

@@ -487,8 +487,8 @@ def w_b2b():
         B = [f"B{i}" for i in range(5)]
         reg = A + B                               # floor ceil(20/3) = 7
 
-        def fam(car, nd=199):
-            return WB.w2_b2b_family({"calendar": days,
+        def fam(car, nd=199, cal=None):
+            return WB.w2_b2b_family({"calendar": cal or days,
                                      "carriers": {"x": car}},
                                     doc_sha256="cd" * 32, n_draws=nd)
 
@@ -511,10 +511,10 @@ def w_b2b():
         d2 = days[:2]
         shared6 = A[:3] + B[:3]                   # 3/3, both sides >= 2
         r3a = fam(_b2b_carrier(d2, [_b2b_day(A, B[:4])] * 2,
-                               [reg9, shared6], reg9))
+                               [reg9, shared6], reg9), cal=d2)
         shared5 = A[:3] + B[:2]                   # shared 5 < floor 6
         r3b = fam(_b2b_carrier(d2, [_b2b_day(A, B[:4])] * 2,
-                               [reg9, shared5], reg9))
+                               [reg9, shared5], reg9), cal=d2)
         ok3 = (r3a["runs_by_carrier"]["x"] == 1
                and not r3a.get("day_refusals")
                and r3b["runs_by_carrier"]["x"] == 2

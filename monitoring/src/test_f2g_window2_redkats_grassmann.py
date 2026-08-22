@@ -1024,6 +1024,383 @@ def w_mag():
               f"{type(exc).__name__}: {exc}")
 
 
+# ---- REV 9 (the convergence close packet; codex 1335Z/1358Z item 5 +
+# 1721Z sequencing + 1423Z/1519Z null guards) -------------------------------
+def w_mag_exec():
+    """REV 9 group 1: the REAL execution-bound MAG capsule set through
+    the execution-manifest authority -- all three capsules + envelopes
+    + bodies, independent body-sha recompute, real parsers, end-to-end
+    frame conversion (IZN degrees + scalar-S exclusion), moved-path and
+    unknown-name doctors."""
+    try:
+        import math as _m
+        import w2_mag1 as WMG
+
+        def refuses(fn, code):
+            try:
+                fn()
+                return False
+            except WMG.Mag1Refusal as e:
+                return str(e).startswith(code)
+
+        mc = subprocess.run(
+            ["git", "-C", _REPO, "log", "-1", "--format=%H", "--",
+             WMG.EXEC_MANIFEST_PATH],
+            capture_output=True, text=True).stdout.strip()
+        man = json.loads(_blob(
+            f"{mc}:{WMG.EXEC_MANIFEST_PATH}").decode("utf-8"))
+        slot = man["slots"]["mag_capsules"]["status"]
+        expect_mode = "pin_checked" if slot == "BOUND" else "pre_bind"
+        target = man["execution_target_commit"]
+
+        # IZN -- GIN angular HDZS, declination in DEGREES
+        cap_i, body_i, rec_i = WMG.load_execution_capsule("izn", mc)
+        arrs_i = WMG.gin_arrays(body_i)
+        raw_i = _blob(f"{target}:{rec_i['body_path']}")
+        ok_izn = rec_i["mode"] == expect_mode \
+            and {"H", "D", "Z", "S"} <= set(arrs_i) \
+            and hashlib.sha256(raw_i).hexdigest() \
+            == cap_i["probe_body_sha256"] \
+            and len(arrs_i["H"]) == cap_i["recomputed_coverage_samples"]
+        xi, yi, zi = WMG.convert_frame(cap_i, arrs_i, "HDZS")
+        k = next(j for j, (h, d) in enumerate(zip(arrs_i["H"],
+                                                  arrs_i["D"]))
+                 if h is not None and d is not None)
+        h_k, d_k = float(arrs_i["H"][k]), float(arrs_i["D"][k])
+        ok_izn = ok_izn \
+            and abs(xi[k] - h_k * _m.cos(_m.radians(d_k))) < 1e-9 \
+            and abs(yi[k] - h_k * _m.sin(_m.radians(d_k))) < 1e-9
+        # scalar-S exclusion is structural: the angular path needs only
+        # H/D/Z -- removing S entirely must still convert
+        xs2, _, _ = WMG.convert_frame(
+            cap_i, {q: v for q, v in arrs_i.items() if q != "S"},
+            "HDZS")
+        ok_izn = ok_izn and abs(xs2[k] - xi[k]) < 1e-15
+
+        # FRN + TUC -- USGS map-less reported XYZF (identity elements)
+        ok_us = True
+        for name in ("frn", "tuc"):
+            cap_u, body_u, rec_u = WMG.load_execution_capsule(name, mc)
+            arrs_u = WMG.usgs_arrays(body_u)
+            raw_u = _blob(f"{target}:{rec_u['body_path']}")
+            ok_us = ok_us and rec_u["mode"] == expect_mode \
+                and cap_u["reported_orientation"] == "XYZF" \
+                and hashlib.sha256(raw_u).hexdigest() \
+                == cap_u["probe_body_sha256"] \
+                and {"X", "Y", "Z"} <= set(arrs_u) \
+                and len(arrs_u["X"]) \
+                == cap_u["recomputed_coverage_samples"]
+            xu, yu, zu = WMG.convert_frame(cap_u, arrs_u, "XYZF")
+            j = next(i for i, v in enumerate(arrs_u["X"])
+                     if v is not None)
+            ok_us = ok_us and abs(xu[j] - float(arrs_u["X"][j])) \
+                < 1e-15 and len(xu) == len(arrs_u["X"])
+
+        # doctors: unknown name; a PRE-RELOCATION manifest commit (the
+        # moved-path class -- its target lacks the execution tree)
+        ok_d1 = refuses(lambda: WMG.load_execution_capsule("vic", mc),
+                        "CAPSULE_UNKNOWN")
+        first_mc = subprocess.run(
+            ["git", "-C", _REPO, "log", "--format=%H", "--",
+             WMG.EXEC_MANIFEST_PATH],
+            capture_output=True, text=True).stdout.split()[-1]
+        ok_d2 = refuses(
+            lambda: WMG.load_execution_capsule("izn", first_mc),
+            "ARTIFACT_UNREADABLE")
+
+        check("MAG-EXEC real execution capsules (manifest-authority "
+              "loads x3, independent body-sha recompute, GIN/USGS "
+              "parsers, IZN degree conversion + scalar-S exclusion, "
+              "XYZF identity, unknown-name + moved-path doctors)",
+              ok_izn and ok_us and ok_d1 and ok_d2,
+              f"izn={ok_izn} usgs={ok_us} doctors={ok_d1}/{ok_d2} "
+              f"mode_expected={expect_mode}")
+    except ImportError:
+        check("MAG-EXEC real execution capsules", False,
+              "W2_ENGINE_ABSENT")
+    except Exception as exc:
+        check("MAG-EXEC real execution capsules", False,
+              f"{type(exc).__name__}: {exc}")
+
+
+def w_mag_b():
+    """REV 9 group 2: part-B statistic surfaces -- the codex hand
+    fixtures verbatim (Spearman tie 7/9, window_energy 6.5, m1_p
+    add-one endpoints), monotone/zero-variance behavior, and the
+    subtraction/M3 ledger discipline."""
+    try:
+        import numpy as np
+        import w2_mag1 as WMG
+
+        def refuses(fn, code):
+            try:
+                fn()
+                return False
+            except WMG.Mag1Refusal as e:
+                return str(e).startswith(code)
+
+        sp = WMG._spearman([1, 1, 2, 3], [10, 10, 30, 20])
+        ok_sp = abs(sp - 7.0 / 9.0) < 1e-15 \
+            and WMG._spearman([2, 2, 5, 7], [1000, 1000, 27000, 8000]) \
+            == sp \
+            and WMG._spearman([1, 1, 1, 1], [1, 2, 3, 4]) == 0.0
+        ok_we = WMG.window_energy([1.0, -2.0, float("nan"), 3.0, 4.0],
+                                  0, 5) == 6.5 \
+            and refuses(lambda: WMG.window_energy(
+                [float("nan")] * 3, 0, 3, min_support=1),
+                "M1_WINDOW_SUPPORT_INSUFFICIENT")
+        ok_p = WMG.m1_p(10.0, [1.0] * 4) == 1.0 / 5.0 \
+            and WMG.m1_p(0.0, [1.0] * 4) == 1.0
+
+        # subtraction ledger discipline on a small planted fixture
+        from datetime import datetime as _dtb, timedelta as _tdb
+        n = 3000
+        rng = np.random.Generator(np.random.PCG64(77))
+        times = [(_dtb(2026, 1, 1) + _tdb(minutes=i)).isoformat()
+                 for i in range(n)]
+        wx = {"symh": rng.normal(size=n).tolist()}
+        vals = (20000 + 0.5 * np.asarray(wx["symh"])
+                + rng.normal(scale=0.1, size=n)).tolist()
+        led = WMG.fit_subtraction(times, vals, -120.0, wx)
+        resid = WMG.apply_subtraction(led, times, vals, wx)
+        ok_fit = bool(np.isfinite(resid).all()) \
+            and abs(float(np.mean(resid))) < 1.0
+        bad = json.loads(json.dumps(led))
+        bad["coef"][0] += 1.0
+        ok_led = refuses(
+            lambda: WMG.apply_subtraction(bad, times, vals, wx),
+            "LEDGER_MUTATED")
+        ok_sup = refuses(
+            lambda: WMG.fit_subtraction(times[:10], vals[:10], -120.0,
+                                        {"symh": wx["symh"][:10]}),
+            "SUBTRACTION_INSUFFICIENT_SUPPORT")
+        ok_rank = refuses(
+            lambda: WMG.fit_subtraction(
+                times, vals, -120.0,
+                {"symh": wx["symh"], "symh2": list(wx["symh"])}),
+            "SUBTRACTION_DESIGN_RANK_DEFICIENT")
+        # 3 design cols (intercept + reference + 1 weather): floor is
+        # 6 rows, so 5 rows -> support; 6 constant rows -> rank
+        ok_m3 = refuses(
+            lambda: WMG.fit_m3_reference([1.0] * 5, [1.0] * 5,
+                                         {"symh": [0.0] * 5}),
+            "M3_INSUFFICIENT_SUPPORT") \
+            and refuses(
+                lambda: WMG.fit_m3_reference([1.0] * 6, [1.0] * 6,
+                                             {"symh": [0.0] * 6}),
+                "M3_DESIGN_RANK_DEFICIENT")
+
+        check("MAG-B part-B statistics (Spearman midrank tie 7/9 + "
+              "monotone invariance + zero-variance 0, window_energy "
+              "6.5 + support refusal, m1_p add-one endpoints, "
+              "subtraction fit/apply ledger discipline + typed "
+              "refusals, M3 support refusal)",
+              ok_sp and ok_we and ok_p and ok_fit and ok_led
+              and ok_sup and ok_rank and ok_m3,
+              f"sp={ok_sp} we={ok_we} p={ok_p} fit={ok_fit} "
+              f"led={ok_led} sup={ok_sup} rank={ok_rank} m3={ok_m3}")
+    except ImportError:
+        check("MAG-B part-B statistics", False, "W2_ENGINE_ABSENT")
+    except Exception as exc:
+        check("MAG-B part-B statistics", False,
+              f"{type(exc).__name__}: {exc}")
+
+
+def w_mag_null():
+    """REV 9 groups 3+4: the registered feature-capsule null -- raw
+    recomputation non-equivalence reproduced, full in-bar independent
+    oracle (own midrank Spearman + rotation census) matched exactly,
+    operation-record binding recomputed, capsule digest recomputed,
+    non-finite boundary doctors, finite-pair floor boundary."""
+    try:
+        import numpy as np
+        import w2_mag1 as WMG
+        from datetime import date as _dn, timedelta as _tdn
+
+        def refuses(fn, code):
+            try:
+                fn()
+                return False
+            except WMG.Mag1Refusal as e:
+                return str(e).startswith(code)
+
+        ok_const = WMG.M2_LAGS == (0, 1, -1, 2, -2, 3, -3) \
+            and WMG.M2_MIN_OVERLAP == 60 and WMG.M2_EXCLUDED_OFFSET == 3
+
+        # (3a) raw-recomputation NON-equivalence: byte-identical target
+        # day, neighbor day zeros vs strong noise -> different median
+        # energy (sosfiltfilt support crosses day boundaries)
+        sos, _ = WMG.load_sos(repo=_REPO)
+        rng = np.random.Generator(np.random.PCG64(31))
+        dayvecs = [rng.normal(size=1440) for _ in range(7)]
+        va = np.concatenate([np.zeros(1440) if i == 2 else dayvecs[i]
+                             for i in range(7)])
+        vb = np.concatenate([5.0 * rng.normal(size=1440) if i == 2
+                             else dayvecs[i] for i in range(7)])
+        assert (va[3 * 1440:4 * 1440]
+                == vb[3 * 1440:4 * 1440]).all()
+        fa = WMG.band_b_series(va, sos)
+        fb = WMG.band_b_series(vb, sos)
+        ea = WMG.window_energy(fa, 3 * 1440, 4 * 1440)
+        eb = WMG.window_energy(fb, 3 * 1440, 4 * 1440)
+        ok_nonlocal = ea != eb
+
+        # (3b) in-bar independent oracle over a 70-day fixture with
+        # typed absences: T_obs, eligible-offset CENSUS, n_null and p
+        # must match EXACTLY (no offset may vanish silently)
+        days70 = [(_dn(2026, 3, 1) + _tdn(days=i)).isoformat()
+                  for i in range(70)]
+        mag_d = {d: float(rng.normal()) for d in days70}
+        mag_d[days70[10]] = None
+        mag_d[days70[45]] = None
+        gr_d = {d: float(rng.normal()) for d in days70}
+
+        def oracle_ranks(x):
+            order = np.argsort(x, kind="mergesort")
+            rk = np.empty(len(x), dtype=float)
+            sx = np.asarray(x)[order]
+            i = 0
+            while i < len(x):
+                j = i
+                while j + 1 < len(x) and sx[j + 1] == sx[i]:
+                    j += 1
+                rk[order[i:j + 1]] = (i + j) / 2.0 + 1.0
+                i = j + 1
+            return rk
+
+        def oracle_spearman(a, b):
+            ra, rb = oracle_ranks(np.asarray(a, float)), \
+                oracle_ranks(np.asarray(b, float))
+            ra = ra - ra.mean()
+            rb = rb - rb.mean()
+            den = (float((ra ** 2).sum())
+                   * float((rb ** 2).sum())) ** 0.5
+            if den == 0.0:
+                return 0.0
+            return float((ra * rb).sum() / den)
+
+        def oracle_stat(m_by_day, g_by_day, days):
+            pos = {d: i for i, d in enumerate(days)}
+            best = None
+            for lag in (0, 1, -1, 2, -2, 3, -3):
+                pairs = []
+                for d in days:
+                    jj = pos[d] + lag
+                    if 0 <= jj < len(days):
+                        mv = m_by_day.get(days[jj])
+                        gv = g_by_day.get(d)
+                        if mv is not None and gv is not None \
+                                and np.isfinite(mv) \
+                                and np.isfinite(gv):
+                            pairs.append((mv, gv))
+                if len(pairs) < 60:
+                    continue
+                rho = oracle_spearman([p[0] for p in pairs],
+                                      [p[1] for p in pairs])
+                if best is None or rho > best:
+                    best = rho
+            return best        # None == typed insufficient overlap
+
+        obs_o = oracle_stat(mag_d, gr_d, days70)
+        nulls_o, elig_o = [], []
+        for off in range(70):
+            if min(off, 70 - off) <= 3:
+                continue
+            rot = {days70[(i + off) % 70]: mag_d.get(days70[i])
+                   for i in range(70)}
+            s = oracle_stat(rot, gr_d, days70)
+            if s is not None:
+                nulls_o.append(s)
+                elig_o.append(off)
+        p_o = (1 + sum(1 for s in nulls_o if s >= obs_o)) \
+            / (len(nulls_o) + 1)
+
+        res = WMG.m2_pairing(mag_d, gr_d, days70,
+                             subtraction_ledger_digest="ab" * 32,
+                             sos_digest="cd" * 32,
+                             source_input_digest="ef" * 32)
+        ok_oracle = res["T_obs"] == obs_o \
+            and res["eligible_offsets"] == elig_o \
+            and res["n_null"] == len(nulls_o) \
+            and res["p_value"] == float(p_o) \
+            and res["eligible_offsets"] == list(range(4, 67))
+        ok_support = res["capsule"]["surviving_support"] == 68
+
+        # (3c) binding recomputation: capsule digest, graph day-index
+        # digest, implementation sha, frozen parameters
+        cc = dict(res["capsule"])
+        cd = cc.pop("capsule_digest")
+        ok_capd = hashlib.sha256(json.dumps(
+            cc, sort_keys=True,
+            separators=(",", ":")).encode()).hexdigest() == cd
+        opr = res["operation_record"]
+        gd = hashlib.sha256(json.dumps(
+            {"days": days70, "values": {d: gr_d.get(d)
+                                        for d in days70}},
+            sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+        with open(os.path.join(_HERE, "w2_mag1.py"), "rb") as fsrc:
+            impl = hashlib.sha256(
+                fsrc.read().replace(b"\r\n", b"\n")).hexdigest()
+        ok_bind = opr["capsule_digest"] == cd \
+            and opr["graph_day_index_digest"] == gd \
+            and opr["implementation_sha256_normalized"] == impl \
+            and opr["lags"] == [0, 1, -1, 2, -2, 3, -3] \
+            and opr["min_overlap"] == 60 \
+            and opr["excluded_offsets_rule"] == "|offset| <= 3" \
+            and "capsule" in opr["null"]
+
+        # (4) non-finite boundary + finite-pair floor
+        days60 = days70[:60]
+        m60 = {d: float(rng.normal()) for d in days60}
+        g60 = {d: float(rng.normal()) for d in days60}
+        m_nan = dict(m60)
+        m_nan[days60[5]] = float("nan")
+        m_inf = dict(m60)
+        m_inf[days60[6]] = float("inf")
+        g_nan = dict(g60)
+        g_nan[days60[7]] = float("nan")
+        kw = dict(subtraction_ledger_digest="ab" * 32,
+                  sos_digest="cd" * 32, source_input_digest="ef" * 32)
+        ok_nf = refuses(lambda: WMG.m2_pairing(m_nan, g60, days60,
+                                               **kw),
+                        "M2_NONFINITE_INPUT") \
+            and refuses(lambda: WMG.m2_pairing(m_inf, g60, days60,
+                                               **kw),
+                        "M2_NONFINITE_INPUT") \
+            and refuses(lambda: WMG.m2_pairing(m60, g_nan, days60,
+                                               **kw),
+                        "M2_NONFINITE_INPUT")
+        # 61 days, one typed None -> exactly 60 finite lag-0 pairs:
+        # the floor passes and every eligible offset survives (census)
+        days61 = days70[:61]
+        m61 = {d: float(rng.normal()) for d in days61}
+        m61[days61[30]] = None
+        g61 = {d: float(rng.normal()) for d in days61}
+        res61 = WMG.m2_pairing(m61, g61, days61, **kw)
+        ok_floor = res61["capsule"]["surviving_support"] == 60 \
+            and res61["eligible_offsets"] == list(range(4, 58)) \
+            and res61["n_null"] == 54 \
+            and np.isfinite(res61["T_obs"])
+
+        check("MAG-NULL feature-capsule null (raw non-equivalence "
+              "reproduced, full in-bar oracle EXACT incl offset "
+              "census, capsule+graph+impl binding recomputed, "
+              "non-finite boundary doctors, 61-day finite-floor "
+              "boundary)",
+              ok_const and ok_nonlocal and ok_oracle and ok_support
+              and ok_capd and ok_bind and ok_nf and ok_floor,
+              f"const={ok_const} nonlocal={ok_nonlocal} "
+              f"oracle={ok_oracle} support={ok_support} "
+              f"capd={ok_capd} bind={ok_bind} nf={ok_nf} "
+              f"floor={ok_floor}")
+    except ImportError:
+        check("MAG-NULL feature-capsule null", False,
+              "W2_ENGINE_ABSENT")
+    except Exception as exc:
+        check("MAG-NULL feature-capsule null", False,
+              f"{type(exc).__name__}: {exc}")
+
+
 _GATED = ()
 
 
@@ -1038,6 +1415,9 @@ def main():
     w_b1b()
     w_mf4()
     w_mag()
+    w_mag_exec()
+    w_mag_b()
+    w_mag_null()
 
 
 main()

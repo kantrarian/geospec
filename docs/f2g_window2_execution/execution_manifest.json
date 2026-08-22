@@ -1,0 +1,91 @@
+{
+ "design_manifest_blob_sha256": "d6decbd6ab5814bc005ce69c538311ff1b11cb1d13c19e2999e03a92bc7cca1f",
+ "design_manifest_commit": "5fba5446cd96722fb86021df5065a46b8a1a78f5",
+ "design_target_commit": "12161f6cf2000b2d4aa86fe659f834839ac0d27b",
+ "execution_target_commit": "7ee77c7cd33d67861a8102f557dd79acbc49b044",
+ "generated_utc": "2026-08-22T02:10:17Z",
+ "manifest_state": "OPEN",
+ "repository_url": "https://github.com/kantrarian/geospec",
+ "schema": "f2g-window2-execution-manifest-v1",
+ "slots": {
+  "accrual_impl": {
+   "note": "sealed prediction accrual + two-stage barrier instruments",
+   "owner": "cayley",
+   "pins": [],
+   "status": "OPEN"
+  },
+  "adapter_impl": {
+   "note": "window-2 family adapter (B2A/B2B/B1B/B3A) over the frozen graph",
+   "owner": "cayley",
+   "pins": [],
+   "status": "OPEN"
+  },
+  "bars": {
+   "note": "executable bar file(s); families must equal the required 8 when BOUND",
+   "owner": "grassmann",
+   "pins": [],
+   "status": "OPEN"
+  },
+  "calibration_ledgers": {
+   "note": "MAG-1 subtraction coefficients + diagnostics, pre-evaluation",
+   "owner": "cayley",
+   "pins": [],
+   "status": "OPEN"
+  },
+  "design_pin_verifier": {
+   "note": "design-pin walk executable (landed b755ce1)",
+   "owner": "cayley",
+   "pins": [
+    {
+     "blob_sha256": "a010044f4365983e439605c7605d608963a81a1ee389439c90a7864ca9a21ac6",
+     "commit": "b755ce1a4cc7d8dbd937828fa7a403f7f9aa216e",
+     "path": "monitoring/src/f2g_design_pin_verifier_cayley.py"
+    }
+   ],
+   "status": "BOUND"
+  },
+  "execution_generator": {
+   "note": "this generator",
+   "owner": "cayley",
+   "pins": [
+    {
+     "blob_sha256": "4ba381158e402ce0244072001d816d190011146d1350c8dca4c68547c949db5f",
+     "commit": "7ee77c7cd33d67861a8102f557dd79acbc49b044",
+     "path": "monitoring/src/f2g_execution_manifest_gen_cayley.py"
+    }
+   ],
+   "status": "BOUND"
+  },
+  "execution_verifier": {
+   "note": "executable verifier (design linkage + slot/pin walk + prestart gate)",
+   "owner": "cayley",
+   "pins": [
+    {
+     "blob_sha256": "333c4b077bc4f0b99243f7548c693743adb259b9e959e07a528d27476da9bb6f",
+     "commit": "7ee77c7cd33d67861a8102f557dd79acbc49b044",
+     "path": "monitoring/src/f2g_execution_manifest_verifier_cayley.py"
+    }
+   ],
+   "status": "BOUND"
+  },
+  "mag_capsules": {
+   "note": "typed at-freeze station capsules IZN/FRN/TUC (VIC/NEW already design-pinned)",
+   "owner": "cayley",
+   "pins": [],
+   "status": "OPEN"
+  },
+  "producer_code": {
+   "note": "accrual producers (seismic + MAG raw byte acquisition)",
+   "owner": "grassmann",
+   "pins": [],
+   "status": "OPEN"
+  },
+  "selection_impl": {
+   "note": "cutoff-stable selection per prereg v0.3 + selection_constants.md",
+   "owner": "cayley",
+   "pins": [],
+   "status": "OPEN"
+  }
+ },
+ "target_ref": "origin/master"
+}

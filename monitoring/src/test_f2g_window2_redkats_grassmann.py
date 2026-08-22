@@ -235,7 +235,10 @@ def _ref_select(presence, day_sets, cap, minimum=8,
 
     sel = list(pool)
     while churn(sel) < cfloor and len(sel) > minimum:
-        worst = min(sel, key=lambda s: (presence[s], [-ord(c) for c in s]))
+        # drop the LEAST-preferred member: lowest presence, then the
+        # lexicographically LAST id (cayley R1.2-a repair adopted verbatim
+        # -- the prior negative-ord list key inverted prefix-related ids)
+        worst = max(sel, key=lambda s: (-presence[s], s))
         sel.remove(worst)
     c = churn(sel)
     return {"selected": sorted(sel), "churn": c,
@@ -244,11 +247,12 @@ def _ref_select(presence, day_sets, cap, minimum=8,
 
 def w_sel_a():
     try:
-        # hand-computed fixture: 12 stations, 3 below presence floor
-        # (9 eligible >= min 8); cap 6 -> greedy takes top-6 eligible;
-        # churn already above floor
-        pres = {f"S{i:02d}": 0.80 + i * 0.02 for i in range(12)}   # S00..S11
-        days = [[f"S{i:02d}" for i in range(12)]] * 5              # stable
+        # hand-computed fixture: 12 stations, 3 below the presence floor,
+        # 9 eligible in [0.86, 0.98] (cayley R1.2-b: presence is a fraction,
+        # never > 1.0); cap 8 -> greedy takes top-8 eligible
+        pres = {"S00": 0.70, "S01": 0.75, "S02": 0.80}
+        pres.update({f"S{i + 3:02d}": 0.86 + 0.015 * i for i in range(9)})
+        days = [sorted(pres)] * 5                                  # stable
         r = _ref_select(pres, days, cap=8)
         elig = {s: p for s, p in pres.items() if p >= 0.85}
         expect = sorted(sorted(elig, key=lambda s: (-elig[s], s))[:8])
@@ -274,14 +278,145 @@ def w_sel_a():
               f"{type(exc).__name__}: {exc}")
 
 
+# ---- W-SEL-b: engine == oracle (wired vs w2_selection @ a9bb8ae) -----------
+def w_sel_b():
+    try:
+        import w2_selection as WS
+        ok_const = (WS.PRESENCE_FLOOR == 0.85 and WS.CHURN_FLOOR == 0.80
+                    and WS.CAPS == SEL["caps"] and WS.MINIMUM == 8)
+        # nominal + ties: engine must equal the oracle exactly
+        p1 = {"S00": 0.70, "S01": 0.75, "S02": 0.80}
+        p1.update({f"S{i + 3:02d}": 0.86 + 0.015 * i for i in range(9)})
+        d1 = [sorted(p1)] * 5
+        e1 = WS.select("istanbul_marmara", p1, d1, cap=8)
+        o1 = _ref_select(p1, d1, cap=8)
+        ok_nom = e1 == o1
+        # INSUFFICIENT_POOL at pool == 7
+        p3 = {f"T{i}": 0.90 for i in range(7)}
+        try:
+            WS.select("cascadia", p3, [sorted(p3)] * 3, cap=16)
+            ok_pool = False
+        except ValueError as exc:
+            ok_pool = "INSUFFICIENT_POOL" in str(exc)
+        # drop-worst + prefix corner (cayley's fixture, expected values
+        # from the ratified rule): 7 stable @0.99 + {"A","AB"} tied @0.90
+        # flapping on alternate days -> one drop -> "AB" out, "A" survives
+        stable = [f"Z{i}" for i in range(7)]
+        p4 = {s: 0.99 for s in stable}
+        p4.update({"A": 0.90, "AB": 0.90})
+        d4 = [sorted(stable + ["A", "AB"]) if i % 2 == 0 else sorted(stable)
+              for i in range(6)]
+        e4 = WS.select("istanbul_marmara", p4, d4, cap=9)
+        o4 = _ref_select(p4, d4, cap=9)
+        ok_corner = e4 == o4 and "AB" not in e4["selected"] \
+            and "A" in e4["selected"]
+        check("SEL-b engine == oracle (constants, nominal, ties, pool, "
+              "prefix-corner drop-worst)",
+              ok_const and ok_nom and ok_pool and ok_corner,
+              f"const={ok_const} nom={ok_nom} pool={ok_pool} "
+              f"corner={ok_corner} (e={e4.get('selected') if ok_const else ''})")
+    except ImportError:
+        check("SEL-b engine == oracle", False, "W2_ENGINE_ABSENT")
+    except Exception as exc:
+        check("SEL-b engine == oracle", False, f"{type(exc).__name__}: {exc}")
+
+
+# ---- W-CAS-b: epoch-first precedence vs an independent in-bar resolver -----
+def _parse_epochs(body_text):
+    eps = []
+    for l in body_text.splitlines():
+        if not l or l.startswith("#"):
+            continue
+        p = l.split("|")
+        if len(p) < 2:
+            continue
+        eps.append({"net": p[0], "sta": p[1], "loc": p[2],
+                    "start": p[-2], "end": p[-1]})
+    return eps
+
+
+def _resolve_day(eps, day):
+    """Independent oracle: ACTIVE at day-start 00:00:00Z (half-open
+    [start, end)) first, THEN blank -> 00 -> lexicographic."""
+    t = day + "T00:00:00"
+    out = {}
+    for key in {(e["net"], e["sta"]) for e in eps}:
+        act = [e for e in eps if (e["net"], e["sta"]) == key
+               and e["start"][:19] <= t and (not e["end"].strip()
+                                             or e["end"][:19] > t)]
+        if not act:
+            continue
+        act.sort(key=lambda e: (e["loc"] != "", e["loc"]))
+        out[f"{key[0]}.{key[1]}"] = act[0]["loc"]
+    return out
+
+
+def w_cas_b():
+    try:
+        import w2_cascadia as WC
+        body = _blob(f"{MANIFEST_COMMIT}:docs/f2g_window2_freeze/receipts/"
+                     f"cascadia_UW_CC_CN_HHZ.txt").decode("utf-8", "replace")
+        eps = _parse_epochs(body)
+        ok_days, bad = True, []
+        for day in ("2026-07-11", "2026-07-15", "2026-07-16", "2026-07-30",
+                    "2026-07-31", "2026-11-30"):
+            oracle = _resolve_day(eps, day)
+            rows = WC.registry_for_day(day, repo=_REPO)
+            got = {r["id"]: r["location"] for r in rows}
+            if got != oracle:
+                ok_days = False
+                diff = {k: (oracle.get(k), got.get(k))
+                        for k in set(oracle) | set(got)
+                        if oracle.get(k) != got.get(k)}
+                bad.append((day, dict(list(diff.items())[:2])))
+        # TOUT ruled facts asserted explicitly on both paths
+        o15 = _resolve_day(eps, "2026-07-15").get("UW.TOUT")
+        o16 = _resolve_day(eps, "2026-07-16").get("UW.TOUT")
+        ok_tout = o15 == "" and o16 == "00"
+        # synthetic: simultaneous blank/00 -> blank; same-loc overlap refuses
+        from datetime import datetime as _dt
+        synth = [{"network": "XX", "station": "AAA", "location": "",
+                  "channel": "HHZ", "latitude": 0.0, "longitude": 0.0,
+                  "epoch_start": _dt(2026, 7, 1), "epoch_end":
+                  _dt(2026, 12, 31)},
+                 {"network": "XX", "station": "AAA", "location": "00",
+                  "channel": "HHZ", "latitude": 0.0, "longitude": 0.0,
+                  "epoch_start": _dt(2026, 7, 1), "epoch_end":
+                  _dt(2026, 12, 31)}]
+        r_syn = WC.registry_for_day("2026-08-01", epochs=synth)
+        got_syn = {r["id"]: r["location"] for r in r_syn}
+        ok_syn = got_syn.get("XX.AAA") == ""
+        dup = [dict(synth[0]), dict(synth[0])]
+        try:
+            WC.registry_for_day("2026-08-01", epochs=dup)
+            ok_dup = False
+        except Exception as exc:
+            ok_dup = "EPOCH_OVERLAP_SAME_LOCATION" in str(exc)
+        try:
+            WC.registry_for_day("08/01/2026", epochs=synth)
+            ok_fmt = False
+        except Exception as exc:
+            ok_fmt = "BAD_DAY_FORMAT" in str(exc)
+        s = WC.receipt_summary(repo=_REPO)
+        ok_env = (s.get("rows") == 203 and s.get("unique_net_sta") == 198
+                  and s.get("by_network") == {"UW": 118, "CC": 43, "CN": 37})
+        check("CAS-b epoch-first precedence (6-day full-registry oracle "
+              "sweep, TOUT, blank-wins, overlap+format refusals, envelope)",
+              ok_days and ok_tout and ok_syn and ok_dup and ok_fmt and ok_env,
+              f"days={ok_days} {bad[:2]} tout={ok_tout} syn={ok_syn} "
+              f"dup={ok_dup} fmt={ok_fmt} env={ok_env}")
+    except ImportError:
+        check("CAS-b epoch-first precedence", False, "W2_ENGINE_ABSENT")
+    except Exception as exc:
+        check("CAS-b epoch-first precedence", False,
+              f"{type(exc).__name__}: {exc}")
+
+
 # ---- engine-gated classes: typed red until cayley's surfaces land ----------
 _GATED = (
-    "SEL-b engine selection == oracle (nominal/INSUFFICIENT_POOL/"
-    "BELOW_FLOOR/ties/drop-worst)",
-    "CAS-b epoch-first precedence (TOUT transition, RER triple, "
-    "simultaneous blank/00, envelope recompute)",
     "B2B annex KATs (planted churn survival, adversarial dropout, "
-    "floor boundary, label invariance, segment minimum)",
+    "floor boundary, label invariance, segment minimum) [engine landed "
+    "7b4d097; fixtures wire in the next REV with the three ratified pins]",
     "B1B annex KATs (endpoint invariance, 8/(max(2,3)) fixture x4 paths, "
     "ZERO_SCALE_REFUSAL never-shrink, winsor 4-leg identity, gain-step "
     "specificity, health admission)",
@@ -299,6 +434,8 @@ def main():
     w_pin()
     w_cas_a()
     w_sel_a()
+    w_sel_b()
+    w_cas_b()
     for nm in _GATED:
         check(nm, False, "W2_ENGINE_ABSENT (expected red; fixture spec "
                          "frozen in the bar header)")

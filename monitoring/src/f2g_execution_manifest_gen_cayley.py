@@ -20,7 +20,7 @@ import time
 
 MANIFEST_PATH = "docs/f2g_window2_execution/execution_manifest.json"
 DESIGN_MANIFEST_PATH = "docs/f2g_window2_freeze/byte_pin_manifest.json"
-SCHEMA = "f2g-window2-execution-manifest-v1.1"
+SCHEMA = "f2g-window2-execution-manifest-v1.2"
 
 BOUND_SLOTS = {
     "execution_generator": {
@@ -121,13 +121,21 @@ OPEN_SLOTS = {
                                       "coefficients + diagnostics -- "
                                       "PRODUCED at the availability "
                                       "cutoff, pre-evaluation only"),
-    "producer_code": ("grassmann", "w2_producer REV 2 (575f275) is "
-                                   "ONE pin of this slot; stays OPEN "
-                                   "per codex 1721Z item 1 until the "
-                                   "acquisition surface lands or the "
-                                   "staged-envelope trust boundary is "
-                                   "registered by schema amendment"),
+    # v1.2 (codex 1400Z ruling 2, option (ii)): producer_code is
+    # RENAMED producer_boundary -- the STAGED-ENVELOPE trust boundary
+    # per producer_boundary_amendment_v1.md; grassmann's ratification
+    # + real staging BIND it (amendment + envelope-verifier code +
+    # per-lane/per-day envelope records + claim ceiling)
+    "producer_boundary": ("grassmann",
+                          "staged-envelope boundary (amendment v1); "
+                          "OPEN until grassmann ratifies the mode "
+                          "and stages: BOUND requires the amendment "
+                          "doc + envelope verifier + transform code "
+                          "+ envelope records; acquisition before "
+                          "the staged bytes is receipt-attested, "
+                          "never source-code-attested"),
 }
+PRODUCER_BOUNDARY_MODE = "staged_envelope"
 
 
 def _git(repo, args, binary=False):
@@ -168,6 +176,9 @@ def main(repo, target, design_manifest_commit):
     for name, (owner, note) in OPEN_SLOTS.items():
         slots[name] = {"status": "OPEN", "owner": owner, "note": note,
                        "pins": []}
+    # the registered boundary mode rides the slot object itself
+    slots["producer_boundary"]["boundary_mode"] = \
+        PRODUCER_BOUNDARY_MODE
     state = "CLOSED" if all(s["status"] == "BOUND"
                             for s in slots.values()) else "OPEN"
 

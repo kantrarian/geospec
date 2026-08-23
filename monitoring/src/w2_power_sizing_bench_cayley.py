@@ -5,8 +5,10 @@ directive 2026-08-22T19:24Z "run the tier-s benchmark and tier-c
 sizing", quote sha 7caab14d).
 
 TIMING ONLY. Geometry is fixture-authority at the FROZEN CAP SIZES
-(istanbul 16 / socal 20 / turkey 14 / cascadia 16 stations, 132-day
-calendar) so per-call costs are production-shaped, but NO power,
+(istanbul 16 / socal 20 / turkey 14 / cascadia 16 stations) on the
+WINDOW-2 v2 CALENDAR (192-position fixed authority grid, baseline 60,
+codex 1400Z ruling 1) so per-call costs are production-shaped, but NO
+power,
 recovery, or certification number is produced or reported -- every
 engine output beyond wall-clock is DISCARDED. The pinned Tier rule
 applies a fortiori: nothing here can populate a certified MDE.
@@ -20,8 +22,10 @@ LOCO fold multiplier as a scenario row only -- the window-2 LOCO
 binding is design-settled but its per-replicate composition is sized
 here as a scenario, not asserted).
 
-Writes docs/f2g_window2_execution/power_cert_sizing_v1.json (raw) --
-the human summary is authored separately from the raw artifact.
+Writes docs/f2g_window2_execution/power_cert_sizing_v2.json (raw) --
+v1 (the 132-day Phase-B-geometry timing) is RETAINED unedited; this
+v2 artifact re-times at the bound window-2 geometry and supersedes v1
+for PRESTART planning. The human summary is authored separately.
 """
 import json
 import os
@@ -49,15 +53,17 @@ LOCO_FOLDS_SCENARIO = 16      # cascadia NEW-registry stations
 
 
 def build_capsule():
-    cal = [f"C{i:03d}" for i in range(132)]
+    frame = PH.w2_calendar_frame()
+    eng = list(frame["engine_days"])
     regs = {ck: [f"{ck}S{i:02d}" for i in range(n)]
             for ck, n in CAPS.items()}
     return {"schema": PH.BOUND_GEOMETRY_SCHEMA, "bound": True,
             "calendar_authority_sha256": "bench-cal-auth",
             "seed_authority_sha256": "bench-seed-auth",
             "calendar_authority_mode": "fixture",
-            "shared_calendar_days": cal,
-            "carrier_masks": {ck: {"registered_days": cal}
+            "calendar_frame": frame,
+            "carrier_masks": {ck: {"registered_days": list(eng),
+                                   "available_days": list(eng)}
                               for ck in CAPS},
             "registries": regs,
             "segments": {ck: {s: ("sA" if i < len(regs[ck]) // 2
@@ -79,28 +85,31 @@ def main():
            "label": "TIMING ONLY -- fixture-authority geometry at "
                     "frozen cap sizes; no power numbers exist in "
                     "this artifact",
-           "geometry": {"carriers": CAPS, "calendar_days": 132},
+           "geometry": {"carriers": CAPS, "calendar_days": 192,
+                        "frame_id": "w2-calendar-v2-noncal",
+                        "baseline_positions": 60},
            "gen_seconds": None, "families": {}, "fit_9999": {},
            "projections": {}}
 
     t0 = time.perf_counter()
-    panel_cal, views, _dbg = PH.make_bound_panels(
+    panel, views, _dbg = PH.make_bound_panels(
         cap, "B2B", {"m": 2}, 0)
     out["gen_seconds"] = round(time.perf_counter() - t0, 3)
     print(f"generator: {out['gen_seconds']}s", flush=True)
 
+    b1bg = cap["calendar_frame"]["b1b"]
     runners = {
-        "B2A": lambda n: _pb.b2a_family_cal(
-            panel_cal, doc_sha256="ab" * 32, n_draws=n),
-        "B3A": lambda n: _pb.b3a_family_cal(
-            panel_cal, doc_sha256="ab" * 32, n_draws=n),
+        "B2A": lambda n: _pb.b2a_family(
+            panel, doc_sha256="ab" * 32, n_draws=n),
+        "B3A": lambda n: _pb.b3a_family(
+            panel, doc_sha256="ab" * 32, n_draws=n),
         "B2B": lambda n: PH._b2b.w2_b2b_family(
             views["b2b"], doc_sha256="ab" * 32, n_draws=n),
         "B1B": lambda n: PH._b1b.w2_b1b_family(
             views["b1b"], doc_sha256="ab" * 32, n_draws=n,
-            n_blocks=_pb.B1A_CAL_BLOCKS,
-            block_len=_pb.B1A_CAL_BLOCK_LEN,
-            baseline_positions=PH.CAL_BASELINE),
+            n_blocks=b1bg["n_blocks"],
+            block_len=b1bg["block_len"],
+            baseline_positions=b1bg["baseline_positions"]),
     }
     for fam, run in runners.items():
         rec = {}
@@ -158,7 +167,7 @@ def main():
             tier_c_points * R * c9999_all * (LOCO_FOLDS_SCENARIO + 1))
     out["projections"] = proj
 
-    rel = "docs/f2g_window2_execution/power_cert_sizing_v1.json"
+    rel = "docs/f2g_window2_execution/power_cert_sizing_v2.json"
     p = os.path.join(os.path.abspath(os.path.join(_HERE, "..", "..")),
                      rel.replace("/", os.sep))
     with open(p, "w", encoding="utf-8", newline="\n") as f:

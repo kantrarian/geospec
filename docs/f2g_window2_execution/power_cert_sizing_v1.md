@@ -41,3 +41,39 @@ NOT needed for a one-day campaign and would touch a codex-closed engine — not
 proposed.
 
 No power claims; Λ_geo INCONCLUSIVE.
+
+---
+
+## APPENDED 2026-08-23 — v2 re-timing at the BOUND window-2 geometry
+
+The calendar-authority ruling (codex 1400Z, option (a): fixed 192-position grid,
+baseline 60) changes the certified geometry from the 132-day Phase-B shape this
+document timed. Re-timed at v2 (raw: `power_cert_sizing_v2.json`, same box, same
+method; v1 retained unedited):
+
+| quantity | v1 (132d) | v2 (192d) |
+|---|---|---|
+| all-four replicate @999 | 9.4 s | 16.3 s |
+| all-four replicate @9,999 (fit) | 84.4 s | 126.7 s |
+| B1B @9,999 (dominant) | ~79 s | 102.2 s |
+| Tier-S full grid (82 pts × R50 @999) | 10.7 h | 18.6 h |
+| Tier-C base R20 / R40 (no LOCO) | 6.6 / 13.1 h | 9.9 / 19.7 h |
+
+**Honest LOCO-composed Tier-C at v2** (amendment rule: B2A/B2B/B3A once per
+replicate; B1B runs 1+16 folds ONLY after a full-Holm positive on the 3
+B1B-detection candidate points): a certified-quality B1B point goes positive on
+most replicates, so folds run nearly every replicate there —
+3 pts × R20 × (126.7 + 16×102.2)s ≈ 29.4 h + 11 pts × R20 × 126.7 s ≈ 5.5 h ≈
+**~35 h** at R20-clean; R40 extensions push toward ~70 h; a low-positive run
+floors near 10 h. This EXCEEDS the 16–33 h range accepted with the amendment
+(which was computed on v1 timing).
+
+**Mitigation (no semantic change): per-point process parallelism.** The 14 Tier-C
+points are independent certifications; the registered seed grammar is
+per-(authority, family, replicate) and point-independent; records are per-point
+artifacts. Running points as N parallel processes divides wall-clock by ~min(N,14)
+with zero effect on any registered number. At 6–8 processes the worst case fits
+comfortably inside the 08-25 fire → 08-26 completion window. Decision routed to
+codex/grassmann with the calendar close (it is an EXECUTION arrangement, not a
+statistical change, but the runner invocation shape should be recorded before the
+fire). Timing only; no power numbers exist in this appendix; Λ_geo INCONCLUSIVE.

@@ -32,7 +32,7 @@ import time
 
 MANIFEST_PATH = "docs/f2g_window2_execution/execution_manifest.json"
 DESIGN_MANIFEST_PATH = "docs/f2g_window2_freeze/byte_pin_manifest.json"
-SCHEMA = "f2g-window2-execution-manifest-v1.1"
+SCHEMA = "f2g-window2-execution-manifest-v1.2"
 TOP_FIELDS = {"schema", "generated_utc", "repository_url",
               "execution_target_commit", "target_ref",
               "design_manifest_commit", "design_manifest_blob_sha256",
@@ -40,13 +40,24 @@ TOP_FIELDS = {"schema", "generated_utc", "repository_url",
 SLOT_SET = {"execution_generator", "execution_verifier",
             "design_pin_verifier", "selection_impl", "adapter_impl",
             "accrual_impl", "mag_capsules", "calibration_ledgers",
-            "bars", "producer_code",
+            "bars",
+            # v1.2 (codex 1400Z ruling 2): producer_code RENAMED to
+            # the staged-envelope trust boundary
+            "producer_boundary",
             # v1.1: the repaired execution tools (codex 1358Z)
             "power_harness", "calibration_runner"}
 SLOT_FIELDS = {"status", "owner", "note", "pins"}
 PIN_FIELDS = {"path", "commit", "blob_sha256"}
 REQUIRED_BAR_FAMILIES = {"W-SEL", "W-CAS", "W-B2B", "W-B1B", "W-MF4",
                          "W-MAG", "W-BARRIER", "W-PIN"}
+# v1.2 producer boundary (codex 1400Z ruling 2 + amendment v1): the
+# only registered mode, and the pin classes a BOUND slot MUST cover
+# ("a note string or empty pin set can never turn the slot BOUND")
+PRODUCER_BOUNDARY_MODE = "staged_envelope"
+PRODUCER_AMENDMENT_PATH = ("docs/f2g_window2_execution/"
+                           "producer_boundary_amendment_v1.md")
+PRODUCER_ENVELOPE_PREFIX = ("docs/f2g_window2_execution/"
+                            "staged_envelopes/")
 DPV_PATH = "monitoring/src/f2g_design_pin_verifier_cayley.py"
 REPO_IDENTITY = "kantrarian/geospec"
 
@@ -189,13 +200,21 @@ def _verify_obj(repo, manifest_commit, obj, prestart=False):
     dpv_pin_sha = None
     for name in sorted(slots):
         slot = slots[name]
-        fields = SLOT_FIELDS | ({"families"} if name == "bars" else
-                                set())
+        extra = {"families"} if name == "bars" else set()
+        if name == "producer_boundary":
+            extra = {"boundary_mode"}
+        fields = SLOT_FIELDS | extra
         if not isinstance(slot, dict) or not \
                 SLOT_FIELDS <= set(slot) or not set(slot) <= fields:
             _refuse(res, "SLOT_SCHEMA_NOT_CLOSED", name,
                     sorted(set(slot) ^ SLOT_FIELDS)
                     if isinstance(slot, dict) else ["NOT_DICT"])
+            continue
+        if name == "producer_boundary" and \
+                slot.get("boundary_mode") != PRODUCER_BOUNDARY_MODE:
+            _refuse(res, "PRODUCER_BOUNDARY_MODE_UNREGISTERED", name,
+                    f"boundary_mode={slot.get('boundary_mode')!r} "
+                    f"!= {PRODUCER_BOUNDARY_MODE!r}")
             continue
         status = slot["status"]
         if status == "BOUND":
@@ -208,6 +227,19 @@ def _verify_obj(repo, manifest_commit, obj, prestart=False):
                 if fams != REQUIRED_BAR_FAMILIES:
                     _refuse(res, "BARS_FAMILY_SET_MISMATCH", name,
                             sorted(fams ^ REQUIRED_BAR_FAMILIES))
+            if name == "producer_boundary":
+                paths = [p.get("path") for p in slot["pins"]
+                         if isinstance(p, dict)]
+                have_amend = PRODUCER_AMENDMENT_PATH in paths
+                have_code = any(str(p).startswith("monitoring/src/")
+                                for p in paths)
+                have_env = any(str(p).startswith(
+                    PRODUCER_ENVELOPE_PREFIX) for p in paths)
+                if not (have_amend and have_code and have_env):
+                    _refuse(res, "PRODUCER_BOUNDARY_PINS_INCOMPLETE",
+                            name,
+                            f"amendment={have_amend} code={have_code} "
+                            f"envelopes={have_env}")
             for p in slot["pins"]:
                 res["pins_checked"] += 1
                 if not isinstance(p, dict) or set(p) != PIN_FIELDS:
@@ -446,7 +478,35 @@ def kat(repo, manifest_commit):
             with open(disk, "wb") as f:
                 f.write(saved)
 
-    print(f"KAT: {16 - len(failures)}/16 pass"
+    # 17. producer boundary_mode absent -> refuse (v1.2)
+    d = copy.deepcopy(base)
+    del d["slots"]["producer_boundary"]["boundary_mode"]
+    case("producer-mode-absent",
+         _has(_verify_obj(repo, full, d),
+              "PRODUCER_BOUNDARY_MODE_UNREGISTERED"))
+
+    # 18. producer boundary_mode divergent -> refuse
+    d = copy.deepcopy(base)
+    d["slots"]["producer_boundary"]["boundary_mode"] = \
+        "acquisition_code"
+    case("producer-mode-divergent",
+         _has(_verify_obj(repo, full, d),
+              "PRODUCER_BOUNDARY_MODE_UNREGISTERED"))
+
+    # 19. producer BOUND with pins that miss the registered classes
+    # (a real pin, but neither amendment nor envelope records) ->
+    # refuse; a note string or pin count can never bind the boundary
+    d = copy.deepcopy(base)
+    d["slots"]["producer_boundary"] = {
+        "status": "BOUND", "owner": "grassmann", "note": "kat",
+        "boundary_mode": PRODUCER_BOUNDARY_MODE,
+        "pins": copy.deepcopy(
+            base["slots"]["design_pin_verifier"]["pins"])}
+    case("producer-pins-incomplete",
+         _has(_verify_obj(repo, full, d),
+              "PRODUCER_BOUNDARY_PINS_INCOMPLETE"))
+
+    print(f"KAT: {19 - len(failures)}/19 pass"
           + (f"; DEFECTS: {failures}" if failures else ""))
     return not failures
 

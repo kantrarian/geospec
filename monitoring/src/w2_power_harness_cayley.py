@@ -353,24 +353,149 @@ def run_artifact_class(geom, point, *, seed_root, n_draws, R):
 
 
 # ===================================================================
-# CERTIFICATION PATH (codex 1358Z items 1+2). Separate entry points;
-# BOUND geometry capsules; the registered generator draw order and
-# master/substream grammar; the registered CALENDAR engine seams.
-# The window-2 bound calendar authority artifact + its seam binding
-# are PRESTART deliverables -- until they exist, certification runs
-# refuse inside the seams (CALENDAR_AUTHORITY_MISMATCH), which is the
-# honest state.
+# CERTIFICATION PATH (codex 1358Z items 1+2; calendar v2 per codex
+# 2026-08-23T1400Z ruling 1). Separate entry points; BOUND geometry
+# capsules; the registered generator draw order and master/substream
+# grammar; the PINNED NON-cal engine seams over the window-2 fixed
+# 192-position authority grid (w2-calendar-v2-noncal).
 # ===================================================================
-BOUND_GEOMETRY_SCHEMA = "f2g-w2-bound-geometry-v1"
+BOUND_GEOMETRY_SCHEMA = "f2g-w2-bound-geometry-v2"
 CERT_N_DRAWS = 9999
-CAL_POSITIONS = _pb.B1A_CAL_BLOCKS * _pb.B1A_CAL_BLOCK_LEN   # 132
-CAL_BASELINE = 72
+
+# window-2 calendar authority v2 (codex 1400Z ruling 1; owner PRESTART
+# = 2026-08-26). AUTHORITY constants: the committed authority artifact
+# and every capsule must match these byte-for-byte -- they are never
+# fallbacks and never derived from Phase-B geometry.
+W2_FRAME_ID = "w2-calendar-v2-noncal"
+W2_BASELINE_START, W2_BASELINE_END = "2026-06-27", "2026-08-25"
+W2_EXCLUDED_DAY = "2026-08-26"
+W2_EVAL_START, W2_EVAL_END = "2026-08-27", "2027-01-05"
+W2_BASELINE_COUNT, W2_EVAL_COUNT = 60, 132
+W2_ENGINE_POSITIONS = 192
+W2_B1B_N_BLOCKS, W2_B1B_BLOCK_LEN = 16, 12
+W2_B1B_BASELINE_POSITIONS = 60
+CALENDAR_FRAME_FIELDS = {"frame_id", "baseline_days", "excluded_days",
+                         "evaluation_days", "engine_days", "b1b"}
+CALENDAR_B1B_FIELDS = {"n_blocks", "block_len", "baseline_positions"}
+CARRIER_MASK_FIELDS = {"registered_days", "available_days"}
+
+
+def _daterange(a, b):
+    """Inclusive ISO calendar-day range."""
+    import datetime as _dt
+    d0, d1 = _dt.date.fromisoformat(a), _dt.date.fromisoformat(b)
+    out = []
+    while d0 <= d1:
+        out.append(d0.isoformat())
+        d0 += _dt.timedelta(days=1)
+    return out
+
+
+def days_digest(days):
+    """The registered day-list digest convention: sha256 of the
+    compact-JSON array of ISO strings."""
+    return hashlib.sha256(json.dumps(
+        list(days), separators=(",", ":")).encode()).hexdigest()
+
+
+def w2_calendar_frame():
+    """The window-2 calendar frame derived from the authority
+    constants. KAT 1 asserts this equals the COMMITTED authority
+    artifact byte-for-byte (two independent derivations)."""
+    baseline = _daterange(W2_BASELINE_START, W2_BASELINE_END)
+    ev = _daterange(W2_EVAL_START, W2_EVAL_END)
+    return {"frame_id": W2_FRAME_ID,
+            "baseline_days": baseline,
+            "excluded_days": [W2_EXCLUDED_DAY],
+            "evaluation_days": ev,
+            "engine_days": baseline + ev,
+            "b1b": {"n_blocks": W2_B1B_N_BLOCKS,
+                    "block_len": W2_B1B_BLOCK_LEN,
+                    "baseline_positions": W2_B1B_BASELINE_POSITIONS}}
+
+
+def _validate_calendar_frame(frame):
+    """codex 1400Z ruling 1: the fixed authority grid. Every shifted,
+    extra, or missing authority date refuses BEFORE generation or an
+    engine call; the PRESTART day is never an engine position."""
+    def refuse(detail):
+        raise PowerHarnessError(f"CALENDAR_AUTHORITY_MISMATCH: {detail}")
+    if not isinstance(frame, dict) or \
+            set(frame) != CALENDAR_FRAME_FIELDS:
+        refuse("frame schema not closed")
+    if frame["frame_id"] != W2_FRAME_ID:
+        refuse(f"frame_id {frame['frame_id']!r} != {W2_FRAME_ID!r}")
+    b, x, ev, eng = (frame["baseline_days"], frame["excluded_days"],
+                     frame["evaluation_days"], frame["engine_days"])
+    if len(b) != W2_BASELINE_COUNT or len(ev) != W2_EVAL_COUNT or \
+            len(eng) != W2_ENGINE_POSITIONS or \
+            x != [W2_EXCLUDED_DAY]:
+        refuse(f"counts {len(b)}/{len(x)}/{len(ev)}/{len(eng)} != "
+               f"{W2_BASELINE_COUNT}/1/{W2_EVAL_COUNT}/"
+               f"{W2_ENGINE_POSITIONS}")
+    if b[0] != W2_BASELINE_START or b[-1] != W2_BASELINE_END or \
+            ev[0] != W2_EVAL_START or ev[-1] != W2_EVAL_END:
+        refuse("endpoint mismatch")
+    if b != _daterange(W2_BASELINE_START, W2_BASELINE_END) or \
+            ev != _daterange(W2_EVAL_START, W2_EVAL_END):
+        refuse("shifted/extra/missing authority date")
+    if eng != b + ev:
+        refuse("engine_days != baseline_days || evaluation_days")
+    if W2_EXCLUDED_DAY in eng:
+        refuse("PRESTART day appears as an engine position")
+    b1b = frame["b1b"]
+    if not isinstance(b1b, dict) or set(b1b) != CALENDAR_B1B_FIELDS:
+        refuse("b1b authority fields not closed")
+    if (b1b["n_blocks"], b1b["block_len"],
+            b1b["baseline_positions"]) != \
+            (W2_B1B_N_BLOCKS, W2_B1B_BLOCK_LEN,
+             W2_B1B_BASELINE_POSITIONS):
+        refuse("b1b authority field mismatch")
+    if b1b["n_blocks"] * b1b["block_len"] != len(eng) or \
+            b1b["baseline_positions"] != len(b) or \
+            b1b["baseline_positions"] % b1b["block_len"] != 0:
+        refuse("b1b block alignment broken")
+    assert b1b["baseline_positions"] // b1b["block_len"] == 5
+    assert (len(eng) - b1b["baseline_positions"]) \
+        // b1b["block_len"] == 11
+    return frame
+
+
+def _validate_carrier_mask(ck, mask, frame):
+    """Non-compression contract: the engine-facing registered_days is
+    ALWAYS the full fixed grid; availability is a separate mask; an
+    unavailable date keeps its calendar position and is never deleted
+    or compacted; the PRESTART day admits no mask entry or value."""
+    if not isinstance(mask, dict) or set(mask) != CARRIER_MASK_FIELDS:
+        raise PowerHarnessError(
+            f"CALENDAR_MASK_COMPRESSION: {ck} mask schema not closed "
+            "(registered_days + available_days)")
+    if list(mask["registered_days"]) != list(frame["engine_days"]):
+        raise PowerHarnessError(
+            f"CALENDAR_MASK_COMPRESSION: {ck} registered_days != "
+            "engine_days byte-for-byte (missing availability never "
+            "compacts the fixed grid)")
+    av = [str(d) for d in mask["available_days"]]
+    if av != sorted(av) or len(set(av)) != len(av):
+        raise PowerHarnessError(
+            f"CALENDAR_AUTHORITY_MISMATCH: {ck} available_days "
+            "unordered/duplicated")
+    for d in av:
+        if d in frame["excluded_days"]:
+            raise PowerHarnessError(
+                f"CALENDAR_EXCLUDED_DAY: {ck} carries availability on "
+                f"the PRESTART day {d}")
+    off = set(av) - set(frame["engine_days"])
+    if off:
+        raise PowerHarnessError(
+            f"CALENDAR_AUTHORITY_MISMATCH: {ck} available_days "
+            f"outside the authority grid: {sorted(off)}")
 
 
 GEOMETRY_CAPSULE_FIELDS = {
     "schema", "bound", "calendar_authority_mode",
     "calendar_authority_sha256", "calendar_authority_ref",
-    "seed_authority_sha256", "shared_calendar_days", "carrier_masks",
+    "seed_authority_sha256", "calendar_frame", "carrier_masks",
     "registries", "segments", "effect_grids",
     "loco_registry_carrier", "capsule_digest"}
 
@@ -404,9 +529,10 @@ def _validate_geometry_capsule(capsule, family, point):
                "'bound' (fixture mode never certifies)")
     if _geometry_capsule_digest(capsule) != capsule["capsule_digest"]:
         refuse("POWER_GEOMETRY_UNBOUND", "capsule digest mismatch")
-    if len(capsule["shared_calendar_days"]) != CAL_POSITIONS:
-        refuse("POWER_GEOMETRY_UNBOUND",
-               f"calendar length != {CAL_POSITIONS}")
+    _validate_calendar_frame(capsule["calendar_frame"])
+    for ck in sorted(capsule["carrier_masks"]):
+        _validate_carrier_mask(ck, capsule["carrier_masks"][ck],
+                               capsule["calendar_frame"])
     if sorted(capsule["carrier_masks"]) != \
             sorted(capsule["registries"]) or \
             sorted(capsule["carrier_masks"]) != \
@@ -481,13 +607,20 @@ def rep_seed_registered(seed_authority_sha, family, r):
 
 def make_bound_panels(capsule, family, point, r, inject=True):
     """Joint ALL-carrier generation over the bound geometry in the
-    REGISTERED draw order (codex item 2): one G over the full shared
-    calendar FIRST, then per SORTED carrier the station noise, edge
-    noise, and MCAR arrays over that carrier's EXACT bound mask.
-    Injection classes apply to the first sorted carrier (the pinned
-    instrument's convention). Typed absences (days outside a mask) are
-    never synthesized. Returns (panel_cal, w2_views, debug)."""
-    cal = [str(d) for d in capsule["shared_calendar_days"]]
+    REGISTERED draw order (codex item 2), on the v2 FIXED authority
+    grid: one G over the full 192-position engine calendar FIRST,
+    then per SORTED carrier the station noise, edge noise, and MCAR
+    arrays over that carrier's AVAILABLE days (the separate bound
+    availability mask -- an unavailable date keeps its calendar
+    position with no value; the grid is never compacted). Injection
+    classes apply to the first sorted carrier (the pinned instrument's
+    convention). Typed absences are never synthesized.
+    Returns (panel, w2_views, debug)."""
+    frame = _validate_calendar_frame(capsule["calendar_frame"])
+    for _ck in sorted(capsule["carrier_masks"]):
+        _validate_carrier_mask(_ck, capsule["carrier_masks"][_ck],
+                               frame)
+    cal = [str(d) for d in frame["engine_days"]]
     cpos = {d: i for i, d in enumerate(cal)}
     carriers = sorted(capsule["carrier_masks"])
     rng = np.random.Generator(np.random.PCG64(rep_seed_registered(
@@ -498,7 +631,7 @@ def make_bound_panels(capsule, family, point, r, inject=True):
         sts = list(capsule["registries"][ck])
         eds = _edges_of(sts)
         days = [str(d) for d in
-                capsule["carrier_masks"][ck]["registered_days"]]
+                capsule["carrier_masks"][ck]["available_days"]]
         s = rng.normal(0.0, SIGMA_S, size=(len(sts), len(days)))
         eps = rng.normal(0.0, SIGMA_E, size=(len(eds), len(days)))
         mcar = rng.random((len(eds), len(days))) < MCAR
@@ -512,7 +645,7 @@ def make_bound_panels(capsule, family, point, r, inject=True):
                    "stations": sts}
     ck0 = carriers[0]
     L0 = lat[ck0]
-    ev0_pos = CAL_BASELINE
+    ev0_pos = len(frame["baseline_days"])          # 60 (authority)
     day_pos = {d: i for i, d in enumerate(L0["days"])}
     dropped = {d: set() for d in L0["days"]}
     gain = {}
@@ -579,66 +712,150 @@ def make_bound_panels(capsule, family, point, r, inject=True):
                     v *= gain["g"]
                 row[d] = v
             rr[e] = row
+        # engine-facing registered_days = the FULL fixed grid (the
+        # non-compression contract); availability lives only in which
+        # dates carry values
         panel_carriers[ck] = {
-            "registered_days": list(L["days"]),
+            "registered_days": list(cal),
             "stations": L["stations"],
             "segments": dict(capsule["segments"][ck]), "r": rr}
         measured[ck] = {d: sorted(set(L["stations"])
                                   - (dropped.get(d, set())
                                      if ck == ck0 else set()))
                         for d in L["days"]}
-    panel_cal = {"schema": "fixture-panel-cal-v1",
-                 "calendar_authority_mode":
-                     capsule.get("calendar_authority_mode", "bound"),
-                 "shared_calendar_days": cal,
-                 "carriers": panel_carriers}
-    eval_cal = cal[CAL_BASELINE:]
+    panel = {"schema": "w2-noncal-panel-v2",
+             "frame_id": frame["frame_id"],
+             "carriers": panel_carriers}
+    eval_cal = list(frame["evaluation_days"])      # exactly the 132
+    av = {ck: set(lat[ck]["days"]) for ck in carriers}
     views = {"b2b": {"calendar": eval_cal, "carriers": {}},
              "b1b": {"calendar": cal, "carriers": {}}}
+    ev_set = set(eval_cal)
     for ck in carriers:
         c = panel_carriers[ck]
-        ev_set = set(eval_cal)
+        # per-carrier availability mask: unavailable eval days stay
+        # OUT of the carrier's registered set -> typed
+        # NO_REGISTERED_SNAPSHOT positions inside the engine
+        av_eval = [d for d in eval_cal if d in av[ck]]
         views["b2b"]["carriers"][ck] = {
             "registry": list(c["stations"]),
-            "registered_days": [d for d in c["registered_days"]
-                                if d in ev_set],
-            "measured": {d: measured[ck][d]
-                         for d in c["registered_days"] if d in ev_set},
+            "registered_days": av_eval,
+            "measured": {d: measured[ck][d] for d in av_eval},
             "r": {e: {d: v for d, v in ser.items() if d in ev_set}
                   for e, ser in c["r"].items()}}
         views["b1b"]["carriers"][ck] = {
             "registry": list(c["stations"]),
-            "registered_days": list(c["registered_days"]),
+            "registered_days": sorted(av[ck]),
             "r": c["r"]}
-    return panel_cal, views, {"G": G, "carriers": carriers}
+    return panel, views, {"G": G, "carriers": carriers,
+                          "frame": frame}
 
 
-def replicate_pvalues_bound(panel_cal, views, n_draws, doc_sha):
-    """The registered CALENDAR engine seams (codex item 2): B2A/B3A
-    via the pinned *_family_cal entry points; B2B/B1B via the w2
-    engines over the same 132-position calendar geometry."""
-    out = {}
-    frames = {}
-    r1 = _pb.b2a_family_cal(panel_cal, doc_sha256=doc_sha,
-                            n_draws=n_draws)
+def _pinned_engine_blob_sha():
+    with open(os.path.join(_HERE, "d2_f2g_phase_b_stats.py"),
+              "rb") as f:
+        return hashlib.sha256(f.read()).hexdigest()
+
+
+def _mask_digest(capsule):
+    return hashlib.sha256(json.dumps(
+        {ck: [str(d) for d in
+              capsule["carrier_masks"][ck]["available_days"]]
+         for ck in sorted(capsule["carrier_masks"])},
+        sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+
+
+def _panel_digest(panel):
+    return hashlib.sha256(json.dumps(
+        panel, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest()
+
+
+ENTRYPOINTS_V2 = {
+    "B2A": "d2_f2g_phase_b_stats.b2a_family",
+    "B3A": "d2_f2g_phase_b_stats.b3a_family",
+    "B2B": "w2_b2b.w2_b2b_family",
+    "B1B": "w2_b1b.w2_b1b_family"}
+
+
+def replicate_pvalues_bound(panel, views, n_draws, doc_sha, capsule):
+    """The v2 engine seams (codex 1400Z ruling 1): B2A/B3A via the
+    PINNED NON-cal entry points over the fixed 192-position authority
+    grid (positional walk_forward_split at baseline 60); B2B over
+    exactly the 132 evaluation days; B1B geometry from the AUTHORITY
+    fields (never fallbacks). Wrapper records carry the frame
+    metadata the non-cal results lack; the certification artifact
+    refuses absent/divergent records (never trusts a caller label)."""
+    frame = capsule["calendar_frame"]
+    b1bg = frame["b1b"]
+    base_rec = {
+        "engine_blob_sha256": _pinned_engine_blob_sha(),
+        "frame_id": frame["frame_id"],
+        "baseline_days_sha256": days_digest(frame["baseline_days"]),
+        "evaluation_days_sha256":
+            days_digest(frame["evaluation_days"]),
+        "mask_sha256": _mask_digest(capsule),
+        "input_panel_sha256": _panel_digest(panel)}
+    out, frames = {}, {}
+    r1 = _pb.b2a_family(panel, doc_sha256=doc_sha, n_draws=n_draws)
     out["B2A"] = r1.get("p_value")
-    frames["B2A"] = r1.get("frame")
-    r2 = _pb.b3a_family_cal(panel_cal, doc_sha256=doc_sha,
-                            n_draws=n_draws)
+    frames["B2A"] = dict(base_rec, entrypoint=ENTRYPOINTS_V2["B2A"])
+    r2 = _pb.b3a_family(panel, doc_sha256=doc_sha, n_draws=n_draws)
     out["B3A"] = r2.get("p_value")
-    frames["B3A"] = r2.get("frame")
+    frames["B3A"] = dict(base_rec, entrypoint=ENTRYPOINTS_V2["B3A"])
     r3 = _b2b.w2_b2b_family(views["b2b"], doc_sha256=doc_sha,
                             n_draws=n_draws)
     out["B2B"] = r3.get("p_value")
-    frames["B2B"] = r3.get("frame")
+    frames["B2B"] = dict(base_rec, entrypoint=ENTRYPOINTS_V2["B2B"],
+                         engine_frame=r3.get("frame"))
     r4 = _b1b.w2_b1b_family(views["b1b"], doc_sha256=doc_sha,
                             n_draws=n_draws,
-                            n_blocks=_pb.B1A_CAL_BLOCKS,
-                            block_len=_pb.B1A_CAL_BLOCK_LEN,
-                            baseline_positions=CAL_BASELINE)
+                            n_blocks=b1bg["n_blocks"],
+                            block_len=b1bg["block_len"],
+                            baseline_positions=
+                                b1bg["baseline_positions"])
     out["B1B"] = r4.get("p_value")
-    frames["B1B"] = r4.get("frame")
+    frames["B1B"] = dict(base_rec, entrypoint=ENTRYPOINTS_V2["B1B"],
+                         engine_frame=r4.get("frame"),
+                         b1b_geometry=dict(b1bg))
     return out, frames
+
+
+def _validate_frame_records(frames, capsule, panel):
+    """codex 1400Z ruling 1: the certification artifact refuses
+    absent or divergent frame metadata. Every expected digest is
+    RECOMPUTED here (engine blob from disk, day arrays from the
+    capsule frame, mask from the capsule, panel from the input) --
+    a record can only pass by matching the recomputation."""
+    frame = capsule["calendar_frame"]
+    expect = {
+        "engine_blob_sha256": _pinned_engine_blob_sha(),
+        "frame_id": frame["frame_id"],
+        "baseline_days_sha256": days_digest(frame["baseline_days"]),
+        "evaluation_days_sha256":
+            days_digest(frame["evaluation_days"]),
+        "mask_sha256": _mask_digest(capsule),
+        "input_panel_sha256": _panel_digest(panel)}
+    for fam, ep in ENTRYPOINTS_V2.items():
+        rec = frames.get(fam)
+        if not isinstance(rec, dict):
+            raise PowerHarnessError(
+                f"POWER_CALENDAR_FRAME_INVALID: {fam} frame record "
+                "absent")
+        if rec.get("entrypoint") != ep:
+            raise PowerHarnessError(
+                f"POWER_CALENDAR_FRAME_INVALID: {fam} entrypoint "
+                f"{rec.get('entrypoint')!r} != {ep!r}")
+        for k, v in expect.items():
+            if rec.get(k) != v:
+                raise PowerHarnessError(
+                    f"POWER_CALENDAR_FRAME_INVALID: {fam} {k} "
+                    "absent or divergent")
+    if frames["B1B"].get("b1b_geometry") != frame["b1b"]:
+        raise PowerHarnessError(
+            "POWER_CALENDAR_FRAME_INVALID: B1B geometry record "
+            "diverges from the authority fields")
+    return True
 
 
 def b1b_loco_project(b1b_view, station):
@@ -685,17 +902,17 @@ def _b1b_loco_recovery(views, pv_full, capsule, n_draws, doc_sha,
         if fold_counter is not None:
             fold_counter.append(s)
         proj = b1b_loco_project(views["b1b"], s)
-        b = capsule.get("b1b_geometry", {})
+        # geometry = the AUTHORITY fields (codex 1400Z: never
+        # fallbacks); a view that cannot block-align against them is
+        # a typed structural refusal below
+        b = capsule["calendar_frame"]["b1b"]
         try:
             r_s = _b1b.w2_b1b_family(
                 proj, doc_sha256=doc_sha, n_draws=n_draws,
                 fold=f"loco:{s}",
-                n_blocks=b.get("n_blocks", _pb.B1A_CAL_BLOCKS),
-                block_len=b.get("block_len", _pb.B1A_CAL_BLOCK_LEN),
-                baseline_positions=b.get("baseline_positions",
-                                         CAL_BASELINE),
-                testable_min=b.get("testable_min",
-                                   _pb.TESTABLE_MIN_BASELINE))
+                n_blocks=b["n_blocks"],
+                block_len=b["block_len"],
+                baseline_positions=b["baseline_positions"])
             p_s = r_s.get("p_value")
         except _b1b.PanelInvalid:
             p_s = None        # typed structural refusal = no-p class
@@ -740,13 +957,26 @@ def run_point_certification(repo, geometry_ref, family, point,
         raise PowerHarnessError(
             "POWER_GEOMETRY_UNBOUND: calendar authority bytes absent "
             "or divergent from the capsule's recorded sha")
+    try:
+        auth = json.loads(p.stdout.decode("utf-8"))
+    except ValueError:
+        raise PowerHarnessError(
+            "CALENDAR_AUTHORITY_MISMATCH: authority bytes are not a "
+            "calendar-authority artifact")
+    if auth.get("schema") != "f2g-w2-calendar-authority-v2" or \
+            auth.get("frame") != capsule["calendar_frame"]:
+        raise PowerHarnessError(
+            "CALENDAR_AUTHORITY_MISMATCH: capsule frame diverges "
+            "from the committed authority artifact")
     doc_sha = capsule["seed_authority_sha256"]
 
     def success(r):
-        panel_cal, views, _dbg = make_bound_panels(capsule, family,
-                                                   point, r)
-        pv, _frames = replicate_pvalues_bound(panel_cal, views,
-                                              CERT_N_DRAWS, doc_sha)
+        panel, views, _dbg = make_bound_panels(capsule, family,
+                                               point, r)
+        pv, frames = replicate_pvalues_bound(panel, views,
+                                             CERT_N_DRAWS, doc_sha,
+                                             capsule)
+        _validate_frame_records(frames, capsule, panel)
         if family == "B1B" and "gain" not in point:
             # amendment v1: detection-class B1B recovery = full-Holm
             # AND every same-replicate LOCO-substituted Holm. The
@@ -757,13 +987,20 @@ def run_point_certification(repo, geometry_ref, family, point,
                                       CERT_N_DRAWS, doc_sha)
         return family in holm_rejects(pv)
     rec = certify(success, r_first=R_FIRST, r_max=R_MAX)
+    frame = capsule["calendar_frame"]
     rec.update(family=family, point=point, tier="CERTIFICATION",
                n_draws=CERT_N_DRAWS, certifiable=True,
                geometry_capsule_digest=capsule["capsule_digest"],
                geometry_ref=dict(geometry_ref),
                seed_authority_sha256=doc_sha,
                calendar_authority_sha256=
-                   capsule["calendar_authority_sha256"])
+                   capsule["calendar_authority_sha256"],
+               calendar_frame_id=frame["frame_id"],
+               baseline_days_sha256=
+                   days_digest(frame["baseline_days"]),
+               evaluation_days_sha256=
+                   days_digest(frame["evaluation_days"]),
+               engine_blob_sha256=_pinned_engine_blob_sha())
     return rec
 
 
@@ -878,6 +1115,40 @@ def _selftest():
         except PowerHarnessError as e:
             assert code in str(e), (label, str(e))
 
+    # --- calendar v2 KAT 1: exact arrays, counts, endpoints, and the
+    # explicit 08-26 exclusion -- asserted against BOTH the in-module
+    # derivation and the COMMITTED authority artifact (two
+    # derivations, one contract; never self-consistent only)
+    FRAME = w2_calendar_frame()
+    ENG = FRAME["engine_days"]
+    assert (len(FRAME["baseline_days"]), len(FRAME["excluded_days"]),
+            len(FRAME["evaluation_days"]), len(ENG)) == (60, 1, 132,
+                                                         192)
+    assert FRAME["baseline_days"][0] == "2026-06-27"
+    assert FRAME["baseline_days"][-1] == "2026-08-25"
+    assert FRAME["excluded_days"] == ["2026-08-26"]
+    assert FRAME["evaluation_days"][0] == "2026-08-27"
+    assert FRAME["evaluation_days"][-1] == "2027-01-05"
+    assert "2026-08-26" not in ENG
+    assert ENG == FRAME["baseline_days"] + FRAME["evaluation_days"]
+    assert FRAME["b1b"] == {"n_blocks": 16, "block_len": 12,
+                            "baseline_positions": 60}
+    _validate_calendar_frame(FRAME)
+    auth_p = os.path.join(_HERE, "..", "..", "docs",
+                          "f2g_window2_execution",
+                          "calendar_authority_w2_v2.json")
+    with open(auth_p, "rb") as f:
+        auth_committed = json.loads(f.read().decode("utf-8"))
+    assert auth_committed["schema"] == "f2g-w2-calendar-authority-v2"
+    assert auth_committed["frame"] == FRAME, \
+        "committed calendar authority diverges from the derivation"
+    assert auth_committed["digests"]["engine_days_sha256"] == \
+        days_digest(ENG)
+    assert auth_committed["digests"]["baseline_days_sha256"] == \
+        days_digest(FRAME["baseline_days"])
+    assert auth_committed["digests"]["evaluation_days_sha256"] == \
+        days_digest(FRAME["evaluation_days"])
+
     # unit validators: a well-formed bound capsule passes; every
     # doctored field refuses BEFORE any replicate
     def mk_capsule(**mut):
@@ -886,9 +1157,10 @@ def _selftest():
                "calendar_authority_sha256": "a" * 64,
                "calendar_authority_ref": {"commit": "x", "path": "y"},
                "seed_authority_sha256": "b" * 64,
-               "shared_calendar_days": [f"C{i:03d}"
-                                        for i in range(132)],
-               "carrier_masks": {"c1": {"registered_days": ["C000"]}},
+               "calendar_frame": json.loads(json.dumps(FRAME)),
+               "carrier_masks": {"c1": {
+                   "registered_days": list(ENG),
+                   "available_days": list(ENG)}},
                "registries": {"c1": ["S0"]},
                "segments": {"c1": {"S0": "sA"}},
                "effect_grids": {"B2B": [{"m": 2}]},
@@ -918,23 +1190,95 @@ def _selftest():
     except PowerHarnessError as e:
         assert "POWER_POINT_OFF_GRID" in str(e)
 
+    # --- calendar v2 KAT 2: removing an AVAILABILITY day never moves
+    # the split (60/132 on the fixed grid); a compressed
+    # registered_days list refuses CALENDAR_MASK_COMPRESSION
+    miss_day = FRAME["baseline_days"][10]
+    cap_av = mk_capsule()
+    cap_av["carrier_masks"]["c1"]["available_days"] = [
+        d for d in ENG if d != miss_day]
+    cap_av["capsule_digest"] = _geometry_capsule_digest(cap_av)
+    _validate_geometry_capsule(cap_av, "B2B", {"m": 2})
+    b_sp, e_sp = _pb.walk_forward_split(
+        cap_av["carrier_masks"]["c1"]["registered_days"])
+    assert b_sp == FRAME["baseline_days"] and \
+        e_sp == FRAME["evaluation_days"]        # grid unmoved
+    # the hazard the contract closes: a compacted list silently makes
+    # 2026-08-27 baseline position 60 and slides evaluation to 08-28
+    comp = [d for d in ENG if d != miss_day]
+    bc, ec = _pb.walk_forward_split(comp)
+    assert bc[-1] == "2026-08-27" and ec[0] == "2026-08-28"
+    cap_comp = mk_capsule()
+    cap_comp["carrier_masks"]["c1"]["registered_days"] = comp
+    cap_comp["capsule_digest"] = _geometry_capsule_digest(cap_comp)
+    try:
+        _validate_geometry_capsule(cap_comp, "B2B", {"m": 2})
+        raise AssertionError("compressed registered_days must refuse")
+    except PowerHarnessError as e:
+        assert "CALENDAR_MASK_COMPRESSION" in str(e)
+
+    # --- calendar v2 KAT 3: any 08-26 mask entry refuses (validator
+    # AND before generation); shifted/extra/missing authority dates
+    # refuse; off-grid availability refuses
+    cap_x = mk_capsule()
+    cap_x["carrier_masks"]["c1"]["available_days"] = (
+        FRAME["baseline_days"] + ["2026-08-26"]
+        + FRAME["evaluation_days"])
+    cap_x["capsule_digest"] = _geometry_capsule_digest(cap_x)
+    for fn, label in ((lambda: _validate_geometry_capsule(
+            cap_x, "B2B", {"m": 2}), "validator"),
+            (lambda: make_bound_panels(cap_x, "B2B", {"m": 2}, 0),
+             "pre-generation")):
+        try:
+            fn()
+            raise AssertionError(
+                f"PRESTART-day availability must refuse ({label})")
+        except PowerHarnessError as e:
+            assert "CALENDAR_EXCLUDED_DAY" in str(e), (label, str(e))
+    for fmut, label in (
+            ({"baseline_days": ["2026-06-26"]
+              + FRAME["baseline_days"][1:]}, "shifted"),
+            ({"engine_days": ENG + ["2027-01-06"]}, "extra"),
+            ({"evaluation_days": FRAME["evaluation_days"][:-1]},
+             "missing")):
+        cap_f = mk_capsule()
+        cap_f["calendar_frame"] = dict(FRAME, **fmut)
+        cap_f["capsule_digest"] = _geometry_capsule_digest(cap_f)
+        try:
+            _validate_geometry_capsule(cap_f, "B2B", {"m": 2})
+            raise AssertionError(f"{label} authority date must refuse")
+        except PowerHarnessError as e:
+            assert "CALENDAR_AUTHORITY_MISMATCH" in str(e), \
+                (label, str(e))
+    cap_o = mk_capsule()
+    cap_o["carrier_masks"]["c1"]["available_days"] = \
+        list(ENG) + ["2027-02-01"]
+    cap_o["capsule_digest"] = _geometry_capsule_digest(cap_o)
+    try:
+        _validate_geometry_capsule(cap_o, "B2B", {"m": 2})
+        raise AssertionError("off-grid availability must refuse")
+    except PowerHarnessError as e:
+        assert "CALENDAR_AUTHORITY_MISMATCH" in str(e)
+
     # three-carrier BOUND-mechanism capsule (fixture calendar mode so
-    # the pinned seams accept; the window-2 bound authority + seam
-    # binding are PRESTART deliverables)
-    cal132 = [f"C{i:03d}" for i in range(132)]
-    holes = set(cal132[80:90])
+    # certification never opens; the REAL v2 frame with availability
+    # holes exercises the fixed-grid adapter)
+    holes = set(ENG[80:90])
     reg3 = {ck: [f"{ck}S{i}" for i in range(6)]
             for ck in ("c1", "c2", "c3")}
     cap3 = {"schema": BOUND_GEOMETRY_SCHEMA, "bound": True,
             "calendar_authority_sha256": "kat-cal-auth",
             "seed_authority_sha256": "kat-seed-auth",
             "calendar_authority_mode": "fixture",
-            "shared_calendar_days": cal132,
+            "calendar_frame": json.loads(json.dumps(FRAME)),
             "carrier_masks": {
-                "c1": {"registered_days": cal132},
-                "c2": {"registered_days": [d for d in cal132
-                                           if d not in holes]},
-                "c3": {"registered_days": cal132[:120]}},
+                "c1": {"registered_days": list(ENG),
+                       "available_days": list(ENG)},
+                "c2": {"registered_days": list(ENG),
+                       "available_days": [d for d in ENG
+                                          if d not in holes]},
+                "c3": {"registered_days": list(ENG),
+                       "available_days": ENG[:180]}},
             "registries": reg3,
             "segments": {ck: {s: ("sA" if i < 3 else "sB")
                               for i, s in enumerate(reg3[ck])}
@@ -959,18 +1303,18 @@ def _selftest():
     assert rep_seed_registered("kat-seed-auth", "B2A", 0) != \
         rep_seed_registered("kat-seed-auth", "B3A", 0)
 
-    # joint generation: exact mask preservation, no synthesis on typed
-    # absences, shared-G record, determinism, sorted carrier order
+    # joint generation: fixed-grid registered_days, values only on
+    # AVAILABLE days, typed absences never synthesized, shared-G
+    # record, determinism, sorted carrier order
     panel3, views3, dbg3 = make_bound_panels(cap3, "B2A", {"m": 2}, 0)
     assert dbg3["carriers"] == ["c1", "c2", "c3"]
-    assert len(dbg3["G"]) == 132
+    assert len(dbg3["G"]) == 192
     for ck in ("c1", "c2", "c3"):
-        assert panel3["carriers"][ck]["registered_days"] == \
-            cap3["carrier_masks"][ck]["registered_days"]
+        assert panel3["carriers"][ck]["registered_days"] == ENG
+        avs = set(cap3["carrier_masks"][ck]["available_days"])
         for e, ser in panel3["carriers"][ck]["r"].items():
             for d in ser:
-                assert d in set(cap3["carrier_masks"][ck]
-                                ["registered_days"]), (ck, d)
+                assert d in avs, (ck, d)
     for e, ser in panel3["carriers"]["c2"]["r"].items():
         assert not (set(ser) & holes)          # typed absences stay absent
     panel3b, _v, dbg3b = make_bound_panels(cap3, "B2A", {"m": 2}, 0)
@@ -978,14 +1322,73 @@ def _selftest():
         json.dumps(panel3b, sort_keys=True)
     assert np.array_equal(dbg3["G"], dbg3b["G"])
 
-    # every family executes its CALENDAR entry point
-    pv3, frames3 = replicate_pvalues_bound(panel3, views3, 99,
-                                           "ab" * 32)
+    # --- calendar v2 KAT 4: the _cal seams are DEAD in the bound
+    # path (monkeypatched to fail; the run must still complete), and
+    # doctored entrypoint/blob/frame digests refuse
+    def _boom(*a, **k):
+        raise AssertionError("_cal seam must never be invoked")
+    _orig_cal = (_pb.b2a_family_cal, _pb.b3a_family_cal)
+    _pb.b2a_family_cal = _boom
+    _pb.b3a_family_cal = _boom
+    try:
+        pv3, frames3 = replicate_pvalues_bound(panel3, views3, 99,
+                                               "ab" * 32, cap3)
+    finally:
+        _pb.b2a_family_cal, _pb.b3a_family_cal = _orig_cal
     assert set(pv3) == set(GRAPH)
-    assert frames3["B2A"] == "calendar-v2" \
-        and frames3["B3A"] == "calendar-v2"
-    assert frames3["B2B"] == "calendar-w2" \
-        and frames3["B1B"] == "calendar-w2"
+    assert all(v is None or 0.0 < v <= 1.0 for v in pv3.values())
+    _validate_frame_records(frames3, cap3, panel3)
+    for fam, k, v in (
+            ("B2A", "entrypoint", "d2_f2g_phase_b_stats"
+                                  ".b2a_family_cal"),
+            ("B3A", "engine_blob_sha256", "0" * 64),
+            ("B2B", "frame_id", "calendar-v2"),
+            ("B1B", "baseline_days_sha256", "0" * 64),
+            ("B2A", "mask_sha256", "0" * 64),
+            ("B3A", "input_panel_sha256", "0" * 64)):
+        doct = {f: dict(r) for f, r in frames3.items()}
+        doct[fam][k] = v
+        try:
+            _validate_frame_records(doct, cap3, panel3)
+            raise AssertionError(f"doctored {fam}.{k} must refuse")
+        except PowerHarnessError as e:
+            assert "POWER_CALENDAR_FRAME_INVALID" in str(e)
+    doct = {f: dict(r) for f, r in frames3.items() if f != "B3A"}
+    try:
+        _validate_frame_records(doct, cap3, panel3)
+        raise AssertionError("absent frame record must refuse")
+    except PowerHarnessError as e:
+        assert "POWER_CALENDAR_FRAME_INVALID" in str(e)
+    doct = {f: dict(r) for f, r in frames3.items()}
+    doct["B1B"]["b1b_geometry"] = dict(FRAME["b1b"], n_blocks=11)
+    try:
+        _validate_frame_records(doct, cap3, panel3)
+        raise AssertionError("doctored b1b geometry must refuse")
+    except PowerHarnessError as e:
+        assert "POWER_CALENDAR_FRAME_INVALID" in str(e)
+
+    # --- calendar v2 KAT 5: cross-family alignment -- ONE replicate
+    # produces ONE 192-position raw frame; B2B is the exact
+    # 132-position evaluation projection; B2A/B3A/B1B share the full
+    # fixed frame; mask holes are preserved in every view
+    assert views3["b2b"]["calendar"] == FRAME["evaluation_days"]
+    assert views3["b1b"]["calendar"] == ENG
+    ev_set5 = set(FRAME["evaluation_days"])
+    for ck in ("c1", "c2", "c3"):
+        avs = set(cap3["carrier_masks"][ck]["available_days"])
+        b2b_c = views3["b2b"]["carriers"][ck]
+        b1b_c = views3["b1b"]["carriers"][ck]
+        assert b2b_c["registered_days"] == [
+            d for d in FRAME["evaluation_days"] if d in avs]
+        assert set(b1b_c["registered_days"]) == avs
+        for e, ser in b2b_c["r"].items():
+            full = panel3["carriers"][ck]["r"][e]
+            assert ser == {d: v for d, v in full.items()
+                           if d in ev_set5}     # exact projection
+            assert b1b_c["r"][e] == full        # same raw frame
+        if ck == "c2":
+            for e, ser in b2b_c["r"].items():
+                assert not (set(ser) & holes)   # holes preserved
 
     # --- LOCO amendment v1 KATs (codex 1933Z, grassmann-ratified) ---
     # KAT 1: Holm SUBSTITUTION, not p <= .05 -- the exact hand fixture
@@ -1024,7 +1427,8 @@ def _selftest():
 
     # early-exit: full-Holm non-rejection runs ZERO folds
     cap_l = dict(mk_capsule(), registries={"c1": ["S0", "S1"]},
-                 carrier_masks={"c1": {"registered_days": ["C000"]}},
+                 carrier_masks={"c1": {"registered_days": list(ENG),
+                                       "available_days": list(ENG)}},
                  segments={"c1": {"S0": "sA", "S1": "sB"}})
     cap_l["capsule_digest"] = _geometry_capsule_digest(
         {k: v for k, v in cap_l.items() if k != "capsule_digest"})

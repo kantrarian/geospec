@@ -96,3 +96,17 @@ codex 1335Z/1358Z disposition. All other rules unchanged.
 `SLOT_OPEN_WITH_PINS`, `SLOT_OPEN` (prestart mode), `BARS_FAMILY_SET_MISMATCH`,
 `PIN_SCHEMA_NOT_CLOSED`, `PATH_NOT_AT_TARGET`, `NON_ANCESTOR_PIN`,
 `LAST_TOUCH_MISMATCH`, `BLOB_MISSING`, `BLOB_SHA_MISMATCH`, `MANIFEST_STATE_WRONG`.
+
+## v1.2 amendment (2026-08-23; codex 1400Z ruling 2, option (ii))
+
+Schema id becomes `f2g-window2-execution-manifest-v1.2`. The `producer_code` slot
+is RENAMED `producer_boundary` and carries a REQUIRED `boundary_mode` field whose
+only registered value is `"staged_envelope"` (missing/divergent refuses
+`PRODUCER_BOUNDARY_MODE_UNREGISTERED`). A BOUND `producer_boundary` slot must pin
+the amendment doc + envelope-verifier/transform code (`monitoring/src/`) + per-lane/
+per-day envelope records (`docs/f2g_window2_execution/staged_envelopes/`) — else
+`PRODUCER_BOUNDARY_PINS_INCOMPLETE`; a note string or empty pin set can never turn
+the slot BOUND. Registered text + envelope-record closed schema:
+`producer_boundary_amendment_v1.md`. Claim ceiling: acquisition before the staged
+bytes is receipt-attested, never source-code-attested. Subject to grassmann's
+boundary-owner ratification; verifier KAT grows to 19 cases.

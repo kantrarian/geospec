@@ -66,10 +66,16 @@ BOUND_SLOTS = {
         "owner": "cayley",
         "note": "sec-6 power machinery (certification path constructs "
                 "its own config; bound-geometry gate; codex items 1+2 "
-                "repaired)",
+                "repaired) + the campaign runner REV 2 and Tier-C "
+                "selector with their registered amendments (codex "
+                "1909Z items 1-4)",
         "paths": ["monitoring/src/w2_power_harness_cayley.py",
                   "docs/f2g_window2_execution/"
-                  "loco_composition_amendment_v1.md"]},
+                  "loco_composition_amendment_v1.md",
+                  "monitoring/src/w2_cert_runner_cayley.py",
+                  "monitoring/src/w2_tier_selector_cayley.py",
+                  "docs/f2g_window2_execution/"
+                  "tier_selector_amendment_w2_v1.md"]},
     "calibration_runner": {
         "owner": "cayley",
         "note": "calibration-ledger production runner (temporal "

@@ -560,7 +560,7 @@ def _selftest():
     # entry point; forged owner records refuse
     repo = os.path.abspath(os.path.join(_HERE, "..", ".."))
     try:
-        assemble_prestart_admission(repo, "86bbb4d", b1_,
+        assemble_prestart_admission(repo, "205e912", b1_,
                                     "not-a-seal")
         raise AssertionError("OPEN manifest must refuse admission")
     except InstrumentRefusal as e:
@@ -569,13 +569,13 @@ def _selftest():
     q = "the owner quote"
     oa_good_shape = {"quote": q, "quote_sha256":
                      hashlib.sha256(q.encode()).hexdigest(),
-                     "binds": {"manifest_commit": "86bbb4d",
+                     "binds": {"manifest_commit": "205e912",
                                "manifest_blob_sha256": "wrong",
                                "lanes": ["graph", "mag1"],
                                "lease": "kat-lease-1",
                                "window_uuid": "kat-window"}}
     try:
-        assemble_prestart_admission(repo, "86bbb4d", b1_,
+        assemble_prestart_admission(repo, "205e912", b1_,
                                     oa_good_shape)
         raise AssertionError("must refuse before owner checks too")
     except InstrumentRefusal as e:

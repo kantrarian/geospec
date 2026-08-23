@@ -2,8 +2,8 @@
  "design_manifest_blob_sha256": "d6decbd6ab5814bc005ce69c538311ff1b11cb1d13c19e2999e03a92bc7cca1f",
  "design_manifest_commit": "5fba5446cd96722fb86021df5065a46b8a1a78f5",
  "design_target_commit": "12161f6cf2000b2d4aa86fe659f834839ac0d27b",
- "execution_target_commit": "291349bf4a1f9125133296711ccf60194bdb4bd7",
- "generated_utc": "2026-08-23T19:57:54Z",
+ "execution_target_commit": "560e8d3dee35f61c2d1eb99aa4db4c2dadaceddc",
+ "generated_utc": "2026-08-23T21:16:31Z",
  "manifest_state": "OPEN",
  "repository_url": "https://github.com/kantrarian/geospec",
  "schema": "f2g-window2-execution-manifest-v1.2",
@@ -114,8 +114,8 @@
    "owner": "cayley",
    "pins": [
     {
-     "blob_sha256": "b2d63e839003bceea22887a299960d0ec2ccf7481e21a5ab8ff027b8d5ac54de",
-     "commit": "10813bd2664447e639b8fe8feaf4496986310c38",
+     "blob_sha256": "298005d522ee2a74629823c3574f6c5a7fca9a35104af9ba98ae8247e466a144",
+     "commit": "560e8d3dee35f61c2d1eb99aa4db4c2dadaceddc",
      "path": "monitoring/src/f2g_execution_manifest_gen_cayley.py"
     }
    ],
@@ -186,7 +186,7 @@
    "status": "BOUND"
   },
   "power_harness": {
-   "note": "sec-6 power machinery (certification path constructs its own config; bound-geometry gate; codex items 1+2 repaired)",
+   "note": "sec-6 power machinery (certification path constructs its own config; bound-geometry gate; codex items 1+2 repaired) + the campaign runner REV 2 and Tier-C selector with their registered amendments (codex 1909Z items 1-4)",
    "owner": "cayley",
    "pins": [
     {
@@ -198,6 +198,21 @@
      "blob_sha256": "354fbfb3d628ce12efa82d19b69adc8b601f8d3702d7c1414fdf56bc21bb74e9",
      "commit": "db489c7cb37a9ed21e15330c726a949765b7c79e",
      "path": "docs/f2g_window2_execution/loco_composition_amendment_v1.md"
+    },
+    {
+     "blob_sha256": "bae09c6c65773d00f56b4ebf39abaf9a3a28272c076648b0abebe193829f1429",
+     "commit": "291349bf4a1f9125133296711ccf60194bdb4bd7",
+     "path": "monitoring/src/w2_cert_runner_cayley.py"
+    },
+    {
+     "blob_sha256": "79ec906ed2ec2d05bc9e98c76115e72e4cfd2568eb03c7bd849a7a2cd7330fc0",
+     "commit": "291349bf4a1f9125133296711ccf60194bdb4bd7",
+     "path": "monitoring/src/w2_tier_selector_cayley.py"
+    },
+    {
+     "blob_sha256": "a01fb01fa0fc3a94ac75236a8285d740575087a4419d9a1d90833a09a70695de",
+     "commit": "291349bf4a1f9125133296711ccf60194bdb4bd7",
+     "path": "docs/f2g_window2_execution/tier_selector_amendment_w2_v1.md"
     }
    ],
    "status": "BOUND"

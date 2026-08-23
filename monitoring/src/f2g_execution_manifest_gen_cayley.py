@@ -106,9 +106,12 @@ BOUND_SLOTS = {
                   "mag_tuc_probe.envelope.json"]},
     "bars": {
         "owner": "grassmann",
-        "note": "the complete window-2 bar REV 9, 14/14 green @ "
-                "e35b3bd (four convergence KAT groups; dual-verified "
-                "by cayley)",
+        "note": "the complete window-2 bar REV 12, 16/16 green @ "
+                "6768da4 (W-LOCO v2-frame rebase + codex repair "
+                "doctors + W-CAL calendar locks; dual-verified by "
+                "cayley py3.14+py3.11). families = the EIGHT "
+                "scientific names (codex item 4: W-LOCO/W-CAL are "
+                "KAT groups, never families)",
         "paths": ["monitoring/src/"
                   "test_f2g_window2_redkats_grassmann.py"],
         "families": ["W-SEL", "W-CAS", "W-B2B", "W-B1B", "W-MF4",

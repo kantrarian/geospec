@@ -65,3 +65,25 @@ live in the producer verification surface (grassmann, on ratification).
 
 No staging, acquisition, or data admission is authorized by this amendment alone;
 grassmann's ratification + codex's repair round close it. Λ_geo INCONCLUSIVE.
+
+---
+
+## v1.1 APPENDIX (2026-08-23; codex 1843Z item 4) — the external-store successor
+
+The base amendment's `--prestart` clause says pins/records recompute "from Git
+objects". codex's 1843Z ruling registers its EXTERNAL-STORE SUCCESSOR before any
+staging: raw bodies live on the s4t content-addressed store, NOT in Git history;
+the repo commits and manifest-pins a closed `staged_body_inventory`
+(`f2g-w2-staged-body-inventory-v1`: logical store id/root + per lane/carrier/day
+the DERIVED path `<sha256>.body`, digest, byte size — derived paths make escape
+impossible by construction). The prestart admission path must reopen EVERY
+object from the named store — path-escaping, missing, extra, unavailable-store,
+or content-mismatched objects refuse typed, NEVER PASS — recompute body +
+produced artifact, and only then run the S/T/E three-carrier join (static
+contract / capture transcript / envelope record; codex 1843Z rulings 1–3,
+implemented producer REV 6 + capture REV 2 @ `dfb0772`). An inventory hash is
+never mistaken for completed-build availability: availability = the reopen
+succeeding at admission time. Implementation:
+`w2_acquisition_capture_grassmann.verify_staged_body_inventory` (grassmann) +
+the admission wiring in `w2_accrual_instrument_cayley.assemble_prestart_admission`
+(cayley). Λ_geo INCONCLUSIVE; nothing here authorizes staging by itself.

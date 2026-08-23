@@ -529,6 +529,147 @@ def build_mag_bundle(envelopes_by_obs):
     return feeds, receipt
 
 
+# ---------------------------------------------- staged-envelope records (v1.2)
+# The producer_boundary amendment v1 registers the per-lane/per-day
+# envelope-record schema; per the codex 1400Z ruling the per-record
+# CONTENT doctors are the producer's (this surface). Slot-level shape
+# doctors live in the execution verifier (cayley).
+ENVELOPE_RECORD_SCHEMA = "f2g-w2-staged-envelope-v1"
+ENVELOPE_RECORD_KEYS = {
+    "schema", "lane", "carrier", "utc_day", "raw_body_sha256",
+    "raw_body_bytes", "source", "endpoint", "request_params",
+    "receipt", "capture_time_utc", "cutoff", "operation_params",
+    "expected_keys", "output_sha256"}
+RECORD_LANES = {"DAY_CAPSULE", "SELECTION_RECORDS", "MF4_FEED",
+                "MAG_FEED"}
+
+
+def _canon_utc_instant(t, what):
+    """The registered canonical-UTC grammar for a capture instant:
+    timezone-aware parse; naive = UTC by declaration; 'Z' = UTC; any
+    non-UTC offset refuses. Seconds allowed (capture instants are not
+    minute-grid)."""
+    try:
+        d = datetime.fromisoformat(str(t).replace("Z", "+00:00"))
+    except ValueError:
+        raise ProducerRefusal(f"PRODUCER_RECORD_TIME_INVALID: {what} "
+                              f"{t!r}")
+    if d.tzinfo is None:
+        d = d.replace(tzinfo=timezone.utc)
+    elif d.utcoffset() != timezone.utc.utcoffset(None):
+        raise ProducerRefusal(
+            f"PRODUCER_RECORD_TIME_FRAME: {what} {t!r} carries a "
+            "non-UTC offset (the canonical frame is UTC)")
+    return d.astimezone(timezone.utc)
+
+
+def build_envelope_record(*, lane, carrier, utc_day, raw_body,
+                          source, endpoint, request_params, receipt,
+                          capture_time_utc, cutoff, operation_params,
+                          expected_keys, artifact):
+    """One closed per-lane/per-day envelope record (amendment v1
+    schema): raw body content-addressed by exact bytes + size; every
+    operation parameter bound; output digest over the exact produced
+    artifact."""
+    if not isinstance(raw_body, (bytes, bytearray)):
+        raise ProducerRefusal(
+            "PRODUCER_RECORD_BODY_INVALID: raw_body must be the exact "
+            "staged bytes")
+    rec = {"schema": ENVELOPE_RECORD_SCHEMA, "lane": str(lane),
+           "carrier": str(carrier), "utc_day": str(utc_day),
+           "raw_body_sha256": hashlib.sha256(bytes(raw_body))
+           .hexdigest(),
+           "raw_body_bytes": len(raw_body),
+           "source": dict(source), "endpoint": str(endpoint),
+           "request_params": dict(request_params),
+           "receipt": dict(receipt),
+           "capture_time_utc": str(capture_time_utc),
+           "cutoff": str(cutoff),
+           "operation_params": dict(operation_params),
+           "expected_keys": sorted(str(k) for k in expected_keys),
+           "output_sha256": _canon_digest(artifact)}
+    verify_envelope_record(rec, raw_body=bytes(raw_body))
+    return rec
+
+
+def verify_envelope_record(record, *, raw_body=None, artifact=None):
+    """Per-record content verification (the producer's doctor
+    surface): closed field set (schema extension refuses), registered
+    lane, ISO day, canonical-UTC capture instant, content-addressed
+    body (recomputed when the bytes are supplied), output digest
+    (recomputed when the artifact is supplied), NaN/Inf structurally
+    refused via the canonical digest."""
+    if not isinstance(record, dict) or \
+            record.get("schema") != ENVELOPE_RECORD_SCHEMA or \
+            set(record) != ENVELOPE_RECORD_KEYS:
+        got = set(record) if isinstance(record, dict) else None
+        raise ProducerRefusal(
+            f"PRODUCER_RECORD_NOT_CLOSED: "
+            f"missing={sorted(ENVELOPE_RECORD_KEYS - got) if got else '?'} "
+            f"unknown={sorted(got - ENVELOPE_RECORD_KEYS) if got else '?'}")
+    if record["lane"] not in RECORD_LANES:
+        raise ProducerRefusal(
+            f"PRODUCER_RECORD_LANE_UNREGISTERED: {record['lane']!r}")
+    try:
+        date.fromisoformat(record["utc_day"])
+    except ValueError:
+        raise ProducerRefusal(
+            f"PRODUCER_RECORD_DAY_INVALID: {record['utc_day']!r}")
+    _canon_utc_instant(record["capture_time_utc"], "capture_time_utc")
+    if not isinstance(record["source"], dict) \
+            or set(record["source"]) != SOURCE_KEYS:
+        raise ProducerRefusal(
+            "PRODUCER_RECORD_NOT_CLOSED: source triple")
+    sha = record["raw_body_sha256"]
+    if not (isinstance(sha, str) and len(sha) == 64) \
+            or not isinstance(record["raw_body_bytes"], int) \
+            or record["raw_body_bytes"] < 0:
+        raise ProducerRefusal(
+            "PRODUCER_RECORD_BODY_INVALID: sha256/byte-size shape")
+    if raw_body is not None:
+        if hashlib.sha256(raw_body).hexdigest() != sha \
+                or len(raw_body) != record["raw_body_bytes"]:
+            raise ProducerRefusal(
+                "PRODUCER_RECORD_BODY_MISMATCH: staged bytes diverge "
+                "from the content address")
+    if artifact is not None and \
+            _canon_digest(artifact) != record["output_sha256"]:
+        raise ProducerRefusal(
+            "PRODUCER_RECORD_OUTPUT_MISMATCH")
+    return _canon_digest(record)
+
+
+def verify_staged_day_set(records_by_day, expected_days, carrier,
+                          lane):
+    """The day-set gate over one lane/carrier: the record day-key set
+    must EXACTLY equal the expected day set (missing AND extra
+    refuse); every record re-verified; each record's utc_day must
+    equal its key (cross-day replay) and its carrier/lane must match
+    (cross-carrier replay)."""
+    want = {str(d) for d in expected_days}
+    have = {str(d) for d in records_by_day}
+    if want != have:
+        raise ProducerRefusal(
+            f"PRODUCER_RECORD_DAY_SET_MISMATCH: "
+            f"missing={sorted(want - have)[:4]} "
+            f"extra={sorted(have - want)[:4]}")
+    out = {}
+    for day in sorted(records_by_day):
+        rec = records_by_day[day]
+        verify_envelope_record(rec)
+        if rec["utc_day"] != str(day):
+            raise ProducerRefusal(
+                f"PRODUCER_RECORD_REPLAY: record for "
+                f"{rec['utc_day']} staged under {day}")
+        if rec["carrier"] != str(carrier) or rec["lane"] != str(lane):
+            raise ProducerRefusal(
+                f"PRODUCER_RECORD_REPLAY: {day} carrier/lane "
+                f"{rec['carrier']}/{rec['lane']} != "
+                f"{carrier}/{lane}")
+        out[str(day)] = _canon_digest(rec)
+    return out
+
+
 # ---------------------------------------------------------------- selftest
 def _selftest():
     import tempfile
@@ -894,6 +1035,78 @@ def _selftest():
         mut["source"] = mutants["source"]
         _, rec = builder(mut)
         assert rec["input_envelope_sha256"] != base_sha
+
+    # --- staged-envelope records (amendment v1; per-record content
+    # doctors -- the producer's surface per the codex 1400Z ruling) ---
+    body = b"raw staged bytes \x00\x01"
+
+    def mk_rec(**over):
+        kw = dict(lane="DAY_CAPSULE", carrier="cascadia",
+                  utc_day="2026-08-20", raw_body=body, source=src,
+                  endpoint="https://service.example/fdsn",
+                  request_params={"net": "UW,CC,CN", "cha": "HHZ"},
+                  receipt={"http_status": 200, "fired_utc":
+                           "2026-08-20T12:01:00Z"},
+                  capture_time_utc="2026-08-20T12:01:33Z",
+                  cutoff="2026-08-25",
+                  operation_params={"carrier": "cascadia",
+                                    "day": "2026-08-20"},
+                  expected_keys=["2026-08-20"],
+                  artifact={"edges": {}})
+        kw.update(over)
+        return build_envelope_record(**kw)
+    rec_ok = mk_rec()
+    assert verify_envelope_record(rec_ok, raw_body=body,
+                                  artifact={"edges": {}})
+    # doctors: extension, missing field, wrong body sha, wrong output,
+    # non-UTC capture, invalid day, unregistered lane, NaN in params
+    ext = dict(rec_ok)
+    ext["surprise"] = 1
+    assert refuses(lambda: verify_envelope_record(ext),
+                   "PRODUCER_RECORD_NOT_CLOSED")
+    shr = {k: v for k, v in rec_ok.items() if k != "receipt"}
+    assert refuses(lambda: verify_envelope_record(shr),
+                   "PRODUCER_RECORD_NOT_CLOSED")
+    assert refuses(
+        lambda: verify_envelope_record(rec_ok, raw_body=body + b"x"),
+        "PRODUCER_RECORD_BODY_MISMATCH")
+    assert refuses(
+        lambda: verify_envelope_record(rec_ok,
+                                       artifact={"edges": {"a": 1}}),
+        "PRODUCER_RECORD_OUTPUT_MISMATCH")
+    assert refuses(
+        lambda: mk_rec(capture_time_utc="2026-08-20T12:01:33+14:00"),
+        "PRODUCER_RECORD_TIME_FRAME")
+    assert refuses(lambda: mk_rec(utc_day="not-a-day"),
+                   "PRODUCER_RECORD_DAY_INVALID")
+    assert refuses(lambda: mk_rec(lane="NOT_A_LANE"),
+                   "PRODUCER_RECORD_LANE_UNREGISTERED")
+    assert refuses(
+        lambda: mk_rec(request_params={"x": float("nan")}),
+        "PRODUCER_ENVELOPE_NONFINITE")
+    # day-set gate: exact equality + cross-day + cross-carrier replay
+    r20 = mk_rec()
+    r21 = mk_rec(utc_day="2026-08-21",
+                 operation_params={"carrier": "cascadia",
+                                   "day": "2026-08-21"})
+    days2 = ["2026-08-20", "2026-08-21"]
+    assert set(verify_staged_day_set(
+        {"2026-08-20": r20, "2026-08-21": r21}, days2, "cascadia",
+        "DAY_CAPSULE")) == set(days2)
+    assert refuses(lambda: verify_staged_day_set(
+        {"2026-08-20": r20}, days2, "cascadia", "DAY_CAPSULE"),
+        "PRODUCER_RECORD_DAY_SET_MISMATCH")           # missing day
+    assert refuses(lambda: verify_staged_day_set(
+        {"2026-08-20": r20, "2026-08-21": r21,
+         "2026-08-22": r20}, days2, "cascadia", "DAY_CAPSULE"),
+        "PRODUCER_RECORD_DAY_SET_MISMATCH")           # extra day
+    assert refuses(lambda: verify_staged_day_set(
+        {"2026-08-20": r20, "2026-08-21": r20}, days2, "cascadia",
+        "DAY_CAPSULE"), "PRODUCER_RECORD_REPLAY")     # cross-day
+    assert refuses(lambda: verify_staged_day_set(
+        {"2026-08-20": r20, "2026-08-21": r21}, days2,
+        "istanbul_marmara", "DAY_CAPSULE"),
+        "PRODUCER_RECORD_REPLAY")                     # cross-carrier
 
     print("w2_producer selftest: ALL PASS")
 

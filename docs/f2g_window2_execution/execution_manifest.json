@@ -2,8 +2,8 @@
  "design_manifest_blob_sha256": "d6decbd6ab5814bc005ce69c538311ff1b11cb1d13c19e2999e03a92bc7cca1f",
  "design_manifest_commit": "5fba5446cd96722fb86021df5065a46b8a1a78f5",
  "design_target_commit": "12161f6cf2000b2d4aa86fe659f834839ac0d27b",
- "execution_target_commit": "bc1b80816df7afd30ea30fc741b0c59ba56ab19d",
- "generated_utc": "2026-08-23T17:06:44Z",
+ "execution_target_commit": "10813bd2664447e639b8fe8feaf4496986310c38",
+ "generated_utc": "2026-08-23T17:37:56Z",
  "manifest_state": "OPEN",
  "repository_url": "https://github.com/kantrarian/geospec",
  "schema": "f2g-window2-execution-manifest-v1.2",
@@ -68,12 +68,12 @@
     "W-BARRIER",
     "W-PIN"
    ],
-   "note": "the complete window-2 bar REV 9, 14/14 green @ e35b3bd (four convergence KAT groups; dual-verified by cayley)",
+   "note": "the complete window-2 bar REV 12, 16/16 green @ 6768da4 (W-LOCO v2-frame rebase + codex repair doctors + W-CAL calendar locks; dual-verified by cayley py3.14+py3.11). families = the EIGHT scientific names (codex item 4: W-LOCO/W-CAL are KAT groups, never families)",
    "owner": "grassmann",
    "pins": [
     {
-     "blob_sha256": "4e6c2c81d4b02b8fe868f68334dd9924dd6f262fcfef3d71772290c64703dcf4",
-     "commit": "55df80e79e23ca05d0fa1fd9f049974640e2c2b8",
+     "blob_sha256": "3f64f7dd421d01a75dd413b885b61c9eb978d7528806ade55b42cd4703c84555",
+     "commit": "6768da4f013e7c095ab1813661316d6896bb7728",
      "path": "monitoring/src/test_f2g_window2_redkats_grassmann.py"
     }
    ],
@@ -114,8 +114,8 @@
    "owner": "cayley",
    "pins": [
     {
-     "blob_sha256": "899d5918ba2eebc9c32ea792f5a3da06b0fe0aad3c7720543513e4e20a8df88c",
-     "commit": "200e2a7880ba4961e338fe754d838668683eaadf",
+     "blob_sha256": "b2d63e839003bceea22887a299960d0ec2ccf7481e21a5ab8ff027b8d5ac54de",
+     "commit": "10813bd2664447e639b8fe8feaf4496986310c38",
      "path": "monitoring/src/f2g_execution_manifest_gen_cayley.py"
     }
    ],

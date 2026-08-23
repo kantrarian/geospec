@@ -1842,6 +1842,218 @@ def w_cal():
               f"{type(exc).__name__}: {exc}")
 
 
+# ---- REV 13: candidate-selector + cert-runner locks (codex 1909Z) ---------
+def w_selrun():
+    """Bar-side locks over cayley's repair revision: (1) the
+    registered two-stage selector vs a full IN-BAR oracle (own sorts,
+    engineered tie + stage-2 reordering + B2A select-all + gain
+    VALUE-ordering) with digest recomputation; (2) selector quality/
+    coverage/stage-2-scope doctors; (3) runner fire-input, points,
+    selector-digest, stale-outdir, invocation-write-once and
+    manifest-resolution refusals -- the TOCTOU family's typed
+    boundaries."""
+    try:
+        import tempfile
+        import w2_tier_selector_cayley as WTS
+        import w2_cert_runner_cayley as WCR
+
+        def refuses(fn, code):
+            try:
+                fn()
+                return False
+            except Exception as exc:
+                return code in str(exc)
+
+        def canon_sha(obj):
+            return hashlib.sha256(json.dumps(
+                obj, sort_keys=True,
+                separators=(",", ":")).encode()).hexdigest()
+
+        def outs(c):
+            return [True] * c + [False] * (50 - c)
+
+        # grids: gains placed at indices 0 (gain 10) and 11 (gain 3)
+        # to prove VALUE-ordered specificity append, never index-order
+        g_b1b = [{"gain": 10.0}] + [{"k": i} for i in range(10)] \
+            + [{"gain": 3.0}]
+        grids = {"B2A": [{"m": 1}, {"m": 2}, {"m": 3}],
+                 "B2B": [{"m": m, "dropout": d}
+                         for m, d in ((1, 10), (2, 10), (3, 10),
+                                      (1, 25), (2, 25))],
+                 "B1B": g_b1b,
+                 "B3A": [{"k": i} for i in range(4)]}
+        pre = {"B2A": [50, 50, 49],          # tie -> grid-index order
+               "B2B": [10, 50, 10, 50, 20],  # tie at 50 -> idx 1, 3
+               "B1B": [50] * 8 + [10, 10],   # top-8 = first eight
+               "B3A": [1, 2, 3, 4]}
+        post_b1b = [10, 20, 30, 40, 50, 45, 35, 25]  # reorders st.2
+        fams = {}
+        for fam in ("B2A", "B2B", "B1B", "B3A"):
+            det = [(i, p) for i, p in enumerate(grids[fam])
+                   if "gain" not in p]
+            entries = []
+            for k, (gi, gp) in enumerate(det):
+                e = {"point": gp, "outcomes": outs(pre[fam][k])}
+                if fam == "B1B":
+                    e["post_loco_outcomes"] = (
+                        outs(post_b1b[k]) if k < 8 else None)
+                entries.append(e)
+            fams[fam] = entries
+        smoke = {"quality": {"R": 50, "n_draws": 999},
+                 "geometry_capsule_digest": "ab" * 32,
+                 "families": fams}
+        art = WTS.select_candidates(smoke, grids)
+
+        # IN-BAR oracle: my own two-stage derivation
+        def oracle(fam):
+            det = [(i, p) for i, p in enumerate(grids[fam])
+                   if "gain" not in p]
+            order1 = sorted(range(len(det)), key=lambda k: (
+                -pre[fam][k], det[k][0]))
+            keep = order1[:min(8, len(det))]
+            if fam == "B1B":
+                pick = sorted(keep, key=lambda k: (
+                    -post_b1b[k], det[k][0]))[:3]
+            else:
+                pick = keep[:3]
+            return ([det[k][0] for k in keep],
+                    [det[k][0] for k in pick])
+        ok_sel = True
+        for fam in ("B2A", "B2B", "B1B", "B3A"):
+            t8, sel = oracle(fam)
+            ok_sel = ok_sel \
+                and art["top8_grid_indices"][fam] == t8 \
+                and art["selected_grid_indices"][fam] == sel
+        # hand expectations pinned: the engineered outcomes
+        ok_sel = ok_sel \
+            and art["selected_grid_indices"]["B2A"] == [0, 1, 2] \
+            and art["selected_grid_indices"]["B2B"] == [1, 3, 4] \
+            and art["selected_grid_indices"]["B1B"] == [5, 6, 4] \
+            and art["selected_grid_indices"]["B3A"] == [3, 2, 1]
+        ordered = art["ordered_points"]
+        ok_ord = len(ordered) == 14 \
+            and [o["family"] for o in ordered] == \
+            ["B2A"] * 3 + ["B2B"] * 3 + ["B1B"] * 3 + ["B3A"] * 3 \
+            + ["B1B"] * 2 \
+            and ordered[12]["point"] == {"gain": 3.0} \
+            and ordered[13]["point"] == {"gain": 10.0} \
+            and ordered[12]["entry"] == "specificity" \
+            and art["ordered_points_sha256"] == canon_sha(ordered) \
+            and art["tier_s_label"].startswith("PRELIMINARY_SMOKE")
+        # determinism
+        ok_ord = ok_ord and WTS.select_candidates(
+            smoke, grids)["ordered_points_sha256"] == \
+            art["ordered_points_sha256"]
+
+        # selector doctors
+        import json as _j
+        bad = _j.loads(_j.dumps(smoke))
+        bad["families"]["B2A"][0]["outcomes"] = outs(50)[:49]
+        ok_doc = refuses(lambda: WTS.select_candidates(bad, grids),
+                         "SELECTOR_QUALITY_INVALID")
+        bad2 = _j.loads(_j.dumps(smoke))
+        bad2["families"]["B2A"][0]["outcomes"] = [1] * 50
+        ok_doc = ok_doc and refuses(
+            lambda: WTS.select_candidates(bad2, grids),
+            "SELECTOR_QUALITY_INVALID")
+        bad3 = _j.loads(_j.dumps(smoke))
+        bad3["families"]["B1B"][9]["post_loco_outcomes"] = outs(10)
+        ok_doc = ok_doc and refuses(
+            lambda: WTS.select_candidates(bad3, grids),
+            "SELECTOR_STAGE2_INVALID")
+        bad4 = _j.loads(_j.dumps(smoke))
+        bad4["families"]["B1B"][0]["post_loco_outcomes"] = None
+        ok_doc = ok_doc and refuses(
+            lambda: WTS.select_candidates(bad4, grids),
+            "SELECTOR_STAGE2_INVALID")
+        bad5 = _j.loads(_j.dumps(smoke))
+        bad5["families"]["B3A"] = list(
+            reversed(bad5["families"]["B3A"]))
+        ok_doc = ok_doc and refuses(
+            lambda: WTS.select_candidates(bad5, grids),
+            "SELECTOR_COVERAGE_INVALID")
+        bad6 = _j.loads(_j.dumps(smoke))
+        bad6["quality"] = {"R": 20, "n_draws": 999}
+        ok_doc = ok_doc and refuses(
+            lambda: WTS.select_candidates(bad6, grids),
+            "SELECTOR_QUALITY_INVALID")
+
+        # runner typed boundaries (the TOCTOU family)
+        pts = art["ordered_points"]
+        ok_run = True
+        for np_bad in (0, -1, "2", len(pts) + 1, True):
+            ok_run = ok_run and refuses(
+                lambda n=np_bad: WCR._validate_fire_inputs(
+                    _REPO, "HEAD", n, pts,
+                    os.path.join(tempfile.gettempdir(),
+                                 "w2_bar_no_such_dir")),
+                "RUNNER_PROCESS_COUNT_INVALID"), np_bad
+        stale_dir = tempfile.mkdtemp(prefix="w2_bar_stale_")
+        with open(os.path.join(stale_dir, "invocation_record.json"),
+                  "w") as f:
+            f.write("{}")
+        ok_run = ok_run and refuses(
+            lambda: WCR._validate_fire_inputs(_REPO, "HEAD", 1, pts,
+                                              stale_dir),
+            "RUNNER_OUTDIR_STALE")
+        ok_run = ok_run and refuses(
+            lambda: WCR.resolve_manifest_commit(
+                _REPO, "no-such-ref-w2-bar"),
+            "RUNNER_MANIFEST_UNRESOLVABLE")
+        full = WCR.resolve_manifest_commit(_REPO, "HEAD")
+        ok_run = ok_run and len(full) == 40
+        dup = pts + [pts[0]]
+        ok_run = ok_run and refuses(
+            lambda: WCR.validate_points(dup),
+            "RUNNER_POINTS_INVALID")
+        ok_run = ok_run and refuses(
+            lambda: WCR.validate_points(
+                [{"family": "B2A", "point": {"m": 1},
+                  "entry": "specificity"}]),
+            "RUNNER_POINTS_INVALID")
+        # selector-artifact digest must recompute at load
+        seldir = tempfile.mkdtemp(prefix="w2_bar_sel_")
+        sp = os.path.join(seldir, "selector.json")
+        tampered = _j.loads(_j.dumps(art))
+        tampered["ordered_points"][0]["point"] = {"m": 99}
+        with open(sp, "w") as f:
+            _j.dump(tampered, f)
+        ok_run = ok_run and refuses(
+            lambda: WCR.load_selector(sp),
+            "RUNNER_SELECTOR_INVALID")
+        with open(sp, "w") as f:
+            _j.dump(art, f)
+        art2, pts2, _sha = WCR.load_selector(sp)
+        ok_run = ok_run and pts2 == pts
+        # invocation record is write-once
+        inv_dir = tempfile.mkdtemp(prefix="w2_bar_inv_")
+        WCR.write_invocation_record(inv_dir, pts, full, "geom.json",
+                                    2, ["kat"], sp, "ab" * 32)
+        ok_run = ok_run and refuses(
+            lambda: WCR.write_invocation_record(
+                inv_dir, pts, full, "geom.json", 2, ["kat"], sp,
+                "ab" * 32),
+            "RUNNER_INVOCATION_EXISTS")
+        ok_run = ok_run and refuses(
+            lambda: WCR._load_invocation(inv_dir, "0" * 64),
+            "RUNNER_POINTS_DIGEST_MISMATCH")
+
+        check("SELRUN candidate-selector + cert-runner locks "
+              "(two-stage selector == in-bar oracle w/ tie + stage-2 "
+              "reorder + B2A select-all + gain value-order + digest "
+              "determinism, quality/coverage/stage-2 doctors, "
+              "fire-input/points/selector-digest/stale-outdir/"
+              "write-once/manifest-resolution refusals)",
+              ok_sel and ok_ord and ok_doc and ok_run,
+              f"sel={ok_sel} ord={ok_ord} doc={ok_doc} run={ok_run}")
+    except ImportError:
+        check("SELRUN candidate-selector + cert-runner locks", False,
+              "W2_ENGINE_ABSENT")
+    except Exception as exc:
+        check("SELRUN candidate-selector + cert-runner locks", False,
+              f"{type(exc).__name__}: {exc}")
+
+
 _GATED = ()
 
 
@@ -1861,6 +2073,7 @@ def main():
     w_mag_null()
     w_loco()
     w_cal()
+    w_selrun()
 
 
 main()

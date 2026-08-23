@@ -1483,6 +1483,222 @@ def w_mag_null():
               f"{type(exc).__name__}: {exc}")
 
 
+# ---- REV 11: the LOCO-composition amendment's five locking KATs -----------
+def w_loco():
+    """codex 1933Z contract, grassmann-ratified 2328Z, cayley-bound
+    1a9ba2f. Five groups: (1) Holm substitution-not-marginal; (2) exact
+    partial recomputation vs an in-bar reference that holds the other
+    three coordinates byte-identical; (3) projection/provenance
+    doctors; (4) typed-fold vs missing-fold state split; (5) the
+    specificity anti-rescue, structural + semantic."""
+    try:
+        import inspect
+        import w2_power_harness_cayley as WPH
+        import w2_b1b as WB1
+
+        def refuses(fn, code):
+            try:
+                fn()
+                return False
+            except Exception as exc:
+                return code in str(exc)
+
+        # in-bar independent Holm-4 step-down (my own, not the engine)
+        def my_holm(pv, alpha=0.05):
+            order = sorted(pv, key=lambda k: pv[k])
+            out = set()
+            for i, k in enumerate(order):
+                if pv[k] <= alpha / (len(order) - i):
+                    out.add(k)
+                else:
+                    break
+            return out
+
+        # (1) Holm substitution, not p <= .05 -- the codex hand
+        # fixture verbatim, engine vs my own step-down
+        pv1 = {"B2A": .001, "B2B": .010, "B1B": .024, "B3A": .8}
+        pv1s = dict(pv1, B1B=.030)
+        ok_k1 = "B1B" in WPH.holm_rejects(pv1) \
+            and "B1B" not in WPH.holm_rejects(pv1s) \
+            and .030 <= .05 \
+            and my_holm(pv1) == set(WPH.holm_rejects(pv1)) \
+            and my_holm(pv1s) == set(WPH.holm_rejects(pv1s))
+
+        # fixture: 60-day calendar, 12x5 blocks, baseline 20 (4
+        # blocks); carrier c1 with 4 stations; the capped signal run =
+        # last day of block 4 + ALL of block 5 + first day of block 6
+        # (days 24..30), so a 7-day all-capped window exists ONLY when
+        # the ordered TRIPLE (4,5,6) is adjacent -- any pair yields at
+        # most 6 consecutive capped days. Tie probability under the
+        # 12-block permutation null ~ 6/1320, so the fold p is small
+        # and the substitution rejects. Spikes VARY with j (no
+        # permuted baseline mix can zero the MAD).
+        from datetime import date as _dl, timedelta as _tdl
+        days60 = [(_dl(2026, 3, 1) + _tdl(days=i)).isoformat()
+                  for i in range(60)]
+        CAPS = set(range(24, 31))
+        GEO = {"n_blocks": 12, "block_len": 5,
+               "baseline_positions": 20, "testable_min": 10}
+        REG4 = ["A", "B", "C", "D"]
+
+        def mk_view(signal_stations):
+            r = {}
+            for i, a in enumerate(REG4):
+                for b in REG4[i + 1:]:
+                    e = f"{a}|{b}"
+                    hot = a in signal_stations or b in signal_stations
+                    ser = {}
+                    for j, d in enumerate(days60):
+                        base = 0.1 + 0.01 * ((j * 7 + i) % 5)
+                        ser[d] = (10.0 + 0.05 * j) \
+                            if (hot and j in CAPS) else base
+                    r[e] = ser
+            return {"calendar": list(days60),
+                    "carriers": {"c1": {
+                        "registry": list(REG4),
+                        "registered_days": list(days60), "r": r}}}
+
+        def capsule(reg=REG4):
+            return {"loco_registry_carrier": "c1",
+                    "registries": {"c1": list(reg)},
+                    "b1b_geometry": dict(GEO)}
+
+        DS = "ab" * 32
+
+        def oracle_recovery(view, pv_full, reg):
+            if "B1B" not in my_holm(pv_full):
+                return None                    # early-exit class
+            ok = True
+            for s in sorted(reg):
+                proj = WPH.b1b_loco_project(view, s)
+                try:
+                    p_s = WB1.w2_b1b_family(
+                        proj, doc_sha256=DS, n_draws=49,
+                        fold=f"loco:{s}", n_blocks=GEO["n_blocks"],
+                        block_len=GEO["block_len"],
+                        baseline_positions=GEO["baseline_positions"],
+                        testable_min=GEO["testable_min"])["p_value"]
+                except WB1.PanelInvalid:
+                    p_s = None
+                if p_s is None or "B1B" not in my_holm(
+                        dict(pv_full, B1B=p_s)):
+                    ok = False
+            return ok
+
+        # (2) exact partial recomputation: engine == my reference on
+        # BOTH the all-pairs (recovery-True) and the single-station
+        # (recovery-False) constructions; the other three coordinates
+        # are the SAME pv_full objects (byte-identical reuse); after a
+        # full positive the fold count is exactly |R_NEW|
+        pv_ok = {"B2A": .001, "B2B": .002, "B3A": .003, "B1B": .020}
+        v_all = mk_view(set(REG4))
+        fc = []
+        eng_all = WPH._b1b_loco_recovery({"b1b": v_all}, pv_ok,
+                                         capsule(), 49, DS,
+                                         fold_counter=fc)
+        ora_all = oracle_recovery(v_all, pv_ok, REG4)
+        v_gain = mk_view({"D"})
+        fc2 = []
+        eng_gain = WPH._b1b_loco_recovery({"b1b": v_gain}, pv_ok,
+                                          capsule(), 49, DS,
+                                          fold_counter=fc2)
+        ora_gain = oracle_recovery(v_gain, pv_ok, REG4)
+        ok_k2 = eng_all is True and eng_all == ora_all \
+            and eng_gain is False and eng_gain == ora_gain \
+            and fc == sorted(REG4) and fc2 == sorted(REG4) \
+            and "b2a" not in inspect.getsource(
+                WPH._b1b_loco_recovery).lower()
+        # early-exit without folds on full-Holm non-rejection
+        pv_no = {"B2A": .001, "B2B": .002, "B3A": .003, "B1B": .8}
+        fc3 = []
+        ok_k2 = ok_k2 and WPH._b1b_loco_recovery(
+            {"b1b": v_all}, pv_no, capsule(), 49, DS,
+            fold_counter=fc3) is False and fc3 == []
+
+        # (3) projection exactness + provenance doctors
+        proj_b = WPH.b1b_loco_project(v_all, "B")
+        pc = proj_b["carriers"]["c1"]
+        vc = v_all["carriers"]["c1"]
+        ok_k3 = pc["registry"] == ["A", "C", "D"] \
+            and proj_b["calendar"] == v_all["calendar"] \
+            and pc["registered_days"] == vc["registered_days"] \
+            and set(pc["r"]) == {e for e in vc["r"]
+                                 if "B" not in e.split("|")} \
+            and all(pc["r"][e] == vc["r"][e] for e in pc["r"])
+        for bad in (["A"], ["A", "B", "C"], ["A", "A", "B"],
+                    ["A", "Z"]):
+            ok_k3 = ok_k3 and refuses(
+                lambda b=bad: WPH.verify_fold_set(b, ["A", "B"]),
+                "POWER_LOCO_FOLD_SET_INVALID")
+        # the fold token routes the null substream: same projection,
+        # different fold -> different null vector; token recorded
+        r_f = WB1.w2_b1b_family(proj_b, doc_sha256=DS, n_draws=25,
+                                fold="loco:B", return_null=True,
+                                **{k: v for k, v in [
+                                    ("n_blocks", GEO["n_blocks"]),
+                                    ("block_len", GEO["block_len"]),
+                                    ("baseline_positions",
+                                     GEO["baseline_positions"]),
+                                    ("testable_min",
+                                     GEO["testable_min"])]})
+        r_g = WB1.w2_b1b_family(proj_b, doc_sha256=DS, n_draws=25,
+                                fold="full", return_null=True,
+                                **{k: v for k, v in [
+                                    ("n_blocks", GEO["n_blocks"]),
+                                    ("block_len", GEO["block_len"]),
+                                    ("baseline_positions",
+                                     GEO["baseline_positions"]),
+                                    ("testable_min",
+                                     GEO["testable_min"])]})
+        ok_k3 = ok_k3 and r_f["fold"] == "loco:B" \
+            and r_f["null_T"] != r_g["null_T"]
+
+        # (4) typed fold vs missing fold: a 2-station registry
+        # degenerates every fold (0 edges -> typed no-p) -> recovery
+        # False WITHOUT a raise, fold set still exact; a missing fold
+        # REFUSES the artifact -- the states never collapse
+        v2 = {"calendar": list(days60),
+              "carriers": {"c1": {
+                  "registry": ["A", "B"],
+                  "registered_days": list(days60),
+                  "r": {"A|B": {d: ((10.0 + 0.05 * j) if j in CAPS
+                                    else 0.1 + 0.01 * (j % 5))
+                                for j, d in enumerate(days60)}}}}}
+        fc4 = []
+        typed = WPH._b1b_loco_recovery({"b1b": v2}, pv_ok,
+                                       capsule(["A", "B"]), 49, DS,
+                                       fold_counter=fc4)
+        ok_k4 = typed is False and fc4 == ["A", "B"] \
+            and refuses(lambda: WPH.verify_fold_set(
+                ["A"], ["A", "B"]), "POWER_LOCO_FOLD_SET_INVALID")
+
+        # (5) specificity anti-rescue: STRUCTURAL -- no LOCO path in
+        # the artifact class and the certification B1B branch excludes
+        # gain points; SEMANTIC -- the single-station construction is
+        # a pre-LOCO full-Holm positive (what specificity must count)
+        # even though LOCO recovery is False (what LOCO would erase)
+        src_art = inspect.getsource(WPH.run_artifact_class).lower()
+        src_cert = inspect.getsource(WPH.run_point_certification)
+        ok_k5 = "loco" not in src_art \
+            and '"gain" not in point' in src_cert \
+            and "B1B" in my_holm(pv_ok) \
+            and eng_gain is False
+
+        check("LOCO amendment locking KATs (Holm substitution not "
+              "marginal, exact partial recompute vs in-bar reference "
+              "+ fold census + early-exit, projection exactness + "
+              "fold-set/substream provenance, typed-vs-missing fold "
+              "split, specificity anti-rescue structural + semantic)",
+              ok_k1 and ok_k2 and ok_k3 and ok_k4 and ok_k5,
+              f"k1={ok_k1} k2={ok_k2} k3={ok_k3} k4={ok_k4} "
+              f"k5={ok_k5}")
+    except ImportError:
+        check("LOCO amendment locking KATs", False, "W2_ENGINE_ABSENT")
+    except Exception as exc:
+        check("LOCO amendment locking KATs", False,
+              f"{type(exc).__name__}: {exc}")
+
+
 _GATED = ()
 
 
@@ -1500,6 +1716,7 @@ def main():
     w_mag_exec()
     w_mag_b()
     w_mag_null()
+    w_loco()
 
 
 main()

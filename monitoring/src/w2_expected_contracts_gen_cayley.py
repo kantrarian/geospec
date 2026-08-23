@@ -42,11 +42,12 @@ MAG_OBSERVATORIES = ("izn", "frn", "tuc")
 
 # endpoints: REGISTERED evidence = the pinned probe envelopes'
 # requested_url hosts (mag_<obs>_probe.envelope.json); the per-day
-# query params are request_params (OPEN below)
+# query params are request_params (OPEN below). Every value is
+# verified against the pinned envelope bytes at generation.
 MAG_ENDPOINTS = {
     "izn": "https://imag-data.bgs.ac.uk/GIN_V1/GINServices",
-    "frn": "OPEN_REVIEW_ROUND",   # USGS geomag; pin from frn probe
-    "tuc": "OPEN_REVIEW_ROUND",   # USGS geomag; pin from tuc probe
+    "frn": "https://geomag.usgs.gov/ws/data/",
+    "tuc": "https://geomag.usgs.gov/ws/data/",
 }
 
 
@@ -71,12 +72,13 @@ def build(repo):
     assert sel_days[-1] == cal_days[-1] == CUTOFF
     # MAG endpoints: verify the izn value against the PINNED probe
     # envelope bytes (independent registered evidence, not the records)
-    izn_env = json.load(open(os.path.join(
-        repo, "docs", "f2g_window2_execution", "mag_capsules",
-        "receipts", "mag_izn_probe.envelope.json"),
-        encoding="utf-8"))
-    assert izn_env["requested_url"].startswith(MAG_ENDPOINTS["izn"]), \
-        "izn endpoint diverges from the pinned probe evidence"
+    for obs in MAG_OBSERVATORIES:
+        env = json.load(open(os.path.join(
+            repo, "docs", "f2g_window2_execution", "mag_capsules",
+            "receipts", f"mag_{obs}_probe.envelope.json"),
+            encoding="utf-8"))
+        assert env["requested_url"].startswith(MAG_ENDPOINTS[obs]), \
+            f"{obs} endpoint diverges from the pinned probe evidence"
 
     lanes = {}
     lanes["SELECTION_RECORDS"] = {

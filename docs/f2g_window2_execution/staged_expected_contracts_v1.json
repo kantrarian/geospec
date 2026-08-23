@@ -27,7 +27,7 @@
    "carriers": {
     "frn": {
      "cutoff": "2026-08-25",
-     "endpoint": "OPEN_REVIEW_ROUND",
+     "endpoint": "https://geomag.usgs.gov/ws/data/",
      "expected_days": [
       "2026-01-01",
       "2026-01-02",
@@ -521,7 +521,7 @@
     },
     "tuc": {
      "cutoff": "2026-08-25",
-     "endpoint": "OPEN_REVIEW_ROUND",
+     "endpoint": "https://geomag.usgs.gov/ws/data/",
      "expected_days": [
       "2026-01-01",
       "2026-01-02",

@@ -544,23 +544,59 @@ RECORD_LANES = {"DAY_CAPSULE", "SELECTION_RECORDS", "MF4_FEED",
                 "MAG_FEED"}
 
 
+_CAPTURE_RE = None
+_DAY_RE = None
+
+
 def _canon_utc_instant(t, what):
-    """The registered canonical-UTC grammar for a capture instant:
-    timezone-aware parse; naive = UTC by declaration; 'Z' = UTC; any
-    non-UTC offset refuses. Seconds allowed (capture instants are not
-    minute-grid)."""
+    """codex 1544Z item 2: a byte-bound record's canonical frame must
+    BE canonical -- exactly ONE registered spelling: UTC 'Z' with
+    seconds (optional fractional seconds). Date-only, naive, '+00:00'
+    alternate spellings, and non-UTC offsets all refuse."""
+    global _CAPTURE_RE
+    if _CAPTURE_RE is None:
+        import re
+        _CAPTURE_RE = re.compile(
+            r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$")
+    t = str(t)
+    if not _CAPTURE_RE.match(t):
+        raise ProducerRefusal(
+            f"PRODUCER_RECORD_TIME_FRAME: {what} {t!r} is not the "
+            "canonical UTC 'Z' spelling with seconds")
     try:
-        d = datetime.fromisoformat(str(t).replace("Z", "+00:00"))
+        return datetime.fromisoformat(
+            t.replace("Z", "+00:00")).astimezone(timezone.utc)
     except ValueError:
         raise ProducerRefusal(f"PRODUCER_RECORD_TIME_INVALID: {what} "
                               f"{t!r}")
-    if d.tzinfo is None:
-        d = d.replace(tzinfo=timezone.utc)
-    elif d.utcoffset() != timezone.utc.utcoffset(None):
+
+
+def _canon_day(d, what):
+    """Exact YYYY-MM-DD only (codex: date.fromisoformat admits
+    non-canonical spellings)."""
+    global _DAY_RE
+    if _DAY_RE is None:
+        import re
+        _DAY_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+    d = str(d)
+    if not _DAY_RE.match(d):
+        raise ProducerRefusal(f"PRODUCER_RECORD_DAY_INVALID: {what} "
+                              f"{d!r}")
+    try:
+        date.fromisoformat(d)
+    except ValueError:
+        raise ProducerRefusal(f"PRODUCER_RECORD_DAY_INVALID: {what} "
+                              f"{d!r}")
+    return d
+
+
+def _hex64(v, what):
+    if not (isinstance(v, str) and len(v) == 64
+            and all(c in "0123456789abcdef" for c in v)):
         raise ProducerRefusal(
-            f"PRODUCER_RECORD_TIME_FRAME: {what} {t!r} carries a "
-            "non-UTC offset (the canonical frame is UTC)")
-    return d.astimezone(timezone.utc)
+            f"PRODUCER_RECORD_BODY_INVALID: {what} is not "
+            "lowercase-hex sha256")
+    return v
 
 
 def build_envelope_record(*, lane, carrier, utc_day, raw_body,
@@ -610,24 +646,27 @@ def verify_envelope_record(record, *, raw_body=None, artifact=None):
     if record["lane"] not in RECORD_LANES:
         raise ProducerRefusal(
             f"PRODUCER_RECORD_LANE_UNREGISTERED: {record['lane']!r}")
-    try:
-        date.fromisoformat(record["utc_day"])
-    except ValueError:
-        raise ProducerRefusal(
-            f"PRODUCER_RECORD_DAY_INVALID: {record['utc_day']!r}")
+    _canon_day(record["utc_day"], "utc_day")
     _canon_utc_instant(record["capture_time_utc"], "capture_time_utc")
     if not isinstance(record["source"], dict) \
             or set(record["source"]) != SOURCE_KEYS:
         raise ProducerRefusal(
             "PRODUCER_RECORD_NOT_CLOSED: source triple")
-    sha = record["raw_body_sha256"]
-    if not (isinstance(sha, str) and len(sha) == 64) \
-            or not isinstance(record["raw_body_bytes"], int) \
+    if not isinstance(record["receipt"], dict) \
+            or not isinstance(record["request_params"], dict) \
+            or not isinstance(record["operation_params"], dict) \
+            or not isinstance(record["expected_keys"], list):
+        raise ProducerRefusal(
+            "PRODUCER_RECORD_NOT_CLOSED: container shapes")
+    _hex64(record["raw_body_sha256"], "raw_body_sha256")
+    _hex64(record["output_sha256"], "output_sha256")
+    if not isinstance(record["raw_body_bytes"], int) \
             or record["raw_body_bytes"] < 0:
         raise ProducerRefusal(
-            "PRODUCER_RECORD_BODY_INVALID: sha256/byte-size shape")
+            "PRODUCER_RECORD_BODY_INVALID: byte-size shape")
     if raw_body is not None:
-        if hashlib.sha256(raw_body).hexdigest() != sha \
+        if hashlib.sha256(raw_body).hexdigest() != \
+                record["raw_body_sha256"] \
                 or len(raw_body) != record["raw_body_bytes"]:
             raise ProducerRefusal(
                 "PRODUCER_RECORD_BODY_MISMATCH: staged bytes diverge "
@@ -639,24 +678,54 @@ def verify_envelope_record(record, *, raw_body=None, artifact=None):
     return _canon_digest(record)
 
 
-def verify_staged_day_set(records_by_day, expected_days, carrier,
-                          lane):
-    """The day-set gate over one lane/carrier: the record day-key set
-    must EXACTLY equal the expected day set (missing AND extra
-    refuse); every record re-verified; each record's utc_day must
-    equal its key (cross-day replay) and its carrier/lane must match
-    (cross-carrier replay)."""
-    want = {str(d) for d in expected_days}
-    have = {str(d) for d in records_by_day}
-    if want != have:
-        raise ProducerRefusal(
-            f"PRODUCER_RECORD_DAY_SET_MISMATCH: "
-            f"missing={sorted(want - have)[:4]} "
-            f"extra={sorted(have - want)[:4]}")
+_CONTRACT_FIELDS = ("source", "endpoint", "request_params", "receipt",
+                    "capture_time_utc", "cutoff", "operation_params",
+                    "expected_keys")
+
+
+def verify_staged_day_set(records_by_day, raw_bodies_by_day,
+                          artifacts_by_day, expected_contracts_by_day,
+                          expected_days, carrier, lane):
+    """codex 1544Z item 1 (BLOCKER repair): the day-set gate is the
+    exact gate that must enforce content recomputation, so content is
+    MANDATORY here. All four string-keyed maps (records, raw bodies,
+    produced artifacts, independently supplied expected contracts)
+    must equal the registered day set exactly; every body size/hash
+    and output digest is recomputed; every contract-bound field
+    (source, endpoint, request params, receipt, capture instant,
+    cutoff, operation params, expected keys) is compared to the
+    INDEPENDENT contract; cross-day and cross-carrier replays
+    refuse."""
+    want = {_canon_day(d, "expected_days") for d in expected_days}
+    for name, m in (("records", records_by_day),
+                    ("raw_bodies", raw_bodies_by_day),
+                    ("artifacts", artifacts_by_day),
+                    ("expected_contracts", expected_contracts_by_day)):
+        if not isinstance(m, dict):
+            raise ProducerRefusal(
+                f"PRODUCER_RECORD_CONTENT_MISSING: {name} is not a "
+                "day-keyed map")
+        have = {str(d) for d in m}
+        if have != want:
+            raise ProducerRefusal(
+                f"PRODUCER_RECORD_DAY_SET_MISMATCH: {name} "
+                f"missing={sorted(want - have)[:4]} "
+                f"extra={sorted(have - want)[:4]}")
     out = {}
     for day in sorted(records_by_day):
         rec = records_by_day[day]
-        verify_envelope_record(rec)
+        body = raw_bodies_by_day[day]
+        art = artifacts_by_day[day]
+        if body is None or art is None:
+            raise ProducerRefusal(
+                f"PRODUCER_RECORD_CONTENT_MISSING: {day} body/artifact"
+            )
+        if not isinstance(body, (bytes, bytearray)):
+            raise ProducerRefusal(
+                f"PRODUCER_RECORD_CONTENT_MISSING: {day} raw body is "
+                "not bytes")
+        verify_envelope_record(rec, raw_body=bytes(body),
+                               artifact=art)
         if rec["utc_day"] != str(day):
             raise ProducerRefusal(
                 f"PRODUCER_RECORD_REPLAY: record for "
@@ -666,6 +735,23 @@ def verify_staged_day_set(records_by_day, expected_days, carrier,
                 f"PRODUCER_RECORD_REPLAY: {day} carrier/lane "
                 f"{rec['carrier']}/{rec['lane']} != "
                 f"{carrier}/{lane}")
+        contract = expected_contracts_by_day[day]
+        if not isinstance(contract, dict):
+            raise ProducerRefusal(
+                f"PRODUCER_RECORD_CONTENT_MISSING: {day} expected "
+                "contract")
+        for f in _CONTRACT_FIELDS:
+            if f not in contract:
+                raise ProducerRefusal(
+                    f"PRODUCER_RECORD_CONTENT_MISSING: {day} contract "
+                    f"lacks {f}")
+            want_v = contract[f]
+            got_v = rec[f]
+            if f == "expected_keys":
+                want_v = sorted(str(k) for k in want_v)
+            if got_v != want_v:
+                raise ProducerRefusal(
+                    f"PRODUCER_RECORD_CONTRACT_MISMATCH: {day} {f}")
         out[str(day)] = _canon_digest(rec)
     return out
 
@@ -1077,36 +1163,93 @@ def _selftest():
     assert refuses(
         lambda: mk_rec(capture_time_utc="2026-08-20T12:01:33+14:00"),
         "PRODUCER_RECORD_TIME_FRAME")
-    assert refuses(lambda: mk_rec(utc_day="not-a-day"),
-                   "PRODUCER_RECORD_DAY_INVALID")
+    # codex 1544Z item-2 locking doctors: the canonical frame must BE
+    # canonical -- date-only, naive, and '+00:00' alternate spellings
+    # all refuse; only 'Z' with seconds passes
+    for bad_t in ("2026-08-20", "2026-08-20T00:00:00",
+                  "2026-08-20T12:01:33+00:00", "2026-08-20T12:01Z"):
+        assert refuses(lambda t=bad_t: mk_rec(capture_time_utc=t),
+                       "PRODUCER_RECORD_TIME_FRAME"), bad_t
+    assert mk_rec(capture_time_utc="2026-08-20T12:01:33.250Z")
+    for bad_d in ("not-a-day", "20260820", "2026-8-20"):
+        assert refuses(lambda d=bad_d: mk_rec(utc_day=d),
+                       "PRODUCER_RECORD_DAY_INVALID"), bad_d
     assert refuses(lambda: mk_rec(lane="NOT_A_LANE"),
                    "PRODUCER_RECORD_LANE_UNREGISTERED")
     assert refuses(
         lambda: mk_rec(request_params={"x": float("nan")}),
         "PRODUCER_ENVELOPE_NONFINITE")
-    # day-set gate: exact equality + cross-day + cross-carrier replay
+    # malformed digest doctors (codex: length-only checks admitted
+    # 'g'*64 and 'not-a-digest')
+    fake = dict(rec_ok, raw_body_sha256="g" * 64)
+    assert refuses(lambda: verify_envelope_record(fake),
+                   "PRODUCER_RECORD_BODY_INVALID")
+    fake2 = dict(rec_ok, output_sha256="not-a-digest")
+    assert refuses(lambda: verify_envelope_record(fake2),
+                   "PRODUCER_RECORD_BODY_INVALID")
+
+    # day-set gate (codex 1544Z item-1 repair): content + independent
+    # contracts are MANDATORY at this exact gate
+    def contract_of(rec):
+        return {f: rec[f] for f in ("source", "endpoint",
+                                    "request_params", "receipt",
+                                    "capture_time_utc", "cutoff",
+                                    "operation_params",
+                                    "expected_keys")}
     r20 = mk_rec()
     r21 = mk_rec(utc_day="2026-08-21",
                  operation_params={"carrier": "cascadia",
                                    "day": "2026-08-21"})
     days2 = ["2026-08-20", "2026-08-21"]
+    recs2 = {"2026-08-20": r20, "2026-08-21": r21}
+    bodies2 = {d: body for d in days2}
+    arts2 = {d: {"edges": {}} for d in days2}
+    cons2 = {d: contract_of(recs2[d]) for d in days2}
     assert set(verify_staged_day_set(
-        {"2026-08-20": r20, "2026-08-21": r21}, days2, "cascadia",
+        recs2, bodies2, arts2, cons2, days2, "cascadia",
         "DAY_CAPSULE")) == set(days2)
+    # the exact codex bypass: a fake-digest record must now refuse AT
+    # the gate (content recomputation is mandatory)
+    bad_recs = dict(recs2, **{"2026-08-20": fake})
     assert refuses(lambda: verify_staged_day_set(
-        {"2026-08-20": r20}, days2, "cascadia", "DAY_CAPSULE"),
-        "PRODUCER_RECORD_DAY_SET_MISMATCH")           # missing day
+        bad_recs, bodies2, arts2, cons2, days2, "cascadia",
+        "DAY_CAPSULE"), "PRODUCER_RECORD_BODY_INVALID")
+    # missing sidecars refuse CONTENT_MISSING / DAY_SET_MISMATCH
     assert refuses(lambda: verify_staged_day_set(
-        {"2026-08-20": r20, "2026-08-21": r21,
-         "2026-08-22": r20}, days2, "cascadia", "DAY_CAPSULE"),
-        "PRODUCER_RECORD_DAY_SET_MISMATCH")           # extra day
+        recs2, {"2026-08-20": body}, arts2, cons2, days2, "cascadia",
+        "DAY_CAPSULE"), "PRODUCER_RECORD_DAY_SET_MISMATCH")
     assert refuses(lambda: verify_staged_day_set(
-        {"2026-08-20": r20, "2026-08-21": r20}, days2, "cascadia",
-        "DAY_CAPSULE"), "PRODUCER_RECORD_REPLAY")     # cross-day
+        recs2, dict(bodies2, **{"2026-08-21": None}), arts2, cons2,
+        days2, "cascadia", "DAY_CAPSULE"),
+        "PRODUCER_RECORD_CONTENT_MISSING")
+    # wrong body / wrong output at the gate
     assert refuses(lambda: verify_staged_day_set(
-        {"2026-08-20": r20, "2026-08-21": r21}, days2,
-        "istanbul_marmara", "DAY_CAPSULE"),
-        "PRODUCER_RECORD_REPLAY")                     # cross-carrier
+        recs2, dict(bodies2, **{"2026-08-20": body + b"x"}), arts2,
+        cons2, days2, "cascadia", "DAY_CAPSULE"),
+        "PRODUCER_RECORD_BODY_MISMATCH")
+    assert refuses(lambda: verify_staged_day_set(
+        recs2, bodies2, dict(arts2, **{"2026-08-21": {"edges":
+                                                      {"z": 2}}}),
+        cons2, days2, "cascadia", "DAY_CAPSULE"),
+        "PRODUCER_RECORD_OUTPUT_MISMATCH")
+    # wrong registered request contract
+    bad_con = json.loads(json.dumps(cons2))
+    bad_con["2026-08-20"]["request_params"] = {"net": "XX"}
+    assert refuses(lambda: verify_staged_day_set(
+        recs2, bodies2, arts2, bad_con, days2, "cascadia",
+        "DAY_CAPSULE"), "PRODUCER_RECORD_CONTRACT_MISMATCH")
+    # missing/extra day + replays (carried from REV 4)
+    assert refuses(lambda: verify_staged_day_set(
+        {"2026-08-20": r20}, bodies2, arts2, cons2, days2,
+        "cascadia", "DAY_CAPSULE"),
+        "PRODUCER_RECORD_DAY_SET_MISMATCH")
+    assert refuses(lambda: verify_staged_day_set(
+        {"2026-08-20": r20, "2026-08-21": r20}, bodies2, arts2,
+        cons2, days2, "cascadia", "DAY_CAPSULE"),
+        "PRODUCER_RECORD_REPLAY")                     # cross-day
+    assert refuses(lambda: verify_staged_day_set(
+        recs2, bodies2, arts2, cons2, days2, "istanbul_marmara",
+        "DAY_CAPSULE"), "PRODUCER_RECORD_REPLAY")     # cross-carrier
 
     print("w2_producer selftest: ALL PASS")
 

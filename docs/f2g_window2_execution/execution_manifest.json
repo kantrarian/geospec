@@ -2,11 +2,11 @@
  "design_manifest_blob_sha256": "d6decbd6ab5814bc005ce69c538311ff1b11cb1d13c19e2999e03a92bc7cca1f",
  "design_manifest_commit": "5fba5446cd96722fb86021df5065a46b8a1a78f5",
  "design_target_commit": "12161f6cf2000b2d4aa86fe659f834839ac0d27b",
- "execution_target_commit": "1a9ba2fd9aaaebd041d3b06253f680b0cba7d51e",
- "generated_utc": "2026-08-22T23:43:25Z",
+ "execution_target_commit": "200e2a7880ba4961e338fe754d838668683eaadf",
+ "generated_utc": "2026-08-23T14:58:47Z",
  "manifest_state": "OPEN",
  "repository_url": "https://github.com/kantrarian/geospec",
- "schema": "f2g-window2-execution-manifest-v1.1",
+ "schema": "f2g-window2-execution-manifest-v1.2",
  "slots": {
   "accrual_impl": {
    "note": "barrier state machine + production instrument (core + 3 seam layers) + accrual-lane engines (W-BARRIER/W-MF4/W-MAG green)",
@@ -18,8 +18,8 @@
      "path": "monitoring/src/w2_barrier.py"
     },
     {
-     "blob_sha256": "74873e0b723234f5b06995d2a44bcc1018d48640d334225afd32e7a7ba4082bd",
-     "commit": "6f73445244493813b02caa761aebc3ab39bab7ed",
+     "blob_sha256": "b7ab601dc062dbbb47cf0dfc6e77f1f6c4e3795f5c0d111382583a97605a4030",
+     "commit": "200e2a7880ba4961e338fe754d838668683eaadf",
      "path": "monitoring/src/w2_accrual_instrument_cayley.py"
     },
     {
@@ -114,8 +114,8 @@
    "owner": "cayley",
    "pins": [
     {
-     "blob_sha256": "43a7fb0307951126a5df13e5e3b897c93cc988de6268a0c031064728d03cffa7",
-     "commit": "1a9ba2fd9aaaebd041d3b06253f680b0cba7d51e",
+     "blob_sha256": "899d5918ba2eebc9c32ea792f5a3da06b0fe0aad3c7720543513e4e20a8df88c",
+     "commit": "200e2a7880ba4961e338fe754d838668683eaadf",
      "path": "monitoring/src/f2g_execution_manifest_gen_cayley.py"
     }
    ],
@@ -126,8 +126,8 @@
    "owner": "cayley",
    "pins": [
     {
-     "blob_sha256": "cd9eb23a9ff6bcb989c5af5837cfa00d88e29d4efc8fe95cf08177b211588350",
-     "commit": "f2955cd5f3600f57e9a78a9f4f1e6286b8b966d0",
+     "blob_sha256": "adb37f7078ecde969de6f3586494eb0fc1bc456176f48a0da8a0e7ae47af18e1",
+     "commit": "200e2a7880ba4961e338fe754d838668683eaadf",
      "path": "monitoring/src/f2g_execution_manifest_verifier_cayley.py"
     }
    ],
@@ -190,8 +190,8 @@
    "owner": "cayley",
    "pins": [
     {
-     "blob_sha256": "51b795174b498a4e52a5bbbb652d106e7340f88e7768aae19f0a68a1f033d62f",
-     "commit": "db489c7cb37a9ed21e15330c726a949765b7c79e",
+     "blob_sha256": "84732789dd31f36e25910ee513fb9c4bef9a2f29097cf34abe8cdebc9bc088af",
+     "commit": "200e2a7880ba4961e338fe754d838668683eaadf",
      "path": "monitoring/src/w2_power_harness_cayley.py"
     },
     {
@@ -202,8 +202,9 @@
    ],
    "status": "BOUND"
   },
-  "producer_code": {
-   "note": "w2_producer REV 2 (575f275) is ONE pin of this slot; stays OPEN per codex 1721Z item 1 until the acquisition surface lands or the staged-envelope trust boundary is registered by schema amendment",
+  "producer_boundary": {
+   "boundary_mode": "staged_envelope",
+   "note": "staged-envelope boundary (amendment v1); OPEN until grassmann ratifies the mode and stages: BOUND requires the amendment doc + envelope verifier + transform code + envelope records; acquisition before the staged bytes is receipt-attested, never source-code-attested",
    "owner": "grassmann",
    "pins": [],
    "status": "OPEN"

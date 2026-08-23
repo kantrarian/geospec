@@ -29,3 +29,24 @@
   STREAM scored the same way (Molchan-style), which would be its own preregistered design.
 - **scoring**: at window close, query USGS for both frames; record HIT/MISS + events verbatim in
   an appended RESULT section. Append-only; this section is frozen.
+
+---
+
+## RESULT (appended 2026-08-23T17:25Z — FINAL)
+
+Scorer: `monitoring/src/w2_forecast_scorer_cayley.py`, fired 2026-08-23T17:25:00Z
+(window closed 17:22:07Z; ~3-min catalog-settling buffer, disclosed). Window
+[2026-08-21T17:22:07Z, 2026-08-23T17:22:07Z], strictly M>4.0. Verbatim:
+
+- **Frame A** (registered cascadia bbox 45.0–51.0 N, −128.0…−121.5 E):
+  0 events M>4.0 → **MISS**
+- **Frame B** (generous 44.0–52.0 N, −131.0…−121.0 E):
+  0 events M>4.0 → **MISS**
+- Query URLs + empty event lists verbatim in the scorer output (both
+  `events: []`, `events_m_gt_4: 0`, `status: FINAL`).
+
+Per the frozen interpretation rules: the null outcome was the ~77%-likely case in
+frame B and ~99%-likely in frame A; it validates and invalidates nothing. The
+interim checks (2026-08-22, 2026-08-23 pre-close) also showed zero events. No
+re-query, no reinterpretation; this section closes the forecast. Λ_geo remains
+INCONCLUSIVE.

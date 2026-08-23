@@ -1524,22 +1524,23 @@ def w_loco():
             and my_holm(pv1) == set(WPH.holm_rejects(pv1)) \
             and my_holm(pv1s) == set(WPH.holm_rejects(pv1s))
 
-        # fixture: 60-day calendar, 12x5 blocks, baseline 20 (4
-        # blocks); carrier c1 with 4 stations; the capped signal run =
-        # last day of block 4 + ALL of block 5 + first day of block 6
-        # (days 24..30), so a 7-day all-capped window exists ONLY when
-        # the ordered TRIPLE (4,5,6) is adjacent -- any pair yields at
-        # most 6 consecutive capped days. Tie probability under the
-        # 12-block permutation null ~ 6/1320, so the fold p is small
-        # and the substitution rejects. Spikes VARY with j (no
-        # permuted baseline mix can zero the MAD).
-        from datetime import date as _dl, timedelta as _tdl
-        days60 = [(_dl(2026, 3, 1) + _tdl(days=i)).isoformat()
-                  for i in range(60)]
-        CAPS = set(range(24, 31))
-        GEO = {"n_blocks": 12, "block_len": 5,
-               "baseline_positions": 20, "testable_min": 10}
+        # fixture: the v2 FRAME (REV 12 rebase, calendar ruling 1) --
+        # views over the committed 192-day authority calendar, B1B
+        # geometry = the AUTHORITY fields (16 x 12, baseline 60), no
+        # geometry knob anywhere. The capped signal run = last 3 days
+        # of block 6 + first 4 days of block 7 (positions 81..87, all
+        # inside evaluation), so a 7-day all-capped window exists ONLY
+        # under the ordered PAIR (6,7) adjacency -- a 7-run can span
+        # at most two 12-day blocks, no single block carries >= 7
+        # caps, and the reversed order leaves the runs discontiguous.
+        # Spikes VARY with j (no permuted baseline mix zeroes a MAD).
+        # ND=499 draws: every fold p lands <= .05 deterministically at
+        # this seed authority (fold A at exactly .05 -- the boundary).
+        FRAME = WPH.w2_calendar_frame()
+        ENG = FRAME["engine_days"]
+        CAPS = set(range(81, 88))
         REG4 = ["A", "B", "C", "D"]
+        ND = 499
 
         def mk_view(signal_stations):
             r = {}
@@ -1548,36 +1549,38 @@ def w_loco():
                     e = f"{a}|{b}"
                     hot = a in signal_stations or b in signal_stations
                     ser = {}
-                    for j, d in enumerate(days60):
+                    for j, d in enumerate(ENG):
                         base = 0.1 + 0.01 * ((j * 7 + i) % 5)
                         ser[d] = (10.0 + 0.05 * j) \
                             if (hot and j in CAPS) else base
                     r[e] = ser
-            return {"calendar": list(days60),
+            return {"calendar": list(ENG),
                     "carriers": {"c1": {
                         "registry": list(REG4),
-                        "registered_days": list(days60), "r": r}}}
+                        "registered_days": list(ENG), "r": r}}}
 
         def capsule(reg=REG4):
             return {"loco_registry_carrier": "c1",
                     "registries": {"c1": list(reg)},
-                    "b1b_geometry": dict(GEO)}
+                    "calendar_frame": json.loads(
+                        json.dumps(FRAME))}
 
         DS = "ab" * 32
 
         def oracle_recovery(view, pv_full, reg):
+            gb = FRAME["b1b"]
             if "B1B" not in my_holm(pv_full):
                 return None                    # early-exit class
             ok = True
             for s in sorted(reg):
-                proj = WPH.b1b_loco_project(view, s)
+                proj = WPH.b1b_loco_project(view, s, carrier="c1")
                 try:
                     p_s = WB1.w2_b1b_family(
-                        proj, doc_sha256=DS, n_draws=49,
-                        fold=f"loco:{s}", n_blocks=GEO["n_blocks"],
-                        block_len=GEO["block_len"],
-                        baseline_positions=GEO["baseline_positions"],
-                        testable_min=GEO["testable_min"])["p_value"]
+                        proj, doc_sha256=DS, n_draws=ND,
+                        fold=f"loco:{s}", n_blocks=gb["n_blocks"],
+                        block_len=gb["block_len"],
+                        baseline_positions=gb["baseline_positions"]
+                    )["p_value"]
                 except WB1.PanelInvalid:
                     p_s = None
                 if p_s is None or "B1B" not in my_holm(
@@ -1594,13 +1597,13 @@ def w_loco():
         v_all = mk_view(set(REG4))
         fc = []
         eng_all = WPH._b1b_loco_recovery({"b1b": v_all}, pv_ok,
-                                         capsule(), 49, DS,
+                                         capsule(), ND, DS,
                                          fold_counter=fc)
         ora_all = oracle_recovery(v_all, pv_ok, REG4)
         v_gain = mk_view({"D"})
         fc2 = []
         eng_gain = WPH._b1b_loco_recovery({"b1b": v_gain}, pv_ok,
-                                          capsule(), 49, DS,
+                                          capsule(), ND, DS,
                                           fold_counter=fc2)
         ora_gain = oracle_recovery(v_gain, pv_ok, REG4)
         ok_k2 = eng_all is True and eng_all == ora_all \
@@ -1612,11 +1615,12 @@ def w_loco():
         pv_no = {"B2A": .001, "B2B": .002, "B3A": .003, "B1B": .8}
         fc3 = []
         ok_k2 = ok_k2 and WPH._b1b_loco_recovery(
-            {"b1b": v_all}, pv_no, capsule(), 49, DS,
+            {"b1b": v_all}, pv_no, capsule(), ND, DS,
             fold_counter=fc3) is False and fc3 == []
 
-        # (3) projection exactness + provenance doctors
-        proj_b = WPH.b1b_loco_project(v_all, "B")
+        # (3) projection exactness + carrier scoping + provenance
+        # doctors (8ae9c22 repair 2 cross-authored)
+        proj_b = WPH.b1b_loco_project(v_all, "B", carrier="c1")
         pc = proj_b["carriers"]["c1"]
         vc = v_all["carriers"]["c1"]
         ok_k3 = pc["registry"] == ["A", "C", "D"] \
@@ -1625,6 +1629,25 @@ def w_loco():
             and set(pc["r"]) == {e for e in vc["r"]
                                  if "B" not in e.split("|")} \
             and all(pc["r"][e] == vc["r"][e] for e in pc["r"])
+        # carrier collision: shared station across two carriers --
+        # unqualified is AMBIGUOUS and refuses; scoped projection
+        # changes ONLY the target carrier (c2 byte-identical)
+        v_two = json.loads(json.dumps(v_all))
+        v_two["carriers"]["c2"] = {
+            "registry": ["A", "Q"],
+            "registered_days": list(ENG),
+            "r": {"A|Q": {d: 0.2 for d in ENG}}}
+        ok_k3 = ok_k3 and refuses(
+            lambda: WPH.b1b_loco_project(v_two, "A"),
+            "POWER_LOCO_FOLD_SET_INVALID") \
+            and refuses(
+                lambda: WPH.b1b_loco_project(v_two, "Q",
+                                             carrier="c1"),
+                "POWER_LOCO_FOLD_SET_INVALID")
+        proj_a1 = WPH.b1b_loco_project(v_two, "A", carrier="c1")
+        ok_k3 = ok_k3 \
+            and proj_a1["carriers"]["c2"] == v_two["carriers"]["c2"] \
+            and "A" not in proj_a1["carriers"]["c1"]["registry"]
         for bad in (["A"], ["A", "B", "C"], ["A", "A", "B"],
                     ["A", "Z"]):
             ok_k3 = ok_k3 and refuses(
@@ -1632,38 +1655,36 @@ def w_loco():
                 "POWER_LOCO_FOLD_SET_INVALID")
         # the fold token routes the null substream: same projection,
         # different fold -> different null vector; token recorded
+        gb = FRAME["b1b"]
         r_f = WB1.w2_b1b_family(proj_b, doc_sha256=DS, n_draws=25,
                                 fold="loco:B", return_null=True,
-                                **{k: v for k, v in [
-                                    ("n_blocks", GEO["n_blocks"]),
-                                    ("block_len", GEO["block_len"]),
-                                    ("baseline_positions",
-                                     GEO["baseline_positions"]),
-                                    ("testable_min",
-                                     GEO["testable_min"])]})
+                                n_blocks=gb["n_blocks"],
+                                block_len=gb["block_len"],
+                                baseline_positions=gb[
+                                    "baseline_positions"])
         r_g = WB1.w2_b1b_family(proj_b, doc_sha256=DS, n_draws=25,
                                 fold="full", return_null=True,
-                                **{k: v for k, v in [
-                                    ("n_blocks", GEO["n_blocks"]),
-                                    ("block_len", GEO["block_len"]),
-                                    ("baseline_positions",
-                                     GEO["baseline_positions"]),
-                                    ("testable_min",
-                                     GEO["testable_min"])]})
+                                n_blocks=gb["n_blocks"],
+                                block_len=gb["block_len"],
+                                baseline_positions=gb[
+                                    "baseline_positions"])
         ok_k3 = ok_k3 and r_f["fold"] == "loco:B" \
             and r_f["null_T"] != r_g["null_T"]
 
-        # (4) typed fold vs missing fold: a 2-station registry
-        # degenerates every fold (0 edges -> typed no-p) -> recovery
-        # False WITHOUT a raise, fold set still exact; a missing fold
-        # REFUSES the artifact -- the states never collapse
-        v2 = {"calendar": list(days60),
+        # (4) typed fold vs missing fold vs PROVENANCE (8ae9c22 repair
+        # 3 cross-authored): a 2-station registry degenerates every
+        # fold (projection-induced EDGE_SET_EMPTY -> typed no-p) ->
+        # recovery False WITHOUT a raise, fold set exact; a missing
+        # fold REFUSES; a calendar defect in the fold view raises
+        # POWER_LOCO_PROVENANCE_INVALID -- three states, never
+        # collapsed
+        v2 = {"calendar": list(ENG),
               "carriers": {"c1": {
                   "registry": ["A", "B"],
-                  "registered_days": list(days60),
+                  "registered_days": list(ENG),
                   "r": {"A|B": {d: ((10.0 + 0.05 * j) if j in CAPS
                                     else 0.1 + 0.01 * (j % 5))
-                                for j, d in enumerate(days60)}}}}}
+                                for j, d in enumerate(ENG)}}}}}
         fc4 = []
         typed = WPH._b1b_loco_recovery({"b1b": v2}, pv_ok,
                                        capsule(["A", "B"]), 49, DS,
@@ -1671,16 +1692,35 @@ def w_loco():
         ok_k4 = typed is False and fc4 == ["A", "B"] \
             and refuses(lambda: WPH.verify_fold_set(
                 ["A"], ["A", "B"]), "POWER_LOCO_FOLD_SET_INVALID")
+        v_badcal = json.loads(json.dumps(v2))
+        v_badcal["calendar"] = list(reversed(ENG))
+        ok_k4 = ok_k4 and refuses(
+            lambda: WPH._b1b_loco_recovery(
+                {"b1b": v_badcal}, pv_ok, capsule(["A", "B"]), 49,
+                DS), "POWER_LOCO_PROVENANCE_INVALID")
 
-        # (5) specificity anti-rescue: STRUCTURAL -- no LOCO path in
-        # the artifact class and the certification B1B branch excludes
-        # gain points; SEMANTIC -- the single-station construction is
-        # a pre-LOCO full-Holm positive (what specificity must count)
-        # even though LOCO recovery is False (what LOCO would erase)
+        # (5) specificity anti-rescue (8ae9c22 repair 1
+        # cross-authored): the detection entry REFUSES gain points
+        # (exercised directly -- the guard fires before any capsule
+        # load); the artifact class has no LOCO path; the counting
+        # rule's boundary arithmetic is the annex ceiling (2/40 = .05
+        # PASS, 3/40 FAIL); semantically the single-station
+        # construction is a pre-LOCO full-Holm positive while LOCO
+        # recovery is False -- exactly what anti-rescue preserves
         src_art = inspect.getsource(WPH.run_artifact_class).lower()
-        src_cert = inspect.getsource(WPH.run_point_certification)
+        src_spec = inspect.getsource(
+            WPH.run_b1b_specificity_certification)
         ok_k5 = "loco" not in src_art \
-            and '"gain" not in point' in src_cert \
+            and refuses(
+                lambda: WPH.run_point_certification(
+                    _REPO, {"manifest_commit": "x", "path": "y"},
+                    "B1B", {"gain": 10.0}),
+                "POWER_SPECIFICITY_ENTRYPOINT_REQUIRED") \
+            and WPH.ARTIFACT_MAX_RATE == 0.05 \
+            and (0 / 40) <= WPH.ARTIFACT_MAX_RATE \
+            and (2 / 40) <= WPH.ARTIFACT_MAX_RATE \
+            and not ((3 / 40) <= WPH.ARTIFACT_MAX_RATE) \
+            and "holm_rejects" in src_spec \
             and "B1B" in my_holm(pv_ok) \
             and eng_gain is False
 
@@ -1696,6 +1736,109 @@ def w_loco():
         check("LOCO amendment locking KATs", False, "W2_ENGINE_ABSENT")
     except Exception as exc:
         check("LOCO amendment locking KATs", False,
+              f"{type(exc).__name__}: {exc}")
+
+
+# ---- REV 12: the calendar-authority locking KATs (codex 1400Z r.1) --------
+def w_cal():
+    """Bar-side calendar locks: (1) THREE-way frame identity -- my own
+    in-bar derivation from the ruling text == the engine derivation ==
+    the COMMITTED authority artifact; (2) the compression trap
+    (compacted registered_days refuses -- availability is a mask,
+    never a deletion); (3) 08-26 exclusion + shifted-date refusals;
+    (4) the certification path invokes only the pinned NON-cal
+    entrypoints."""
+    try:
+        import inspect
+        from datetime import date as _dc, timedelta as _tdc
+        import w2_power_harness_cayley as WPH
+
+        def refuses(fn, code):
+            try:
+                fn()
+                return False
+            except Exception as exc:
+                return code in str(exc)
+
+        def _span(a, b):
+            d0, d1 = _dc.fromisoformat(a), _dc.fromisoformat(b)
+            return [(d0 + _tdc(days=i)).isoformat()
+                    for i in range((d1 - d0).days + 1)]
+
+        # (1) my own derivation from the codex 1400Z ruling text
+        my_base = _span("2026-06-27", "2026-08-25")
+        my_eval = _span("2026-08-27", "2027-01-05")
+        my_frame = {"baseline_days": my_base,
+                    "excluded_days": ["2026-08-26"],
+                    "evaluation_days": my_eval,
+                    "engine_days": my_base + my_eval}
+        eng_frame = WPH.w2_calendar_frame()
+        ok_id = len(my_base) == 60 and len(my_eval) == 132 \
+            and len(my_frame["engine_days"]) == 192 \
+            and "2026-08-26" not in my_frame["engine_days"] \
+            and all(eng_frame[k] == my_frame[k] for k in my_frame)
+        # ... == the COMMITTED authority artifact bytes
+        with open(os.path.join(
+                _REPO, "docs", "f2g_window2_execution",
+                "calendar_authority_w2_v2.json"),
+                encoding="utf-8") as f:
+            auth = json.load(f)
+        af = auth.get("frame", auth)
+        ok_id = ok_id and all(af[k] == my_frame[k] for k in my_frame) \
+            and af.get("b1b") == {"n_blocks": 16, "block_len": 12,
+                                  "baseline_positions": 60}
+
+        # (2) the compression trap: a compacted registered_days list
+        # refuses CALENDAR_MASK_COMPRESSION; the honest form (full
+        # grid + availability mask) passes
+        eng = eng_frame["engine_days"]
+        compacted = [d for d in eng if d != "2026-07-01"]
+        ok_cmp = refuses(
+            lambda: WPH._validate_carrier_mask(
+                "c1", {"registered_days": compacted,
+                       "available_days": compacted}, eng_frame),
+            "CALENDAR_MASK_COMPRESSION") \
+            and WPH._validate_carrier_mask(
+                "c1", {"registered_days": list(eng),
+                       "available_days":
+                       [d for d in eng if d != "2026-07-01"]},
+                eng_frame) is None
+
+        # (3) 08-26 refusals + shifted/extra/missing authority dates
+        ok_x = refuses(
+            lambda: WPH._validate_carrier_mask(
+                "c1", {"registered_days": list(eng),
+                       "available_days": ["2026-08-26"]}, eng_frame),
+            "CALENDAR_EXCLUDED_DAY")
+        shifted = json.loads(json.dumps(eng_frame))
+        shifted["baseline_days"] = ["2026-06-26"] \
+            + shifted["baseline_days"][1:]
+        ok_x = ok_x and refuses(
+            lambda: WPH._validate_calendar_frame(shifted),
+            "CALENDAR_AUTHORITY_MISMATCH")
+        extra = json.loads(json.dumps(eng_frame))
+        extra["engine_days"] = extra["engine_days"] + ["2027-01-06"]
+        ok_x = ok_x and refuses(
+            lambda: WPH._validate_calendar_frame(extra),
+            "CALENDAR_AUTHORITY_MISMATCH")
+
+        # (4) the bound replicate path routes ONLY through the pinned
+        # NON-cal entrypoints (no _family_cal call survives)
+        src = inspect.getsource(WPH.replicate_pvalues_bound)
+        ok_nc = "family_cal" not in src \
+            and "b2a_family" in src and "b3a_family" in src
+
+        check("CAL calendar-authority locks (three-way frame identity "
+              "vs my own derivation + committed artifact, compression "
+              "trap, 08-26 exclusion + shifted/extra-date refusals, "
+              "non-cal-only certification path)",
+              ok_id and ok_cmp and ok_x and ok_nc,
+              f"id={ok_id} cmp={ok_cmp} x={ok_x} nc={ok_nc}")
+    except ImportError:
+        check("CAL calendar-authority locks", False,
+              "W2_ENGINE_ABSENT")
+    except Exception as exc:
+        check("CAL calendar-authority locks", False,
               f"{type(exc).__name__}: {exc}")
 
 
@@ -1717,6 +1860,7 @@ def main():
     w_mag_b()
     w_mag_null()
     w_loco()
+    w_cal()
 
 
 main()

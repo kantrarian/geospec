@@ -49,15 +49,18 @@ def _utc_now_z():
         "%Y-%m-%dT%H:%M:%SZ")
 
 
-def http_fetch(url, opener=None, timeout=CAPTURE_TIMEOUT_S):
+def http_fetch(url, opener=None, timeout=CAPTURE_TIMEOUT_S,
+               clock=None):
     """One GET -> (body bytes, fetch evidence). `opener` is injectable
     so the selftest never touches the network (it returns (status,
     headers, body, effective_url)); production passes None and uses
-    urllib. Non-200 refuses typed -- an error body is never staged as
-    data. Evidence records the REQUEST-START and RESPONSE-COMPLETE
-    instants and the EFFECTIVE post-redirect URL (codex 1843Z item
-    3)."""
-    started = _utc_now_z()
+    urllib. `clock` is injectable (canonical-Z callable) so the
+    write-once recapture semantics are deterministically testable.
+    Non-200 refuses typed -- an error body is never staged as data.
+    Evidence records the REQUEST-START and RESPONSE-COMPLETE instants
+    and the EFFECTIVE post-redirect URL (codex 1843Z item 3)."""
+    clk = clock or _utc_now_z
+    started = clk()
     if opener is None:
         import urllib.request
         try:
@@ -72,7 +75,7 @@ def http_fetch(url, opener=None, timeout=CAPTURE_TIMEOUT_S):
                 f"{type(exc).__name__}: {exc}")
     else:
         status, headers, body, effective = opener(url)
-    completed = _utc_now_z()
+    completed = clk()
     evidence = {"requested_url": str(url),
                 "effective_url": str(effective),
                 "request_start_utc": started,
@@ -126,16 +129,62 @@ def static_contract_of(spec):
                                     spec["expected_keys"])}
 
 
+def _write_once_json(path, obj, divergent_code):
+    """codex 2015Z item 3: audit carriers are WRITE-ONCE. An existing
+    file is reopened -- identical canonical bytes are reused,
+    divergent bytes refuse typed. Writes are atomic (tmp+replace)."""
+    if os.path.exists(path):
+        with open(path, encoding="utf-8") as f:
+            existing = json.load(f)
+        if PROD._canon_digest(existing) != PROD._canon_digest(obj):
+            raise CaptureRefusal(
+                f"{divergent_code}: {os.path.basename(path)} already "
+                "exists with divergent content")
+        return existing
+    tmp = path + ".tmp"
+    with open(tmp, "w", encoding="utf-8", newline="\n") as f:
+        json.dump(obj, f, indent=1, sort_keys=True)
+        f.write("\n")
+    os.replace(tmp, path)
+    with open(path, encoding="utf-8") as f:
+        return json.load(f)
+
+
+_CARRIER_TOKEN = None
+
+
+def _path_tokens(lane, carrier, utc_day):
+    """codex 2015Z item 3: validate every path-deriving token BEFORE
+    any path exists -- lane from the registered enum, carrier from a
+    closed token grammar, day canonical."""
+    global _CARRIER_TOKEN
+    if _CARRIER_TOKEN is None:
+        import re
+        _CARRIER_TOKEN = re.compile(r"^[a-z0-9_]{1,64}$")
+    if lane not in PROD.RECORD_LANES:
+        raise CaptureRefusal(f"CAPTURE_PATH_TOKEN_INVALID: lane "
+                             f"{lane!r}")
+    if not _CARRIER_TOKEN.match(str(carrier)):
+        raise CaptureRefusal(f"CAPTURE_PATH_TOKEN_INVALID: carrier "
+                             f"{carrier!r}")
+    try:
+        PROD._canon_day(utc_day, "utc_day")
+    except PROD.ProducerRefusal:
+        raise CaptureRefusal(f"CAPTURE_PATH_TOKEN_INVALID: day "
+                             f"{utc_day!r}")
+    return f"{lane.lower()}_{carrier}_{utc_day}"
+
+
 def capture_day(spec, staging_dir, records_dir, transcripts_dir,
-                artifact_builder, opener=None):
+                artifact_builder, opener=None, clock=None):
     """One (lane, carrier, day) capture under the codex 1843Z S/T/E
     design: derive S from the spec -> fetch -> stage exact bytes ->
-    WRITE AND REOPEN the closed transcript T (before any record
-    exists) -> build the produced artifact -> build E through the
-    producer REV 6 surface (E's dynamic seam = projection(T)) ->
+    WRITE AND REOPEN the closed transcript T (write-once; a divergent
+    recapture refuses) -> build the produced artifact -> build E
+    through the producer surface (E's dynamic seam = projection(T)) ->
     verify the full S/T/E join through the REAL day-set gate -> write
-    the record. Returns (record_path, transcript_path, record,
-    transcript). No credentials enter any descriptor."""
+    the record (write-once). Returns (record_path, transcript_path,
+    record, transcript). No credentials enter any descriptor."""
     want = {"lane", "carrier", "utc_day", "endpoint",
             "request_params", "source", "cutoff", "operation_params",
             "expected_keys"}
@@ -150,9 +199,11 @@ def capture_day(spec, staging_dir, records_dir, transcripts_dir,
         raise CaptureRefusal(
             "CAPTURE_SPEC_NOT_CLOSED: spec source carries identity "
             "only (kind, ref)")
+    stem = _path_tokens(spec["lane"], spec["carrier"],
+                        spec["utc_day"])
     s = static_contract_of(spec)
     url = PROD.requested_url_of(s["endpoint"], s["request_params"])
-    body, ev = http_fetch(url, opener=opener)
+    body, ev = http_fetch(url, opener=opener, clock=clock)
     body_path, sha = write_body(staging_dir, body)
     transcript = {"schema": PROD.TRANSCRIPT_SCHEMA,
                   "lane": s["lane"], "carrier": s["carrier"],
@@ -168,15 +219,10 @@ def capture_day(spec, staging_dir, records_dir, transcripts_dir,
                   "raw_body_sha256": sha,
                   "raw_body_bytes": len(body)}
     os.makedirs(transcripts_dir, exist_ok=True)
-    stem = (f"{s['lane'].lower()}_{s['carrier']}_"
-            f"{s['utc_day']}")
     t_path = os.path.join(transcripts_dir,
                           f"{stem}.transcript.json")
-    with open(t_path, "w", encoding="utf-8", newline="\n") as f:
-        json.dump(transcript, f, indent=1, sort_keys=True)
-        f.write("\n")
-    with open(t_path, encoding="utf-8") as f:
-        transcript = json.load(f)          # reopen before E (item 3)
+    transcript = _write_once_json(t_path, transcript,
+                                  "CAPTURE_TRANSCRIPT_DIVERGENT")
     PROD.verify_transcript(transcript, s, raw_body=body)
     artifact = artifact_builder(body)
     record = PROD.build_envelope_record(
@@ -195,9 +241,8 @@ def capture_day(spec, staging_dir, records_dir, transcripts_dir,
         s["lane"])
     os.makedirs(records_dir, exist_ok=True)
     rec_path = os.path.join(records_dir, f"{stem}.record.json")
-    with open(rec_path, "w", encoding="utf-8", newline="\n") as f:
-        json.dump(record, f, indent=1, sort_keys=True)
-        f.write("\n")
+    record = _write_once_json(rec_path, record,
+                              "CAPTURE_RECORD_DIVERGENT")
     return rec_path, t_path, record, transcript
 
 
@@ -221,18 +266,46 @@ def build_staged_body_inventory(store_id, store_root, entries):
             "store_root": str(store_root), "objects": objects}
 
 
-def verify_staged_body_inventory(inventory, store_dir):
-    """Reopen EVERY object from the named store: missing, extra,
-    path-escaping, or content-mismatched objects refuse typed; an
-    unavailable store is a refusal, never a PASS."""
+STORE_DESCRIPTOR_SCHEMA = "f2g-w2-store-descriptor-v1"
+STORE_DESCRIPTOR_KEYS = {"schema", "store_id", "store_root",
+                         "physical_root"}
+
+
+def verify_staged_body_inventory(inventory, store_descriptor):
+    """codex 2015Z item 1 (BLOCKER repair): the verifier binds the
+    NAMED store, not a caller path. `store_descriptor` is the
+    independently REGISTERED (manifest-pinned) descriptor mapping the
+    logical store identity to its physical root -- there is no
+    caller-controlled directory argument at all. The inventory's
+    store_id AND store_root must equal the descriptor's; the physical
+    root comes ONLY from the descriptor mapping. A matching digest
+    proves object content, never named-store standing: correct bytes
+    in the wrong store refuse. Then reopen EVERY object: missing,
+    extra, path-escaping, or content-mismatched objects refuse typed;
+    an unavailable store is a refusal, never a PASS. No credentials
+    appear in any descriptor."""
     if not isinstance(inventory, dict) or \
             inventory.get("schema") != INVENTORY_SCHEMA or \
             set(inventory) != {"schema", "store_id", "store_root",
                                "objects"}:
         raise CaptureRefusal("CAPTURE_INVENTORY_NOT_CLOSED")
+    d = store_descriptor
+    if not isinstance(d, dict) or \
+            d.get("schema") != STORE_DESCRIPTOR_SCHEMA or \
+            set(d) != STORE_DESCRIPTOR_KEYS:
+        raise CaptureRefusal("CAPTURE_STORE_DESCRIPTOR_NOT_CLOSED")
+    if inventory["store_id"] != d["store_id"] or \
+            inventory["store_root"] != d["store_root"]:
+        raise CaptureRefusal(
+            f"CAPTURE_STORE_IDENTITY_MISMATCH: inventory names "
+            f"{inventory['store_id']!r}/{inventory['store_root']!r} "
+            f"but the registered descriptor is {d['store_id']!r}/"
+            f"{d['store_root']!r}")
+    store_dir = os.path.realpath(str(d["physical_root"]))
     if not os.path.isdir(store_dir):
         raise CaptureRefusal(
-            f"CAPTURE_STORE_UNAVAILABLE: {store_dir}")
+            f"CAPTURE_STORE_UNAVAILABLE: {d['store_id']} -> "
+            f"{store_dir}")
     seen = set()
     for key, obj in sorted(inventory["objects"].items()):
         if set(obj) != {"path", "sha256", "bytes"}:
@@ -243,7 +316,11 @@ def verify_staged_body_inventory(inventory, store_dir):
             raise CaptureRefusal(
                 f"CAPTURE_INVENTORY_PATH_ESCAPE: {key} -> "
                 f"{obj['path']}")
-        p = os.path.join(store_dir, obj["path"])
+        p = os.path.realpath(os.path.join(store_dir, obj["path"]))
+        if not p.startswith(store_dir + os.sep):
+            raise CaptureRefusal(
+                f"CAPTURE_INVENTORY_PATH_ESCAPE: {key} resolves "
+                "outside the registered store")
         if not os.path.isfile(p):
             raise CaptureRefusal(
                 f"CAPTURE_INVENTORY_OBJECT_MISSING: {key}")
@@ -306,12 +383,20 @@ def _selftest():
     def builder(body):
         return {"n_bytes": len(body)}
 
+    # a FIXED injectable clock makes write-once recapture semantics
+    # deterministic (codex 2015Z item 3)
+    def clock_a():
+        return "2026-08-20T12:01:33Z"
+
+    def clock_b():
+        return "2026-08-20T12:05:00Z"
+
     # round trip: capture -> staged bytes + TRANSCRIPT (written and
     # reopened before E) -> record -> and capture_day itself already
     # re-verifies the full S/T/E join through the REAL gate
     rp, tp, rec, tr = capture_day(spec(), staging, records,
                                   transcripts, builder,
-                                  opener=opener)
+                                  opener=opener, clock=clock_a)
     body = b"kat-body-1"
     assert rec["raw_body_sha256"] == hashlib.sha256(body).hexdigest()
     assert rec["source"]["sha256"] == rec["raw_body_sha256"]
@@ -341,12 +426,42 @@ def _selftest():
         ["2026-08-20"], "cascadia", "DAY_CAPSULE")
     assert set(out) == {"2026-08-20"}
 
-    # immutability: re-capture reuses the identical address; a
-    # corrupted staged file refuses
+    # write-once semantics (codex 2015Z item 3): an IDENTICAL
+    # recapture (same clock, same bytes) reuses the carriers...
     rp2, tp2, rec2, tr2 = capture_day(spec(), staging, records,
                                       transcripts, builder,
-                                      opener=opener)
-    assert rec2["raw_body_sha256"] == rec["raw_body_sha256"]
+                                      opener=opener, clock=clock_a)
+    assert rec2 == rec and tr2 == tr
+    # ...a DIVERGENT recapture (different instant -> different
+    # transcript bytes) refuses instead of silently overwriting
+    assert refuses(lambda: capture_day(
+        spec(), staging, records, transcripts, builder,
+        opener=opener, clock=clock_b), "CAPTURE_TRANSCRIPT_DIVERGENT")
+    with open(tp, encoding="utf-8") as f:
+        assert json.load(f) == tr         # first transcript intact
+    # divergent RECORD with an identical transcript: same clock but a
+    # different artifact builder -> record bytes diverge -> refuse
+    assert refuses(lambda: capture_day(
+        spec(), staging, records, transcripts,
+        lambda b: {"n_bytes": len(b), "extra": 1},
+        opener=opener, clock=clock_a), "CAPTURE_RECORD_DIVERGENT")
+    with open(rp, encoding="utf-8") as f:
+        assert json.load(f) == rec        # first record intact
+    # path-token grammar validated BEFORE any path derivation
+    for bad_tok in (dict(carrier="Bad Carrier"),
+                    dict(carrier="../escape"),
+                    dict(lane="NOT_A_LANE"),
+                    dict(utc_day="20260820")):
+        sp = spec()
+        sp.update(bad_tok)
+        sp["operation_params"] = {"carrier": sp["carrier"],
+                                  "day": sp["utc_day"]}
+        sp["expected_keys"] = [sp["utc_day"]]
+        assert refuses(lambda sp=sp: capture_day(
+            sp, staging, records, transcripts, builder,
+            opener=opener, clock=clock_a),
+            "CAPTURE_PATH_TOKEN_INVALID"), bad_tok
+    # staging immutability: a corrupted staged file refuses
     with open(staged, "wb") as f:
         f.write(b"tampered")
     assert refuses(lambda: write_body(staging, body),
@@ -380,30 +495,47 @@ def _selftest():
         staging, records, transcripts, builder, opener=opener),
         "CAPTURE_SPEC_NOT_CLOSED")
 
-    # --- the body-store inventory (codex 1843Z item 4) ---
+    # --- the body-store inventory (codex 1843Z item 4 + 2015Z item
+    # 1: the NAMED-store binding -- no caller path argument exists) ---
+    def desc(**over):
+        d = {"schema": STORE_DESCRIPTOR_SCHEMA,
+             "store_id": "s4t-kat", "store_root": "kat://store",
+             "physical_root": staging}
+        d.update(over)
+        return d
     inv = build_staged_body_inventory(
         "s4t-kat", "kat://store",
         {"DAY_CAPSULE/cascadia/2026-08-20":
          {"sha256": rec["raw_body_sha256"],
           "bytes": rec["raw_body_bytes"]}})
-    assert verify_staged_body_inventory(inv, staging) == \
+    assert verify_staged_body_inventory(inv, desc()) == \
         {"objects_verified": 1}
+    # the codex 2015Z repro: correct bytes in the WRONG store refuse
+    # (the registered descriptor names another store identity)
+    assert refuses(
+        lambda: verify_staged_body_inventory(
+            inv, desc(store_id="OFFICIAL_S4T",
+                      store_root="s4t://official/window2")),
+        "CAPTURE_STORE_IDENTITY_MISMATCH")
+    assert refuses(
+        lambda: verify_staged_body_inventory(inv, {"free": "dict"}),
+        "CAPTURE_STORE_DESCRIPTOR_NOT_CLOSED")
     # unavailable store / missing object / mismatch / extra / escape
     assert refuses(
         lambda: verify_staged_body_inventory(
-            inv, os.path.join(root, "nope")),
+            inv, desc(physical_root=os.path.join(root, "nope"))),
         "CAPTURE_STORE_UNAVAILABLE")
     inv_missing = json.loads(json.dumps(inv))
     inv_missing["objects"]["x/y/z"] = {"path": "ab" * 32 + ".body",
                                        "sha256": "ab" * 32,
                                        "bytes": 1}
     assert refuses(
-        lambda: verify_staged_body_inventory(inv_missing, staging),
+        lambda: verify_staged_body_inventory(inv_missing, desc()),
         "CAPTURE_INVENTORY_OBJECT_MISSING")
     with open(staged, "wb") as f:
         f.write(b"tampered")
     assert refuses(
-        lambda: verify_staged_body_inventory(inv, staging),
+        lambda: verify_staged_body_inventory(inv, desc()),
         "CAPTURE_INVENTORY_OBJECT_MISMATCH")
     with open(staged, "wb") as f:
         f.write(body)
@@ -411,7 +543,7 @@ def _selftest():
     with open(stray, "wb") as f:
         f.write(b"stray")
     assert refuses(
-        lambda: verify_staged_body_inventory(inv, staging),
+        lambda: verify_staged_body_inventory(inv, desc()),
         "CAPTURE_INVENTORY_EXTRA_OBJECTS")
     os.remove(stray)
     inv_esc = json.loads(json.dumps(inv))
@@ -419,7 +551,7 @@ def _selftest():
     inv_esc["objects"][k]["path"] = "..\\" + \
         inv_esc["objects"][k]["path"]
     assert refuses(
-        lambda: verify_staged_body_inventory(inv_esc, staging),
+        lambda: verify_staged_body_inventory(inv_esc, desc()),
         "CAPTURE_INVENTORY_PATH_ESCAPE")
 
     print("w2_acquisition_capture selftest: ALL PASS (no network)")

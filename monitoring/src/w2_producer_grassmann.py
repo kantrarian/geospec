@@ -728,12 +728,16 @@ def verify_transcript(transcript, static_contract, raw_body=None):
         raise ProducerRefusal(
             "PRODUCER_TRANSCRIPT_INVALID: requested_url diverges "
             "from the registered derivation")
-    _canon_utc_instant(t["request_start_utc"], "request_start_utc")
-    _canon_utc_instant(t["response_complete_utc"],
-                       "response_complete_utc")
-    if str(t["request_start_utc"]) > str(t["response_complete_utc"]):
+    # codex 2015Z item 2: PARSED-instant ordering, never
+    # lexicographic (mixed fractional/non-fractional spellings break
+    # string comparison in both directions)
+    t_start = _canon_utc_instant(t["request_start_utc"],
+                                 "request_start_utc")
+    t_done = _canon_utc_instant(t["response_complete_utc"],
+                                "response_complete_utc")
+    if t_start > t_done:
         raise ProducerRefusal(
-            "PRODUCER_TRANSCRIPT_INVALID: reversed timestamps")
+            "PRODUCER_TRANSCRIPT_INVALID: reversed instants")
     if t["http_status"] != 200:
         raise ProducerRefusal(
             f"PRODUCER_TRANSCRIPT_INVALID: non-200 transcript "
@@ -777,14 +781,15 @@ def verify_envelope_record(record, *, raw_body=None, artifact=None):
     if not isinstance(rc, dict) or set(rc) != ENVELOPE_RECEIPT_KEYS:
         raise ProducerRefusal(
             "PRODUCER_RECORD_NOT_CLOSED: receipt interior")
-    _canon_utc_instant(rc["request_start_utc"], "request_start_utc")
-    _canon_utc_instant(rc["response_complete_utc"],
-                       "response_complete_utc")
-    if str(rc["request_start_utc"]) > \
-            str(rc["response_complete_utc"]):
+    # codex 2015Z item 2: PARSED-instant ordering, never lexicographic
+    rc_start = _canon_utc_instant(rc["request_start_utc"],
+                                  "request_start_utc")
+    rc_done = _canon_utc_instant(rc["response_complete_utc"],
+                                 "response_complete_utc")
+    if rc_start > rc_done:
         raise ProducerRefusal(
             "PRODUCER_RECORD_TIME_FRAME: request start after "
-            "response completion (reversed timestamps)")
+            "response completion (reversed instants)")
     if record["capture_time_utc"] != rc["response_complete_utc"]:
         raise ProducerRefusal(
             "PRODUCER_RECORD_TIME_FRAME: capture_time_utc is defined "
@@ -1379,6 +1384,25 @@ def _selftest():
     assert refuses(lambda: mk_rec(t=mk_transcript(
         s20, request_start_utc="2026-08-20T12:01:34Z")),
         "PRODUCER_RECORD_TIME_FRAME")
+    # codex 2015Z item-2 locks: PARSED-instant ordering both ways --
+    # temporally ORDERED but lexicographically reversed must PASS...
+    ok_frac = mk_rec(t=mk_transcript(
+        s20, request_start_utc="2026-08-20T12:01:33Z",
+        response_complete_utc="2026-08-20T12:01:33.100Z"))
+    assert ok_frac["capture_time_utc"] == "2026-08-20T12:01:33.100Z"
+    # ...and temporally REVERSED but lexicographically ordered must
+    # REFUSE (at the envelope gate AND the transcript gate)
+    assert refuses(lambda: mk_rec(t=mk_transcript(
+        s20, request_start_utc="2026-08-20T12:01:33.900Z",
+        response_complete_utc="2026-08-20T12:01:33Z")),
+        "PRODUCER_RECORD_TIME_FRAME")
+    assert refuses(lambda: verify_transcript(mk_transcript(
+        s20, request_start_utc="2026-08-20T12:01:33.900Z",
+        response_complete_utc="2026-08-20T12:01:33Z"), s20),
+        "PRODUCER_TRANSCRIPT_INVALID")
+    assert verify_transcript(mk_transcript(
+        s20, request_start_utc="2026-08-20T12:01:33Z",
+        response_complete_utc="2026-08-20T12:01:33.100Z"), s20)
     for bad_d in ("not-a-day", "20260820", "2026-8-20"):
         assert refuses(
             lambda d=bad_d: mk_rec(utc_day=d, s=s20, t=t20),

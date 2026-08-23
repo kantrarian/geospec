@@ -111,61 +111,57 @@ def runtime_allowlist_check(repo, manifest_commit):
 
 
 STAGED_INVENTORY_BASENAME = "staged_body_inventory.json"
+STORE_DESCRIPTOR_BASENAME = "store_descriptor.json"
+
+
+def _pinned_json(slot, basename, blob_reader):
+    pins = [p for p in slot.get("pins", ())
+            if isinstance(p, dict) and str(p.get("path", ""))
+            .endswith(basename)]
+    if len(pins) != 1:
+        raise InstrumentRefusal(
+            "PRESTART_ADMISSION_REFUSED: producer_boundary is BOUND "
+            f"without exactly one {basename} pin (found {len(pins)})")
+    pin = pins[0]
+    raw = blob_reader(pin["commit"], pin["path"])
+    if hashlib.sha256(raw).hexdigest() != pin["blob_sha256"]:
+        raise InstrumentRefusal(
+            f"PRESTART_ADMISSION_REFUSED: {basename} bytes diverge "
+            "from the manifest pin")
+    return json.loads(raw.decode("utf-8"))
 
 
 def verify_staged_store(repo, manifest, *, blob_reader=None,
                         inventory_verifier=None):
-    """producer-boundary amendment v1.1 appendix (codex 1843Z item
-    4): when the producer_boundary slot is BOUND, its pinned
-    staged_body_inventory must reopen EVERY object from the named
-    external (s4t) store -- an inventory hash is never mistaken for
-    completed-build availability; an unavailable store is a TYPED
-    refusal, never PASS. Returns None while the slot is honestly OPEN
-    (the zero-OPEN prestart gate refuses upstream); returns the
-    reopen report when the gate passes. blob_reader/inventory_verifier
+    """producer-boundary amendment v1.1 appendix (codex 1843Z item 4
+    + 2015Z item 1): when the producer_boundary slot is BOUND, BOTH
+    the staged_body_inventory AND the registered store DESCRIPTOR
+    reopen from their manifest pins, and grassmann's REV 7 NAMED-STORE
+    verifier reopens EVERY object -- the physical root comes only from
+    the pinned descriptor mapping (there is no caller path); an
+    inventory hash is never mistaken for completed-build availability;
+    an unavailable or wrong store is a TYPED refusal, never PASS.
+    Returns None while the slot is honestly OPEN (the zero-OPEN
+    prestart gate refuses upstream). blob_reader/inventory_verifier
     are injectable for KATs only."""
     slot = manifest["slots"].get("producer_boundary")
     if not isinstance(slot, dict) or slot.get("status") != "BOUND":
         return None
-    inv_pins = [p for p in slot.get("pins", ())
-                if isinstance(p, dict) and str(p.get("path", ""))
-                .endswith(STAGED_INVENTORY_BASENAME)]
-    if len(inv_pins) != 1:
-        raise InstrumentRefusal(
-            "PRESTART_ADMISSION_REFUSED: producer_boundary is BOUND "
-            f"without exactly one {STAGED_INVENTORY_BASENAME} pin "
-            f"(found {len(inv_pins)})")
-    pin = inv_pins[0]
     if blob_reader is None:
         def blob_reader(commit, path):
             return _git(repo, ["cat-file", "blob",
                                f"{commit}:{path}"], binary=True)
-    raw = blob_reader(pin["commit"], pin["path"])
-    if hashlib.sha256(raw).hexdigest() != pin["blob_sha256"]:
-        raise InstrumentRefusal(
-            "PRESTART_ADMISSION_REFUSED: staged inventory bytes "
-            "diverge from the manifest pin")
-    inventory = json.loads(raw.decode("utf-8"))
+    inventory = _pinned_json(slot, STAGED_INVENTORY_BASENAME,
+                             blob_reader)
+    descriptor = _pinned_json(slot, STORE_DESCRIPTOR_BASENAME,
+                              blob_reader)
     if inventory_verifier is None:
-        # codex 2015Z item 1: the successor consumes the REPAIRED
-        # NAMED-STORE verifier (store_id resolved through an
-        # independently registered descriptor), NEVER the REV 6
-        # free-path API where the inventory's own declared root is
-        # the carrier. Until grassmann's REV 7 lands that resolver,
-        # this gate is FAIL-CLOSED.
         import w2_acquisition_capture_grassmann as CAP
-        resolver = getattr(CAP, "verify_staged_body_inventory_named",
-                           None)
-        if resolver is None:
-            raise InstrumentRefusal(
-                "PRESTART_ADMISSION_REFUSED: named-store inventory "
-                "verifier not yet registered (codex 2015Z item 1; "
-                "REV 7) -- the free-path API is never consumed here")
 
-        def inventory_verifier(inv):
-            return resolver(inv)
+        def inventory_verifier(inv, desc):
+            return CAP.verify_staged_body_inventory(inv, desc)
     try:
-        report = inventory_verifier(inventory)
+        report = inventory_verifier(inventory, descriptor)
     except Exception as e:
         raise InstrumentRefusal(
             f"PRESTART_ADMISSION_REFUSED: staged store reopen "
@@ -651,18 +647,30 @@ def _selftest():
     except InstrumentRefusal as e:
         assert "PRESTART_ADMISSION_REFUSED" in str(e)
 
-    # v1.1 appendix gate KATs (codex 1843Z item 4): the external
-    # staged-store reopen -- unit level, injectable carriers
+    # v1.1 appendix gate KATs (codex 1843Z item 4 + 2015Z item 1):
+    # the named-store reopen -- unit level, injectable carriers
     inv_fix = {"schema": "f2g-w2-staged-body-inventory-v1",
-               "store_id": "s4t", "store_root": "\\\\host\\s4t",
+               "store_id": "s4t", "store_root": "s4t://window2",
                "objects": {"MAG_FEED/izn/2026-01-01": {
                    "path": "ab" * 32 + ".body", "sha256": "ab" * 32,
                    "bytes": 4}}}
+    desc_fix = {"schema": "f2g-w2-store-descriptor-v1",
+                "store_id": "s4t", "store_root": "s4t://window2",
+                "physical_root": os.path.join(tmpdir,
+                                              "no-such-store")}
     inv_raw = json.dumps(inv_fix).encode()
+    desc_raw = json.dumps(desc_fix).encode()
     inv_pin = {"path": "docs/f2g_window2_execution/staged_envelopes/"
                        "staged_body_inventory.json",
                "commit": "c" * 40,
                "blob_sha256": hashlib.sha256(inv_raw).hexdigest()}
+    desc_pin = {"path": "docs/f2g_window2_execution/staged_envelopes/"
+                        "store_descriptor.json",
+                "commit": "c" * 40,
+                "blob_sha256": hashlib.sha256(desc_raw).hexdigest()}
+
+    def reader(c, path):
+        return desc_raw if path.endswith("store_descriptor.json")             else inv_raw
 
     def man_with(status, pins):
         return {"slots": {"producer_boundary": {
@@ -671,50 +679,54 @@ def _selftest():
     assert verify_staged_store(".", man_with("OPEN", [])) is None
     # BOUND without the inventory pin -> typed refusal
     try:
-        verify_staged_store(".", man_with("BOUND", [
-            {"path": "monitoring/src/x.py", "commit": "c" * 40,
-             "blob_sha256": "d" * 64}]))
+        verify_staged_store(".", man_with("BOUND", [desc_pin]))
         raise AssertionError("missing inventory pin must refuse")
     except InstrumentRefusal as e:
         assert "staged_body_inventory" in str(e)
+    # BOUND without the DESCRIPTOR pin -> typed refusal (2015Z: the
+    # physical root comes only from the registered descriptor)
+    try:
+        verify_staged_store(".", man_with("BOUND", [inv_pin]),
+                            blob_reader=reader)
+        raise AssertionError("missing descriptor pin must refuse")
+    except InstrumentRefusal as e:
+        assert "store_descriptor" in str(e)
     # pinned bytes diverging -> refusal
     try:
         verify_staged_store(
-            ".", man_with("BOUND", [inv_pin]),
+            ".", man_with("BOUND", [inv_pin, desc_pin]),
             blob_reader=lambda c, p: b"{}",
-            inventory_verifier=lambda i: True)
+            inventory_verifier=lambda i, d: True)
         raise AssertionError("divergent inventory bytes must refuse")
     except InstrumentRefusal as e:
         assert "diverge from the manifest pin" in str(e)
-    # unavailable store (verifier raises) -> TYPED refusal, never PASS
-    def _boom_store(inv):
-        raise ValueError("CAPTURE_STORE_UNAVAILABLE: \\\\host\\s4t")
+    # wrong/unavailable store (verifier raises) -> TYPED refusal
+    def _boom_store(inv, desc):
+        raise ValueError("CAPTURE_STORE_IDENTITY_MISMATCH: kat")
     try:
         verify_staged_store(
-            ".", man_with("BOUND", [inv_pin]),
-            blob_reader=lambda c, p: inv_raw,
-            inventory_verifier=_boom_store)
-        raise AssertionError("unavailable store must refuse")
+            ".", man_with("BOUND", [inv_pin, desc_pin]),
+            blob_reader=reader, inventory_verifier=_boom_store)
+        raise AssertionError("wrong store must refuse")
     except InstrumentRefusal as e:
-        assert "staged store reopen failed" in str(e) \
-            and "CAPTURE_STORE_UNAVAILABLE" in str(e)
+        assert "staged store reopen failed" in str(e)             and "CAPTURE_STORE_IDENTITY_MISMATCH" in str(e)
+    # the DEFAULT path consumes the REAL REV 7 named-store verifier:
+    # a descriptor whose physical root does not exist refuses
+    # CAPTURE_STORE_UNAVAILABLE through the real API (never a PASS)
+    try:
+        verify_staged_store(".", man_with("BOUND",
+                                          [inv_pin, desc_pin]),
+                            blob_reader=reader)
+        raise AssertionError("unavailable named store must refuse")
+    except InstrumentRefusal as e:
+        assert "CAPTURE_STORE_UNAVAILABLE" in str(e)
     # a passing reopen returns the report
     rep = verify_staged_store(
-        ".", man_with("BOUND", [inv_pin]),
-        blob_reader=lambda c, p: inv_raw,
-        inventory_verifier=lambda i: {"reopened": len(i["objects"])})
+        ".", man_with("BOUND", [inv_pin, desc_pin]),
+        blob_reader=reader,
+        inventory_verifier=lambda i, d: {"reopened":
+                                         len(i["objects"])})
     assert rep["objects"] == 1 and rep["store_id"] == "s4t"
-    # codex 2015Z item 1: with NO injected verifier the gate is
-    # FAIL-CLOSED until the REV 7 named-store resolver exists -- the
-    # free-path API is never consumed by default
-    import w2_acquisition_capture_grassmann as _CAP
-    if not hasattr(_CAP, "verify_staged_body_inventory_named"):
-        try:
-            verify_staged_store(".", man_with("BOUND", [inv_pin]),
-                                blob_reader=lambda c, p: inv_raw)
-            raise AssertionError("free-path default must refuse")
-        except InstrumentRefusal as e:
-            assert "named-store" in str(e)
 
     # barrier-level: bare bindings refuse even with valid-shape state
     try:

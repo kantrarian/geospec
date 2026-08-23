@@ -147,11 +147,23 @@ def verify_staged_store(repo, manifest, *, blob_reader=None,
             "diverge from the manifest pin")
     inventory = json.loads(raw.decode("utf-8"))
     if inventory_verifier is None:
+        # codex 2015Z item 1: the successor consumes the REPAIRED
+        # NAMED-STORE verifier (store_id resolved through an
+        # independently registered descriptor), NEVER the REV 6
+        # free-path API where the inventory's own declared root is
+        # the carrier. Until grassmann's REV 7 lands that resolver,
+        # this gate is FAIL-CLOSED.
         import w2_acquisition_capture_grassmann as CAP
+        resolver = getattr(CAP, "verify_staged_body_inventory_named",
+                           None)
+        if resolver is None:
+            raise InstrumentRefusal(
+                "PRESTART_ADMISSION_REFUSED: named-store inventory "
+                "verifier not yet registered (codex 2015Z item 1; "
+                "REV 7) -- the free-path API is never consumed here")
 
         def inventory_verifier(inv):
-            return CAP.verify_staged_body_inventory(
-                inv, inv["store_root"])
+            return resolver(inv)
     try:
         report = inventory_verifier(inventory)
     except Exception as e:
@@ -692,6 +704,17 @@ def _selftest():
         blob_reader=lambda c, p: inv_raw,
         inventory_verifier=lambda i: {"reopened": len(i["objects"])})
     assert rep["objects"] == 1 and rep["store_id"] == "s4t"
+    # codex 2015Z item 1: with NO injected verifier the gate is
+    # FAIL-CLOSED until the REV 7 named-store resolver exists -- the
+    # free-path API is never consumed by default
+    import w2_acquisition_capture_grassmann as _CAP
+    if not hasattr(_CAP, "verify_staged_body_inventory_named"):
+        try:
+            verify_staged_store(".", man_with("BOUND", [inv_pin]),
+                                blob_reader=lambda c, p: inv_raw)
+            raise AssertionError("free-path default must refuse")
+        except InstrumentRefusal as e:
+            assert "named-store" in str(e)
 
     # barrier-level: bare bindings refuse even with valid-shape state
     try:

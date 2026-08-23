@@ -2,8 +2,8 @@
  "design_manifest_blob_sha256": "d6decbd6ab5814bc005ce69c538311ff1b11cb1d13c19e2999e03a92bc7cca1f",
  "design_manifest_commit": "5fba5446cd96722fb86021df5065a46b8a1a78f5",
  "design_target_commit": "12161f6cf2000b2d4aa86fe659f834839ac0d27b",
- "execution_target_commit": "d2958709ac65563edfd4a1067b8d5dbf1e746e5a",
- "generated_utc": "2026-08-23T21:33:25Z",
+ "execution_target_commit": "f5d7b016b576155512d0bbb0334f466445c4433b",
+ "generated_utc": "2026-08-23T22:07:22Z",
  "manifest_state": "OPEN",
  "repository_url": "https://github.com/kantrarian/geospec",
  "schema": "f2g-window2-execution-manifest-v1.2",
@@ -18,8 +18,8 @@
      "path": "monitoring/src/w2_barrier.py"
     },
     {
-     "blob_sha256": "c35157a03f5dadf0d53f0a46a456cc26c23a68692e0a19f55b928e6ce2f328d0",
-     "commit": "d2958709ac65563edfd4a1067b8d5dbf1e746e5a",
+     "blob_sha256": "7811b7884400bb08d4ed2feffe86cc87872fe37621755036f8222b5f4b4b7613",
+     "commit": "f5d7b016b576155512d0bbb0334f466445c4433b",
      "path": "monitoring/src/w2_accrual_instrument_cayley.py"
     },
     {
@@ -68,12 +68,12 @@
     "W-BARRIER",
     "W-PIN"
    ],
-   "note": "the complete window-2 bar REV 12, 16/16 green @ 6768da4 (W-LOCO v2-frame rebase + codex repair doctors + W-CAL calendar locks; dual-verified by cayley py3.14+py3.11). families = the EIGHT scientific names (codex item 4: W-LOCO/W-CAL are KAT groups, never families)",
+   "note": "the complete window-2 bar REV 13, 17/17 green @ e7b26b1 (+W-SELRUN selector/runner locks; dual-verified by cayley py3.14+py3.11). families = the EIGHT scientific names (codex item 4: W-LOCO/W-CAL/W-SELRUN are KAT groups, never families)",
    "owner": "grassmann",
    "pins": [
     {
-     "blob_sha256": "3f64f7dd421d01a75dd413b885b61c9eb978d7528806ade55b42cd4703c84555",
-     "commit": "6768da4f013e7c095ab1813661316d6896bb7728",
+     "blob_sha256": "56f6ac12f94c98221a9275dc15d1a70970ebfb9915053181ac24cbcc7bf089a9",
+     "commit": "e7b26b1168fff97d4bc59e8f5ef47d4be9783008",
      "path": "monitoring/src/test_f2g_window2_redkats_grassmann.py"
     }
    ],
@@ -114,8 +114,8 @@
    "owner": "cayley",
    "pins": [
     {
-     "blob_sha256": "298005d522ee2a74629823c3574f6c5a7fca9a35104af9ba98ae8247e466a144",
-     "commit": "560e8d3dee35f61c2d1eb99aa4db4c2dadaceddc",
+     "blob_sha256": "57d927f8675c22379f5e8b3f2857882c9d6ac9afccf6846af19ef63d2232dea3",
+     "commit": "f5d7b016b576155512d0bbb0334f466445c4433b",
      "path": "monitoring/src/f2g_execution_manifest_gen_cayley.py"
     }
    ],

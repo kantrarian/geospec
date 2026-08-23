@@ -539,6 +539,28 @@ def _validate_geometry_capsule(capsule, family, point):
             sorted(capsule["segments"]):
         refuse("POWER_GEOMETRY_UNBOUND",
                "carrier set mismatch across masks/registries/segments")
+    loco_ck = capsule["loco_registry_carrier"]
+    if not isinstance(loco_ck, str) or loco_ck not in \
+            capsule["registries"]:
+        refuse("POWER_LOCO_GEOMETRY_INVALID",
+               f"loco registry carrier {loco_ck!r} is not bound")
+    station_owner = {}
+    for ck in sorted(capsule["registries"]):
+        registry = capsule["registries"][ck]
+        if not isinstance(registry, list) or not registry or \
+                any(not isinstance(s, str) or not s for s in registry) or \
+                len(registry) != len(set(registry)):
+            refuse("POWER_LOCO_GEOMETRY_INVALID",
+                   f"registry {ck!r} is empty, duplicated, or untyped")
+        if set(capsule["segments"][ck]) != set(registry):
+            refuse("POWER_LOCO_GEOMETRY_INVALID",
+                   f"registry/segment station set mismatch for {ck!r}")
+        for station in registry:
+            if station in station_owner:
+                refuse("POWER_LOCO_GEOMETRY_INVALID",
+                       f"station {station!r} occurs in carriers "
+                       f"{station_owner[station]!r} and {ck!r}")
+            station_owner[station] = ck
     grid = capsule["effect_grids"].get(family)
     if grid is None or point not in grid:
         refuse("POWER_POINT_OFF_GRID",
@@ -858,18 +880,32 @@ def _validate_frame_records(frames, capsule, panel):
     return True
 
 
-def b1b_loco_project(b1b_view, station):
+def b1b_loco_project(b1b_view, station, carrier=None):
     """LOCO fold projection (amendment v1): remove the named station
     and its incident edges from the B1B view of the SAME replicate --
     every other raw value byte-identical; no panel regeneration."""
+    matches = [ck for ck, c in b1b_view["carriers"].items()
+               if station in c["registry"]]
+    if carrier is None:
+        if len(matches) != 1:
+            raise PowerHarnessError(
+                "POWER_LOCO_FOLD_SET_INVALID: station "
+                f"{station!r} occurs in carriers {sorted(matches)}")
+        carrier = matches[0]
+    if carrier not in b1b_view["carriers"] or \
+            station not in b1b_view["carriers"][carrier]["registry"]:
+        raise PowerHarnessError(
+            "POWER_LOCO_FOLD_SET_INVALID: fold station "
+            f"{station!r} is not in carrier {carrier!r}")
     out = {"calendar": list(b1b_view["calendar"]), "carriers": {}}
     for ck, c in b1b_view["carriers"].items():
-        reg = [s for s in c["registry"] if s != station]
+        drop = ck == carrier
+        reg = [s for s in c["registry"] if not drop or s != station]
         out["carriers"][ck] = {
             "registry": reg,
             "registered_days": list(c["registered_days"]),
             "r": {e: dict(ser) for e, ser in c["r"].items()
-                  if station not in e.split("|")}}
+                  if not drop or station not in e.split("|")}}
     return out
 
 
@@ -901,10 +937,10 @@ def _b1b_loco_recovery(views, pv_full, capsule, n_draws, doc_sha,
         folds_run.append(s)
         if fold_counter is not None:
             fold_counter.append(s)
-        proj = b1b_loco_project(views["b1b"], s)
+        proj = b1b_loco_project(views["b1b"], s, carrier=loco_ck)
         # geometry = the AUTHORITY fields (codex 1400Z: never
         # fallbacks); a view that cannot block-align against them is
-        # a typed structural refusal below
+        # a PROVENANCE refusal below, never a typed no-p
         b = capsule["calendar_frame"]["b1b"]
         try:
             r_s = _b1b.w2_b1b_family(
@@ -914,8 +950,16 @@ def _b1b_loco_recovery(views, pv_full, capsule, n_draws, doc_sha,
                 block_len=b["block_len"],
                 baseline_positions=b["baseline_positions"])
             p_s = r_s.get("p_value")
-        except _b1b.PanelInvalid:
-            p_s = None        # typed structural refusal = no-p class
+        except _b1b.PanelInvalid as exc:
+            # Only projection-induced degeneracy is an ordinary typed
+            # no-p. Calendar/geometry/endpoint defects are provenance
+            # failures and must refuse the certification artifact.
+            code = str(exc).split(":", 1)[0]
+            if code not in {"REGISTRY_ABSENT", "EDGE_SET_EMPTY"}:
+                raise PowerHarnessError(
+                    "POWER_LOCO_PROVENANCE_INVALID: "
+                    f"loco:{s}: {exc}") from exc
+            p_s = None
         if p_s is None:
             ok = False        # typed no-p = non-recovery, keep folds
             continue          # running so the fold SET stays exact
@@ -942,6 +986,10 @@ def run_point_certification(repo, geometry_ref, family, point,
             f"POWER_CERTIFICATION_CONFIG_UNBOUND: "
             f"{sorted(overrides)} -- certification constructs its "
             "own R/n_draws/seed authority")
+    if family == "B1B" and "gain" in point:
+        raise PowerHarnessError(
+            "POWER_SPECIFICITY_ENTRYPOINT_REQUIRED: gain-step points "
+            "must use run_b1b_specificity_certification")
     capsule = _load_bound_geometry(repo, geometry_ref)
     _validate_geometry_capsule(capsule, family, point)
     # calendar-authority bytes must reopen and hash to the capsule's
@@ -1001,6 +1049,85 @@ def run_point_certification(repo, geometry_ref, family, point,
                evaluation_days_sha256=
                    days_digest(frame["evaluation_days"]),
                engine_blob_sha256=_pinned_engine_blob_sha())
+    return rec
+
+
+def _specificity_summary(outcomes):
+    positives = sum(bool(outcome) for outcome in outcomes)
+    rate = positives / len(outcomes)
+    passed = rate <= ARTIFACT_MAX_RATE
+    return {"status": "CERTIFIED" if passed else "FAILED",
+            "R": len(outcomes), "positives": positives,
+            "rate": rate, "passes": passed,
+            "max_rate": ARTIFACT_MAX_RATE}
+
+
+def run_b1b_specificity_certification(repo, geometry_ref, point,
+                                      **overrides):
+    """Certify the registered gain-step ceiling on the PRE-LOCO full
+    four-member Holm vector. The annex states an observed positive-rate
+    ceiling, so this runs the fixed R=40 maximum and never applies the
+    detection CP-LB rule or LOCO rescue."""
+    if overrides:
+        raise PowerHarnessError(
+            f"POWER_CERTIFICATION_CONFIG_UNBOUND: {sorted(overrides)}")
+    if not isinstance(point, dict) or set(point) != {"gain"}:
+        raise PowerHarnessError(
+            "POWER_SPECIFICITY_POINT_INVALID: expected only {gain}")
+    capsule = _load_bound_geometry(repo, geometry_ref)
+    _validate_geometry_capsule(capsule, "B1B", point)
+    import subprocess
+    ref = capsule["calendar_authority_ref"]
+    p = subprocess.run(["git", "-C", repo, "cat-file", "blob",
+                        f"{ref['commit']}:{ref['path']}"],
+                       capture_output=True)
+    if p.returncode != 0 or hashlib.sha256(p.stdout).hexdigest() != \
+            capsule["calendar_authority_sha256"]:
+        raise PowerHarnessError(
+            "POWER_GEOMETRY_UNBOUND: calendar authority bytes absent "
+            "or divergent from the capsule's recorded sha")
+    # v2 adaptation (cherry-pick reconciliation, disclosed): the same
+    # authority-frame comparison + frame-record validation as the
+    # detection path -- the specificity artifact rides the identical
+    # calendar contract
+    try:
+        auth = json.loads(p.stdout.decode("utf-8"))
+    except ValueError:
+        raise PowerHarnessError(
+            "CALENDAR_AUTHORITY_MISMATCH: authority bytes are not a "
+            "calendar-authority artifact")
+    if auth.get("schema") != "f2g-w2-calendar-authority-v2" or \
+            auth.get("frame") != capsule["calendar_frame"]:
+        raise PowerHarnessError(
+            "CALENDAR_AUTHORITY_MISMATCH: capsule frame diverges "
+            "from the committed authority artifact")
+    doc_sha = capsule["seed_authority_sha256"]
+    outcomes = []
+    for r in range(R_MAX):
+        panel, views, _dbg = make_bound_panels(
+            capsule, "B1B", point, r)
+        pv, frames = replicate_pvalues_bound(
+            panel, views, CERT_N_DRAWS, doc_sha, capsule)
+        _validate_frame_records(frames, capsule, panel)
+        outcomes.append(sorted(holm_rejects(pv)))
+    rec = _specificity_summary(outcomes)
+    frame = capsule["calendar_frame"]
+    rec.update({
+        "class": "B1B_GAIN_STEP_SPECIFICITY", "family": "B1B",
+        "point": point, "outcomes": outcomes,
+        "rule": "pre-LOCO any-Holm-positive rate <= 0.05 at fixed R=40",
+        "tier": "CERTIFICATION", "n_draws": CERT_N_DRAWS,
+        "certifiable": True,
+        "geometry_capsule_digest": capsule["capsule_digest"],
+        "geometry_ref": dict(geometry_ref),
+        "seed_authority_sha256": doc_sha,
+        "calendar_authority_sha256":
+            capsule["calendar_authority_sha256"],
+        "calendar_frame_id": frame["frame_id"],
+        "baseline_days_sha256": days_digest(frame["baseline_days"]),
+        "evaluation_days_sha256":
+            days_digest(frame["evaluation_days"]),
+        "engine_blob_sha256": _pinned_engine_blob_sha()})
     return rec
 
 
@@ -1189,6 +1316,23 @@ def _selftest():
         raise AssertionError("off-grid point must refuse")
     except PowerHarnessError as e:
         assert "POWER_POINT_OFF_GRID" in str(e)
+    # LOCO carrier is a typed operation coordinate, and station IDs are
+    # disjoint across carrier registries under the frozen geometry law.
+    for bad in (
+            mk_capsule(loco_registry_carrier="missing"),
+            mk_capsule(
+                carrier_masks={"c1": {"registered_days": list(ENG),
+                                      "available_days": list(ENG)},
+                               "c2": {"registered_days": list(ENG),
+                                      "available_days": list(ENG)}},
+                registries={"c1": ["S0"], "c2": ["S0"]},
+                segments={"c1": {"S0": "sA"},
+                          "c2": {"S0": "sA"}})):
+        try:
+            _validate_geometry_capsule(bad, "B2B", {"m": 2})
+            raise AssertionError("invalid LOCO geometry must refuse")
+        except PowerHarnessError as e:
+            assert "POWER_LOCO_GEOMETRY_INVALID" in str(e)
 
     # --- calendar v2 KAT 2: removing an AVAILABILITY day never moves
     # the split (60/132 on the fixed grid); a compressed
@@ -1410,6 +1554,19 @@ def _selftest():
     assert set(proj["carriers"]["cx"]["r"]) == {"B|C"}
     assert proj["carriers"]["cx"]["r"]["B|C"] == \
         b1b_view["carriers"]["cx"]["r"]["B|C"]   # byte-identical rest
+    collision_view = {"calendar": ["D0", "D1"], "carriers": {
+        "c1": {"registry": ["A", "B"], "registered_days": ["D0"],
+               "r": {"A|B": {"D0": 1.0}}},
+        "c2": {"registry": ["A", "C"], "registered_days": ["D0"],
+               "r": {"A|C": {"D0": 2.0}}}}}
+    try:
+        b1b_loco_project(collision_view, "A")
+        raise AssertionError("ambiguous untyped projection must refuse")
+    except PowerHarnessError as e:
+        assert "POWER_LOCO_FOLD_SET_INVALID" in str(e)
+    scoped = b1b_loco_project(collision_view, "A", carrier="c1")
+    assert scoped["carriers"]["c1"]["registry"] == ["B"] \
+        and scoped["carriers"]["c2"]["registry"] == ["A", "C"]
 
     # fold-set audit: missing / extra / duplicate / wrong-station all
     # refuse the ARTIFACT (never counted as ordinary failure)
@@ -1444,13 +1601,47 @@ def _selftest():
     # FULL fold set still run (the audit stays exact)
     counter2 = []
     r = _b1b_loco_recovery(
-        {"b1b": {"calendar": ["D0", "D1"],
+        {"b1b": {"calendar": list(ENG),
                  "carriers": {"c1": {"registry": ["S0", "S1"],
-                                     "registered_days": ["D0", "D1"],
-                                     "r": {"S0|S1": {"D0": 1.0}}}}}},
+                                     "registered_days": list(ENG),
+                                     "r": {"S0|S1": {ENG[0]: 1.0}}}}}},
         {"B1B": 0.001, "B2A": 0.9, "B2B": 0.9, "B3A": 0.9},
         cap_l, 99, "ab" * 32, fold_counter=counter2)
     assert r is False and sorted(counter2) == ["S0", "S1"]
+
+    # A provenance/geometry defect is not a typed no-p. The original
+    # two-day fixture accidentally exercised this code rather than the
+    # intended EDGE_SET_EMPTY class and therefore masked the collapse.
+    orig_b1b_family = _b1b.w2_b1b_family
+    try:
+        def malformed_fold(*args, **kwargs):
+            raise _b1b.PanelInvalid("CALENDAR_UNORDERED")
+        _b1b.w2_b1b_family = malformed_fold
+        try:
+            _b1b_loco_recovery(
+                {"b1b": {"calendar": list(ENG), "carriers": {
+                    "c1": {"registry": ["S0", "S1"],
+                           "registered_days": list(ENG),
+                           "r": {"S0|S1": {ENG[0]: 1.0}}}}}},
+                pv_full, cap_l, 99, "ab" * 32)
+            raise AssertionError("malformed fold must refuse")
+        except PowerHarnessError as e:
+            assert "POWER_LOCO_PROVENANCE_INVALID" in str(e)
+    finally:
+        _b1b.w2_b1b_family = orig_b1b_family
+
+    # Gain points can never enter the detection-power CP-LB direction;
+    # fixed-R specificity counts any full-Holm positive, pre-LOCO.
+    try:
+        run_point_certification(repo_g, {}, "B1B", {"gain": 3.0})
+        raise AssertionError("gain point must use specificity entry")
+    except PowerHarnessError as e:
+        assert "POWER_SPECIFICITY_ENTRYPOINT_REQUIRED" in str(e)
+    assert _specificity_summary([[] for _ in range(40)])["passes"]
+    assert _specificity_summary(
+        [["B2A"] if i < 2 else [] for i in range(40)])["passes"]
+    assert not _specificity_summary(
+        [["B2A"] if i < 3 else [] for i in range(40)])["passes"]
 
     # anti-rescue is structural: run_artifact_class has no LOCO path
     import inspect

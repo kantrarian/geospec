@@ -542,6 +542,27 @@ ENVELOPE_RECORD_KEYS = {
     "expected_keys", "output_sha256"}
 RECORD_LANES = {"DAY_CAPSULE", "SELECTION_RECORDS", "MF4_FEED",
                 "MAG_FEED"}
+# codex 1843Z item 3: the ENVELOPE receipt interior is CLOSED and
+# carries the transcript link -- the envelope's dynamic seam is a
+# projection of the capture transcript, never caller-assembled.
+# (Distinct from the lane-receipt RECEIPT_KEYS defined earlier.)
+ENVELOPE_RECEIPT_KEYS = {"requested_url", "effective_url",
+                         "request_start_utc",
+                         "response_complete_utc", "http_status",
+                         "headers", "transcript_sha256"}
+# codex 1843Z item 2: the contract splits -- STATIC fields are
+# registered pre-capture from registered sources; the dynamic seam
+# (receipt, capture instant, content digests) comes only from the
+# transcript carrier
+STATIC_FIELDS = ("endpoint", "request_params", "cutoff",
+                 "operation_params", "expected_keys")
+STATIC_SOURCE_KEYS = {"kind", "ref"}       # identity only, NO sha
+TRANSCRIPT_SCHEMA = "f2g-w2-capture-transcript-v1"
+TRANSCRIPT_KEYS = {
+    "schema", "lane", "carrier", "utc_day", "static_contract_sha256",
+    "requested_url", "effective_url", "request_start_utc",
+    "response_complete_utc", "http_status", "headers",
+    "raw_body_sha256", "raw_body_bytes"}
 
 
 _CAPTURE_RE = None
@@ -599,33 +620,133 @@ def _hex64(v, what):
     return v
 
 
+def requested_url_of(endpoint, request_params):
+    """The registered URL derivation: endpoint + '?' + urlencoded
+    SORTED params (one canonical spelling)."""
+    from urllib.parse import urlencode
+    if not request_params:
+        return str(endpoint)
+    return str(endpoint) + "?" + urlencode(
+        sorted((str(k), str(v)) for k, v in request_params.items()))
+
+
 def build_envelope_record(*, lane, carrier, utc_day, raw_body,
-                          source, endpoint, request_params, receipt,
-                          capture_time_utc, cutoff, operation_params,
+                          source, endpoint, request_params,
+                          transcript, cutoff, operation_params,
                           expected_keys, artifact):
     """One closed per-lane/per-day envelope record (amendment v1
-    schema): raw body content-addressed by exact bytes + size; every
-    operation parameter bound; output digest over the exact produced
-    artifact."""
+    schema; codex 1843Z S/T/E design): the DYNAMIC seam (receipt +
+    capture instant + content digests) is a PROJECTION of the capture
+    transcript -- never caller-assembled. `source` carries identity
+    only (kind, ref); its content digest is derived from the exact
+    staged bytes."""
     if not isinstance(raw_body, (bytes, bytearray)):
         raise ProducerRefusal(
             "PRODUCER_RECORD_BODY_INVALID: raw_body must be the exact "
             "staged bytes")
+    if not isinstance(source, dict) \
+            or set(source) != STATIC_SOURCE_KEYS:
+        raise ProducerRefusal(
+            "PRODUCER_RECORD_NOT_CLOSED: build source carries "
+            "identity only (kind, ref); the content digest is derived")
+    if not isinstance(transcript, dict) \
+            or set(transcript) != TRANSCRIPT_KEYS:
+        raise ProducerRefusal(
+            "PRODUCER_TRANSCRIPT_INVALID: transcript not closed at "
+            "build")
+    sha = hashlib.sha256(bytes(raw_body)).hexdigest()
+    receipt = {"requested_url": transcript["requested_url"],
+               "effective_url": transcript["effective_url"],
+               "request_start_utc": transcript["request_start_utc"],
+               "response_complete_utc":
+                   transcript["response_complete_utc"],
+               "http_status": transcript["http_status"],
+               "headers": dict(transcript["headers"]),
+               "transcript_sha256": _canon_digest(transcript)}
     rec = {"schema": ENVELOPE_RECORD_SCHEMA, "lane": str(lane),
            "carrier": str(carrier), "utc_day": str(utc_day),
-           "raw_body_sha256": hashlib.sha256(bytes(raw_body))
-           .hexdigest(),
+           "raw_body_sha256": sha,
            "raw_body_bytes": len(raw_body),
-           "source": dict(source), "endpoint": str(endpoint),
+           "source": {"kind": str(source["kind"]),
+                      "ref": str(source["ref"]), "sha256": sha},
+           "endpoint": str(endpoint),
            "request_params": dict(request_params),
-           "receipt": dict(receipt),
-           "capture_time_utc": str(capture_time_utc),
+           "receipt": receipt,
+           "capture_time_utc": transcript["response_complete_utc"],
            "cutoff": str(cutoff),
            "operation_params": dict(operation_params),
            "expected_keys": sorted(str(k) for k in expected_keys),
            "output_sha256": _canon_digest(artifact)}
     verify_envelope_record(rec, raw_body=bytes(raw_body))
     return rec
+
+
+STATIC_CONTRACT_SCHEMA = "f2g-w2-static-contract-v1"
+STATIC_CONTRACT_KEYS = {"schema", "lane", "carrier", "utc_day",
+                        "source", "endpoint", "request_params",
+                        "cutoff", "operation_params",
+                        "expected_keys"}
+
+
+def verify_transcript(transcript, static_contract, raw_body=None):
+    """The T-vs-S leg of the codex join: the transcript is a closed,
+    LINKED operation record -- it names its static contract by digest,
+    its requested URL must equal the registered derivation, its
+    timestamps are canonical and ordered, and (when the bytes are
+    supplied) its content address recomputes."""
+    t = transcript
+    if not isinstance(t, dict) or \
+            t.get("schema") != TRANSCRIPT_SCHEMA or \
+            set(t) != TRANSCRIPT_KEYS:
+        raise ProducerRefusal(
+            "PRODUCER_TRANSCRIPT_INVALID: not the closed transcript "
+            "schema")
+    s = static_contract
+    if not isinstance(s, dict) or \
+            s.get("schema") != STATIC_CONTRACT_SCHEMA or \
+            set(s) != STATIC_CONTRACT_KEYS:
+        raise ProducerRefusal(
+            "PRODUCER_RECORD_CONTRACT_MISMATCH: static contract not "
+            "closed")
+    if not isinstance(s["source"], dict) or \
+            set(s["source"]) != STATIC_SOURCE_KEYS:
+        raise ProducerRefusal(
+            "PRODUCER_RECORD_CONTRACT_MISMATCH: static source must "
+            "carry identity only (kind, ref) -- content digests are "
+            "derived, never registered")
+    for k in ("lane", "carrier", "utc_day"):
+        if t[k] != s[k]:
+            raise ProducerRefusal(
+                f"PRODUCER_TRANSCRIPT_INVALID: {k} {t[k]!r} != "
+                f"contract {s[k]!r}")
+    if t["static_contract_sha256"] != _canon_digest(s):
+        raise ProducerRefusal(
+            "PRODUCER_TRANSCRIPT_INVALID: transcript is not linked "
+            "to this static contract")
+    if t["requested_url"] != requested_url_of(
+            s["endpoint"], s["request_params"]):
+        raise ProducerRefusal(
+            "PRODUCER_TRANSCRIPT_INVALID: requested_url diverges "
+            "from the registered derivation")
+    _canon_utc_instant(t["request_start_utc"], "request_start_utc")
+    _canon_utc_instant(t["response_complete_utc"],
+                       "response_complete_utc")
+    if str(t["request_start_utc"]) > str(t["response_complete_utc"]):
+        raise ProducerRefusal(
+            "PRODUCER_TRANSCRIPT_INVALID: reversed timestamps")
+    if t["http_status"] != 200:
+        raise ProducerRefusal(
+            f"PRODUCER_TRANSCRIPT_INVALID: non-200 transcript "
+            f"({t['http_status']}) can never back a staged record")
+    _hex64(t["raw_body_sha256"], "transcript raw_body_sha256")
+    if raw_body is not None:
+        if hashlib.sha256(raw_body).hexdigest() != \
+                t["raw_body_sha256"] or \
+                len(raw_body) != t["raw_body_bytes"]:
+            raise ProducerRefusal(
+                "PRODUCER_TRANSCRIPT_INVALID: staged bytes diverge "
+                "from the transcript content address")
+    return _canon_digest(t)
 
 
 def verify_envelope_record(record, *, raw_body=None, artifact=None):
@@ -652,8 +773,24 @@ def verify_envelope_record(record, *, raw_body=None, artifact=None):
             or set(record["source"]) != SOURCE_KEYS:
         raise ProducerRefusal(
             "PRODUCER_RECORD_NOT_CLOSED: source triple")
-    if not isinstance(record["receipt"], dict) \
-            or not isinstance(record["request_params"], dict) \
+    rc = record["receipt"]
+    if not isinstance(rc, dict) or set(rc) != ENVELOPE_RECEIPT_KEYS:
+        raise ProducerRefusal(
+            "PRODUCER_RECORD_NOT_CLOSED: receipt interior")
+    _canon_utc_instant(rc["request_start_utc"], "request_start_utc")
+    _canon_utc_instant(rc["response_complete_utc"],
+                       "response_complete_utc")
+    if str(rc["request_start_utc"]) > \
+            str(rc["response_complete_utc"]):
+        raise ProducerRefusal(
+            "PRODUCER_RECORD_TIME_FRAME: request start after "
+            "response completion (reversed timestamps)")
+    if record["capture_time_utc"] != rc["response_complete_utc"]:
+        raise ProducerRefusal(
+            "PRODUCER_RECORD_TIME_FRAME: capture_time_utc is defined "
+            "as the response-complete instant")
+    _hex64(rc["transcript_sha256"], "transcript_sha256")
+    if not isinstance(record["request_params"], dict) \
             or not isinstance(record["operation_params"], dict) \
             or not isinstance(record["expected_keys"], list):
         raise ProducerRefusal(
@@ -664,6 +801,13 @@ def verify_envelope_record(record, *, raw_body=None, artifact=None):
             or record["raw_body_bytes"] < 0:
         raise ProducerRefusal(
             "PRODUCER_RECORD_BODY_INVALID: byte-size shape")
+    # codex 1843Z item 1 (BLOCKER repair): the source triple's content
+    # digest IS the raw-body content address -- divergence refuses at
+    # the per-record gate
+    if record["source"]["sha256"] != record["raw_body_sha256"]:
+        raise ProducerRefusal(
+            "PRODUCER_RECORD_BODY_MISMATCH: source.sha256 diverges "
+            "from raw_body_sha256")
     if raw_body is not None:
         if hashlib.sha256(raw_body).hexdigest() != \
                 record["raw_body_sha256"] \
@@ -678,29 +822,25 @@ def verify_envelope_record(record, *, raw_body=None, artifact=None):
     return _canon_digest(record)
 
 
-_CONTRACT_FIELDS = ("source", "endpoint", "request_params", "receipt",
-                    "capture_time_utc", "cutoff", "operation_params",
-                    "expected_keys")
-
-
 def verify_staged_day_set(records_by_day, raw_bodies_by_day,
-                          artifacts_by_day, expected_contracts_by_day,
-                          expected_days, carrier, lane):
-    """codex 1544Z item 1 (BLOCKER repair): the day-set gate is the
-    exact gate that must enforce content recomputation, so content is
-    MANDATORY here. All four string-keyed maps (records, raw bodies,
-    produced artifacts, independently supplied expected contracts)
-    must equal the registered day set exactly; every body size/hash
-    and output digest is recomputed; every contract-bound field
-    (source, endpoint, request params, receipt, capture instant,
-    cutoff, operation params, expected keys) is compared to the
-    INDEPENDENT contract; cross-day and cross-carrier replays
+                          artifacts_by_day, static_contracts_by_day,
+                          transcripts_by_day, expected_days, carrier,
+                          lane):
+    """The day-set gate = the codex 1843Z THREE-CARRIER JOIN, run by
+    the VERIFIER (never assembled by the caller): for every registered
+    day, S (the pre-capture static contract from registered sources),
+    T (the capture transcript), and E (the envelope record) must
+    satisfy E.static == S, T valid against S + the reopened bytes,
+    and E.dynamic == projection(T). Content recomputation is
+    MANDATORY (codex 1544Z); all five string-keyed maps must equal
+    the registered day set exactly; cross-day/carrier replays
     refuse."""
     want = {_canon_day(d, "expected_days") for d in expected_days}
     for name, m in (("records", records_by_day),
                     ("raw_bodies", raw_bodies_by_day),
                     ("artifacts", artifacts_by_day),
-                    ("expected_contracts", expected_contracts_by_day)):
+                    ("static_contracts", static_contracts_by_day),
+                    ("transcripts", transcripts_by_day)):
         if not isinstance(m, dict):
             raise ProducerRefusal(
                 f"PRODUCER_RECORD_CONTENT_MISSING: {name} is not a "
@@ -716,16 +856,21 @@ def verify_staged_day_set(records_by_day, raw_bodies_by_day,
         rec = records_by_day[day]
         body = raw_bodies_by_day[day]
         art = artifacts_by_day[day]
-        if body is None or art is None:
+        s = static_contracts_by_day[day]
+        t = transcripts_by_day[day]
+        if body is None or art is None or s is None or t is None:
             raise ProducerRefusal(
-                f"PRODUCER_RECORD_CONTENT_MISSING: {day} body/artifact"
-            )
+                f"PRODUCER_RECORD_CONTENT_MISSING: {day} "
+                "body/artifact/contract/transcript")
         if not isinstance(body, (bytes, bytearray)):
             raise ProducerRefusal(
                 f"PRODUCER_RECORD_CONTENT_MISSING: {day} raw body is "
                 "not bytes")
-        verify_envelope_record(rec, raw_body=bytes(body),
-                               artifact=art)
+        body = bytes(body)
+        # E alone (incl source.sha256 == raw_body_sha256, closed
+        # receipt interior, canonical instants)
+        verify_envelope_record(rec, raw_body=body, artifact=art)
+        # replay checks
         if rec["utc_day"] != str(day):
             raise ProducerRefusal(
                 f"PRODUCER_RECORD_REPLAY: record for "
@@ -735,23 +880,49 @@ def verify_staged_day_set(records_by_day, raw_bodies_by_day,
                 f"PRODUCER_RECORD_REPLAY: {day} carrier/lane "
                 f"{rec['carrier']}/{rec['lane']} != "
                 f"{carrier}/{lane}")
-        contract = expected_contracts_by_day[day]
-        if not isinstance(contract, dict):
+        # T against S + the reopened bytes (transcript day/carrier
+        # swaps surface HERE as linkage refusals)
+        verify_transcript(t, s, raw_body=body)
+        if s["lane"] != str(lane) or s["carrier"] != str(carrier) \
+                or s["utc_day"] != str(day):
             raise ProducerRefusal(
-                f"PRODUCER_RECORD_CONTENT_MISSING: {day} expected "
-                "contract")
-        for f in _CONTRACT_FIELDS:
-            if f not in contract:
-                raise ProducerRefusal(
-                    f"PRODUCER_RECORD_CONTENT_MISSING: {day} contract "
-                    f"lacks {f}")
-            want_v = contract[f]
+                f"PRODUCER_RECORD_REPLAY: {day} static contract is "
+                "for another lane/carrier/day")
+        # E.static == S (source identity only -- the digest is
+        # derived, never registered)
+        for f in STATIC_FIELDS:
+            want_v = s[f]
             got_v = rec[f]
             if f == "expected_keys":
                 want_v = sorted(str(k) for k in want_v)
             if got_v != want_v:
                 raise ProducerRefusal(
                     f"PRODUCER_RECORD_CONTRACT_MISMATCH: {day} {f}")
+        if {k: rec["source"][k] for k in STATIC_SOURCE_KEYS} != \
+                dict(s["source"]):
+            raise ProducerRefusal(
+                f"PRODUCER_RECORD_CONTRACT_MISMATCH: {day} source "
+                "identity")
+        # E.dynamic == projection(T)
+        rc = rec["receipt"]
+        proj = {"requested_url": t["requested_url"],
+                "effective_url": t["effective_url"],
+                "request_start_utc": t["request_start_utc"],
+                "response_complete_utc": t["response_complete_utc"],
+                "http_status": t["http_status"],
+                "headers": dict(t["headers"]),
+                "transcript_sha256": _canon_digest(t)}
+        if rc != proj:
+            diff = sorted(k for k in proj if rc.get(k) != proj[k])
+            raise ProducerRefusal(
+                f"PRODUCER_RECORD_TRANSCRIPT_MISMATCH: {day} receipt "
+                f"diverges from the transcript projection: {diff}")
+        if rec["capture_time_utc"] != t["response_complete_utc"] \
+                or rec["raw_body_sha256"] != t["raw_body_sha256"] \
+                or rec["raw_body_bytes"] != t["raw_body_bytes"]:
+            raise ProducerRefusal(
+                f"PRODUCER_RECORD_TRANSCRIPT_MISMATCH: {day} "
+                "instant/content divergence")
         out[str(day)] = _canon_digest(rec)
     return out
 
@@ -1122,30 +1293,61 @@ def _selftest():
         _, rec = builder(mut)
         assert rec["input_envelope_sha256"] != base_sha
 
-    # --- staged-envelope records (amendment v1; per-record content
-    # doctors -- the producer's surface per the codex 1400Z ruling) ---
+    # --- staged-envelope records (amendment v1 + the codex 1843Z
+    # S/T/E three-carrier join) ---
     body = b"raw staged bytes \x00\x01"
+    src_id = {"kind": "kat", "ref": "synthetic://fixture"}
 
-    def mk_rec(**over):
-        kw = dict(lane="DAY_CAPSULE", carrier="cascadia",
-                  utc_day="2026-08-20", raw_body=body, source=src,
-                  endpoint="https://service.example/fdsn",
-                  request_params={"net": "UW,CC,CN", "cha": "HHZ"},
-                  receipt={"http_status": 200, "fired_utc":
-                           "2026-08-20T12:01:00Z"},
-                  capture_time_utc="2026-08-20T12:01:33Z",
-                  cutoff="2026-08-25",
-                  operation_params={"carrier": "cascadia",
-                                    "day": "2026-08-20"},
-                  expected_keys=["2026-08-20"],
+    def mk_static(day="2026-08-20", **over):
+        s = {"schema": STATIC_CONTRACT_SCHEMA, "lane": "DAY_CAPSULE",
+             "carrier": "cascadia", "utc_day": day,
+             "source": dict(src_id),
+             "endpoint": "https://service.example/fdsn",
+             "request_params": {"net": "UW,CC,CN", "cha": "HHZ"},
+             "cutoff": "2026-08-25",
+             "operation_params": {"carrier": "cascadia", "day": day},
+             "expected_keys": [day]}
+        s.update(over)
+        return s
+
+    def mk_transcript(s, raw=body, **over):
+        t = {"schema": TRANSCRIPT_SCHEMA, "lane": s["lane"],
+             "carrier": s["carrier"], "utc_day": s["utc_day"],
+             "static_contract_sha256": _canon_digest(s),
+             "requested_url": requested_url_of(
+                 s["endpoint"], s["request_params"]),
+             "effective_url": "https://edge.example/fdsn-final",
+             "request_start_utc": "2026-08-20T12:01:31Z",
+             "response_complete_utc": "2026-08-20T12:01:33Z",
+             "http_status": 200,
+             "headers": {"content-type": "text/plain"},
+             "raw_body_sha256": hashlib.sha256(raw).hexdigest(),
+             "raw_body_bytes": len(raw)}
+        t.update(over)
+        return t
+
+    def mk_rec(day="2026-08-20", s=None, t=None, **over):
+        s = s or mk_static(day)
+        t = t or mk_transcript(s)
+        kw = dict(lane=s["lane"], carrier=s["carrier"],
+                  utc_day=s["utc_day"], raw_body=body,
+                  source=dict(src_id), endpoint=s["endpoint"],
+                  request_params=s["request_params"], transcript=t,
+                  cutoff=s["cutoff"],
+                  operation_params=s["operation_params"],
+                  expected_keys=s["expected_keys"],
                   artifact={"edges": {}})
         kw.update(over)
         return build_envelope_record(**kw)
-    rec_ok = mk_rec()
+    s20 = mk_static()
+    t20 = mk_transcript(s20)
+    rec_ok = mk_rec(s=s20, t=t20)
     assert verify_envelope_record(rec_ok, raw_body=body,
                                   artifact={"edges": {}})
-    # doctors: extension, missing field, wrong body sha, wrong output,
-    # non-UTC capture, invalid day, unregistered lane, NaN in params
+    assert rec_ok["source"]["sha256"] == rec_ok["raw_body_sha256"]
+    assert rec_ok["receipt"]["transcript_sha256"] == \
+        _canon_digest(t20)
+    # doctors: extension, missing field, wrong body sha, wrong output
     ext = dict(rec_ok)
     ext["surprise"] = 1
     assert refuses(lambda: verify_envelope_record(ext),
@@ -1160,27 +1362,33 @@ def _selftest():
         lambda: verify_envelope_record(rec_ok,
                                        artifact={"edges": {"a": 1}}),
         "PRODUCER_RECORD_OUTPUT_MISMATCH")
-    assert refuses(
-        lambda: mk_rec(capture_time_utc="2026-08-20T12:01:33+14:00"),
-        "PRODUCER_RECORD_TIME_FRAME")
-    # codex 1544Z item-2 locking doctors: the canonical frame must BE
-    # canonical -- date-only, naive, and '+00:00' alternate spellings
-    # all refuse; only 'Z' with seconds passes
+    # codex 1843Z item-1 BLOCKER lock: source.sha256 divergence
+    # refuses at the PER-RECORD gate
+    forged_src = json.loads(json.dumps(rec_ok))
+    forged_src["source"]["sha256"] = "f" * 64
+    assert refuses(lambda: verify_envelope_record(forged_src),
+                   "PRODUCER_RECORD_BODY_MISMATCH")
+    # canonical instants (1544Z item 2, carried): only Z-with-seconds
     for bad_t in ("2026-08-20", "2026-08-20T00:00:00",
                   "2026-08-20T12:01:33+00:00", "2026-08-20T12:01Z"):
-        assert refuses(lambda t=bad_t: mk_rec(capture_time_utc=t),
-                       "PRODUCER_RECORD_TIME_FRAME"), bad_t
-    assert mk_rec(capture_time_utc="2026-08-20T12:01:33.250Z")
+        assert refuses(
+            lambda t=bad_t: mk_rec(t=mk_transcript(
+                s20, response_complete_utc=t)),
+            "PRODUCER_RECORD_TIME_FRAME"), bad_t
+    # reversed timestamps refuse
+    assert refuses(lambda: mk_rec(t=mk_transcript(
+        s20, request_start_utc="2026-08-20T12:01:34Z")),
+        "PRODUCER_RECORD_TIME_FRAME")
     for bad_d in ("not-a-day", "20260820", "2026-8-20"):
-        assert refuses(lambda d=bad_d: mk_rec(utc_day=d),
-                       "PRODUCER_RECORD_DAY_INVALID"), bad_d
-    assert refuses(lambda: mk_rec(lane="NOT_A_LANE"),
+        assert refuses(
+            lambda d=bad_d: mk_rec(utc_day=d, s=s20, t=t20),
+            "PRODUCER_RECORD_DAY_INVALID"), bad_d
+    assert refuses(lambda: mk_rec(lane="NOT_A_LANE", s=s20, t=t20),
                    "PRODUCER_RECORD_LANE_UNREGISTERED")
     assert refuses(
-        lambda: mk_rec(request_params={"x": float("nan")}),
+        lambda: mk_rec(request_params={"x": float("nan")}, s=s20,
+                       t=t20),
         "PRODUCER_ENVELOPE_NONFINITE")
-    # malformed digest doctors (codex: length-only checks admitted
-    # 'g'*64 and 'not-a-digest')
     fake = dict(rec_ok, raw_body_sha256="g" * 64)
     assert refuses(lambda: verify_envelope_record(fake),
                    "PRODUCER_RECORD_BODY_INVALID")
@@ -1188,68 +1396,101 @@ def _selftest():
     assert refuses(lambda: verify_envelope_record(fake2),
                    "PRODUCER_RECORD_BODY_INVALID")
 
-    # day-set gate (codex 1544Z item-1 repair): content + independent
-    # contracts are MANDATORY at this exact gate
-    def contract_of(rec):
-        return {f: rec[f] for f in ("source", "endpoint",
-                                    "request_params", "receipt",
-                                    "capture_time_utc", "cutoff",
-                                    "operation_params",
-                                    "expected_keys")}
-    r20 = mk_rec()
-    r21 = mk_rec(utc_day="2026-08-21",
-                 operation_params={"carrier": "cascadia",
-                                   "day": "2026-08-21"})
+    # transcript leg alone: linkage + derivation + status doctors
+    assert verify_transcript(t20, s20, raw_body=body)
+    assert refuses(lambda: verify_transcript(
+        mk_transcript(s20, static_contract_sha256="0" * 64), s20),
+        "PRODUCER_TRANSCRIPT_INVALID")        # unlinked transcript
+    assert refuses(lambda: verify_transcript(
+        mk_transcript(s20, requested_url="https://evil.example/x"),
+        s20), "PRODUCER_TRANSCRIPT_INVALID")  # derivation divergence
+    assert refuses(lambda: verify_transcript(
+        mk_transcript(s20, http_status=503), s20),
+        "PRODUCER_TRANSCRIPT_INVALID")
+    # static source may NEVER carry a registered digest
+    s_sha = mk_static()
+    s_sha["source"] = {"kind": "kat", "ref": "x", "sha256": "0" * 64}
+    assert refuses(lambda: verify_transcript(t20, s_sha),
+                   "PRODUCER_RECORD_CONTRACT_MISMATCH")
+
+    # --- the day-set gate: the S/T/E JOIN performed by the verifier
+    s21 = mk_static("2026-08-21")
+    t21 = mk_transcript(s21)
+    r20 = rec_ok
+    r21 = mk_rec("2026-08-21", s=s21, t=t21)
     days2 = ["2026-08-20", "2026-08-21"]
     recs2 = {"2026-08-20": r20, "2026-08-21": r21}
     bodies2 = {d: body for d in days2}
     arts2 = {d: {"edges": {}} for d in days2}
-    cons2 = {d: contract_of(recs2[d]) for d in days2}
+    stat2 = {"2026-08-20": s20, "2026-08-21": s21}
+    tr2 = {"2026-08-20": t20, "2026-08-21": t21}
     assert set(verify_staged_day_set(
-        recs2, bodies2, arts2, cons2, days2, "cascadia",
+        recs2, bodies2, arts2, stat2, tr2, days2, "cascadia",
         "DAY_CAPSULE")) == set(days2)
-    # the exact codex bypass: a fake-digest record must now refuse AT
-    # the gate (content recomputation is mandatory)
-    bad_recs = dict(recs2, **{"2026-08-20": fake})
+    # codex item-1 BLOCKER at the SET gate: forged source.sha copied
+    # into a forged static overlay can no longer pass -- the static
+    # carrier has no digest field at all, and E refuses first
+    bad_recs = dict(recs2, **{"2026-08-20": forged_src})
     assert refuses(lambda: verify_staged_day_set(
-        bad_recs, bodies2, arts2, cons2, days2, "cascadia",
-        "DAY_CAPSULE"), "PRODUCER_RECORD_BODY_INVALID")
-    # missing sidecars refuse CONTENT_MISSING / DAY_SET_MISMATCH
+        bad_recs, bodies2, arts2, stat2, tr2, days2, "cascadia",
+        "DAY_CAPSULE"), "PRODUCER_RECORD_BODY_MISMATCH")
+    # codex item-2 BLOCKER: the record-cloned-as-contract bypass is
+    # structurally dead -- a transcript derived from E (wrong linkage
+    # digest) refuses; a swapped transcript (day/carrier) refuses
+    fake_t = dict(t20, static_contract_sha256=_canon_digest(
+        mk_static(endpoint="https://other.example/")))
     assert refuses(lambda: verify_staged_day_set(
-        recs2, {"2026-08-20": body}, arts2, cons2, days2, "cascadia",
-        "DAY_CAPSULE"), "PRODUCER_RECORD_DAY_SET_MISMATCH")
+        recs2, bodies2, arts2, stat2,
+        dict(tr2, **{"2026-08-20": fake_t}), days2, "cascadia",
+        "DAY_CAPSULE"), "PRODUCER_TRANSCRIPT_INVALID")
     assert refuses(lambda: verify_staged_day_set(
-        recs2, dict(bodies2, **{"2026-08-21": None}), arts2, cons2,
-        days2, "cascadia", "DAY_CAPSULE"),
+        recs2, bodies2, arts2, stat2,
+        {"2026-08-20": t21, "2026-08-21": t20}, days2, "cascadia",
+        "DAY_CAPSULE"), "PRODUCER_TRANSCRIPT_INVALID")   # swapped
+    # record-vs-transcript divergence (effective URL doctored in E's
+    # receipt only)
+    div = json.loads(json.dumps(r20))
+    div["receipt"]["effective_url"] = "https://elsewhere.example/"
+    assert refuses(lambda: verify_staged_day_set(
+        dict(recs2, **{"2026-08-20": div}), bodies2, arts2, stat2,
+        tr2, days2, "cascadia", "DAY_CAPSULE"),
+        "PRODUCER_RECORD_TRANSCRIPT_MISMATCH")
+    # missing sidecars / wrong body / wrong output / wrong contract
+    assert refuses(lambda: verify_staged_day_set(
+        recs2, {"2026-08-20": body}, arts2, stat2, tr2, days2,
+        "cascadia", "DAY_CAPSULE"),
+        "PRODUCER_RECORD_DAY_SET_MISMATCH")
+    assert refuses(lambda: verify_staged_day_set(
+        recs2, dict(bodies2, **{"2026-08-21": None}), arts2, stat2,
+        tr2, days2, "cascadia", "DAY_CAPSULE"),
         "PRODUCER_RECORD_CONTENT_MISSING")
-    # wrong body / wrong output at the gate
     assert refuses(lambda: verify_staged_day_set(
         recs2, dict(bodies2, **{"2026-08-20": body + b"x"}), arts2,
-        cons2, days2, "cascadia", "DAY_CAPSULE"),
+        stat2, tr2, days2, "cascadia", "DAY_CAPSULE"),
         "PRODUCER_RECORD_BODY_MISMATCH")
     assert refuses(lambda: verify_staged_day_set(
         recs2, bodies2, dict(arts2, **{"2026-08-21": {"edges":
                                                       {"z": 2}}}),
-        cons2, days2, "cascadia", "DAY_CAPSULE"),
+        stat2, tr2, days2, "cascadia", "DAY_CAPSULE"),
         "PRODUCER_RECORD_OUTPUT_MISMATCH")
-    # wrong registered request contract
-    bad_con = json.loads(json.dumps(cons2))
-    bad_con["2026-08-20"]["request_params"] = {"net": "XX"}
+    bad_stat = {"2026-08-20": mk_static(request_params={"net": "XX"}),
+                "2026-08-21": s21}
     assert refuses(lambda: verify_staged_day_set(
-        recs2, bodies2, arts2, bad_con, days2, "cascadia",
-        "DAY_CAPSULE"), "PRODUCER_RECORD_CONTRACT_MISMATCH")
-    # missing/extra day + replays (carried from REV 4)
+        recs2, bodies2, arts2, bad_stat, tr2, days2, "cascadia",
+        "DAY_CAPSULE"), "PRODUCER_TRANSCRIPT_INVALID")
+    # missing/extra day + replays
     assert refuses(lambda: verify_staged_day_set(
-        {"2026-08-20": r20}, bodies2, arts2, cons2, days2,
+        {"2026-08-20": r20}, bodies2, arts2, stat2, tr2, days2,
         "cascadia", "DAY_CAPSULE"),
         "PRODUCER_RECORD_DAY_SET_MISMATCH")
     assert refuses(lambda: verify_staged_day_set(
         {"2026-08-20": r20, "2026-08-21": r20}, bodies2, arts2,
-        cons2, days2, "cascadia", "DAY_CAPSULE"),
+        stat2, tr2, days2, "cascadia", "DAY_CAPSULE"),
         "PRODUCER_RECORD_REPLAY")                     # cross-day
     assert refuses(lambda: verify_staged_day_set(
-        recs2, bodies2, arts2, cons2, days2, "istanbul_marmara",
-        "DAY_CAPSULE"), "PRODUCER_RECORD_REPLAY")     # cross-carrier
+        recs2, bodies2, arts2, stat2, tr2, days2,
+        "istanbul_marmara", "DAY_CAPSULE"),
+        "PRODUCER_RECORD_REPLAY")                     # cross-carrier
 
     print("w2_producer selftest: ALL PASS")
 

@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GeoSpec Data Flow</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>&#128506;</text></svg>">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<style>
+  :root { --ink:#1c2733; --mut:#5b6b7b; --line:#d8e0e8; --bg:#f6f8fa;
+          --accent:#1f4e79; --gate:#a33; --card:#fff; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:14px/1.5 "Segoe UI",system-ui,sans-serif;
+         color:var(--ink); background:var(--bg); }
+  header { background:var(--accent); color:#fff; padding:14px 22px; }
+  header h1 { margin:0; font-size:19px; font-weight:600; }
+  header p { margin:3px 0 0; font-size:12.5px; opacity:.85; }
+  main { max-width:1200px; margin:0 auto; padding:18px 22px 40px; }
+  h2 { font-size:16px; color:var(--accent); margin:26px 0 10px; }
+  .note { font-size:12px; color:var(--mut); }
+  /* flow */
+  .flow { display:grid; grid-template-columns:repeat(auto-fill,minmax(215px,1fr));
+          gap:10px; }
+  .stage { background:var(--card); border:1px solid var(--line); border-radius:8px;
+           padding:9px 11px; position:relative; }
+  .stage .sid { font-size:11px; font-weight:700; color:var(--accent); }
+  .stage .nm { font-weight:600; font-size:13px; }
+  .stage .what { font-size:12px; color:var(--mut); margin-top:2px; }
+  .stage .gate { font-size:11px; color:var(--gate); margin-top:5px;
+                 border-top:1px dashed var(--line); padding-top:4px; }
+  .stage .gate::before { content:"\26D4 gate: "; }
+  .boundary { border:2px solid var(--gate); }
+  .boundary .sid::after { content:"  \2014 TRUST BOUNDARY"; color:var(--gate); }
+  /* map */
+  #map { height:520px; border:1px solid var(--line); border-radius:8px; }
+  .legend { background:#fff; padding:8px 11px; border-radius:6px;
+            box-shadow:0 1px 4px rgba(0,0,0,.25); font-size:12px; line-height:1.7; }
+  .sw { display:inline-block; width:14px; height:10px; margin-right:6px;
+        vertical-align:baseline; }
+  table { border-collapse:collapse; width:100%; background:#fff; font-size:12.5px; }
+  th,td { border:1px solid var(--line); padding:5px 9px; text-align:left; }
+  th { background:#eef3f8; }
+  code { background:#eef1f4; padding:1px 4px; border-radius:3px; font-size:12px; }
+  a { color:var(--accent); }
+</style>
+</head>
+<body>
+<header>
+  <h1>GeoSpec Data Flow &amp; Coverage Map</h1>
+  <p>Reference view of the window-2 pipeline (S0&rarr;S12) and registered geography.
+     Documentation only &mdash; authorizes nothing; &Lambda;<sub>geo</sub> INCONCLUSIVE.
+     Source: <code>docs/DATA_FLOW_AND_ONBOARDING.md</code></p>
+</header>
+<main>
+
+<h2>Pipeline &mdash; data movement start to end</h2>
+<div class="flow" id="flow"></div>
+
+<h2>Coverage map &mdash; carriers, monitors, magnetometers</h2>
+<div id="map"></div>
+<p class="note">Topography: OpenTopoMap tiles (toggle to OSM street layer in the
+control). Solid boxes = the four frozen window-2 selection carriers with station
+caps. Dashed boxes = daily-monitor regions (<code>monitoring/config/regions.yaml</code>).
+Triangles = magnetometer observatories of the MAG lane.</p>
+
+<h2>Data classes at a glance</h2>
+<table>
+<tr><th>Class</th><th>Source</th><th>Format in</th><th>Where it lands</th></tr>
+<tr><td>Seismic waveform station-days</td><td>FDSN (SCEDC, NCEDC/IRIS, KOERI&hellip;), HHZ</td>
+    <td>miniSEED &rarr; merge-trim-split</td><td>staged envelopes &rarr; day-records + edge series</td></tr>
+<tr><td>Station-pair coherence</td><td>derived per registered pair</td>
+    <td><code>{"A|B": {day: r}}</code></td><td>engine panels on the fixed 192-day grid</td></tr>
+<tr><td>Magnetometer minutes</td><td>INTERMAGNET GIN (IZN), USGS (FRN, TUC)</td>
+    <td>IAGA-2002 minute text, 1440/day</td><td>MAG capsules &rarr; M1/M2/M3 features</td></tr>
+<tr><td>Space weather</td><td>SYM-H / Kp / OMNI</td><td>UTC numeric series</td>
+    <td>calibration ledgers (2026-01-01 &rarr; cutoff)</td></tr>
+<tr><td>Earthquake catalog</td><td>USGS/regional</td><td>event records</td>
+    <td>scoring at maturity (H<sub>max</sub> 7 d)</td></tr>
+</table>
+<p class="note">Every schema is a <b>closed field set</b> &mdash; no spare columns;
+extension only by registered version bump (manifest v1&rarr;v1.1&rarr;v1.2). Storage is
+git: every governed artifact is a pinned blob; <code>execution_manifest.json</code>
+is the index; raw daily-monitor inputs stay gitignored; sealed evidence mirrors to GCS.</p>
+
+<script>
+const STAGES = [
+ ["S0","Registration / freeze","carrier registry, caps 16/20/14/16, bbox+CRS, effect grids","design-pin walk (27 pins)",false],
+ ["S1","Acquisition","FDSN waveforms, MAG minutes, space weather, catalog","receipt-attested only",false],
+ ["S2","Staged envelope","raw bytes digested BEFORE transform; closed record per lane/day","schema + replay + UTC + non-finite refusals",true],
+ ["S3","Producer transforms","merge-trim-split; day-records; MAG XYZ + SOS chain","(artifact, receipt) output_sha256 exact",false],
+ ["S4","Selection","90-day frame [cutoff-89, cutoff], frozen cap, presence derived","SelectionInputInvalid",false],
+ ["S5","Panel assembly","fixed 192-position calendar (08-26 excluded); availability = separate mask","CALENDAR_MASK_COMPRESSION / EXCLUDED_DAY / AUTHORITY_MISMATCH",false],
+ ["S6","Engines","B2A/B2B/B1B/B3A + Holm; MAG M1-M3; MF4 predictions","PanelInvalid; frame records recomputed",false],
+ ["S7","Calibration","MF4/MAG ledgers at cutoff, canonical-UTC boundaries","CALIBRATION_TIME_INDEX_INVALID",false],
+ ["S8","Power certification","Tier-C n_draws=9,999, R=20/40, B1B LOCO folds","geometry/authority/fold-set refusals",false],
+ ["S9","Manifest binding","12 closed slots; pins = path+commit+blob-sha","--prestart zero-OPEN PASS; KAT 19/19",false],
+ ["S10","Admission + owner seal","live verify + runtime allowlist + owner binding","PRESTART_ADMISSION_REFUSED",false],
+ ["S11","Sealed accrual","daily envelope→producer→engines→hash-chained ledger","LEDGER_CHAIN_BROKEN; late/revised refused",false],
+ ["S12","Scoring + outputs","labels at maturity; dashboard renders","append-only; re-score only on adjudicated defect",false]];
+document.getElementById("flow").innerHTML = STAGES.map(([id,nm,what,gate,b]) =>
+ `<div class="stage${b?" boundary":""}"><div class="sid">${id}</div>` +
+ `<div class="nm">${nm}</div><div class="what">${what}</div>` +
+ `<div class="gate">${gate}</div></div>`).join("");
+
+const CARRIERS = [
+ {k:"istanbul_marmara", cap:16, b:[[40.4,28.5],[41.2,30.0]], note:"FROZEN component"},
+ {k:"socal_coachella",  cap:20, b:[[33.0,-116.5],[34.0,-115.0]], note:"FROZEN component"},
+ {k:"turkey_kahramanmaras", cap:14, b:[[36.5,36.0],[38.5,38.5]], note:"East Anatolian; FROZEN"},
+ {k:"cascadia", cap:16, b:[[45.0,-128.0],[51.0,-121.5]], note:"NEW registry (LOCO carrier)"}];
+const MONITORS = [
+ {k:"socal_saf_mojave", b:[[34.0,-118.5],[35.5,-116.5]]},
+ {k:"norcal_hayward",   b:[[37.3,-122.3],[38.0,-121.8]]},
+ {k:"tokyo_kanto",      b:[[34.5,138.5],[36.5,141.0]]},
+ {k:"cascadia_monitor", b:[[42.0,-125.0],[48.0,-122.0]]},
+ {k:"mexico_guerrero",  b:[[15.5,-101.0],[18.5,-97.0]]}];
+const MAG = [
+ {k:"IZN", p:[40.5,29.7], src:"INTERMAGNET GIN (Iznik, TR)"},
+ {k:"FRN", p:[37.091,-119.718], src:"USGS (Fresno, CA)"},
+ {k:"TUC", p:[32.174,-110.733], src:"USGS (Tucson, AZ)"}];
+
+const map = L.map("map", {worldCopyJump:true}).setView([38, -40], 3);
+const topo = L.tileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
+ {maxZoom:15, attribution:"&copy; OpenStreetMap, SRTM | &copy; OpenTopoMap (CC-BY-SA)"});
+const osm = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+ {maxZoom:19, attribution:"&copy; OpenStreetMap"});
+topo.addTo(map);
+L.control.layers({"Topography":topo, "Streets":osm}).addTo(map);
+
+CARRIERS.forEach(c => L.rectangle(c.b, {color:"#1f4e79", weight:2, fillOpacity:.12})
+ .addTo(map).bindPopup(`<b>${c.k}</b><br>window-2 carrier &middot; cap ${c.cap}<br>${c.note}` +
+  `<br>lat ${c.b[0][0]}..${c.b[1][0]}, lon ${c.b[0][1]}..${c.b[1][1]}`));
+MONITORS.forEach(m => L.rectangle(m.b, {color:"#7a8b3a", weight:1.5, dashArray:"6 5",
+ fillOpacity:.05}).addTo(map).bindPopup(`<b>${m.k}</b><br>daily-monitor region`));
+MAG.forEach(s => L.marker(s.p, {icon: L.divIcon({className:"", html:
+ '<div style="width:0;height:0;border-left:8px solid transparent;border-right:8px solid transparent;border-bottom:14px solid #a33;"></div>',
+ iconSize:[16,14], iconAnchor:[8,14]})}).addTo(map)
+ .bindPopup(`<b>${s.k}</b><br>magnetometer &middot; ${s.src}<br>${s.p[0]}, ${s.p[1]}`));
+
+const legend = L.control({position:"bottomleft"});
+legend.onAdd = () => {
+ const d = L.DomUtil.create("div","legend");
+ d.innerHTML = '<span class="sw" style="background:rgba(31,78,121,.25);border:2px solid #1f4e79"></span>window-2 carrier (frozen cap)<br>' +
+  '<span class="sw" style="border:2px dashed #7a8b3a"></span>daily-monitor region<br>' +
+  '<span class="sw" style="border-bottom:12px solid #a33;border-left:7px solid transparent;border-right:7px solid transparent;height:0;background:none"></span>MAG observatory';
+ return d; };
+legend.addTo(map);
+</script>
+</main>
+</body>
+</html>

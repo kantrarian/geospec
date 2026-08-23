@@ -130,10 +130,14 @@ def static_contract_of(spec):
 
 
 def _write_once_json(path, obj, divergent_code):
-    """codex 2015Z item 3: audit carriers are WRITE-ONCE. An existing
-    file is reopened -- identical canonical bytes are reused,
-    divergent bytes refuse typed. Writes are atomic (tmp+replace)."""
-    if os.path.exists(path):
+    """codex 2015Z item 3 + 2235Z item 4: audit carriers are
+    WRITE-ONCE with an atomic NO-REPLACE publication -- a unique
+    same-directory temp is published via os.link (create-once: raises
+    if the destination exists; never overwrites). The losing racer
+    reopens the winner: identical canonical bytes are reused,
+    divergent bytes refuse typed. Exactly one publication can ever
+    win; the first bytes remain intact."""
+    def _reopen_or_refuse():
         with open(path, encoding="utf-8") as f:
             existing = json.load(f)
         if PROD._canon_digest(existing) != PROD._canon_digest(obj):
@@ -141,11 +145,25 @@ def _write_once_json(path, obj, divergent_code):
                 f"{divergent_code}: {os.path.basename(path)} already "
                 "exists with divergent content")
         return existing
-    tmp = path + ".tmp"
-    with open(tmp, "w", encoding="utf-8", newline="\n") as f:
-        json.dump(obj, f, indent=1, sort_keys=True)
-        f.write("\n")
-    os.replace(tmp, path)
+
+    if os.path.exists(path):
+        return _reopen_or_refuse()
+    tmp = f"{path}.{os.getpid()}.tmp"
+    try:
+        with open(tmp, "w", encoding="utf-8", newline="\n") as f:
+            json.dump(obj, f, indent=1, sort_keys=True)
+            f.write("\n")
+            f.flush()
+            os.fsync(f.fileno())
+        try:
+            os.link(tmp, path)        # atomic create-once, no replace
+        except FileExistsError:
+            return _reopen_or_refuse()
+    finally:
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
     with open(path, encoding="utf-8") as f:
         return json.load(f)
 
@@ -154,17 +172,20 @@ _CARRIER_TOKEN = None
 
 
 def _path_tokens(lane, carrier, utc_day):
-    """codex 2015Z item 3: validate every path-deriving token BEFORE
-    any path exists -- lane from the registered enum, carrier from a
-    closed token grammar, day canonical."""
+    """codex 2015Z item 3 + 2235Z item 5: validate every
+    path-deriving token BEFORE any path exists -- lane from the
+    registered enum, carrier a STRICT STRING against a closed grammar
+    via fullmatch (a $-anchored match admits a trailing newline into
+    an audit path), day canonical."""
     global _CARRIER_TOKEN
     if _CARRIER_TOKEN is None:
         import re
-        _CARRIER_TOKEN = re.compile(r"^[a-z0-9_]{1,64}$")
+        _CARRIER_TOKEN = re.compile(r"[a-z0-9_]{1,64}")
     if lane not in PROD.RECORD_LANES:
         raise CaptureRefusal(f"CAPTURE_PATH_TOKEN_INVALID: lane "
                              f"{lane!r}")
-    if not _CARRIER_TOKEN.match(str(carrier)):
+    if not isinstance(carrier, str) \
+            or not _CARRIER_TOKEN.fullmatch(carrier):
         raise CaptureRefusal(f"CAPTURE_PATH_TOKEN_INVALID: carrier "
                              f"{carrier!r}")
     try:
@@ -339,6 +360,17 @@ def verify_staged_body_inventory(inventory, store_descriptor):
     return {"objects_verified": len(seen)}
 
 
+def _race_worker(path, obj, code, barrier, q):
+    """Module-level worker for the two-process divergent-race lock
+    (codex 2235Z item 4); spawn-safe."""
+    barrier.wait()
+    try:
+        got = _write_once_json(path, obj, code)
+        q.put(("ok", got))
+    except CaptureRefusal as e:
+        q.put(("refused", str(e)))
+
+
 # ---------------------------------------------------------------- selftest
 def _selftest():
     import tempfile
@@ -448,10 +480,15 @@ def _selftest():
     with open(rp, encoding="utf-8") as f:
         assert json.load(f) == rec        # first record intact
     # path-token grammar validated BEFORE any path derivation
+    # (2235Z item 5: fullmatch -- trailing newline and non-string
+    # carriers refuse)
     for bad_tok in (dict(carrier="Bad Carrier"),
                     dict(carrier="../escape"),
+                    dict(carrier="cascadia\n"),
+                    dict(carrier=123),
                     dict(lane="NOT_A_LANE"),
-                    dict(utc_day="20260820")):
+                    dict(utc_day="20260820"),
+                    dict(utc_day="2026-08-20\n")):
         sp = spec()
         sp.update(bad_tok)
         sp["operation_params"] = {"carrier": sp["carrier"],
@@ -553,6 +590,34 @@ def _selftest():
     assert refuses(
         lambda: verify_staged_body_inventory(inv_esc, desc()),
         "CAPTURE_INVENTORY_PATH_ESCAPE")
+
+    # --- the REAL two-process divergent race (2235Z item 4): exactly
+    # one publication wins, the loser refuses typed, the winner's
+    # bytes remain intact ---
+    import multiprocessing as _mp
+    ctx = _mp.get_context("spawn")
+    barrier = ctx.Barrier(2)
+    q = ctx.Queue()
+    race_path = os.path.join(root, "race.json")
+    pa = ctx.Process(target=_race_worker, args=(
+        race_path, {"marker": "a"}, "CAPTURE_RECORD_DIVERGENT",
+        barrier, q))
+    pb = ctx.Process(target=_race_worker, args=(
+        race_path, {"marker": "b"}, "CAPTURE_RECORD_DIVERGENT",
+        barrier, q))
+    pa.start()
+    pb.start()
+    res = [q.get(timeout=60), q.get(timeout=60)]
+    pa.join(30)
+    pb.join(30)
+    kinds = sorted(k for k, _ in res)
+    assert kinds == ["ok", "refused"], res
+    winner = next(v for k, v in res if k == "ok")
+    with open(race_path, encoding="utf-8") as f:
+        final = json.load(f)
+    assert final == winner and final["marker"] in ("a", "b")
+    assert next(v for k, v in res if k == "refused").startswith(
+        "CAPTURE_RECORD_DIVERGENT")
 
     print("w2_acquisition_capture selftest: ALL PASS (no network)")
 

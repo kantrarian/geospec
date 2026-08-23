@@ -570,20 +570,26 @@ _DAY_RE = None
 
 
 def _canon_utc_instant(t, what):
-    """codex 1544Z item 2: a byte-bound record's canonical frame must
-    BE canonical -- exactly ONE registered spelling: UTC 'Z' with
-    seconds (optional fractional seconds). Date-only, naive, '+00:00'
-    alternate spellings, and non-UTC offsets all refuse."""
+    """codex 1544Z item 2 + 2235Z item 5: a byte-bound record's
+    canonical frame must BE canonical -- exactly ONE registered
+    spelling: UTC 'Z' with seconds, fractional part 1-6 digits ONLY
+    (the runtime keeps microseconds; precision it would discard is
+    refused, so no two distinct spellings collapse to one instant).
+    fullmatch, never $-anchored match (a trailing newline must
+    refuse). Non-string input refuses."""
     global _CAPTURE_RE
     if _CAPTURE_RE is None:
         import re
         _CAPTURE_RE = re.compile(
-            r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$")
-    t = str(t)
-    if not _CAPTURE_RE.match(t):
+            r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,6})?Z")
+    if not isinstance(t, str):
+        raise ProducerRefusal(
+            f"PRODUCER_RECORD_TIME_FRAME: {what} is not a string")
+    if not _CAPTURE_RE.fullmatch(t):
         raise ProducerRefusal(
             f"PRODUCER_RECORD_TIME_FRAME: {what} {t!r} is not the "
-            "canonical UTC 'Z' spelling with seconds")
+            "canonical UTC 'Z' spelling with seconds (fractional "
+            "1-6 digits)")
     try:
         return datetime.fromisoformat(
             t.replace("Z", "+00:00")).astimezone(timezone.utc)
@@ -598,9 +604,11 @@ def _canon_day(d, what):
     global _DAY_RE
     if _DAY_RE is None:
         import re
-        _DAY_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
-    d = str(d)
-    if not _DAY_RE.match(d):
+        _DAY_RE = re.compile(r"\d{4}-\d{2}-\d{2}")
+    if not isinstance(d, str):
+        raise ProducerRefusal(f"PRODUCER_RECORD_DAY_INVALID: {what} "
+                              "is not a string")
+    if not _DAY_RE.fullmatch(d):
         raise ProducerRefusal(f"PRODUCER_RECORD_DAY_INVALID: {what} "
                               f"{d!r}")
     try:
@@ -1403,6 +1411,23 @@ def _selftest():
     assert verify_transcript(mk_transcript(
         s20, request_start_utc="2026-08-20T12:01:33Z",
         response_complete_utc="2026-08-20T12:01:33.100Z"), s20)
+    # 2235Z item-5 locks: fractional precision the runtime would
+    # DISCARD refuses (the seventh-digit reversal cannot be spelled);
+    # exactly six digits pass; trailing-newline / non-string days
+    # refuse (fullmatch, strict types)
+    for seven in ("2026-08-20T12:01:33.0000009Z",
+                  "2026-08-20T12:01:33.0000001Z"):
+        assert refuses(lambda t=seven: mk_rec(t=mk_transcript(
+            s20, response_complete_utc=t)),
+            "PRODUCER_RECORD_TIME_FRAME"), seven
+    assert mk_rec(t=mk_transcript(
+        s20, response_complete_utc="2026-08-20T12:01:33.123456Z"))
+    assert refuses(lambda: mk_rec(utc_day="2026-08-20\n", s=s20,
+                                  t=t20),
+                   "PRODUCER_RECORD_DAY_INVALID")
+    assert refuses(lambda: verify_envelope_record(
+        dict(rec_ok, capture_time_utc=20260820)),
+        "PRODUCER_RECORD_TIME_FRAME")
     for bad_d in ("not-a-day", "20260820", "2026-8-20"):
         assert refuses(
             lambda d=bad_d: mk_rec(utc_day=d, s=s20, t=t20),

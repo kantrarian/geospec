@@ -70,10 +70,13 @@ def _digest(obj):
 
 
 def _publish_once(path, body_text):
-    """codex 2235Z item 4: atomic CREATE-ONCE publication -- unique
-    same-directory temp + os.link (which never replaces). An existing
-    destination refuses typed; there is no check-then-overwrite
-    window."""
+    """codex 2235Z item 4 (+ 0130Z refinement): atomic CREATE-ONCE
+    publication -- PER-CALL-UNIQUE same-directory temp (mkstemp,
+    O_EXCL) + os.link (which never replaces). An existing destination
+    refuses typed (this primitive never reuses, even on identical
+    bytes -- a second campaign must not silently share an outdir);
+    after a successful link the destination is REOPENED and compared
+    against this caller's bytes before returning."""
     d = os.path.dirname(os.path.abspath(path))
     os.makedirs(d, exist_ok=True)
     fd, tmp = tempfile.mkstemp(dir=d, suffix=".tmp")
@@ -88,6 +91,11 @@ def _publish_once(path, body_text):
             raise RunnerRefusal(
                 f"RUNNER_PUBLISH_EXISTS: {os.path.basename(path)} "
                 "already published (create-once; never replaced)")
+        with open(path, "r", encoding="utf-8", newline="") as f:
+            if f.read() != body_text:
+                raise RunnerRefusal(
+                    f"RUNNER_PUBLISH_EXISTS: {os.path.basename(path)}"
+                    " diverged after publication (mutated carrier)")
     finally:
         try:
             os.unlink(tmp)

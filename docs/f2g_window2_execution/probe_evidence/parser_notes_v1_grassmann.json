@@ -1,0 +1,41 @@
+{
+ "schema": "f2g-w2-probe-parser-notes-v1",
+ "author": "grassmann",
+ "note": "Append-only companion to the six create-once probe envelopes (ruling limit 3's parser/schema + recomputed-coverage fields; the envelopes were sealed at capture, so these notes bind to them by body sha rather than mutating them).",
+ "keys": {
+  "SELECTION_RECORDS/istanbul_marmara": {
+   "body_sha256_ref": "selection_records_istanbul_marmara.envelope.json",
+   "parser": "FDSN station text (pipe-delimited channel-epoch rows, '#'-prefixed header); presence = unique Station column values with an epoch active in the day window",
+   "recomputed_coverage": {"rows": 12, "unique_stations": 12, "of_registered": 12},
+   "verdict": "TEMPLATE_GRAMMAR_CONFIRMED"
+  },
+  "SELECTION_RECORDS/socal_coachella": {
+   "body_sha256_ref": "selection_records_socal_coachella.envelope.json",
+   "parser": null,
+   "verdict": "PROBE_REFUSED (HTTP 400 from SCEDC on the single authorized request; template BLOCKED pending a new ruling -- candidate causes for that ruling to weigh: SCEDC station-service parameter strictness on the sta-list/day-window combination)"
+  },
+  "SELECTION_RECORDS/turkey_kahramanmaras": {
+   "body_sha256_ref": "selection_records_turkey_kahramanmaras.envelope.json",
+   "parser": "FDSN station text, as istanbul",
+   "recomputed_coverage": {"rows": 10, "unique_stations": 10, "of_registered": 11, "absent_on_probe_day": ["KHMN"]},
+   "verdict": "TEMPLATE_GRAMMAR_CONFIRMED (10/11 presence on the historical probe day is an honest per-day presence signal, exactly the quantity the lane measures)"
+  },
+  "MF4_FEED/sym_h": {
+   "body_sha256_ref": "mf4_feed_sym_h.envelope.json",
+   "parser": "OMNIWeb high-res retrieval: HTML-wrapped fixed-width ASCII; data rows match ^YYYY DOY HR MN SYM_H; DOY 319 == 2025-11-15; values in nT",
+   "recomputed_coverage": {"minute_rows": 1440},
+   "verdict": "TEMPLATE_GRAMMAR_CONFIRMED (var index 41 = SYM/H confirmed by value range and label block)"
+  },
+  "MF4_FEED/kp": {
+   "body_sha256_ref": "mf4_feed_kp.envelope.json",
+   "parser": null,
+   "verdict": "PROBE_REFUSED (local SSL trust-store failure BEFORE any response -- an environment defect on the capture host, not endpoint evidence; template BLOCKED pending a new ruling; the ruling can authorize one retry with a proper CA bundle)"
+  },
+  "MF4_FEED/omni": {
+   "body_sha256_ref": "mf4_feed_omni.envelope.json",
+   "parser": "OMNIWeb high-res retrieval as sym_h; data rows ^YYYY DOY HR MN BZ_GSM FLOW_SPEED PROTON_DENSITY; fill sentinels 9999.99 / 99999.9 / 999.99 observed and must map to registered absence (None) at the boundary",
+   "recomputed_coverage": {"minute_rows": 1440},
+   "verdict": "TEMPLATE_GRAMMAR_CONFIRMED (var indices 17/21/25 confirmed)"
+  }
+ }
+}

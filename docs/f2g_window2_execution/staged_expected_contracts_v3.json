@@ -2092,16 +2092,41 @@
       "2026-08-26",
       "2026-08-27"
      ],
-     "expected_keys": "OPEN_REVIEW_ROUND",
-     "operation_params": "OPEN_REVIEW_ROUND",
-     "request_params": "OPEN_REVIEW_ROUND",
+     "expected_keys": "one key per expected day (derived contract binds the day)",
+     "fill_evidence": {
+      "coverage_samples": 1441,
+      "pinned_probe_envelope": "docs/f2g_window2_execution/mag_capsules/receipts/mag_frn_probe.envelope.json",
+      "probe_body_sha256": "6176a3baad14f028e047202a01f6f86483948742dd1e25841229a921d5e8df52",
+      "spec_status": "EVIDENCE_PINNED"
+     },
+     "fill_status": "FILLED",
+     "operation_params": {
+      "carrier": "frn",
+      "day": "{day}"
+     },
+     "request_params": {
+      "endtime": "{day_next}T00:00:00Z",
+      "format": "json",
+      "id": "FRN",
+      "sampling_period": "60",
+      "starttime": "{day}T00:00:00Z"
+     },
      "source_class": "USGS geomagnetism",
      "static_contract_template": {
       "endpoint": "https://geomag.usgs.gov/ws/data/",
-      "operation_params": "OPEN_REVIEW_ROUND",
-      "request_params": "OPEN_REVIEW_ROUND",
+      "operation_params": {
+       "carrier": "frn",
+       "day": "{day}"
+      },
+      "request_params": {
+       "endtime": "{day_next}T00:00:00Z",
+       "format": "json",
+       "id": "FRN",
+       "sampling_period": "60",
+       "starttime": "{day}T00:00:00Z"
+      },
       "source": {
-       "kind": "usgs-minute",
+       "kind": "usgs-geomag-ws-minute",
        "ref": "https://geomag.usgs.gov/ws/data/"
       }
      }
@@ -2350,16 +2375,47 @@
       "2026-08-26",
       "2026-08-27"
      ],
-     "expected_keys": "OPEN_REVIEW_ROUND",
-     "operation_params": "OPEN_REVIEW_ROUND",
-     "request_params": "OPEN_REVIEW_ROUND",
+     "expected_keys": "one key per expected day (derived contract binds the day)",
+     "fill_evidence": {
+      "coverage_samples": 1440,
+      "pinned_probe_envelope": "docs/f2g_window2_execution/mag_capsules/receipts/mag_izn_probe.envelope.json",
+      "probe_body_sha256": "e3b5e0be9d2554549f3574d5ec1d88e9a949a366eaa49961458fc0501f4b9501",
+      "spec_status": "EVIDENCE_PINNED"
+     },
+     "fill_status": "FILLED",
+     "operation_params": {
+      "carrier": "izn",
+      "day": "{day}"
+     },
+     "request_params": {
+      "Request": "GetData",
+      "dataDuration": "1",
+      "dataStartDate": "{day}",
+      "format": "json",
+      "observatoryIagaCode": "IZN",
+      "publicationState": "adj-or-rep",
+      "samplesPerDay": "minute",
+      "testObsys": "0"
+     },
      "source_class": "INTERMAGNET GIN",
      "static_contract_template": {
       "endpoint": "https://imag-data.bgs.ac.uk/GIN_V1/GINServices",
-      "operation_params": "OPEN_REVIEW_ROUND",
-      "request_params": "OPEN_REVIEW_ROUND",
+      "operation_params": {
+       "carrier": "izn",
+       "day": "{day}"
+      },
+      "request_params": {
+       "Request": "GetData",
+       "dataDuration": "1",
+       "dataStartDate": "{day}",
+       "format": "json",
+       "observatoryIagaCode": "IZN",
+       "publicationState": "adj-or-rep",
+       "samplesPerDay": "minute",
+       "testObsys": "0"
+      },
       "source": {
-       "kind": "gin-minute",
+       "kind": "intermagnet-gin-minute",
        "ref": "https://imag-data.bgs.ac.uk/GIN_V1/GINServices"
       }
      }
@@ -2608,16 +2664,41 @@
       "2026-08-26",
       "2026-08-27"
      ],
-     "expected_keys": "OPEN_REVIEW_ROUND",
-     "operation_params": "OPEN_REVIEW_ROUND",
-     "request_params": "OPEN_REVIEW_ROUND",
+     "expected_keys": "one key per expected day (derived contract binds the day)",
+     "fill_evidence": {
+      "coverage_samples": 1441,
+      "pinned_probe_envelope": "docs/f2g_window2_execution/mag_capsules/receipts/mag_tuc_probe.envelope.json",
+      "probe_body_sha256": "0eace370136741958f622ab88cc3fa2f0a2131375cd4109c2b277435924663bc",
+      "spec_status": "EVIDENCE_PINNED"
+     },
+     "fill_status": "FILLED",
+     "operation_params": {
+      "carrier": "tuc",
+      "day": "{day}"
+     },
+     "request_params": {
+      "endtime": "{day_next}T00:00:00Z",
+      "format": "json",
+      "id": "TUC",
+      "sampling_period": "60",
+      "starttime": "{day}T00:00:00Z"
+     },
      "source_class": "USGS geomagnetism",
      "static_contract_template": {
       "endpoint": "https://geomag.usgs.gov/ws/data/",
-      "operation_params": "OPEN_REVIEW_ROUND",
-      "request_params": "OPEN_REVIEW_ROUND",
+      "operation_params": {
+       "carrier": "tuc",
+       "day": "{day}"
+      },
+      "request_params": {
+       "endtime": "{day_next}T00:00:00Z",
+       "format": "json",
+       "id": "TUC",
+       "sampling_period": "60",
+       "starttime": "{day}T00:00:00Z"
+      },
       "source": {
-       "kind": "usgs-minute",
+       "kind": "usgs-geomag-ws-minute",
        "ref": "https://geomag.usgs.gov/ws/data/"
       }
      }
@@ -2872,6 +2953,11 @@
       "2026-08-27"
      ],
      "expected_keys": "OPEN_REVIEW_ROUND",
+     "fill_evidence": {
+      "probe_envelope": "docs/f2g_window2_execution/probe_evidence/mf4_feed_kp.envelope.json",
+      "refusal": "PROBE_REFUSED: local SSL trust-store failure before any response (environment defect)"
+     },
+     "fill_status": "BLOCKED_PROBE_REFUSED -- pending a new codex ruling",
      "operation_params": "OPEN_REVIEW_ROUND",
      "request_params": "OPEN_REVIEW_ROUND",
      "source_class": "GFZ Kp",
@@ -2887,7 +2973,7 @@
     },
     "omni": {
      "cutoff": "2026-08-27",
-     "endpoint": "OPEN_REVIEW_ROUND",
+     "endpoint": "https://omniweb.gsfc.nasa.gov/cgi/nx1.cgi",
      "expected_days": [
       "2026-01-01",
       "2026-01-02",
@@ -3129,23 +3215,58 @@
       "2026-08-26",
       "2026-08-27"
      ],
-     "expected_keys": "OPEN_REVIEW_ROUND",
-     "operation_params": "OPEN_REVIEW_ROUND",
-     "request_params": "OPEN_REVIEW_ROUND",
-     "source_class": "NASA OMNI",
+     "expected_keys": "one key per expected day (derived contract binds the day)",
+     "fill_evidence": {
+      "probe_body_sha256": "3468686a09f9cc86378ccbd763eac8e93201e5d0272b46898814899a6c76becb",
+      "probe_day_utc": "2025-11-15",
+      "probe_envelope": "docs/f2g_window2_execution/probe_evidence/mf4_feed_omni.envelope.json",
+      "verdict": "TEMPLATE_GRAMMAR_CONFIRMED"
+     },
+     "fill_status": "FILLED",
+     "operation_params": {
+      "carrier": "omni",
+      "day": "{day}"
+     },
+     "request_params": {
+      "activity": "retrieve",
+      "end_date": "{day_compact}",
+      "res": "min",
+      "spacecraft": "omni_min",
+      "start_date": "{day_compact}",
+      "vars": [
+       "17",
+       "21",
+       "25"
+      ]
+     },
+     "source_class": "NASA OMNIWeb high-res BZ-GSM/flow/density (vars 17/21/25)",
      "static_contract_template": {
-      "endpoint": "OPEN_REVIEW_ROUND",
-      "operation_params": "OPEN_REVIEW_ROUND",
-      "request_params": "OPEN_REVIEW_ROUND",
+      "endpoint": "https://omniweb.gsfc.nasa.gov/cgi/nx1.cgi",
+      "operation_params": {
+       "carrier": "omni",
+       "day": "{day}"
+      },
+      "request_params": {
+       "activity": "retrieve",
+       "end_date": "{day_compact}",
+       "res": "min",
+       "spacecraft": "omni_min",
+       "start_date": "{day_compact}",
+       "vars": [
+        "17",
+        "21",
+        "25"
+       ]
+      },
       "source": {
-       "kind": "driver-series",
-       "ref": "OPEN_REVIEW_ROUND"
+       "kind": "omniweb-highres-cgi",
+       "ref": "https://omniweb.gsfc.nasa.gov/cgi/nx1.cgi"
       }
      }
     },
     "sym_h": {
      "cutoff": "2026-08-27",
-     "endpoint": "OPEN_REVIEW_ROUND",
+     "endpoint": "https://omniweb.gsfc.nasa.gov/cgi/nx1.cgi",
      "expected_days": [
       "2026-01-01",
       "2026-01-02",
@@ -3387,17 +3508,44 @@
       "2026-08-26",
       "2026-08-27"
      ],
-     "expected_keys": "OPEN_REVIEW_ROUND",
-     "operation_params": "OPEN_REVIEW_ROUND",
-     "request_params": "OPEN_REVIEW_ROUND",
-     "source_class": "WDC-Kyoto SYM-H",
+     "expected_keys": "one key per expected day (derived contract binds the day)",
+     "fill_evidence": {
+      "probe_body_sha256": "1516b560c7f2c083ca0a3f6d41e3bfd4d8b7461d8bc9c8cdc1dd8d663c79d28c",
+      "probe_day_utc": "2025-11-15",
+      "probe_envelope": "docs/f2g_window2_execution/probe_evidence/mf4_feed_sym_h.envelope.json",
+      "verdict": "TEMPLATE_GRAMMAR_CONFIRMED"
+     },
+     "fill_status": "FILLED",
+     "operation_params": {
+      "carrier": "sym_h",
+      "day": "{day}"
+     },
+     "request_params": {
+      "activity": "retrieve",
+      "end_date": "{day_compact}",
+      "res": "min",
+      "spacecraft": "omni_min",
+      "start_date": "{day_compact}",
+      "vars": "41"
+     },
+     "source_class": "NASA OMNIWeb high-res SYM/H (var 41)",
      "static_contract_template": {
-      "endpoint": "OPEN_REVIEW_ROUND",
-      "operation_params": "OPEN_REVIEW_ROUND",
-      "request_params": "OPEN_REVIEW_ROUND",
+      "endpoint": "https://omniweb.gsfc.nasa.gov/cgi/nx1.cgi",
+      "operation_params": {
+       "carrier": "sym_h",
+       "day": "{day}"
+      },
+      "request_params": {
+       "activity": "retrieve",
+       "end_date": "{day_compact}",
+       "res": "min",
+       "spacecraft": "omni_min",
+       "start_date": "{day_compact}",
+       "vars": "41"
+      },
       "source": {
-       "kind": "driver-series",
-       "ref": "OPEN_REVIEW_ROUND"
+       "kind": "omniweb-highres-cgi",
+       "ref": "https://omniweb.gsfc.nasa.gov/cgi/nx1.cgi"
       }
      }
     }
@@ -3408,7 +3556,7 @@
    "carriers": {
     "cascadia": {
      "cutoff": "2026-08-27",
-     "endpoint": "OPEN_REVIEW_ROUND",
+     "endpoint": "https://service.iris.edu/fdsnws/station/1/query",
      "expected_days": [
       "2026-05-30",
       "2026-05-31",
@@ -3501,23 +3649,59 @@
       "2026-08-26",
       "2026-08-27"
      ],
-     "expected_keys": "OPEN_REVIEW_ROUND",
-     "operation_params": "OPEN_REVIEW_ROUND",
-     "request_params": "OPEN_REVIEW_ROUND",
+     "expected_keys": "one key per expected day (derived contract binds the day)",
+     "fill_evidence": {
+      "pinned_receipt_envelope": "docs/f2g_window2_freeze/receipts/cascadia_UW_CC_CN_HHZ.envelope.json",
+      "receipt_body_sha256": "d4256792bf85edf855a4dbaf7841982824a020cd5e075c103d832248c513a847",
+      "spec_status": "EVIDENCE_PINNED"
+     },
+     "fill_status": "FILLED",
+     "operation_params": {
+      "carrier": "cascadia",
+      "day": "{day}"
+     },
+     "request_params": {
+      "cha": "HHZ",
+      "endtime": "{day_next}",
+      "format": "text",
+      "level": "channel",
+      "maxlatitude": "51.0",
+      "maxlongitude": "-121.5",
+      "minlatitude": "45.0",
+      "minlongitude": "-128.0",
+      "net": "UW,CC,CN",
+      "nodata": "404",
+      "starttime": "{day}"
+     },
      "source_class": "FDSN dataselect/station (registered carrier networks)",
      "static_contract_template": {
-      "endpoint": "OPEN_REVIEW_ROUND",
-      "operation_params": "OPEN_REVIEW_ROUND",
-      "request_params": "OPEN_REVIEW_ROUND",
+      "endpoint": "https://service.iris.edu/fdsnws/station/1/query",
+      "operation_params": {
+       "carrier": "cascadia",
+       "day": "{day}"
+      },
+      "request_params": {
+       "cha": "HHZ",
+       "endtime": "{day_next}",
+       "format": "text",
+       "level": "channel",
+       "maxlatitude": "51.0",
+       "maxlongitude": "-121.5",
+       "minlatitude": "45.0",
+       "minlongitude": "-128.0",
+       "net": "UW,CC,CN",
+       "nodata": "404",
+       "starttime": "{day}"
+      },
       "source": {
-       "kind": "fdsn",
-       "ref": "OPEN_REVIEW_ROUND"
+       "kind": "fdsn-station-channel",
+       "ref": "https://service.iris.edu/fdsnws/station/1/query"
       }
      }
     },
     "istanbul_marmara": {
      "cutoff": "2026-08-27",
-     "endpoint": "OPEN_REVIEW_ROUND",
+     "endpoint": "http://eida.koeri.boun.edu.tr/fdsnws/station/1/query",
      "expected_days": [
       "2026-05-30",
       "2026-05-31",
@@ -3610,17 +3794,48 @@
       "2026-08-26",
       "2026-08-27"
      ],
-     "expected_keys": "OPEN_REVIEW_ROUND",
-     "operation_params": "OPEN_REVIEW_ROUND",
-     "request_params": "OPEN_REVIEW_ROUND",
+     "expected_keys": "one key per expected day (derived contract binds the day)",
+     "fill_evidence": {
+      "probe_body_sha256": "cf9263516350b75d2c4d8a6c366f41044451022dda8976b4448d2981da24fdf2",
+      "probe_day_utc": "2025-11-15",
+      "probe_envelope": "docs/f2g_window2_execution/probe_evidence/selection_records_istanbul_marmara.envelope.json",
+      "verdict": "TEMPLATE_GRAMMAR_CONFIRMED"
+     },
+     "fill_status": "FILLED",
+     "operation_params": {
+      "carrier": "istanbul_marmara",
+      "day": "{day}"
+     },
+     "request_params": {
+      "cha": "HHZ",
+      "endtime": "{day_next}",
+      "format": "text",
+      "level": "channel",
+      "net": "KO",
+      "nodata": "404",
+      "sta": "ADVT,BOTS,GAZK,GEML,GULT,HRTX,ISK,KAVV,KRBG,MDNY,NMR2,NMR3",
+      "starttime": "{day}"
+     },
      "source_class": "FDSN dataselect/station (registered carrier networks)",
      "static_contract_template": {
-      "endpoint": "OPEN_REVIEW_ROUND",
-      "operation_params": "OPEN_REVIEW_ROUND",
-      "request_params": "OPEN_REVIEW_ROUND",
+      "endpoint": "http://eida.koeri.boun.edu.tr/fdsnws/station/1/query",
+      "operation_params": {
+       "carrier": "istanbul_marmara",
+       "day": "{day}"
+      },
+      "request_params": {
+       "cha": "HHZ",
+       "endtime": "{day_next}",
+       "format": "text",
+       "level": "channel",
+       "net": "KO",
+       "nodata": "404",
+       "sta": "ADVT,BOTS,GAZK,GEML,GULT,HRTX,ISK,KAVV,KRBG,MDNY,NMR2,NMR3",
+       "starttime": "{day}"
+      },
       "source": {
-       "kind": "fdsn",
-       "ref": "OPEN_REVIEW_ROUND"
+       "kind": "fdsn-station-channel",
+       "ref": "http://eida.koeri.boun.edu.tr/fdsnws/station/1/query"
       }
      }
     },
@@ -3720,6 +3935,11 @@
       "2026-08-27"
      ],
      "expected_keys": "OPEN_REVIEW_ROUND",
+     "fill_evidence": {
+      "probe_envelope": "docs/f2g_window2_execution/probe_evidence/selection_records_socal_coachella.envelope.json",
+      "refusal": "PROBE_REFUSED: SCEDC HTTP 400 on the single authorized request"
+     },
+     "fill_status": "BLOCKED_PROBE_REFUSED -- pending a new codex ruling",
      "operation_params": "OPEN_REVIEW_ROUND",
      "request_params": "OPEN_REVIEW_ROUND",
      "source_class": "FDSN dataselect/station (registered carrier networks)",
@@ -3735,7 +3955,7 @@
     },
     "turkey_kahramanmaras": {
      "cutoff": "2026-08-27",
-     "endpoint": "OPEN_REVIEW_ROUND",
+     "endpoint": "http://eida.koeri.boun.edu.tr/fdsnws/station/1/query",
      "expected_days": [
       "2026-05-30",
       "2026-05-31",
@@ -3828,17 +4048,48 @@
       "2026-08-26",
       "2026-08-27"
      ],
-     "expected_keys": "OPEN_REVIEW_ROUND",
-     "operation_params": "OPEN_REVIEW_ROUND",
-     "request_params": "OPEN_REVIEW_ROUND",
+     "expected_keys": "one key per expected day (derived contract binds the day)",
+     "fill_evidence": {
+      "probe_body_sha256": "cb93f1ddb73acb019679ebc45fc85eefd2ca5eb9696257faf38b61ca121cfc81",
+      "probe_day_utc": "2025-11-15",
+      "probe_envelope": "docs/f2g_window2_execution/probe_evidence/selection_records_turkey_kahramanmaras.envelope.json",
+      "verdict": "TEMPLATE_GRAMMAR_CONFIRMED"
+     },
+     "fill_status": "FILLED",
+     "operation_params": {
+      "carrier": "turkey_kahramanmaras",
+      "day": "{day}"
+     },
+     "request_params": {
+      "cha": "HHZ",
+      "endtime": "{day_next}",
+      "format": "text",
+      "level": "channel",
+      "net": "KO",
+      "nodata": "404",
+      "sta": "AKDG,ARGN,BNN,GAZ,KARA,KBAN,KHMN,KOZT,MLTY,NURH,TAHT",
+      "starttime": "{day}"
+     },
      "source_class": "FDSN dataselect/station (registered carrier networks)",
      "static_contract_template": {
-      "endpoint": "OPEN_REVIEW_ROUND",
-      "operation_params": "OPEN_REVIEW_ROUND",
-      "request_params": "OPEN_REVIEW_ROUND",
+      "endpoint": "http://eida.koeri.boun.edu.tr/fdsnws/station/1/query",
+      "operation_params": {
+       "carrier": "turkey_kahramanmaras",
+       "day": "{day}"
+      },
+      "request_params": {
+       "cha": "HHZ",
+       "endtime": "{day_next}",
+       "format": "text",
+       "level": "channel",
+       "net": "KO",
+       "nodata": "404",
+       "sta": "AKDG,ARGN,BNN,GAZ,KARA,KBAN,KHMN,KOZT,MLTY,NURH,TAHT",
+       "starttime": "{day}"
+      },
       "source": {
-       "kind": "fdsn",
-       "ref": "OPEN_REVIEW_ROUND"
+       "kind": "fdsn-station-channel",
+       "ref": "http://eida.koeri.boun.edu.tr/fdsnws/station/1/query"
       }
      }
     }
@@ -3848,6 +4099,7 @@
  },
  "template_token_vocabulary": [
   "{day}",
-  "{day_next}"
+  "{day_next}",
+  "{day_compact}"
  ]
 }

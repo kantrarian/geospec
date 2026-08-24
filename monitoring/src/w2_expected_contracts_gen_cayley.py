@@ -89,7 +89,7 @@ def build(repo):
     # {day_next} = the UTC day after it (half-open [day, day_next)
     # request windows -- USGS/FDSN day forms). Any other brace token
     # survives substitution and fails downstream comparison closed.
-    template_tokens = ["{day}", "{day_next}"]
+    template_tokens = ["{day}", "{day_next}", "{day_compact}"]
 
     def tmpl(source_kind, source_ref, endpoint):
         return {"source": {"kind": source_kind, "ref": source_ref},
@@ -153,6 +153,154 @@ def build(repo):
                     "per-day admission rule; a DAY_CAPSULE pin in "
                     "the PRESTART staged tree REFUSES)",
         "day_set_rule": "evaluation days at accrual time"}
+
+    # ---------------- PHASE-A FILL (codex 1434Z limit 5) ----------
+    # Fill the fillable (lane, carrier) templates from grassmann's
+    # capture specs v1 + the six pinned probe envelopes. Every filled
+    # template is VERIFIED at generation: substituting the probe day
+    # into the template must reproduce the envelope's requested query
+    # exactly (the verbatim-derivation lock). socal_coachella and kp
+    # stay OPEN_REVIEW_ROUND: their probes are PROBE_REFUSED pinned
+    # and their templates are BLOCKED pending a new codex ruling.
+    import urllib.parse
+
+    specs = json.load(open(os.path.join(
+        repo, "docs", "f2g_window2_execution",
+        "capture_specs_v1_grassmann.json"), encoding="utf-8"))
+    probe_rec = json.load(open(os.path.join(
+        repo, "docs", "f2g_window2_execution",
+        "probe_input_record_v1_grassmann.json"), encoding="utf-8"))
+    PROBE_DAY = "2025-11-15"
+    PROBE_DAY_NEXT = "2025-11-16"
+    PROBE_DAY_COMPACT = "20251115"
+
+    def sub_probe(v):
+        if isinstance(v, str):
+            return (v.replace("{day_next}", PROBE_DAY_NEXT)
+                     .replace("{day_compact}", PROBE_DAY_COMPACT)
+                     .replace("{day}", PROBE_DAY))
+        if isinstance(v, dict):
+            return {k: sub_probe(x) for k, x in v.items()}
+        if isinstance(v, list):
+            return [sub_probe(x) for x in v]
+        return v
+
+    def envelope_query(env_rel, endpoint):
+        env = json.load(open(os.path.join(
+            repo, "docs", "f2g_window2_execution", "probe_evidence",
+            env_rel), encoding="utf-8"))
+        assert env["http_status"] == 200, env_rel
+        req = env["requested_url"]
+        assert req.startswith(endpoint), (env_rel, endpoint)
+        q = urllib.parse.parse_qs(
+            urllib.parse.urlsplit(req).query,
+            keep_blank_values=True)
+        return q, env
+
+    def verify_probe_fill(env_rel, endpoint, tmpl_params):
+        """The template with the probe day substituted must equal the
+        envelope's actual requested query."""
+        got, env = envelope_query(env_rel, endpoint)
+        want = {}
+        for k, v in sub_probe(tmpl_params).items():
+            want[k] = v if isinstance(v, list) else [v]
+        assert got == want, (env_rel, got, want)
+        return {"probe_envelope": "docs/f2g_window2_execution/"
+                                  "probe_evidence/" + env_rel,
+                "probe_body_sha256": env["raw_body_sha256"],
+                "probe_day_utc": PROBE_DAY}
+
+    def fill(lane, ck, *, kind, endpoint, request_params,
+             evidence, source_class=None):
+        e = lanes[lane]["carriers"][ck]
+        t = {"source": {"kind": kind, "ref": endpoint},
+             "endpoint": endpoint,
+             "request_params": request_params,
+             "operation_params": {"carrier": ck, "day": "{day}"}}
+        e["static_contract_template"] = t
+        e["endpoint"] = endpoint
+        e["request_params"] = dict(request_params)
+        e["operation_params"] = dict(t["operation_params"])
+        e["expected_keys"] = ("one key per expected day "
+                              "(derived contract binds the day)")
+        e["fill_evidence"] = evidence
+        e["fill_status"] = "FILLED"
+        if source_class:
+            e["source_class"] = source_class
+
+    # MAG izn/frn/tuc + SELECTION cascadia: EVIDENCE_PINNED verbatim
+    # from capture specs v1 (MAG endpoints already asserted against
+    # the pinned mag probe envelopes above)
+    for lane, ck in (("MAG_FEED", "izn"), ("MAG_FEED", "frn"),
+                     ("MAG_FEED", "tuc"),
+                     ("SELECTION_RECORDS", "cascadia")):
+        sp = specs["lanes"][lane][ck]
+        assert sp["status"] == "EVIDENCE_PINNED", (lane, ck)
+        fill(lane, ck, kind=sp["source"]["kind"],
+             endpoint=sp["endpoint"],
+             request_params=dict(sp["request_params"]),
+             evidence=dict(sp["evidence"],
+                           spec_status="EVIDENCE_PINNED"))
+
+    # istanbul/turkey: probe-record params day-templated; the probe
+    # envelope proves the exact grammar (TEMPLATE_GRAMMAR_CONFIRMED)
+    for ck, env_rel in (
+            ("istanbul_marmara",
+             "selection_records_istanbul_marmara.envelope.json"),
+            ("turkey_kahramanmaras",
+             "selection_records_turkey_kahramanmaras.envelope.json")):
+        pk = probe_rec["keys"][f"SELECTION_RECORDS/{ck}"]
+        rp = dict(pk["request_params"])
+        assert rp.pop("starttime") == PROBE_DAY
+        assert rp.pop("endtime") == PROBE_DAY_NEXT
+        rp["starttime"] = "{day}"
+        rp["endtime"] = "{day_next}"
+        ev = verify_probe_fill(env_rel, pk["endpoint"], rp)
+        fill("SELECTION_RECORDS", ck, kind="fdsn-station-channel",
+             endpoint=pk["endpoint"], request_params=rp,
+             evidence=dict(ev,
+                           verdict="TEMPLATE_GRAMMAR_CONFIRMED"))
+
+    # sym_h/omni: OMNIWeb high-res CGI; compact-date {day_compact}
+    for ck, env_rel, sclass in (
+            ("sym_h", "mf4_feed_sym_h.envelope.json",
+             "NASA OMNIWeb high-res SYM/H (var 41)"),
+            ("omni", "mf4_feed_omni.envelope.json",
+             "NASA OMNIWeb high-res BZ-GSM/flow/density "
+             "(vars 17/21/25)")):
+        pk = probe_rec["keys"][f"MF4_FEED/{ck}"]
+        rp = dict(pk["request_params"])
+        assert rp.pop("start_date") == PROBE_DAY_COMPACT
+        assert rp.pop("end_date") == PROBE_DAY_COMPACT
+        rp["start_date"] = "{day_compact}"
+        rp["end_date"] = "{day_compact}"
+        ev = verify_probe_fill(env_rel, pk["endpoint"], rp)
+        fill("MF4_FEED", ck, kind="omniweb-highres-cgi",
+             endpoint=pk["endpoint"], request_params=rp,
+             evidence=dict(ev,
+                           verdict="TEMPLATE_GRAMMAR_CONFIRMED"),
+             source_class=sclass)
+
+    # socal_coachella + kp: PROBE_REFUSED -- templates BLOCKED
+    # pending a new codex ruling; the OPEN tokens keep the freeze
+    # gate refusing (structurally honest partial fill)
+    for lane, ck, why in (
+            ("SELECTION_RECORDS", "socal_coachella",
+             "PROBE_REFUSED: SCEDC HTTP 400 on the single "
+             "authorized request"),
+            ("MF4_FEED", "kp",
+             "PROBE_REFUSED: local SSL trust-store failure before "
+             "any response (environment defect)")):
+        lanes[lane]["carriers"][ck]["fill_status"] = (
+            "BLOCKED_" + why.split(":")[0] +
+            " -- pending a new codex ruling")
+        lanes[lane]["carriers"][ck]["fill_evidence"] = {
+            "refusal": why,
+            "probe_envelope": "docs/f2g_window2_execution/"
+            "probe_evidence/" + (
+                "selection_records_socal_coachella.envelope.json"
+                if ck == "socal_coachella"
+                else "mf4_feed_kp.envelope.json")}
 
     # codex 0238Z item 1: THE sole exact authority for the PRESTART
     # (lane, carrier, day) key set -- derived ONLY from the calendar/

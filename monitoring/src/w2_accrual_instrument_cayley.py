@@ -215,7 +215,7 @@ AUTHORITY_TOP_FIELDS = {
     "template_token_vocabulary"}
 AUTHORITY_CENSUS = 1794          # 4x90 + 3x239 + 3x239
 AUTHORITY_SCHEMA = "f2g-w2-expected-contracts-v3"
-TEMPLATE_TOKEN_VOCABULARY = ("{day}", "{day_next}")
+TEMPLATE_TOKEN_VOCABULARY = ("{day}", "{day_next}", "{day_compact}")
 
 
 def _validate_expected_keys_authority(repo, authority, *,
@@ -316,10 +316,12 @@ def authoritative_static_contract(authority, lane, carrier, day):
     import datetime as _dt
     day_next = (_dt.date.fromisoformat(str(day))
                 + _dt.timedelta(days=1)).isoformat()
+    day_compact = str(day).replace("-", "")
 
     def sub(v):
         if isinstance(v, str):
             return v.replace("{day_next}", day_next).replace(
+                "{day_compact}", day_compact).replace(
                 "{day}", day)
         if isinstance(v, dict):
             return {k: sub(x) for k, x in v.items()}
@@ -1687,6 +1689,15 @@ def _selftest():
     sc2 = authoritative_static_contract(auth_dn, "L", "c",
                                         "2026-12-31")
     assert sc2["request_params"]["endtime"] ==         "2027-01-01T00:00:00"                 # year boundary
+    # {day_compact}: OMNIWeb compact-date form
+    auth_cp = json.loads(json.dumps(auth_dn))
+    auth_cp["static_layer"]["L"]["carriers"]["c"][
+        "static_contract_template"]["request_params"] = {
+        "start_date": "{day_compact}", "end_date": "{day_compact}"}
+    sc3 = authoritative_static_contract(auth_cp, "L", "c",
+                                        "2026-08-31")
+    assert sc3["request_params"] == {"start_date": "20260831",
+                                     "end_date": "20260831"}
     auth_bad = json.loads(json.dumps(auth_dn))
     auth_bad["static_layer"]["L"]["carriers"]["c"][
         "static_contract_template"]["request_params"]["odd"] = \

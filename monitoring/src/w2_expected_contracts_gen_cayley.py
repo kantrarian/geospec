@@ -94,7 +94,8 @@ def _sub_day(v, day):
 
 
 def validate_evidence_obj(env, body, *, endpoint, tmpl_params,
-                          probe_day, time_fields=(), label=""):
+                          probe_day, time_fields=(),
+                          evidence_time_values=None, label=""):
     """codex 2205Z finding 4: THE one executable evidence lock, used
     for ALL TEN templates by build() and exercised directly by the
     mutation KATs. HTTP 200; exact body sha (and size where
@@ -129,16 +130,49 @@ def validate_evidence_obj(env, body, *, endpoint, tmpl_params,
     actual = {k: (v[0] if len(v) == 1 else v)
               for k, v in actual.items()}
     tp = dict(tmpl_params)
-    for f in time_fields:
-        if tp.get(f) not in ("{day}", "{day_next}"):
+    if time_fields:
+        # codex 2329Z finding 4: the evidence-side broad window is a
+        # CLOSED registered binding -- never copied from the envelope.
+        # Values must be canonical ISO dates in strict order and the
+        # envelope must carry them EXACTLY.
+        if not isinstance(evidence_time_values, dict) or \
+                set(evidence_time_values) != set(time_fields):
             raise AssertionError(
-                f"{label}: date-transform -- {f} is not a registered "
-                "day token (the broad-window transform substitutes "
-                "time fields ONLY)")
-        if f not in actual:
-            raise AssertionError(f"{label}: date-transform -- {f} "
-                                 "absent in the evidence query")
-        tp[f] = actual[f]
+                f"{label}: date-transform -- evidence_time_values "
+                "must be a closed mapping over exactly the time "
+                "fields")
+        parsed = {}
+        for f in time_fields:
+            v = evidence_time_values[f]
+            try:
+                parsed[f] = datetime.date.fromisoformat(str(v))
+            except ValueError:
+                raise AssertionError(
+                    f"{label}: date-transform -- registered evidence "
+                    f"time value {v!r} for {f} is not a canonical "
+                    "ISO date")
+        if "starttime" in parsed and "endtime" in parsed and \
+                not parsed["starttime"] < parsed["endtime"]:
+            raise AssertionError(
+                f"{label}: date-transform -- registered evidence "
+                "window is not strictly ordered")
+        for f in time_fields:
+            if tp.get(f) not in ("{day}", "{day_next}"):
+                raise AssertionError(
+                    f"{label}: date-transform -- {f} is not a "
+                    "registered day token (the broad-window "
+                    "transform substitutes time fields ONLY)")
+            if f not in actual:
+                raise AssertionError(f"{label}: date-transform -- "
+                                     f"{f} absent in the evidence "
+                                     "query")
+            if actual[f] != str(evidence_time_values[f]):
+                raise AssertionError(
+                    f"{label}: date-transform -- evidence {f} "
+                    f"{actual[f]!r} diverges from the registered "
+                    f"broad-window value "
+                    f"{evidence_time_values[f]!r}")
+            tp[f] = actual[f]
     expected = _sub_day(tp, probe_day)
     if PROD.requested_url_of(endpoint, expected) != \
             PROD.requested_url_of(endpoint, actual):
@@ -245,7 +279,8 @@ def build(repo):
     PROBE_DAY_COMPACT = "20251115"
 
     def _validate_evidence(env_rel, *, endpoint, tmpl_params,
-                           probe_day, time_fields=()):
+                           probe_day, time_fields=(),
+                           evidence_time_values=None):
         """File wrapper over validate_evidence_obj: reopens the named
         envelope AND its body from the repo (new schema: sibling .body
         + raw_body_sha256; old schema: body_path + body_sha256)."""
@@ -268,7 +303,10 @@ def build(repo):
         validate_evidence_obj(env, body, endpoint=endpoint,
                               tmpl_params=tmpl_params,
                               probe_day=probe_day,
-                              time_fields=time_fields, label=env_rel)
+                              time_fields=time_fields,
+                              evidence_time_values=(
+                                  evidence_time_values),
+                              label=env_rel)
         return {"probe_envelope": env_rel,
                 "probe_body_sha256":
                     env.get("raw_body_sha256") or env["body_sha256"],
@@ -321,7 +359,9 @@ def build(repo):
                 endpoint=sp["endpoint"],
                 tmpl_params=dict(sp["request_params"]),
                 probe_day="2026-07-11",
-                time_fields=("starttime", "endtime"))
+                time_fields=("starttime", "endtime"),
+                evidence_time_values={"starttime": "2026-07-11",
+                                      "endtime": "2026-11-30"})
         else:
             _validate_evidence(
                 sp["evidence"]["pinned_probe_envelope"],
@@ -512,7 +552,9 @@ def _selftest():
             endpoint=kw.pop("endpoint", "https://x.example/q"),
             tmpl_params=t, probe_day=kw.pop("probe_day",
                                             "2025-11-15"),
-            time_fields=kw.pop("time_fields", ()), label="kat")
+            time_fields=kw.pop("time_fields", ()),
+            evidence_time_values=kw.pop("evidence_time_values",
+                                        None), label="kat")
     check(base_env, tmpl)                       # positive
     for doctor, want in (
             (lambda e: e.update(requested_url=e["requested_url"]
@@ -537,17 +579,57 @@ def _selftest():
     # date-transform violation: a literal where the token must be
     try:
         check(dict(base_env), dict(tmpl, starttime="2025-11-15"),
-              time_fields=("starttime",))
+              time_fields=("starttime",),
+              evidence_time_values={"starttime": "2025-11-15"})
         raise SystemExit("literal time field must refuse")
     except AssertionError as ex:
         assert "date-transform" in str(ex)
-    # broad-window transform positive: envelope keeps its own window
+    # broad-window transform positive: the CLOSED registered window
     env_bw = dict(base_env,
                   requested_url="https://x.example/q?a=1&"
                                 "starttime=2026-07-11&"
                                 "endtime=2026-11-30")
+    BW = {"starttime": "2026-07-11", "endtime": "2026-11-30"}
     check(env_bw, dict(tmpl),
-          time_fields=("starttime", "endtime"))
+          time_fields=("starttime", "endtime"),
+          evidence_time_values=dict(BW))
+    # codex 2329Z finding 4 doctors: envelope time mutations refuse
+    for evil_url, why in (
+            ("https://x.example/q?a=1&starttime=EVIL&"
+             "endtime=ALSO_EVIL", "diverges"),
+            ("https://x.example/q?a=1&starttime=2026-07-12&"
+             "endtime=2026-11-30", "diverges"),
+            ("https://x.example/q?a=1&starttime=2026-07-11&"
+             "endtime=2026-11-29", "diverges"),
+            ("https://x.example/q?a=1&starttime=2026-07-11",
+             "absent"),
+    ):
+        try:
+            check(dict(env_bw, requested_url=evil_url), dict(tmpl),
+                  time_fields=("starttime", "endtime"),
+                  evidence_time_values=dict(BW))
+            raise SystemExit("envelope-time doctor must refuse: "
+                             + why)
+        except AssertionError as ex:
+            assert why in str(ex), (why, str(ex))
+    # registered-side doctors: malformed value, reversed window,
+    # non-closed mapping, omitted binding
+    for etv, why in (
+            ({"starttime": "EVIL", "endtime": "2026-11-30"},
+             "canonical ISO"),
+            ({"starttime": "2026-11-30", "endtime": "2026-07-11"},
+             "strictly ordered"),
+            ({"starttime": "2026-07-11"}, "closed mapping"),
+            (None, "closed mapping"),
+    ):
+        try:
+            check(dict(env_bw), dict(tmpl),
+                  time_fields=("starttime", "endtime"),
+                  evidence_time_values=etv)
+            raise SystemExit("registered-side doctor must refuse: "
+                             + why)
+        except AssertionError as ex:
+            assert why in str(ex), (why, str(ex))
     # repeated parameters: registered form passes, stringified refuses
     envr = {"http_status": 200, "raw_body_sha256": sha,
             "raw_body_bytes": len(body),

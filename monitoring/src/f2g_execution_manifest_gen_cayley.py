@@ -55,11 +55,18 @@ BOUND_SLOTS = {
         "owner": "cayley",
         "note": "barrier state machine + production instrument (core + "
                 "3 seam layers) + accrual-lane engines (W-BARRIER/"
-                "W-MF4/W-MAG green)",
+                "W-MF4/W-MAG green) + the FROZEN v3 static-contract "
+                "authority and its generator (codex 2205Z item 1: "
+                "capture admission requires the authority as a pin of "
+                "THIS slot; producer_boundary additionally binds it "
+                "at final boundary bind)",
         "paths": ["monitoring/src/w2_barrier.py",
                   "monitoring/src/w2_accrual_instrument_cayley.py",
                   "monitoring/src/w2_mf4.py",
-                  "monitoring/src/w2_mag1.py"]},
+                  "monitoring/src/w2_mag1.py",
+                  "monitoring/src/w2_expected_contracts_gen_cayley.py",
+                  "docs/f2g_window2_execution/"
+                  "staged_expected_contracts_v3.json"]},
     # v1.1 (codex 1358Z item 4/5): the two repaired execution tools
     # join the runtime allowlist as explicit slots
     "power_harness": {

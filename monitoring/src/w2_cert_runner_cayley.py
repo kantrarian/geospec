@@ -511,6 +511,20 @@ def _selftest():
     def geom_loader(mc, path):
         return FIX_GEOM
 
+    STAGE_PRE = "3" * 40
+    STAGE_RES = "4" * 40
+    STAGE_SMOKE = "5" * 40
+    STAGE_SEL = "6" * 40
+
+    def dag_ancestor(a, b):
+        order = ["d" * 40, STAGE_PRE, STAGE_RES,
+                 STAGE_SMOKE, STAGE_SEL]
+        # the REAL resolved manifest commit sits before every stage
+        ia = order.index(a) if a in order else -1
+        if b not in order:
+            return False
+        return ia <= order.index(b)
+
     def mk_tier_s_capsule(smoke_families, grids_obj, grids_raw,
                           store_map, commit, man_pins, impl_path,
                           geom_digest=GEOMD, mc_override=None):
@@ -561,7 +575,7 @@ def _selftest():
                 for e in entries]
         r_raw = json.dumps(results).encode()
         r_sha = _h.sha256(r_raw).hexdigest()
-        store_map[(commit, "ts_results.json")] = r_raw
+        store_map[(STAGE_RES, "ts_results.json")] = r_raw
         det_order = {f: [p for p in grids_obj[f] if "gain" not in p]
                      for f in ("B2A", "B2B", "B1B", "B3A")}
         pre = {"schema": "f2g-w2-tier-s-pre-invocation-v1",
@@ -570,6 +584,9 @@ def _selftest():
                                "path": grid_pin["path"],
                                "blob_sha256":
                                    grid_pin["blob_sha256"]},
+               "effect_grids_content_sha256": _digest_fn(
+                   {f: list(grids_obj[f])
+                    for f in grids_obj}),
                "geometry": {"commit": geom_pin["commit"],
                             "path": "geom.json",
                             "capsule_digest": geom_digest},
@@ -583,24 +600,24 @@ def _selftest():
         pre["invocation_sha256"] = _digest_fn(
             {k: v for k, v in pre.items()
              if k != "invocation_sha256"})
-        store_map[(commit, "ts_pre.json")] = json.dumps(
+        store_map[(STAGE_PRE, "ts_pre.json")] = json.dumps(
             pre).encode()
         comp = {"schema": "f2g-w2-tier-s-completion-v1",
                 "pre_invocation_sha256": pre["invocation_sha256"],
                 "results_blob_sha256": r_sha,
                 "fired_utc": "2026-08-25T00:00:00Z",
                 "completed_utc": "2026-08-25T11:00:00Z"}
-        store_map[(commit, "ts_comp.json")] = json.dumps(
+        store_map[(STAGE_RES, "ts_comp.json")] = json.dumps(
             comp).encode()
         return {"pre": pre, "comp": comp, "r_sha": r_sha,
                 "smoke_fields": {
-                    "pre_invocation_ref": {"commit": commit,
+                    "pre_invocation_ref": {"commit": STAGE_PRE,
                                            "path": "ts_pre.json"},
                     "pre_invocation_sha256":
                         pre["invocation_sha256"],
-                    "completion_ref": {"commit": commit,
+                    "completion_ref": {"commit": STAGE_RES,
                                        "path": "ts_comp.json"},
-                    "results_ref": {"commit": commit,
+                    "results_ref": {"commit": STAGE_RES,
                                     "path": "ts_results.json",
                                     "blob_sha256": r_sha}}}
 
@@ -627,12 +644,13 @@ def _selftest():
                   "geometry_capsule_digest": "kat",
                   "effect_grids_sha256": _digest(grids),
                   "families": fams}, **caps["smoke_fields"])
-    store[("d" * 40, "smoke.json")] = json.dumps(smoke).encode()
-    refs = {"smoke_ref": {"commit": "d" * 40, "path": "smoke.json"},
+    store[(STAGE_SMOKE, "smoke.json")] = json.dumps(smoke).encode()
+    refs = {"smoke_ref": {"commit": STAGE_SMOKE,
+                          "path": "smoke.json"},
             "effect_grids_ref": {"commit": "d" * 40,
                                  "path": "grids.json"}}
     art = TS.select_candidates(smoke, grids, **refs)
-    store[("d" * 40, "selector.json")] = json.dumps(art).encode()
+    store[(STAGE_SEL, "selector.json")] = json.dumps(art).encode()
 
     def reader(commit, path):
         if path.endswith("execution_manifest.json"):
@@ -648,7 +666,7 @@ def _selftest():
         return c if len(str(c)) == 40 else             resolve_manifest_commit(repo_g, c)
 
     art2, pts, sha = load_selector_committed(
-        ".", "d" * 40, "selector.json", blob_reader=reader)
+        ".", STAGE_SEL, "selector.json", blob_reader=reader)
     assert len(pts) == 14
 
     # item 2 locks: fabricated minimal selector; altered points;
@@ -744,11 +762,11 @@ def _selftest():
                         f)["invocation_sha256"]
             return Stub(idx)
         return run_campaign(repo_g, hexmc[:12], "docs/g.json",
-                            "d" * 40, "selector.json", n, outdir,
+                            STAGE_SEL, "selector.json", n, outdir,
                             argv=["kat"], spawn=spawn,
                             blob_reader=reader, git_resolve=gresolve,
                             geometry_loader=geom_loader,
-                            is_ancestor=lambda a, b: True)
+                            is_ancestor=dag_ancestor)
 
     od1 = os.path.join(tmp, "ok")
     s = fire(od1)

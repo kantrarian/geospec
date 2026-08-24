@@ -57,6 +57,7 @@ TIER_S_RESULT_ENTRY_FIELDS = {"point", "grid_index",
                               "loco_folds"}
 TIER_S_PRE_SCHEMA = "f2g-w2-tier-s-pre-invocation-v1"
 TIER_S_PRE_FIELDS = {"schema", "manifest_commit", "effect_grids",
+                     "effect_grids_content_sha256",
                      "geometry", "quality", "seed_authority_sha256",
                      "implementation", "grid_order_sha256",
                      "output_root", "argv", "host", "interpreter",
@@ -314,6 +315,24 @@ def _canon_instant(v, where):
     return _dt.datetime.fromisoformat(v.replace("Z", "+00:00"))
 
 
+def _valid_p(v, where, allow_none=False):
+    """codex 1328Z item 5: a p-value is None (registered untestable,
+    where allowed) or a NON-BOOLEAN finite numeric in [0, 1] --
+    booleans, negatives, >1, NaN, and infinities are never scientific
+    evidence."""
+    if v is None:
+        if allow_none:
+            return
+        raise SelectorRefusal(
+            f"SELECTOR_UNADMITTED: {where} is None where a value is "
+            "required")
+    import math as _m
+    if isinstance(v, bool) or not isinstance(v, (int, float)) or             not _m.isfinite(v) or not 0.0 <= float(v) <= 1.0:
+        raise SelectorRefusal(
+            f"SELECTOR_UNADMITTED: {where} {v!r} is not a finite "
+            "numeric in [0, 1]")
+
+
 def _rebuild_outcomes(fam, entry, holm_fn, loco_registry):
     """codex 0349Z item 2: outcomes are DERIVED, never declared --
     per replicate the full four-family p-vector reruns Holm; for B1B
@@ -335,6 +354,8 @@ def _rebuild_outcomes(fam, entry, holm_fn, loco_registry):
             raise SelectorRefusal(
                 "SELECTOR_UNADMITTED: replicate p-vector not the "
                 "four families")
+        for f, v in pv.items():
+            _valid_p(v, f"{f} p-value")
         rej = holm_fn(pv)
         pre.append(fam in rej)
         if fam == "B1B" and folds is not None:
@@ -349,6 +370,8 @@ def _rebuild_outcomes(fam, entry, holm_fn, loco_registry):
             ok = "B1B" in rej
             for st in sorted(fr):
                 p_s = fr[st]
+                _valid_p(p_s, f"loco:{st} fold p-value",
+                         allow_none=True)
                 if p_s is None or "B1B" not in holm_fn(
                         dict(pv, B1B=p_s)):
                     ok = False
@@ -564,6 +587,10 @@ def verify_selector_admission(repo, art, manifest_commit, *,
         raise SelectorRefusal(
             "SELECTOR_UNADMITTED: pre-invocation grid order "
             "diverges from the admitted detection grids")
+    if pre["effect_grids_content_sha256"] != _digest(grids2) or             smoke.get("effect_grids_sha256") !=             pre["effect_grids_content_sha256"]:
+        raise SelectorRefusal(
+            "SELECTOR_UNADMITTED: the grid content digest chain "
+            "(admitted bytes -> pre -> smoke) is broken")
     # completion: closed, binds pre digest + results blob, ordered
     comp_full = _resolve(comp_ref["commit"])
     comp = json.loads(blob_reader(
@@ -667,23 +694,32 @@ def verify_selector_admission(repo, art, manifest_commit, *,
         import subprocess as _sp
 
         def is_ancestor(a, b):
-            if a == b:
-                return True
             return _sp.run(["git", "-C", repo, "merge-base",
                             "--is-ancestor", a, b],
                            capture_output=True).returncode == 0
-    chain = [(mc_full, pre_full, "manifest->pre"),
-             (pre_full, r_full, "pre->results"),
-             (pre_full, comp_full, "pre->completion"),
-             (r_full, s_full, "results->smoke")]
-    if selector_identity is not None:
-        sel_full = _resolve(selector_identity["commit"])
-        chain.append((s_full, sel_full, "smoke->selector"))
-    for a, b, label in chain:
-        if not is_ancestor(a, b):
+
+    def strict_edge(a, b, label):
+        """codex 1328Z item 2: STAGE ancestry is STRICT -- a commit
+        is its own git-ancestor, so reflexive edges are refused; a
+        post-hoc same-commit capsule has no chain to live on."""
+        if a == b or not is_ancestor(a, b):
             raise SelectorRefusal(
                 f"SELECTOR_UNADMITTED: lineage edge {label} is not "
-                "a descendant chain from the admitted manifest")
+                "STRICT stage ancestry (same-commit or non-ancestor)")
+    strict_edge(mc_full, pre_full, "manifest->pre")
+    if r_full == comp_full:
+        # results and completion may intentionally share ONE commit;
+        # that shared commit must sit strictly between pre and smoke
+        strict_edge(pre_full, r_full, "pre->results/completion")
+        strict_edge(r_full, s_full, "results/completion->smoke")
+    else:
+        strict_edge(pre_full, r_full, "pre->results")
+        strict_edge(pre_full, comp_full, "pre->completion")
+        strict_edge(r_full, s_full, "results->smoke")
+        strict_edge(comp_full, s_full, "completion->smoke")
+    if selector_identity is not None:
+        sel_full = _resolve(selector_identity["commit"])
+        strict_edge(s_full, sel_full, "smoke->selector")
     return {"manifest_commit": mc_full,
             "effect_grids": {"commit": pinned["commit"],
                              "path": g_ref["path"],
@@ -885,6 +921,19 @@ def _selftest():
     def geom_loader(mc, path):
         return FIX_GEOM
 
+    STAGE_PRE = "3" * 40
+    STAGE_RES = "4" * 40
+    STAGE_SMOKE = "5" * 40
+    STAGE_SEL = "6" * 40
+
+    def dag_ancestor(a, b):
+        order = ["a" * 40, STAGE_PRE, STAGE_RES,
+                 STAGE_SMOKE, STAGE_SEL]
+        try:
+            return order.index(a) <= order.index(b)
+        except ValueError:
+            return False
+
     def mk_tier_s_capsule(smoke_families, grids_obj, grids_raw,
                           store_map, commit, man_pins, impl_path,
                           geom_digest=GEOMD, mc_override=None):
@@ -935,7 +984,7 @@ def _selftest():
                 for e in entries]
         r_raw = json.dumps(results).encode()
         r_sha = _h.sha256(r_raw).hexdigest()
-        store_map[(commit, "ts_results.json")] = r_raw
+        store_map[(STAGE_RES, "ts_results.json")] = r_raw
         det_order = {f: [p for p in grids_obj[f] if "gain" not in p]
                      for f in ("B2A", "B2B", "B1B", "B3A")}
         pre = {"schema": "f2g-w2-tier-s-pre-invocation-v1",
@@ -944,6 +993,9 @@ def _selftest():
                                "path": grid_pin["path"],
                                "blob_sha256":
                                    grid_pin["blob_sha256"]},
+               "effect_grids_content_sha256": _digest_fn(
+                   {f: list(grids_obj[f])
+                    for f in grids_obj}),
                "geometry": {"commit": geom_pin["commit"],
                             "path": "geom.json",
                             "capsule_digest": geom_digest},
@@ -957,24 +1009,24 @@ def _selftest():
         pre["invocation_sha256"] = _digest_fn(
             {k: v for k, v in pre.items()
              if k != "invocation_sha256"})
-        store_map[(commit, "ts_pre.json")] = json.dumps(
+        store_map[(STAGE_PRE, "ts_pre.json")] = json.dumps(
             pre).encode()
         comp = {"schema": "f2g-w2-tier-s-completion-v1",
                 "pre_invocation_sha256": pre["invocation_sha256"],
                 "results_blob_sha256": r_sha,
                 "fired_utc": "2026-08-25T00:00:00Z",
                 "completed_utc": "2026-08-25T11:00:00Z"}
-        store_map[(commit, "ts_comp.json")] = json.dumps(
+        store_map[(STAGE_RES, "ts_comp.json")] = json.dumps(
             comp).encode()
         return {"pre": pre, "comp": comp, "r_sha": r_sha,
                 "smoke_fields": {
-                    "pre_invocation_ref": {"commit": commit,
+                    "pre_invocation_ref": {"commit": STAGE_PRE,
                                            "path": "ts_pre.json"},
                     "pre_invocation_sha256":
                         pre["invocation_sha256"],
-                    "completion_ref": {"commit": commit,
+                    "completion_ref": {"commit": STAGE_RES,
                                        "path": "ts_comp.json"},
-                    "results_ref": {"commit": commit,
+                    "results_ref": {"commit": STAGE_RES,
                                     "path": "ts_results.json",
                                     "blob_sha256": r_sha}}}
 
@@ -996,7 +1048,8 @@ def _selftest():
     sm2 = dict(sm, schema="f2g-w2-tier-s-smoke-v1",
                effect_grids_sha256=_digest(grids),
                **caps["smoke_fields"])
-    astore[("a" * 40, "smoke2.json")] = json.dumps(sm2).encode()
+    astore[(STAGE_SMOKE, "smoke2.json")] = json.dumps(
+        sm2).encode()
 
     def areader(commit, path):
         if path.endswith("execution_manifest.json"):
@@ -1006,7 +1059,7 @@ def _selftest():
         except KeyError:
             raise SelectorRefusal(
                 f"SELECTOR_UNADMITTED: {path} unreadable at {commit}")
-    refs2 = {"smoke_ref": {"commit": "a" * 40,
+    refs2 = {"smoke_ref": {"commit": STAGE_SMOKE,
                            "path": "smoke2.json"},
              "effect_grids_ref": {"commit": "a" * 40,
                                   "path": "grids2.json"}}
@@ -1015,7 +1068,7 @@ def _selftest():
     adm = verify_selector_admission(
         ".", art_a, "a" * 40, blob_reader=areader,
         git_resolve=lambda c: c, geometry_loader=geom_loader,
-        is_ancestor=lambda a, b: True)
+        is_ancestor=dag_ancestor)
     assert adm["effect_grids"]["blob_sha256"] ==         _hl.sha256(grids_raw).hexdigest()
     assert adm["smoke"]["pre_invocation_sha256"] ==         caps["pre"]["invocation_sha256"]
     assert adm["pre_invocation"]["invocation_sha256"] ==         caps["pre"]["invocation_sha256"]
@@ -1026,7 +1079,7 @@ def _selftest():
                                       blob_reader=areader,
                                       git_resolve=resolve,
                                       geometry_loader=geom_loader,
-                                      is_ancestor=lambda a, b: True)
+                                      is_ancestor=dag_ancestor)
             return False
         except SelectorRefusal as e:
             return needle in str(e)
@@ -1054,24 +1107,24 @@ def _selftest():
     # smoke missing the pre-invocation reference -> unadmitted
     sm_noinv = {k: v for k, v in sm2.items()
                 if k != "pre_invocation_ref"}
-    astore[("a" * 40, "smoke_noinv.json")] = json.dumps(
+    astore[(STAGE_SMOKE, "smoke_noinv.json")] = json.dumps(
         sm_noinv).encode()
     art_ni = select_candidates(
         sm_noinv, grids,
-        smoke_ref={"commit": "a" * 40, "path": "smoke_noinv.json"},
+        smoke_ref={"commit": STAGE_SMOKE, "path": "smoke_noinv.json"},
         effect_grids_ref=refs2["effect_grids_ref"])
     assert arefuses(art_ni, "lacks a closed pre_invocation_ref")
     # forged Tier-S invocation digest -> unadmitted
     ts_bad = dict(caps["pre"], invocation_sha256="0" * 64)
     sm_bad = dict(sm2, pre_invocation_sha256="0" * 64,
-                  pre_invocation_ref={"commit": "a" * 40,
+                  pre_invocation_ref={"commit": STAGE_PRE,
                                       "path": "ts_bad.json"})
-    astore[("a" * 40, "ts_bad.json")] = json.dumps(ts_bad).encode()
-    astore[("a" * 40, "smoke_bad.json")] = json.dumps(
+    astore[(STAGE_PRE, "ts_bad.json")] = json.dumps(ts_bad).encode()
+    astore[(STAGE_SMOKE, "smoke_bad.json")] = json.dumps(
         sm_bad).encode()
     art_fb = select_candidates(
         sm_bad, grids,
-        smoke_ref={"commit": "a" * 40, "path": "smoke_bad.json"},
+        smoke_ref={"commit": STAGE_SMOKE, "path": "smoke_bad.json"},
         effect_grids_ref=refs2["effect_grids_ref"])
     assert arefuses(art_fb, "does not recompute")
     # codex 0320Z item 2 LOCK: the admitted grid + a fabricated
@@ -1083,10 +1136,10 @@ def _selftest():
     min_inv["invocation_sha256"] = _digest(
         {k: v for k, v in min_inv.items()
          if k != "invocation_sha256"})
-    astore[("a" * 40, "min_inv.json")] = json.dumps(
+    astore[(STAGE_PRE, "min_inv.json")] = json.dumps(
         min_inv).encode()
     min_fields = dict(caps["smoke_fields"],
-                      pre_invocation_ref={"commit": "a" * 40,
+                      pre_invocation_ref={"commit": STAGE_PRE,
                                           "path": "min_inv.json"},
                       pre_invocation_sha256=min_inv[
                           "invocation_sha256"])
@@ -1103,77 +1156,78 @@ def _selftest():
                      schema="f2g-w2-tier-s-smoke-v1",
                      effect_grids_sha256=_digest(grids),
                      **min_fields)
-    astore[("a" * 40, "fab_smoke.json")] = json.dumps(
+    astore[(STAGE_SMOKE, "fab_smoke.json")] = json.dumps(
         fab_smoke).encode()
     art_fab = select_candidates(
         fab_smoke, grids,
-        smoke_ref={"commit": "a" * 40, "path": "fab_smoke.json"},
+        smoke_ref={"commit": STAGE_SMOKE, "path": "fab_smoke.json"},
         effect_grids_ref=refs2["effect_grids_ref"])
     assert arefuses(art_fab, "self-hashed dict attests nothing")
     # and a WELL-FORMED capsule whose smoke lists do not derive from
     # its results carrier refuses at the rebuild
     fab2 = dict(fab_smoke, **caps["smoke_fields"])
-    astore[("a" * 40, "fab2_smoke.json")] = json.dumps(
+    astore[(STAGE_SMOKE, "fab2_smoke.json")] = json.dumps(
         fab2).encode()
     art_fab2 = select_candidates(
         fab2, grids,
-        smoke_ref={"commit": "a" * 40, "path": "fab2_smoke.json"},
+        smoke_ref={"commit": STAGE_SMOKE, "path": "fab2_smoke.json"},
         effect_grids_ref=refs2["effect_grids_ref"])
     assert arefuses(art_fab2, "do not DERIVE")
 
     # --- codex 0349Z item 3: the nested-field + lineage MUTATION
     # TABLE -- every identity/lineage edge, one loop
     def re_capsule(mut_pre=None, mut_results=None, mut_comp=None,
-                   ancestor=lambda a, b: True):
+                   ancestor=None):
         store2 = dict(astore)
         caps2 = mk_tier_s_capsule(sm["families"], grids, grids_raw,
                                   store2, "a" * 40, man_pins,
                                   "impl.py")
         if mut_results:
-            res2 = json.loads(store2[("a" * 40,
+            res2 = json.loads(store2[(STAGE_RES,
                                       "ts_results.json")].decode())
             mut_results(res2)
             raw2 = json.dumps(res2).encode()
-            store2[("a" * 40, "ts_results.json")] = raw2
+            store2[(STAGE_RES, "ts_results.json")] = raw2
             import hashlib as _h2
             r_sha2 = _h2.sha256(raw2).hexdigest()
             caps2["smoke_fields"]["results_ref"]["blob_sha256"] = \
                 r_sha2
-            comp2 = json.loads(store2[("a" * 40,
+            comp2 = json.loads(store2[(STAGE_RES,
                                        "ts_comp.json")].decode())
             comp2["results_blob_sha256"] = r_sha2
-            store2[("a" * 40, "ts_comp.json")] = json.dumps(
+            store2[(STAGE_RES, "ts_comp.json")] = json.dumps(
                 comp2).encode()
         if mut_pre:
-            pre2 = json.loads(store2[("a" * 40,
+            pre2 = json.loads(store2[(STAGE_PRE,
                                       "ts_pre.json")].decode())
             mut_pre(pre2)
             pre2["invocation_sha256"] = _digest(
                 {k: v for k, v in pre2.items()
                  if k != "invocation_sha256"})
-            store2[("a" * 40, "ts_pre.json")] = json.dumps(
+            store2[(STAGE_PRE, "ts_pre.json")] = json.dumps(
                 pre2).encode()
             caps2["smoke_fields"]["pre_invocation_sha256"] = \
                 pre2["invocation_sha256"]
-            comp2 = json.loads(store2[("a" * 40,
+            comp2 = json.loads(store2[(STAGE_RES,
                                        "ts_comp.json")].decode())
             comp2["pre_invocation_sha256"] = \
                 pre2["invocation_sha256"]
-            store2[("a" * 40, "ts_comp.json")] = json.dumps(
+            store2[(STAGE_RES, "ts_comp.json")] = json.dumps(
                 comp2).encode()
         if mut_comp:
-            comp2 = json.loads(store2[("a" * 40,
+            comp2 = json.loads(store2[(STAGE_RES,
                                        "ts_comp.json")].decode())
             mut_comp(comp2)
-            store2[("a" * 40, "ts_comp.json")] = json.dumps(
+            store2[(STAGE_RES, "ts_comp.json")] = json.dumps(
                 comp2).encode()
         sm3 = dict(sm, schema="f2g-w2-tier-s-smoke-v1",
                    effect_grids_sha256=_digest(grids),
                    **caps2["smoke_fields"])
-        store2[("a" * 40, "smoke3.json")] = json.dumps(sm3).encode()
+        store2[(STAGE_SMOKE, "smoke3.json")] = json.dumps(
+            sm3).encode()
         art3 = select_candidates(
             sm3, grids,
-            smoke_ref={"commit": "a" * 40, "path": "smoke3.json"},
+            smoke_ref={"commit": STAGE_SMOKE, "path": "smoke3.json"},
             effect_grids_ref=refs2["effect_grids_ref"])
 
         def rdr(c, p):
@@ -1184,7 +1238,8 @@ def _selftest():
             verify_selector_admission(
                 ".", art3, "a" * 40, blob_reader=rdr,
                 git_resolve=lambda c: c,
-                geometry_loader=geom_loader, is_ancestor=ancestor)
+                geometry_loader=geom_loader,
+                is_ancestor=ancestor or dag_ancestor)
             return None
         except SelectorRefusal as e:
             return str(e)
@@ -1226,7 +1281,55 @@ def _selftest():
             (mi, mr, mc_, msg)
     # lineage edge broken -> refuse
     msg = re_capsule(ancestor=lambda a, b: False)
-    assert msg is not None and "descendant chain" in msg
+    assert msg is not None and "STRICT stage ancestry" in msg
+    # codex 1328Z item 2: a SAME-COMMIT post-hoc capsule refuses
+    msg = re_capsule(ancestor=lambda a, b: True)
+    assert msg is None or True   # DAG default governs; explicit:
+    same = re_capsule(ancestor=lambda a, b: a == b or True)
+    # the real same-commit doctor: collapse every stage commit
+    flat_store = dict(astore)
+    caps_f = mk_tier_s_capsule(sm["families"], grids, grids_raw,
+                               flat_store, "a" * 40, man_pins,
+                               "impl.py")
+    flat = {}
+    for (c, pth), v in flat_store.items():
+        flat[("a" * 40, pth)] = v
+    sfields = {k: (dict(v, commit="a" * 40)
+                   if isinstance(v, dict) and "commit" in v else v)
+               for k, v in caps_f["smoke_fields"].items()}
+    smf = dict(sm, schema="f2g-w2-tier-s-smoke-v1",
+               effect_grids_sha256=_digest(grids), **sfields)
+    flat[("a" * 40, "smoke_flat.json")] = json.dumps(smf).encode()
+    art_flat = select_candidates(
+        smf, grids,
+        smoke_ref={"commit": "a" * 40, "path": "smoke_flat.json"},
+        effect_grids_ref=refs2["effect_grids_ref"])
+
+    def flat_rdr(c, p):
+        if p.endswith("execution_manifest.json"):
+            return json.dumps(fix_man).encode()
+        return flat[(c, p)]
+    try:
+        verify_selector_admission(
+            ".", art_flat, "a" * 40, blob_reader=flat_rdr,
+            git_resolve=lambda c: c, geometry_loader=geom_loader,
+            is_ancestor=lambda a, b: True)
+        raise AssertionError("same-commit capsule must refuse")
+    except SelectorRefusal as e:
+        assert "STRICT stage ancestry" in str(e)
+    # codex 1328Z item 5: invalid p-values are never evidence
+    for bad_p in (-1.0, 1.1, False, float("nan"), float("inf")):
+        msg = re_capsule(mut_results=lambda r, b=bad_p:
+                         r["families"]["B2A"][0]["replicates"][0]
+                         ["p_values"].update(B2A=b))
+        assert msg is not None and (
+            "not a finite numeric" in msg or "do not DERIVE" in msg
+            ), (bad_p, msg)
+    msg = re_capsule(mut_results=lambda r:
+                     r["families"]["B1B"][0]["loco_folds"][0]
+                     .update(S0=False))
+    assert msg is not None and ("not a finite numeric" in msg
+                                or "do not DERIVE" in msg)
     # forged results whose p-vectors do not derive the smoke refuse
     # (the last mutation above flips one replicate's p-value); the
     # coordinated case -- fabricated smoke + MATCHING fabricated

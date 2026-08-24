@@ -2081,7 +2081,16 @@
      "expected_keys": "OPEN_REVIEW_ROUND",
      "operation_params": "OPEN_REVIEW_ROUND",
      "request_params": "OPEN_REVIEW_ROUND",
-     "source_class": "USGS geomagnetism"
+     "source_class": "USGS geomagnetism",
+     "static_contract_template": {
+      "endpoint": "https://geomag.usgs.gov/ws/data/",
+      "operation_params": "OPEN_REVIEW_ROUND",
+      "request_params": "OPEN_REVIEW_ROUND",
+      "source": {
+       "kind": "usgs-minute",
+       "ref": "https://geomag.usgs.gov/ws/data/"
+      }
+     }
     },
     "izn": {
      "cutoff": "2026-08-25",
@@ -2328,7 +2337,16 @@
      "expected_keys": "OPEN_REVIEW_ROUND",
      "operation_params": "OPEN_REVIEW_ROUND",
      "request_params": "OPEN_REVIEW_ROUND",
-     "source_class": "INTERMAGNET GIN"
+     "source_class": "INTERMAGNET GIN",
+     "static_contract_template": {
+      "endpoint": "https://imag-data.bgs.ac.uk/GIN_V1/GINServices",
+      "operation_params": "OPEN_REVIEW_ROUND",
+      "request_params": "OPEN_REVIEW_ROUND",
+      "source": {
+       "kind": "gin-minute",
+       "ref": "https://imag-data.bgs.ac.uk/GIN_V1/GINServices"
+      }
+     }
     },
     "tuc": {
      "cutoff": "2026-08-25",
@@ -2575,7 +2593,16 @@
      "expected_keys": "OPEN_REVIEW_ROUND",
      "operation_params": "OPEN_REVIEW_ROUND",
      "request_params": "OPEN_REVIEW_ROUND",
-     "source_class": "USGS geomagnetism"
+     "source_class": "USGS geomagnetism",
+     "static_contract_template": {
+      "endpoint": "https://geomag.usgs.gov/ws/data/",
+      "operation_params": "OPEN_REVIEW_ROUND",
+      "request_params": "OPEN_REVIEW_ROUND",
+      "source": {
+       "kind": "usgs-minute",
+       "ref": "https://geomag.usgs.gov/ws/data/"
+      }
+     }
     }
    },
    "day_set_rule": "calibration span [2026-01-01, 2026-08-25] (mag1 instantiation)"
@@ -2827,7 +2854,16 @@
      "expected_keys": "OPEN_REVIEW_ROUND",
      "operation_params": "OPEN_REVIEW_ROUND",
      "request_params": "OPEN_REVIEW_ROUND",
-     "source_class": "GFZ Kp"
+     "source_class": "GFZ Kp",
+     "static_contract_template": {
+      "endpoint": "OPEN_REVIEW_ROUND",
+      "operation_params": "OPEN_REVIEW_ROUND",
+      "request_params": "OPEN_REVIEW_ROUND",
+      "source": {
+       "kind": "driver-series",
+       "ref": "OPEN_REVIEW_ROUND"
+      }
+     }
     },
     "omni": {
      "cutoff": "2026-08-25",
@@ -3074,7 +3110,16 @@
      "expected_keys": "OPEN_REVIEW_ROUND",
      "operation_params": "OPEN_REVIEW_ROUND",
      "request_params": "OPEN_REVIEW_ROUND",
-     "source_class": "NASA OMNI"
+     "source_class": "NASA OMNI",
+     "static_contract_template": {
+      "endpoint": "OPEN_REVIEW_ROUND",
+      "operation_params": "OPEN_REVIEW_ROUND",
+      "request_params": "OPEN_REVIEW_ROUND",
+      "source": {
+       "kind": "driver-series",
+       "ref": "OPEN_REVIEW_ROUND"
+      }
+     }
     },
     "sym_h": {
      "cutoff": "2026-08-25",
@@ -3321,7 +3366,16 @@
      "expected_keys": "OPEN_REVIEW_ROUND",
      "operation_params": "OPEN_REVIEW_ROUND",
      "request_params": "OPEN_REVIEW_ROUND",
-     "source_class": "WDC-Kyoto SYM-H"
+     "source_class": "WDC-Kyoto SYM-H",
+     "static_contract_template": {
+      "endpoint": "OPEN_REVIEW_ROUND",
+      "operation_params": "OPEN_REVIEW_ROUND",
+      "request_params": "OPEN_REVIEW_ROUND",
+      "source": {
+       "kind": "driver-series",
+       "ref": "OPEN_REVIEW_ROUND"
+      }
+     }
     }
    },
    "day_set_rule": "calibration span [2026-01-01, 2026-08-25]"
@@ -3426,7 +3480,16 @@
      "expected_keys": "OPEN_REVIEW_ROUND",
      "operation_params": "OPEN_REVIEW_ROUND",
      "request_params": "OPEN_REVIEW_ROUND",
-     "source_class": "FDSN dataselect/station (registered carrier networks)"
+     "source_class": "FDSN dataselect/station (registered carrier networks)",
+     "static_contract_template": {
+      "endpoint": "OPEN_REVIEW_ROUND",
+      "operation_params": "OPEN_REVIEW_ROUND",
+      "request_params": "OPEN_REVIEW_ROUND",
+      "source": {
+       "kind": "fdsn",
+       "ref": "OPEN_REVIEW_ROUND"
+      }
+     }
     },
     "istanbul_marmara": {
      "cutoff": "2026-08-25",
@@ -3526,7 +3589,16 @@
      "expected_keys": "OPEN_REVIEW_ROUND",
      "operation_params": "OPEN_REVIEW_ROUND",
      "request_params": "OPEN_REVIEW_ROUND",
-     "source_class": "FDSN dataselect/station (registered carrier networks)"
+     "source_class": "FDSN dataselect/station (registered carrier networks)",
+     "static_contract_template": {
+      "endpoint": "OPEN_REVIEW_ROUND",
+      "operation_params": "OPEN_REVIEW_ROUND",
+      "request_params": "OPEN_REVIEW_ROUND",
+      "source": {
+       "kind": "fdsn",
+       "ref": "OPEN_REVIEW_ROUND"
+      }
+     }
     },
     "socal_coachella": {
      "cutoff": "2026-08-25",
@@ -3626,7 +3698,16 @@
      "expected_keys": "OPEN_REVIEW_ROUND",
      "operation_params": "OPEN_REVIEW_ROUND",
      "request_params": "OPEN_REVIEW_ROUND",
-     "source_class": "FDSN dataselect/station (registered carrier networks)"
+     "source_class": "FDSN dataselect/station (registered carrier networks)",
+     "static_contract_template": {
+      "endpoint": "OPEN_REVIEW_ROUND",
+      "operation_params": "OPEN_REVIEW_ROUND",
+      "request_params": "OPEN_REVIEW_ROUND",
+      "source": {
+       "kind": "fdsn",
+       "ref": "OPEN_REVIEW_ROUND"
+      }
+     }
     },
     "turkey_kahramanmaras": {
      "cutoff": "2026-08-25",
@@ -3726,7 +3807,16 @@
      "expected_keys": "OPEN_REVIEW_ROUND",
      "operation_params": "OPEN_REVIEW_ROUND",
      "request_params": "OPEN_REVIEW_ROUND",
-     "source_class": "FDSN dataselect/station (registered carrier networks)"
+     "source_class": "FDSN dataselect/station (registered carrier networks)",
+     "static_contract_template": {
+      "endpoint": "OPEN_REVIEW_ROUND",
+      "operation_params": "OPEN_REVIEW_ROUND",
+      "request_params": "OPEN_REVIEW_ROUND",
+      "source": {
+       "kind": "fdsn",
+       "ref": "OPEN_REVIEW_ROUND"
+      }
+     }
     }
    },
    "day_set_rule": "[cutoff-89, cutoff] = [2026-05-28, 2026-08-25], 90 days exact (selection frame)"

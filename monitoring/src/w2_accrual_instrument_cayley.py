@@ -208,9 +208,116 @@ def _parse_staged_pin(path):
     return None
 
 
+AUTHORITY_TOP_FIELDS = {
+    "schema", "prestart_expected_keys",
+    "prestart_expected_keys_sha256", "static_layer",
+    "dynamic_layer", "digests", "provenance"}
+AUTHORITY_CENSUS = 1782          # 4x90 + 3x237 + 3x237
+
+
+def _validate_expected_keys_authority(repo, authority, *,
+                                      reproducer=None):
+    """codex 0320Z item 3: the key authority capsule is CLOSED and
+    SELF-VERIFYING -- exact top-level schema; the recorded key digest
+    RECOMPUTES; every day list unique + ascending canonical; the
+    registered census; and the whole artifact REPRODUCES from the
+    pinned generator (production default; injectable for KATs
+    only). A forged digest or empty carrier map never passes."""
+    def refuse(detail):
+        raise InstrumentRefusal(
+            f"PRESTART_ADMISSION_REFUSED: authority {detail}")
+    if not isinstance(authority, dict) or \
+            set(authority) != AUTHORITY_TOP_FIELDS or \
+            authority.get("schema") != \
+            "f2g-w2-expected-contracts-v2":
+        refuse("top-level schema not closed")
+    keys = authority["prestart_expected_keys"]
+    got = hashlib.sha256(json.dumps(
+        keys, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest()
+    if got != authority["prestart_expected_keys_sha256"]:
+        refuse("key digest does not recompute")
+    if sorted(keys) != sorted(PRESTART_LANES):
+        refuse("lane set is not the registered PRESTART lanes")
+    census = 0
+    for lane in keys:
+        if not keys[lane]:
+            refuse(f"{lane} carrier map is empty")
+        for ck, days in keys[lane].items():
+            if not days or days != sorted(days) or \
+                    len(set(days)) != len(days):
+                refuse(f"{lane}/{ck} days not unique ascending")
+            import datetime as _dt
+            for d in days:
+                try:
+                    ok = _dt.date.fromisoformat(
+                        str(d)).isoformat() == d
+                except ValueError:
+                    ok = False
+                if not ok:
+                    refuse(f"{lane}/{ck} non-canonical day {d!r}")
+            census += len(days)
+    if reproducer is None and census != AUTHORITY_CENSUS:
+        # the census constant binds the PRODUCTION path; injected
+        # fixture reproducers carry their own censuses under the
+        # same closed schema + reproduction equality
+        refuse(f"census {census} != {AUTHORITY_CENSUS}")
+    if reproducer is None:
+        import w2_expected_contracts_gen_cayley as GEN
+
+        def reproducer():
+            return GEN.build(repo)
+    if json.dumps(reproducer(), sort_keys=True,
+                  separators=(",", ":")) != \
+            json.dumps(authority, sort_keys=True,
+                       separators=(",", ":")):
+        refuse("artifact does not REPRODUCE from the pinned "
+               "calendar/probe/schedule generator")
+    return authority
+
+
+def authoritative_static_contract(authority, lane, carrier, day):
+    """codex 0320Z item 1: the per-day S entry derives from the
+    INDEPENDENT authority template (never the submitted sidecar);
+    any OPEN token in the consumed template REFUSES -- the two-phase
+    rule is structural: the v3 value freeze precedes the first
+    capture."""
+    entry = authority["static_layer"][lane]["carriers"][carrier]
+    t = entry.get("static_contract_template")
+    if not isinstance(t, dict):
+        raise InstrumentRefusal(
+            "PRESTART_ADMISSION_REFUSED: no static-contract "
+            f"template registered for {lane}/{carrier}")
+    if "OPEN_REVIEW_ROUND" in json.dumps(t):
+        raise InstrumentRefusal(
+            "PRESTART_ADMISSION_REFUSED: the consumed authority "
+            f"template for {lane}/{carrier} carries OPEN tokens "
+            "-- the v3 static freeze precedes any capture")
+
+    def sub(v):
+        if isinstance(v, str):
+            return v.replace("{day}", day)
+        if isinstance(v, dict):
+            return {k: sub(x) for k, x in v.items()}
+        if isinstance(v, list):
+            return [sub(x) for x in v]
+        return v
+    import w2_producer_grassmann as PROD
+    return {"schema": PROD.STATIC_CONTRACT_SCHEMA,
+            "lane": str(lane), "carrier": str(carrier),
+            "utc_day": str(day),
+            "source": sub(dict(t["source"])),
+            "endpoint": sub(str(t["endpoint"])),
+            "request_params": sub(dict(t["request_params"])),
+            "cutoff": str(entry["cutoff"]),
+            "operation_params": sub(dict(t["operation_params"])),
+            "expected_keys": [str(day)]}
+
+
 def verify_staged_boundary(repo, manifest, *, blob_reader=None,
                            store_reader=None, day_set_gate=None,
-                           transform_dispatcher=None):
+                           transform_dispatcher=None,
+                           authority_reproducer=None):
     """codex 2235Z item 1 + 0238Z items 1-2: the admission-owned
     S/T/E consumer. The (lane, carrier, day) key set comes ONLY from
     the REGISTERED expected-keys authority pin (never from the
@@ -237,10 +344,8 @@ def verify_staged_boundary(repo, manifest, *, blob_reader=None,
                              blob_reader)
     authority = _pinned_json(slot, EXPECTED_KEYS_BASENAME,
                              blob_reader)
-    if authority.get("schema") != "f2g-w2-expected-contracts-v2":
-        raise InstrumentRefusal(
-            "PRESTART_ADMISSION_REFUSED: expected-keys authority "
-            "schema mismatch")
+    _validate_expected_keys_authority(
+        repo, authority, reproducer=authority_reproducer)
     auth_keys = authority["prestart_expected_keys"]
     if sorted(auth_keys) != sorted(PRESTART_LANES):
         raise InstrumentRefusal(
@@ -330,14 +435,31 @@ def verify_staged_boundary(repo, manifest, *, blob_reader=None,
     for (lane, carrier), classes in sorted(groups.items()):
         expected_days = sorted(auth_keys[lane][carrier])
         bodies = {}
+        auth_contracts = {}
         for day in expected_days:
             key = f"{lane}/{carrier}/{day}"
+            # codex 0320Z item 1: derive the AUTHORITATIVE S and
+            # require the submitted sidecar to EQUAL it -- downstream
+            # consumes only the authority's entry
+            auth_s = authoritative_static_contract(
+                authority, lane, carrier, day)
+            if json.dumps(classes["contract"][day], sort_keys=True,
+                          separators=(",", ":")) != \
+                    json.dumps(auth_s, sort_keys=True,
+                               separators=(",", ":")):
+                raise InstrumentRefusal(
+                    "PRESTART_ADMISSION_REFUSED: submitted static "
+                    f"contract for {key} diverges from the "
+                    "INDEPENDENT authority entry (S is admitted, "
+                    "never submitted)")
+            auth_contracts[day] = auth_s
             bodies[day] = store_reader(
                 descriptor, inventory["objects"][key]["path"])
-            # item 2: RECOMPUTE the produced artifact from the
-            # reopened body through the registered transform
+            # 0238Z item 2: RECOMPUTE the produced artifact from the
+            # reopened body through the registered transform -- fed
+            # the AUTHORITATIVE S
             recomputed = transform_dispatcher(
-                lane, bodies[day], classes["contract"][day])
+                lane, bodies[day], auth_contracts[day])
             if _PRODC._canon_digest(recomputed) != \
                     _PRODC._canon_digest(classes["artifact"][day]):
                 raise InstrumentRefusal(
@@ -348,7 +470,7 @@ def verify_staged_boundary(repo, manifest, *, blob_reader=None,
         try:
             out = day_set_gate(
                 classes["record"], bodies, classes["artifact"],
-                classes["contract"], classes["transcript"],
+                auth_contracts, classes["transcript"],
                 expected_days, carrier, lane)
         except InstrumentRefusal:
             raise
@@ -943,11 +1065,11 @@ def _selftest():
     def opener(url):
         return FIX[url]
 
-    def bspec(day):
-        return {"lane": "MAG_FEED", "carrier": "izn",
+    def bspec(day, lane="MAG_FEED", carrier="izn"):
+        return {"lane": lane, "carrier": carrier,
                 "utc_day": day,
                 "endpoint": "https://kat.example/gin",
-                "request_params": {"obs": "izn", "d": day},
+                "request_params": {"obs": carrier, "d": day},
                 "source": {"kind": "gin-minute",
                            "ref": "https://kat.example/gin"},
                 "cutoff": "2026-08-25",
@@ -958,7 +1080,6 @@ def _selftest():
         return {"n_bytes": len(body)}
 
     def bdispatch(lane, body, contract):
-        assert lane == "MAG_FEED"
         return bbuilder(body)
     days = ("2026-08-20", "2026-08-21")
     blobs = {}
@@ -971,11 +1092,18 @@ def _selftest():
         pins2.append({"path": path, "commit": "f" * 40,
                       "blob_sha256":
                           hashlib.sha256(raw).hexdigest()})
-    for day in days:
-        sp = bspec(day)
+    b_keys = {"SELECTION_RECORDS": {"kat_sel": ["2026-08-20"]},
+              "MAG_FEED": {"izn": list(days)},
+              "MF4_FEED": {"kat_drv": ["2026-08-20"]}}
+    fixture_keys = [(lane, ck, d)
+                    for lane in sorted(b_keys)
+                    for ck in b_keys[lane]
+                    for d in b_keys[lane][ck]]
+    for (lane, ck, day) in fixture_keys:
+        sp = bspec(day, lane=lane, carrier=ck)
         url = PROD.requested_url_of(sp["endpoint"],
                                     sp["request_params"])
-        body = f"body-{day}".encode()
+        body = f"body-{lane}-{ck}-{day}".encode()
         FIX[url] = (200, {"content-type": "text/plain"}, body,
                     url + "&final=1")
         rp, tp, rec, tr = CAP.capture_day(
@@ -983,7 +1111,7 @@ def _selftest():
             os.path.join(broot, "transcripts"), bbuilder,
             opener=opener,
             clock=lambda d=day: f"{d}T12:00:01Z")
-        stem = f"mag_feed_izn_{day}"
+        stem = f"{lane.lower()}_{ck}_{day}"
         add_pin(pre + f"{stem}.record.json", open(rp, "rb").read())
         add_pin(pre + f"{stem}.transcript.json",
                 open(tp, "rb").read())
@@ -993,7 +1121,7 @@ def _selftest():
         add_pin(pre + f"{stem}.artifact.json", json.dumps(
             bbuilder(body), sort_keys=True,
             separators=(",", ":")).encode())
-        inv_entries[f"MAG_FEED/izn/{day}"] = {
+        inv_entries[f"{lane}/{ck}/{day}"] = {
             "sha256": rec["raw_body_sha256"],
             "bytes": rec["raw_body_bytes"]}
     b_inv = CAP.build_staged_body_inventory("s4t", "s4t://window2",
@@ -1001,14 +1129,33 @@ def _selftest():
     b_desc = {"schema": "f2g-w2-store-descriptor-v1",
               "store_id": "s4t", "store_root": "s4t://window2",
               "physical_root": staging}
-    # a 2-key FIXTURE authority artifact (the pin IS the injection
-    # point; production pins the real 1782-key artifact)
+    # the FIXTURE authority artifact: CLOSED shape, recomputed
+    # digest, filled templates for every fixture carrier (the
+    # census lock rides the production reproducer path)
+    def tmpl_for(carrier):
+        return {"source": {"kind": "gin-minute",
+                           "ref": "https://kat.example/gin"},
+                "endpoint": "https://kat.example/gin",
+                "request_params": {"obs": carrier, "d": "{day}"},
+                "operation_params": {"day": "{day}"}}
+
+    def carriers_block(lane):
+        return {"carriers": {ck: {
+            "cutoff": "2026-08-25",
+            "static_contract_template": tmpl_for(ck)}
+            for ck in b_keys[lane]}}
     b_auth = {"schema": "f2g-w2-expected-contracts-v2",
-              "prestart_expected_keys": {
-                  "SELECTION_RECORDS": {},
-                  "MAG_FEED": {"izn": list(days)},
-                  "MF4_FEED": {}},
-              "prestart_expected_keys_sha256": "kat"}
+              "prestart_expected_keys": b_keys,
+              "prestart_expected_keys_sha256": hashlib.sha256(
+                  json.dumps(b_keys, sort_keys=True,
+                             separators=(",", ":")).encode()
+                  ).hexdigest(),
+              "static_layer": {lane: carriers_block(lane)
+                               for lane in b_keys},
+              "dynamic_layer": {}, "digests": {}, "provenance": {}}
+
+    def b_repro():
+        return b_auth
     add_pin(pre + "staged_body_inventory.json",
             json.dumps(b_inv, sort_keys=True,
                        separators=(",", ":")).encode())
@@ -1026,7 +1173,8 @@ def _selftest():
         return man_with("BOUND", pins)
     out = verify_staged_boundary(".", bman(pins2),
                                  blob_reader=breader,
-                                 transform_dispatcher=bdispatch)
+                                 transform_dispatcher=bdispatch,
+                                 authority_reproducer=b_repro)
     assert out["report"]["lanes"]["MAG_FEED/izn"]["days"] == 2
     assert len(out["staged_boundary_sha256"]) == 64
     assert verify_staged_boundary(".", man_with("OPEN", [])) is None
@@ -1037,7 +1185,10 @@ def _selftest():
                                    blob_reader=breader,
                                    transform_dispatcher=kw.pop(
                                        "transform_dispatcher",
-                                       bdispatch), **kw)
+                                       bdispatch),
+                                   authority_reproducer=kw.pop(
+                                       "authority_reproducer",
+                                       b_repro), **kw)
             return False
         except InstrumentRefusal as e:
             return needle in str(e)
@@ -1046,11 +1197,15 @@ def _selftest():
     # expects it (its own store dir so the store reopen is clean)
     staging1 = os.path.join(broot, "staging_omit")
     os.makedirs(staging1, exist_ok=True)
-    sha20 = inv_entries["MAG_FEED/izn/2026-08-20"]["sha256"]
-    with open(os.path.join(staging, sha20 + ".body"), "rb") as f:
-        b20 = f.read()
-    with open(os.path.join(staging1, sha20 + ".body"), "wb") as f:
-        f.write(b20)
+    for k, e in inv_entries.items():
+        if not k.endswith("2026-08-20"):
+            continue
+        with open(os.path.join(staging, e["sha256"] + ".body"),
+                  "rb") as f:
+            bb = f.read()
+        with open(os.path.join(staging1, e["sha256"] + ".body"),
+                  "wb") as f:
+            f.write(bb)
     b_inv1 = CAP.build_staged_body_inventory(
         "s4t", "s4t://window2",
         {k: v for k, v in inv_entries.items()
@@ -1143,7 +1298,8 @@ def _selftest():
     if not hasattr(CAP, "admission_transform"):
         try:
             verify_staged_boundary(".", bman(pins2),
-                                   blob_reader=breader)
+                                   blob_reader=breader,
+                                   authority_reproducer=b_repro)
             raise AssertionError("absent dispatcher must refuse")
         except InstrumentRefusal as e:
             assert "transform dispatcher is not yet available" \
@@ -1152,6 +1308,108 @@ def _selftest():
     tam = [dict(pn) for pn in pins2]
     tam[0] = dict(tam[0], blob_sha256="0" * 64)
     assert brefuses(tam, "diverge")
+
+    # --- codex 0320Z item 3: authority-capsule doctors ---
+    import copy as _cp
+
+    def auth_pin_for(a):
+        raw = json.dumps(a, sort_keys=True,
+                         separators=(",", ":")).encode()
+        path = pre + "staged_expected_contracts_v2.json"
+        blobs[("9" * 40, path)] = raw
+        return {"path": path, "commit": "9" * 40,
+                "blob_sha256": hashlib.sha256(raw).hexdigest()}
+
+    def with_auth(a):
+        pins_a = [pn for pn in pins2 if not pn["path"].endswith(
+            "staged_expected_contracts_v2.json")]
+        pins_a.append(auth_pin_for(a))
+        return pins_a
+    # forged key digest
+    a_forge = _cp.deepcopy(b_auth)
+    a_forge["prestart_expected_keys_sha256"] = "attested-key-digest"
+    assert brefuses(with_auth(a_forge), "does not recompute",
+                    authority_reproducer=lambda: a_forge)
+    # empty carrier map
+    a_empty = _cp.deepcopy(b_auth)
+    a_empty["prestart_expected_keys"]["MF4_FEED"] = {}
+    a_empty["prestart_expected_keys_sha256"] = hashlib.sha256(
+        json.dumps(a_empty["prestart_expected_keys"],
+                   sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest()
+    assert brefuses(with_auth(a_empty), "carrier map is empty",
+                    authority_reproducer=lambda: a_empty)
+    # duplicate day
+    a_dup = _cp.deepcopy(b_auth)
+    a_dup["prestart_expected_keys"]["MAG_FEED"]["izn"] = [
+        days[0], days[0]]
+    a_dup["prestart_expected_keys_sha256"] = hashlib.sha256(
+        json.dumps(a_dup["prestart_expected_keys"],
+                   sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest()
+    assert brefuses(with_auth(a_dup), "not unique ascending",
+                    authority_reproducer=lambda: a_dup)
+    # shifted / non-canonical day
+    a_shift = _cp.deepcopy(b_auth)
+    a_shift["prestart_expected_keys"]["MAG_FEED"]["izn"] = [
+        days[1], "2026-8-20"]      # sorted; the DAY is non-canonical
+    a_shift["prestart_expected_keys_sha256"] = hashlib.sha256(
+        json.dumps(a_shift["prestart_expected_keys"],
+                   sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest()
+    assert brefuses(with_auth(a_shift), "non-canonical day",
+                    authority_reproducer=lambda: a_shift)
+    # reproduction divergence (an authority that is internally valid
+    # but is NOT what the pinned generator produces)
+    assert brefuses(pins2, "does not REPRODUCE",
+                    authority_reproducer=lambda: dict(
+                        b_auth, provenance={"x": 1}))
+    # OPEN token in the CONSUMED template -> the two-phase gate
+    a_open = _cp.deepcopy(b_auth)
+    a_open["static_layer"]["MAG_FEED"]["carriers"]["izn"][
+        "static_contract_template"]["request_params"] = \
+        "OPEN_REVIEW_ROUND"
+    assert brefuses(with_auth(a_open), "OPEN tokens",
+                    authority_reproducer=lambda: a_open)
+
+    # --- codex 0320Z item 1: the coordinated evil-S/T/E case -- the
+    # authority registers kat.example; internally consistent carriers
+    # built against evil.example REFUSE at the S-admission equality
+    evil_root = os.path.join(broot, "evil")
+    e_day = "2026-08-20"
+    e_sp = dict(bspec(e_day), endpoint="https://evil.example/data",
+                source={"kind": "gin-minute",
+                        "ref": "https://evil.example/data"})
+    e_url = PROD.requested_url_of(e_sp["endpoint"],
+                                  e_sp["request_params"])
+    # the GENUINE body for that key -- content-addressed staging
+    # reuses the existing object; only S diverges (the exact codex
+    # reproduction: real bytes, unadmitted operation record)
+    FIX[e_url] = (200, {"content-type": "text/plain"},
+                  f"body-MAG_FEED-izn-{e_day}".encode(),
+                  e_url + "&final=1")
+    e_rp, e_tp, e_rec, e_tr = CAP.capture_day(
+        e_sp, staging, os.path.join(evil_root, "records"),
+        os.path.join(evil_root, "transcripts"), bbuilder,
+        opener=opener, clock=lambda: f"{e_day}T12:00:01Z")
+    evil = [dict(pn) for pn in pins2]
+    stem20 = "mag_feed_izn_2026-08-20"
+    for pn in evil:
+        if pn["path"] == pre + f"{stem20}.record.json":
+            raw = open(e_rp, "rb").read()
+        elif pn["path"] == pre + f"{stem20}.transcript.json":
+            raw = open(e_tp, "rb").read()
+        elif pn["path"] == pre + f"{stem20}.contract.json":
+            raw = json.dumps(CAP.static_contract_of(e_sp),
+                             sort_keys=True,
+                             separators=(",", ":")).encode()
+        else:
+            continue
+        blobs[("3" * 40, pn["path"])] = raw
+        pn["commit"] = "3" * 40
+        pn["blob_sha256"] = hashlib.sha256(raw).hexdigest()
+    assert brefuses(evil, "diverges from the "
+                    "INDEPENDENT authority entry")
 
     # barrier-level: bare bindings refuse even with valid-shape state
     try:

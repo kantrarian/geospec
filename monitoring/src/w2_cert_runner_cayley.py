@@ -476,16 +476,75 @@ def _selftest():
     keep = sorted(range(9), key=lambda k: (-(30 + k), k))[:8]
     for k in keep:
         fams["B1B"][k]["post_loco_outcomes"] = outs(20 + k)
-    # the ADMITTED-carrier fixture world (codex 0238Z item 3): a
-    # fixture manifest pins grids.json; the smoke is the closed
-    # Tier-S output with a reopenable invocation record
-    ts_inv = {"schema": "f2g-w2-tier-s-invocation-v1",
-              "purpose": "kat"}
-    ts_inv["invocation_sha256"] = _digest(
-        {k: v for k, v in ts_inv.items()
-         if k != "invocation_sha256"})
+    # the ADMITTED-carrier fixture world (codex 0238Z item 3 +
+    # 0320Z item 2): the closed Tier-S invocation/result capsule
+    _digest_fn = _digest
+
+    def mk_tier_s_capsule(smoke_families, grids_obj, grids_raw,
+                          store_map, commit, man_pins, impl_path,
+                          geom_digest="kat", mc_override=None):
+        import hashlib as _h
+        results = {"schema": "f2g-w2-tier-s-results-v1",
+                   "families": {}}
+        for fam, entries in smoke_families.items():
+            results["families"][fam] = [
+                {"point": dict(e["point"]),
+                 "replicates": [[fam] if o else []
+                                for o in e["outcomes"]],
+                 "post_loco_replicates":
+                     e.get("post_loco_outcomes")}
+                for e in entries]
+        r_raw = json.dumps(results).encode()
+        store_map[(commit, "ts_results.json")] = r_raw
+        det_order = {f: [p for p in grids_obj[f] if "gain" not in p]
+                     for f in ("B2A", "B2B", "B1B", "B3A")}
+        impl_pin = [p for p in man_pins
+                    if p["path"] == impl_path][0]
+        inv = {"schema": "f2g-w2-tier-s-invocation-v2",
+               "manifest_commit": mc_override or commit,
+               "effect_grids": {"commit": commit,
+                               "path": "grids.json"
+                               if (commit, "grids.json") in store_map
+                               else "grids2.json",
+                               "blob_sha256": _h.sha256(
+                                   grids_raw).hexdigest()},
+               "geometry": {"commit": commit, "path": "geom.json",
+                            "capsule_digest": geom_digest},
+               "quality": {"R": 50, "n_draws": 999},
+               "seed_authority_sha256": "b" * 64,
+               "implementation": {"path": impl_path,
+                                  "blob_sha256":
+                                      impl_pin["blob_sha256"]},
+               "grid_order_sha256": _digest_fn(det_order),
+               "results_ref": {"commit": commit,
+                               "path": "ts_results.json",
+                               "blob_sha256": _h.sha256(
+                                   r_raw).hexdigest()},
+               "completion_receipt": {
+                   "fired_utc": "2026-08-25T00:00:00Z",
+                   "completed_utc": "2026-08-25T11:00:00Z"}}
+        inv["invocation_sha256"] = _digest_fn(
+            {k: v for k, v in inv.items()
+             if k != "invocation_sha256"})
+        store_map[(commit, "ts_invocation.json")] = json.dumps(
+            inv).encode()
+        return inv
+
     grids_raw = json.dumps({"schema": "f2g-w2-effect-grids-v1",
                             "grids": grids}).encode()
+    store = {("d" * 40, "grids.json"): grids_raw,
+             ("d" * 40, "impl.py"): b"# pinned impl"}
+    man_pins = [
+        {"path": "grids.json", "commit": "d" * 40,
+         "blob_sha256": hashlib.sha256(grids_raw).hexdigest()},
+        {"path": "impl.py", "commit": "d" * 40,
+         "blob_sha256": hashlib.sha256(b"# pinned impl").hexdigest()}]
+    fix_man = {"slots": {"power_harness": {"pins": man_pins}}}
+    hexmc = subprocess.run(["git", "-C", repo_g, "rev-parse", "HEAD"],
+                           capture_output=True).stdout.decode().strip()
+    ts_inv = mk_tier_s_capsule(fams, grids, grids_raw, store,
+                               "d" * 40, man_pins, "impl.py",
+                               mc_override=hexmc)
     smoke = {"schema": "f2g-w2-tier-s-smoke-v1",
              "quality": {"R": 50, "n_draws": 999},
              "geometry_capsule_digest": "kat",
@@ -494,13 +553,7 @@ def _selftest():
                                 "path": "ts_invocation.json"},
              "invocation_sha256": ts_inv["invocation_sha256"],
              "families": fams}
-    fix_man = {"slots": {"power_harness": {"pins": [
-        {"path": "grids.json", "commit": "d" * 40,
-         "blob_sha256": hashlib.sha256(grids_raw).hexdigest()}]}}}
-    store = {("d" * 40, "smoke.json"): json.dumps(smoke).encode(),
-             ("d" * 40, "grids.json"): grids_raw,
-             ("d" * 40, "ts_invocation.json"):
-                 json.dumps(ts_inv).encode()}
+    store[("d" * 40, "smoke.json")] = json.dumps(smoke).encode()
     refs = {"smoke_ref": {"commit": "d" * 40, "path": "smoke.json"},
             "effect_grids_ref": {"commit": "d" * 40,
                                  "path": "grids.json"}}
@@ -543,9 +596,6 @@ def _selftest():
         raise AssertionError("uncommitted selector must refuse")
     except RunnerRefusal as e:
         assert "unreadable" in str(e)
-
-    hexmc = subprocess.run(["git", "-C", repo_g, "rev-parse", "HEAD"],
-                           capture_output=True).stdout.decode().strip()
 
     # item 4 (runner): create-once -- a pre-existing invocation
     # refuses regardless of bytes

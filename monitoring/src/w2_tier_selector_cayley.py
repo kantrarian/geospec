@@ -39,6 +39,14 @@ PRESCREEN_KEEP = 8
 SELECT_N = 3
 FAMILIES_ORDER = ("B2A", "B2B", "B1B", "B3A")
 SELECTOR_SCHEMA = "f2g-w2-tier-selector-v1"
+# codex 0320Z item 2: the CLOSED Tier-S invocation/result capsule
+TIER_S_INVOCATION_SCHEMA = "f2g-w2-tier-s-invocation-v2"
+TIER_S_INVOCATION_FIELDS = {
+    "schema", "manifest_commit", "effect_grids", "geometry",
+    "quality", "seed_authority_sha256", "implementation",
+    "grid_order_sha256", "results_ref", "completion_receipt",
+    "invocation_sha256"}
+TIER_S_RESULTS_SCHEMA = "f2g-w2-tier-s-results-v1"
 
 
 class SelectorRefusal(ValueError):
@@ -362,6 +370,15 @@ def verify_selector_admission(repo, art, manifest_commit, *,
             "invocation reference")
     inv = json.loads(blob_reader(_resolve(inv_ref["commit"]),
                                  inv_ref["path"]).decode("utf-8"))
+    # codex 0320Z item 2: a self-hashed dict is NOT an invocation --
+    # the CLOSED capsule schema is required, with admitted identities
+    if not isinstance(inv, dict) or \
+            set(inv) != TIER_S_INVOCATION_FIELDS or \
+            inv.get("schema") != TIER_S_INVOCATION_SCHEMA:
+        raise SelectorRefusal(
+            "SELECTOR_UNADMITTED: the Tier-S invocation is not the "
+            "closed capsule schema (a self-hashed dict attests "
+            "nothing)")
     core = {k: v for k, v in inv.items()
             if k != "invocation_sha256"}
     if hashlib.sha256(_canon(core).encode()).hexdigest() != \
@@ -371,6 +388,101 @@ def verify_selector_admission(repo, art, manifest_commit, *,
         raise SelectorRefusal(
             "SELECTOR_UNADMITTED: the smoke's Tier-S invocation "
             "digest does not recompute from the reopened record")
+    if _resolve(inv["manifest_commit"]) != mc_full:
+        raise SelectorRefusal(
+            "SELECTOR_UNADMITTED: the Tier-S invocation binds a "
+            "different manifest lineage")
+    ig = inv["effect_grids"]
+    if not isinstance(ig, dict) or \
+            ig.get("path") != g_ref["path"] or \
+            ig.get("blob_sha256") != pinned["blob_sha256"]:
+        raise SelectorRefusal(
+            "SELECTOR_UNADMITTED: the Tier-S invocation does not "
+            "bind the admitted effect-grid identity")
+    if inv.get("quality") != {"R": TIER_S_R,
+                              "n_draws": TIER_S_DRAWS}:
+        raise SelectorRefusal(
+            "SELECTOR_UNADMITTED: invocation quality is not the "
+            "admitted Tier-S quality")
+    geo = inv["geometry"]
+    if not isinstance(geo, dict) or \
+            set(geo) != {"commit", "path", "capsule_digest"}:
+        raise SelectorRefusal(
+            "SELECTOR_UNADMITTED: invocation geometry identity not "
+            "closed")
+    if smoke.get("geometry_capsule_digest") != \
+            geo["capsule_digest"]:
+        raise SelectorRefusal(
+            "SELECTOR_UNADMITTED: smoke geometry diverges from the "
+            "invocation's bound capsule")
+    sa = inv["seed_authority_sha256"]
+    if not (isinstance(sa, str) and len(sa) == 64):
+        raise SelectorRefusal(
+            "SELECTOR_UNADMITTED: seed authority untyped")
+    impl = inv["implementation"]
+    impl_pin = None
+    for slot in man.get("slots", {}).values():
+        for pin in slot.get("pins", ()) or ():
+            if isinstance(pin, dict) and \
+                    pin.get("path") == impl.get("path"):
+                impl_pin = pin
+    if impl_pin is None or \
+            impl.get("blob_sha256") != impl_pin["blob_sha256"]:
+        raise SelectorRefusal(
+            "SELECTOR_UNADMITTED: invocation implementation is not "
+            "the manifest-pinned blob")
+    det_order = {fam: [p for p in grids[fam] if "gain" not in p]
+                 for fam in FAMILIES_ORDER}
+    if inv["grid_order_sha256"] != _digest(det_order):
+        raise SelectorRefusal(
+            "SELECTOR_UNADMITTED: invocation grid order diverges "
+            "from the admitted detection grids")
+    cr = inv["completion_receipt"]
+    if not isinstance(cr, dict) or \
+            set(cr) != {"fired_utc", "completed_utc"}:
+        raise SelectorRefusal(
+            "SELECTOR_UNADMITTED: completion receipt not closed")
+    # reopen the per-point RESULTS and independently REBUILD the
+    # smoke outcomes (incl B1B post-LOCO) -- fabricated smoke lists
+    # cannot survive a results carrier they do not derive from
+    r_ref = inv["results_ref"]
+    if not isinstance(r_ref, dict) or \
+            set(r_ref) != {"commit", "path", "blob_sha256"}:
+        raise SelectorRefusal(
+            "SELECTOR_UNADMITTED: results binding not closed")
+    r_raw = blob_reader(_resolve(r_ref["commit"]), r_ref["path"])
+    if hashlib.sha256(r_raw).hexdigest() != r_ref["blob_sha256"]:
+        raise SelectorRefusal(
+            "SELECTOR_UNADMITTED: results bytes diverge from the "
+            "invocation's output binding")
+    results = json.loads(r_raw.decode("utf-8"))
+    if results.get("schema") != TIER_S_RESULTS_SCHEMA:
+        raise SelectorRefusal(
+            "SELECTOR_UNADMITTED: results schema mismatch")
+    for fam in FAMILIES_ORDER:
+        rf = results.get("families", {}).get(fam)
+        sf = smoke.get("families", {}).get(fam)
+        if not isinstance(rf, list) or not isinstance(sf, list) or \
+                len(rf) != len(sf):
+            raise SelectorRefusal(
+                f"SELECTOR_UNADMITTED: {fam} results/smoke shape "
+                "mismatch")
+        for k, (re_, se_) in enumerate(zip(rf, sf)):
+            if re_.get("point") != se_.get("point"):
+                raise SelectorRefusal(
+                    f"SELECTOR_UNADMITTED: {fam}[{k}] point "
+                    "mismatch between results and smoke")
+            rebuilt = [fam in set(r) for r in re_["replicates"]]
+            if rebuilt != se_.get("outcomes"):
+                raise SelectorRefusal(
+                    f"SELECTOR_UNADMITTED: {fam}[{k}] smoke "
+                    "outcomes do not REBUILD from the results "
+                    "carrier")
+            if fam == "B1B" and re_.get("post_loco_replicates") != \
+                    se_.get("post_loco_outcomes"):
+                raise SelectorRefusal(
+                    f"SELECTOR_UNADMITTED: B1B[{k}] post-LOCO "
+                    "outcomes do not match the results carrier")
     return {"manifest_commit": mc_full,
             "effect_grids": {"commit": _resolve(g_ref["commit"]),
                              "path": g_ref["path"],
@@ -544,25 +656,79 @@ def _selftest():
     except SelectorRefusal as e:
         assert "unreadable" in str(e)
 
-    # --- verify_selector_admission (codex 0238Z item 3) ---
+    # --- verify_selector_admission (codex 0238Z item 3 + 0320Z
+    # item 2: the closed Tier-S capsule) ---
     import hashlib as _hl
-    ts_inv = {"schema": "f2g-w2-tier-s-invocation-v1", "p": "kat"}
-    ts_inv["invocation_sha256"] = _digest(
-        {k: v for k, v in ts_inv.items()
-         if k != "invocation_sha256"})
+    _digest_fn = _digest
+
+    def mk_tier_s_capsule(smoke_families, grids_obj, grids_raw,
+                          store_map, commit, man_pins, impl_path,
+                          geom_digest="kat-digest"):
+        import hashlib as _h
+        results = {"schema": "f2g-w2-tier-s-results-v1",
+                   "families": {}}
+        for fam, entries in smoke_families.items():
+            results["families"][fam] = [
+                {"point": dict(e["point"]),
+                 "replicates": [[fam] if o else []
+                                for o in e["outcomes"]],
+                 "post_loco_replicates":
+                     e.get("post_loco_outcomes")}
+                for e in entries]
+        r_raw = json.dumps(results).encode()
+        store_map[(commit, "ts_results.json")] = r_raw
+        det_order = {f: [p for p in grids_obj[f] if "gain" not in p]
+                     for f in ("B2A", "B2B", "B1B", "B3A")}
+        impl_pin = [p for p in man_pins
+                    if p["path"] == impl_path][0]
+        inv = {"schema": "f2g-w2-tier-s-invocation-v2",
+               "manifest_commit": commit,
+               "effect_grids": {"commit": commit,
+                               "path": "grids.json"
+                               if (commit, "grids.json") in store_map
+                               else "grids2.json",
+                               "blob_sha256": _h.sha256(
+                                   grids_raw).hexdigest()},
+               "geometry": {"commit": commit, "path": "geom.json",
+                            "capsule_digest": geom_digest},
+               "quality": {"R": 50, "n_draws": 999},
+               "seed_authority_sha256": "b" * 64,
+               "implementation": {"path": impl_path,
+                                  "blob_sha256":
+                                      impl_pin["blob_sha256"]},
+               "grid_order_sha256": _digest_fn(det_order),
+               "results_ref": {"commit": commit,
+                               "path": "ts_results.json",
+                               "blob_sha256": _h.sha256(
+                                   r_raw).hexdigest()},
+               "completion_receipt": {
+                   "fired_utc": "2026-08-25T00:00:00Z",
+                   "completed_utc": "2026-08-25T11:00:00Z"}}
+        inv["invocation_sha256"] = _digest_fn(
+            {k: v for k, v in inv.items()
+             if k != "invocation_sha256"})
+        store_map[(commit, "ts_invocation.json")] = json.dumps(
+            inv).encode()
+        return inv
+
     grids_raw = json.dumps({"schema": "f2g-w2-effect-grids-v1",
                             "grids": grids}).encode()
+    astore = {("a" * 40, "grids2.json"): grids_raw,
+              ("a" * 40, "impl.py"): b"# pinned impl"}
+    man_pins = [
+        {"path": "grids2.json", "commit": "a" * 40,
+         "blob_sha256": _hl.sha256(grids_raw).hexdigest()},
+        {"path": "impl.py", "commit": "a" * 40,
+         "blob_sha256": _hl.sha256(b"# pinned impl").hexdigest()}]
+    fix_man = {"slots": {"x": {"pins": man_pins}}}
+    ts_inv = mk_tier_s_capsule(sm["families"], grids, grids_raw,
+                               astore, "a" * 40, man_pins, "impl.py")
     sm2 = dict(sm, schema="f2g-w2-tier-s-smoke-v1",
                effect_grids_sha256=_digest(grids),
                invocation_ref={"commit": "a" * 40,
-                               "path": "ts_inv.json"},
+                               "path": "ts_invocation.json"},
                invocation_sha256=ts_inv["invocation_sha256"])
-    astore = {("a" * 40, "smoke2.json"): json.dumps(sm2).encode(),
-              ("a" * 40, "grids2.json"): grids_raw,
-              ("a" * 40, "ts_inv.json"): json.dumps(ts_inv).encode()}
-    fix_man = {"slots": {"x": {"pins": [
-        {"path": "grids2.json", "commit": "a" * 40,
-         "blob_sha256": _hl.sha256(grids_raw).hexdigest()}]}}}
+    astore[("a" * 40, "smoke2.json")] = json.dumps(sm2).encode()
 
     def areader(commit, path):
         if path.endswith("execution_manifest.json"):
@@ -636,6 +802,56 @@ def _selftest():
         smoke_ref={"commit": "a" * 40, "path": "smoke_bad.json"},
         effect_grids_ref=refs2["effect_grids_ref"])
     assert arefuses(art_fb, "does not recompute")
+    # codex 0320Z item 2 LOCK: the admitted grid + a fabricated
+    # all-success smoke + a minimal self-hashed invocation REFUSES
+    # (the closed capsule schema kills the dict; a well-formed
+    # capsule without a deriving results carrier dies at rebuild)
+    min_inv = {"schema": "f2g-w2-tier-s-invocation-v1",
+               "purpose": "attests no execution"}
+    min_inv["invocation_sha256"] = _digest(
+        {k: v for k, v in min_inv.items()
+         if k != "invocation_sha256"})
+    astore[("a" * 40, "min_inv.json")] = json.dumps(
+        min_inv).encode()
+    fab_f = {}
+    for fam, entries in sm["families"].items():
+        fab_f[fam] = [dict(e, outcomes=[True] * 50) for e in entries]
+        if fam == "B1B":
+            # all-50 ties re-rank stage 1 by grid index -> the
+            # fabricated top-8 is indices 0..7
+            for k, e in enumerate(fab_f[fam]):
+                e["post_loco_outcomes"] = ([True] * 50 if k < 8
+                                           else None)
+    fab_smoke = dict(sm, families=fab_f,
+                     schema="f2g-w2-tier-s-smoke-v1",
+                     effect_grids_sha256=_digest(grids),
+                     invocation_ref={"commit": "a" * 40,
+                                     "path": "min_inv.json"},
+                     invocation_sha256=min_inv["invocation_sha256"])
+    astore[("a" * 40, "fab_smoke.json")] = json.dumps(
+        fab_smoke).encode()
+    art_fab = select_candidates(
+        fab_smoke, grids,
+        smoke_ref={"commit": "a" * 40, "path": "fab_smoke.json"},
+        effect_grids_ref=refs2["effect_grids_ref"])
+    assert arefuses(art_fab, "self-hashed dict attests nothing")
+    # and a WELL-FORMED capsule whose smoke lists do not derive from
+    # its results carrier refuses at the rebuild
+    fab_inv2 = mk_tier_s_capsule(sm["families"], grids, grids_raw,
+                                 astore, "a" * 40, man_pins,
+                                 "impl.py")
+    fab2 = dict(fab_smoke,
+                invocation_ref={"commit": "a" * 40,
+                                "path": "ts_invocation.json"},
+                invocation_sha256=fab_inv2["invocation_sha256"])
+    astore[("a" * 40, "fab2_smoke.json")] = json.dumps(
+        fab2).encode()
+    art_fab2 = select_candidates(
+        fab2, grids,
+        smoke_ref={"commit": "a" * 40, "path": "fab2_smoke.json"},
+        effect_grids_ref=refs2["effect_grids_ref"])
+    assert arefuses(art_fab2, "do not REBUILD")
+
     # unresolvable lineage -> unadmitted
     def bad_resolve(c):
         raise SelectorRefusal(

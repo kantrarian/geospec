@@ -84,6 +84,12 @@ def build(repo):
         assert env["requested_url"].startswith(MAG_ENDPOINTS[obs]), \
             f"{obs} endpoint diverges from the pinned probe evidence"
 
+    def tmpl(source_kind, source_ref, endpoint):
+        return {"source": {"kind": source_kind, "ref": source_ref},
+                "endpoint": endpoint,
+                "request_params": "OPEN_REVIEW_ROUND",
+                "operation_params": "OPEN_REVIEW_ROUND"}
+
     lanes = {}
     lanes["SELECTION_RECORDS"] = {
         "carriers": {ck: {
@@ -94,7 +100,9 @@ def build(repo):
             "endpoint": "OPEN_REVIEW_ROUND",
             "request_params": "OPEN_REVIEW_ROUND",
             "operation_params": "OPEN_REVIEW_ROUND",
-            "expected_keys": "OPEN_REVIEW_ROUND"}
+            "expected_keys": "OPEN_REVIEW_ROUND",
+            "static_contract_template": tmpl(
+                "fdsn", "OPEN_REVIEW_ROUND", "OPEN_REVIEW_ROUND")}
             for ck in CARRIERS},
         "day_set_rule": f"[cutoff-89, cutoff] = "
                         f"[{SELECTION_LOOKBACK_START}, {CUTOFF}], "
@@ -108,7 +116,10 @@ def build(repo):
             "endpoint": MAG_ENDPOINTS[obs],
             "request_params": "OPEN_REVIEW_ROUND",
             "operation_params": "OPEN_REVIEW_ROUND",
-            "expected_keys": "OPEN_REVIEW_ROUND"}
+            "expected_keys": "OPEN_REVIEW_ROUND",
+            "static_contract_template": tmpl(
+                "gin-minute" if obs == "izn" else "usgs-minute",
+                MAG_ENDPOINTS[obs], MAG_ENDPOINTS[obs])}
             for obs in MAG_OBSERVATORIES},
         "day_set_rule": f"calibration span [{CALIBRATION_START}, "
                         f"{CUTOFF}] (mag1 instantiation)"}
@@ -122,7 +133,10 @@ def build(repo):
             "endpoint": "OPEN_REVIEW_ROUND",
             "request_params": "OPEN_REVIEW_ROUND",
             "operation_params": "OPEN_REVIEW_ROUND",
-            "expected_keys": "OPEN_REVIEW_ROUND"}
+            "expected_keys": "OPEN_REVIEW_ROUND",
+            "static_contract_template": tmpl(
+                "driver-series", "OPEN_REVIEW_ROUND",
+                "OPEN_REVIEW_ROUND")}
             for drv in MF4_DRIVERS},
         "day_set_rule": f"calibration span [{CALIBRATION_START}, "
                         f"{CUTOFF}]"}

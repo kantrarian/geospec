@@ -112,8 +112,9 @@ BOUND_SLOTS = {
                   "mag_tuc_probe.envelope.json"]},
     "bars": {
         "owner": "grassmann",
-        "note": "the complete window-2 bar REV 13, 17/17 green @ "
-                "e7b26b1 (+W-SELRUN selector/runner locks; "
+        "note": "the complete window-2 bar REV 14, 17/17 green @ "
+                "e11de6f (W-SELRUN on the committed-selector world "
+                "w/ in-bar item-2/3 fire-boundary locks; "
                 "dual-verified by cayley py3.14+py3.11). families = "
                 "the EIGHT scientific names (codex item 4: "
                 "W-LOCO/W-CAL/W-SELRUN are KAT groups, never "

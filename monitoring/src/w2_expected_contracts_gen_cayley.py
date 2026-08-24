@@ -299,22 +299,45 @@ def build(repo):
                                "was the local trust store)"),
          source_class="GFZ Kp JSON (three-hourly definitive)")
 
-    # socal_coachella: REFUSED at BOTH ruled attempts (HTTP 400 on
-    # abbreviated AND long-form FDSN grammars) -- template BLOCKED;
-    # exclusion or another request = a separate codex decision. The
-    # OPEN tokens keep the freeze gate refusing (structurally honest)
-    lanes["SELECTION_RECORDS"]["carriers"]["socal_coachella"][
-        "fill_status"] = ("BLOCKED_PROBE_REFUSED -- two ruled "
-                          "attempts (abbrev + long-form) both HTTP "
-                          "400; pending a separate codex decision")
-    lanes["SELECTION_RECORDS"]["carriers"]["socal_coachella"][
-        "fill_evidence"] = {
-        "refusal": "SCEDC HTTP 400 on both authorized requests",
-        "probe_envelopes": [
-            "docs/f2g_window2_execution/probe_evidence/"
-            "selection_records_socal_coachella.envelope.json",
-            "docs/f2g_window2_execution/probe_evidence/"
-            "socal_coachella_attempt2.envelope.json"]}
+    # socal_coachella: GRAMMAR CONFIRMED at attempt 4 (codex 1711Z
+    # one-delta ruling; SCEDC requires FULL-DATETIME spellings -- its
+    # own 400 body named the defect; attempts 1-3 pinned refusals).
+    # Codex 1647Z parser contract: the registered bbox query + the
+    # exact 12-station filter/active-epoch rule BOTH bind here.
+    rp = {"net": "CI", "cha": "HHZ", "level": "channel",
+          "format": "text",
+          "minlatitude": "32.6500", "maxlatitude": "34.1500",
+          "minlongitude": "-116.9500", "maxlongitude": "-115.0500",
+          "starttime": "{day}T00:00:00.000000",
+          "endtime": "{day_next}T00:00:00.000000",
+          "nodata": "404"}
+    ev = verify_probe_fill(
+        "socal_coachella_attempt4.envelope.json",
+        "https://service.scedc.caltech.edu/fdsnws/station/1/query",
+        rp)
+    e = lanes["SELECTION_RECORDS"]["carriers"]["socal_coachella"]
+    fill("SELECTION_RECORDS", "socal_coachella",
+         kind="fdsn-station-channel",
+         endpoint="https://service.scedc.caltech.edu/fdsnws/"
+                  "station/1/query",
+         request_params=rp,
+         evidence=dict(
+             ev, verdict="TEMPLATE_GRAMMAR_CONFIRMED",
+             attempt="4 (one-delta full-datetime spelling per "
+                     "SCEDC's own 400 diagnosis; attempts 1-3 "
+                     "pinned refusals, byte-untouched)"))
+    # the 1647Z registered filter + epoch rule ride operation_params
+    # (bbox responses may contain out-of-set stations -- retained in
+    # raw evidence, EXCLUDED by this registered filter)
+    e["operation_params"]["registered_station_filter"] = (
+        "ACP,ANG,BAR,BC3,BEL,BLA2,BOM,BOR,COA,CRR,CSH,CTC")
+    e["operation_params"]["presence_rule"] = (
+        "CI stations from the registered filter with an HHZ channel "
+        "epoch active in [{day}, {day_next}); outside-station rows "
+        "retained in raw evidence, excluded by the filter; a proper "
+        "subset of the 12 is an honest per-day presence result")
+    e["static_contract_template"]["operation_params"] = dict(
+        e["operation_params"])
 
     # codex 0238Z item 1: THE sole exact authority for the PRESTART
     # (lane, carrier, day) key set -- derived ONLY from the calendar/

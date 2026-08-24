@@ -51,7 +51,7 @@ def build_capsule(*, calendar_authority, effect_grids_artifact,
     byte-for-byte (the non-compression contract); availability is the
     separate mask argument."""
     if calendar_authority.get("schema") != \
-            "f2g-w2-calendar-authority-v2":
+            "f2g-w2-calendar-authority-v3":
         raise CapsuleBuildRefusal(
             "CAPSULE_INPUT_INVALID: calendar authority schema")
     if effect_grids_artifact.get("schema") != \
@@ -173,6 +173,15 @@ def _selftest():
     # determinism
     assert build_capsule(**kw)["capsule_digest"] == \
         cap["capsule_digest"]
+    # A stale predecessor authority must not be silently accepted.
+    stale = json.loads(json.dumps(kw))
+    stale["calendar_authority"]["schema"] = \
+        "f2g-w2-calendar-authority-v2"
+    try:
+        build_capsule(**stale)
+        raise AssertionError("stale v2 calendar authority must refuse")
+    except CapsuleBuildRefusal:
+        pass
     # doctors: carrier-set mismatch; availability on the PRESTART day
     import copy
     bad = copy.deepcopy(kw)

@@ -1840,7 +1840,7 @@
   "independence": "derived from calendar authority + pinned probe envelopes + schedule artifacts only; no record or acquisition-code derivation",
   "producer": "monitoring/src/w2_expected_contracts_gen_cayley.py"
  },
- "schema": "f2g-w2-expected-contracts-v2",
+ "schema": "f2g-w2-expected-contracts-v3",
  "static_layer": {
   "DAY_CAPSULE": {
    "carriers": "EXCLUDED_FROM_PRESTART (accrual-time lane per codex 1843Z item 5 + 0238Z item 1: separate per-day admission rule; a DAY_CAPSULE pin in the PRESTART staged tree REFUSES)",

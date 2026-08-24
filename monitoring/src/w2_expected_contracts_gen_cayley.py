@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Window-2 INDEPENDENTLY-EXPECTED RECORD CONTRACTS v1 generator
+"""Window-2 INDEPENDENTLY-EXPECTED RECORD CONTRACTS v3 generator
 (cayley) -- the static layer of the producer_boundary BIND condition
 (codex 1544Z: "Cayley's prestart path supplies and pins the
 independently expected record contracts").
@@ -164,7 +164,7 @@ def build(repo):
             for ck, v in lanes[lane]["carriers"].items()}
 
     return {
-        "schema": "f2g-w2-expected-contracts-v2",
+        "schema": "f2g-w2-expected-contracts-v3",
         "template_token_vocabulary": template_tokens,
         "prestart_expected_keys": prestart_keys,
         "prestart_expected_keys_sha256": _digest(prestart_keys),

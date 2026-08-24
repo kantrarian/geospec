@@ -1358,7 +1358,7 @@ def _selftest():
 
     AUTH_ID = {"commit": "a" * 40,
                "path": ("docs/f2g_window2_execution/"
-                        "staged_expected_contracts_v2.json"),
+                        "staged_expected_contracts_v3.json"),
                "blob_sha256": "cd" * 32, "keys_sha256": "ef" * 32}
 
     def mk_transcript(s, raw=body, **over):

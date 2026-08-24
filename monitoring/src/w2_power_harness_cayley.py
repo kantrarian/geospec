@@ -353,7 +353,7 @@ def run_artifact_class(geom, point, *, seed_root, n_draws, R):
 
 
 # ===================================================================
-# CERTIFICATION PATH (codex 1358Z items 1+2; calendar v2 per codex
+# CERTIFICATION PATH (codex 1358Z items 1+2; calendar v3 successor to codex
 # 2026-08-23T1400Z ruling 1). Separate entry points; BOUND geometry
 # capsules; the registered generator draw order and master/substream
 # grammar; the PINNED NON-cal engine seams over the window-2 fixed
@@ -630,7 +630,7 @@ def rep_seed_registered(seed_authority_sha, family, r):
 
 def make_bound_panels(capsule, family, point, r, inject=True):
     """Joint ALL-carrier generation over the bound geometry in the
-    REGISTERED draw order (codex item 2), on the v2 FIXED authority
+    REGISTERED draw order (codex item 2), on the v3 FIXED authority
     grid: one G over the full 192-position engine calendar FIRST,
     then per SORTED carrier the station noise, edge noise, and MCAR
     arrays over that carrier's AVAILABLE days (the separate bound
@@ -1349,8 +1349,8 @@ def _selftest():
         except PowerHarnessError as e:
             assert code in str(e), (label, str(e))
 
-    # --- calendar v2 KAT 1: exact arrays, counts, endpoints, and the
-    # explicit 08-26 exclusion -- asserted against BOTH the in-module
+    # --- calendar v3 KAT 1: exact arrays, counts, endpoints, and the
+    # explicit 08-28 exclusion -- asserted against BOTH the in-module
     # derivation and the COMMITTED authority artifact (two
     # derivations, one contract; never self-consistent only)
     FRAME = w2_calendar_frame()
@@ -1441,7 +1441,7 @@ def _selftest():
         except PowerHarnessError as e:
             assert "POWER_LOCO_GEOMETRY_INVALID" in str(e)
 
-    # --- calendar v2 KAT 2: removing an AVAILABILITY day never moves
+    # --- calendar v3 KAT 2: removing an AVAILABILITY day never moves
     # the split (60/132 on the fixed grid); a compressed
     # registered_days list refuses CALENDAR_MASK_COMPRESSION
     miss_day = FRAME["baseline_days"][10]
@@ -1468,7 +1468,7 @@ def _selftest():
     except PowerHarnessError as e:
         assert "CALENDAR_MASK_COMPRESSION" in str(e)
 
-    # --- calendar v2 KAT 3: any 08-26 mask entry refuses (validator
+    # --- calendar v3 KAT 3: any 08-28 mask entry refuses (validator
     # AND before generation); shifted/extra/missing authority dates
     # refuse; off-grid availability refuses
     cap_x = mk_capsule()
@@ -1512,7 +1512,7 @@ def _selftest():
         assert "CALENDAR_AUTHORITY_MISMATCH" in str(e)
 
     # three-carrier BOUND-mechanism capsule (fixture calendar mode so
-    # certification never opens; the REAL v2 frame with availability
+    # certification never opens; the REAL v3 frame with availability
     # holes exercises the fixed-grid adapter)
     holes = set(ENG[80:90])
     reg3 = {ck: [f"{ck}S{i}" for i in range(6)]
@@ -1573,7 +1573,7 @@ def _selftest():
         json.dumps(panel3b, sort_keys=True)
     assert np.array_equal(dbg3["G"], dbg3b["G"])
 
-    # --- calendar v2 KAT 4: the _cal seams are DEAD in the bound
+    # --- calendar v3 KAT 4: the _cal seams are DEAD in the bound
     # path (monkeypatched to fail; the run must still complete), and
     # doctored entrypoint/blob/frame digests refuse
     def _boom(*a, **k):
@@ -1618,7 +1618,7 @@ def _selftest():
     except PowerHarnessError as e:
         assert "POWER_CALENDAR_FRAME_INVALID" in str(e)
 
-    # --- calendar v2 KAT 5: cross-family alignment -- ONE replicate
+    # --- calendar v3 KAT 5: cross-family alignment -- ONE replicate
     # produces ONE 192-position raw frame; B2B is the exact
     # 132-position evaluation projection; B2A/B3A/B1B share the full
     # fixed frame; mask holes are preserved in every view

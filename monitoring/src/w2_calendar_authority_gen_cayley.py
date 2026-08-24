@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Window-2 CALENDAR AUTHORITY v2 generator (cayley) -- codex
+"""Window-2 CALENDAR AUTHORITY v3 generator (cayley) -- codex
 2026-08-23T1400Z ruling 1 under the owner PRESTART decision
 ("prestart 8/26 it is", sha 5b44934a).
 
 This is the PRODUCER of docs/f2g_window2_execution/
-calendar_authority_w2_v2.json. It derives the date arrays with its
+calendar_authority_w2_v3.json. It derives the date arrays with its
 OWN datetime logic (independently of w2_power_harness_cayley's
 w2_calendar_frame) so the harness selftest's equality check crosses
 two derivations, not one. Deterministic: same bytes every run.

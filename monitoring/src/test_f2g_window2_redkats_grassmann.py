@@ -1745,7 +1745,7 @@ def w_cal():
     in-bar derivation from the ruling text == the engine derivation ==
     the COMMITTED authority artifact; (2) the compression trap
     (compacted registered_days refuses -- availability is a mask,
-    never a deletion); (3) 08-26 exclusion + shifted-date refusals;
+    never a deletion); (3) 08-28 exclusion + shifted-date refusals;
     (4) the certification path invokes only the pinned NON-cal
     entrypoints."""
     try:
@@ -1835,7 +1835,7 @@ def w_cal():
 
         check("CAL calendar-authority locks (three-way frame identity "
               "vs my own derivation + committed artifact, compression "
-              "trap, 08-26 exclusion + shifted/extra-date refusals, "
+              "trap, 08-28 exclusion + shifted/extra-date refusals, "
               "non-cal-only certification path)",
               ok_id and ok_cmp and ok_x and ok_nc,
               f"id={ok_id} cmp={ok_cmp} x={ok_x} nc={ok_nc}")
@@ -2399,7 +2399,9 @@ def w_selrun():
         bar_keys = {"SELECTION_RECORDS": {"cascadia": ["2026-08-20"]},
                     "MAG_FEED": {"frn": ["2026-08-20"]},
                     "MF4_FEED": {"mf4drv": ["2026-08-20"]}}
-        bar_auth = {"schema": "f2g-w2-expected-contracts-v2",
+        bar_auth = {"schema": "f2g-w2-expected-contracts-v3",
+                    "template_token_vocabulary":
+                        ["{day}", "{day_next}"],
                     "prestart_expected_keys": bar_keys,
                     "prestart_expected_keys_sha256": canon_sha(
                         bar_keys),
@@ -2571,7 +2573,8 @@ def w_admit():
                                          "day": "{day}"}}
         # REV 16: the CLOSED self-verifying authority capsule (codex
         # 0320Z item 3) with the per-key static templates (item 1)
-        auth = {"schema": "f2g-w2-expected-contracts-v2",
+        auth = {"schema": "f2g-w2-expected-contracts-v3",
+                "template_token_vocabulary": ["{day}", "{day_next}"],
                 "prestart_expected_keys": auth_keys,
                 "prestart_expected_keys_sha256": keys_sha(auth_keys),
                 "static_layer": {

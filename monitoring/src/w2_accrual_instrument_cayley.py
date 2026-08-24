@@ -211,8 +211,11 @@ def _parse_staged_pin(path):
 AUTHORITY_TOP_FIELDS = {
     "schema", "prestart_expected_keys",
     "prestart_expected_keys_sha256", "static_layer",
-    "dynamic_layer", "digests", "provenance"}
+    "dynamic_layer", "digests", "provenance",
+    "template_token_vocabulary"}
 AUTHORITY_CENSUS = 1794          # 4x90 + 3x239 + 3x239
+AUTHORITY_SCHEMA = "f2g-w2-expected-contracts-v3"
+TEMPLATE_TOKEN_VOCABULARY = ("{day}", "{day_next}")
 
 
 def _validate_expected_keys_authority(repo, authority, *,
@@ -228,9 +231,11 @@ def _validate_expected_keys_authority(repo, authority, *,
             f"PRESTART_ADMISSION_REFUSED: authority {detail}")
     if not isinstance(authority, dict) or \
             set(authority) != AUTHORITY_TOP_FIELDS or \
-            authority.get("schema") != \
-            "f2g-w2-expected-contracts-v2":
+            authority.get("schema") != AUTHORITY_SCHEMA:
         refuse("top-level schema not closed")
+    if authority["template_token_vocabulary"] != \
+            list(TEMPLATE_TOKEN_VOCABULARY):
+        refuse("template token vocabulary is not the registered v3 set")
     keys = authority["prestart_expected_keys"]
     got = hashlib.sha256(json.dumps(
         keys, sort_keys=True, separators=(",", ":")).encode()
@@ -288,11 +293,21 @@ def authoritative_static_contract(authority, lane, carrier, day):
         raise InstrumentRefusal(
             "PRESTART_ADMISSION_REFUSED: no static-contract "
             f"template registered for {lane}/{carrier}")
-    if "OPEN_REVIEW_ROUND" in json.dumps(t):
+    raw_template = json.dumps(t, sort_keys=True, separators=(",", ":"))
+    if "OPEN_REVIEW_ROUND" in raw_template:
         raise InstrumentRefusal(
             "PRESTART_ADMISSION_REFUSED: the consumed authority "
             f"template for {lane}/{carrier} carries OPEN tokens "
             "-- the v3 static freeze precedes any capture")
+    import re
+    template_tokens = set(re.findall(
+        r"\{[A-Za-z][A-Za-z0-9_]*\}", raw_template))
+    unknown_tokens = template_tokens - set(TEMPLATE_TOKEN_VOCABULARY)
+    if unknown_tokens:
+        raise InstrumentRefusal(
+            "PRESTART_ADMISSION_REFUSED: the consumed authority "
+            f"template for {lane}/{carrier} carries unregistered "
+            f"tokens {sorted(unknown_tokens)}")
 
     # {day_next} = the UTC day AFTER {day} (registered token for
     # half-open [day, day_next) request windows -- USGS/FDSN day
@@ -312,15 +327,24 @@ def authoritative_static_contract(authority, lane, carrier, day):
             return [sub(x) for x in v]
         return v
     import w2_producer_grassmann as PROD
-    return {"schema": PROD.STATIC_CONTRACT_SCHEMA,
-            "lane": str(lane), "carrier": str(carrier),
-            "utc_day": str(day),
-            "source": sub(dict(t["source"])),
-            "endpoint": sub(str(t["endpoint"])),
-            "request_params": sub(dict(t["request_params"])),
-            "cutoff": str(entry["cutoff"]),
-            "operation_params": sub(dict(t["operation_params"])),
-            "expected_keys": [str(day)]}
+    contract = {"schema": PROD.STATIC_CONTRACT_SCHEMA,
+                "lane": str(lane), "carrier": str(carrier),
+                "utc_day": str(day),
+                "source": sub(dict(t["source"])),
+                "endpoint": sub(str(t["endpoint"])),
+                "request_params": sub(dict(t["request_params"])),
+                "cutoff": str(entry["cutoff"]),
+                "operation_params": sub(dict(t["operation_params"])),
+                "expected_keys": [str(day)]}
+    unresolved = set(re.findall(
+        r"\{[A-Za-z][A-Za-z0-9_]*\}",
+        json.dumps(contract, sort_keys=True, separators=(",", ":"))))
+    if unresolved:
+        raise InstrumentRefusal(
+            "PRESTART_ADMISSION_REFUSED: the derived static contract "
+            f"for {lane}/{carrier} carries unresolved tokens "
+            f"{sorted(unresolved)}")
+    return contract
 
 
 def verify_staged_boundary(repo, manifest, *, blob_reader=None,
@@ -1153,7 +1177,9 @@ def _selftest():
             "cutoff": "2026-08-27",
             "static_contract_template": tmpl_for(ck)}
             for ck in b_keys[lane]}}
-    b_auth = {"schema": "f2g-w2-expected-contracts-v2",
+    b_auth = {"schema": AUTHORITY_SCHEMA,
+              "template_token_vocabulary":
+                  list(TEMPLATE_TOKEN_VOCABULARY),
               "prestart_expected_keys": b_keys,
               "prestart_expected_keys_sha256": hashlib.sha256(
                   json.dumps(b_keys, sort_keys=True,
@@ -1440,9 +1466,18 @@ def _selftest():
     except WB.BarrierRefusal as e:
         assert "LEDGER_CHAIN_BROKEN" in str(e)
 
+    repo = os.path.abspath(os.path.join(_HERE, "..", ".."))
+    # The committed production authority must pass the exact closed
+    # schema/reproducer gate. This catches generator/consumer field or
+    # schema drift before the freeze and capture paths are exercised.
+    prod_auth_path = os.path.join(
+        repo, "docs", "f2g_window2_execution",
+        EXPECTED_KEYS_BASENAME)
+    with open(prod_auth_path, encoding="utf-8") as f:
+        _validate_expected_keys_authority(repo, json.load(f))
+
     # runtime allowlist: clean walk over the real BOUND pins, then a
     # doctored on-disk module must be NAMED in the violation
-    repo = os.path.abspath(os.path.join(_HERE, "..", ".."))
     # resolve the CURRENT manifest commit dynamically -- slots flip
     # BOUND over the manifest's life and the allowlist must track it
     man_commit = _git(repo, ["log", "-1", "--format=%h", "HEAD", "--",
@@ -1630,17 +1665,17 @@ def _selftest():
         assert "PREDICTION_ROW_DUPLICATE" in str(e)
 
     # {day_next} substitution KAT (grassmann freeze condition 1):
-    # month boundary proves real UTC date arithmetic; unknown brace
-    # tokens survive literally (fail closed downstream); {day} alone
-    # untouched by the extension
-    auth_dn = {"static_layer": {"L": {"carriers": {"c": {
+    # Month/year boundaries prove real UTC date arithmetic. Unknown
+    # brace tokens refuse HERE, before capture can make a network call.
+    auth_dn = {"template_token_vocabulary":
+                   list(TEMPLATE_TOKEN_VOCABULARY),
+               "static_layer": {"L": {"carriers": {"c": {
         "cutoff": "2026-08-27",
         "static_contract_template": {
             "source": {"kind": "fdsn", "ref": "r"},
             "endpoint": "https://x.example/q",
             "request_params": {"starttime": "{day}T00:00:00",
-                               "endtime": "{day_next}T00:00:00",
-                               "odd": "{day_prev}"},
+                               "endtime": "{day_next}T00:00:00"},
             "operation_params": {"window": "[{day}, {day_next})"}
         }}}}}}
     sc = authoritative_static_contract(auth_dn, "L", "c",
@@ -1648,11 +1683,20 @@ def _selftest():
     rp = sc["request_params"]
     assert rp["starttime"] == "2026-08-31T00:00:00"
     assert rp["endtime"] == "2026-09-01T00:00:00"
-    assert rp["odd"] == "{day_prev}"          # unknown token literal
     assert sc["operation_params"]["window"] ==         "[2026-08-31, 2026-09-01)"
     sc2 = authoritative_static_contract(auth_dn, "L", "c",
                                         "2026-12-31")
     assert sc2["request_params"]["endtime"] ==         "2027-01-01T00:00:00"                 # year boundary
+    auth_bad = json.loads(json.dumps(auth_dn))
+    auth_bad["static_layer"]["L"]["carriers"]["c"][
+        "static_contract_template"]["request_params"]["odd"] = \
+        "{day_prev}"
+    try:
+        authoritative_static_contract(auth_bad, "L", "c",
+                                      "2026-08-31")
+        raise AssertionError("unregistered template token must refuse")
+    except InstrumentRefusal as e:
+        assert "unregistered tokens" in str(e)
 
     print("w2_accrual_instrument selftest: ALL PASS")
 

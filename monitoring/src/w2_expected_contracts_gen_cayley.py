@@ -29,6 +29,8 @@ import datetime
 import hashlib
 import json
 import os
+import urllib.parse
+import subprocess
 
 OUT_REL = os.path.join("docs", "f2g_window2_execution",
                        "staged_expected_contracts_v3.json")
@@ -69,20 +71,88 @@ def _digest(obj):
         ).hexdigest()
 
 
+MAG_PROBE_DAY = "2026-08-19"   # the pinned MAG probe envelopes' day
+
+
+def _sub_day(v, day):
+    """Registered-token substitution at a concrete UTC day."""
+    dn = (datetime.date.fromisoformat(day)
+          + datetime.timedelta(days=1)).isoformat()
+    dc = day.replace("-", "")
+
+    def sub(x):
+        if isinstance(x, str):
+            return (x.replace("{day_next}", dn)
+                     .replace("{day_compact}", dc)
+                     .replace("{day}", day))
+        if isinstance(x, dict):
+            return {k: sub(y) for k, y in x.items()}
+        if isinstance(x, list):
+            return [sub(y) for y in x]
+        return x
+    return sub(v)
+
+
+def validate_evidence_obj(env, body, *, endpoint, tmpl_params,
+                          probe_day, time_fields=(), label=""):
+    """codex 2205Z finding 4: THE one executable evidence lock, used
+    for ALL TEN templates by build() and exercised directly by the
+    mutation KATs. HTTP 200; exact body sha (and size where
+    recorded); requested origin+path == the registered endpoint
+    EXACTLY; the registered query -- INCLUDING repeated parameters --
+    compared through the PRODUCTION canonical builder
+    (w2_producer_grassmann.requested_url_of): one builder, both
+    sides. time_fields = the cascadia broad-window rule: those
+    template values must be exactly the registered day tokens while
+    the envelope keeps its own receipt window; every other field
+    compares exactly."""
+    import w2_producer_grassmann as PROD
+    if env.get("http_status") != 200:
+        raise AssertionError(f"{label}: evidence status "
+                             f"{env.get('http_status')} != 200")
+    sha = env.get("raw_body_sha256") or env.get("body_sha256")
+    if not sha or hashlib.sha256(body).hexdigest() != sha:
+        raise AssertionError(f"{label}: body digest diverges from "
+                             "the pinned envelope")
+    if env.get("raw_body_bytes") is not None and \
+            len(body) != env["raw_body_bytes"]:
+        raise AssertionError(f"{label}: body size diverges")
+    r = urllib.parse.urlsplit(env["requested_url"])
+    e = urllib.parse.urlsplit(endpoint)
+    if (r.scheme, r.netloc, r.path) != (e.scheme, e.netloc, e.path):
+        raise AssertionError(f"{label}: requested origin/path "
+                             "diverges from the registered endpoint")
+    actual = {}
+    for k, v in urllib.parse.parse_qsl(r.query,
+                                       keep_blank_values=True):
+        actual.setdefault(k, []).append(v)
+    actual = {k: (v[0] if len(v) == 1 else v)
+              for k, v in actual.items()}
+    tp = dict(tmpl_params)
+    for f in time_fields:
+        if tp.get(f) not in ("{day}", "{day_next}"):
+            raise AssertionError(
+                f"{label}: date-transform -- {f} is not a registered "
+                "day token (the broad-window transform substitutes "
+                "time fields ONLY)")
+        if f not in actual:
+            raise AssertionError(f"{label}: date-transform -- {f} "
+                                 "absent in the evidence query")
+        tp[f] = actual[f]
+    expected = _sub_day(tp, probe_day)
+    if PROD.requested_url_of(endpoint, expected) != \
+            PROD.requested_url_of(endpoint, actual):
+        raise AssertionError(f"{label}: registered query diverges "
+                             "from the pinned evidence "
+                             "(canonical-builder comparison)")
+    return env
+
+
 def build(repo):
     sel_days = _span(SELECTION_LOOKBACK_START, CUTOFF)
     cal_days = _span(CALIBRATION_START, CUTOFF)
     assert len(sel_days) == 90
     assert sel_days[-1] == cal_days[-1] == CUTOFF
-    # MAG endpoints: verify the izn value against the PINNED probe
-    # envelope bytes (independent registered evidence, not the records)
-    for obs in MAG_OBSERVATORIES:
-        env = json.load(open(os.path.join(
-            repo, "docs", "f2g_window2_execution", "mag_capsules",
-            "receipts", f"mag_{obs}_probe.envelope.json"),
-            encoding="utf-8"))
-        assert env["requested_url"].startswith(MAG_ENDPOINTS[obs]), \
-            f"{obs} endpoint diverges from the pinned probe evidence"
 
     # registered template token vocabulary (consumed by
     # authoritative_static_contract): {day} = the capture UTC day;
@@ -174,41 +244,42 @@ def build(repo):
     PROBE_DAY_NEXT = "2025-11-16"
     PROBE_DAY_COMPACT = "20251115"
 
-    def sub_probe(v):
-        if isinstance(v, str):
-            return (v.replace("{day_next}", PROBE_DAY_NEXT)
-                     .replace("{day_compact}", PROBE_DAY_COMPACT)
-                     .replace("{day}", PROBE_DAY))
-        if isinstance(v, dict):
-            return {k: sub_probe(x) for k, x in v.items()}
-        if isinstance(v, list):
-            return [sub_probe(x) for x in v]
-        return v
-
-    def envelope_query(env_rel, endpoint):
-        env = json.load(open(os.path.join(
-            repo, "docs", "f2g_window2_execution", "probe_evidence",
-            env_rel), encoding="utf-8"))
-        assert env["http_status"] == 200, env_rel
-        req = env["requested_url"]
-        assert req.startswith(endpoint), (env_rel, endpoint)
-        q = urllib.parse.parse_qs(
-            urllib.parse.urlsplit(req).query,
-            keep_blank_values=True)
-        return q, env
+    def _validate_evidence(env_rel, *, endpoint, tmpl_params,
+                           probe_day, time_fields=()):
+        """File wrapper over validate_evidence_obj: reopens the named
+        envelope AND its body from the repo (new schema: sibling .body
+        + raw_body_sha256; old schema: body_path + body_sha256)."""
+        envp = os.path.join(repo, env_rel.replace("/", os.sep))
+        with open(envp, encoding="utf-8") as f:
+            env = json.load(f)
+        if env.get("raw_body_sha256"):
+            body_rel = env_rel[:-len(".envelope.json")] + ".body"
+        else:
+            body_rel = env["body_path"]
+        # the evidence bytes are the COMMITTED git object (working
+        # copies suffer EOL conversion; the recorded sha binds the
+        # blob, exactly how the reviewer recomputes it)
+        r = subprocess.run(["git", "-C", repo, "cat-file", "blob",
+                            f"HEAD:{body_rel}"], capture_output=True)
+        if r.returncode != 0:
+            raise AssertionError(f"{env_rel}: evidence body "
+                                 f"{body_rel} unreadable at HEAD")
+        body = r.stdout
+        validate_evidence_obj(env, body, endpoint=endpoint,
+                              tmpl_params=tmpl_params,
+                              probe_day=probe_day,
+                              time_fields=time_fields, label=env_rel)
+        return {"probe_envelope": env_rel,
+                "probe_body_sha256":
+                    env.get("raw_body_sha256") or env["body_sha256"],
+                "probe_day_utc": probe_day}
 
     def verify_probe_fill(env_rel, endpoint, tmpl_params):
-        """The template with the probe day substituted must equal the
-        envelope's actual requested query."""
-        got, env = envelope_query(env_rel, endpoint)
-        want = {}
-        for k, v in sub_probe(tmpl_params).items():
-            want[k] = v if isinstance(v, list) else [v]
-        assert got == want, (env_rel, got, want)
-        return {"probe_envelope": "docs/f2g_window2_execution/"
-                                  "probe_evidence/" + env_rel,
-                "probe_body_sha256": env["raw_body_sha256"],
-                "probe_day_utc": PROBE_DAY}
+        """The six probe-evidence templates (probe day 2025-11-15)."""
+        return _validate_evidence(
+            "docs/f2g_window2_execution/probe_evidence/" + env_rel,
+            endpoint=endpoint, tmpl_params=tmpl_params,
+            probe_day=PROBE_DAY)
 
     def fill(lane, ck, *, kind, endpoint, request_params,
              evidence, source_class=None):
@@ -236,6 +307,27 @@ def build(repo):
                      ("SELECTION_RECORDS", "cascadia")):
         sp = specs["lanes"][lane][ck]
         assert sp["status"] == "EVIDENCE_PINNED", (lane, ck)
+        # finding 4: the SAME executable evidence lock as the probe
+        # templates -- envelope+body reopened, digests recomputed,
+        # origin/path bound, query compared through the production
+        # canonical builder
+        if ck == "cascadia":
+            # broad-window receipt -> per-day transform: time fields
+            # must be exactly the registered tokens; all other fields
+            # compare exactly against the receipt query (probe_day is
+            # inert here -- no token survives outside time_fields)
+            _validate_evidence(
+                sp["evidence"]["pinned_receipt_envelope"],
+                endpoint=sp["endpoint"],
+                tmpl_params=dict(sp["request_params"]),
+                probe_day="2026-07-11",
+                time_fields=("starttime", "endtime"))
+        else:
+            _validate_evidence(
+                sp["evidence"]["pinned_probe_envelope"],
+                endpoint=sp["endpoint"],
+                tmpl_params=dict(sp["request_params"]),
+                probe_day=MAG_PROBE_DAY)
         fill(lane, ck, kind=sp["source"]["kind"],
              endpoint=sp["endpoint"],
              request_params=dict(sp["request_params"]),
@@ -392,5 +484,91 @@ def main():
           hashlib.sha256(body.encode()).hexdigest())
 
 
+def _selftest():
+    """codex 2205Z finding 4 mutation KATs against the REAL
+    validate_evidence_obj (the same function build() routes every
+    template through): changed query, status, body digest,
+    origin/path, source host, date-transform violation,
+    repeated-parameter positive + stringified negative. build() runs
+    FIRST so all ten committed evidence locks execute."""
+    import copy
+    repo = os.path.abspath(os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), "..", ".."))
+    art = build(repo)          # ALL TEN evidence locks execute here
+    assert art["schema"] == "f2g-w2-expected-contracts-v3"
+
+    body = b"17-col-rows"
+    sha = hashlib.sha256(body).hexdigest()
+    base_env = {"http_status": 200, "raw_body_sha256": sha,
+                "raw_body_bytes": len(body),
+                "requested_url": "https://x.example/q?a=1&"
+                                 "starttime=2025-11-15&"
+                                 "endtime=2025-11-16"}
+    tmpl = {"a": "1", "starttime": "{day}", "endtime": "{day_next}"}
+
+    def check(env, t, **kw):
+        validate_evidence_obj(
+            env, kw.pop("body_bytes", body),
+            endpoint=kw.pop("endpoint", "https://x.example/q"),
+            tmpl_params=t, probe_day=kw.pop("probe_day",
+                                            "2025-11-15"),
+            time_fields=kw.pop("time_fields", ()), label="kat")
+    check(base_env, tmpl)                       # positive
+    for doctor, want in (
+            (lambda e: e.update(requested_url=e["requested_url"]
+                                .replace("a=1", "a=2")), "query"),
+            (lambda e: e.update(http_status=500), "status"),
+            (lambda e: e.update(raw_body_sha256="0" * 64),
+             "body digest"),
+            (lambda e: e.update(requested_url=e["requested_url"]
+                                .replace("/q?", "/qq?")),
+             "origin/path"),
+            (lambda e: e.update(requested_url=e["requested_url"]
+                                .replace("x.example", "y.example")),
+             "origin/path"),
+    ):
+        env2 = copy.deepcopy(base_env)
+        doctor(env2)
+        try:
+            check(env2, dict(tmpl))
+            raise SystemExit(f"doctor must refuse: {want}")
+        except AssertionError as ex:
+            assert want in str(ex), (want, str(ex))
+    # date-transform violation: a literal where the token must be
+    try:
+        check(dict(base_env), dict(tmpl, starttime="2025-11-15"),
+              time_fields=("starttime",))
+        raise SystemExit("literal time field must refuse")
+    except AssertionError as ex:
+        assert "date-transform" in str(ex)
+    # broad-window transform positive: envelope keeps its own window
+    env_bw = dict(base_env,
+                  requested_url="https://x.example/q?a=1&"
+                                "starttime=2026-07-11&"
+                                "endtime=2026-11-30")
+    check(env_bw, dict(tmpl),
+          time_fields=("starttime", "endtime"))
+    # repeated parameters: registered form passes, stringified refuses
+    envr = {"http_status": 200, "raw_body_sha256": sha,
+            "raw_body_bytes": len(body),
+            "requested_url": "https://x.example/q?vars=17&vars=21"}
+    check(envr, {"vars": ["17", "21"]})
+    envb = dict(envr, requested_url="https://x.example/q?"
+                                    "vars=%5B%2717%27%2C+%2721%27%5D")
+    try:
+        check(envb, {"vars": ["17", "21"]})
+        raise SystemExit("stringified list must refuse")
+    except AssertionError as ex:
+        assert "query" in str(ex)
+    print("w2_expected_contracts_gen selftest: ALL PASS (all-ten "
+          "committed evidence locks executed via build(); mutation "
+          "doctors refuse through the REAL validator; "
+          "canonical-builder comparison)")
+
+
 if __name__ == "__main__":
-    main()
+    import sys as _sys
+    if "--selftest" in _sys.argv:
+        _selftest()
+    else:
+        main()

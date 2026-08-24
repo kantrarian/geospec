@@ -75,7 +75,10 @@ BOUND_SLOTS = {
                   "monitoring/src/w2_cert_runner_cayley.py",
                   "monitoring/src/w2_tier_selector_cayley.py",
                   "docs/f2g_window2_execution/"
-                  "tier_selector_amendment_w2_v1.md"]},
+                  "tier_selector_amendment_w2_v1.md",
+                  "docs/f2g_window2_execution/"
+                  "effect_grids_w2_v1.json",
+                  "monitoring/src/w2_effect_grids_gen_cayley.py"]},
     "calibration_runner": {
         "owner": "cayley",
         "note": "calibration-ledger production runner (temporal "

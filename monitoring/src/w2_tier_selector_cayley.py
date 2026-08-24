@@ -274,6 +274,115 @@ def verify_selector_artifact(repo, art, *, blob_reader=None):
     return True
 
 
+def verify_selector_admission(repo, art, manifest_commit, *,
+                              blob_reader=None, git_resolve=None):
+    """codex 0238Z item 3: Git-readable is not ADMITTED. Beyond
+    verify_selector_artifact's independent rerun, this capsule
+    requires: (a) the effect-grid ref's reopened blob to EQUAL the
+    blob pinned in the execution manifest at `manifest_commit` for
+    that exact path; (b) the smoke ref to be the CLOSED output of the
+    admitted Tier-S invocation over the same grids -- schema + exact
+    quality + effect-grids digest equality + a reopenable Tier-S
+    invocation record whose core digest matches the smoke's recorded
+    `invocation_sha256`; (c) every commit resolved to full 40-hex.
+    Returns the admitted-identity block the campaign runner binds
+    into ITS invocation digest. Three committed, internally
+    consistent substitute carriers refuse here as UNADMITTED."""
+    import subprocess
+
+    def _resolve(commitish):
+        if git_resolve is not None:
+            return git_resolve(commitish)
+        p = subprocess.run(
+            ["git", "-C", repo, "rev-parse",
+             f"{commitish}^{{commit}}"], capture_output=True)
+        full = p.stdout.decode().strip()
+        if p.returncode != 0 or len(full) != 40:
+            raise SelectorRefusal(
+                f"SELECTOR_UNADMITTED: commit {commitish!r} does not "
+                "resolve to an admitted 40-hex lineage")
+        return full
+    if blob_reader is None:
+        def blob_reader(commit, path):
+            p = subprocess.run(
+                ["git", "-C", repo, "cat-file", "blob",
+                 f"{commit}:{path}"], capture_output=True)
+            if p.returncode != 0:
+                raise SelectorRefusal(
+                    f"SELECTOR_UNADMITTED: {path} unreadable at "
+                    f"{commit}")
+            return p.stdout
+    verify_selector_artifact(repo, art, blob_reader=blob_reader)
+    mc_full = _resolve(manifest_commit)
+    man = json.loads(blob_reader(
+        mc_full, "docs/f2g_window2_execution/"
+                 "execution_manifest.json").decode("utf-8"))
+    # (a) the effect grids must BE the manifest-pinned blob
+    g_ref = art["effect_grids_ref"]
+    pinned = None
+    for slot in man.get("slots", {}).values():
+        for pin in slot.get("pins", ()) or ():
+            if isinstance(pin, dict) and \
+                    pin.get("path") == g_ref["path"]:
+                pinned = pin
+    if pinned is None:
+        raise SelectorRefusal(
+            f"SELECTOR_UNADMITTED: {g_ref['path']} is not a pin of "
+            f"the execution manifest at {mc_full[:12]}")
+    g_raw = blob_reader(_resolve(g_ref["commit"]), g_ref["path"])
+    if hashlib.sha256(g_raw).hexdigest() != pinned["blob_sha256"]:
+        raise SelectorRefusal(
+            "SELECTOR_UNADMITTED: effect-grid carrier diverges from "
+            "the manifest-pinned blob (committed is not admitted)")
+    # (b) the smoke must be the closed admitted Tier-S output
+    s_ref = art["smoke_ref"]
+    s_full = _resolve(s_ref["commit"])
+    smoke = json.loads(blob_reader(
+        s_full, s_ref["path"]).decode("utf-8"))
+    if smoke.get("schema") != "f2g-w2-tier-s-smoke-v1":
+        raise SelectorRefusal(
+            "SELECTOR_UNADMITTED: smoke carrier is not the closed "
+            "Tier-S output schema")
+    if smoke.get("quality") != {"R": TIER_S_R,
+                                "n_draws": TIER_S_DRAWS}:
+        raise SelectorRefusal(
+            "SELECTOR_UNADMITTED: smoke quality is not the admitted "
+            "Tier-S quality")
+    grids_art = json.loads(g_raw.decode("utf-8"))
+    grids = grids_art.get("grids", grids_art)
+    if smoke.get("effect_grids_sha256") != _digest(grids):
+        raise SelectorRefusal(
+            "SELECTOR_UNADMITTED: smoke does not bind the admitted "
+            "effect grids")
+    inv_ref = smoke.get("invocation_ref")
+    if not isinstance(inv_ref, dict) or \
+            set(inv_ref) != {"commit", "path"}:
+        raise SelectorRefusal(
+            "SELECTOR_UNADMITTED: smoke lacks a closed Tier-S "
+            "invocation reference")
+    inv = json.loads(blob_reader(_resolve(inv_ref["commit"]),
+                                 inv_ref["path"]).decode("utf-8"))
+    core = {k: v for k, v in inv.items()
+            if k != "invocation_sha256"}
+    if hashlib.sha256(_canon(core).encode()).hexdigest() != \
+            inv.get("invocation_sha256") or \
+            inv.get("invocation_sha256") != \
+            smoke.get("invocation_sha256"):
+        raise SelectorRefusal(
+            "SELECTOR_UNADMITTED: the smoke's Tier-S invocation "
+            "digest does not recompute from the reopened record")
+    return {"manifest_commit": mc_full,
+            "effect_grids": {"commit": _resolve(g_ref["commit"]),
+                             "path": g_ref["path"],
+                             "blob_sha256":
+                                 hashlib.sha256(g_raw).hexdigest()},
+            "smoke": {"commit": s_full, "path": s_ref["path"],
+                      "blob_sha256": hashlib.sha256(blob_reader(
+                          s_full, s_ref["path"])).hexdigest(),
+                      "invocation_sha256":
+                          smoke.get("invocation_sha256")}}
+
+
 # ---------------------------------------------------------------- selftest
 def _selftest():
     def outs(k):
@@ -434,6 +543,105 @@ def _selftest():
         raise AssertionError("uncommitted carrier must refuse")
     except SelectorRefusal as e:
         assert "unreadable" in str(e)
+
+    # --- verify_selector_admission (codex 0238Z item 3) ---
+    import hashlib as _hl
+    ts_inv = {"schema": "f2g-w2-tier-s-invocation-v1", "p": "kat"}
+    ts_inv["invocation_sha256"] = _digest(
+        {k: v for k, v in ts_inv.items()
+         if k != "invocation_sha256"})
+    grids_raw = json.dumps({"schema": "f2g-w2-effect-grids-v1",
+                            "grids": grids}).encode()
+    sm2 = dict(sm, schema="f2g-w2-tier-s-smoke-v1",
+               effect_grids_sha256=_digest(grids),
+               invocation_ref={"commit": "a" * 40,
+                               "path": "ts_inv.json"},
+               invocation_sha256=ts_inv["invocation_sha256"])
+    astore = {("a" * 40, "smoke2.json"): json.dumps(sm2).encode(),
+              ("a" * 40, "grids2.json"): grids_raw,
+              ("a" * 40, "ts_inv.json"): json.dumps(ts_inv).encode()}
+    fix_man = {"slots": {"x": {"pins": [
+        {"path": "grids2.json", "commit": "a" * 40,
+         "blob_sha256": _hl.sha256(grids_raw).hexdigest()}]}}}
+
+    def areader(commit, path):
+        if path.endswith("execution_manifest.json"):
+            return json.dumps(fix_man).encode()
+        try:
+            return astore[(commit, path)]
+        except KeyError:
+            raise SelectorRefusal(
+                f"SELECTOR_UNADMITTED: {path} unreadable at {commit}")
+    refs2 = {"smoke_ref": {"commit": "a" * 40,
+                           "path": "smoke2.json"},
+             "effect_grids_ref": {"commit": "a" * 40,
+                                  "path": "grids2.json"}}
+    art_a = select_candidates(sm2, grids, **refs2)
+    astore[("a" * 40, "selector2.json")] = json.dumps(art_a).encode()
+    adm = verify_selector_admission(
+        ".", art_a, "a" * 40, blob_reader=areader,
+        git_resolve=lambda c: c)
+    assert adm["effect_grids"]["blob_sha256"] ==         _hl.sha256(grids_raw).hexdigest()
+    assert adm["smoke"]["invocation_sha256"] ==         ts_inv["invocation_sha256"]
+
+    def arefuses(art_x, needle, resolve=lambda c: c):
+        try:
+            verify_selector_admission(".", art_x, "a" * 40,
+                                      blob_reader=areader,
+                                      git_resolve=resolve)
+            return False
+        except SelectorRefusal as e:
+            return needle in str(e)
+    # THREE COMMITTED, INTERNALLY CONSISTENT SUBSTITUTE CARRIERS:
+    # a coordinated grid+smoke+selector at other paths -- committed,
+    # readable, self-consistent -- refuse as UNADMITTED (the grid is
+    # not the manifest-pinned blob)
+    g_sub = copy.deepcopy(grids)
+    g_sub["B2A"] = [{"m": 999}, {"m": 2}, {"m": 3}]
+    g_sub_raw = json.dumps({"schema": "f2g-w2-effect-grids-v1",
+                            "grids": g_sub}).encode()
+    sm_sub_f = copy.deepcopy(sm2["families"])
+    sm_sub_f["B2A"][0]["point"] = {"m": 999}
+    sm_sub = dict(sm2, families=sm_sub_f,
+                  effect_grids_sha256=_digest(g_sub))
+    astore[("a" * 40, "sub_grids.json")] = g_sub_raw
+    astore[("a" * 40, "sub_smoke.json")] = json.dumps(
+        sm_sub).encode()
+    art_sub = select_candidates(
+        sm_sub, g_sub,
+        smoke_ref={"commit": "a" * 40, "path": "sub_smoke.json"},
+        effect_grids_ref={"commit": "a" * 40,
+                          "path": "sub_grids.json"})
+    assert arefuses(art_sub, "SELECTOR_UNADMITTED")
+    # smoke missing the invocation reference -> unadmitted
+    sm_noinv = {k: v for k, v in sm2.items()
+                if k != "invocation_ref"}
+    astore[("a" * 40, "smoke_noinv.json")] = json.dumps(
+        sm_noinv).encode()
+    art_ni = select_candidates(
+        sm_noinv, grids,
+        smoke_ref={"commit": "a" * 40, "path": "smoke_noinv.json"},
+        effect_grids_ref=refs2["effect_grids_ref"])
+    assert arefuses(art_ni, "lacks a closed Tier-S invocation")
+    # forged Tier-S invocation digest -> unadmitted
+    ts_bad = dict(ts_inv, invocation_sha256="0" * 64)
+    sm_bad = dict(sm2, invocation_sha256="0" * 64,
+                  invocation_ref={"commit": "a" * 40,
+                                  "path": "ts_bad.json"})
+    astore[("a" * 40, "ts_bad.json")] = json.dumps(ts_bad).encode()
+    astore[("a" * 40, "smoke_bad.json")] = json.dumps(
+        sm_bad).encode()
+    art_fb = select_candidates(
+        sm_bad, grids,
+        smoke_ref={"commit": "a" * 40, "path": "smoke_bad.json"},
+        effect_grids_ref=refs2["effect_grids_ref"])
+    assert arefuses(art_fb, "does not recompute")
+    # unresolvable lineage -> unadmitted
+    def bad_resolve(c):
+        raise SelectorRefusal(
+            f"SELECTOR_UNADMITTED: commit {c!r} does not resolve "
+            "to an admitted 40-hex lineage")
+    assert arefuses(art_a, "does not resolve", resolve=bad_resolve)
 
     print("w2_tier_selector selftest: ALL PASS (hand fixtures; "
           "PRELIMINARY_SMOKE semantics; nothing certified)")

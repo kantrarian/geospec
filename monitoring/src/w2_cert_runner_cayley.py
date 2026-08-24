@@ -202,7 +202,7 @@ def _invocation_digest(rec):
 def write_invocation_record(outdir, points, manifest_commit_full,
                             geometry_path, n_procs, argv,
                             selector_commit, selector_path,
-                            selector_sha256):
+                            selector_sha256, admitted_carriers=None):
     """codex 1544Z: recorded PRE-FIRE, before any worker starts;
     2235Z item 3: the whole closed core is hashed
     (invocation_sha256), and workers authenticate THAT; 2235Z item 4:
@@ -222,6 +222,7 @@ def write_invocation_record(outdir, points, manifest_commit_full,
         "selector_commit": str(selector_commit),
         "selector_path": str(selector_path),
         "selector_sha256": str(selector_sha256),
+        "admitted_carriers": admitted_carriers,
         "ordered_points": points,
         "ordered_points_sha256": _digest(points),
         "dispatch_rule": "whole-point-per-process; one point's "
@@ -333,7 +334,8 @@ def _abort(outdir, running, reason, detail):
 
 def run_campaign(repo, manifest_commit, geometry_path,
                  selector_commit, selector_path, n_procs, outdir,
-                 argv=None, spawn=None, blob_reader=None):
+                 argv=None, spawn=None, blob_reader=None,
+                 git_resolve=None):
     """Parent: committed-selector verification, fire-input
     validation, atomic pre-fire record, then at most n_procs
     concurrent whole-point workers. Every parent-side failure --
@@ -343,10 +345,21 @@ def run_campaign(repo, manifest_commit, geometry_path,
         blob_reader=blob_reader)
     mc_full = _validate_fire_inputs(repo, manifest_commit, n_procs,
                                     points, outdir)
+    # codex 0238Z item 3: committed is not ADMITTED -- the selector's
+    # carriers must be the manifest-pinned grids + the closed output
+    # of the admitted Tier-S invocation; the admitted identities bind
+    # into the invocation core digest below
+    import w2_tier_selector_cayley as TS
+    try:
+        admitted = TS.verify_selector_admission(
+            repo, selector, mc_full, blob_reader=blob_reader,
+            git_resolve=git_resolve)
+    except TS.SelectorRefusal as e:
+        raise RunnerRefusal(f"RUNNER_SELECTOR_INVALID: {e}")
     inv = write_invocation_record(
         outdir, points, mc_full, geometry_path, n_procs,
         argv if argv is not None else sys.argv, selector_commit,
-        selector_path, selector_sha)
+        selector_path, selector_sha, admitted)
     isha = inv["invocation_sha256"]
 
     def _spawn(idx):
@@ -463,12 +476,31 @@ def _selftest():
     keep = sorted(range(9), key=lambda k: (-(30 + k), k))[:8]
     for k in keep:
         fams["B1B"][k]["post_loco_outcomes"] = outs(20 + k)
-    smoke = {"quality": {"R": 50, "n_draws": 999},
-             "geometry_capsule_digest": "kat", "families": fams}
+    # the ADMITTED-carrier fixture world (codex 0238Z item 3): a
+    # fixture manifest pins grids.json; the smoke is the closed
+    # Tier-S output with a reopenable invocation record
+    ts_inv = {"schema": "f2g-w2-tier-s-invocation-v1",
+              "purpose": "kat"}
+    ts_inv["invocation_sha256"] = _digest(
+        {k: v for k, v in ts_inv.items()
+         if k != "invocation_sha256"})
+    grids_raw = json.dumps({"schema": "f2g-w2-effect-grids-v1",
+                            "grids": grids}).encode()
+    smoke = {"schema": "f2g-w2-tier-s-smoke-v1",
+             "quality": {"R": 50, "n_draws": 999},
+             "geometry_capsule_digest": "kat",
+             "effect_grids_sha256": _digest(grids),
+             "invocation_ref": {"commit": "d" * 40,
+                                "path": "ts_invocation.json"},
+             "invocation_sha256": ts_inv["invocation_sha256"],
+             "families": fams}
+    fix_man = {"slots": {"power_harness": {"pins": [
+        {"path": "grids.json", "commit": "d" * 40,
+         "blob_sha256": hashlib.sha256(grids_raw).hexdigest()}]}}}
     store = {("d" * 40, "smoke.json"): json.dumps(smoke).encode(),
-             ("d" * 40, "grids.json"): json.dumps(
-                 {"schema": "f2g-w2-effect-grids-v1",
-                  "grids": grids}).encode()}
+             ("d" * 40, "grids.json"): grids_raw,
+             ("d" * 40, "ts_invocation.json"):
+                 json.dumps(ts_inv).encode()}
     refs = {"smoke_ref": {"commit": "d" * 40, "path": "smoke.json"},
             "effect_grids_ref": {"commit": "d" * 40,
                                  "path": "grids.json"}}
@@ -476,12 +508,17 @@ def _selftest():
     store[("d" * 40, "selector.json")] = json.dumps(art).encode()
 
     def reader(commit, path):
+        if path.endswith("execution_manifest.json"):
+            return json.dumps(fix_man).encode()
         try:
             return store[(commit, path)]
         except KeyError:
             raise RunnerRefusal(
                 f"RUNNER_SELECTOR_INVALID: {path} unreadable at "
                 f"{commit} (only a COMMITTED selector can fire)")
+
+    def gresolve(c):
+        return c if len(str(c)) == 40 else             resolve_manifest_commit(repo_g, c)
 
     art2, pts, sha = load_selector_committed(
         ".", "d" * 40, "selector.json", blob_reader=reader)
@@ -585,7 +622,7 @@ def _selftest():
         return run_campaign(repo_g, hexmc[:12], "docs/g.json",
                             "d" * 40, "selector.json", n, outdir,
                             argv=["kat"], spawn=spawn,
-                            blob_reader=reader)
+                            blob_reader=reader, git_resolve=gresolve)
 
     od1 = os.path.join(tmp, "ok")
     s = fire(od1)

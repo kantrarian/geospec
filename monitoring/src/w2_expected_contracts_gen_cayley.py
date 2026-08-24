@@ -31,7 +31,7 @@ import json
 import os
 
 OUT_REL = os.path.join("docs", "f2g_window2_execution",
-                       "staged_expected_contracts_v1.json")
+                       "staged_expected_contracts_v2.json")
 
 CUTOFF = "2026-08-25"
 SELECTION_LOOKBACK_START = "2026-05-28"     # cutoff - 89 (90 days)
@@ -39,6 +39,10 @@ CALIBRATION_START = "2026-01-01"
 CARRIERS = ("istanbul_marmara", "socal_coachella",
             "turkey_kahramanmaras", "cascadia")
 MAG_OBSERVATORIES = ("izn", "frn", "tuc")
+# MF4 driver-series carrier TOKENS (registered here; the key set is
+# CLOSED even while endpoints stay OPEN for the specs round):
+# sym_h = WDC-Kyoto SYM-H, kp = GFZ Kp, omni = NASA OMNI
+MF4_DRIVERS = ("sym_h", "kp", "omni")
 
 # endpoints: REGISTERED evidence = the pinned probe envelopes'
 # requested_url hosts (mag_<obs>_probe.envelope.json); the per-day
@@ -109,20 +113,39 @@ def build(repo):
         "day_set_rule": f"calibration span [{CALIBRATION_START}, "
                         f"{CUTOFF}] (mag1 instantiation)"}
     lanes["MF4_FEED"] = {
-        "carriers": "OPEN_REVIEW_ROUND (driver series registry: "
-                    "SYM-H/Kp/OMNI source identities to be pinned "
-                    "from registered service records)",
+        "carriers": {drv: {
+            "expected_days": cal_days,
+            "cutoff": CUTOFF,
+            "source_class": {"sym_h": "WDC-Kyoto SYM-H",
+                             "kp": "GFZ Kp",
+                             "omni": "NASA OMNI"}[drv],
+            "endpoint": "OPEN_REVIEW_ROUND",
+            "request_params": "OPEN_REVIEW_ROUND",
+            "operation_params": "OPEN_REVIEW_ROUND",
+            "expected_keys": "OPEN_REVIEW_ROUND"}
+            for drv in MF4_DRIVERS},
         "day_set_rule": f"calibration span [{CALIBRATION_START}, "
                         f"{CUTOFF}]"}
     lanes["DAY_CAPSULE"] = {
-        "carriers": "OPEN_REVIEW_ROUND (per-carrier day-capsule "
-                    "staging enters at accrual, not PRESTART; day "
-                    "sets follow the evaluation calendar)",
-        "day_set_rule": "evaluation days (accrual-time; not part of "
-                        "the PRESTART staged set)"}
+        "carriers": "EXCLUDED_FROM_PRESTART (accrual-time lane per "
+                    "codex 1843Z item 5 + 0238Z item 1: separate "
+                    "per-day admission rule; a DAY_CAPSULE pin in "
+                    "the PRESTART staged tree REFUSES)",
+        "day_set_rule": "evaluation days at accrual time"}
+
+    # codex 0238Z item 1: THE sole exact authority for the PRESTART
+    # (lane, carrier, day) key set -- derived ONLY from the calendar/
+    # probe/schedule registrations above, never from submitted pins
+    prestart_keys = {}
+    for lane in ("SELECTION_RECORDS", "MAG_FEED", "MF4_FEED"):
+        prestart_keys[lane] = {
+            ck: list(v["expected_days"])
+            for ck, v in lanes[lane]["carriers"].items()}
 
     return {
-        "schema": "f2g-w2-expected-contracts-v1",
+        "schema": "f2g-w2-expected-contracts-v2",
+        "prestart_expected_keys": prestart_keys,
+        "prestart_expected_keys_sha256": _digest(prestart_keys),
         "static_layer": lanes,
         "dynamic_layer": {
             "fields": ["receipt", "capture_time_utc"],

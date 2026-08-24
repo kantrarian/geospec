@@ -241,11 +241,18 @@ def _verify_obj(repo, manifest_commit, obj, prestart=False):
                     PRODUCER_ENVELOPE_PREFIX)
                     and str(p).endswith(".record.json")
                     for p in paths)
-                if not (have_amend and have_code and have_env):
+                # codex 0238Z item 1: the REGISTERED expected-keys
+                # authority is a required pin class
+                have_auth = any(str(p).endswith(
+                    "staged_expected_contracts_v2.json")
+                    for p in paths)
+                if not (have_amend and have_code and have_env
+                        and have_auth):
                     _refuse(res, "PRODUCER_BOUNDARY_PINS_INCOMPLETE",
                             name,
                             f"amendment={have_amend} code={have_code} "
-                            f"envelopes={have_env}")
+                            f"envelopes={have_env} "
+                            f"authority={have_auth}")
             for p in slot["pins"]:
                 res["pins_checked"] += 1
                 if not isinstance(p, dict) or set(p) != PIN_FIELDS:

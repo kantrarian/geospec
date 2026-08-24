@@ -335,7 +335,8 @@ def _abort(outdir, running, reason, detail):
 def run_campaign(repo, manifest_commit, geometry_path,
                  selector_commit, selector_path, n_procs, outdir,
                  argv=None, spawn=None, blob_reader=None,
-                 git_resolve=None):
+                 git_resolve=None, geometry_loader=None,
+                 is_ancestor=None):
     """Parent: committed-selector verification, fire-input
     validation, atomic pre-fire record, then at most n_procs
     concurrent whole-point workers. Every parent-side failure --
@@ -353,7 +354,9 @@ def run_campaign(repo, manifest_commit, geometry_path,
     try:
         admitted = TS.verify_selector_admission(
             repo, selector, mc_full, blob_reader=blob_reader,
-            git_resolve=git_resolve)
+            git_resolve=git_resolve,
+            geometry_loader=geometry_loader,
+            is_ancestor=is_ancestor)
     except TS.SelectorRefusal as e:
         raise RunnerRefusal(f"RUNNER_SELECTOR_INVALID: {e}")
     inv = write_invocation_record(
@@ -480,41 +483,77 @@ def _selftest():
     # 0320Z item 2): the closed Tier-S invocation/result capsule
     _digest_fn = _digest
 
+    GEOMD = "kat"
+
+    FIX_GEOM = {"capsule_digest": GEOMD,
+                "loco_registry_carrier": "cascadia",
+                "registries": {"cascadia": ["S0", "S1"]}}
+
+    def geom_loader(mc, path):
+        return FIX_GEOM
+
     def mk_tier_s_capsule(smoke_families, grids_obj, grids_raw,
                           store_map, commit, man_pins, impl_path,
-                          geom_digest="kat", mc_override=None):
+                          geom_digest=GEOMD, mc_override=None):
         import hashlib as _h
-        results = {"schema": "f2g-w2-tier-s-results-v1",
+        fams4 = ("B1B", "B2A", "B2B", "B3A")
+        registry = FIX_GEOM["registries"]["cascadia"]
+
+        def reps_from(outcomes, fam):
+            return [{"p_values": {f: (0.001 if (o and f == fam)
+                                      else 0.9) for f in fams4}}
+                    for o in outcomes]
+
+        def folds_from(post):
+            if post is None:
+                return None
+            out = []
+            for p in post:
+                if p:
+                    out.append({st: 0.001 for st in registry})
+                else:
+                    d = {st: 0.001 for st in registry}
+                    d[registry[0]] = 0.9
+                    out.append(d)
+            return out
+        impl_pin = [p for p in man_pins
+                    if p["path"] == impl_path][0]
+        impl_id = {"commit": impl_pin["commit"],
+                   "path": impl_path,
+                   "blob_sha256": impl_pin["blob_sha256"]}
+        results = {"schema": "f2g-w2-tier-s-results-v2",
+                   "quality": {"R": 50, "n_draws": 999},
+                   "seed_authority_sha256": "b" * 64,
+                   "geometry_capsule_digest": geom_digest,
+                   "implementation": impl_id,
                    "families": {}}
         for fam, entries in smoke_families.items():
+            det_pts = [p for p in grids_obj[fam] if "gain" not in p]
             results["families"][fam] = [
                 {"point": dict(e["point"]),
-                 "replicates": [[fam] if o else []
-                                for o in e["outcomes"]],
-                 "post_loco_replicates":
-                     e.get("post_loco_outcomes")}
+                 "grid_index": det_pts.index(e["point"]),
+                 "replicates": reps_from(e["outcomes"], fam),
+                 "loco_folds": folds_from(
+                     e.get("post_loco_outcomes"))
+                 if fam == "B1B" else None}
                 for e in entries]
         r_raw = json.dumps(results).encode()
         store_map[(commit, "ts_results.json")] = r_raw
         det_order = {f: [p for p in grids_obj[f] if "gain" not in p]
                      for f in ("B2A", "B2B", "B1B", "B3A")}
-        impl_pin = [p for p in man_pins
-                    if p["path"] == impl_path][0]
+        grid_pin = [p for p in man_pins
+                    if p["path"].startswith("grids")][0]
         inv = {"schema": "f2g-w2-tier-s-invocation-v2",
                "manifest_commit": mc_override or commit,
-               "effect_grids": {"commit": commit,
-                               "path": "grids.json"
-                               if (commit, "grids.json") in store_map
-                               else "grids2.json",
-                               "blob_sha256": _h.sha256(
-                                   grids_raw).hexdigest()},
+               "effect_grids": {"commit": grid_pin["commit"],
+                               "path": grid_pin["path"],
+                               "blob_sha256":
+                                   grid_pin["blob_sha256"]},
                "geometry": {"commit": commit, "path": "geom.json",
                             "capsule_digest": geom_digest},
                "quality": {"R": 50, "n_draws": 999},
                "seed_authority_sha256": "b" * 64,
-               "implementation": {"path": impl_path,
-                                  "blob_sha256":
-                                      impl_pin["blob_sha256"]},
+               "implementation": impl_id,
                "grid_order_sha256": _digest_fn(det_order),
                "results_ref": {"commit": commit,
                                "path": "ts_results.json",
@@ -522,7 +561,9 @@ def _selftest():
                                    r_raw).hexdigest()},
                "completion_receipt": {
                    "fired_utc": "2026-08-25T00:00:00Z",
-                   "completed_utc": "2026-08-25T11:00:00Z"}}
+                   "completed_utc": "2026-08-25T11:00:00Z",
+                   "results_blob_sha256": _h.sha256(
+                       r_raw).hexdigest()}}
         inv["invocation_sha256"] = _digest_fn(
             {k: v for k, v in inv.items()
              if k != "invocation_sha256"})
@@ -672,7 +713,9 @@ def _selftest():
         return run_campaign(repo_g, hexmc[:12], "docs/g.json",
                             "d" * 40, "selector.json", n, outdir,
                             argv=["kat"], spawn=spawn,
-                            blob_reader=reader, git_resolve=gresolve)
+                            blob_reader=reader, git_resolve=gresolve,
+                            geometry_loader=geom_loader,
+                            is_ancestor=lambda a, b: True)
 
     od1 = os.path.join(tmp, "ok")
     s = fire(od1)

@@ -46,7 +46,17 @@ TIER_S_INVOCATION_FIELDS = {
     "quality", "seed_authority_sha256", "implementation",
     "grid_order_sha256", "results_ref", "completion_receipt",
     "invocation_sha256"}
-TIER_S_RESULTS_SCHEMA = "f2g-w2-tier-s-results-v1"
+TIER_S_RESULTS_SCHEMA = "f2g-w2-tier-s-results-v2"
+# codex 0349Z item 3: closed nested schemas
+TIER_S_RESULTS_FIELDS = {"schema", "quality",
+                         "seed_authority_sha256",
+                         "geometry_capsule_digest",
+                         "implementation", "families"}
+TIER_S_RESULT_ENTRY_FIELDS = {"point", "grid_index",
+                              "replicates",
+                              "loco_folds"}
+TIER_S_RECEIPT_FIELDS = {"fired_utc", "completed_utc",
+                         "results_blob_sha256"}
 
 
 class SelectorRefusal(ValueError):
@@ -282,8 +292,65 @@ def verify_selector_artifact(repo, art, *, blob_reader=None):
     return True
 
 
+def _canon_instant(v, where):
+    import re as _re
+    if not isinstance(v, str) or not _re.fullmatch(
+            r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}"
+            r"(\.\d{1,6})?Z", v):
+        raise SelectorRefusal(
+            f"SELECTOR_UNADMITTED: {where} is not a canonical UTC "
+            "instant")
+    import datetime as _dt
+    return _dt.datetime.fromisoformat(v.replace("Z", "+00:00"))
+
+
+def _rebuild_outcomes(fam, entry, holm_fn, loco_registry):
+    """codex 0349Z item 2: outcomes are DERIVED, never declared --
+    per replicate the full four-family p-vector reruns Holm; for B1B
+    the registered partial-LOCO substitution reruns over the bound
+    fold registry."""
+    pre, post = [], []
+    reps = entry.get("replicates")
+    folds = entry.get("loco_folds")
+    if not isinstance(reps, list):
+        raise SelectorRefusal(
+            "SELECTOR_UNADMITTED: results replicates missing")
+    for r_i, rep in enumerate(reps):
+        if not isinstance(rep, dict) or set(rep) != {"p_values"}:
+            raise SelectorRefusal(
+                "SELECTOR_UNADMITTED: result replicate schema not "
+                "closed")
+        pv = rep["p_values"]
+        if set(pv) != {"B1B", "B2A", "B2B", "B3A"}:
+            raise SelectorRefusal(
+                "SELECTOR_UNADMITTED: replicate p-vector not the "
+                "four families")
+        rej = holm_fn(pv)
+        pre.append(fam in rej)
+        if fam == "B1B" and folds is not None:
+            fr = folds[r_i]
+            if fr is None:
+                post.append(False)
+                continue
+            if sorted(fr) != sorted(loco_registry):
+                raise SelectorRefusal(
+                    "SELECTOR_UNADMITTED: LOCO fold set diverges "
+                    "from the bound registry")
+            ok = "B1B" in rej
+            for st in sorted(fr):
+                p_s = fr[st]
+                if p_s is None or "B1B" not in holm_fn(
+                        dict(pv, B1B=p_s)):
+                    ok = False
+            post.append(ok)
+    return pre, (post if fam == "B1B" and folds is not None
+                 else None)
+
+
 def verify_selector_admission(repo, art, manifest_commit, *,
-                              blob_reader=None, git_resolve=None):
+                              blob_reader=None, git_resolve=None,
+                              geometry_loader=None,
+                              is_ancestor=None):
     """codex 0238Z item 3: Git-readable is not ADMITTED. Beyond
     verify_selector_artifact's independent rerun, this capsule
     requires: (a) the effect-grid ref's reopened blob to EQUAL the
@@ -395,10 +462,12 @@ def verify_selector_admission(repo, art, manifest_commit, *,
     ig = inv["effect_grids"]
     if not isinstance(ig, dict) or \
             ig.get("path") != g_ref["path"] or \
-            ig.get("blob_sha256") != pinned["blob_sha256"]:
+            ig.get("blob_sha256") != pinned["blob_sha256"] or \
+            ig.get("commit") != pinned["commit"]:
         raise SelectorRefusal(
             "SELECTOR_UNADMITTED: the Tier-S invocation does not "
-            "bind the admitted effect-grid identity")
+            "bind the admitted effect-grid identity (commit + path "
+            "+ blob)")
     if inv.get("quality") != {"R": TIER_S_R,
                               "n_draws": TIER_S_DRAWS}:
         raise SelectorRefusal(
@@ -415,10 +484,41 @@ def verify_selector_admission(repo, art, manifest_commit, *,
         raise SelectorRefusal(
             "SELECTOR_UNADMITTED: smoke geometry diverges from the "
             "invocation's bound capsule")
-    sa = inv["seed_authority_sha256"]
-    if not (isinstance(sa, str) and len(sa) == 64):
+    # codex 0349Z item 2: the geometry must load through the
+    # MANIFEST-PINNED loader (pin commit/path/blob enforced there)
+    # and its recomputed digest must equal the declared identity
+    if geometry_loader is None:
+        import w2_power_harness_cayley as PH
+
+        def geometry_loader(mc, path):
+            cap = PH._load_bound_geometry(
+                repo, {"manifest_commit": mc, "path": path})
+            if PH._geometry_capsule_digest(cap) != \
+                    cap.get("capsule_digest"):
+                raise SelectorRefusal(
+                    "SELECTOR_UNADMITTED: geometry capsule digest "
+                    "does not recompute")
+            return cap
+    try:
+        geo_cap = geometry_loader(mc_full, geo["path"])
+    except SelectorRefusal:
+        raise
+    except Exception as e:
         raise SelectorRefusal(
-            "SELECTOR_UNADMITTED: seed authority untyped")
+            f"SELECTOR_UNADMITTED: geometry not manifest-pinned or "
+            f"unreadable: {e}")
+    if geo_cap.get("capsule_digest") != geo["capsule_digest"]:
+        raise SelectorRefusal(
+            "SELECTOR_UNADMITTED: loaded geometry diverges from the "
+            "declared capsule digest")
+    loco_registry = list(geo_cap.get("registries", {}).get(
+        geo_cap.get("loco_registry_carrier"), ()))
+    sa = inv["seed_authority_sha256"]
+    if not (isinstance(sa, str) and len(sa) == 64 and
+            all(c in "0123456789abcdef" for c in sa)):
+        raise SelectorRefusal(
+            "SELECTOR_UNADMITTED: seed authority is not "
+            "lowercase-hex")
     impl = inv["implementation"]
     impl_pin = None
     for slot in man.get("slots", {}).values():
@@ -427,10 +527,11 @@ def verify_selector_admission(repo, art, manifest_commit, *,
                     pin.get("path") == impl.get("path"):
                 impl_pin = pin
     if impl_pin is None or \
-            impl.get("blob_sha256") != impl_pin["blob_sha256"]:
+            impl.get("blob_sha256") != impl_pin["blob_sha256"] or \
+            impl.get("commit") != impl_pin["commit"]:
         raise SelectorRefusal(
             "SELECTOR_UNADMITTED: invocation implementation is not "
-            "the manifest-pinned blob")
+            "the manifest-pinned identity (commit + path + blob)")
     det_order = {fam: [p for p in grids[fam] if "gain" not in p]
                  for fam in FAMILIES_ORDER}
     if inv["grid_order_sha256"] != _digest(det_order):
@@ -439,9 +540,19 @@ def verify_selector_admission(repo, art, manifest_commit, *,
             "from the admitted detection grids")
     cr = inv["completion_receipt"]
     if not isinstance(cr, dict) or \
-            set(cr) != {"fired_utc", "completed_utc"}:
+            set(cr) != TIER_S_RECEIPT_FIELDS:
         raise SelectorRefusal(
             "SELECTOR_UNADMITTED: completion receipt not closed")
+    t0 = _canon_instant(cr["fired_utc"], "fired_utc")
+    t1 = _canon_instant(cr["completed_utc"], "completed_utc")
+    if not t0 <= t1:
+        raise SelectorRefusal(
+            "SELECTOR_UNADMITTED: completion receipt times reversed")
+    if cr["results_blob_sha256"] != \
+            inv["results_ref"]["blob_sha256"]:
+        raise SelectorRefusal(
+            "SELECTOR_UNADMITTED: completion receipt does not bind "
+            "the results output blob")
     # reopen the per-point RESULTS and independently REBUILD the
     # smoke outcomes (incl B1B post-LOCO) -- fabricated smoke lists
     # cannot survive a results carrier they do not derive from
@@ -456,9 +567,20 @@ def verify_selector_admission(repo, art, manifest_commit, *,
             "SELECTOR_UNADMITTED: results bytes diverge from the "
             "invocation's output binding")
     results = json.loads(r_raw.decode("utf-8"))
-    if results.get("schema") != TIER_S_RESULTS_SCHEMA:
+    if not isinstance(results, dict) or \
+            set(results) != TIER_S_RESULTS_FIELDS or \
+            results.get("schema") != TIER_S_RESULTS_SCHEMA:
         raise SelectorRefusal(
-            "SELECTOR_UNADMITTED: results schema mismatch")
+            "SELECTOR_UNADMITTED: results capsule schema not closed")
+    if results.get("quality") != inv["quality"] or \
+            results.get("seed_authority_sha256") != sa or \
+            results.get("geometry_capsule_digest") != \
+            geo["capsule_digest"] or \
+            results.get("implementation") != impl:
+        raise SelectorRefusal(
+            "SELECTOR_UNADMITTED: results identities diverge from "
+            "the invocation's bound identities")
+    import w2_power_harness_cayley as _PH
     for fam in FAMILIES_ORDER:
         rf = results.get("families", {}).get(fam)
         sf = smoke.get("families", {}).get(fam)
@@ -468,21 +590,49 @@ def verify_selector_admission(repo, art, manifest_commit, *,
                 f"SELECTOR_UNADMITTED: {fam} results/smoke shape "
                 "mismatch")
         for k, (re_, se_) in enumerate(zip(rf, sf)):
+            if not isinstance(re_, dict) or \
+                    set(re_) != TIER_S_RESULT_ENTRY_FIELDS:
+                raise SelectorRefusal(
+                    f"SELECTOR_UNADMITTED: {fam}[{k}] result entry "
+                    "schema not closed")
             if re_.get("point") != se_.get("point"):
                 raise SelectorRefusal(
                     f"SELECTOR_UNADMITTED: {fam}[{k}] point "
                     "mismatch between results and smoke")
-            rebuilt = [fam in set(r) for r in re_["replicates"]]
-            if rebuilt != se_.get("outcomes"):
+            pre, post = _rebuild_outcomes(
+                fam, re_, _PH.holm_rejects, loco_registry)
+            if pre != se_.get("outcomes"):
                 raise SelectorRefusal(
                     f"SELECTOR_UNADMITTED: {fam}[{k}] smoke "
-                    "outcomes do not REBUILD from the results "
-                    "carrier")
-            if fam == "B1B" and re_.get("post_loco_replicates") != \
+                    "outcomes do not DERIVE from the results "
+                    "p-vectors under the registered Holm rule")
+            if fam == "B1B" and post != \
                     se_.get("post_loco_outcomes"):
                 raise SelectorRefusal(
                     f"SELECTOR_UNADMITTED: B1B[{k}] post-LOCO "
-                    "outcomes do not match the results carrier")
+                    "outcomes do not DERIVE from the recorded fold "
+                    "p-vectors under the registered substitution "
+                    "rule")
+    # codex 0349Z item 3: the DESCENDANT CHAIN -- manifest ->
+    # results -> smoke -> selector, every commit full 40-hex on the
+    # admitted lineage
+    if is_ancestor is None:
+        import subprocess as _sp
+
+        def is_ancestor(a, b):
+            if a == b:
+                return True
+            return _sp.run(["git", "-C", repo, "merge-base",
+                            "--is-ancestor", a, b],
+                           capture_output=True).returncode == 0
+    r_full = _resolve(r_ref["commit"])
+    chain = [(mc_full, r_full, "manifest->results"),
+             (r_full, s_full, "results->smoke")]
+    for a, b, label in chain:
+        if not is_ancestor(a, b):
+            raise SelectorRefusal(
+                f"SELECTOR_UNADMITTED: lineage edge {label} is not "
+                "a descendant chain from the admitted manifest")
     return {"manifest_commit": mc_full,
             "effect_grids": {"commit": _resolve(g_ref["commit"]),
                              "path": g_ref["path"],
@@ -528,20 +678,20 @@ def _selftest():
                 "geometry_capsule_digest": "kat-digest",
                 "families": fams}
 
-    # B1B: stage-1 keeps top 8 of 9; stage-2 post-LOCO REORDERS.
-    # pre-LOCO counts rise with j; grid index tie-break checked via
-    # equal counts at k=0,1
-    b1b_pre = [40, 40, 41, 42, 43, 44, 45, 46, 47]
-    keep_expected = [8, 7, 6, 5, 4, 3, 2, 0]     # -count, then index
-    post = {8: 10, 7: 45, 6: 44, 5: 46, 4: 20, 3: 19, 2: 18, 0: 17}
+    # B1B: stage-1 all-50 ties -> top 8 by grid index; stage-2
+    # post-LOCO REORDERS. Derivational consistency requires
+    # post[r] => pre[r], so pre is all-true.
+    b1b_pre = [50] * 9
+    keep_expected = [0, 1, 2, 3, 4, 5, 6, 7]
+    post = {0: 17, 1: 45, 2: 44, 3: 46, 4: 20, 5: 19, 6: 18, 7: 16}
     sm = smoke_for({"B2A": [50, 49, 48],
                     "B2B": [10, 30, 30, 20, 40],
                     "B3A": [5, 6, 7, 8],
                     "B1B": b1b_pre}, post)
     art = select_candidates(sm, grids)
     assert art["top8_grid_indices"]["B1B"] == keep_expected
-    # post-LOCO ranking: counts 46(k=5),45(k=7),44(k=6) win
-    assert art["selected_grid_indices"]["B1B"] == [5, 7, 6]
+    # post-LOCO ranking: counts 46(k=3),45(k=1),44(k=2) win
+    assert art["selected_grid_indices"]["B1B"] == [3, 1, 2]
     # B2A three-point grid selects all three (registered order by rank)
     assert art["selected_grid_indices"]["B2A"] == [0, 1, 2]
     # B2B tie at 30/30 -> lower grid index first; top3 = idx4(40),
@@ -581,10 +731,10 @@ def _selftest():
                    "SELECTOR_COVERAGE_INVALID")
     assert refuses(lambda s: s["families"]["B2A"][0].update(
         point={"m": 9}), "SELECTOR_COVERAGE_INVALID")
-    assert refuses(lambda s: s["families"]["B1B"][8].update(
+    assert refuses(lambda s: s["families"]["B1B"][0].update(
         post_loco_outcomes=None), "SELECTOR_STAGE2_INVALID")
-    # post-LOCO outside the top-8 refuses (index 1 not kept)
-    assert refuses(lambda s: s["families"]["B1B"][1].update(
+    # post-LOCO outside the top-8 refuses (index 8 not kept)
+    assert refuses(lambda s: s["families"]["B1B"][8].update(
         post_loco_outcomes=outs(5)), "SELECTOR_STAGE2_INVALID")
     # a gain grid with != 2 gain points refuses
     g2 = copy.deepcopy(grids)
@@ -661,41 +811,77 @@ def _selftest():
     import hashlib as _hl
     _digest_fn = _digest
 
+    GEOMD = "kat-digest"
+
+    FIX_GEOM = {"capsule_digest": GEOMD,
+                "loco_registry_carrier": "cascadia",
+                "registries": {"cascadia": ["S0", "S1"]}}
+
+    def geom_loader(mc, path):
+        return FIX_GEOM
+
     def mk_tier_s_capsule(smoke_families, grids_obj, grids_raw,
                           store_map, commit, man_pins, impl_path,
-                          geom_digest="kat-digest"):
+                          geom_digest=GEOMD, mc_override=None):
         import hashlib as _h
-        results = {"schema": "f2g-w2-tier-s-results-v1",
+        fams4 = ("B1B", "B2A", "B2B", "B3A")
+        registry = FIX_GEOM["registries"]["cascadia"]
+
+        def reps_from(outcomes, fam):
+            return [{"p_values": {f: (0.001 if (o and f == fam)
+                                      else 0.9) for f in fams4}}
+                    for o in outcomes]
+
+        def folds_from(post):
+            if post is None:
+                return None
+            out = []
+            for p in post:
+                if p:
+                    out.append({st: 0.001 for st in registry})
+                else:
+                    d = {st: 0.001 for st in registry}
+                    d[registry[0]] = 0.9
+                    out.append(d)
+            return out
+        impl_pin = [p for p in man_pins
+                    if p["path"] == impl_path][0]
+        impl_id = {"commit": impl_pin["commit"],
+                   "path": impl_path,
+                   "blob_sha256": impl_pin["blob_sha256"]}
+        results = {"schema": "f2g-w2-tier-s-results-v2",
+                   "quality": {"R": 50, "n_draws": 999},
+                   "seed_authority_sha256": "b" * 64,
+                   "geometry_capsule_digest": geom_digest,
+                   "implementation": impl_id,
                    "families": {}}
         for fam, entries in smoke_families.items():
+            det_pts = [p for p in grids_obj[fam] if "gain" not in p]
             results["families"][fam] = [
                 {"point": dict(e["point"]),
-                 "replicates": [[fam] if o else []
-                                for o in e["outcomes"]],
-                 "post_loco_replicates":
-                     e.get("post_loco_outcomes")}
+                 "grid_index": det_pts.index(e["point"]),
+                 "replicates": reps_from(e["outcomes"], fam),
+                 "loco_folds": folds_from(
+                     e.get("post_loco_outcomes"))
+                 if fam == "B1B" else None}
                 for e in entries]
         r_raw = json.dumps(results).encode()
         store_map[(commit, "ts_results.json")] = r_raw
         det_order = {f: [p for p in grids_obj[f] if "gain" not in p]
                      for f in ("B2A", "B2B", "B1B", "B3A")}
-        impl_pin = [p for p in man_pins
-                    if p["path"] == impl_path][0]
+        grid_pin = [p for p in man_pins
+                    if p["path"].startswith("grids")][0]
         inv = {"schema": "f2g-w2-tier-s-invocation-v2",
-               "manifest_commit": commit,
-               "effect_grids": {"commit": commit,
-                               "path": "grids.json"
-                               if (commit, "grids.json") in store_map
-                               else "grids2.json",
-                               "blob_sha256": _h.sha256(
-                                   grids_raw).hexdigest()},
+               "manifest_commit": mc_override or commit,
+               "effect_grids": {"commit": grid_pin["commit"],
+                               "path": grid_pin["path"],
+                               "blob_sha256":
+                                   grid_pin["blob_sha256"]},
                "geometry": {"commit": commit, "path": "geom.json",
                             "capsule_digest": geom_digest},
                "quality": {"R": 50, "n_draws": 999},
                "seed_authority_sha256": "b" * 64,
-               "implementation": {"path": impl_path,
-                                  "blob_sha256":
-                                      impl_pin["blob_sha256"]},
+               "implementation": impl_id,
                "grid_order_sha256": _digest_fn(det_order),
                "results_ref": {"commit": commit,
                                "path": "ts_results.json",
@@ -703,7 +889,9 @@ def _selftest():
                                    r_raw).hexdigest()},
                "completion_receipt": {
                    "fired_utc": "2026-08-25T00:00:00Z",
-                   "completed_utc": "2026-08-25T11:00:00Z"}}
+                   "completed_utc": "2026-08-25T11:00:00Z",
+                   "results_blob_sha256": _h.sha256(
+                       r_raw).hexdigest()}}
         inv["invocation_sha256"] = _digest_fn(
             {k: v for k, v in inv.items()
              if k != "invocation_sha256"})
@@ -746,7 +934,8 @@ def _selftest():
     astore[("a" * 40, "selector2.json")] = json.dumps(art_a).encode()
     adm = verify_selector_admission(
         ".", art_a, "a" * 40, blob_reader=areader,
-        git_resolve=lambda c: c)
+        git_resolve=lambda c: c, geometry_loader=geom_loader,
+        is_ancestor=lambda a, b: True)
     assert adm["effect_grids"]["blob_sha256"] ==         _hl.sha256(grids_raw).hexdigest()
     assert adm["smoke"]["invocation_sha256"] ==         ts_inv["invocation_sha256"]
 
@@ -754,7 +943,9 @@ def _selftest():
         try:
             verify_selector_admission(".", art_x, "a" * 40,
                                       blob_reader=areader,
-                                      git_resolve=resolve)
+                                      git_resolve=resolve,
+                                      geometry_loader=geom_loader,
+                                      is_ancestor=lambda a, b: True)
             return False
         except SelectorRefusal as e:
             return needle in str(e)
@@ -850,7 +1041,88 @@ def _selftest():
         fab2, grids,
         smoke_ref={"commit": "a" * 40, "path": "fab2_smoke.json"},
         effect_grids_ref=refs2["effect_grids_ref"])
-    assert arefuses(art_fab2, "do not REBUILD")
+    assert arefuses(art_fab2, "do not DERIVE")
+
+    # --- codex 0349Z item 3: the nested-field + lineage MUTATION
+    # TABLE -- every identity/lineage edge, one loop
+    def re_capsule(mut_inv=None, mut_results=None,
+                   ancestor=lambda a, b: True):
+        store2 = dict(astore)
+        inv2 = mk_tier_s_capsule(sm["families"], grids, grids_raw,
+                                 store2, "a" * 40, man_pins,
+                                 "impl.py")
+        inv2 = json.loads(store2[("a" * 40,
+                                  "ts_invocation.json")].decode())
+        if mut_results:
+            res2 = json.loads(store2[("a" * 40,
+                                      "ts_results.json")].decode())
+            mut_results(res2)
+            raw2 = json.dumps(res2).encode()
+            store2[("a" * 40, "ts_results.json")] = raw2
+        if mut_inv:
+            mut_inv(inv2)
+            inv2["invocation_sha256"] = _digest(
+                {k: v for k, v in inv2.items()
+                 if k != "invocation_sha256"})
+            store2[("a" * 40, "ts_invocation.json")] = json.dumps(
+                inv2).encode()
+        sm3 = dict(sm, schema="f2g-w2-tier-s-smoke-v1",
+                   effect_grids_sha256=_digest(grids),
+                   invocation_ref={"commit": "a" * 40,
+                                   "path": "ts_invocation.json"},
+                   invocation_sha256=inv2["invocation_sha256"])
+        store2[("a" * 40, "smoke3.json")] = json.dumps(sm3).encode()
+        art3 = select_candidates(
+            sm3, grids,
+            smoke_ref={"commit": "a" * 40, "path": "smoke3.json"},
+            effect_grids_ref=refs2["effect_grids_ref"])
+        store2[("a" * 40, "selector3.json")] = json.dumps(
+            art3).encode()
+
+        def rdr(c, p):
+            if p.endswith("execution_manifest.json"):
+                return json.dumps(fix_man).encode()
+            return store2[(c, p)]
+        try:
+            verify_selector_admission(
+                ".", art3, "a" * 40, blob_reader=rdr,
+                git_resolve=lambda c: c,
+                geometry_loader=geom_loader, is_ancestor=ancestor)
+            return None
+        except SelectorRefusal as e:
+            return str(e)
+    assert re_capsule() is None            # clean capsule passes
+    MUTS = [
+        (lambda i: i["effect_grids"].update(commit="0" * 40), None),
+        (lambda i: i["implementation"].update(commit="0" * 40),
+         None),
+        (lambda i: i.update(seed_authority_sha256="Z" * 64), None),
+        (lambda i: i["completion_receipt"].update(
+            fired_utc="2026-08-25"), None),
+        (lambda i: i["completion_receipt"].update(
+            fired_utc="2026-08-25T12:00:00Z",
+            completed_utc="2026-08-25T11:00:00Z"), None),
+        (lambda i: i["completion_receipt"].update(
+            results_blob_sha256="0" * 64), None),
+        (None, lambda r: r.update(quality={"R": 40,
+                                           "n_draws": 999})),
+        (None, lambda r: r.update(
+            seed_authority_sha256="c" * 64)),
+        (None, lambda r: r["families"]["B2A"][0].update(extra=1)),
+        (None, lambda r: r["families"]["B2A"][0]["replicates"][0]
+            ["p_values"].update(B2A=0.9)),
+    ]
+    for mi, mr in MUTS:
+        msg = re_capsule(mut_inv=mi, mut_results=mr)
+        assert msg is not None and "SELECTOR_UNADMITTED" in msg, \
+            (mi, mr, msg)
+    # lineage edge broken -> refuse
+    msg = re_capsule(ancestor=lambda a, b: False)
+    assert msg is not None and "descendant chain" in msg
+    # forged results whose p-vectors do not derive the smoke refuse
+    # (the last mutation above flips one replicate's p-value); the
+    # coordinated case -- fabricated smoke + MATCHING fabricated
+    # membership -- has no seam left because membership is never read
 
     # unresolvable lineage -> unadmitted
     def bad_resolve(c):

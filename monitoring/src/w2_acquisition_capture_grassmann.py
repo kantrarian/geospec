@@ -798,7 +798,7 @@ def _selftest():
                 "request_params": {"net": "UW", "cha": "HHZ"},
                 "operation_params": {"carrier": ck, "day": "{day}"}}
     kat_auth = {"schema": "f2g-w2-expected-contracts-v3",
-                "template_token_vocabulary": ["{day}", "{day_next}"],
+                "template_token_vocabulary": ["{day}", "{day_next}", "{day_compact}"],
                 "prestart_expected_keys": kat_keys,
                 "prestart_expected_keys_sha256": hashlib.sha256(
                     json.dumps(kat_keys, sort_keys=True,

@@ -2574,7 +2574,7 @@ def w_admit():
         # REV 16: the CLOSED self-verifying authority capsule (codex
         # 0320Z item 3) with the per-key static templates (item 1)
         auth = {"schema": "f2g-w2-expected-contracts-v3",
-                "template_token_vocabulary": ["{day}", "{day_next}"],
+                "template_token_vocabulary": ["{day}", "{day_next}", "{day_compact}"],
                 "prestart_expected_keys": auth_keys,
                 "prestart_expected_keys_sha256": keys_sha(auth_keys),
                 "static_layer": {

@@ -2,14 +2,14 @@
  "design_manifest_blob_sha256": "d6decbd6ab5814bc005ce69c538311ff1b11cb1d13c19e2999e03a92bc7cca1f",
  "design_manifest_commit": "5fba5446cd96722fb86021df5065a46b8a1a78f5",
  "design_target_commit": "12161f6cf2000b2d4aa86fe659f834839ac0d27b",
- "execution_target_commit": "332a98acd34797163413350dc4989fdb37ec87b2",
- "generated_utc": "2026-08-24T21:24:23Z",
+ "execution_target_commit": "8243d8a3071f69eded434929656e36d804b1eaec",
+ "generated_utc": "2026-08-24T22:21:50Z",
  "manifest_state": "OPEN",
  "repository_url": "https://github.com/kantrarian/geospec",
  "schema": "f2g-window2-execution-manifest-v1.2",
  "slots": {
   "accrual_impl": {
-   "note": "barrier state machine + production instrument (core + 3 seam layers) + accrual-lane engines (W-BARRIER/W-MF4/W-MAG green)",
+   "note": "barrier state machine + production instrument (core + 3 seam layers) + accrual-lane engines (W-BARRIER/W-MF4/W-MAG green) + the FROZEN v3 static-contract authority and its generator (codex 2205Z item 1: capture admission requires the authority as a pin of THIS slot; producer_boundary additionally binds it at final boundary bind)",
    "owner": "cayley",
    "pins": [
     {
@@ -31,6 +31,16 @@
      "blob_sha256": "d3fd1cadb568f26dd86d9f09e5d9633091c489b2429aabe1e1dd00ae45d4a168",
      "commit": "6f73445244493813b02caa761aebc3ab39bab7ed",
      "path": "monitoring/src/w2_mag1.py"
+    },
+    {
+     "blob_sha256": "b374e85589499f918fe3da576ef60be8abe95c0e0d8ef5da844a858123aee344",
+     "commit": "332a98acd34797163413350dc4989fdb37ec87b2",
+     "path": "monitoring/src/w2_expected_contracts_gen_cayley.py"
+    },
+    {
+     "blob_sha256": "b5b0a61a4edcdac2bfcd8a819f2e118a81c492947a0b6167ffd07ef09338967e",
+     "commit": "332a98acd34797163413350dc4989fdb37ec87b2",
+     "path": "docs/f2g_window2_execution/staged_expected_contracts_v3.json"
     }
    ],
    "status": "BOUND"
@@ -114,8 +124,8 @@
    "owner": "cayley",
    "pins": [
     {
-     "blob_sha256": "9fd6f847b73132efe0028cc6edf2c29bd6f99ac5f6650c0acb63979a5d7eee22",
-     "commit": "2df06bac98bdf3ff2aa5eb2c96874b4444ddc876",
+     "blob_sha256": "4f2070fecd0d9c867b3f4b2e3f240561ddee77817ec46951a7cce70dfdf31139",
+     "commit": "8243d8a3071f69eded434929656e36d804b1eaec",
      "path": "monitoring/src/f2g_execution_manifest_gen_cayley.py"
     }
    ],

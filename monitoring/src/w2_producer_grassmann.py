@@ -657,12 +657,35 @@ def _hex64(v, what):
 
 def requested_url_of(endpoint, request_params):
     """The registered URL derivation: endpoint + '?' + urlencoded
-    SORTED params (one canonical spelling)."""
-    from urllib.parse import urlencode
+    params, keys SORTED (one canonical spelling). A LIST value
+    expands as repeated key/value pairs IN REGISTERED ORDER -- the
+    probe-confirmed OMNIWeb repeated-parameter grammar (codex freeze
+    finding 2: stringifying the container emitted a query no provider
+    ever confirmed). Empty lists and nested/unordered containers
+    refuse -- a registered parameter never silently vanishes."""
+    from urllib.parse import quote_plus
     if not request_params:
         return str(endpoint)
-    return str(endpoint) + "?" + urlencode(
-        sorted((str(k), str(v)) for k, v in request_params.items()))
+    pairs = []
+    for k in sorted(request_params, key=str):
+        v = request_params[k]
+        if isinstance(v, (dict, set, frozenset)):
+            raise ProducerRefusal(
+                "PRODUCER_URL_PARAM_INVALID: unsupported container "
+                f"value for parameter {k!r}")
+        items = list(v) if isinstance(v, (list, tuple)) else [v]
+        if isinstance(v, (list, tuple)) and not items:
+            raise ProducerRefusal(
+                "PRODUCER_URL_PARAM_INVALID: empty repeated-"
+                f"parameter list for {k!r}")
+        for item in items:
+            if isinstance(item, (list, tuple, dict, set, frozenset)):
+                raise ProducerRefusal(
+                    "PRODUCER_URL_PARAM_INVALID: nested container "
+                    f"value for parameter {k!r}")
+            pairs.append((str(k), str(item)))
+    return str(endpoint) + "?" + "&".join(
+        f"{quote_plus(k)}={quote_plus(v)}" for k, v in pairs)
 
 
 def build_envelope_record(*, lane, carrier, utc_day, raw_body,
@@ -1599,6 +1622,34 @@ def _selftest():
         recs2, bodies2, arts2, stat2, tr2, days2,
         "istanbul_marmara", "DAY_CAPSULE"),
         "PRODUCER_RECORD_REPLAY")                     # cross-carrier
+
+    # --- freeze finding 2: the canonical URL builder expands LIST
+    # values as repeated key/value pairs in registered order -- the
+    # EXACT probe-confirmed OMNIWeb grammar; the stringified-container
+    # spelling can never be emitted ---
+    omni_url = requested_url_of(
+        "https://omniweb.gsfc.nasa.gov/cgi/nx1.cgi",
+        {"activity": "retrieve", "res": "min",
+         "spacecraft": "omni_min", "start_date": "20251115",
+         "end_date": "20251115", "vars": ["17", "21", "25"]})
+    assert omni_url == (
+        "https://omniweb.gsfc.nasa.gov/cgi/nx1.cgi?"
+        "activity=retrieve&end_date=20251115&res=min&"
+        "spacecraft=omni_min&start_date=20251115&"
+        "vars=17&vars=21&vars=25"), omni_url
+    assert "%5B" not in omni_url and "%27" not in omni_url
+    # registered order is preserved within the repeated key
+    assert requested_url_of("https://e.example/x",
+                            {"vars": ["25", "17"]}) == \
+        "https://e.example/x?vars=25&vars=17"
+    # scalar-only queries keep the REV 9 canonical spelling
+    assert requested_url_of("https://e.example/x",
+                            {"b": 2, "a": "one two"}) == \
+        "https://e.example/x?a=one+two&b=2"
+    for bad in ({"vars": []}, {"vars": [["17"]]},
+                {"vars": {"17": 1}}, {"vars": {"17"}}):
+        assert refuses(lambda b=bad: requested_url_of(
+            "https://e.example/x", b), "PRODUCER_URL_PARAM_INVALID")
 
     print("w2_producer selftest: ALL PASS")
 

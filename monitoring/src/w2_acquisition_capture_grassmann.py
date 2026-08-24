@@ -23,6 +23,18 @@ recomputable per the amendment.
 The selftest performs NO network I/O: a registered fake opener serves
 byte fixtures; the round trip is proven through the REAL producer
 verification surface (verify_envelope_record + verify_staged_day_set).
+
+REV 7 (codex freeze-review findings 1+3): (1) capture_authorized
+locates the authority pin ONLY in the AUTHORITY_SLOT ('accrual_impl')
+slot of the execution manifest -- a same-path pin in any other slot is
+a wrong-slot pin and refuses UNADMITTED before network; (3) the
+REGISTERED production lane-transform dispatcher `admission_transform`
+lands here: selection presence (closed 17-column FDSN rows, registered
+station set, THE exact epoch-overlap predicate), MAG minute series
+(USGS ws / INTERMAGNET GIN, provider-null refusal), MF4 (GFZ Kp / the
+OMNIWeb CGI listing with per-carrier registered fill sentinels). The
+production capture path builds its artifact through this dispatcher;
+a caller-supplied builder can cross-check but never substitute.
 """
 import hashlib
 import json
@@ -299,6 +311,12 @@ def capture_day(spec, staging_dir, records_dir, transcripts_dir,
 # ------------------------------------------------ authorized production path
 EXEC_MANIFEST_PATH = ("docs/f2g_window2_execution/"
                       "execution_manifest.json")
+# codex freeze-review finding 1: the ONE manifest slot whose pins may
+# carry the capture authority. producer_boundary is OPEN until the
+# final boundary bind (an OPEN slot cannot carry pins), so admission
+# reads the authority from the already-BOUND accrual_impl slot ONLY --
+# a same-path pin in any other slot is a wrong-slot pin and refuses.
+AUTHORITY_SLOT = "accrual_impl"
 
 
 def capture_authorized(repo, manifest_commit, authority_path, lane,
@@ -355,16 +373,17 @@ def capture_authorized(repo, manifest_commit, authority_path, lane,
     manifest = json.loads(blob_reader(
         mc_full, EXEC_MANIFEST_PATH).decode("utf-8"))
     pin = None
-    for slot in manifest.get("slots", {}).values():
-        for p in slot.get("pins", ()) or ():
-            if isinstance(p, dict) and \
-                    p.get("path") == str(authority_path):
-                pin = p
+    slot = manifest.get("slots", {}).get(AUTHORITY_SLOT, {})
+    for p in slot.get("pins", ()) or ():
+        if isinstance(p, dict) and \
+                p.get("path") == str(authority_path):
+            pin = p
     if pin is None:
         raise CaptureRefusal(
             f"CAPTURE_AUTHORITY_UNADMITTED: {authority_path} is not "
-            f"a pin of the execution manifest at {mc_full[:12]} -- "
-            "a committed authority is never an ADMITTED authority")
+            f"a pin of the {AUTHORITY_SLOT!r} slot of the execution "
+            f"manifest at {mc_full[:12]} -- a committed or wrong-"
+            "slot authority is never an ADMITTED authority")
     pin_commit = git_resolve(pin["commit"])
     raw = blob_reader(pin_commit, str(authority_path))
     got = hashlib.sha256(raw).hexdigest()
@@ -419,8 +438,24 @@ def _capture_from_validated_authority(repo, authority, auth_id,
             "source": dict(s["source"]), "cutoff": s["cutoff"],
             "operation_params": dict(s["operation_params"]),
             "expected_keys": list(s["expected_keys"])}
+
+    # codex freeze-review finding 3: the PRODUCTION artifact is built
+    # by the registered admission transform -- the same callable the
+    # boundary recomputes through. A caller-supplied builder can
+    # cross-check but never substitute: any divergence refuses.
+    def _registered_builder(body, _s=spec, _caller=artifact_builder):
+        art = admission_transform(_s["lane"], body, _s)
+        if _caller is not None:
+            theirs = _caller(body)
+            if PROD._canon_digest(theirs) != PROD._canon_digest(art):
+                raise CaptureRefusal(
+                    "CAPTURE_ARTIFACT_DIVERGENT: the caller-supplied "
+                    "builder product diverges from the registered "
+                    "admission transform -- the registered transform "
+                    "is the only production artifact authority")
+        return art
     return capture_day(spec, staging_dir, records_dir,
-                       transcripts_dir, artifact_builder,
+                       transcripts_dir, _registered_builder,
                        opener=opener, clock=clock,
                        authority_id=auth_id)
 
@@ -619,6 +654,357 @@ def _race_worker(path, obj, code, barrier, q):
 
 
 # ---------------------------------------------------------------- selftest
+# ---- the registered production lane-transform dispatcher (codex
+# freeze-review finding 3): admission artifacts are COMPUTED by
+# committed code from the exact staged bytes + the AUTHORITATIVE S --
+# never by a caller callback, never digest-only. verify_staged_boundary
+# recomputes every admitted artifact through this same callable. ----
+
+ARTIFACT_SCHEMA = "f2g-w2-admission-artifact-v1"
+_FDSN_COLS = 17
+# per-carrier registered fill sentinels (probe-evidenced: parser notes
+# v1 pinned 9999.99/99999.9/999.99 for omni vars 17/21/25; SYM/H
+# minute fill is 99999)
+_OMNIWEB_FILL = {"omni": ("9999.99", "99999.9", "999.99"),
+                 "sym_h": ("99999",)}
+
+
+def _xerr(msg):
+    raise CaptureRefusal("ADMISSION_TRANSFORM_REFUSED: " + str(msg))
+
+
+def _xf_text(raw_body):
+    if not isinstance(raw_body, (bytes, bytearray)) or not raw_body:
+        _xerr("raw body must be non-empty bytes")
+    try:
+        return bytes(raw_body).decode("utf-8")
+    except UnicodeDecodeError:
+        _xerr("body is not valid UTF-8")
+
+
+def _xf_day_window(day):
+    from datetime import datetime, timedelta
+    try:
+        d0 = datetime.fromisoformat(str(day) + "T00:00:00")
+    except (TypeError, ValueError):
+        _xerr(f"contract day {day!r} is not canonical YYYY-MM-DD")
+    d1 = d0 + timedelta(days=1)
+    return d0, d1, d1.strftime("%Y-%m-%d")
+
+
+def _xf_instant(raw, what):
+    """Provider epoch instants are UTC; a trailing Z is normalized so
+    naive/aware comparison can never raise instead of refusing."""
+    from datetime import datetime
+    s = str(raw).strip()
+    if s.endswith("Z"):
+        s = s[:-1]
+    try:
+        return datetime.fromisoformat(s)
+    except ValueError:
+        _xerr(f"unparseable {what} instant {raw!r}")
+
+
+def _xf_selection(raw_body, s):
+    """SELECTION_RECORDS: closed 17-column FDSN station-text rows ->
+    per-day station presence. The registered station set comes from
+    operation_params.registered_station_filter (socal) or the request
+    'sta' list (istanbul/turkey); a bbox carrier with neither
+    (cascadia) reports every returned station. Presence = at least
+    one registered-channel epoch whose [start, end) OVERLAPS
+    [day, day_next) -- the ONE exact epoch-overlap predicate; an
+    absent EndTime is open-ended. Outside-station rows are retained
+    in the raw evidence and can never enter the artifact's presence
+    set. Malformed rows, unregistered networks/channels, and
+    duplicate epochs refuse."""
+    text = _xf_text(raw_body)
+    day0, day1, _ = _xf_day_window(s["utc_day"])
+    rp = dict(s.get("request_params") or {})
+    nets = {n.strip() for n in str(rp.get("net", "")).split(",")}
+    chans = {c.strip() for c in str(rp.get("cha", "")).split(",")}
+    op = dict(s.get("operation_params") or {})
+    if "registered_station_filter" in op:
+        registered = [x.strip() for x in
+                      str(op["registered_station_filter"]).split(",")]
+    elif "sta" in rp:
+        registered = [x.strip() for x in str(rp["sta"]).split(",")]
+    else:
+        registered = None
+    lines = text.splitlines()
+    if not lines or not lines[0].startswith("#"):
+        _xerr("selection body lacks the FDSN text header")
+    rows = [ln for ln in lines[1:]
+            if ln.strip() and not ln.startswith("#")]
+    if not rows:
+        _xerr("selection body carries zero data rows")
+    seen_epochs = set()
+    outside = 0
+    present = set()
+    for ln in rows:
+        f = ln.split("|")
+        if len(f) != _FDSN_COLS:
+            _xerr(f"malformed FDSN row ({len(f)} columns != "
+                  f"{_FDSN_COLS}): {ln[:60]!r}")
+        net, sta, loc, cha = (f[0].strip(), f[1].strip(),
+                              f[2].strip(), f[3].strip())
+        start_s, end_s = f[15].strip(), f[16].strip()
+        if net not in nets:
+            _xerr(f"row network {net!r} is not a registered request "
+                  "network")
+        if cha not in chans:
+            _xerr(f"row channel {cha!r} is not a registered request "
+                  "channel")
+        ep_start = _xf_instant(start_s, "epoch StartTime")
+        ep_end = _xf_instant(end_s, "epoch EndTime") if end_s \
+            else None
+        ekey = (net, sta, loc, cha, start_s)
+        if ekey in seen_epochs:
+            _xerr(f"duplicate channel epoch {net}.{sta}.{loc}.{cha} "
+                  f"@ {start_s}")
+        seen_epochs.add(ekey)
+        if registered is not None and sta not in registered:
+            outside += 1
+            continue
+        if ep_start < day1 and (ep_end is None or ep_end > day0):
+            present.add(sta)
+    return {"schema": ARTIFACT_SCHEMA, "lane": s["lane"],
+            "carrier": s["carrier"], "utc_day": s["utc_day"],
+            "kind": "fdsn-station-presence",
+            "registered_stations": (sorted(registered)
+                                    if registered is not None
+                                    else None),
+            "present_stations": sorted(present),
+            "absent_stations": (sorted(set(registered) - present)
+                                if registered is not None else []),
+            "data_rows": len(rows),
+            "outside_station_rows_excluded": outside}
+
+
+def _xf_mag(raw_body, s):
+    """MAG_FEED minute series (USGS ws JSON / INTERMAGNET GIN JSON):
+    structural validation + day binding + honest null accounting. A
+    series with ZERO definitive samples is provider-null and refuses
+    -- a null day is a typed capture failure, never an admitted
+    observation."""
+    kind = (s.get("source") or {}).get("kind")
+    if kind not in ("usgs-geomag-ws-minute",
+                    "intermagnet-gin-minute"):
+        _xerr(f"unregistered MAG source kind {kind!r}")
+    doc_text = _xf_text(raw_body)
+    try:
+        doc = json.loads(doc_text)
+    except ValueError:
+        _xerr("MAG body is not valid JSON")
+    day = s["utc_day"]
+    _, _, day_next = _xf_day_window(day)
+    rp = dict(s.get("request_params") or {})
+
+    def _day_bound(instants, what):
+        if not isinstance(instants, list) or not instants:
+            _xerr(f"MAG body carries zero {what} samples")
+        for t in instants:
+            ts = str(t)
+            if not (ts.startswith(day)
+                    or ts.startswith(day_next + "T00:00:00")):
+                _xerr(f"MAG sample instant {ts!r} is outside the "
+                      f"registered day {day}")
+    if kind == "usgs-geomag-ws-minute":
+        if not isinstance(doc, dict) or \
+                not isinstance(doc.get("values"), list):
+            _xerr("USGS MAG body lacks the values channel list")
+        iaga = ((((doc.get("metadata") or {}).get("intermagnet")
+                  or {}).get("imo") or {}).get("iaga_code"))
+        if iaga != rp.get("id"):
+            _xerr(f"observatory {iaga!r} diverges from the "
+                  f"registered id {rp.get('id')!r}")
+        times = doc.get("times")
+        _day_bound(times, "time")
+        nulls = {}
+        definitive = [False] * len(times)
+        for ch in doc["values"]:
+            if not isinstance(ch, dict) or \
+                    not isinstance(ch.get("values"), list):
+                _xerr("USGS MAG channel entry is not closed")
+            cid = str(ch.get("id"))
+            vals = ch["values"]
+            if len(vals) != len(times):
+                _xerr(f"channel {cid} length {len(vals)} diverges "
+                      f"from times length {len(times)}")
+            nulls[cid] = sum(1 for v in vals if v is None)
+            for i, v in enumerate(vals):
+                if v is not None:
+                    definitive[i] = True
+        if not nulls:
+            _xerr("USGS MAG body carries zero channels")
+        n_def = sum(definitive)
+        if n_def == 0:
+            _xerr("provider-null MAG series (zero definitive "
+                  "samples)")
+        return {"schema": ARTIFACT_SCHEMA, "lane": s["lane"],
+                "carrier": s["carrier"], "utc_day": day,
+                "kind": "mag-minute-series", "observatory": iaga,
+                "samples": len(times),
+                "channels": sorted(nulls),
+                "null_by_channel": {k: nulls[k] for k in
+                                    sorted(nulls)},
+                "definitive_samples": n_def}
+    if kind == "intermagnet-gin-minute":
+        if not isinstance(doc, dict):
+            _xerr("GIN MAG body is not a JSON object")
+        dts = doc.get("datetime")
+        _day_bound(dts, "datetime")
+        comps = {k: v for k, v in doc.items()
+                 if k != "datetime" and isinstance(v, list)}
+        if not comps:
+            _xerr("GIN MAG body carries zero component arrays")
+        nulls = {}
+        definitive = [False] * len(dts)
+        for cid in sorted(comps):
+            vals = comps[cid]
+            if len(vals) != len(dts):
+                _xerr(f"component {cid} length {len(vals)} diverges "
+                      f"from datetime length {len(dts)}")
+            nulls[cid] = sum(1 for v in vals if v is None)
+            for i, v in enumerate(vals):
+                if v is not None:
+                    definitive[i] = True
+        n_def = sum(definitive)
+        if n_def == 0:
+            _xerr("provider-null MAG series (zero definitive "
+                  "samples)")
+        return {"schema": ARTIFACT_SCHEMA, "lane": s["lane"],
+                "carrier": s["carrier"], "utc_day": day,
+                "kind": "mag-minute-series",
+                "observatory": rp.get("observatoryIagaCode"),
+                "samples": len(dts), "channels": sorted(comps),
+                "null_by_channel": {k: nulls[k] for k in
+                                    sorted(nulls)},
+                "definitive_samples": n_def}
+
+
+def _xf_mf4(raw_body, s):
+    """MF4_FEED: GFZ Kp JSON (eight three-hour intervals, definitive
+    counted by status) or OMNIWeb high-res CGI listings (minute rows
+    bound to the registered day by YYYY+DOY; per-carrier registered
+    fill sentinels counted; an all-sentinel listing refuses)."""
+    kind = (s.get("source") or {}).get("kind")
+    day = s["utc_day"]
+    if kind == "gfz-kp-json":
+        try:
+            doc = json.loads(_xf_text(raw_body))
+        except ValueError:
+            _xerr("Kp body is not valid JSON")
+        kp, dts, st = (doc.get("Kp"), doc.get("datetime"),
+                       doc.get("status"))
+        if not (isinstance(kp, list) and isinstance(dts, list)
+                and isinstance(st, list)):
+            _xerr("Kp body lacks the Kp/datetime/status arrays")
+        if not (len(kp) == len(dts) == len(st)) or not kp:
+            _xerr("Kp arrays are empty or length-divergent")
+        for t in dts:
+            if not str(t).startswith(day):
+                _xerr(f"Kp interval instant {t!r} is outside the "
+                      f"registered day {day}")
+        for v in kp:
+            if not isinstance(v, (int, float)) or \
+                    isinstance(v, bool) or not (0.0 <= v <= 9.0):
+                _xerr(f"Kp value {v!r} is not a finite index value "
+                      "in [0, 9]")
+        n_def = sum(1 for x in st if x == "def")
+        return {"schema": ARTIFACT_SCHEMA, "lane": s["lane"],
+                "carrier": s["carrier"], "utc_day": day,
+                "kind": "kp-intervals", "intervals": len(kp),
+                "definitive_intervals": n_def}
+    if kind == "omniweb-highres-cgi":
+        from datetime import datetime
+        carrier = s["carrier"]
+        if carrier not in _OMNIWEB_FILL:
+            _xerr(f"no registered fill-sentinel set for OMNIWeb "
+                  f"carrier {carrier!r}")
+        fills = set(_OMNIWEB_FILL[carrier])
+        rp = dict(s.get("request_params") or {})
+        v = rp.get("vars")
+        n_vars = len(v) if isinstance(v, (list, tuple)) else 1
+        want_doy = datetime.fromisoformat(
+            day + "T00:00:00").timetuple().tm_yday
+        want_year = int(day[:4])
+        text = _xf_text(raw_body)
+        rows = []
+        in_data = False
+        for ln in text.splitlines():
+            t = ln.strip()
+            if t.startswith("YYYY DOY HR MN"):
+                in_data = True
+                continue
+            if not in_data:
+                continue
+            if not t or t.startswith("<"):
+                in_data = False
+                continue
+            tok = t.split()
+            if len(tok) != 4 + n_vars:
+                _xerr(f"malformed OMNIWeb data row ({len(tok)} "
+                      f"tokens != {4 + n_vars}): {t[:60]!r}")
+            try:
+                yy, doy, hh, mn = (int(tok[0]), int(tok[1]),
+                                   int(tok[2]), int(tok[3]))
+            except ValueError:
+                _xerr(f"malformed OMNIWeb time tokens: {t[:60]!r}")
+            if yy != want_year or doy != want_doy:
+                _xerr(f"OMNIWeb row {yy}/{doy:03d} is outside the "
+                      f"registered day {day} (DOY {want_doy:03d})")
+            if not (0 <= hh <= 23 and 0 <= mn <= 59):
+                _xerr(f"OMNIWeb row time {hh:02d}:{mn:02d} invalid")
+            rows.append(tok[4:])
+        if not rows:
+            _xerr("OMNIWeb listing carries zero data rows")
+        fill_by_col = [0] * n_vars
+        n_def = 0
+        for vals in rows:
+            all_fill = True
+            for i, x in enumerate(vals):
+                if x in fills:
+                    fill_by_col[i] += 1
+                else:
+                    all_fill = False
+            if not all_fill:
+                n_def += 1
+        if n_def == 0:
+            _xerr("all OMNIWeb samples are provider fill sentinels "
+                  "(zero definitive samples)")
+        return {"schema": ARTIFACT_SCHEMA, "lane": s["lane"],
+                "carrier": s["carrier"], "utc_day": day,
+                "kind": "omniweb-minute-listing", "samples":
+                    len(rows), "value_columns": n_vars,
+                "fill_by_column": list(fill_by_col),
+                "definitive_samples": n_def}
+    _xerr(f"unregistered MF4 source kind {kind!r}")
+
+
+def admission_transform(lane, raw_body, static_contract):
+    """THE registered production lane-transform dispatcher (codex
+    freeze-review finding 3; the accrual boundary's fail-closed
+    default). Routes on (lane, source.kind) from the AUTHORITATIVE
+    static contract -- an unregistered pair refuses, so no body class
+    the freeze never reviewed can be admitted."""
+    if not isinstance(static_contract, dict):
+        _xerr("static contract must be the authoritative S mapping")
+    if static_contract.get("lane") != lane:
+        _xerr(f"dispatch lane {lane!r} diverges from the "
+              f"authoritative S lane "
+              f"{static_contract.get('lane')!r}")
+    kind = (static_contract.get("source") or {}).get("kind")
+    if lane == "SELECTION_RECORDS":
+        if kind != "fdsn-station-channel":
+            _xerr(f"unregistered SELECTION source kind {kind!r}")
+        return _xf_selection(raw_body, static_contract)
+    if lane == "MAG_FEED":
+        return _xf_mag(raw_body, static_contract)
+    if lane == "MF4_FEED":
+        return _xf_mf4(raw_body, static_contract)
+    _xerr(f"unregistered capture lane {lane!r}")
+
+
 def _selftest():
     import tempfile
     root = tempfile.mkdtemp(prefix="w2_capture_kat_")
@@ -626,9 +1012,23 @@ def _selftest():
     records = os.path.join(root, "records")
     transcripts = os.path.join(root, "transcripts")
 
+    FDSN_HDR = ("#Network|Station|Location|Channel|Latitude|"
+                "Longitude|Elevation|Depth|Azimuth|Dip|Instrument|"
+                "Scale|ScaleFreq|ScaleUnits|SampleRate|StartTime|"
+                "EndTime")
+    FDSN_KAT_BODY = "\n".join([
+        FDSN_HDR,
+        "UW|KAT1||HHZ|0|0|0|0|0|-90|kat|1|1|m/s|100|"
+        "2020-01-01T00:00:00|",
+        "UW|KAT2||HHZ|0|0|0|0|0|-90|kat|1|1|m/s|100|"
+        "2019-01-01T00:00:00|2021-01-01T00:00:00",
+    ]).encode() + b"\n"
     FIX = {"https://kat.example/fdsn?cha=HHZ&net=UW":
            (200, {"content-type": "text/plain"}, b"kat-body-1",
             "https://edge.example/fdsn-final"),
+           "https://kat.example/fdsn2?cha=HHZ&net=UW":
+           (200, {"content-type": "text/plain"}, FDSN_KAT_BODY,
+            "https://kat.example/fdsn2?cha=HHZ&net=UW"),
            "https://kat.example/err?d=1":
            (503, {"content-type": "text/html"}, b"oops",
             "https://kat.example/err?d=1"),
@@ -792,9 +1192,14 @@ def _selftest():
                 "MF4_FEED": {"mf4drv": ["2026-08-20"]}}
 
     def kat_template(lane, ck):
-        return {"source": {"kind": "fdsn-availability",
-                           "ref": "https://kat.example/fdsn"},
-                "endpoint": "https://kat.example/fdsn",
+        # registered (lane, source.kind) pairs so the PRODUCTION
+        # admission transform (freeze finding 3) routes the fixture
+        kinds = {"SELECTION_RECORDS": "fdsn-station-channel",
+                 "MAG_FEED": "usgs-geomag-ws-minute",
+                 "MF4_FEED": "gfz-kp-json"}
+        return {"source": {"kind": kinds[lane],
+                           "ref": "https://kat.example/fdsn2"},
+                "endpoint": "https://kat.example/fdsn2",
                 "request_params": {"net": "UW", "cha": "HHZ"},
                 "operation_params": {"carrier": ck, "day": "{day}"}}
     kat_auth = {"schema": "f2g-w2-expected-contracts-v3",
@@ -819,7 +1224,7 @@ def _selftest():
                  "staged_expected_contracts_v3.json")
     MAN_C = "e" * 40
     PIN_C = "b" * 40
-    kat_man = {"slots": {"producer_boundary": {
+    kat_man = {"slots": {AUTHORITY_SLOT: {
         "status": "BOUND",
         "pins": [{"path": AUTH_PATH, "commit": "kat-auth",
                   "blob_sha256": hashlib.sha256(auth_raw)
@@ -847,7 +1252,7 @@ def _selftest():
         return json.loads(auth_raw.decode())
     rp3, tp3, rec3, tr3 = capture_authorized(
         ".", "kat-man", AUTH_PATH, "SELECTION_RECORDS", "cascadia",
-        "2026-08-20", staging, records, transcripts, builder,
+        "2026-08-20", staging, records, transcripts, None,
         opener=copener, clock=clock_a, blob_reader=m_reader,
         git_resolve=m_resolve, authority_reproducer=a_repro)
     assert counted["n"] == 1
@@ -856,18 +1261,39 @@ def _selftest():
         "blob_sha256": hashlib.sha256(auth_raw).hexdigest(),
         "keys_sha256": kat_auth["prestart_expected_keys_sha256"]}
     assert tr3["authority"] == rec3["receipt"]["authority"]
+    # freeze finding 3: the production artifact IS the registered
+    # transform's product (record binds it via output_sha256) --
+    # overlap-present KAT1 in, epoch-closed KAT2 out
+    import w2_accrual_instrument_cayley as _ACC
+    s_kat = _ACC.authoritative_static_contract(
+        kat_auth, "SELECTION_RECORDS", "cascadia", "2026-08-20")
+    art3 = admission_transform("SELECTION_RECORDS", FDSN_KAT_BODY,
+                               s_kat)
+    assert art3["present_stations"] == ["KAT1"]
+    assert art3["absent_stations"] == []
+    assert art3["registered_stations"] is None
+    assert art3["data_rows"] == 2
+    assert rec3["output_sha256"] == PROD._canon_digest(art3)
     # ZERO-NETWORK refusal battery (production path)
     base_n = counted["n"]
 
     def a_call(mc="kat-man", path=AUTH_PATH,
                lane="SELECTION_RECORDS", ck="cascadia",
                day="2026-08-20", reader=m_reader,
-               resolve=m_resolve, repro=a_repro):
+               resolve=m_resolve, repro=a_repro, abuilder=None):
         return capture_authorized(
             ".", mc, path, lane, ck, day, staging, records,
-            transcripts, builder, opener=copener, clock=clock_a,
+            transcripts, abuilder, opener=copener, clock=clock_a,
             blob_reader=reader, git_resolve=resolve,
             authority_reproducer=repro)
+    # freeze finding 1: a same-path pin in ANY OTHER slot is a
+    # wrong-slot pin and refuses UNADMITTED before network
+    wrongslot_man = {"slots": {"producer_boundary":
+                               kat_man["slots"][AUTHORITY_SLOT]}}
+    ws_raw = json.dumps(wrongslot_man).encode()
+    assert refuses(lambda: a_call(
+        reader=lambda c, p: ws_raw if p == EXEC_MANIFEST_PATH
+        else m_reader(c, p)), "CAPTURE_AUTHORITY_UNADMITTED")
     # the codex fresh-repo probe: a COMMITTED but UNPINNED authority
     # (wrong path / no manifest pin) refuses UNADMITTED
     assert refuses(lambda: a_call(path="docs/other/evil_auth.json"),
@@ -880,7 +1306,7 @@ def _selftest():
                    "CAPTURE_AUTHORITY_INVALID")
     # divergent authority bytes vs the MANIFEST pin
     tampered_man = json.loads(man_raw.decode())
-    tampered_man["slots"]["producer_boundary"]["pins"][0][
+    tampered_man["slots"][AUTHORITY_SLOT]["pins"][0][
         "blob_sha256"] = "0" * 64
     t_raw = json.dumps(tampered_man).encode()
     assert refuses(lambda: a_call(
@@ -891,7 +1317,7 @@ def _selftest():
     del mal["static_layer"]
     mal_raw = json.dumps(mal).encode()
     mal_man = json.loads(man_raw.decode())
-    mal_man["slots"]["producer_boundary"]["pins"][0][
+    mal_man["slots"][AUTHORITY_SLOT]["pins"][0][
         "blob_sha256"] = hashlib.sha256(mal_raw).hexdigest()
     mal_man_raw = json.dumps(mal_man).encode()
 
@@ -920,7 +1346,7 @@ def _selftest():
         "OPEN_REVIEW_ROUND"
     open_raw = json.dumps(open_auth).encode()
     open_man = json.loads(man_raw.decode())
-    open_man["slots"]["producer_boundary"]["pins"][0][
+    open_man["slots"][AUTHORITY_SLOT]["pins"][0][
         "blob_sha256"] = hashlib.sha256(open_raw).hexdigest()
     open_man_raw = json.dumps(open_man).encode()
 
@@ -935,14 +1361,26 @@ def _selftest():
         repro=lambda: json.loads(open_raw.decode())),
         "CAPTURE_AUTHORITY_INVALID")
     assert counted["n"] == base_n     # zero network on every refusal
+    # freeze finding 3: a caller-supplied builder whose product
+    # diverges from the registered transform refuses (this one DOES
+    # reach the network; the transcript reuses write-once bytes)
+    assert refuses(lambda: a_call(abuilder=builder),
+                   "CAPTURE_ARTIFACT_DIVERGENT")
+    # ...while a caller builder that MATCHES the transform admits
+    rp3b, _, rec3b, _ = a_call(
+        abuilder=lambda b: admission_transform(
+            "SELECTION_RECORDS", b, s_kat))
+    assert rec3b == rec3
     # the explicitly-named FIXTURE helper still carries the ref path
     # (partial validity, never production)
     a_ref = {"commit": "kat-auth", "path": AUTH_PATH,
              "blob_sha256": hashlib.sha256(auth_raw).hexdigest()}
     _, _, rec4, _ = capture_with_authority_ref_fixture(
         ".", a_ref, "SELECTION_RECORDS", "cascadia", "2026-08-20",
-        staging, records, transcripts, builder, opener=copener,
-        clock=clock_a,
+        staging, records, transcripts,
+        lambda b: admission_transform("SELECTION_RECORDS", b,
+                                      s_kat),
+        opener=copener, clock=clock_a,
         blob_reader=lambda c, p: auth_raw,
         git_resolve=lambda c: PIN_C)
     assert rec4 == rec3               # write-once reuse, same bytes
@@ -959,9 +1397,12 @@ def _selftest():
         "s4t-kat", "kat://store",
         {"DAY_CAPSULE/cascadia/2026-08-20":
          {"sha256": rec["raw_body_sha256"],
-          "bytes": rec["raw_body_bytes"]}})
+          "bytes": rec["raw_body_bytes"]},
+         "SELECTION_RECORDS/cascadia/2026-08-20":
+         {"sha256": rec3["raw_body_sha256"],
+          "bytes": rec3["raw_body_bytes"]}})
     assert verify_staged_body_inventory(inv, desc()) == \
-        {"objects_verified": 1}
+        {"objects_verified": 2}
     # the codex 2015Z repro: correct bytes in the WRONG store refuse
     # (the registered descriptor names another store identity)
     assert refuses(
@@ -1066,6 +1507,201 @@ def _selftest():
         assert json.load(f) == t_winner
     assert next(v for k, v in t_res if k == "refused").startswith(
         "CAPTURE_RECORD_DIVERGENT")
+
+    # --- the registered admission-transform battery (freeze finding
+    # 3): per-lane positives + the malformed/wrong-net/wrong-channel/
+    # duplicate-epoch/partial-day/provider-null/fill-sentinel doctors
+    def xrefuses(fn, needle):
+        try:
+            fn()
+            return False
+        except CaptureRefusal as e:
+            return str(e).startswith("ADMISSION_TRANSFORM_REFUSED") \
+                and needle in str(e)
+
+    def sel_s(**over):
+        s = {"lane": "SELECTION_RECORDS", "carrier": "katsel",
+             "utc_day": "2026-08-20",
+             "endpoint": "https://kat.example/f",
+             "request_params": {"net": "CI", "cha": "HHZ",
+                                "sta": "AAA,BBB"},
+             "source": {"kind": "fdsn-station-channel",
+                        "ref": "kat://f"},
+             "cutoff": "2026-08-25",
+             "operation_params": {"carrier": "katsel",
+                                  "day": "2026-08-20"},
+             "expected_keys": ["2026-08-20"]}
+        s.update(over)
+        return s
+
+    def sel_body(*rows):
+        return ("\n".join((FDSN_HDR,) + rows) + "\n").encode()
+
+    def sel_row(sta, start, end, net="CI", cha="HHZ"):
+        return (f"{net}|{sta}||{cha}|0|0|0|0|0|-90|kat|1|1|m/s|100|"
+                f"{start}|{end}")
+    # positive: AAA present (open epoch), BBB absent (epoch closed
+    # before the day), CCC outside the registered set and excluded
+    art = admission_transform("SELECTION_RECORDS", sel_body(
+        sel_row("AAA", "2020-01-01T00:00:00", ""),
+        sel_row("BBB", "2019-01-01T00:00:00", "2021-01-01T00:00:00"),
+        sel_row("CCC", "2020-01-01T00:00:00", "")), sel_s())
+    assert art["present_stations"] == ["AAA"]
+    assert art["absent_stations"] == ["BBB"]
+    assert art["registered_stations"] == ["AAA", "BBB"]
+    assert art["outside_station_rows_excluded"] == 1
+    # partial-day epoch: overlap [day, day_next) counts PRESENT --
+    # the epoch ends mid-day and still intersects
+    art_p = admission_transform("SELECTION_RECORDS", sel_body(
+        sel_row("AAA", "2020-01-01T00:00:00",
+                "2026-08-20T06:00:00")), sel_s())
+    assert art_p["present_stations"] == ["AAA"]
+    # boundary-exact epoch: ends AT day start -> [start, end) does
+    # NOT intersect -> absent
+    art_b = admission_transform("SELECTION_RECORDS", sel_body(
+        sel_row("AAA", "2020-01-01T00:00:00",
+                "2026-08-20T00:00:00")), sel_s())
+    assert art_b["present_stations"] == []
+    assert xrefuses(lambda: admission_transform(
+        "SELECTION_RECORDS", sel_body("CI|AAA|broken"), sel_s()),
+        "malformed FDSN row")
+    assert xrefuses(lambda: admission_transform(
+        "SELECTION_RECORDS", sel_body(
+            sel_row("AAA", "2020-01-01T00:00:00", "", net="XX")),
+        sel_s()), "not a registered request network")
+    assert xrefuses(lambda: admission_transform(
+        "SELECTION_RECORDS", sel_body(
+            sel_row("AAA", "2020-01-01T00:00:00", "", cha="BHZ")),
+        sel_s()), "not a registered request channel")
+    assert xrefuses(lambda: admission_transform(
+        "SELECTION_RECORDS", sel_body(
+            sel_row("AAA", "2020-01-01T00:00:00", ""),
+            sel_row("AAA", "2020-01-01T00:00:00", "")), sel_s()),
+        "duplicate channel epoch")
+    assert xrefuses(lambda: admission_transform(
+        "SELECTION_RECORDS", b"no header\n", sel_s()),
+        "lacks the FDSN text header")
+    assert xrefuses(lambda: admission_transform(
+        "SELECTION_RECORDS", sel_body(), sel_s()),
+        "zero data rows")
+    assert xrefuses(lambda: admission_transform(
+        "SELECTION_RECORDS", sel_body(sel_row(
+            "AAA", "2020-01-01T00:00:00", "")),
+        sel_s(source={"kind": "evil", "ref": "kat://f"})),
+        "unregistered SELECTION source kind")
+
+    def mag_s(**over):
+        s = {"lane": "MAG_FEED", "carrier": "katmag",
+             "utc_day": "2026-08-20",
+             "endpoint": "https://kat.example/m",
+             "request_params": {"id": "KAT"},
+             "source": {"kind": "usgs-geomag-ws-minute",
+                        "ref": "kat://m"},
+             "cutoff": "2026-08-25",
+             "operation_params": {"carrier": "katmag",
+                                  "day": "2026-08-20"},
+             "expected_keys": ["2026-08-20"]}
+        s.update(over)
+        return s
+
+    def usgs_body(vals, iaga="KAT", times=None):
+        times = times or ["2026-08-20T00:0%d:00.000Z" % i
+                          for i in range(len(vals))]
+        return json.dumps({
+            "type": "Timeseries",
+            "metadata": {"intermagnet": {"imo": {"iaga_code": iaga}}},
+            "times": times,
+            "values": [{"id": "X", "values": vals}]}).encode()
+    art_m = admission_transform("MAG_FEED",
+                                usgs_body([1.0, None, 2.0]), mag_s())
+    assert art_m["samples"] == 3 and art_m["definitive_samples"] == 2
+    assert art_m["null_by_channel"] == {"X": 1}
+    assert xrefuses(lambda: admission_transform(
+        "MAG_FEED", usgs_body([None, None, None]), mag_s()),
+        "provider-null MAG series")
+    assert xrefuses(lambda: admission_transform(
+        "MAG_FEED", usgs_body([1.0], iaga="EVIL"), mag_s()),
+        "diverges from the registered id")
+    assert xrefuses(lambda: admission_transform(
+        "MAG_FEED", usgs_body([1.0], times=["2026-08-21T05:00:00Z"]),
+        mag_s()), "outside the registered day")
+    gin_raw = json.dumps({
+        "datetime": ["2026-08-20T00:00:00.000Z",
+                     "2026-08-20T00:01:00.000Z"],
+        "@info": {}, "H": [1.0, None], "Z": [None, 2.0]}).encode()
+    art_g = admission_transform("MAG_FEED", gin_raw, mag_s(
+        source={"kind": "intermagnet-gin-minute", "ref": "kat://g"},
+        request_params={"observatoryIagaCode": "KAT"}))
+    assert art_g["samples"] == 2 and art_g["definitive_samples"] == 2
+    assert art_g["channels"] == ["H", "Z"]
+    assert xrefuses(lambda: admission_transform(
+        "MAG_FEED", json.dumps(
+            {"datetime": ["2026-08-20T00:00:00Z"],
+             "H": [None]}).encode(),
+        mag_s(source={"kind": "intermagnet-gin-minute",
+                      "ref": "kat://g"})), "provider-null")
+
+    def mf4_s(carrier="kp", kind="gfz-kp-json", **over):
+        s = {"lane": "MF4_FEED", "carrier": carrier,
+             "utc_day": "2026-08-20",
+             "endpoint": "https://kat.example/k",
+             "request_params": {"start": "2026-08-20T00:00:00Z"},
+             "source": {"kind": kind, "ref": "kat://k"},
+             "cutoff": "2026-08-25",
+             "operation_params": {"carrier": carrier,
+                                  "day": "2026-08-20"},
+             "expected_keys": ["2026-08-20"]}
+        s.update(over)
+        return s
+    kp_raw = json.dumps({
+        "Kp": [1.0, 2.0], "status": ["def", "prelim"],
+        "datetime": ["2026-08-20T00:00:00Z",
+                     "2026-08-20T03:00:00Z"]}).encode()
+    art_k = admission_transform("MF4_FEED", kp_raw, mf4_s())
+    assert art_k["intervals"] == 2
+    assert art_k["definitive_intervals"] == 1
+    assert xrefuses(lambda: admission_transform(
+        "MF4_FEED", json.dumps(
+            {"Kp": [11.0], "status": ["def"],
+             "datetime": ["2026-08-20T00:00:00Z"]}).encode(),
+        mf4_s()), "not a finite index value")
+    assert xrefuses(lambda: admission_transform(
+        "MF4_FEED", json.dumps(
+            {"Kp": [1.0], "status": ["def"],
+             "datetime": ["2026-08-21T00:00:00Z"]}).encode(),
+        mf4_s()), "outside the registered day")
+    omni_txt = ("<HTML><pre>Selected parameters:\n"
+                "YYYY DOY HR MN      1       2      3 \n"
+                "2026 232  0  0   -4.68   556.3   0.95\n"
+                "2026 232  0  1 9999.99 99999.9 999.99\n"
+                "</pre></HTML>\n").encode()
+    art_o = admission_transform("MF4_FEED", omni_txt, mf4_s(
+        carrier="omni", kind="omniweb-highres-cgi",
+        request_params={"vars": ["17", "21", "25"]}))
+    assert art_o["samples"] == 2 and art_o["definitive_samples"] == 1
+    assert art_o["fill_by_column"] == [1, 1, 1]
+    all_fill = ("<pre>\nYYYY DOY HR MN    1 \n"
+                "2026 232  0  0 99999\n</pre>\n").encode()
+    assert xrefuses(lambda: admission_transform(
+        "MF4_FEED", all_fill, mf4_s(
+            carrier="sym_h", kind="omniweb-highres-cgi",
+            request_params={"vars": "41"})),
+        "provider fill sentinels")
+    assert xrefuses(lambda: admission_transform(
+        "MF4_FEED", omni_txt, mf4_s(
+            carrier="omni", kind="omniweb-highres-cgi",
+            request_params={"vars": ["17", "21"]})),
+        "malformed OMNIWeb data row")
+    wrong_day_omni = ("<pre>\nYYYY DOY HR MN    1 \n"
+                      "2026 001  0  0   -28\n</pre>\n").encode()
+    assert xrefuses(lambda: admission_transform(
+        "MF4_FEED", wrong_day_omni, mf4_s(
+            carrier="sym_h", kind="omniweb-highres-cgi",
+            request_params={"vars": "41"})),
+        "outside the registered day")
+    assert xrefuses(lambda: admission_transform(
+        "DAY_CAPSULE", b"x", sel_s(lane="DAY_CAPSULE")),
+        "unregistered capture lane")
 
     print("w2_acquisition_capture selftest: ALL PASS (no network)")
 

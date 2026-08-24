@@ -2420,11 +2420,16 @@ def w_selrun():
                     "dynamic_layer": {}, "digests": {},
                     "provenance": {}}
         bar_auth_raw = _j.dumps(bar_auth).encode()
-        bar_man = {"slots": {"producer_boundary": {"pins": [
+        bar_pins = {"pins": [
             {"path": "kat/auth.json", "commit": "kat-auth",
              "blob_sha256": hashlib.sha256(bar_auth_raw)
-             .hexdigest()}]}}}
+             .hexdigest()}]}
+        # freeze finding 1: the authority pin is admitted ONLY from
+        # the AUTHORITY_SLOT (accrual_impl) slot
+        bar_man = {"slots": {CAPB.AUTHORITY_SLOT: bar_pins}}
         bar_man_raw = _j.dumps(bar_man).encode()
+        wrong_man_raw = _j.dumps(
+            {"slots": {"producer_boundary": bar_pins}}).encode()
 
         def cap_reader(c, p):
             if p == CAPB.EXEC_MANIFEST_PATH:
@@ -2434,17 +2439,27 @@ def w_selrun():
             raise CAPB.CaptureRefusal(
                 f"CAPTURE_AUTHORITY_INVALID: {p} unreadable")
 
-        def cap_call(path="kat/auth.json", day="2026-09-30"):
+        def cap_call(path="kat/auth.json", day="2026-09-30",
+                     reader=None):
             return CAPB.capture_authorized(
                 _REPO, "kat-man", path, "SELECTION_RECORDS",
                 "cascadia", day, "x", "x", "x", lambda b: {},
                 opener=counting_opener, clock=lambda: "x",
-                blob_reader=cap_reader,
+                blob_reader=reader or cap_reader,
                 git_resolve=lambda c: "b" * 40,
                 authority_reproducer=lambda: _j.loads(
                     bar_auth_raw.decode()))
         try:
             cap_call(path="kat/unpinned_auth.json")
+            ok_run = False
+        except CAPB.CaptureRefusal as exc:
+            ok_run = ok_run and "CAPTURE_AUTHORITY_UNADMITTED" in \
+                str(exc)
+        # a same-path pin in the WRONG slot refuses UNADMITTED
+        try:
+            cap_call(reader=lambda c, p: wrong_man_raw
+                     if p == CAPB.EXEC_MANIFEST_PATH
+                     else cap_reader(c, p))
             ok_run = False
         except CAPB.CaptureRefusal as exc:
             ok_run = ok_run and "CAPTURE_AUTHORITY_UNADMITTED" in \
@@ -2672,10 +2687,20 @@ def w_admit():
         ok_forge = refuses_detail(lambda: boundary(forged_pins),
                                   "never derivation")
 
-        # fail-closed: no registered dispatcher -> artifacts are
-        # never admitted digest-only
-        ok_fc = refuses_detail(lambda: boundary(pins, None),
-                               "never admitted digest-only")
+        # fail-closed (freeze finding 3 successor form): the
+        # boundary's DEFAULT dispatcher is now the REGISTERED
+        # production transform, and the synthetic 'kat' source kind
+        # is unregistered there -- the default path refuses typed
+        # instead of admitting digest-only. (Before the transform
+        # landed, the same call refused 'never admitted digest-only';
+        # both spellings prove no digest-only admission exists.)
+        ok_fc = False
+        try:
+            boundary(pins, None)
+        except Exception as exc:
+            ok_fc = ("ADMISSION_TRANSFORM_REFUSED" in str(exc)
+                     and "unregistered" in str(exc)) \
+                or "never admitted digest-only" in str(exc)
 
         # wrong prefix: a staged-class basename outside the exact
         # staged_envelopes prefix refuses (never enters or vanishes)
@@ -2822,6 +2847,140 @@ def w_admit():
               f"{type(exc).__name__}: {exc}")
 
 
+# ---- REV 20: the registered admission-transform + canonical-URL
+# locks (codex freeze-review findings 2+3) ----
+def w_xform():
+    """Freeze findings 2+3, cross-authored in-bar: (2) the canonical
+    URL builder reproduces the probe-confirmed OMNIWeb repeated-
+    parameter grammar EXACTLY and can never emit the stringified
+    container; the frozen socal template derives the attempt-4
+    requested query verbatim (parse-equality against the pinned
+    envelope). (3) the REGISTERED production admission transform
+    recomputes SoCal attempt-4's REAL committed 59-row body to
+    exactly the 12 registered stations -- the 47 outside-bbox rows
+    provably cannot enter -- plus the registered-set narrowing
+    doctor."""
+    try:
+        import w2_producer_grassmann as PRODX
+        import w2_acquisition_capture_grassmann as CAPX
+        from urllib.parse import urlsplit, parse_qs
+
+        # (2) EXACT OMNI URL: repeated keys in registered order,
+        # sorted key spelling, never the stringified list
+        url = PRODX.requested_url_of(
+            "https://omniweb.gsfc.nasa.gov/cgi/nx1.cgi",
+            {"activity": "retrieve", "res": "min",
+             "spacecraft": "omni_min", "start_date": "20251115",
+             "end_date": "20251115", "vars": ["17", "21", "25"]})
+        ok_url = url == (
+            "https://omniweb.gsfc.nasa.gov/cgi/nx1.cgi?"
+            "activity=retrieve&end_date=20251115&res=min&"
+            "spacecraft=omni_min&start_date=20251115&"
+            "vars=17&vars=21&vars=25")
+        ok_url = ok_url and "%5B" not in url and "%27" not in url \
+            and parse_qs(urlsplit(url).query)["vars"] == \
+            ["17", "21", "25"]
+
+        def refuses_p(fn):
+            try:
+                fn()
+                return False
+            except PRODX.ProducerRefusal as e:
+                return "PRODUCER_URL_PARAM_INVALID" in str(e)
+        ok_neg = all(refuses_p(
+            lambda b=b: PRODX.requested_url_of(
+                "https://e.example/x", b))
+            for b in ({"vars": []}, {"vars": [["17"]]},
+                      {"vars": {"17": 1}}))
+
+        # (3) the FROZEN socal template + the REAL attempt-4 body
+        auth_p = os.path.join(_REPO, "docs", "f2g_window2_execution",
+                              "staged_expected_contracts_v3.json")
+        with open(auth_p, encoding="utf-8") as f:
+            authx = json.load(f)
+        csoc = authx["static_layer"]["SELECTION_RECORDS"][
+            "carriers"]["socal_coachella"]
+        tpl = csoc["static_contract_template"]
+
+        def sub(v):
+            if isinstance(v, str):
+                return (v.replace("{day_next}", "2025-11-16")
+                        .replace("{day}", "2025-11-15")
+                        .replace("{day_compact}", "20251115"))
+            if isinstance(v, dict):
+                return {k: sub(x) for k, x in v.items()}
+            if isinstance(v, list):
+                return [sub(x) for x in v]
+            return v
+
+        def s_soc(op_override=None):
+            return {"lane": "SELECTION_RECORDS",
+                    "carrier": "socal_coachella",
+                    "utc_day": "2025-11-15",
+                    "endpoint": tpl["endpoint"],
+                    "request_params": sub(tpl["request_params"]),
+                    "source": dict(tpl["source"]),
+                    "cutoff": csoc["cutoff"],
+                    "operation_params": (
+                        op_override
+                        or sub(tpl["operation_params"])),
+                    "expected_keys": ["2025-11-15"]}
+        ev_dir = os.path.join(_REPO, "docs", "f2g_window2_execution",
+                              "probe_evidence")
+        with open(os.path.join(
+                ev_dir, "socal_coachella_attempt4.body"), "rb") as f:
+            raw4 = f.read()
+        with open(os.path.join(
+                ev_dir, "socal_coachella_attempt4.envelope.json"),
+                encoding="utf-8") as f:
+            env4 = json.load(f)
+        # the frozen template derives the attempt-4 query verbatim
+        # (parse-equality; the envelope preserved fire-time order)
+        durl = PRODX.requested_url_of(tpl["endpoint"],
+                                      sub(tpl["request_params"]))
+        ok_derive = (urlsplit(durl)[:3] ==
+                     urlsplit(env4["requested_url"])[:3]
+                     and parse_qs(urlsplit(durl).query) ==
+                     parse_qs(urlsplit(
+                         env4["requested_url"]).query))
+        regs = sorted(sub(tpl["operation_params"])[
+            "registered_station_filter"].split(","))
+        art = CAPX.admission_transform("SELECTION_RECORDS", raw4,
+                                       s_soc())
+        ok_soc = (art["present_stations"] == regs
+                  and art["absent_stations"] == []
+                  and art["registered_stations"] == regs
+                  and art["data_rows"] == 59
+                  and art["outside_station_rows_excluded"] == 47
+                  and set(art["present_stations"]) <= set(regs))
+        # narrowing doctor: dropping one station from the registered
+        # set removes EXACTLY it -- outside rows can never leak in
+        op_n = sub(tpl["operation_params"])
+        op_n["registered_station_filter"] = ",".join(
+            s for s in regs if s != "ACP")
+        art_n = CAPX.admission_transform("SELECTION_RECORDS", raw4,
+                                         s_soc(op_n))
+        ok_soc = ok_soc and art_n["present_stations"] == \
+            [s for s in regs if s != "ACP"] \
+            and art_n["outside_station_rows_excluded"] == 48
+
+        check("XFORM registered admission transform + canonical URL "
+              "(exact OMNI repeated-parameter URL + stringification "
+              "negatives, frozen-socal-template derivation "
+              "parse-equality vs the pinned attempt-4 envelope, REAL "
+              "59-row body -> 12/12 registered w/ 47 outside "
+              "excluded, registered-set narrowing doctor)",
+              ok_url and ok_neg and ok_derive and ok_soc,
+              f"url={ok_url} neg={ok_neg} derive={ok_derive} "
+              f"soc={ok_soc}")
+    except ImportError:
+        check("XFORM registered admission transform + canonical URL",
+              False, "W2_ENGINE_ABSENT")
+    except Exception as exc:
+        check("XFORM registered admission transform + canonical URL",
+              False, f"{type(exc).__name__}: {exc}")
+
+
 _GATED = ()
 
 
@@ -2843,6 +3002,7 @@ def main():
     w_cal()
     w_selrun()
     w_admit()
+    w_xform()
 
 
 main()

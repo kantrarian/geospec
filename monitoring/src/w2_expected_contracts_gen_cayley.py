@@ -84,6 +84,13 @@ def build(repo):
         assert env["requested_url"].startswith(MAG_ENDPOINTS[obs]), \
             f"{obs} endpoint diverges from the pinned probe evidence"
 
+    # registered template token vocabulary (consumed by
+    # authoritative_static_contract): {day} = the capture UTC day;
+    # {day_next} = the UTC day after it (half-open [day, day_next)
+    # request windows -- USGS/FDSN day forms). Any other brace token
+    # survives substitution and fails downstream comparison closed.
+    template_tokens = ["{day}", "{day_next}"]
+
     def tmpl(source_kind, source_ref, endpoint):
         return {"source": {"kind": source_kind, "ref": source_ref},
                 "endpoint": endpoint,
@@ -158,6 +165,7 @@ def build(repo):
 
     return {
         "schema": "f2g-w2-expected-contracts-v2",
+        "template_token_vocabulary": template_tokens,
         "prestart_expected_keys": prestart_keys,
         "prestart_expected_keys_sha256": _digest(prestart_keys),
         "static_layer": lanes,

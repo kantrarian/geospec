@@ -294,9 +294,18 @@ def authoritative_static_contract(authority, lane, carrier, day):
             f"template for {lane}/{carrier} carries OPEN tokens "
             "-- the v3 static freeze precedes any capture")
 
+    # {day_next} = the UTC day AFTER {day} (registered token for
+    # half-open [day, day_next) request windows -- USGS/FDSN day
+    # forms); substituted BEFORE {day}, whose pattern is a prefix
+    # substring of it (grassmann capture-specs freeze condition 1)
+    import datetime as _dt
+    day_next = (_dt.date.fromisoformat(str(day))
+                + _dt.timedelta(days=1)).isoformat()
+
     def sub(v):
         if isinstance(v, str):
-            return v.replace("{day}", day)
+            return v.replace("{day_next}", day_next).replace(
+                "{day}", day)
         if isinstance(v, dict):
             return {k: sub(x) for k, x in v.items()}
         if isinstance(v, list):
@@ -1619,6 +1628,31 @@ def _selftest():
         raise AssertionError("store duplicate must refuse")
     except MF4.Mf4Refusal as e:
         assert "PREDICTION_ROW_DUPLICATE" in str(e)
+
+    # {day_next} substitution KAT (grassmann freeze condition 1):
+    # month boundary proves real UTC date arithmetic; unknown brace
+    # tokens survive literally (fail closed downstream); {day} alone
+    # untouched by the extension
+    auth_dn = {"static_layer": {"L": {"carriers": {"c": {
+        "cutoff": "2026-08-27",
+        "static_contract_template": {
+            "source": {"kind": "fdsn", "ref": "r"},
+            "endpoint": "https://x.example/q",
+            "request_params": {"starttime": "{day}T00:00:00",
+                               "endtime": "{day_next}T00:00:00",
+                               "odd": "{day_prev}"},
+            "operation_params": {"window": "[{day}, {day_next})"}
+        }}}}}}
+    sc = authoritative_static_contract(auth_dn, "L", "c",
+                                       "2026-08-31")
+    rp = sc["request_params"]
+    assert rp["starttime"] == "2026-08-31T00:00:00"
+    assert rp["endtime"] == "2026-09-01T00:00:00"
+    assert rp["odd"] == "{day_prev}"          # unknown token literal
+    assert sc["operation_params"]["window"] ==         "[2026-08-31, 2026-09-01)"
+    sc2 = authoritative_static_contract(auth_dn, "L", "c",
+                                        "2026-12-31")
+    assert sc2["request_params"]["endtime"] ==         "2027-01-01T00:00:00"                 # year boundary
 
     print("w2_accrual_instrument selftest: ALL PASS")
 

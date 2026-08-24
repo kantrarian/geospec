@@ -2140,6 +2140,136 @@ def w_selrun():
                     git_resolve=lambda c: "a" * 40),
                 "SELECTOR_UNADMITTED")
 
+        # --- REV 16 (codex 0320Z item 2): the ADMITTED grid +
+        # fabricated smoke + minimal self-hashed invocation, MY OWN
+        # construction end-to-end ---
+        MC = "a" * 40
+        grids_raw = _j.dumps({"grids": grids}).encode()
+        impl_raw = b"# bar-pinned impl"
+        adm_pins2 = [
+            {"path": "kat/grids.json", "commit": MC,
+             "blob_sha256": hashlib.sha256(grids_raw).hexdigest()},
+            {"path": "kat/impl.py", "commit": MC,
+             "blob_sha256": hashlib.sha256(impl_raw).hexdigest()}]
+        store2 = {(MC, "kat/grids.json"): grids_raw,
+                  (MC, "kat/impl.py"): impl_raw}
+
+        def rdr2(commit, path):
+            if path.endswith("execution_manifest.json"):
+                return _j.dumps({"slots": {"power_harness": {
+                    "pins": adm_pins2}}}).encode()
+            try:
+                return store2[(commit, path)]
+            except KeyError:
+                raise WTS.SelectorRefusal(
+                    f"SELECTOR_UNADMITTED: {path} unreadable at "
+                    f"{commit}")
+        # my own Tier-S results carrier, derived from MY true smoke
+        results = {"schema": "f2g-w2-tier-s-results-v1",
+                   "families": {
+                       f: [{"point": dict(e["point"]),
+                            "replicates": [[f] if o else []
+                                           for o in e["outcomes"]],
+                            "post_loco_replicates":
+                                e.get("post_loco_outcomes")}
+                           for e in fams[f]] for f in fams}}
+        r_raw = _j.dumps(results).encode()
+        store2[(MC, "kat/ts_results.json")] = r_raw
+        det_order = {f: [p for p in grids[f] if "gain" not in p]
+                     for f in ("B2A", "B2B", "B1B", "B3A")}
+        inv_ts = {"schema": "f2g-w2-tier-s-invocation-v2",
+                  "manifest_commit": MC,
+                  "effect_grids": {"commit": MC,
+                                   "path": "kat/grids.json",
+                                   "blob_sha256": hashlib.sha256(
+                                       grids_raw).hexdigest()},
+                  "geometry": {"commit": MC, "path": "kat/geom.json",
+                               "capsule_digest": "ab" * 32},
+                  "quality": {"R": 50, "n_draws": 999},
+                  "seed_authority_sha256": "b" * 64,
+                  "implementation": {"path": "kat/impl.py",
+                                     "blob_sha256": hashlib.sha256(
+                                         impl_raw).hexdigest()},
+                  "grid_order_sha256": canon_sha(det_order),
+                  "results_ref": {"commit": MC,
+                                  "path": "kat/ts_results.json",
+                                  "blob_sha256": hashlib.sha256(
+                                      r_raw).hexdigest()},
+                  "completion_receipt": {
+                      "fired_utc": "2026-08-25T00:00:00Z",
+                      "completed_utc": "2026-08-25T11:00:00Z"}}
+        inv_ts["invocation_sha256"] = canon_sha(
+            {k: v for k, v in inv_ts.items()
+             if k != "invocation_sha256"})
+        store2[(MC, "kat/ts_inv.json")] = _j.dumps(inv_ts).encode()
+        smoke_adm = dict(smoke, schema="f2g-w2-tier-s-smoke-v1",
+                         effect_grids_sha256=canon_sha(grids),
+                         invocation_ref={"commit": MC,
+                                         "path": "kat/ts_inv.json"},
+                         invocation_sha256=inv_ts[
+                             "invocation_sha256"])
+        store2[(MC, "kat/smoke2.json")] = _j.dumps(
+            smoke_adm).encode()
+        refs_adm = dict(smoke_ref={"commit": MC,
+                                   "path": "kat/smoke2.json"},
+                        effect_grids_ref={"commit": MC,
+                                          "path": "kat/grids.json"})
+        art_adm = WTS.select_candidates(smoke_adm, grids, **refs_adm)
+        adm_ok = WTS.verify_selector_admission(
+            _REPO, art_adm, MC, blob_reader=rdr2,
+            git_resolve=lambda c: c)
+        ok_run = ok_run and adm_ok["smoke"]["invocation_sha256"] == \
+            inv_ts["invocation_sha256"]
+        # LOCK A: the minimal self-hashed invocation attests nothing
+        min_inv = {"schema": "f2g-w2-tier-s-invocation-v1",
+                   "purpose": "attests no execution"}
+        min_inv["invocation_sha256"] = canon_sha(
+            {k: v for k, v in min_inv.items()
+             if k != "invocation_sha256"})
+        store2[(MC, "kat/min_inv.json")] = _j.dumps(min_inv).encode()
+        fab_f = {}
+        for f, entries in fams.items():
+            fab_f[f] = [dict(e, outcomes=[True] * 50)
+                        for e in entries]
+            if f == "B1B":
+                for k, e in enumerate(fab_f[f]):
+                    e["post_loco_outcomes"] = ([True] * 50 if k < 8
+                                               else None)
+        fab_smoke = dict(smoke, families=fab_f,
+                         schema="f2g-w2-tier-s-smoke-v1",
+                         effect_grids_sha256=canon_sha(grids),
+                         invocation_ref={"commit": MC,
+                                         "path": "kat/min_inv.json"},
+                         invocation_sha256=min_inv[
+                             "invocation_sha256"])
+        store2[(MC, "kat/fab_smoke.json")] = _j.dumps(
+            fab_smoke).encode()
+        art_fab = WTS.select_candidates(
+            fab_smoke, grids,
+            smoke_ref={"commit": MC, "path": "kat/fab_smoke.json"},
+            effect_grids_ref=refs_adm["effect_grids_ref"])
+        ok_run = ok_run and refuses(
+            lambda: WTS.verify_selector_admission(
+                _REPO, art_fab, MC, blob_reader=rdr2,
+                git_resolve=lambda c: c),
+            "attests nothing")
+        # LOCK B: a WELL-FORMED capsule whose fabricated smoke does
+        # not derive from its results carrier refuses at the REBUILD
+        fab2 = dict(fab_smoke,
+                    invocation_ref={"commit": MC,
+                                    "path": "kat/ts_inv.json"},
+                    invocation_sha256=inv_ts["invocation_sha256"])
+        store2[(MC, "kat/fab2_smoke.json")] = _j.dumps(fab2).encode()
+        art_fab2 = WTS.select_candidates(
+            fab2, grids,
+            smoke_ref={"commit": MC, "path": "kat/fab2_smoke.json"},
+            effect_grids_ref=refs_adm["effect_grids_ref"])
+        ok_run = ok_run and refuses(
+            lambda: WTS.verify_selector_admission(
+                _REPO, art_fab2, MC, blob_reader=rdr2,
+                git_resolve=lambda c: c),
+            "do not REBUILD")
+
         check("SELRUN candidate-selector + cert-runner locks "
               "(two-stage selector == in-bar oracle w/ tie + stage-2 "
               "reorder + B2A select-all + gain value-order + digest "
@@ -2240,9 +2370,33 @@ def w_admit():
                 "physical_root": store}
         auth_keys = {lane: {ck: list(DAYS)}
                      for lane, ck in LANES}
+
+        def keys_sha(k):
+            return hashlib.sha256(json.dumps(
+                k, sort_keys=True,
+                separators=(",", ":")).encode()).hexdigest()
+
+        def mk_template(lane, ck):
+            return {"source": {"kind": "kat",
+                               "ref": "synthetic://fixture"},
+                    "endpoint": (f"https://kat.example/"
+                                 f"{lane.lower()}/{ck}/{{day}}"),
+                    "request_params": {},
+                    "operation_params": {"carrier": ck,
+                                         "day": "{day}"}}
+        # REV 16: the CLOSED self-verifying authority capsule (codex
+        # 0320Z item 3) with the per-key static templates (item 1)
         auth = {"schema": "f2g-w2-expected-contracts-v2",
                 "prestart_expected_keys": auth_keys,
-                "prestart_expected_keys_sha256": canon(auth_keys)}
+                "prestart_expected_keys_sha256": keys_sha(auth_keys),
+                "static_layer": {
+                    lane: {"carriers": {ck: {
+                        "static_contract_template":
+                            mk_template(lane, ck),
+                        "cutoff": "2026-08-25"}}}
+                    for lane, ck in LANES},
+                "dynamic_layer": {}, "digests": {},
+                "provenance": {"generator": "bar-kat"}}
         for basename, obj in (
                 (ACC.STORE_DESCRIPTOR_BASENAME, desc),
                 (ACC.STAGED_INVENTORY_BASENAME, inv),
@@ -2262,10 +2416,13 @@ def w_admit():
         def reader(commit, path):
             return blobmap[(commit, path)]
 
-        def boundary(pin_list, dispatcher=disp):
+        def boundary(pin_list, dispatcher=disp, reproducer=None):
             return ACC.verify_staged_boundary(
                 _REPO, man_of(pin_list), blob_reader=reader,
-                transform_dispatcher=dispatcher)
+                transform_dispatcher=dispatcher,
+                authority_reproducer=(
+                    reproducer or (lambda: json.loads(
+                        json.dumps(auth)))))
 
         def refuses_detail(fn, needle):
             try:
@@ -2341,15 +2498,134 @@ def w_admit():
             lambda: boundary(pins + [stray]),
             "outside the exact prefix")
 
+        # --- REV 16 (codex 0320Z): the authority-capsule locks + the
+        # coordinated evil-endpoint reproduction ---
+        def with_auth(a2, tag):
+            raw = (json.dumps(a2, indent=1, sort_keys=True)
+                   + "\n").encode()
+            path = ACC.STAGED_PREFIX + ACC.EXPECTED_KEYS_BASENAME
+            blobmap[(tag, path)] = raw
+            out = []
+            for p in pins:
+                q = dict(p)
+                if q["path"] == path:
+                    q["commit"] = tag
+                    q["blob_sha256"] = hashlib.sha256(raw).hexdigest()
+                out.append(q)
+            return out
+
+        def mut_auth(**over):
+            a2 = json.loads(json.dumps(auth))
+            a2.update(over)
+            return a2
+        # forged digest text merely repeated -> refuses
+        a_forged = mut_auth(
+            prestart_expected_keys_sha256="attested-key-digest")
+        ok_auth = refuses_detail(
+            lambda: boundary(with_auth(a_forged, "k1"),
+                             reproducer=lambda: a_forged),
+            "does not recompute")
+        # empty carrier map for a named lane
+        ek = json.loads(json.dumps(auth_keys))
+        ek["MF4_FEED"] = {}
+        a_empty = mut_auth(prestart_expected_keys=ek,
+                           prestart_expected_keys_sha256=keys_sha(ek))
+        ok_auth = ok_auth and refuses_detail(
+            lambda: boundary(with_auth(a_empty, "k2"),
+                             reproducer=lambda: a_empty),
+            "carrier map is empty")
+        # duplicate day
+        dk = json.loads(json.dumps(auth_keys))
+        dk["MAG_FEED"]["frn"] = [DAYS[0], DAYS[0]]
+        a_dup = mut_auth(prestart_expected_keys=dk,
+                         prestart_expected_keys_sha256=keys_sha(dk))
+        ok_auth = ok_auth and refuses_detail(
+            lambda: boundary(with_auth(a_dup, "k3"),
+                             reproducer=lambda: a_dup),
+            "not unique ascending")
+        # shifted / non-canonical day spelling (ascending-preserving
+        # so the ordering check does not fire first)
+        sk = json.loads(json.dumps(auth_keys))
+        sk["MAG_FEED"]["frn"] = [DAYS[0], "2026-08-3"]
+        a_shift = mut_auth(prestart_expected_keys=sk,
+                           prestart_expected_keys_sha256=keys_sha(sk))
+        ok_auth = ok_auth and refuses_detail(
+            lambda: boundary(with_auth(a_shift, "k4"),
+                             reproducer=lambda: a_shift),
+            "non-canonical day")
+        # an OPEN token in a CONSUMED template refuses (the two-phase
+        # v3 freeze precedes any capture)
+        a_open = json.loads(json.dumps(auth))
+        a_open["static_layer"]["MAG_FEED"]["carriers"]["frn"][
+            "static_contract_template"]["endpoint"] = \
+            "OPEN_REVIEW_ROUND"
+        ok_auth = ok_auth and refuses_detail(
+            lambda: boundary(with_auth(a_open, "k5"),
+                             reproducer=lambda: a_open),
+            "OPEN tokens")
+        # reproduction failure: the pinned artifact must REPRODUCE
+        # from the registered generator
+        a_neq = mut_auth(provenance={"generator": "someone-else"})
+        ok_auth = ok_auth and refuses_detail(
+            lambda: boundary(pins,
+                             reproducer=lambda: a_neq),
+            "does not REPRODUCE")
+
+        # the coordinated EVIL-ENDPOINT reproduction (codex item 1):
+        # genuine bytes, internally consistent S/T/E + artifact built
+        # against an unregistered endpoint -- refuses at the
+        # S-admission equality, never reaches the join
+        e_lane, e_ck, e_day = "MAG_FEED", "frn", DAYS[0]
+        e_body = f"{e_lane}|{e_ck}|{e_day}".encode()
+        e_ep = "https://evil.example/data"
+        bodies_by_url[e_ep] = e_body
+        e_spec = {"lane": e_lane, "carrier": e_ck, "utc_day": e_day,
+                  "endpoint": e_ep, "request_params": {},
+                  "source": {"kind": "kat",
+                             "ref": "synthetic://fixture"},
+                  "cutoff": "2026-08-25",
+                  "operation_params": {"carrier": e_ck,
+                                       "day": e_day},
+                  "expected_keys": [e_day]}
+        _, _, e_rec, e_tr = CAP.capture_day(
+            e_spec, store, os.path.join(root, "evil_r"),
+            os.path.join(root, "evil_t"),
+            lambda b, L=e_lane: {"n_bytes": len(b), "lane": L},
+            opener=opener, clock=clock)
+        e_s = CAP.static_contract_of(e_spec)
+        e_art = {"n_bytes": len(e_body), "lane": e_lane}
+        e_stem = f"{e_lane.lower()}_{e_ck}_{e_day}"
+        evil_pins = []
+        for p in pins:
+            q = dict(p)
+            for cls, obj in (("record", e_rec), ("transcript", e_tr),
+                             ("contract", e_s), ("artifact", e_art)):
+                want_p = ACC.STAGED_PREFIX + e_stem + \
+                    ACC.STAGED_CLASS_SUFFIX[cls]
+                if q["path"] == want_p:
+                    raw = (json.dumps(obj, indent=1, sort_keys=True)
+                           + "\n").encode()
+                    blobmap[("kate", want_p)] = raw
+                    q.update(commit="kate",
+                             blob_sha256=hashlib.sha256(raw)
+                             .hexdigest())
+            evil_pins.append(q)
+        ok_evil = refuses_detail(
+            lambda: boundary(evil_pins),
+            "S is admitted, never submitted")
+
         check("ADMIT admission-boundary locks (six-key REAL positive "
               "through capture_day + store + five-map join, "
               "whole-day-omission vs the independent authority, "
               "coordinated artifact+digest forgery vs transform "
               "recomputation, fail-closed no-dispatcher, "
-              "wrong-prefix pin)",
-              ok_pos and ok_omit and ok_forge and ok_fc and ok_pre,
+              "wrong-prefix pin, closed authority capsule locks, "
+              "evil-endpoint S-admission)",
+              ok_pos and ok_omit and ok_forge and ok_fc and ok_pre
+              and ok_auth and ok_evil,
               f"pos={ok_pos} omit={ok_omit} forge={ok_forge} "
-              f"fc={ok_fc} prefix={ok_pre}")
+              f"fc={ok_fc} prefix={ok_pre} auth={ok_auth} "
+              f"evil={ok_evil}")
     except ImportError:
         check("ADMIT admission-boundary locks", False,
               "W2_ENGINE_ABSENT")

@@ -297,24 +297,144 @@ def capture_day(spec, staging_dir, records_dir, transcripts_dir,
 
 
 # ------------------------------------------------ authorized production path
-def capture_authorized(repo, authority_ref, lane, carrier, utc_day,
-                       staging_dir, records_dir, transcripts_dir,
-                       artifact_builder, *, opener=None, clock=None,
-                       blob_reader=None, git_resolve=None):
-    """THE production capture entrypoint (codex 0349Z item 1): its
-    ONLY production inputs are the manifest-pinned v3 authority
-    identity and the (lane, carrier, day) key. BEFORE any network
-    call it: resolves the authority commit to a full 40-hex lineage;
-    reopens the exact authority bytes and verifies them against the
-    pinned blob digest; recomputes the key digest; requires the key to
-    be REGISTERED in the authority; derives S through the instrument's
-    authoritative_static_contract (an OPEN token -- the unreviewed
-    class -- refuses there); and constructs the request SOLELY from S.
-    Every refusal happens with ZERO network calls. The authority
-    identity binds into T and E (the chronological carrier that the
-    static freeze preceded the request).
+EXEC_MANIFEST_PATH = ("docs/f2g_window2_execution/"
+                      "execution_manifest.json")
 
-    authority_ref (closed): {"commit", "path", "blob_sha256"}."""
+
+def capture_authorized(repo, manifest_commit, authority_path, lane,
+                       carrier, utc_day, staging_dir, records_dir,
+                       transcripts_dir, artifact_builder, *,
+                       opener=None, clock=None, blob_reader=None,
+                       git_resolve=None, authority_reproducer=None):
+    """THE production capture entrypoint (codex 0349Z item 1 + 1328Z
+    item 3): its ONLY production inputs are the REVIEWED manifest
+    commit, the registered authority path, and the (lane, carrier,
+    day) key. BEFORE any network call it: resolves the manifest
+    commit to a full 40-hex lineage; reopens the EXECUTION MANIFEST
+    at that commit and locates the authority pin INTERNALLY (a merely
+    committed authority -- codex's fresh-repo evil-endpoint probe --
+    has no pin and refuses here); reopens the pinned authority bytes
+    and verifies them against the PIN's blob digest; runs the FULL
+    closed-schema / digest / census / pinned-reproducer authority
+    validation; requires the key REGISTERED; derives S through
+    authoritative_static_contract (an OPEN token -- the unreviewed
+    class -- refuses there); and constructs the request SOLELY from
+    S. Every refusal happens with ZERO network calls. The authority
+    identity binds into T and E."""
+    if git_resolve is None:
+        import subprocess
+
+        def git_resolve(commitish):
+            p = subprocess.run(
+                ["git", "-C", repo, "rev-parse",
+                 f"{commitish}^{{commit}}"], capture_output=True)
+            full = p.stdout.decode().strip()
+            if p.returncode != 0 or len(full) != 40:
+                raise CaptureRefusal(
+                    f"CAPTURE_AUTHORITY_INVALID: {commitish!r} does "
+                    "not resolve to a 40-hex lineage")
+            return full
+    if blob_reader is None:
+        import subprocess
+
+        def blob_reader(commit, path):
+            p = subprocess.run(
+                ["git", "-C", repo, "cat-file", "blob",
+                 f"{commit}:{path}"], capture_output=True)
+            if p.returncode != 0:
+                raise CaptureRefusal(
+                    f"CAPTURE_AUTHORITY_INVALID: {path} unreadable "
+                    f"at {commit}")
+            return p.stdout
+    mc_full = git_resolve(manifest_commit)
+    if not (isinstance(mc_full, str) and len(mc_full) == 40
+            and all(c in "0123456789abcdef" for c in mc_full)):
+        raise CaptureRefusal(
+            "CAPTURE_AUTHORITY_INVALID: manifest lineage is not "
+            "40-hex")
+    manifest = json.loads(blob_reader(
+        mc_full, EXEC_MANIFEST_PATH).decode("utf-8"))
+    pin = None
+    for slot in manifest.get("slots", {}).values():
+        for p in slot.get("pins", ()) or ():
+            if isinstance(p, dict) and \
+                    p.get("path") == str(authority_path):
+                pin = p
+    if pin is None:
+        raise CaptureRefusal(
+            f"CAPTURE_AUTHORITY_UNADMITTED: {authority_path} is not "
+            f"a pin of the execution manifest at {mc_full[:12]} -- "
+            "a committed authority is never an ADMITTED authority")
+    pin_commit = git_resolve(pin["commit"])
+    raw = blob_reader(pin_commit, str(authority_path))
+    got = hashlib.sha256(raw).hexdigest()
+    if got != pin.get("blob_sha256"):
+        raise CaptureRefusal(
+            "CAPTURE_AUTHORITY_INVALID: authority bytes diverge "
+            f"from the MANIFEST pin ({got[:12]} != "
+            f"{str(pin.get('blob_sha256'))[:12]})")
+    authority = json.loads(raw.decode("utf-8"))
+    # the FULL closed-authority validation (schema / recomputed key
+    # digest / census / pinned-reproducer reproduction) -- codex
+    # 1328Z item 3: never a subset
+    import w2_accrual_instrument_cayley as ACC
+    try:
+        ACC._validate_expected_keys_authority(
+            repo, authority, reproducer=authority_reproducer)
+    except Exception as exc:
+        raise CaptureRefusal(f"CAPTURE_AUTHORITY_INVALID: {exc}")
+    return _capture_from_validated_authority(
+        repo, authority,
+        {"commit": pin_commit, "path": str(authority_path),
+         "blob_sha256": got,
+         "keys_sha256": authority["prestart_expected_keys_sha256"]},
+        lane, carrier, utc_day, staging_dir, records_dir,
+        transcripts_dir, artifact_builder, opener=opener,
+        clock=clock)
+
+
+def _capture_from_validated_authority(repo, authority, auth_id,
+                                      lane, carrier, utc_day,
+                                      staging_dir, records_dir,
+                                      transcripts_dir,
+                                      artifact_builder, *,
+                                      opener=None, clock=None):
+    keys = authority.get("prestart_expected_keys", {})
+    days = keys.get(lane, {}).get(carrier)
+    if not days or str(utc_day) not in days:
+        raise CaptureRefusal(
+            f"CAPTURE_AUTHORITY_INVALID: {lane}/{carrier}/{utc_day} "
+            "is not a registered authority key (post-dated or "
+            "unauthorized)")
+    import w2_accrual_instrument_cayley as ACC
+    try:
+        s = ACC.authoritative_static_contract(authority, lane,
+                                              carrier, str(utc_day))
+    except Exception as exc:
+        raise CaptureRefusal(
+            f"CAPTURE_AUTHORITY_INVALID: {exc}")
+    spec = {"lane": s["lane"], "carrier": s["carrier"],
+            "utc_day": s["utc_day"], "endpoint": s["endpoint"],
+            "request_params": dict(s["request_params"]),
+            "source": dict(s["source"]), "cutoff": s["cutoff"],
+            "operation_params": dict(s["operation_params"]),
+            "expected_keys": list(s["expected_keys"])}
+    return capture_day(spec, staging_dir, records_dir,
+                       transcripts_dir, artifact_builder,
+                       opener=opener, clock=clock,
+                       authority_id=auth_id)
+
+
+def capture_with_authority_ref_fixture(
+        repo, authority_ref, lane, carrier, utc_day, staging_dir,
+        records_dir, transcripts_dir, artifact_builder, *,
+        opener=None, clock=None, blob_reader=None,
+        git_resolve=None):
+    """EXPLICITLY-NAMED FIXTURE HELPER (codex 1328Z item 3): the raw
+    authority-ref path -- accepts a caller {commit, path,
+    blob_sha256} WITHOUT manifest admission or the full authority
+    validation. Never the production entry; retained only so KATs can
+    stage partial-validity fixtures."""
     if not isinstance(authority_ref, dict) or \
             set(authority_ref) != {"commit", "path", "blob_sha256"}:
         raise CaptureRefusal(
@@ -659,112 +779,172 @@ def _selftest():
         staging, records, transcripts, builder, opener=opener),
         "CAPTURE_SPEC_NOT_CLOSED")
 
-    # --- capture_authorized (codex 0349Z item 1): the production
-    # path's only input is the pinned authority identity; every
-    # refusal fires with ZERO network calls (opener counter) ---
+    # --- capture_authorized (codex 0349Z item 1 + 1328Z item 3):
+    # the production path takes the MANIFEST commit + the registered
+    # authority path; every refusal fires with ZERO network calls ---
     counted = {"n": 0}
 
     def copener(url):
         counted["n"] += 1
         return opener(url)
-    kat_keys = {"SELECTION_RECORDS": {"cascadia": ["2026-08-20"]}}
+    kat_keys = {"SELECTION_RECORDS": {"cascadia": ["2026-08-20"]},
+                "MAG_FEED": {"frn": ["2026-08-20"]},
+                "MF4_FEED": {"mf4drv": ["2026-08-20"]}}
+
+    def kat_template(lane, ck):
+        return {"source": {"kind": "fdsn-availability",
+                           "ref": "https://kat.example/fdsn"},
+                "endpoint": "https://kat.example/fdsn",
+                "request_params": {"net": "UW", "cha": "HHZ"},
+                "operation_params": {"carrier": ck, "day": "{day}"}}
     kat_auth = {"schema": "f2g-w2-expected-contracts-v2",
                 "prestart_expected_keys": kat_keys,
                 "prestart_expected_keys_sha256": hashlib.sha256(
                     json.dumps(kat_keys, sort_keys=True,
                                separators=(",", ":")).encode()
                 ).hexdigest(),
-                "static_layer": {"SELECTION_RECORDS": {"carriers": {
-                    "cascadia": {
-                        "static_contract_template": {
-                            "source": {"kind": "fdsn-availability",
-                                       "ref": ("https://kat.example/"
-                                               "fdsn")},
-                            "endpoint": "https://kat.example/fdsn",
-                            "request_params": {"net": "UW",
-                                               "cha": "HHZ"},
-                            "operation_params": {
-                                "carrier": "cascadia",
-                                "day": "{day}"}},
-                        "cutoff": "2026-08-25"}}}},
+                "static_layer": {
+                    lane: {"carriers": {ck: {
+                        "static_contract_template":
+                            kat_template(lane, ck),
+                        "cutoff": "2026-08-25"}}}
+                    for lane, cks in kat_keys.items()
+                    for ck in cks},
                 "dynamic_layer": {}, "digests": {},
                 "provenance": {"generator": "kat"}}
     auth_raw = json.dumps(kat_auth, indent=1,
                           sort_keys=True).encode()
-    a_ref = {"commit": "kat-auth",
-             "path": ("docs/f2g_window2_execution/"
-                      "staged_expected_contracts_v3.json"),
-             "blob_sha256": hashlib.sha256(auth_raw).hexdigest()}
+    AUTH_PATH = ("docs/f2g_window2_execution/"
+                 "staged_expected_contracts_v3.json")
+    MAN_C = "e" * 40
+    PIN_C = "b" * 40
+    kat_man = {"slots": {"producer_boundary": {
+        "status": "BOUND",
+        "pins": [{"path": AUTH_PATH, "commit": "kat-auth",
+                  "blob_sha256": hashlib.sha256(auth_raw)
+                  .hexdigest()}]}}}
+    man_raw = json.dumps(kat_man).encode()
 
-    def a_resolve(c):
+    def m_resolve(c):
+        if c == "kat-man":
+            return MAN_C
         if c == "kat-auth":
-            return "b" * 40
+            return PIN_C
         raise CaptureRefusal(
             f"CAPTURE_AUTHORITY_INVALID: {c!r} does not resolve")
 
-    def a_reader(commit, path):
-        if (commit, path) == ("b" * 40, a_ref["path"]):
+    def m_reader(commit, path):
+        if (commit, path) == (MAN_C, EXEC_MANIFEST_PATH):
+            return man_raw
+        if (commit, path) == (PIN_C, AUTH_PATH):
             return auth_raw
         raise CaptureRefusal(
             f"CAPTURE_AUTHORITY_INVALID: {path} unreadable at "
             f"{commit}")
+
+    def a_repro():
+        return json.loads(auth_raw.decode())
     rp3, tp3, rec3, tr3 = capture_authorized(
-        ".", a_ref, "SELECTION_RECORDS", "cascadia", "2026-08-20",
-        staging, records, transcripts, builder, opener=copener,
-        clock=clock_a, blob_reader=a_reader, git_resolve=a_resolve)
+        ".", "kat-man", AUTH_PATH, "SELECTION_RECORDS", "cascadia",
+        "2026-08-20", staging, records, transcripts, builder,
+        opener=copener, clock=clock_a, blob_reader=m_reader,
+        git_resolve=m_resolve, authority_reproducer=a_repro)
     assert counted["n"] == 1
     assert rec3["receipt"]["authority"] == {
-        "commit": "b" * 40, "path": a_ref["path"],
-        "blob_sha256": a_ref["blob_sha256"],
+        "commit": PIN_C, "path": AUTH_PATH,
+        "blob_sha256": hashlib.sha256(auth_raw).hexdigest(),
         "keys_sha256": kat_auth["prestart_expected_keys_sha256"]}
     assert tr3["authority"] == rec3["receipt"]["authority"]
-    # ZERO-NETWORK refusal battery
+    # ZERO-NETWORK refusal battery (production path)
     base_n = counted["n"]
 
-    def a_call(ref=a_ref, lane="SELECTION_RECORDS", ck="cascadia",
-               day="2026-08-20", reader=a_reader,
-               resolve=a_resolve):
+    def a_call(mc="kat-man", path=AUTH_PATH,
+               lane="SELECTION_RECORDS", ck="cascadia",
+               day="2026-08-20", reader=m_reader,
+               resolve=m_resolve, repro=a_repro):
         return capture_authorized(
-            ".", ref, lane, ck, day, staging, records, transcripts,
-            builder, opener=copener, clock=clock_a,
-            blob_reader=reader, git_resolve=resolve)
+            ".", mc, path, lane, ck, day, staging, records,
+            transcripts, builder, opener=copener, clock=clock_a,
+            blob_reader=reader, git_resolve=resolve,
+            authority_reproducer=repro)
+    # the codex fresh-repo probe: a COMMITTED but UNPINNED authority
+    # (wrong path / no manifest pin) refuses UNADMITTED
+    assert refuses(lambda: a_call(path="docs/other/evil_auth.json"),
+                   "CAPTURE_AUTHORITY_UNADMITTED")
     # post-dated / unauthorized key
     assert refuses(lambda: a_call(day="2026-09-30"),
                    "CAPTURE_AUTHORITY_INVALID")
-    # wrong lineage
-    assert refuses(lambda: a_call(ref=dict(a_ref, commit="other")),
+    # wrong manifest lineage
+    assert refuses(lambda: a_call(mc="nope"),
                    "CAPTURE_AUTHORITY_INVALID")
-    # divergent authority bytes
-    assert refuses(lambda: a_call(ref=dict(a_ref,
-                                           blob_sha256="0" * 64)),
+    # divergent authority bytes vs the MANIFEST pin
+    tampered_man = json.loads(man_raw.decode())
+    tampered_man["slots"]["producer_boundary"]["pins"][0][
+        "blob_sha256"] = "0" * 64
+    t_raw = json.dumps(tampered_man).encode()
+    assert refuses(lambda: a_call(
+        reader=lambda c, p: t_raw if p == EXEC_MANIFEST_PATH
+        else m_reader(c, p)), "CAPTURE_AUTHORITY_INVALID")
+    # malformed authority schema (full validation, never a subset)
+    mal = json.loads(auth_raw.decode())
+    del mal["static_layer"]
+    mal_raw = json.dumps(mal).encode()
+    mal_man = json.loads(man_raw.decode())
+    mal_man["slots"]["producer_boundary"]["pins"][0][
+        "blob_sha256"] = hashlib.sha256(mal_raw).hexdigest()
+    mal_man_raw = json.dumps(mal_man).encode()
+
+    def mal_reader(c, p):
+        if p == EXEC_MANIFEST_PATH:
+            return mal_man_raw
+        if p == AUTH_PATH:
+            return mal_raw
+        return m_reader(c, p)
+    assert refuses(lambda: a_call(reader=mal_reader,
+                                  repro=lambda: json.loads(
+                                      mal_raw.decode())),
+                   "CAPTURE_AUTHORITY_INVALID")
+    # non-reproducing authority
+    assert refuses(lambda: a_call(
+        repro=lambda: dict(a_repro(),
+                           provenance={"generator": "other"})),
+        "CAPTURE_AUTHORITY_INVALID")
+    # wrong census (the production reproducer path)
+    assert refuses(lambda: a_call(repro=None),
                    "CAPTURE_AUTHORITY_INVALID")
     # OPEN token in the consumed template (the unreviewed class)
     open_auth = json.loads(auth_raw.decode())
     open_auth["static_layer"]["SELECTION_RECORDS"]["carriers"][
         "cascadia"]["static_contract_template"]["endpoint"] = \
         "OPEN_REVIEW_ROUND"
-    open_raw = json.dumps(open_auth, indent=1,
-                          sort_keys=True).encode()
-    open_ref = {"commit": "kat-auth", "path": a_ref["path"],
-                "blob_sha256": hashlib.sha256(open_raw).hexdigest()}
+    open_raw = json.dumps(open_auth).encode()
+    open_man = json.loads(man_raw.decode())
+    open_man["slots"]["producer_boundary"]["pins"][0][
+        "blob_sha256"] = hashlib.sha256(open_raw).hexdigest()
+    open_man_raw = json.dumps(open_man).encode()
+
+    def open_reader(c, p):
+        if p == EXEC_MANIFEST_PATH:
+            return open_man_raw
+        if p == AUTH_PATH:
+            return open_raw
+        return m_reader(c, p)
     assert refuses(lambda: a_call(
-        ref=open_ref,
-        reader=lambda c, p: open_raw),
+        reader=open_reader,
+        repro=lambda: json.loads(open_raw.decode())),
         "CAPTURE_AUTHORITY_INVALID")
-    # forged authority key digest
-    forged_auth = json.loads(auth_raw.decode())
-    forged_auth["prestart_expected_keys_sha256"] = "attested"
-    f_raw = json.dumps(forged_auth, indent=1,
-                       sort_keys=True).encode()
-    f_ref = {"commit": "kat-auth", "path": a_ref["path"],
-             "blob_sha256": hashlib.sha256(f_raw).hexdigest()}
-    assert refuses(lambda: a_call(ref=f_ref,
-                                  reader=lambda c, p: f_raw),
-                   "CAPTURE_AUTHORITY_INVALID")
-    # unclosed ref
-    assert refuses(lambda: a_call(ref={"commit": "kat-auth"}),
-                   "CAPTURE_AUTHORITY_INVALID")
     assert counted["n"] == base_n     # zero network on every refusal
+    # the explicitly-named FIXTURE helper still carries the ref path
+    # (partial validity, never production)
+    a_ref = {"commit": "kat-auth", "path": AUTH_PATH,
+             "blob_sha256": hashlib.sha256(auth_raw).hexdigest()}
+    _, _, rec4, _ = capture_with_authority_ref_fixture(
+        ".", a_ref, "SELECTION_RECORDS", "cascadia", "2026-08-20",
+        staging, records, transcripts, builder, opener=copener,
+        clock=clock_a,
+        blob_reader=lambda c, p: auth_raw,
+        git_resolve=lambda c: PIN_C)
+    assert rec4 == rec3               # write-once reuse, same bytes
 
     # --- the body-store inventory (codex 1843Z item 4 + 2015Z item
     # 1: the NAMED-store binding -- no caller path argument exists) ---

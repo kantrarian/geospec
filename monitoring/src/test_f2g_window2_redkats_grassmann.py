@@ -2144,17 +2144,27 @@ def w_selrun():
         # grid + fabricated smoke + minimal pre-invocation, MY OWN
         # construction over the FULL chronological chain
         # manifest -> pre-invocation -> results/completion -> smoke ---
+        # REV 18: STRICT stage ancestry -- a real staged commit chain
+        # MC < PRE_C < RC(results+completion shared) < SC(smoke) with
+        # an order-based ancestry helper (strict_edge refuses a == b
+        # itself; reflexive chains are structurally dead)
         MC = "a" * 40
+        PRE_C = "b" * 40
+        RC = "c" * 40
+        SC = "d" * 40
+        CHAIN = [MC, PRE_C, RC, SC]
         GEOMD = "ab" * 32
         BAR_GEOM = {"capsule_digest": GEOMD,
                     "loco_registry_carrier": "cascadia",
-                    "registries": {"cascadia": ["S0", "S1"]}}
+                    "registries": {"cascadia": ["S0", "S1"]},
+                    "seed_authority_sha256": "b" * 64}
 
         def bar_geom_loader(mc, path):
             return BAR_GEOM
 
         def bar_anc(a, b):
-            return True
+            return a in CHAIN and b in CHAIN and \
+                CHAIN.index(a) < CHAIN.index(b)
         grids_raw = _j.dumps({"grids": grids}).encode()
         impl_raw = b"# bar-pinned impl"
         geom_raw = b"{}"
@@ -2220,7 +2230,6 @@ def w_selrun():
                 for e in fams[f]]
         r_raw = _j.dumps(results).encode()
         r_sha = hashlib.sha256(r_raw).hexdigest()
-        store2[(MC, "kat/ts_results.json")] = r_raw
         det_order = {f: [p for p in grids[f] if "gain" not in p]
                      for f in ("B2A", "B2B", "B1B", "B3A")}
         pre = {"schema": "f2g-w2-tier-s-pre-invocation-v1",
@@ -2229,6 +2238,7 @@ def w_selrun():
                                 "path": "kat/grids.json",
                                 "blob_sha256": hashlib.sha256(
                                     grids_raw).hexdigest()},
+               "effect_grids_content_sha256": canon_sha(grids),
                "geometry": {"commit": MC, "path": "kat/geom.json",
                             "capsule_digest": GEOMD},
                "quality": {"R": 50, "n_draws": 999},
@@ -2241,26 +2251,27 @@ def w_selrun():
         pre["invocation_sha256"] = canon_sha(
             {k: v for k, v in pre.items()
              if k != "invocation_sha256"})
-        store2[(MC, "kat/ts_pre.json")] = _j.dumps(pre).encode()
+        store2[(PRE_C, "kat/ts_pre.json")] = _j.dumps(pre).encode()
         comp = {"schema": "f2g-w2-tier-s-completion-v1",
                 "pre_invocation_sha256": pre["invocation_sha256"],
                 "results_blob_sha256": r_sha,
                 "fired_utc": "2026-08-25T00:00:00Z",
                 "completed_utc": "2026-08-25T11:00:00Z"}
-        store2[(MC, "kat/ts_comp.json")] = _j.dumps(comp).encode()
+        store2[(RC, "kat/ts_comp.json")] = _j.dumps(comp).encode()
+        store2[(RC, "kat/ts_results.json")] = r_raw
         chain_fields = dict(
-            pre_invocation_ref={"commit": MC,
+            pre_invocation_ref={"commit": PRE_C,
                                 "path": "kat/ts_pre.json"},
             pre_invocation_sha256=pre["invocation_sha256"],
-            completion_ref={"commit": MC, "path": "kat/ts_comp.json"},
-            results_ref={"commit": MC, "path": "kat/ts_results.json",
+            completion_ref={"commit": RC, "path": "kat/ts_comp.json"},
+            results_ref={"commit": RC, "path": "kat/ts_results.json",
                          "blob_sha256": r_sha})
         smoke_adm = dict(smoke, schema="f2g-w2-tier-s-smoke-v1",
                          effect_grids_sha256=canon_sha(grids),
                          **chain_fields)
-        store2[(MC, "kat/smoke2.json")] = _j.dumps(
+        store2[(SC, "kat/smoke2.json")] = _j.dumps(
             smoke_adm).encode()
-        refs_adm = dict(smoke_ref={"commit": MC,
+        refs_adm = dict(smoke_ref={"commit": SC,
                                    "path": "kat/smoke2.json"},
                         effect_grids_ref={"commit": MC,
                                           "path": "kat/grids.json"})
@@ -2278,7 +2289,8 @@ def w_selrun():
         min_inv["invocation_sha256"] = canon_sha(
             {k: v for k, v in min_inv.items()
              if k != "invocation_sha256"})
-        store2[(MC, "kat/min_inv.json")] = _j.dumps(min_inv).encode()
+        store2[(PRE_C, "kat/min_inv.json")] = _j.dumps(
+            min_inv).encode()
         fab_f = {}
         for f, entries in fams.items():
             fab_f[f] = [dict(e, outcomes=[True] * 50)
@@ -2292,15 +2304,15 @@ def w_selrun():
                          effect_grids_sha256=canon_sha(grids),
                          **dict(chain_fields,
                                 pre_invocation_ref={
-                                    "commit": MC,
+                                    "commit": PRE_C,
                                     "path": "kat/min_inv.json"},
                                 pre_invocation_sha256=min_inv[
                                     "invocation_sha256"]))
-        store2[(MC, "kat/fab_smoke.json")] = _j.dumps(
+        store2[(SC, "kat/fab_smoke.json")] = _j.dumps(
             fab_smoke).encode()
         art_fab = WTS.select_candidates(
             fab_smoke, grids,
-            smoke_ref={"commit": MC, "path": "kat/fab_smoke.json"},
+            smoke_ref={"commit": SC, "path": "kat/fab_smoke.json"},
             effect_grids_ref=refs_adm["effect_grids_ref"])
         ok_run = ok_run and refuses(
             lambda: WTS.verify_selector_admission(
@@ -2312,10 +2324,10 @@ def w_selrun():
         # LOCK B: a WELL-FORMED chain whose fabricated smoke does not
         # replay from the results p-vectors refuses at the Holm replay
         fab2 = dict(fab_smoke, **chain_fields)
-        store2[(MC, "kat/fab2_smoke.json")] = _j.dumps(fab2).encode()
+        store2[(SC, "kat/fab2_smoke.json")] = _j.dumps(fab2).encode()
         art_fab2 = WTS.select_candidates(
             fab2, grids,
-            smoke_ref={"commit": MC, "path": "kat/fab2_smoke.json"},
+            smoke_ref={"commit": SC, "path": "kat/fab2_smoke.json"},
             effect_grids_ref=refs_adm["effect_grids_ref"])
         ok_run = ok_run and refuses(
             lambda: WTS.verify_selector_admission(
@@ -2324,50 +2336,119 @@ def w_selrun():
                 geometry_loader=bar_geom_loader,
                 is_ancestor=bar_anc),
             "registered Holm rule")
-        # LOCK C (0432Z item 2): a broken smoke->selector ancestry
-        # edge refuses when the selector identity is threaded
-        def anc_break(a, b):
-            return False
+        # LOCK C (1328Z item 2): STRICT stage ancestry -- the same-
+        # commit flat store (the post-hoc combined capsule) refuses,
+        # and a reflexive smoke->selector edge refuses
+        flat = {}
+        for (c, p), v in store2.items():
+            flat[(MC, p)] = v
+
+        def flat_reader(commit, path):
+            if path.endswith("execution_manifest.json"):
+                return rdr2(commit, path)
+            try:
+                return flat[(MC, path)]
+            except KeyError:
+                raise WTS.SelectorRefusal(
+                    f"SELECTOR_UNADMITTED: {path} unreadable")
+        flat_fields = dict(
+            pre_invocation_ref={"commit": MC,
+                                "path": "kat/ts_pre.json"},
+            pre_invocation_sha256=pre["invocation_sha256"],
+            completion_ref={"commit": MC, "path": "kat/ts_comp.json"},
+            results_ref={"commit": MC, "path": "kat/ts_results.json",
+                         "blob_sha256": r_sha})
+        flat_smoke = dict(smoke_adm, **flat_fields)
+        flat[(MC, "kat/flat_smoke.json")] = _j.dumps(
+            flat_smoke).encode()
+        art_flat = WTS.select_candidates(
+            flat_smoke, grids,
+            smoke_ref={"commit": MC, "path": "kat/flat_smoke.json"},
+            effect_grids_ref=refs_adm["effect_grids_ref"])
+        ok_run = ok_run and refuses(
+            lambda: WTS.verify_selector_admission(
+                _REPO, art_flat, MC, blob_reader=flat_reader,
+                git_resolve=lambda c: c,
+                geometry_loader=bar_geom_loader,
+                is_ancestor=bar_anc),
+            "STRICT stage ancestry")
         ok_run = ok_run and refuses(
             lambda: WTS.verify_selector_admission(
                 _REPO, art_adm, MC, blob_reader=rdr2,
                 git_resolve=lambda c: c,
                 geometry_loader=bar_geom_loader,
-                is_ancestor=anc_break,
-                selector_identity={"commit": MC,
+                is_ancestor=bar_anc,
+                selector_identity={"commit": SC,
                                    "path": "kat/selector.json"}),
-            "descendant chain")
-        # zero-network pre-freeze doctor (0349Z item 1, cross-authored
-        # in-bar): capture_authorized refuses an unregistered key with
-        # the opener counter provably unmoved
+            "STRICT stage ancestry")
+        # zero-network pre-freeze doctor (0349Z item 1 + 1328Z item
+        # 3, cross-authored in-bar): the production capture path
+        # refuses a committed-but-UNPINNED authority AND an
+        # unregistered key, opener counter provably unmoved
         import w2_acquisition_capture_grassmann as CAPB
         net = {"n": 0}
 
         def counting_opener(url):
             net["n"] += 1
             raise AssertionError("must never be reached")
-        kat_keys = {"SELECTION_RECORDS": {"cascadia": ["2026-08-20"]}}
+        bar_keys = {"SELECTION_RECORDS": {"cascadia": ["2026-08-20"]},
+                    "MAG_FEED": {"frn": ["2026-08-20"]},
+                    "MF4_FEED": {"mf4drv": ["2026-08-20"]}}
         bar_auth = {"schema": "f2g-w2-expected-contracts-v2",
-                    "prestart_expected_keys": kat_keys,
+                    "prestart_expected_keys": bar_keys,
                     "prestart_expected_keys_sha256": canon_sha(
-                        kat_keys),
-                    "static_layer": {}, "dynamic_layer": {},
-                    "digests": {}, "provenance": {}}
+                        bar_keys),
+                    "static_layer": {
+                        lane: {"carriers": {ck: {
+                            "static_contract_template": {
+                                "source": {"kind": "kat",
+                                           "ref": "kat://src"},
+                                "endpoint": "https://kat.example/x",
+                                "request_params": {},
+                                "operation_params": {
+                                    "carrier": ck, "day": "{day}"}},
+                            "cutoff": "2026-08-25"}}}
+                        for lane, cks in bar_keys.items()
+                        for ck in cks},
+                    "dynamic_layer": {}, "digests": {},
+                    "provenance": {}}
         bar_auth_raw = _j.dumps(bar_auth).encode()
-        a_ref = {"commit": "kat-auth", "path": "kat/auth.json",
-                 "blob_sha256": hashlib.sha256(bar_auth_raw)
-                 .hexdigest()}
-        try:
-            CAPB.capture_authorized(
-                _REPO, a_ref, "SELECTION_RECORDS", "cascadia",
-                "2026-09-30", "x", "x", "x", lambda b: {},
+        bar_man = {"slots": {"producer_boundary": {"pins": [
+            {"path": "kat/auth.json", "commit": "kat-auth",
+             "blob_sha256": hashlib.sha256(bar_auth_raw)
+             .hexdigest()}]}}}
+        bar_man_raw = _j.dumps(bar_man).encode()
+
+        def cap_reader(c, p):
+            if p == CAPB.EXEC_MANIFEST_PATH:
+                return bar_man_raw
+            if p == "kat/auth.json":
+                return bar_auth_raw
+            raise CAPB.CaptureRefusal(
+                f"CAPTURE_AUTHORITY_INVALID: {p} unreadable")
+
+        def cap_call(path="kat/auth.json", day="2026-09-30"):
+            return CAPB.capture_authorized(
+                _REPO, "kat-man", path, "SELECTION_RECORDS",
+                "cascadia", day, "x", "x", "x", lambda b: {},
                 opener=counting_opener, clock=lambda: "x",
-                blob_reader=lambda c, p: bar_auth_raw,
-                git_resolve=lambda c: "b" * 40)
+                blob_reader=cap_reader,
+                git_resolve=lambda c: "b" * 40,
+                authority_reproducer=lambda: _j.loads(
+                    bar_auth_raw.decode()))
+        try:
+            cap_call(path="kat/unpinned_auth.json")
+            ok_run = False
+        except CAPB.CaptureRefusal as exc:
+            ok_run = ok_run and "CAPTURE_AUTHORITY_UNADMITTED" in \
+                str(exc)
+        try:
+            cap_call()                    # unregistered day
             ok_run = False
         except CAPB.CaptureRefusal as exc:
             ok_run = ok_run and "CAPTURE_AUTHORITY_INVALID" in \
-                str(exc) and net["n"] == 0
+                str(exc)
+        ok_run = ok_run and net["n"] == 0
 
         check("SELRUN candidate-selector + cert-runner locks "
               "(two-stage selector == in-bar oracle w/ tie + stage-2 "

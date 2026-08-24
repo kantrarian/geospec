@@ -2,8 +2,8 @@
  "design_manifest_blob_sha256": "d6decbd6ab5814bc005ce69c538311ff1b11cb1d13c19e2999e03a92bc7cca1f",
  "design_manifest_commit": "5fba5446cd96722fb86021df5065a46b8a1a78f5",
  "design_target_commit": "12161f6cf2000b2d4aa86fe659f834839ac0d27b",
- "execution_target_commit": "da842b8467d874a8308f7e3d82ab0ce10b2cd05d",
- "generated_utc": "2026-08-24T19:29:12Z",
+ "execution_target_commit": "c506a83c5823a3359485945995367f301a24e60a",
+ "generated_utc": "2026-08-24T20:07:51Z",
  "manifest_state": "OPEN",
  "repository_url": "https://github.com/kantrarian/geospec",
  "schema": "f2g-window2-execution-manifest-v1.2",
@@ -72,8 +72,8 @@
    "owner": "grassmann",
    "pins": [
     {
-     "blob_sha256": "7c1db46a2ed8264bb9b1b54a00e0660f629660fe985284eb8ba9c3869190643a",
-     "commit": "4952eb75cf5982c5d4922987939a80172947086a",
+     "blob_sha256": "b9aadea97ee277113d1349211327aa8f13e5171c46a16e7727cb19c7e8c47275",
+     "commit": "c506a83c5823a3359485945995367f301a24e60a",
      "path": "monitoring/src/test_f2g_window2_redkats_grassmann.py"
     }
    ],

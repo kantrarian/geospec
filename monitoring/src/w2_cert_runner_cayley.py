@@ -341,8 +341,16 @@ def run_campaign(repo, manifest_commit, geometry_path,
     validation, atomic pre-fire record, then at most n_procs
     concurrent whole-point workers. Every parent-side failure --
     spawn, poll, read, refusal, identity -- routes through _abort."""
+    # codex 0432Z item 2: resolve the selector commit to the full
+    # 40-hex BEFORE loading; the resolved identity feeds admission's
+    # smoke->selector ancestry and the invocation record
+    if git_resolve is not None:
+        selector_full = git_resolve(selector_commit)
+    else:
+        selector_full = resolve_manifest_commit(repo,
+                                                selector_commit)
     selector, points, selector_sha = load_selector_committed(
-        repo, selector_commit, selector_path,
+        repo, selector_full, selector_path,
         blob_reader=blob_reader)
     mc_full = _validate_fire_inputs(repo, manifest_commit, n_procs,
                                     points, outdir)
@@ -356,12 +364,15 @@ def run_campaign(repo, manifest_commit, geometry_path,
             repo, selector, mc_full, blob_reader=blob_reader,
             git_resolve=git_resolve,
             geometry_loader=geometry_loader,
-            is_ancestor=is_ancestor)
+            is_ancestor=is_ancestor,
+            selector_identity={"commit": selector_full,
+                               "path": selector_path,
+                               "blob_sha256": selector_sha})
     except TS.SelectorRefusal as e:
         raise RunnerRefusal(f"RUNNER_SELECTOR_INVALID: {e}")
     inv = write_invocation_record(
         outdir, points, mc_full, geometry_path, n_procs,
-        argv if argv is not None else sys.argv, selector_commit,
+        argv if argv is not None else sys.argv, selector_full,
         selector_path, selector_sha, admitted)
     isha = inv["invocation_sha256"]
 
@@ -425,7 +436,7 @@ def run_campaign(repo, manifest_commit, geometry_path,
         "order_started": order_started,
         "invocation_sha256": isha,
         "manifest_commit": mc_full,
-        "selector_commit": str(selector_commit),
+        "selector_commit": str(selector_full),
         "selector_path": str(selector_path),
         "selector_sha256": selector_sha,
         "geometry_path": str(geometry_path),
@@ -492,6 +503,14 @@ def _selftest():
     def geom_loader(mc, path):
         return FIX_GEOM
 
+
+    FIX_GEOM = {"capsule_digest": GEOMD,
+                "loco_registry_carrier": "cascadia",
+                "registries": {"cascadia": ["S0", "S1"]}}
+
+    def geom_loader(mc, path):
+        return FIX_GEOM
+
     def mk_tier_s_capsule(smoke_families, grids_obj, grids_raw,
                           store_map, commit, man_pins, impl_path,
                           geom_digest=GEOMD, mc_override=None):
@@ -516,10 +535,13 @@ def _selftest():
                     d[registry[0]] = 0.9
                     out.append(d)
             return out
-        impl_pin = [p for p in man_pins
-                    if p["path"] == impl_path][0]
-        impl_id = {"commit": impl_pin["commit"],
-                   "path": impl_path,
+
+        def pin_by(path_pred):
+            return [p for p in man_pins if path_pred(p["path"])][0]
+        grid_pin = pin_by(lambda p: p.startswith("grids"))
+        geom_pin = pin_by(lambda p: p == "geom.json")
+        impl_pin = pin_by(lambda p: p == impl_path)
+        impl_id = {"commit": impl_pin["commit"], "path": impl_path,
                    "blob_sha256": impl_pin["blob_sha256"]}
         results = {"schema": "f2g-w2-tier-s-results-v2",
                    "quality": {"R": 50, "n_draws": 999},
@@ -538,62 +560,73 @@ def _selftest():
                  if fam == "B1B" else None}
                 for e in entries]
         r_raw = json.dumps(results).encode()
+        r_sha = _h.sha256(r_raw).hexdigest()
         store_map[(commit, "ts_results.json")] = r_raw
         det_order = {f: [p for p in grids_obj[f] if "gain" not in p]
                      for f in ("B2A", "B2B", "B1B", "B3A")}
-        grid_pin = [p for p in man_pins
-                    if p["path"].startswith("grids")][0]
-        inv = {"schema": "f2g-w2-tier-s-invocation-v2",
+        pre = {"schema": "f2g-w2-tier-s-pre-invocation-v1",
                "manifest_commit": mc_override or commit,
                "effect_grids": {"commit": grid_pin["commit"],
                                "path": grid_pin["path"],
                                "blob_sha256":
                                    grid_pin["blob_sha256"]},
-               "geometry": {"commit": commit, "path": "geom.json",
+               "geometry": {"commit": geom_pin["commit"],
+                            "path": "geom.json",
                             "capsule_digest": geom_digest},
                "quality": {"R": 50, "n_draws": 999},
                "seed_authority_sha256": "b" * 64,
                "implementation": impl_id,
                "grid_order_sha256": _digest_fn(det_order),
-               "results_ref": {"commit": commit,
-                               "path": "ts_results.json",
-                               "blob_sha256": _h.sha256(
-                                   r_raw).hexdigest()},
-               "completion_receipt": {
-                   "fired_utc": "2026-08-25T00:00:00Z",
-                   "completed_utc": "2026-08-25T11:00:00Z",
-                   "results_blob_sha256": _h.sha256(
-                       r_raw).hexdigest()}}
-        inv["invocation_sha256"] = _digest_fn(
-            {k: v for k, v in inv.items()
+               "output_root": "kat", "argv": ["kat"],
+               "host": "kat", "interpreter": {"executable": "kat"},
+               "fired_utc": "2026-08-25T00:00:00Z"}
+        pre["invocation_sha256"] = _digest_fn(
+            {k: v for k, v in pre.items()
              if k != "invocation_sha256"})
-        store_map[(commit, "ts_invocation.json")] = json.dumps(
-            inv).encode()
-        return inv
+        store_map[(commit, "ts_pre.json")] = json.dumps(
+            pre).encode()
+        comp = {"schema": "f2g-w2-tier-s-completion-v1",
+                "pre_invocation_sha256": pre["invocation_sha256"],
+                "results_blob_sha256": r_sha,
+                "fired_utc": "2026-08-25T00:00:00Z",
+                "completed_utc": "2026-08-25T11:00:00Z"}
+        store_map[(commit, "ts_comp.json")] = json.dumps(
+            comp).encode()
+        return {"pre": pre, "comp": comp, "r_sha": r_sha,
+                "smoke_fields": {
+                    "pre_invocation_ref": {"commit": commit,
+                                           "path": "ts_pre.json"},
+                    "pre_invocation_sha256":
+                        pre["invocation_sha256"],
+                    "completion_ref": {"commit": commit,
+                                       "path": "ts_comp.json"},
+                    "results_ref": {"commit": commit,
+                                    "path": "ts_results.json",
+                                    "blob_sha256": r_sha}}}
 
     grids_raw = json.dumps({"schema": "f2g-w2-effect-grids-v1",
                             "grids": grids}).encode()
     store = {("d" * 40, "grids.json"): grids_raw,
-             ("d" * 40, "impl.py"): b"# pinned impl"}
+             ("d" * 40, "impl.py"): b"# pinned impl",
+             ("d" * 40, "geom.json"): b"{}"}
     man_pins = [
         {"path": "grids.json", "commit": "d" * 40,
          "blob_sha256": hashlib.sha256(grids_raw).hexdigest()},
         {"path": "impl.py", "commit": "d" * 40,
-         "blob_sha256": hashlib.sha256(b"# pinned impl").hexdigest()}]
+         "blob_sha256": hashlib.sha256(b"# pinned impl").hexdigest()},
+        {"path": "geom.json", "commit": "d" * 40,
+         "blob_sha256": hashlib.sha256(b"{}").hexdigest()}]
     fix_man = {"slots": {"power_harness": {"pins": man_pins}}}
     hexmc = subprocess.run(["git", "-C", repo_g, "rev-parse", "HEAD"],
                            capture_output=True).stdout.decode().strip()
-    ts_inv = mk_tier_s_capsule(fams, grids, grids_raw, store,
-                               "d" * 40, man_pins, "impl.py",
-                               mc_override=hexmc)
-    smoke = {"schema": "f2g-w2-tier-s-smoke-v1",
-             "quality": {"R": 50, "n_draws": 999},
-             "geometry_capsule_digest": "kat",
-             "effect_grids_sha256": _digest(grids),
-             "invocation_ref": {"commit": "d" * 40,
-                                "path": "ts_invocation.json"},
-             "invocation_sha256": ts_inv["invocation_sha256"],
-             "families": fams}
+    caps = mk_tier_s_capsule(fams, grids, grids_raw, store,
+                             "d" * 40, man_pins, "impl.py",
+                             mc_override=hexmc)
+    smoke = dict({"schema": "f2g-w2-tier-s-smoke-v1",
+                  "quality": {"R": 50, "n_draws": 999},
+                  "geometry_capsule_digest": "kat",
+                  "effect_grids_sha256": _digest(grids),
+                  "families": fams}, **caps["smoke_fields"])
     store[("d" * 40, "smoke.json")] = json.dumps(smoke).encode()
     refs = {"smoke_ref": {"commit": "d" * 40, "path": "smoke.json"},
             "effect_grids_ref": {"commit": "d" * 40,

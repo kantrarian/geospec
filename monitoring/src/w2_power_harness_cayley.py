@@ -969,6 +969,112 @@ def _b1b_loco_recovery(views, pv_full, capsule, n_draws, doc_sha,
     return ok
 
 
+def b1b_loco_fold_pvalues(views, capsule, n_draws, doc_sha):
+    """Tier-S stage-2 recording variant of the amendment's fold
+    walk: returns {station: p or None} for EVERY registry fold on
+    the SAME replicate (typed projection-induced no-p = None;
+    calendar/geometry defects raise POWER_LOCO_PROVENANCE_INVALID
+    exactly as the recovery rule does). Records p-values so the
+    derivational Tier-S results carrier can be independently
+    re-derived; never applies the recovery decision itself."""
+    loco_ck = capsule["loco_registry_carrier"]
+    registry = capsule["registries"][loco_ck]
+    b = capsule["calendar_frame"]["b1b"]
+    out = {}
+    for s in sorted(registry):
+        proj = b1b_loco_project(views["b1b"], s, carrier=loco_ck)
+        try:
+            r_s = _b1b.w2_b1b_family(
+                proj, doc_sha256=doc_sha, n_draws=n_draws,
+                fold=f"loco:{s}",
+                n_blocks=b["n_blocks"],
+                block_len=b["block_len"],
+                baseline_positions=b["baseline_positions"])
+            out[s] = r_s.get("p_value")
+        except _b1b.PanelInvalid as exc:
+            code = str(exc).split(":", 1)[0]
+            if code not in {"REGISTRY_ABSENT", "EDGE_SET_EMPTY"}:
+                raise PowerHarnessError(
+                    "POWER_LOCO_PROVENANCE_INVALID: "
+                    f"loco:{s}: {exc}") from exc
+            out[s] = None
+    return out
+
+
+SMOKE_R = 50
+SMOKE_N_DRAWS = 999
+
+
+def run_point_smoke(repo, geometry_ref, family, point,
+                    with_loco_folds=False, **overrides):
+    """Tier-S PRELIMINARY_SMOKE at ONE registered detection point:
+    the same bound-geometry gates as certification (manifest-pinned
+    capsule reference, authority-frame comparison, frame-record
+    validation, registered seed grammar) at the REGISTERED smoke
+    quality R=50 / n_draws=999. Returns per-replicate FOUR-FAMILY
+    p-vectors (and, when with_loco_folds, the per-replicate LOCO
+    fold p-maps) -- the DERIVATIONAL raw layer of the Tier-S results
+    carrier. Smoke output is never certifiable and carries the
+    PRELIMINARY_SMOKE label structurally."""
+    if overrides:
+        raise PowerHarnessError(
+            f"POWER_CERTIFICATION_CONFIG_UNBOUND: "
+            f"{sorted(overrides)} -- smoke constructs its own "
+            "R/n_draws/seed authority")
+    if "gain" in point:
+        raise PowerHarnessError(
+            "POWER_SPECIFICITY_ENTRYPOINT_REQUIRED: gain-step "
+            "points are never smoke detection points")
+    capsule = _load_bound_geometry(repo, geometry_ref)
+    _validate_geometry_capsule(capsule, family, point)
+    import subprocess
+    ref = capsule["calendar_authority_ref"]
+    p = subprocess.run(["git", "-C", repo, "cat-file", "blob",
+                        f"{ref['commit']}:{ref['path']}"],
+                       capture_output=True)
+    if p.returncode != 0 or hashlib.sha256(p.stdout).hexdigest() != \
+            capsule["calendar_authority_sha256"]:
+        raise PowerHarnessError(
+            "POWER_GEOMETRY_UNBOUND: calendar authority bytes absent "
+            "or divergent from the capsule's recorded sha")
+    try:
+        auth = json.loads(p.stdout.decode("utf-8"))
+    except ValueError:
+        raise PowerHarnessError(
+            "CALENDAR_AUTHORITY_MISMATCH: authority bytes are not a "
+            "calendar-authority artifact")
+    if auth.get("schema") != "f2g-w2-calendar-authority-v2" or \
+            auth.get("frame") != capsule["calendar_frame"]:
+        raise PowerHarnessError(
+            "CALENDAR_AUTHORITY_MISMATCH: capsule frame diverges "
+            "from the committed authority artifact")
+    doc_sha = capsule["seed_authority_sha256"]
+    replicates = []
+    loco_folds = [] if with_loco_folds else None
+    for r in range(SMOKE_R):
+        panel, views, _dbg = make_bound_panels(capsule, family,
+                                               point, r)
+        pv, frames = replicate_pvalues_bound(panel, views,
+                                             SMOKE_N_DRAWS, doc_sha,
+                                             capsule)
+        _validate_frame_records(frames, capsule, panel)
+        replicates.append({"p_values": pv})
+        if with_loco_folds:
+            if family != "B1B":
+                raise PowerHarnessError(
+                    "POWER_LOCO_FOLD_SET_INVALID: fold recording is "
+                    "a B1B stage-2 operation only")
+            loco_folds.append(b1b_loco_fold_pvalues(
+                views, capsule, SMOKE_N_DRAWS, doc_sha))
+    return {"tier": "PRELIMINARY_SMOKE (never certifiable)",
+            "family": family, "point": dict(point),
+            "quality": {"R": SMOKE_R, "n_draws": SMOKE_N_DRAWS},
+            "replicates": replicates, "loco_folds": loco_folds,
+            "geometry_capsule_digest": capsule["capsule_digest"],
+            "seed_authority_sha256": doc_sha,
+            "certifiable": False}
+
+
 def run_point_certification(repo, geometry_ref, family, point,
                             **overrides):
     """THE ONLY PATH to certifiable records (codex 1815Z item 2 shape):

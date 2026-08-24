@@ -55,8 +55,18 @@ TIER_S_RESULTS_FIELDS = {"schema", "quality",
 TIER_S_RESULT_ENTRY_FIELDS = {"point", "grid_index",
                               "replicates",
                               "loco_folds"}
-TIER_S_RECEIPT_FIELDS = {"fired_utc", "completed_utc",
-                         "results_blob_sha256"}
+TIER_S_PRE_SCHEMA = "f2g-w2-tier-s-pre-invocation-v1"
+TIER_S_PRE_FIELDS = {"schema", "manifest_commit", "effect_grids",
+                     "geometry", "quality", "seed_authority_sha256",
+                     "implementation", "grid_order_sha256",
+                     "output_root", "argv", "host", "interpreter",
+                     "fired_utc", "invocation_sha256"}
+TIER_S_COMPLETION_SCHEMA = "f2g-w2-tier-s-completion-v1"
+TIER_S_COMPLETION_FIELDS = {"schema", "pre_invocation_sha256",
+                            "results_blob_sha256", "fired_utc",
+                            "completed_utc"}
+ID_FIELDS = {"commit", "path", "blob_sha256"}
+GEO_ID_FIELDS = {"commit", "path", "capsule_digest"}
 
 
 class SelectorRefusal(ValueError):
@@ -350,7 +360,8 @@ def _rebuild_outcomes(fam, entry, holm_fn, loco_registry):
 def verify_selector_admission(repo, art, manifest_commit, *,
                               blob_reader=None, git_resolve=None,
                               geometry_loader=None,
-                              is_ancestor=None):
+                              is_ancestor=None,
+                              selector_identity=None):
     """codex 0238Z item 3: Git-readable is not ADMITTED. Beyond
     verify_selector_artifact's independent rerun, this capsule
     requires: (a) the effect-grid ref's reopened blob to EQUAL the
@@ -429,64 +440,76 @@ def verify_selector_admission(repo, art, manifest_commit, *,
         raise SelectorRefusal(
             "SELECTOR_UNADMITTED: smoke does not bind the admitted "
             "effect grids")
-    inv_ref = smoke.get("invocation_ref")
-    if not isinstance(inv_ref, dict) or \
-            set(inv_ref) != {"commit", "path"}:
+    # --- codex 0432Z: the chronological chain ---
+    # manifest -> PRE-invocation -> results/completion -> smoke ->
+    # selector. The pre-invocation is publishable BEFORE any result
+    # exists; a post-hoc combined capsule has no schema to live in.
+    pre_ref = smoke.get("pre_invocation_ref")
+    comp_ref = smoke.get("completion_ref")
+    res_ref = smoke.get("results_ref")
+    for nm, r, want in (("pre_invocation_ref", pre_ref,
+                         {"commit", "path"}),
+                        ("completion_ref", comp_ref,
+                         {"commit", "path"}),
+                        ("results_ref", res_ref, ID_FIELDS)):
+        if not isinstance(r, dict) or set(r) != want:
+            raise SelectorRefusal(
+                f"SELECTOR_UNADMITTED: smoke lacks a closed {nm}")
+    pre_full = _resolve(pre_ref["commit"])
+    pre = json.loads(blob_reader(pre_full,
+                                 pre_ref["path"]).decode("utf-8"))
+    if not isinstance(pre, dict) or \
+            set(pre) != TIER_S_PRE_FIELDS or \
+            pre.get("schema") != TIER_S_PRE_SCHEMA:
         raise SelectorRefusal(
-            "SELECTOR_UNADMITTED: smoke lacks a closed Tier-S "
-            "invocation reference")
-    inv = json.loads(blob_reader(_resolve(inv_ref["commit"]),
-                                 inv_ref["path"]).decode("utf-8"))
-    # codex 0320Z item 2: a self-hashed dict is NOT an invocation --
-    # the CLOSED capsule schema is required, with admitted identities
-    if not isinstance(inv, dict) or \
-            set(inv) != TIER_S_INVOCATION_FIELDS or \
-            inv.get("schema") != TIER_S_INVOCATION_SCHEMA:
-        raise SelectorRefusal(
-            "SELECTOR_UNADMITTED: the Tier-S invocation is not the "
-            "closed capsule schema (a self-hashed dict attests "
+            "SELECTOR_UNADMITTED: the Tier-S pre-invocation is not "
+            "the closed capsule schema (a self-hashed dict attests "
             "nothing)")
-    core = {k: v for k, v in inv.items()
-            if k != "invocation_sha256"}
-    if hashlib.sha256(_canon(core).encode()).hexdigest() != \
-            inv.get("invocation_sha256") or \
-            inv.get("invocation_sha256") != \
-            smoke.get("invocation_sha256"):
+    got = hashlib.sha256(_canon(
+        {k: v for k, v in pre.items()
+         if k != "invocation_sha256"}).encode()).hexdigest()
+    if got != pre.get("invocation_sha256") or \
+            got != smoke.get("pre_invocation_sha256"):
         raise SelectorRefusal(
-            "SELECTOR_UNADMITTED: the smoke's Tier-S invocation "
-            "digest does not recompute from the reopened record")
-    if _resolve(inv["manifest_commit"]) != mc_full:
+            "SELECTOR_UNADMITTED: the pre-invocation digest does "
+            "not recompute from the reopened record")
+    if _resolve(pre["manifest_commit"]) != mc_full:
         raise SelectorRefusal(
-            "SELECTOR_UNADMITTED: the Tier-S invocation binds a "
+            "SELECTOR_UNADMITTED: the pre-invocation binds a "
             "different manifest lineage")
-    ig = inv["effect_grids"]
-    if not isinstance(ig, dict) or \
-            ig.get("path") != g_ref["path"] or \
-            ig.get("blob_sha256") != pinned["blob_sha256"] or \
-            ig.get("commit") != pinned["commit"]:
+    ig = pre["effect_grids"]
+    if not isinstance(ig, dict) or set(ig) != ID_FIELDS or \
+            ig["path"] != g_ref["path"] or \
+            ig["blob_sha256"] != pinned["blob_sha256"] or \
+            ig["commit"] != pinned["commit"]:
         raise SelectorRefusal(
-            "SELECTOR_UNADMITTED: the Tier-S invocation does not "
-            "bind the admitted effect-grid identity (commit + path "
-            "+ blob)")
-    if inv.get("quality") != {"R": TIER_S_R,
+            "SELECTOR_UNADMITTED: the pre-invocation does not bind "
+            "the admitted effect-grid identity (commit+path+blob)")
+    if pre.get("quality") != {"R": TIER_S_R,
                               "n_draws": TIER_S_DRAWS}:
         raise SelectorRefusal(
-            "SELECTOR_UNADMITTED: invocation quality is not the "
+            "SELECTOR_UNADMITTED: pre-invocation quality is not the "
             "admitted Tier-S quality")
-    geo = inv["geometry"]
-    if not isinstance(geo, dict) or \
-            set(geo) != {"commit", "path", "capsule_digest"}:
+    geo = pre["geometry"]
+    if not isinstance(geo, dict) or set(geo) != GEO_ID_FIELDS:
         raise SelectorRefusal(
-            "SELECTOR_UNADMITTED: invocation geometry identity not "
-            "closed")
+            "SELECTOR_UNADMITTED: pre-invocation geometry identity "
+            "not closed")
+    geo_pin = None
+    for slot in man.get("slots", {}).values():
+        for pin in slot.get("pins", ()) or ():
+            if isinstance(pin, dict) and \
+                    pin.get("path") == geo["path"]:
+                geo_pin = pin
+    if geo_pin is None or geo["commit"] != geo_pin["commit"]:
+        raise SelectorRefusal(
+            "SELECTOR_UNADMITTED: pre-invocation geometry commit is "
+            "not the manifest pin commit")
     if smoke.get("geometry_capsule_digest") != \
             geo["capsule_digest"]:
         raise SelectorRefusal(
             "SELECTOR_UNADMITTED: smoke geometry diverges from the "
-            "invocation's bound capsule")
-    # codex 0349Z item 2: the geometry must load through the
-    # MANIFEST-PINNED loader (pin commit/path/blob enforced there)
-    # and its recomputed digest must equal the declared identity
+            "pre-invocation's bound capsule")
     if geometry_loader is None:
         import w2_power_harness_cayley as PH
 
@@ -513,77 +536,87 @@ def verify_selector_admission(repo, art, manifest_commit, *,
             "declared capsule digest")
     loco_registry = list(geo_cap.get("registries", {}).get(
         geo_cap.get("loco_registry_carrier"), ()))
-    sa = inv["seed_authority_sha256"]
+    sa = pre["seed_authority_sha256"]
     if not (isinstance(sa, str) and len(sa) == 64 and
             all(c in "0123456789abcdef" for c in sa)):
         raise SelectorRefusal(
             "SELECTOR_UNADMITTED: seed authority is not "
             "lowercase-hex")
-    impl = inv["implementation"]
+    impl = pre["implementation"]
     impl_pin = None
     for slot in man.get("slots", {}).values():
         for pin in slot.get("pins", ()) or ():
             if isinstance(pin, dict) and \
                     pin.get("path") == impl.get("path"):
                 impl_pin = pin
-    if impl_pin is None or \
-            impl.get("blob_sha256") != impl_pin["blob_sha256"] or \
-            impl.get("commit") != impl_pin["commit"]:
+    if not isinstance(impl, dict) or set(impl) != ID_FIELDS or \
+            impl_pin is None or \
+            impl["blob_sha256"] != impl_pin["blob_sha256"] or \
+            impl["commit"] != impl_pin["commit"]:
         raise SelectorRefusal(
-            "SELECTOR_UNADMITTED: invocation implementation is not "
-            "the manifest-pinned identity (commit + path + blob)")
-    det_order = {fam: [p for p in grids[fam] if "gain" not in p]
+            "SELECTOR_UNADMITTED: pre-invocation implementation is "
+            "not the manifest-pinned identity")
+    grids_art2 = json.loads(g_raw.decode("utf-8"))
+    grids2 = grids_art2.get("grids", grids_art2)
+    det_order = {fam: [p for p in grids2[fam] if "gain" not in p]
                  for fam in FAMILIES_ORDER}
-    if inv["grid_order_sha256"] != _digest(det_order):
+    if pre["grid_order_sha256"] != _digest(det_order):
         raise SelectorRefusal(
-            "SELECTOR_UNADMITTED: invocation grid order diverges "
-            "from the admitted detection grids")
-    cr = inv["completion_receipt"]
-    if not isinstance(cr, dict) or \
-            set(cr) != TIER_S_RECEIPT_FIELDS:
+            "SELECTOR_UNADMITTED: pre-invocation grid order "
+            "diverges from the admitted detection grids")
+    # completion: closed, binds pre digest + results blob, ordered
+    comp_full = _resolve(comp_ref["commit"])
+    comp = json.loads(blob_reader(
+        comp_full, comp_ref["path"]).decode("utf-8"))
+    if not isinstance(comp, dict) or \
+            set(comp) != TIER_S_COMPLETION_FIELDS or \
+            comp.get("schema") != TIER_S_COMPLETION_SCHEMA:
         raise SelectorRefusal(
-            "SELECTOR_UNADMITTED: completion receipt not closed")
-    t0 = _canon_instant(cr["fired_utc"], "fired_utc")
-    t1 = _canon_instant(cr["completed_utc"], "completed_utc")
+            "SELECTOR_UNADMITTED: completion receipt not the closed "
+            "schema")
+    if comp["pre_invocation_sha256"] != pre["invocation_sha256"]:
+        raise SelectorRefusal(
+            "SELECTOR_UNADMITTED: completion does not bind the "
+            "pre-fire invocation digest")
+    t0 = _canon_instant(comp["fired_utc"], "fired_utc")
+    t1 = _canon_instant(comp["completed_utc"], "completed_utc")
     if not t0 <= t1:
         raise SelectorRefusal(
-            "SELECTOR_UNADMITTED: completion receipt times reversed")
-    if cr["results_blob_sha256"] != \
-            inv["results_ref"]["blob_sha256"]:
-        raise SelectorRefusal(
-            "SELECTOR_UNADMITTED: completion receipt does not bind "
-            "the results output blob")
-    # reopen the per-point RESULTS and independently REBUILD the
-    # smoke outcomes (incl B1B post-LOCO) -- fabricated smoke lists
-    # cannot survive a results carrier they do not derive from
-    r_ref = inv["results_ref"]
-    if not isinstance(r_ref, dict) or \
-            set(r_ref) != {"commit", "path", "blob_sha256"}:
-        raise SelectorRefusal(
-            "SELECTOR_UNADMITTED: results binding not closed")
-    r_raw = blob_reader(_resolve(r_ref["commit"]), r_ref["path"])
-    if hashlib.sha256(r_raw).hexdigest() != r_ref["blob_sha256"]:
+            "SELECTOR_UNADMITTED: completion times reversed")
+    # results: blob-bound, identities == pre's, DERIVATIONAL
+    r_full = _resolve(res_ref["commit"])
+    r_raw = blob_reader(r_full, res_ref["path"])
+    if hashlib.sha256(r_raw).hexdigest() != \
+            res_ref["blob_sha256"] or \
+            res_ref["blob_sha256"] != comp["results_blob_sha256"]:
         raise SelectorRefusal(
             "SELECTOR_UNADMITTED: results bytes diverge from the "
-            "invocation's output binding")
+            "completion's output binding")
     results = json.loads(r_raw.decode("utf-8"))
     if not isinstance(results, dict) or \
             set(results) != TIER_S_RESULTS_FIELDS or \
             results.get("schema") != TIER_S_RESULTS_SCHEMA:
         raise SelectorRefusal(
             "SELECTOR_UNADMITTED: results capsule schema not closed")
-    if results.get("quality") != inv["quality"] or \
+    if results.get("quality") != pre["quality"] or \
             results.get("seed_authority_sha256") != sa or \
             results.get("geometry_capsule_digest") != \
             geo["capsule_digest"] or \
             results.get("implementation") != impl:
         raise SelectorRefusal(
             "SELECTOR_UNADMITTED: results identities diverge from "
-            "the invocation's bound identities")
+            "the pre-invocation's bound identities")
+    # codex 0432Z item 3: exact family set; grid_index equality;
+    # non-B1B folds exactly null; B1B fold lists sized R
+    if set(results.get("families", {})) != set(FAMILIES_ORDER) or \
+            set(smoke.get("families", {})) != set(FAMILIES_ORDER):
+        raise SelectorRefusal(
+            "SELECTOR_UNADMITTED: family set is not exactly the "
+            "registered four")
     import w2_power_harness_cayley as _PH
     for fam in FAMILIES_ORDER:
-        rf = results.get("families", {}).get(fam)
-        sf = smoke.get("families", {}).get(fam)
+        rf = results["families"][fam]
+        sf = smoke["families"][fam]
         if not isinstance(rf, list) or not isinstance(sf, list) or \
                 len(rf) != len(sf):
             raise SelectorRefusal(
@@ -595,27 +628,41 @@ def verify_selector_admission(repo, art, manifest_commit, *,
                 raise SelectorRefusal(
                     f"SELECTOR_UNADMITTED: {fam}[{k}] result entry "
                     "schema not closed")
-            if re_.get("point") != se_.get("point"):
+            if re_.get("point") != se_.get("point") or \
+                    re_.get("point") != det_order[fam][k]:
                 raise SelectorRefusal(
-                    f"SELECTOR_UNADMITTED: {fam}[{k}] point "
-                    "mismatch between results and smoke")
-            pre, post = _rebuild_outcomes(
+                    f"SELECTOR_UNADMITTED: {fam}[{k}] point is not "
+                    "the registered grid point")
+            if re_.get("grid_index") != k:
+                raise SelectorRefusal(
+                    f"SELECTOR_UNADMITTED: {fam}[{k}] grid_index "
+                    "diverges from the enumerated admitted index")
+            folds = re_.get("loco_folds")
+            if fam != "B1B" and folds is not None:
+                raise SelectorRefusal(
+                    f"SELECTOR_UNADMITTED: {fam}[{k}] carries LOCO "
+                    "folds (B1B stage-2 only)")
+            if fam == "B1B" and folds is not None and \
+                    len(folds) != len(re_.get("replicates", ())):
+                raise SelectorRefusal(
+                    f"SELECTOR_UNADMITTED: B1B[{k}] fold list is "
+                    "not sized to the replicates")
+            pre_o, post_o = _rebuild_outcomes(
                 fam, re_, _PH.holm_rejects, loco_registry)
-            if pre != se_.get("outcomes"):
+            if pre_o != se_.get("outcomes"):
                 raise SelectorRefusal(
                     f"SELECTOR_UNADMITTED: {fam}[{k}] smoke "
                     "outcomes do not DERIVE from the results "
                     "p-vectors under the registered Holm rule")
-            if fam == "B1B" and post != \
+            if fam == "B1B" and post_o != \
                     se_.get("post_loco_outcomes"):
                 raise SelectorRefusal(
                     f"SELECTOR_UNADMITTED: B1B[{k}] post-LOCO "
                     "outcomes do not DERIVE from the recorded fold "
                     "p-vectors under the registered substitution "
                     "rule")
-    # codex 0349Z item 3: the DESCENDANT CHAIN -- manifest ->
-    # results -> smoke -> selector, every commit full 40-hex on the
-    # admitted lineage
+    # the DESCENDANT CHAIN, incl the pre-invocation commit and the
+    # smoke -> selector edge (codex 0432Z item 2)
     if is_ancestor is None:
         import subprocess as _sp
 
@@ -625,24 +672,34 @@ def verify_selector_admission(repo, art, manifest_commit, *,
             return _sp.run(["git", "-C", repo, "merge-base",
                             "--is-ancestor", a, b],
                            capture_output=True).returncode == 0
-    r_full = _resolve(r_ref["commit"])
-    chain = [(mc_full, r_full, "manifest->results"),
+    chain = [(mc_full, pre_full, "manifest->pre"),
+             (pre_full, r_full, "pre->results"),
+             (pre_full, comp_full, "pre->completion"),
              (r_full, s_full, "results->smoke")]
+    if selector_identity is not None:
+        sel_full = _resolve(selector_identity["commit"])
+        chain.append((s_full, sel_full, "smoke->selector"))
     for a, b, label in chain:
         if not is_ancestor(a, b):
             raise SelectorRefusal(
                 f"SELECTOR_UNADMITTED: lineage edge {label} is not "
                 "a descendant chain from the admitted manifest")
     return {"manifest_commit": mc_full,
-            "effect_grids": {"commit": _resolve(g_ref["commit"]),
+            "effect_grids": {"commit": pinned["commit"],
                              "path": g_ref["path"],
                              "blob_sha256":
                                  hashlib.sha256(g_raw).hexdigest()},
+            "pre_invocation": {"commit": pre_full,
+                               "path": pre_ref["path"],
+                               "invocation_sha256":
+                                   pre["invocation_sha256"]},
+            "results": {"commit": r_full, "path": res_ref["path"],
+                        "blob_sha256": res_ref["blob_sha256"]},
             "smoke": {"commit": s_full, "path": s_ref["path"],
                       "blob_sha256": hashlib.sha256(blob_reader(
                           s_full, s_ref["path"])).hexdigest(),
-                      "invocation_sha256":
-                          smoke.get("invocation_sha256")}}
+                      "pre_invocation_sha256":
+                          smoke.get("pre_invocation_sha256")}}
 
 
 # ---------------------------------------------------------------- selftest
@@ -820,6 +877,14 @@ def _selftest():
     def geom_loader(mc, path):
         return FIX_GEOM
 
+
+    FIX_GEOM = {"capsule_digest": GEOMD,
+                "loco_registry_carrier": "cascadia",
+                "registries": {"cascadia": ["S0", "S1"]}}
+
+    def geom_loader(mc, path):
+        return FIX_GEOM
+
     def mk_tier_s_capsule(smoke_families, grids_obj, grids_raw,
                           store_map, commit, man_pins, impl_path,
                           geom_digest=GEOMD, mc_override=None):
@@ -844,10 +909,13 @@ def _selftest():
                     d[registry[0]] = 0.9
                     out.append(d)
             return out
-        impl_pin = [p for p in man_pins
-                    if p["path"] == impl_path][0]
-        impl_id = {"commit": impl_pin["commit"],
-                   "path": impl_path,
+
+        def pin_by(path_pred):
+            return [p for p in man_pins if path_pred(p["path"])][0]
+        grid_pin = pin_by(lambda p: p.startswith("grids"))
+        geom_pin = pin_by(lambda p: p == "geom.json")
+        impl_pin = pin_by(lambda p: p == impl_path)
+        impl_id = {"commit": impl_pin["commit"], "path": impl_path,
                    "blob_sha256": impl_pin["blob_sha256"]}
         results = {"schema": "f2g-w2-tier-s-results-v2",
                    "quality": {"R": 50, "n_draws": 999},
@@ -866,56 +934,68 @@ def _selftest():
                  if fam == "B1B" else None}
                 for e in entries]
         r_raw = json.dumps(results).encode()
+        r_sha = _h.sha256(r_raw).hexdigest()
         store_map[(commit, "ts_results.json")] = r_raw
         det_order = {f: [p for p in grids_obj[f] if "gain" not in p]
                      for f in ("B2A", "B2B", "B1B", "B3A")}
-        grid_pin = [p for p in man_pins
-                    if p["path"].startswith("grids")][0]
-        inv = {"schema": "f2g-w2-tier-s-invocation-v2",
+        pre = {"schema": "f2g-w2-tier-s-pre-invocation-v1",
                "manifest_commit": mc_override or commit,
                "effect_grids": {"commit": grid_pin["commit"],
                                "path": grid_pin["path"],
                                "blob_sha256":
                                    grid_pin["blob_sha256"]},
-               "geometry": {"commit": commit, "path": "geom.json",
+               "geometry": {"commit": geom_pin["commit"],
+                            "path": "geom.json",
                             "capsule_digest": geom_digest},
                "quality": {"R": 50, "n_draws": 999},
                "seed_authority_sha256": "b" * 64,
                "implementation": impl_id,
                "grid_order_sha256": _digest_fn(det_order),
-               "results_ref": {"commit": commit,
-                               "path": "ts_results.json",
-                               "blob_sha256": _h.sha256(
-                                   r_raw).hexdigest()},
-               "completion_receipt": {
-                   "fired_utc": "2026-08-25T00:00:00Z",
-                   "completed_utc": "2026-08-25T11:00:00Z",
-                   "results_blob_sha256": _h.sha256(
-                       r_raw).hexdigest()}}
-        inv["invocation_sha256"] = _digest_fn(
-            {k: v for k, v in inv.items()
+               "output_root": "kat", "argv": ["kat"],
+               "host": "kat", "interpreter": {"executable": "kat"},
+               "fired_utc": "2026-08-25T00:00:00Z"}
+        pre["invocation_sha256"] = _digest_fn(
+            {k: v for k, v in pre.items()
              if k != "invocation_sha256"})
-        store_map[(commit, "ts_invocation.json")] = json.dumps(
-            inv).encode()
-        return inv
+        store_map[(commit, "ts_pre.json")] = json.dumps(
+            pre).encode()
+        comp = {"schema": "f2g-w2-tier-s-completion-v1",
+                "pre_invocation_sha256": pre["invocation_sha256"],
+                "results_blob_sha256": r_sha,
+                "fired_utc": "2026-08-25T00:00:00Z",
+                "completed_utc": "2026-08-25T11:00:00Z"}
+        store_map[(commit, "ts_comp.json")] = json.dumps(
+            comp).encode()
+        return {"pre": pre, "comp": comp, "r_sha": r_sha,
+                "smoke_fields": {
+                    "pre_invocation_ref": {"commit": commit,
+                                           "path": "ts_pre.json"},
+                    "pre_invocation_sha256":
+                        pre["invocation_sha256"],
+                    "completion_ref": {"commit": commit,
+                                       "path": "ts_comp.json"},
+                    "results_ref": {"commit": commit,
+                                    "path": "ts_results.json",
+                                    "blob_sha256": r_sha}}}
 
     grids_raw = json.dumps({"schema": "f2g-w2-effect-grids-v1",
                             "grids": grids}).encode()
     astore = {("a" * 40, "grids2.json"): grids_raw,
-              ("a" * 40, "impl.py"): b"# pinned impl"}
+              ("a" * 40, "impl.py"): b"# pinned impl",
+              ("a" * 40, "geom.json"): b"{}"}
     man_pins = [
         {"path": "grids2.json", "commit": "a" * 40,
          "blob_sha256": _hl.sha256(grids_raw).hexdigest()},
         {"path": "impl.py", "commit": "a" * 40,
-         "blob_sha256": _hl.sha256(b"# pinned impl").hexdigest()}]
+         "blob_sha256": _hl.sha256(b"# pinned impl").hexdigest()},
+        {"path": "geom.json", "commit": "a" * 40,
+         "blob_sha256": _hl.sha256(b"{}").hexdigest()}]
     fix_man = {"slots": {"x": {"pins": man_pins}}}
-    ts_inv = mk_tier_s_capsule(sm["families"], grids, grids_raw,
-                               astore, "a" * 40, man_pins, "impl.py")
+    caps = mk_tier_s_capsule(sm["families"], grids, grids_raw,
+                             astore, "a" * 40, man_pins, "impl.py")
     sm2 = dict(sm, schema="f2g-w2-tier-s-smoke-v1",
                effect_grids_sha256=_digest(grids),
-               invocation_ref={"commit": "a" * 40,
-                               "path": "ts_invocation.json"},
-               invocation_sha256=ts_inv["invocation_sha256"])
+               **caps["smoke_fields"])
     astore[("a" * 40, "smoke2.json")] = json.dumps(sm2).encode()
 
     def areader(commit, path):
@@ -937,7 +1017,8 @@ def _selftest():
         git_resolve=lambda c: c, geometry_loader=geom_loader,
         is_ancestor=lambda a, b: True)
     assert adm["effect_grids"]["blob_sha256"] ==         _hl.sha256(grids_raw).hexdigest()
-    assert adm["smoke"]["invocation_sha256"] ==         ts_inv["invocation_sha256"]
+    assert adm["smoke"]["pre_invocation_sha256"] ==         caps["pre"]["invocation_sha256"]
+    assert adm["pre_invocation"]["invocation_sha256"] ==         caps["pre"]["invocation_sha256"]
 
     def arefuses(art_x, needle, resolve=lambda c: c):
         try:
@@ -970,21 +1051,21 @@ def _selftest():
         effect_grids_ref={"commit": "a" * 40,
                           "path": "sub_grids.json"})
     assert arefuses(art_sub, "SELECTOR_UNADMITTED")
-    # smoke missing the invocation reference -> unadmitted
+    # smoke missing the pre-invocation reference -> unadmitted
     sm_noinv = {k: v for k, v in sm2.items()
-                if k != "invocation_ref"}
+                if k != "pre_invocation_ref"}
     astore[("a" * 40, "smoke_noinv.json")] = json.dumps(
         sm_noinv).encode()
     art_ni = select_candidates(
         sm_noinv, grids,
         smoke_ref={"commit": "a" * 40, "path": "smoke_noinv.json"},
         effect_grids_ref=refs2["effect_grids_ref"])
-    assert arefuses(art_ni, "lacks a closed Tier-S invocation")
+    assert arefuses(art_ni, "lacks a closed pre_invocation_ref")
     # forged Tier-S invocation digest -> unadmitted
-    ts_bad = dict(ts_inv, invocation_sha256="0" * 64)
-    sm_bad = dict(sm2, invocation_sha256="0" * 64,
-                  invocation_ref={"commit": "a" * 40,
-                                  "path": "ts_bad.json"})
+    ts_bad = dict(caps["pre"], invocation_sha256="0" * 64)
+    sm_bad = dict(sm2, pre_invocation_sha256="0" * 64,
+                  pre_invocation_ref={"commit": "a" * 40,
+                                      "path": "ts_bad.json"})
     astore[("a" * 40, "ts_bad.json")] = json.dumps(ts_bad).encode()
     astore[("a" * 40, "smoke_bad.json")] = json.dumps(
         sm_bad).encode()
@@ -1004,6 +1085,11 @@ def _selftest():
          if k != "invocation_sha256"})
     astore[("a" * 40, "min_inv.json")] = json.dumps(
         min_inv).encode()
+    min_fields = dict(caps["smoke_fields"],
+                      pre_invocation_ref={"commit": "a" * 40,
+                                          "path": "min_inv.json"},
+                      pre_invocation_sha256=min_inv[
+                          "invocation_sha256"])
     fab_f = {}
     for fam, entries in sm["families"].items():
         fab_f[fam] = [dict(e, outcomes=[True] * 50) for e in entries]
@@ -1016,9 +1102,7 @@ def _selftest():
     fab_smoke = dict(sm, families=fab_f,
                      schema="f2g-w2-tier-s-smoke-v1",
                      effect_grids_sha256=_digest(grids),
-                     invocation_ref={"commit": "a" * 40,
-                                     "path": "min_inv.json"},
-                     invocation_sha256=min_inv["invocation_sha256"])
+                     **min_fields)
     astore[("a" * 40, "fab_smoke.json")] = json.dumps(
         fab_smoke).encode()
     art_fab = select_candidates(
@@ -1028,13 +1112,7 @@ def _selftest():
     assert arefuses(art_fab, "self-hashed dict attests nothing")
     # and a WELL-FORMED capsule whose smoke lists do not derive from
     # its results carrier refuses at the rebuild
-    fab_inv2 = mk_tier_s_capsule(sm["families"], grids, grids_raw,
-                                 astore, "a" * 40, man_pins,
-                                 "impl.py")
-    fab2 = dict(fab_smoke,
-                invocation_ref={"commit": "a" * 40,
-                                "path": "ts_invocation.json"},
-                invocation_sha256=fab_inv2["invocation_sha256"])
+    fab2 = dict(fab_smoke, **caps["smoke_fields"])
     astore[("a" * 40, "fab2_smoke.json")] = json.dumps(
         fab2).encode()
     art_fab2 = select_candidates(
@@ -1045,39 +1123,58 @@ def _selftest():
 
     # --- codex 0349Z item 3: the nested-field + lineage MUTATION
     # TABLE -- every identity/lineage edge, one loop
-    def re_capsule(mut_inv=None, mut_results=None,
+    def re_capsule(mut_pre=None, mut_results=None, mut_comp=None,
                    ancestor=lambda a, b: True):
         store2 = dict(astore)
-        inv2 = mk_tier_s_capsule(sm["families"], grids, grids_raw,
-                                 store2, "a" * 40, man_pins,
-                                 "impl.py")
-        inv2 = json.loads(store2[("a" * 40,
-                                  "ts_invocation.json")].decode())
+        caps2 = mk_tier_s_capsule(sm["families"], grids, grids_raw,
+                                  store2, "a" * 40, man_pins,
+                                  "impl.py")
         if mut_results:
             res2 = json.loads(store2[("a" * 40,
                                       "ts_results.json")].decode())
             mut_results(res2)
             raw2 = json.dumps(res2).encode()
             store2[("a" * 40, "ts_results.json")] = raw2
-        if mut_inv:
-            mut_inv(inv2)
-            inv2["invocation_sha256"] = _digest(
-                {k: v for k, v in inv2.items()
+            import hashlib as _h2
+            r_sha2 = _h2.sha256(raw2).hexdigest()
+            caps2["smoke_fields"]["results_ref"]["blob_sha256"] = \
+                r_sha2
+            comp2 = json.loads(store2[("a" * 40,
+                                       "ts_comp.json")].decode())
+            comp2["results_blob_sha256"] = r_sha2
+            store2[("a" * 40, "ts_comp.json")] = json.dumps(
+                comp2).encode()
+        if mut_pre:
+            pre2 = json.loads(store2[("a" * 40,
+                                      "ts_pre.json")].decode())
+            mut_pre(pre2)
+            pre2["invocation_sha256"] = _digest(
+                {k: v for k, v in pre2.items()
                  if k != "invocation_sha256"})
-            store2[("a" * 40, "ts_invocation.json")] = json.dumps(
-                inv2).encode()
+            store2[("a" * 40, "ts_pre.json")] = json.dumps(
+                pre2).encode()
+            caps2["smoke_fields"]["pre_invocation_sha256"] = \
+                pre2["invocation_sha256"]
+            comp2 = json.loads(store2[("a" * 40,
+                                       "ts_comp.json")].decode())
+            comp2["pre_invocation_sha256"] = \
+                pre2["invocation_sha256"]
+            store2[("a" * 40, "ts_comp.json")] = json.dumps(
+                comp2).encode()
+        if mut_comp:
+            comp2 = json.loads(store2[("a" * 40,
+                                       "ts_comp.json")].decode())
+            mut_comp(comp2)
+            store2[("a" * 40, "ts_comp.json")] = json.dumps(
+                comp2).encode()
         sm3 = dict(sm, schema="f2g-w2-tier-s-smoke-v1",
                    effect_grids_sha256=_digest(grids),
-                   invocation_ref={"commit": "a" * 40,
-                                   "path": "ts_invocation.json"},
-                   invocation_sha256=inv2["invocation_sha256"])
+                   **caps2["smoke_fields"])
         store2[("a" * 40, "smoke3.json")] = json.dumps(sm3).encode()
         art3 = select_candidates(
             sm3, grids,
             smoke_ref={"commit": "a" * 40, "path": "smoke3.json"},
             effect_grids_ref=refs2["effect_grids_ref"])
-        store2[("a" * 40, "selector3.json")] = json.dumps(
-            art3).encode()
 
         def rdr(c, p):
             if p.endswith("execution_manifest.json"):
@@ -1093,29 +1190,40 @@ def _selftest():
             return str(e)
     assert re_capsule() is None            # clean capsule passes
     MUTS = [
-        (lambda i: i["effect_grids"].update(commit="0" * 40), None),
-        (lambda i: i["implementation"].update(commit="0" * 40),
+        (lambda i: i["effect_grids"].update(commit="0" * 40), None,
          None),
-        (lambda i: i.update(seed_authority_sha256="Z" * 64), None),
-        (lambda i: i["completion_receipt"].update(
-            fired_utc="2026-08-25"), None),
-        (lambda i: i["completion_receipt"].update(
+        (lambda i: i["implementation"].update(commit="0" * 40),
+         None, None),
+        (lambda i: i.update(seed_authority_sha256="Z" * 64), None,
+         None),
+        (lambda i: i["geometry"].update(commit="0" * 40), None,
+         None),
+        (None, None, lambda c: c.update(fired_utc="2026-08-25")),
+        (None, None, lambda c: c.update(
             fired_utc="2026-08-25T12:00:00Z",
-            completed_utc="2026-08-25T11:00:00Z"), None),
-        (lambda i: i["completion_receipt"].update(
-            results_blob_sha256="0" * 64), None),
+            completed_utc="2026-08-25T11:00:00Z")),
+        (None, None, lambda c: c.update(
+            pre_invocation_sha256="0" * 64)),
+        (None, None, lambda c: c.update(
+            results_blob_sha256="0" * 64)),
         (None, lambda r: r.update(quality={"R": 40,
-                                           "n_draws": 999})),
+                                           "n_draws": 999}), None),
         (None, lambda r: r.update(
-            seed_authority_sha256="c" * 64)),
-        (None, lambda r: r["families"]["B2A"][0].update(extra=1)),
+            seed_authority_sha256="c" * 64), None),
+        (None, lambda r: r["families"]["B2A"][0].update(extra=1),
+         None),
+        (None, lambda r: r["families"]["B2A"][0].update(
+            grid_index=7), None),
+        (None, lambda r: r["families"]["B2A"][0].update(
+            loco_folds=[{}] * 50), None),
+        (None, lambda r: r["families"].update(B5X=[]), None),
         (None, lambda r: r["families"]["B2A"][0]["replicates"][0]
-            ["p_values"].update(B2A=0.9)),
+            ["p_values"].update(B2A=0.9), None),
     ]
-    for mi, mr in MUTS:
-        msg = re_capsule(mut_inv=mi, mut_results=mr)
+    for mi, mr, mc_ in MUTS:
+        msg = re_capsule(mut_pre=mi, mut_results=mr, mut_comp=mc_)
         assert msg is not None and "SELECTOR_UNADMITTED" in msg, \
-            (mi, mr, msg)
+            (mi, mr, mc_, msg)
     # lineage edge broken -> refuse
     msg = re_capsule(ancestor=lambda a, b: False)
     assert msg is not None and "descendant chain" in msg

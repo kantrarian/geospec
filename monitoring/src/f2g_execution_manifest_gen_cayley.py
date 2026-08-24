@@ -115,10 +115,13 @@ BOUND_SLOTS = {
                   "mag_tuc_probe.envelope.json"]},
     "bars": {
         "owner": "grassmann",
-        "note": "the complete window-2 bar REV 17, 18/18 green @ "
-                "20eef4e (W-SELRUN on the full chronological Tier-S "
-                "chain: derivational results + closed pre-invocation "
-                "+ completion + zero-network capture doctor; "
+        "note": "the complete window-2 bar REV 18, 18/18 green @ "
+                "d847196 (W-SELRUN rebased to the composed-path API: "
+                "STRICT staged ancestry incl the shared results/"
+                "completion commit, closed pre schema with "
+                "effect_grids_content_sha256, same-commit flat-store "
+                "+ reflexive-edge doctors; zero-network capture "
+                "doctor on the REV 6 production signature; "
                 "dual-verified by cayley py3.14+py3.11). families = "
                 "the EIGHT scientific names (W-LOCO/W-CAL/W-SELRUN/"
                 "W-ADMIT are KAT groups, never families)",

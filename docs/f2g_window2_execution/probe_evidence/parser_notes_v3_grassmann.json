@@ -1,0 +1,14 @@
+{
+ "schema": "f2g-w2-probe-parser-notes-v3",
+ "author": "grassmann",
+ "note": "Append-only companion for socal attempt 3 (codex 1647Z ruling; input record retry_input_record_v2_grassmann.json committed pre-fire at 3cbe5c7). Attempts 1+2 byte-untouched.",
+ "operations": {
+  "socal_coachella_attempt3": {
+   "body_sha256_ref": "socal_coachella_attempt3.envelope.json",
+   "verdict": "PROBE_REFUSED (HTTP 400) -- FINAL per the 1647Z terminal branch; socal remains PROVIDER_GRAMMAR_UNAVAILABLE, never absent; NO fourth request made.",
+   "decisive_evidence": "The same-transaction 400 body (captured this time per the ruling) is SCEDC's own parser speaking: 'Unrecognized start time [YYYY-MM-DDTHH:MM:SS.ssssss]: 2025-11-15' -- SCEDC's fdsnws-station 1.1.0 REQUIRES full datetime spellings for starttime/endtime and rejects the bare-date form that IRIS/earthscope and KOERI accept. ALL THREE attempts share exactly this defect and nothing else: attempt 1 (short names + bare dates), attempt 2 (long names + bare dates), attempt 3 (registered bbox + bare dates). The bbox shape, parameter names, station list, and endpoint were never the problem.",
+   "implication_for_the_next_decision": "A fourth request with the SOLE delta starttime=2025-11-15T00:00:00.000000 / endtime=2025-11-16T00:00:00.000000 (everything else byte-identical to attempt 3) would succeed with near-certainty -- but it is NOT authorized by the terminal branch and was NOT made. That one-delta ruling, or the separately-registered exclusion decision, is codex's/the program's call.",
+   "registered_receipt_note": "the 2026-08-11 receipt (350c5f5e) that recorded HTTP 200 for this shape presumably carried full-datetime windows -- consistent with this diagnosis."
+  }
+ }
+}

@@ -2,8 +2,8 @@
  "design_manifest_blob_sha256": "d6decbd6ab5814bc005ce69c538311ff1b11cb1d13c19e2999e03a92bc7cca1f",
  "design_manifest_commit": "5fba5446cd96722fb86021df5065a46b8a1a78f5",
  "design_target_commit": "12161f6cf2000b2d4aa86fe659f834839ac0d27b",
- "execution_target_commit": "b933a9d591e743afb0a3614651ecee972f1e6ed6",
- "generated_utc": "2026-08-24T04:18:39Z",
+ "execution_target_commit": "1ec8acdd1cf1493669d4155f1c4b9809cd89b0d0",
+ "generated_utc": "2026-08-24T04:43:41Z",
  "manifest_state": "OPEN",
  "repository_url": "https://github.com/kantrarian/geospec",
  "schema": "f2g-window2-execution-manifest-v1.2",
@@ -72,8 +72,8 @@
    "owner": "grassmann",
    "pins": [
     {
-     "blob_sha256": "3521daf5dbba7ae3fb9f399fe4f3f8304388dfc2d5a1b960b2954602deb2f93f",
-     "commit": "c412117d53dd21474c82cc1f9f0f48fd6a938002",
+     "blob_sha256": "da35a0a53e1c1cf3686eb53556c260e24483ceb576abcd25b34f44285ab84e61",
+     "commit": "8c7d271fa540cd95915e08acd0ee2bf117a0e2ec",
      "path": "monitoring/src/test_f2g_window2_redkats_grassmann.py"
     }
    ],
@@ -190,8 +190,8 @@
    "owner": "cayley",
    "pins": [
     {
-     "blob_sha256": "73036d32d8f0e3361c7e49529afa8eb937a0703bfa5dd5dc83ff45b6b1df6920",
-     "commit": "bc1b80816df7afd30ea30fc741b0c59ba56ab19d",
+     "blob_sha256": "abb13e9decc9ec69f2c390e368e18233ecaa50d5b47e7da93309bf01f4aed106",
+     "commit": "1ec8acdd1cf1493669d4155f1c4b9809cd89b0d0",
      "path": "monitoring/src/w2_power_harness_cayley.py"
     },
     {
@@ -200,13 +200,13 @@
      "path": "docs/f2g_window2_execution/loco_composition_amendment_v1.md"
     },
     {
-     "blob_sha256": "718859ac707f3412a007bb54ccad3cdf889128d4a8e750420f917df6f799db7f",
-     "commit": "b933a9d591e743afb0a3614651ecee972f1e6ed6",
+     "blob_sha256": "a54f03a7f95640fcba8ed261470f7bc4fc4f9497335151e6733a6a9dc2b124b5",
+     "commit": "1ec8acdd1cf1493669d4155f1c4b9809cd89b0d0",
      "path": "monitoring/src/w2_cert_runner_cayley.py"
     },
     {
-     "blob_sha256": "e9c04f60bafde35290a619410aa59d9c4a945c19d9973ff2919ea70c28ed977c",
-     "commit": "b933a9d591e743afb0a3614651ecee972f1e6ed6",
+     "blob_sha256": "d062a9e0cea83b6ab8c3b83fa1d1b4a5a18bc16a79b62cf47cd1bad2b8a7892c",
+     "commit": "1ec8acdd1cf1493669d4155f1c4b9809cd89b0d0",
      "path": "monitoring/src/w2_tier_selector_cayley.py"
     },
     {

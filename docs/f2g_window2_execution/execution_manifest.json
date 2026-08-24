@@ -2,8 +2,8 @@
  "design_manifest_blob_sha256": "d6decbd6ab5814bc005ce69c538311ff1b11cb1d13c19e2999e03a92bc7cca1f",
  "design_manifest_commit": "5fba5446cd96722fb86021df5065a46b8a1a78f5",
  "design_target_commit": "12161f6cf2000b2d4aa86fe659f834839ac0d27b",
- "execution_target_commit": "2df06bac98bdf3ff2aa5eb2c96874b4444ddc876",
- "generated_utc": "2026-08-24T17:54:18Z",
+ "execution_target_commit": "4952eb75cf5982c5d4922987939a80172947086a",
+ "generated_utc": "2026-08-24T19:18:15Z",
  "manifest_state": "OPEN",
  "repository_url": "https://github.com/kantrarian/geospec",
  "schema": "f2g-window2-execution-manifest-v1.2",
@@ -18,8 +18,8 @@
      "path": "monitoring/src/w2_barrier.py"
     },
     {
-     "blob_sha256": "e81cbfaa6d9dcadfc89c8f8e03d8a4022f73fd13c5809ff179489cb292ed64bc",
-     "commit": "8ea73f0810f9e12467d7294604abc18d33045fad",
+     "blob_sha256": "fcaa5dab33edb4675ce2cabd08ed9358871ddfdcf248c936a974d6fe57709f95",
+     "commit": "4952eb75cf5982c5d4922987939a80172947086a",
      "path": "monitoring/src/w2_accrual_instrument_cayley.py"
     },
     {
@@ -72,8 +72,8 @@
    "owner": "grassmann",
    "pins": [
     {
-     "blob_sha256": "5e06c51dea6776f9daf99daaebcc2d24355037afeda773df1e02f50c53a8d921",
-     "commit": "2309ab763798bed4f4b8d3b8427a9b4fc64b6372",
+     "blob_sha256": "7c1db46a2ed8264bb9b1b54a00e0660f629660fe985284eb8ba9c3869190643a",
+     "commit": "4952eb75cf5982c5d4922987939a80172947086a",
      "path": "monitoring/src/test_f2g_window2_redkats_grassmann.py"
     }
    ],
@@ -190,8 +190,8 @@
    "owner": "cayley",
    "pins": [
     {
-     "blob_sha256": "d3f8caf2fb362f654e2e17f192a2a974381434150ccf188f748f823f85281e10",
-     "commit": "151454e33e548b72cdbfe44769f75fb3e43b431d",
+     "blob_sha256": "b49c5cf5e44dfe3d15c73529870e43e7a5ce5707b1edb62251cadcc9a4f3d944",
+     "commit": "4952eb75cf5982c5d4922987939a80172947086a",
      "path": "monitoring/src/w2_power_harness_cayley.py"
     },
     {

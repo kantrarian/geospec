@@ -2,8 +2,8 @@
  "design_manifest_blob_sha256": "d6decbd6ab5814bc005ce69c538311ff1b11cb1d13c19e2999e03a92bc7cca1f",
  "design_manifest_commit": "5fba5446cd96722fb86021df5065a46b8a1a78f5",
  "design_target_commit": "12161f6cf2000b2d4aa86fe659f834839ac0d27b",
- "execution_target_commit": "0254aaf8597a2fcbc75c9d6a84adbc9e2d44fa05",
- "generated_utc": "2026-08-24T03:05:56Z",
+ "execution_target_commit": "f34eb5028ea42c2b9b6a3aebde27bc1ed51f9e2e",
+ "generated_utc": "2026-08-24T03:22:57Z",
  "manifest_state": "OPEN",
  "repository_url": "https://github.com/kantrarian/geospec",
  "schema": "f2g-window2-execution-manifest-v1.2",
@@ -68,12 +68,12 @@
     "W-BARRIER",
     "W-PIN"
    ],
-   "note": "the complete window-2 bar REV 14, 17/17 green @ e11de6f (W-SELRUN on the committed-selector world w/ in-bar item-2/3 fire-boundary locks; dual-verified by cayley py3.14+py3.11). families = the EIGHT scientific names (codex item 4: W-LOCO/W-CAL/W-SELRUN are KAT groups, never families)",
+   "note": "the complete window-2 bar REV 15, 18/18 green @ c412117 (+W-ADMIT: the three codex 0245Z admission locks incl the six-key REAL positive + committed-is-not-admitted pair; dual-verified by cayley py3.14+py3.11). families = the EIGHT scientific names (W-LOCO/W-CAL/W-SELRUN/W-ADMIT are KAT groups, never families)",
    "owner": "grassmann",
    "pins": [
     {
-     "blob_sha256": "809e2560d0111bfcc56f737ce20cf241eb0b1c3ad1454e67049a20ff019ae96d",
-     "commit": "e11de6f79fcc13865f046fe73a45805f4edcfbd2",
+     "blob_sha256": "3521daf5dbba7ae3fb9f399fe4f3f8304388dfc2d5a1b960b2954602deb2f93f",
+     "commit": "c412117d53dd21474c82cc1f9f0f48fd6a938002",
      "path": "monitoring/src/test_f2g_window2_redkats_grassmann.py"
     }
    ],
@@ -114,8 +114,8 @@
    "owner": "cayley",
    "pins": [
     {
-     "blob_sha256": "2f11f3bc1fbe8447f626991948809ecdb13a19fb3d5abd9e77adda2d07178657",
-     "commit": "0254aaf8597a2fcbc75c9d6a84adbc9e2d44fa05",
+     "blob_sha256": "1b20374903b1c5e661e19d60cef846c514c3d7641d14d8b8a2a99f6e565e764d",
+     "commit": "f34eb5028ea42c2b9b6a3aebde27bc1ed51f9e2e",
      "path": "monitoring/src/f2g_execution_manifest_gen_cayley.py"
     }
    ],

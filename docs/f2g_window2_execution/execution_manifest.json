@@ -2,8 +2,8 @@
  "design_manifest_blob_sha256": "d6decbd6ab5814bc005ce69c538311ff1b11cb1d13c19e2999e03a92bc7cca1f",
  "design_manifest_commit": "5fba5446cd96722fb86021df5065a46b8a1a78f5",
  "design_target_commit": "12161f6cf2000b2d4aa86fe659f834839ac0d27b",
- "execution_target_commit": "151454e33e548b72cdbfe44769f75fb3e43b431d",
- "generated_utc": "2026-08-24T16:50:59Z",
+ "execution_target_commit": "2df06bac98bdf3ff2aa5eb2c96874b4444ddc876",
+ "generated_utc": "2026-08-24T17:54:18Z",
  "manifest_state": "OPEN",
  "repository_url": "https://github.com/kantrarian/geospec",
  "schema": "f2g-window2-execution-manifest-v1.2",
@@ -18,8 +18,8 @@
      "path": "monitoring/src/w2_barrier.py"
     },
     {
-     "blob_sha256": "c89596b17a7c0b9cb8bb035cf71cbc3731f15a15e67955b4b00c44fc044cf858",
-     "commit": "151454e33e548b72cdbfe44769f75fb3e43b431d",
+     "blob_sha256": "e81cbfaa6d9dcadfc89c8f8e03d8a4022f73fd13c5809ff179489cb292ed64bc",
+     "commit": "8ea73f0810f9e12467d7294604abc18d33045fad",
      "path": "monitoring/src/w2_accrual_instrument_cayley.py"
     },
     {
@@ -68,12 +68,12 @@
     "W-BARRIER",
     "W-PIN"
    ],
-   "note": "the complete window-2 bar REV 18, 18/18 green @ d847196 (W-SELRUN rebased to the composed-path API: STRICT staged ancestry incl the shared results/completion commit, closed pre schema with effect_grids_content_sha256, same-commit flat-store + reflexive-edge doctors; zero-network capture doctor on the REV 6 production signature; dual-verified by cayley py3.14+py3.11). families = the EIGHT scientific names (W-LOCO/W-CAL/W-SELRUN/W-ADMIT are KAT groups, never families)",
+   "note": "the complete window-2 bar REV 19, 18/18 green @ 2309ab7 (W-CAL rebased to the v3 successor frame: three-way identity vs the committed calendar_authority_w2_v3 bytes, excluded-day doctor at 08-28; REV 18's composed-path W-SELRUN + REV 6 zero-network capture doctor carried; dual-verified by cayley py3.14+py3.11). families = the EIGHT scientific names (W-LOCO/W-CAL/W-SELRUN/W-ADMIT are KAT groups, never families)",
    "owner": "grassmann",
    "pins": [
     {
-     "blob_sha256": "44d8dc67c6691b168ba241009fd4526f9a1b451399bfb2b862d0afbd09e751ca",
-     "commit": "d8471960b5d8fadda8f8784ae30ef2572e9f1d3f",
+     "blob_sha256": "5e06c51dea6776f9daf99daaebcc2d24355037afeda773df1e02f50c53a8d921",
+     "commit": "2309ab763798bed4f4b8d3b8427a9b4fc64b6372",
      "path": "monitoring/src/test_f2g_window2_redkats_grassmann.py"
     }
    ],
@@ -114,8 +114,8 @@
    "owner": "cayley",
    "pins": [
     {
-     "blob_sha256": "4ec19ad9ad03c61978b30f5187de63bb7e91251b2b04f1fae2761f322fd64f17",
-     "commit": "776c6839e9dc199df454f9278519885412d83217",
+     "blob_sha256": "9fd6f847b73132efe0028cc6edf2c29bd6f99ac5f6650c0acb63979a5d7eee22",
+     "commit": "2df06bac98bdf3ff2aa5eb2c96874b4444ddc876",
      "path": "monitoring/src/f2g_execution_manifest_gen_cayley.py"
     }
    ],

@@ -204,9 +204,26 @@ def _path_tokens(lane, carrier, utc_day):
     return f"{lane.lower()}_{carrier}_{utc_day}"
 
 
+# codex 0349Z item 1: the FIXTURE sentinel authority identity. It is
+# schema-valid (so fixture transcripts/records close) but names no
+# real authority -- admission comparison against the pinned authority
+# identity refuses it, so nothing captured through the fixture path
+# can ever be admitted.
+FIXTURE_AUTHORITY_ID = {"commit": "0" * 40,
+                        "path": "fixture://unbound-authority",
+                        "blob_sha256": "0" * 64,
+                        "keys_sha256": "0" * 64}
+
+
 def capture_day(spec, staging_dir, records_dir, transcripts_dir,
-                artifact_builder, opener=None, clock=None):
-    """One (lane, carrier, day) capture under the codex 1843Z S/T/E
+                artifact_builder, opener=None, clock=None,
+                authority_id=None):
+    """FIXTURE/INJECTION path (codex 0349Z item 1: the free-spec
+    production path is REMOVED -- production captures go through
+    capture_authorized, whose only input is the manifest-pinned
+    authority identity; this entrypoint remains for fixtures and is
+    marked by the sentinel authority identity admission refuses).
+    One (lane, carrier, day) capture under the codex 1843Z S/T/E
     design: derive S from the spec -> fetch -> stage exact bytes ->
     WRITE AND REOPEN the closed transcript T (write-once; a divergent
     recapture refuses) -> build the produced artifact -> build E
@@ -230,6 +247,9 @@ def capture_day(spec, staging_dir, records_dir, transcripts_dir,
             "only (kind, ref)")
     stem = _path_tokens(spec["lane"], spec["carrier"],
                         spec["utc_day"])
+    auth_id = dict(authority_id or FIXTURE_AUTHORITY_ID)
+    PROD._validate_authority_id(auth_id, "CAPTURE_AUTHORITY_INVALID",
+                                refusal_cls=CaptureRefusal)
     s = static_contract_of(spec)
     url = PROD.requested_url_of(s["endpoint"], s["request_params"])
     body, ev = http_fetch(url, opener=opener, clock=clock)
@@ -246,7 +266,8 @@ def capture_day(spec, staging_dir, records_dir, transcripts_dir,
                   "http_status": ev["http_status"],
                   "headers": dict(ev["headers"]),
                   "raw_body_sha256": sha,
-                  "raw_body_bytes": len(body)}
+                  "raw_body_bytes": len(body),
+                  "authority": auth_id}
     os.makedirs(transcripts_dir, exist_ok=True)
     t_path = os.path.join(transcripts_dir,
                           f"{stem}.transcript.json")
@@ -273,6 +294,104 @@ def capture_day(spec, staging_dir, records_dir, transcripts_dir,
     record = _write_once_json(rec_path, record,
                               "CAPTURE_RECORD_DIVERGENT")
     return rec_path, t_path, record, transcript
+
+
+# ------------------------------------------------ authorized production path
+def capture_authorized(repo, authority_ref, lane, carrier, utc_day,
+                       staging_dir, records_dir, transcripts_dir,
+                       artifact_builder, *, opener=None, clock=None,
+                       blob_reader=None, git_resolve=None):
+    """THE production capture entrypoint (codex 0349Z item 1): its
+    ONLY production inputs are the manifest-pinned v3 authority
+    identity and the (lane, carrier, day) key. BEFORE any network
+    call it: resolves the authority commit to a full 40-hex lineage;
+    reopens the exact authority bytes and verifies them against the
+    pinned blob digest; recomputes the key digest; requires the key to
+    be REGISTERED in the authority; derives S through the instrument's
+    authoritative_static_contract (an OPEN token -- the unreviewed
+    class -- refuses there); and constructs the request SOLELY from S.
+    Every refusal happens with ZERO network calls. The authority
+    identity binds into T and E (the chronological carrier that the
+    static freeze preceded the request).
+
+    authority_ref (closed): {"commit", "path", "blob_sha256"}."""
+    if not isinstance(authority_ref, dict) or \
+            set(authority_ref) != {"commit", "path", "blob_sha256"}:
+        raise CaptureRefusal(
+            "CAPTURE_AUTHORITY_INVALID: authority_ref must be the "
+            "closed {commit, path, blob_sha256} pin reference")
+    if git_resolve is None:
+        import subprocess
+
+        def git_resolve(commitish):
+            p = subprocess.run(
+                ["git", "-C", repo, "rev-parse",
+                 f"{commitish}^{{commit}}"], capture_output=True)
+            full = p.stdout.decode().strip()
+            if p.returncode != 0 or len(full) != 40:
+                raise CaptureRefusal(
+                    f"CAPTURE_AUTHORITY_INVALID: {commitish!r} does "
+                    "not resolve to a 40-hex lineage")
+            return full
+    if blob_reader is None:
+        import subprocess
+
+        def blob_reader(commit, path):
+            p = subprocess.run(
+                ["git", "-C", repo, "cat-file", "blob",
+                 f"{commit}:{path}"], capture_output=True)
+            if p.returncode != 0:
+                raise CaptureRefusal(
+                    f"CAPTURE_AUTHORITY_INVALID: {path} unreadable "
+                    f"at {commit}")
+            return p.stdout
+    full = git_resolve(authority_ref["commit"])
+    if not (isinstance(full, str) and len(full) == 40
+            and all(c in "0123456789abcdef" for c in full)):
+        raise CaptureRefusal(
+            "CAPTURE_AUTHORITY_INVALID: resolved lineage is not "
+            "40-hex")
+    raw = blob_reader(full, authority_ref["path"])
+    got = hashlib.sha256(raw).hexdigest()
+    if got != authority_ref["blob_sha256"]:
+        raise CaptureRefusal(
+            "CAPTURE_AUTHORITY_INVALID: authority bytes diverge from "
+            f"the pinned blob ({got[:12]} != "
+            f"{str(authority_ref['blob_sha256'])[:12]})")
+    authority = json.loads(raw.decode("utf-8"))
+    keys = authority.get("prestart_expected_keys", {})
+    keys_sha = hashlib.sha256(json.dumps(
+        keys, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest()
+    if keys_sha != authority.get("prestart_expected_keys_sha256"):
+        raise CaptureRefusal(
+            "CAPTURE_AUTHORITY_INVALID: authority key digest does "
+            "not recompute")
+    days = keys.get(lane, {}).get(carrier)
+    if not days or str(utc_day) not in days:
+        raise CaptureRefusal(
+            f"CAPTURE_AUTHORITY_INVALID: {lane}/{carrier}/{utc_day} "
+            "is not a registered authority key (post-dated or "
+            "unauthorized)")
+    import w2_accrual_instrument_cayley as ACC
+    try:
+        s = ACC.authoritative_static_contract(authority, lane,
+                                              carrier, str(utc_day))
+    except Exception as exc:
+        raise CaptureRefusal(
+            f"CAPTURE_AUTHORITY_INVALID: {exc}")
+    auth_id = {"commit": full, "path": str(authority_ref["path"]),
+               "blob_sha256": got, "keys_sha256": keys_sha}
+    spec = {"lane": s["lane"], "carrier": s["carrier"],
+            "utc_day": s["utc_day"], "endpoint": s["endpoint"],
+            "request_params": dict(s["request_params"]),
+            "source": dict(s["source"]), "cutoff": s["cutoff"],
+            "operation_params": dict(s["operation_params"]),
+            "expected_keys": list(s["expected_keys"])}
+    return capture_day(spec, staging_dir, records_dir,
+                       transcripts_dir, artifact_builder,
+                       opener=opener, clock=clock,
+                       authority_id=auth_id)
 
 
 # --------------------------------------------------- body-store inventory
@@ -539,6 +658,113 @@ def _selftest():
         spec(source={"kind": "k", "ref": "r", "sha256": "0" * 64}),
         staging, records, transcripts, builder, opener=opener),
         "CAPTURE_SPEC_NOT_CLOSED")
+
+    # --- capture_authorized (codex 0349Z item 1): the production
+    # path's only input is the pinned authority identity; every
+    # refusal fires with ZERO network calls (opener counter) ---
+    counted = {"n": 0}
+
+    def copener(url):
+        counted["n"] += 1
+        return opener(url)
+    kat_keys = {"SELECTION_RECORDS": {"cascadia": ["2026-08-20"]}}
+    kat_auth = {"schema": "f2g-w2-expected-contracts-v2",
+                "prestart_expected_keys": kat_keys,
+                "prestart_expected_keys_sha256": hashlib.sha256(
+                    json.dumps(kat_keys, sort_keys=True,
+                               separators=(",", ":")).encode()
+                ).hexdigest(),
+                "static_layer": {"SELECTION_RECORDS": {"carriers": {
+                    "cascadia": {
+                        "static_contract_template": {
+                            "source": {"kind": "fdsn-availability",
+                                       "ref": ("https://kat.example/"
+                                               "fdsn")},
+                            "endpoint": "https://kat.example/fdsn",
+                            "request_params": {"net": "UW",
+                                               "cha": "HHZ"},
+                            "operation_params": {
+                                "carrier": "cascadia",
+                                "day": "{day}"}},
+                        "cutoff": "2026-08-25"}}}},
+                "dynamic_layer": {}, "digests": {},
+                "provenance": {"generator": "kat"}}
+    auth_raw = json.dumps(kat_auth, indent=1,
+                          sort_keys=True).encode()
+    a_ref = {"commit": "kat-auth",
+             "path": ("docs/f2g_window2_execution/"
+                      "staged_expected_contracts_v3.json"),
+             "blob_sha256": hashlib.sha256(auth_raw).hexdigest()}
+
+    def a_resolve(c):
+        if c == "kat-auth":
+            return "b" * 40
+        raise CaptureRefusal(
+            f"CAPTURE_AUTHORITY_INVALID: {c!r} does not resolve")
+
+    def a_reader(commit, path):
+        if (commit, path) == ("b" * 40, a_ref["path"]):
+            return auth_raw
+        raise CaptureRefusal(
+            f"CAPTURE_AUTHORITY_INVALID: {path} unreadable at "
+            f"{commit}")
+    rp3, tp3, rec3, tr3 = capture_authorized(
+        ".", a_ref, "SELECTION_RECORDS", "cascadia", "2026-08-20",
+        staging, records, transcripts, builder, opener=copener,
+        clock=clock_a, blob_reader=a_reader, git_resolve=a_resolve)
+    assert counted["n"] == 1
+    assert rec3["receipt"]["authority"] == {
+        "commit": "b" * 40, "path": a_ref["path"],
+        "blob_sha256": a_ref["blob_sha256"],
+        "keys_sha256": kat_auth["prestart_expected_keys_sha256"]}
+    assert tr3["authority"] == rec3["receipt"]["authority"]
+    # ZERO-NETWORK refusal battery
+    base_n = counted["n"]
+
+    def a_call(ref=a_ref, lane="SELECTION_RECORDS", ck="cascadia",
+               day="2026-08-20", reader=a_reader,
+               resolve=a_resolve):
+        return capture_authorized(
+            ".", ref, lane, ck, day, staging, records, transcripts,
+            builder, opener=copener, clock=clock_a,
+            blob_reader=reader, git_resolve=resolve)
+    # post-dated / unauthorized key
+    assert refuses(lambda: a_call(day="2026-09-30"),
+                   "CAPTURE_AUTHORITY_INVALID")
+    # wrong lineage
+    assert refuses(lambda: a_call(ref=dict(a_ref, commit="other")),
+                   "CAPTURE_AUTHORITY_INVALID")
+    # divergent authority bytes
+    assert refuses(lambda: a_call(ref=dict(a_ref,
+                                           blob_sha256="0" * 64)),
+                   "CAPTURE_AUTHORITY_INVALID")
+    # OPEN token in the consumed template (the unreviewed class)
+    open_auth = json.loads(auth_raw.decode())
+    open_auth["static_layer"]["SELECTION_RECORDS"]["carriers"][
+        "cascadia"]["static_contract_template"]["endpoint"] = \
+        "OPEN_REVIEW_ROUND"
+    open_raw = json.dumps(open_auth, indent=1,
+                          sort_keys=True).encode()
+    open_ref = {"commit": "kat-auth", "path": a_ref["path"],
+                "blob_sha256": hashlib.sha256(open_raw).hexdigest()}
+    assert refuses(lambda: a_call(
+        ref=open_ref,
+        reader=lambda c, p: open_raw),
+        "CAPTURE_AUTHORITY_INVALID")
+    # forged authority key digest
+    forged_auth = json.loads(auth_raw.decode())
+    forged_auth["prestart_expected_keys_sha256"] = "attested"
+    f_raw = json.dumps(forged_auth, indent=1,
+                       sort_keys=True).encode()
+    f_ref = {"commit": "kat-auth", "path": a_ref["path"],
+             "blob_sha256": hashlib.sha256(f_raw).hexdigest()}
+    assert refuses(lambda: a_call(ref=f_ref,
+                                  reader=lambda c, p: f_raw),
+                   "CAPTURE_AUTHORITY_INVALID")
+    # unclosed ref
+    assert refuses(lambda: a_call(ref={"commit": "kat-auth"}),
+                   "CAPTURE_AUTHORITY_INVALID")
+    assert counted["n"] == base_n     # zero network on every refusal
 
     # --- the body-store inventory (codex 1843Z item 4 + 2015Z item
     # 1: the NAMED-store binding -- no caller path argument exists) ---

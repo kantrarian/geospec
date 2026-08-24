@@ -546,10 +546,16 @@ RECORD_LANES = {"DAY_CAPSULE", "SELECTION_RECORDS", "MF4_FEED",
 # carries the transcript link -- the envelope's dynamic seam is a
 # projection of the capture transcript, never caller-assembled.
 # (Distinct from the lane-receipt RECEIPT_KEYS defined earlier.)
+# codex 0349Z item 1: the receipt ALSO carries the closed AUTHORITY
+# identity (commit/path/blob/keys digests) so E itself is the
+# chronological carrier proving which frozen static authority
+# parameterized the request.
 ENVELOPE_RECEIPT_KEYS = {"requested_url", "effective_url",
                          "request_start_utc",
                          "response_complete_utc", "http_status",
-                         "headers", "transcript_sha256"}
+                         "headers", "transcript_sha256",
+                         "authority"}
+AUTHORITY_ID_KEYS = {"commit", "path", "blob_sha256", "keys_sha256"}
 # codex 1843Z item 2: the contract splits -- STATIC fields are
 # registered pre-capture from registered sources; the dynamic seam
 # (receipt, capture instant, content digests) comes only from the
@@ -562,7 +568,28 @@ TRANSCRIPT_KEYS = {
     "schema", "lane", "carrier", "utc_day", "static_contract_sha256",
     "requested_url", "effective_url", "request_start_utc",
     "response_complete_utc", "http_status", "headers",
-    "raw_body_sha256", "raw_body_bytes"}
+    "raw_body_sha256", "raw_body_bytes", "authority"}
+
+
+def _validate_authority_id(a, what, refusal_cls=None):
+    """The closed authority-identity binding (codex 0349Z item 1):
+    exactly {commit, path, blob_sha256, keys_sha256}; commit 40-hex
+    lowercase; digests 64-hex lowercase."""
+    exc = refusal_cls or ProducerRefusal
+    if not isinstance(a, dict) or set(a) != AUTHORITY_ID_KEYS:
+        raise exc(f"{what}: authority identity not closed")
+    c = a["commit"]
+    if not (isinstance(c, str) and len(c) == 40
+            and all(x in "0123456789abcdef" for x in c)):
+        raise exc(f"{what}: authority commit is not 40-hex")
+    for f in ("blob_sha256", "keys_sha256"):
+        v = a[f]
+        if not (isinstance(v, str) and len(v) == 64
+                and all(x in "0123456789abcdef" for x in v)):
+            raise exc(f"{what}: authority {f} is not 64-hex")
+    if not isinstance(a["path"], str) or not a["path"]:
+        raise exc(f"{what}: authority path invalid")
+    return a
 
 
 _CAPTURE_RE = None
@@ -670,7 +697,8 @@ def build_envelope_record(*, lane, carrier, utc_day, raw_body,
                    transcript["response_complete_utc"],
                "http_status": transcript["http_status"],
                "headers": dict(transcript["headers"]),
-               "transcript_sha256": _canon_digest(transcript)}
+               "transcript_sha256": _canon_digest(transcript),
+               "authority": dict(transcript["authority"])}
     rec = {"schema": ENVELOPE_RECORD_SCHEMA, "lane": str(lane),
            "carrier": str(carrier), "utc_day": str(utc_day),
            "raw_body_sha256": sha,
@@ -750,6 +778,8 @@ def verify_transcript(transcript, static_contract, raw_body=None):
         raise ProducerRefusal(
             f"PRODUCER_TRANSCRIPT_INVALID: non-200 transcript "
             f"({t['http_status']}) can never back a staged record")
+    _validate_authority_id(t["authority"],
+                           "PRODUCER_TRANSCRIPT_INVALID")
     _hex64(t["raw_body_sha256"], "transcript raw_body_sha256")
     if raw_body is not None:
         if hashlib.sha256(raw_body).hexdigest() != \
@@ -803,6 +833,8 @@ def verify_envelope_record(record, *, raw_body=None, artifact=None):
             "PRODUCER_RECORD_TIME_FRAME: capture_time_utc is defined "
             "as the response-complete instant")
     _hex64(rc["transcript_sha256"], "transcript_sha256")
+    _validate_authority_id(rc["authority"],
+                           "PRODUCER_RECORD_NOT_CLOSED")
     if not isinstance(record["request_params"], dict) \
             or not isinstance(record["operation_params"], dict) \
             or not isinstance(record["expected_keys"], list):
@@ -924,7 +956,8 @@ def verify_staged_day_set(records_by_day, raw_bodies_by_day,
                 "response_complete_utc": t["response_complete_utc"],
                 "http_status": t["http_status"],
                 "headers": dict(t["headers"]),
-                "transcript_sha256": _canon_digest(t)}
+                "transcript_sha256": _canon_digest(t),
+                "authority": dict(t["authority"])}
         if rc != proj:
             diff = sorted(k for k in proj if rc.get(k) != proj[k])
             raise ProducerRefusal(
@@ -1323,6 +1356,11 @@ def _selftest():
         s.update(over)
         return s
 
+    AUTH_ID = {"commit": "a" * 40,
+               "path": ("docs/f2g_window2_execution/"
+                        "staged_expected_contracts_v2.json"),
+               "blob_sha256": "cd" * 32, "keys_sha256": "ef" * 32}
+
     def mk_transcript(s, raw=body, **over):
         t = {"schema": TRANSCRIPT_SCHEMA, "lane": s["lane"],
              "carrier": s["carrier"], "utc_day": s["utc_day"],
@@ -1335,7 +1373,8 @@ def _selftest():
              "http_status": 200,
              "headers": {"content-type": "text/plain"},
              "raw_body_sha256": hashlib.sha256(raw).hexdigest(),
-             "raw_body_bytes": len(raw)}
+             "raw_body_bytes": len(raw),
+             "authority": dict(AUTH_ID)}
         t.update(over)
         return t
 
@@ -1461,6 +1500,26 @@ def _selftest():
     s_sha["source"] = {"kind": "kat", "ref": "x", "sha256": "0" * 64}
     assert refuses(lambda: verify_transcript(t20, s_sha),
                    "PRODUCER_RECORD_CONTRACT_MISMATCH")
+    # codex 0349Z item 1: the authority identity binding is closed --
+    # non-hex commit, unclosed shape, and an E/T authority divergence
+    # all refuse
+    assert refuses(lambda: verify_transcript(
+        mk_transcript(s20, authority=dict(AUTH_ID, commit="HEAD")),
+        s20), "PRODUCER_TRANSCRIPT_INVALID")
+    assert refuses(lambda: verify_transcript(
+        mk_transcript(s20, authority={"commit": "a" * 40}), s20),
+        "PRODUCER_TRANSCRIPT_INVALID")
+    div_auth = json.loads(json.dumps(rec_ok))
+    div_auth["receipt"]["authority"] = dict(AUTH_ID,
+                                            blob_sha256="ab" * 32)
+    # the shape stays closed (a valid-looking substitute), so the
+    # divergence must surface at the E==projection(T) gate
+    assert verify_envelope_record(div_auth)
+    assert refuses(lambda: verify_staged_day_set(
+        {"2026-08-20": div_auth}, {"2026-08-20": body},
+        {"2026-08-20": {"edges": {}}}, {"2026-08-20": s20},
+        {"2026-08-20": t20}, ["2026-08-20"], "cascadia",
+        "DAY_CAPSULE"), "PRODUCER_RECORD_TRANSCRIPT_MISMATCH")
 
     # --- the day-set gate: the S/T/E JOIN performed by the verifier
     s21 = mk_static("2026-08-21")

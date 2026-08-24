@@ -115,13 +115,13 @@ BOUND_SLOTS = {
                   "mag_tuc_probe.envelope.json"]},
     "bars": {
         "owner": "grassmann",
-        "note": "the complete window-2 bar REV 14, 17/17 green @ "
-                "e11de6f (W-SELRUN on the committed-selector world "
-                "w/ in-bar item-2/3 fire-boundary locks; "
-                "dual-verified by cayley py3.14+py3.11). families = "
-                "the EIGHT scientific names (codex item 4: "
-                "W-LOCO/W-CAL/W-SELRUN are KAT groups, never "
-                "families)",
+        "note": "the complete window-2 bar REV 15, 18/18 green @ "
+                "c412117 (+W-ADMIT: the three codex 0245Z admission "
+                "locks incl the six-key REAL positive + "
+                "committed-is-not-admitted pair; dual-verified by "
+                "cayley py3.14+py3.11). families = the EIGHT "
+                "scientific names (W-LOCO/W-CAL/W-SELRUN/W-ADMIT "
+                "are KAT groups, never families)",
         "paths": ["monitoring/src/"
                   "test_f2g_window2_redkats_grassmann.py"],
         "families": ["W-SEL", "W-CAS", "W-B2B", "W-B1B", "W-MF4",

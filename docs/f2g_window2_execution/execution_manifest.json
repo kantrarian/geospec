@@ -2,8 +2,8 @@
  "design_manifest_blob_sha256": "d6decbd6ab5814bc005ce69c538311ff1b11cb1d13c19e2999e03a92bc7cca1f",
  "design_manifest_commit": "5fba5446cd96722fb86021df5065a46b8a1a78f5",
  "design_target_commit": "12161f6cf2000b2d4aa86fe659f834839ac0d27b",
- "execution_target_commit": "e8ae3415abc3e85b40abd789202bfb20f20d36f1",
- "generated_utc": "2026-08-24T01:51:09Z",
+ "execution_target_commit": "244dd8b1ffb9e0d5ec19b4af55727088085be7b7",
+ "generated_utc": "2026-08-24T02:25:39Z",
  "manifest_state": "OPEN",
  "repository_url": "https://github.com/kantrarian/geospec",
  "schema": "f2g-window2-execution-manifest-v1.2",
@@ -68,12 +68,12 @@
     "W-BARRIER",
     "W-PIN"
    ],
-   "note": "the complete window-2 bar REV 13, 17/17 green @ e7b26b1 (+W-SELRUN selector/runner locks; dual-verified by cayley py3.14+py3.11). families = the EIGHT scientific names (codex item 4: W-LOCO/W-CAL/W-SELRUN are KAT groups, never families)",
+   "note": "the complete window-2 bar REV 14, 17/17 green @ e11de6f (W-SELRUN on the committed-selector world w/ in-bar item-2/3 fire-boundary locks; dual-verified by cayley py3.14+py3.11). families = the EIGHT scientific names (codex item 4: W-LOCO/W-CAL/W-SELRUN are KAT groups, never families)",
    "owner": "grassmann",
    "pins": [
     {
-     "blob_sha256": "56f6ac12f94c98221a9275dc15d1a70970ebfb9915053181ac24cbcc7bf089a9",
-     "commit": "e7b26b1168fff97d4bc59e8f5ef47d4be9783008",
+     "blob_sha256": "809e2560d0111bfcc56f737ce20cf241eb0b1c3ad1454e67049a20ff019ae96d",
+     "commit": "e11de6f79fcc13865f046fe73a45805f4edcfbd2",
      "path": "monitoring/src/test_f2g_window2_redkats_grassmann.py"
     }
    ],
@@ -114,8 +114,8 @@
    "owner": "cayley",
    "pins": [
     {
-     "blob_sha256": "57d927f8675c22379f5e8b3f2857882c9d6ac9afccf6846af19ef63d2232dea3",
-     "commit": "f5d7b016b576155512d0bbb0334f466445c4433b",
+     "blob_sha256": "34cd037cf2093b120ea0fc944bdf397dbc2cd4ac8c0d0487819df76389e0878e",
+     "commit": "244dd8b1ffb9e0d5ec19b4af55727088085be7b7",
      "path": "monitoring/src/f2g_execution_manifest_gen_cayley.py"
     }
    ],

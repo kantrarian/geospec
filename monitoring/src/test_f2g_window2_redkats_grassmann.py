@@ -2120,6 +2120,26 @@ def w_selrun():
             lambda: WCR._load_invocation(inv_dir, "0" * 64),
             "RUNNER_INVOCATION_DIGEST_MISMATCH")
 
+        # --- REV 15 doctor 3 (codex 0245Z): three COMMITTED,
+        # internally consistent substitute carriers refuse as
+        # UNADMITTED -- the artifact verifies (integrity), the
+        # manifest simply does not pin these grids (authority)
+        def adm_reader(commit, path):
+            if path.endswith("execution_manifest.json"):
+                return _j.dumps({"slots": {"power_harness": {
+                    "pins": [{"path": "docs/other.json",
+                              "blob_sha256": "0" * 64,
+                              "commit": "b" * 40}]}}}).encode()
+            return sel_reader(commit, path)
+        ok_run = ok_run and WTS.verify_selector_artifact(
+            _REPO, art, blob_reader=adm_reader) is True \
+            and refuses(
+                lambda: WTS.verify_selector_admission(
+                    _REPO, art, "kat-commit",
+                    blob_reader=adm_reader,
+                    git_resolve=lambda c: "a" * 40),
+                "SELECTOR_UNADMITTED")
+
         check("SELRUN candidate-selector + cert-runner locks "
               "(two-stage selector == in-bar oracle w/ tie + stage-2 "
               "reorder + B2A select-all + gain value-order + digest "
@@ -2133,6 +2153,208 @@ def w_selrun():
               "W2_ENGINE_ABSENT")
     except Exception as exc:
         check("SELRUN candidate-selector + cert-runner locks", False,
+              f"{type(exc).__name__}: {exc}")
+
+
+# ---- REV 15: the admission-boundary locks (codex 0238Z items 1-2) ---------
+def w_admit():
+    """The admission consumer's coordinated-substitution boundaries,
+    cross-authored: a full six-key positive through the REAL
+    verify_staged_boundary (real capture_day carriers, real store,
+    real five-map join), then: whole-day omission refuses against the
+    INDEPENDENT authority; a coordinated artifact+output_sha256
+    forgery refuses at the transform recomputation; the fail-closed
+    no-dispatcher default; the wrong-prefix pin."""
+    try:
+        import tempfile
+        import w2_acquisition_capture_grassmann as CAP
+        import w2_producer_grassmann as PRODM
+        import w2_accrual_instrument_cayley as ACC
+
+        def canon(o):
+            return PRODM._canon_digest(o)
+
+        root = tempfile.mkdtemp(prefix="w2_bar_admit_")
+        store = os.path.join(root, "store")
+        rdir = os.path.join(root, "records")
+        tdir = os.path.join(root, "transcripts")
+        LANES = (("SELECTION_RECORDS", "cascadia"),
+                 ("MAG_FEED", "frn"), ("MF4_FEED", "mf4drv"))
+        DAYS = ("2026-08-20", "2026-08-21")
+        bodies_by_url = {}
+
+        def opener(url):
+            return (200, {"content-type": "text/plain"},
+                    bodies_by_url[url], url)
+
+        def clock():
+            return "2026-08-20T12:00:00Z"
+
+        def disp(lane, raw_body, static_contract):
+            return {"n_bytes": len(raw_body), "lane": lane}
+
+        pins = []
+        blobmap = {}
+        entries = {}
+        held = {}
+        for lane, ck in LANES:
+            for day in DAYS:
+                body = f"{lane}|{ck}|{day}".encode()
+                ep = (f"https://kat.example/"
+                      f"{lane.lower()}/{ck}/{day}")
+                bodies_by_url[ep] = body
+                spec = {"lane": lane, "carrier": ck, "utc_day": day,
+                        "endpoint": ep, "request_params": {},
+                        "source": {"kind": "kat",
+                                   "ref": "synthetic://fixture"},
+                        "cutoff": "2026-08-25",
+                        "operation_params": {"carrier": ck,
+                                             "day": day},
+                        "expected_keys": [day]}
+                _, _, rec, tr = CAP.capture_day(
+                    spec, store, rdir, tdir,
+                    lambda b, L=lane: {"n_bytes": len(b), "lane": L},
+                    opener=opener, clock=clock)
+                s = CAP.static_contract_of(spec)
+                art_j = {"n_bytes": len(body), "lane": lane}
+                stem = f"{lane.lower()}_{ck}_{day}"
+                for cls, obj in (("record", rec), ("transcript", tr),
+                                 ("contract", s),
+                                 ("artifact", art_j)):
+                    path = ACC.STAGED_PREFIX + stem + \
+                        ACC.STAGED_CLASS_SUFFIX[cls]
+                    raw = (json.dumps(obj, indent=1, sort_keys=True)
+                           + "\n").encode()
+                    blobmap[("kat", path)] = raw
+                    pins.append({"commit": "kat", "path": path,
+                                 "blob_sha256": hashlib.sha256(raw)
+                                 .hexdigest()})
+                entries[f"{lane}/{ck}/{day}"] = {
+                    "sha256": rec["raw_body_sha256"],
+                    "bytes": rec["raw_body_bytes"]}
+                held[(lane, ck, day)] = (spec, body, tr)
+        inv = CAP.build_staged_body_inventory("s4t-kat", "kat://s",
+                                              entries)
+        desc = {"schema": CAP.STORE_DESCRIPTOR_SCHEMA,
+                "store_id": "s4t-kat", "store_root": "kat://s",
+                "physical_root": store}
+        auth_keys = {lane: {ck: list(DAYS)}
+                     for lane, ck in LANES}
+        auth = {"schema": "f2g-w2-expected-contracts-v2",
+                "prestart_expected_keys": auth_keys,
+                "prestart_expected_keys_sha256": canon(auth_keys)}
+        for basename, obj in (
+                (ACC.STORE_DESCRIPTOR_BASENAME, desc),
+                (ACC.STAGED_INVENTORY_BASENAME, inv),
+                (ACC.EXPECTED_KEYS_BASENAME, auth)):
+            path = ACC.STAGED_PREFIX + basename
+            raw = (json.dumps(obj, indent=1, sort_keys=True)
+                   + "\n").encode()
+            blobmap[("kat", path)] = raw
+            pins.append({"commit": "kat", "path": path,
+                         "blob_sha256": hashlib.sha256(raw)
+                         .hexdigest()})
+
+        def man_of(pin_list):
+            return {"slots": {"producer_boundary": {
+                "status": "BOUND", "pins": pin_list}}}
+
+        def reader(commit, path):
+            return blobmap[(commit, path)]
+
+        def boundary(pin_list, dispatcher=disp):
+            return ACC.verify_staged_boundary(
+                _REPO, man_of(pin_list), blob_reader=reader,
+                transform_dispatcher=dispatcher)
+
+        def refuses_detail(fn, needle):
+            try:
+                fn()
+                return False
+            except Exception as exc:
+                return "PRESTART_ADMISSION_REFUSED" in str(exc) \
+                    and needle in str(exc)
+
+        # POSITIVE: the full six-key boundary through everything real
+        res = boundary(pins)
+        ok_pos = isinstance(res, dict) \
+            and set(res["report"]["lanes"]) == {
+                "SELECTION_RECORDS/cascadia", "MAG_FEED/frn",
+                "MF4_FEED/mf4drv"} \
+            and all(v["days"] == 2
+                    for v in res["report"]["lanes"].values()) \
+            and len(res["staged_boundary_sha256"]) == 64
+
+        # doctor 1: a WHOLE authorized day consistently omitted from
+        # every class refuses against the independent authority
+        drop_stem = "selection_records_cascadia_2026-08-21"
+        omit = [p for p in pins if drop_stem not in p["path"]]
+        ok_omit = refuses_detail(lambda: boundary(omit),
+                                 "omission never shrinks")
+
+        # doctor 2: coordinated artifact + output_sha256 forgery --
+        # E agrees with the forged artifact, the S/T/E join would
+        # pass, and the TRANSFORM RECOMPUTATION refuses
+        spec_f, body_f, tr_f = held[("MAG_FEED", "frn", DAYS[0])]
+        forged_art = {"n_bytes": 999, "fabricated": True}
+        forged_rec = PRODM.build_envelope_record(
+            lane="MAG_FEED", carrier="frn", utc_day=DAYS[0],
+            raw_body=body_f,
+            source={"kind": "kat", "ref": "synthetic://fixture"},
+            endpoint=spec_f["endpoint"], request_params={},
+            transcript=tr_f, cutoff="2026-08-25",
+            operation_params=spec_f["operation_params"],
+            expected_keys=[DAYS[0]], artifact=forged_art)
+        forged_pins = []
+        for p in pins:
+            q = dict(p)
+            stem_f = f"mag_feed_frn_{DAYS[0]}"
+            if q["path"] == ACC.STAGED_PREFIX + stem_f + \
+                    ".artifact.json":
+                raw = (json.dumps(forged_art, indent=1,
+                                  sort_keys=True) + "\n").encode()
+                blobmap[("katf", q["path"])] = raw
+                q.update(commit="katf",
+                         blob_sha256=hashlib.sha256(raw).hexdigest())
+            elif q["path"] == ACC.STAGED_PREFIX + stem_f + \
+                    ".record.json":
+                raw = (json.dumps(forged_rec, indent=1,
+                                  sort_keys=True) + "\n").encode()
+                blobmap[("katf", q["path"])] = raw
+                q.update(commit="katf",
+                         blob_sha256=hashlib.sha256(raw).hexdigest())
+            forged_pins.append(q)
+        ok_forge = refuses_detail(lambda: boundary(forged_pins),
+                                  "never derivation")
+
+        # fail-closed: no registered dispatcher -> artifacts are
+        # never admitted digest-only
+        ok_fc = refuses_detail(lambda: boundary(pins, None),
+                               "never admitted digest-only")
+
+        # wrong prefix: a staged-class basename outside the exact
+        # staged_envelopes prefix refuses (never enters or vanishes)
+        stray = dict(pins[0])
+        stray["path"] = "docs/elsewhere/" + os.path.basename(
+            pins[0]["path"])
+        ok_pre = refuses_detail(
+            lambda: boundary(pins + [stray]),
+            "outside the exact prefix")
+
+        check("ADMIT admission-boundary locks (six-key REAL positive "
+              "through capture_day + store + five-map join, "
+              "whole-day-omission vs the independent authority, "
+              "coordinated artifact+digest forgery vs transform "
+              "recomputation, fail-closed no-dispatcher, "
+              "wrong-prefix pin)",
+              ok_pos and ok_omit and ok_forge and ok_fc and ok_pre,
+              f"pos={ok_pos} omit={ok_omit} forge={ok_forge} "
+              f"fc={ok_fc} prefix={ok_pre}")
+    except ImportError:
+        check("ADMIT admission-boundary locks", False,
+              "W2_ENGINE_ABSENT")
+    except Exception as exc:
+        check("ADMIT admission-boundary locks", False,
               f"{type(exc).__name__}: {exc}")
 
 
@@ -2156,6 +2378,7 @@ def main():
     w_loco()
     w_cal()
     w_selrun()
+    w_admit()
 
 
 main()

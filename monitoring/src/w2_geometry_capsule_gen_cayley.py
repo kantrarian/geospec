@@ -6,7 +6,7 @@ its REGISTERED inputs, so 08-25 capsule production is mechanical.
 
 Inputs (every one a registered artifact or an explicit argument --
 nothing is synthesized here):
-- the COMMITTED calendar authority (calendar_authority_w2_v2.json)
+- the COMMITTED calendar authority (calendar_authority_w2_v3.json)
   supplies `calendar_frame` verbatim;
 - the COMMITTED effect grids (effect_grids_w2_v1.json) supply
   `effect_grids` verbatim;
@@ -112,7 +112,7 @@ def main():
      seed_sha, out_p) = sys.argv[1:10]
     auth = json.load(open(os.path.join(
         repo, "docs", "f2g_window2_execution",
-        "calendar_authority_w2_v2.json"), encoding="utf-8"))
+        "calendar_authority_w2_v3.json"), encoding="utf-8"))
     grids = json.load(open(os.path.join(
         repo, "docs", "f2g_window2_execution",
         "effect_grids_w2_v1.json"), encoding="utf-8"))
@@ -137,7 +137,7 @@ def _selftest():
     repo = os.path.abspath(os.path.join(_HERE, "..", ".."))
     auth = json.load(open(os.path.join(
         repo, "docs", "f2g_window2_execution",
-        "calendar_authority_w2_v2.json"), encoding="utf-8"))
+        "calendar_authority_w2_v3.json"), encoding="utf-8"))
     grids_art = json.load(open(os.path.join(
         repo, "docs", "f2g_window2_execution",
         "effect_grids_w2_v1.json"), encoding="utf-8"))
@@ -184,7 +184,7 @@ def _selftest():
         pass
     bad2 = copy.deepcopy(kw)
     bad2["available_days_by_carrier"]["cascadia"] = \
-        auth["frame"]["baseline_days"] + ["2026-08-26"] \
+        auth["frame"]["baseline_days"] + ["2026-08-28"] \
         + auth["frame"]["evaluation_days"]
     try:
         build_capsule(**bad2)

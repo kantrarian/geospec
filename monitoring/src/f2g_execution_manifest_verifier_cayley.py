@@ -244,7 +244,7 @@ def _verify_obj(repo, manifest_commit, obj, prestart=False):
                 # codex 0238Z item 1: the REGISTERED expected-keys
                 # authority is a required pin class
                 have_auth = any(str(p).endswith(
-                    "staged_expected_contracts_v2.json")
+                    "staged_expected_contracts_v3.json")
                     for p in paths)
                 if not (have_amend and have_code and have_env
                         and have_auth):

@@ -31,10 +31,10 @@ import json
 import os
 
 OUT_REL = os.path.join("docs", "f2g_window2_execution",
-                       "staged_expected_contracts_v2.json")
+                       "staged_expected_contracts_v3.json")
 
-CUTOFF = "2026-08-25"
-SELECTION_LOOKBACK_START = "2026-05-28"     # cutoff - 89 (90 days)
+CUTOFF = "2026-08-27"
+SELECTION_LOOKBACK_START = "2026-05-30"     # cutoff - 89 (90 days)
 CALIBRATION_START = "2026-01-01"
 CARRIERS = ("istanbul_marmara", "socal_coachella",
             "turkey_kahramanmaras", "cascadia")

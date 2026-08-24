@@ -176,7 +176,7 @@ STAGED_CLASS_SUFFIX = {"record": ".record.json",
                        "contract": ".contract.json",
                        "artifact": ".artifact.json"}
 STAGED_PREFIX = "docs/f2g_window2_execution/staged_envelopes/"
-EXPECTED_KEYS_BASENAME = "staged_expected_contracts_v2.json"
+EXPECTED_KEYS_BASENAME = "staged_expected_contracts_v3.json"
 PRESTART_LANES = ("SELECTION_RECORDS", "MAG_FEED", "MF4_FEED")
 
 
@@ -212,7 +212,7 @@ AUTHORITY_TOP_FIELDS = {
     "schema", "prestart_expected_keys",
     "prestart_expected_keys_sha256", "static_layer",
     "dynamic_layer", "digests", "provenance"}
-AUTHORITY_CENSUS = 1782          # 4x90 + 3x237 + 3x237
+AUTHORITY_CENSUS = 1794          # 4x90 + 3x239 + 3x239
 
 
 def _validate_expected_keys_authority(repo, authority, *,
@@ -1072,7 +1072,7 @@ def _selftest():
                 "request_params": {"obs": carrier, "d": day},
                 "source": {"kind": "gin-minute",
                            "ref": "https://kat.example/gin"},
-                "cutoff": "2026-08-25",
+                "cutoff": "2026-08-27",
                 "operation_params": {"day": day},
                 "expected_keys": [day]}
 
@@ -1141,7 +1141,7 @@ def _selftest():
 
     def carriers_block(lane):
         return {"carriers": {ck: {
-            "cutoff": "2026-08-25",
+            "cutoff": "2026-08-27",
             "static_contract_template": tmpl_for(ck)}
             for ck in b_keys[lane]}}
     b_auth = {"schema": "f2g-w2-expected-contracts-v2",
@@ -1162,7 +1162,7 @@ def _selftest():
     add_pin(pre + "store_descriptor.json",
             json.dumps(b_desc, sort_keys=True,
                        separators=(",", ":")).encode())
-    add_pin(pre + "staged_expected_contracts_v2.json",
+    add_pin(pre + "staged_expected_contracts_v3.json",
             json.dumps(b_auth, sort_keys=True,
                        separators=(",", ":")).encode())
 
@@ -1315,14 +1315,14 @@ def _selftest():
     def auth_pin_for(a):
         raw = json.dumps(a, sort_keys=True,
                          separators=(",", ":")).encode()
-        path = pre + "staged_expected_contracts_v2.json"
+        path = pre + "staged_expected_contracts_v3.json"
         blobs[("9" * 40, path)] = raw
         return {"path": path, "commit": "9" * 40,
                 "blob_sha256": hashlib.sha256(raw).hexdigest()}
 
     def with_auth(a):
         pins_a = [pn for pn in pins2 if not pn["path"].endswith(
-            "staged_expected_contracts_v2.json")]
+            "staged_expected_contracts_v3.json")]
         pins_a.append(auth_pin_for(a))
         return pins_a
     # forged key digest

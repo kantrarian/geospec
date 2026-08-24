@@ -357,19 +357,20 @@ def run_artifact_class(geom, point, *, seed_root, n_draws, R):
 # 2026-08-23T1400Z ruling 1). Separate entry points; BOUND geometry
 # capsules; the registered generator draw order and master/substream
 # grammar; the PINNED NON-cal engine seams over the window-2 fixed
-# 192-position authority grid (w2-calendar-v2-noncal).
+# 192-position authority grid (w2-calendar-v3-noncal).
 # ===================================================================
 BOUND_GEOMETRY_SCHEMA = "f2g-w2-bound-geometry-v2"
 CERT_N_DRAWS = 9999
 
-# window-2 calendar authority v2 (codex 1400Z ruling 1; owner PRESTART
-# = 2026-08-26). AUTHORITY constants: the committed authority artifact
+# window-2 calendar authority v3 (codex 1400Z ruling 1 rule carried to
+# the successor; owner PRESTART = 2026-08-28, successor schedule
+# prestart_schedule_2026-08-28.md). AUTHORITY constants: the committed authority artifact
 # and every capsule must match these byte-for-byte -- they are never
 # fallbacks and never derived from Phase-B geometry.
-W2_FRAME_ID = "w2-calendar-v2-noncal"
-W2_BASELINE_START, W2_BASELINE_END = "2026-06-27", "2026-08-25"
-W2_EXCLUDED_DAY = "2026-08-26"
-W2_EVAL_START, W2_EVAL_END = "2026-08-27", "2027-01-05"
+W2_FRAME_ID = "w2-calendar-v3-noncal"
+W2_BASELINE_START, W2_BASELINE_END = "2026-06-29", "2026-08-27"
+W2_EXCLUDED_DAY = "2026-08-28"
+W2_EVAL_START, W2_EVAL_END = "2026-08-29", "2027-01-07"
 W2_BASELINE_COUNT, W2_EVAL_COUNT = 60, 132
 W2_ENGINE_POSITIONS = 192
 W2_B1B_N_BLOCKS, W2_B1B_BLOCK_LEN = 16, 12
@@ -1043,7 +1044,7 @@ def run_point_smoke(repo, geometry_ref, family, point,
         raise PowerHarnessError(
             "CALENDAR_AUTHORITY_MISMATCH: authority bytes are not a "
             "calendar-authority artifact")
-    if auth.get("schema") != "f2g-w2-calendar-authority-v2" or \
+    if auth.get("schema") != "f2g-w2-calendar-authority-v3" or \
             auth.get("frame") != capsule["calendar_frame"]:
         raise PowerHarnessError(
             "CALENDAR_AUTHORITY_MISMATCH: capsule frame diverges "
@@ -1117,7 +1118,7 @@ def run_point_certification(repo, geometry_ref, family, point,
         raise PowerHarnessError(
             "CALENDAR_AUTHORITY_MISMATCH: authority bytes are not a "
             "calendar-authority artifact")
-    if auth.get("schema") != "f2g-w2-calendar-authority-v2" or \
+    if auth.get("schema") != "f2g-w2-calendar-authority-v3" or \
             auth.get("frame") != capsule["calendar_frame"]:
         raise PowerHarnessError(
             "CALENDAR_AUTHORITY_MISMATCH: capsule frame diverges "
@@ -1202,7 +1203,7 @@ def run_b1b_specificity_certification(repo, geometry_ref, point,
         raise PowerHarnessError(
             "CALENDAR_AUTHORITY_MISMATCH: authority bytes are not a "
             "calendar-authority artifact")
-    if auth.get("schema") != "f2g-w2-calendar-authority-v2" or \
+    if auth.get("schema") != "f2g-w2-calendar-authority-v3" or \
             auth.get("frame") != capsule["calendar_frame"]:
         raise PowerHarnessError(
             "CALENDAR_AUTHORITY_MISMATCH: capsule frame diverges "
@@ -1357,22 +1358,22 @@ def _selftest():
     assert (len(FRAME["baseline_days"]), len(FRAME["excluded_days"]),
             len(FRAME["evaluation_days"]), len(ENG)) == (60, 1, 132,
                                                          192)
-    assert FRAME["baseline_days"][0] == "2026-06-27"
-    assert FRAME["baseline_days"][-1] == "2026-08-25"
-    assert FRAME["excluded_days"] == ["2026-08-26"]
-    assert FRAME["evaluation_days"][0] == "2026-08-27"
-    assert FRAME["evaluation_days"][-1] == "2027-01-05"
-    assert "2026-08-26" not in ENG
+    assert FRAME["baseline_days"][0] == "2026-06-29"
+    assert FRAME["baseline_days"][-1] == "2026-08-27"
+    assert FRAME["excluded_days"] == ["2026-08-28"]
+    assert FRAME["evaluation_days"][0] == "2026-08-29"
+    assert FRAME["evaluation_days"][-1] == "2027-01-07"
+    assert "2026-08-28" not in ENG
     assert ENG == FRAME["baseline_days"] + FRAME["evaluation_days"]
     assert FRAME["b1b"] == {"n_blocks": 16, "block_len": 12,
                             "baseline_positions": 60}
     _validate_calendar_frame(FRAME)
     auth_p = os.path.join(_HERE, "..", "..", "docs",
                           "f2g_window2_execution",
-                          "calendar_authority_w2_v2.json")
+                          "calendar_authority_w2_v3.json")
     with open(auth_p, "rb") as f:
         auth_committed = json.loads(f.read().decode("utf-8"))
-    assert auth_committed["schema"] == "f2g-w2-calendar-authority-v2"
+    assert auth_committed["schema"] == "f2g-w2-calendar-authority-v3"
     assert auth_committed["frame"] == FRAME, \
         "committed calendar authority diverges from the derivation"
     assert auth_committed["digests"]["engine_days_sha256"] == \
@@ -1454,10 +1455,10 @@ def _selftest():
     assert b_sp == FRAME["baseline_days"] and \
         e_sp == FRAME["evaluation_days"]        # grid unmoved
     # the hazard the contract closes: a compacted list silently makes
-    # 2026-08-27 baseline position 60 and slides evaluation to 08-28
+    # 2026-08-29 baseline position 60 and slides evaluation to 08-30
     comp = [d for d in ENG if d != miss_day]
     bc, ec = _pb.walk_forward_split(comp)
-    assert bc[-1] == "2026-08-27" and ec[0] == "2026-08-28"
+    assert bc[-1] == "2026-08-29" and ec[0] == "2026-08-30"
     cap_comp = mk_capsule()
     cap_comp["carrier_masks"]["c1"]["registered_days"] = comp
     cap_comp["capsule_digest"] = _geometry_capsule_digest(cap_comp)
@@ -1472,7 +1473,7 @@ def _selftest():
     # refuse; off-grid availability refuses
     cap_x = mk_capsule()
     cap_x["carrier_masks"]["c1"]["available_days"] = (
-        FRAME["baseline_days"] + ["2026-08-26"]
+        FRAME["baseline_days"] + ["2026-08-28"]
         + FRAME["evaluation_days"])
     cap_x["capsule_digest"] = _geometry_capsule_digest(cap_x)
     for fn, label in ((lambda: _validate_geometry_capsule(

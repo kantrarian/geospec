@@ -72,7 +72,8 @@ ADMISSION_SCHEMA = "f2g-w2-prestart-admission-v1"
 ADMISSION_FIELDS = {"schema", "manifest_commit",
                     "manifest_blob_sha256", "prestart_verifier",
                     "allowlist", "owner", "lanes", "lease",
-                    "window_uuid", "admission_digest"}
+                    "window_uuid", "staged_boundary_sha256",
+                    "admission_digest"}
 
 
 def admission_digest(admission):
@@ -186,6 +187,13 @@ class BarrierLedger:
         al = admission["allowlist"]
         if not al.get("pins_checked", 0) > 0:
             refuse("allowlist report absent or empty")
+        # codex 2235Z item 1: the staged-boundary report digest is a
+        # REQUIRED binding (at a zero-OPEN PASS the producer boundary
+        # is BOUND, so the S/T/E join must have run)
+        sb = admission["staged_boundary_sha256"]
+        if not (isinstance(sb, str) and len(sb) == 64 and
+                all(c in "0123456789abcdef" for c in sb)):
+            refuse("staged-boundary report digest absent or untyped")
         owner = admission["owner"]
         if not isinstance(owner, dict) or \
                 set(owner) != {"quote", "quote_sha256", "binds"}:
@@ -491,6 +499,7 @@ def _admission(bindings, **mut):
                                  "slots_open": 0,
                                  "manifest_commit": "kat-mc"},
            "allowlist": {"pins_checked": 3},
+           "staged_boundary_sha256": "e" * 64,
            "owner": {"quote": owner_quote,
                      "quote_sha256": hashlib.sha256(
                          owner_quote.encode()).hexdigest(),

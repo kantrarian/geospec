@@ -76,21 +76,34 @@ def _detection_grid(effect_grid):
 
 
 def _gain_points(effect_grid):
+    """codex 2235Z item 2: the two obligations are the REGISTERED
+    {gain: 3} and {gain: 10} exactly -- any other gain values
+    refuse."""
     g = [(i, p) for i, p in enumerate(effect_grid) if "gain" in p]
     if len(g) != 2:
         raise SelectorRefusal(
             f"SELECTOR_GRID_INVALID: B1B registers exactly two gain "
             f"points, found {len(g)}")
-    return [p for _, p in sorted(g, key=lambda t: float(
+    out = [p for _, p in sorted(g, key=lambda t: float(
         t[1]["gain"]))]
+    if [float(p["gain"]) for p in out] != [3.0, 10.0] or \
+            any(set(p) != {"gain"} for p in out):
+        raise SelectorRefusal(
+            "SELECTOR_GRID_INVALID: specificity obligations must be "
+            "exactly {gain: 3} then {gain: 10}")
+    return out
 
 
-def select_candidates(smoke, effect_grids):
+def select_candidates(smoke, effect_grids, *, smoke_ref=None,
+                      effect_grids_ref=None):
     """smoke = the Tier-S artifact: {"quality": {"R": 50, "n_draws":
     999}, "families": {fam: [{"point", "outcomes"[,
     "post_loco_outcomes"]}, ...]}} covering EVERY registered detection
     point in REGISTERED GRID ORDER; B1B entries carry
     post_loco_outcomes for EXACTLY the stage-1 top-8 (None elsewhere).
+    smoke_ref / effect_grids_ref = {commit, path} git references to
+    the COMMITTED carriers (codex 2235Z item 2: required for a
+    verifiable production artifact; fixture-only runs may omit them).
     Returns the selector artifact with the ordered 14-point list."""
     if not isinstance(smoke, dict) or \
             smoke.get("quality") != {"R": TIER_S_R,
@@ -187,12 +200,78 @@ def select_candidates(smoke, effect_grids):
            "top8_grid_indices": top8,
            "selected_grid_indices": selected,
            "ordered_points": ordered,
-           "ordered_points_sha256": _digest(ordered)}
+           "ordered_points_sha256": _digest(ordered),
+           "smoke_ref": dict(smoke_ref) if smoke_ref else None,
+           "effect_grids_ref": (dict(effect_grids_ref)
+                                if effect_grids_ref else None)}
     if len(ordered) != 4 * SELECT_N + 2:
         raise SelectorRefusal(
             f"SELECTOR_STAGE2_INVALID: ordered list has "
             f"{len(ordered)} points != {4 * SELECT_N + 2}")
     return art
+
+
+EXPECTED_CAMPAIGN_FAMILIES = (["B2A"] * SELECT_N + ["B2B"] * SELECT_N
+                              + ["B1B"] * SELECT_N
+                              + ["B3A"] * SELECT_N + ["B1B"] * 2)
+
+
+def verify_selector_artifact(repo, art, *, blob_reader=None):
+    """codex 2235Z item 2: a self-consistent ordered-point digest is
+    integrity, not selector correctness. This verifier reopens the
+    BOUND smoke and effect-grids carriers from their committed git
+    objects, independently reruns select_candidates, and requires
+    CANONICAL EQUALITY of the full artifact; it enforces the exact
+    14-point family/order/entry shape and the registered gains
+    3 then 10. A fabricated artifact (missing bindings, uncommitted
+    carriers, altered points) refuses typed."""
+    if not isinstance(art, dict) or \
+            art.get("schema") != SELECTOR_SCHEMA:
+        raise SelectorRefusal(
+            "SELECTOR_ARTIFACT_INVALID: not a selector artifact")
+    for ref_name in ("smoke_ref", "effect_grids_ref"):
+        r = art.get(ref_name)
+        if not isinstance(r, dict) or set(r) != {"commit", "path"}:
+            raise SelectorRefusal(
+                f"SELECTOR_ARTIFACT_INVALID: {ref_name} is not a "
+                "closed {commit, path} git reference")
+    if blob_reader is None:
+        import subprocess
+
+        def blob_reader(commit, path):
+            p = subprocess.run(
+                ["git", "-C", repo, "cat-file", "blob",
+                 f"{commit}:{path}"], capture_output=True)
+            if p.returncode != 0:
+                raise SelectorRefusal(
+                    f"SELECTOR_ARTIFACT_INVALID: {path} unreadable "
+                    f"at {commit} (uncommitted carriers never bind)")
+            return p.stdout
+    smoke = json.loads(blob_reader(
+        art["smoke_ref"]["commit"],
+        art["smoke_ref"]["path"]).decode("utf-8"))
+    grids_art = json.loads(blob_reader(
+        art["effect_grids_ref"]["commit"],
+        art["effect_grids_ref"]["path"]).decode("utf-8"))
+    grids = grids_art.get("grids", grids_art)
+    rerun = select_candidates(
+        smoke, grids, smoke_ref=art["smoke_ref"],
+        effect_grids_ref=art["effect_grids_ref"])
+    if _canon(rerun) != _canon(art):
+        raise SelectorRefusal(
+            "SELECTOR_ARTIFACT_INVALID: independent rerun diverges "
+            "from the artifact (points/counts/sets are not the "
+            "registered rule applied to the bound carriers)")
+    op = art["ordered_points"]
+    if [p["family"] for p in op] != EXPECTED_CAMPAIGN_FAMILIES or \
+            [p["entry"] for p in op] != \
+            ["detection"] * (4 * SELECT_N) + ["specificity"] * 2 or \
+            [float(p["point"]["gain"]) for p in op[-2:]] != \
+            [3.0, 10.0]:
+        raise SelectorRefusal(
+            "SELECTOR_ARTIFACT_INVALID: campaign shape is not the "
+            "registered 14-point order with gains 3 then 10")
+    return True
 
 
 # ---------------------------------------------------------------- selftest
@@ -294,6 +373,67 @@ def _selftest():
         raise AssertionError("three gain points must refuse")
     except SelectorRefusal as e:
         assert "SELECTOR_GRID_INVALID" in str(e)
+    # ALTERED gain values refuse (codex 2235Z item 2: the registered
+    # obligations are exactly 3 then 10)
+    g3 = copy.deepcopy(grids)
+    g3["B1B"][-2] = {"gain": 4.0}
+    try:
+        select_candidates(sm, g3)
+        raise AssertionError("altered gain value must refuse")
+    except SelectorRefusal as e:
+        assert "exactly {gain: 3} then {gain: 10}" in str(e)
+
+    # --- verify_selector_artifact (codex 2235Z item 2) ---
+    store = {("c" * 40, "smoke.json"): json.dumps(sm).encode(),
+             ("c" * 40, "grids.json"): json.dumps(
+                 {"schema": "f2g-w2-effect-grids-v1",
+                  "grids": grids}).encode()}
+
+    def reader(commit, path):
+        try:
+            return store[(commit, path)]
+        except KeyError:
+            raise SelectorRefusal(
+                f"SELECTOR_ARTIFACT_INVALID: {path} unreadable at "
+                f"{commit} (uncommitted carriers never bind)")
+    refs = {"smoke_ref": {"commit": "c" * 40, "path": "smoke.json"},
+            "effect_grids_ref": {"commit": "c" * 40,
+                                 "path": "grids.json"}}
+    art_b = select_candidates(sm, grids, **refs)
+    assert verify_selector_artifact(".", art_b, blob_reader=reader)
+    # a FABRICATED minimal artifact refuses (no bindings)
+    fab = {"schema": SELECTOR_SCHEMA,
+           "ordered_points": [{"family": "B2A", "point": {"m": 999},
+                               "entry": "detection"}],
+           "ordered_points_sha256": _digest(
+               [{"family": "B2A", "point": {"m": 999},
+                 "entry": "detection"}])}
+    try:
+        verify_selector_artifact(".", fab, blob_reader=reader)
+        raise AssertionError("fabricated artifact must refuse")
+    except SelectorRefusal as e:
+        assert "SELECTOR_ARTIFACT_INVALID" in str(e)
+    # an ALTERED point refuses via independent rerun divergence
+    tam = copy.deepcopy(art_b)
+    tam["ordered_points"][0]["point"] = {"m": 999}
+    tam["ordered_points_sha256"] = _digest(tam["ordered_points"])
+    try:
+        verify_selector_artifact(".", tam, blob_reader=reader)
+        raise AssertionError("tampered points must refuse")
+    except SelectorRefusal as e:
+        assert "independent rerun diverges" in str(e)
+    # an UNCOMMITTED carrier path refuses through the real reader
+    bad_ref = copy.deepcopy(art_b)
+    bad_ref["smoke_ref"] = {"commit": "c" * 40,
+                            "path": "docs/no-such-smoke.json"}
+    import os as _os
+    repo_g = _os.path.abspath(_os.path.join(
+        _os.path.dirname(_os.path.abspath(__file__)), "..", ".."))
+    try:
+        verify_selector_artifact(repo_g, bad_ref)
+        raise AssertionError("uncommitted carrier must refuse")
+    except SelectorRefusal as e:
+        assert "unreadable" in str(e)
 
     print("w2_tier_selector selftest: ALL PASS (hand fixtures; "
           "PRELIMINARY_SMOKE semantics; nothing certified)")

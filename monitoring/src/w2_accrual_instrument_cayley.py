@@ -171,6 +171,132 @@ def verify_staged_store(repo, manifest, *, blob_reader=None,
             "report": report}
 
 
+STAGED_CLASS_SUFFIX = {"record": ".record.json",
+                       "transcript": ".transcript.json",
+                       "contract": ".contract.json",
+                       "artifact": ".artifact.json"}
+
+
+def _parse_staged_pin(path):
+    """<lane-lower>_<carrier>_<YYYY-MM-DD>.<class>.json under the
+    staged_envelopes tree (the capture harness's _path_tokens stem
+    grammar)."""
+    base = os.path.basename(str(path))
+    for cls, suf in STAGED_CLASS_SUFFIX.items():
+        if base.endswith(suf):
+            stem = base[: -len(suf)]
+            break
+    else:
+        return None
+    import w2_producer_grassmann as PROD
+    for lane in sorted(PROD.RECORD_LANES):
+        pre = lane.lower() + "_"
+        if stem.startswith(pre):
+            carrier, sep, day = stem[len(pre):].rpartition("_")
+            if sep and carrier:
+                return lane, carrier, day, cls
+    return None
+
+
+def verify_staged_boundary(repo, manifest, *, blob_reader=None,
+                           store_reader=None, day_set_gate=None):
+    """codex 2235Z item 1 (BLOCKER repair): the admission-owned
+    S/T/E consumer. When producer_boundary is BOUND: (1) the named
+    store reopens in full (verify_staged_store: descriptor +
+    inventory pins + every object); (2) EVERY per-day pin class --
+    static contract, transcript, envelope record, produced artifact
+    -- reopens from its pinned Git object; (3) raw bodies resolve
+    through the inventory to the NAMED store; (4) grassmann's
+    five-map verify_staged_day_set runs for every lane/carrier over
+    the expected day set reconstructed from the pre-capture STATIC
+    CONTRACT class. Returns {report, staged_boundary_sha256} -- the
+    digest is bound into the admission capsule. None while the slot
+    is honestly OPEN. All readers/gates injectable for KATs only."""
+    slot = manifest["slots"].get("producer_boundary")
+    if not isinstance(slot, dict) or slot.get("status") != "BOUND":
+        return None
+    if blob_reader is None:
+        def blob_reader(commit, path):
+            return _git(repo, ["cat-file", "blob",
+                               f"{commit}:{path}"], binary=True)
+    store_rep = verify_staged_store(repo, manifest,
+                                    blob_reader=blob_reader)
+    descriptor = _pinned_json(slot, STORE_DESCRIPTOR_BASENAME,
+                              blob_reader)
+    inventory = _pinned_json(slot, STAGED_INVENTORY_BASENAME,
+                             blob_reader)
+    groups = {}
+    for pin in slot.get("pins", ()):
+        parsed = _parse_staged_pin(pin.get("path", ""))
+        if parsed is None:
+            continue
+        lane, carrier, day, cls = parsed
+        raw = blob_reader(pin["commit"], pin["path"])
+        if hashlib.sha256(raw).hexdigest() != pin["blob_sha256"]:
+            raise InstrumentRefusal(
+                "PRESTART_ADMISSION_REFUSED: staged pin bytes "
+                f"diverge: {pin['path']}")
+        groups.setdefault((lane, carrier), {}).setdefault(
+            cls, {})[day] = json.loads(raw.decode("utf-8"))
+    if not groups:
+        raise InstrumentRefusal(
+            "PRESTART_ADMISSION_REFUSED: producer_boundary is BOUND "
+            "with no per-day S/T/E pin classes (an inventory plus "
+            "descriptor is never a staged boundary)")
+    if store_reader is None:
+        def store_reader(desc, relpath):
+            base = os.path.realpath(str(desc["physical_root"]))
+            p = os.path.realpath(os.path.join(base, str(relpath)))
+            if not p.startswith(base + os.sep):
+                raise InstrumentRefusal(
+                    "PRESTART_ADMISSION_REFUSED: store path escape "
+                    f"{relpath}")
+            with open(p, "rb") as f:
+                return f.read()
+    if day_set_gate is None:
+        import w2_producer_grassmann as _PROD
+        day_set_gate = _PROD.verify_staged_day_set
+    report = {}
+    for (lane, carrier), classes in sorted(groups.items()):
+        missing = set(STAGED_CLASS_SUFFIX) - set(classes)
+        if missing:
+            raise InstrumentRefusal(
+                f"PRESTART_ADMISSION_REFUSED: {lane}/{carrier} "
+                f"lacks staged classes {sorted(missing)}")
+        expected_days = sorted(classes["contract"])
+        bodies = {}
+        for day in expected_days:
+            key = f"{lane}/{carrier}/{day}"
+            entry = inventory.get("objects", {}).get(key)
+            if entry is None:
+                raise InstrumentRefusal(
+                    "PRESTART_ADMISSION_REFUSED: inventory lacks "
+                    f"{key}")
+            bodies[day] = store_reader(descriptor, entry["path"])
+        try:
+            out = day_set_gate(
+                classes["record"], bodies, classes["artifact"],
+                classes["contract"], classes["transcript"],
+                expected_days, carrier, lane)
+        except InstrumentRefusal:
+            raise
+        except Exception as e:
+            raise InstrumentRefusal(
+                f"PRESTART_ADMISSION_REFUSED: S/T/E join failed for "
+                f"{lane}/{carrier}: {e}")
+        report[f"{lane}/{carrier}"] = {
+            "days": len(expected_days),
+            "day_digests_sha256": hashlib.sha256(json.dumps(
+                out, sort_keys=True, separators=(",", ":"))
+                .encode()).hexdigest()}
+    full = {"schema": "f2g-w2-staged-boundary-report-v1",
+            "store": store_rep, "lanes": report}
+    digest = hashlib.sha256(json.dumps(
+        full, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest()
+    return {"report": full, "staged_boundary_sha256": digest}
+
+
 def assemble_prestart_admission(repo, manifest_commit, bindings,
                                 owner_authorization):
     """codex 1815Z item 1: builds the CLOSED admission capsule with
@@ -194,11 +320,14 @@ def assemble_prestart_admission(repo, manifest_commit, bindings,
     raw = _git(repo, ["cat-file", "blob",
                       f"{verdict['manifest_commit']}:"
                       f"{EXEC_MANIFEST_PATH}"], binary=True)
-    # v1.1 appendix gate (codex 1843Z item 4): the external staged
-    # store must REOPEN at admission time -- runs whenever the
-    # producer_boundary slot is BOUND (always true at a zero-OPEN
-    # prestart PASS)
-    verify_staged_store(repo, json.loads(raw.decode("utf-8")))
+    # codex 2235Z item 1: the FULL staged boundary (named store +
+    # every S/T/E carrier + the five-map join) must verify at
+    # admission time -- runs whenever the producer_boundary slot is
+    # BOUND (always true at a zero-OPEN prestart PASS); its report
+    # digest binds into the admission capsule below
+    boundary = verify_staged_boundary(
+        repo, json.loads(raw.decode("utf-8")))
+    boundary_sha = (boundary or {}).get("staged_boundary_sha256")
     blob_sha = hashlib.sha256(raw).hexdigest()
     if not isinstance(owner_authorization, dict) or \
             set(owner_authorization) != {"quote", "quote_sha256",
@@ -236,7 +365,8 @@ def assemble_prestart_admission(repo, manifest_commit, bindings,
                            "binds": dict(binds)},
                  "lanes": list(bindings["lane_uuids"]),
                  "lease": bindings["remote_lease"],
-                 "window_uuid": bindings["global_window_uuid"]}
+                 "window_uuid": bindings["global_window_uuid"],
+                 "staged_boundary_sha256": boundary_sha}
     admission["admission_digest"] = WB.admission_digest(admission)
     return admission
 
@@ -727,6 +857,152 @@ def _selftest():
         inventory_verifier=lambda i, d: {"reopened":
                                          len(i["objects"])})
     assert rep["objects"] == 1 and rep["store_id"] == "s4t"
+
+    # --- codex 2235Z item 1: the FULL S/T/E boundary consumer ---
+    # POSITIVE: genuine two-day fixtures built through grassmann's
+    # REAL capture harness; the REAL five-map gate closes the join
+    import w2_acquisition_capture_grassmann as CAP
+    import w2_producer_grassmann as PROD
+    broot = os.path.join(tmpdir, "boundary")
+    staging = os.path.join(broot, "staging")
+    FIX = {}
+
+    def opener(url):
+        return FIX[url]
+
+    def bspec(day):
+        return {"lane": "DAY_CAPSULE", "carrier": "cascadia",
+                "utc_day": day,
+                "endpoint": "https://kat.example/fdsn",
+                "request_params": {"net": "UW", "d": day},
+                "source": {"kind": "fdsn-availability",
+                           "ref": "https://kat.example/fdsn"},
+                "cutoff": "2026-08-25",
+                "operation_params": {"day": day},
+                "expected_keys": [day]}
+
+    def bbuilder(body):
+        return {"n_bytes": len(body)}
+    days = ("2026-08-20", "2026-08-21")
+    blobs = {}
+    inv_entries = {}
+    pins2 = []
+
+    def add_pin(path, raw):
+        blobs[("f" * 40, path)] = raw
+        pins2.append({"path": path, "commit": "f" * 40,
+                      "blob_sha256":
+                          hashlib.sha256(raw).hexdigest()})
+    for day in days:
+        sp = bspec(day)
+        url = PROD.requested_url_of(sp["endpoint"],
+                                    sp["request_params"])
+        body = f"body-{day}".encode()
+        FIX[url] = (200, {"content-type": "text/plain"}, body,
+                    url + "&final=1")
+        rp, tp, rec, tr = CAP.capture_day(
+            sp, staging, os.path.join(broot, "records"),
+            os.path.join(broot, "transcripts"), bbuilder,
+            opener=opener,
+            clock=lambda d=day: f"{d}T12:00:01Z")
+        stem = f"day_capsule_cascadia_{day}"
+        pre = "docs/f2g_window2_execution/staged_envelopes/"
+        add_pin(pre + f"{stem}.record.json",
+                open(rp, "rb").read())
+        add_pin(pre + f"{stem}.transcript.json",
+                open(tp, "rb").read())
+        add_pin(pre + f"{stem}.contract.json", json.dumps(
+            CAP.static_contract_of(sp), sort_keys=True,
+            separators=(",", ":")).encode())
+        add_pin(pre + f"{stem}.artifact.json", json.dumps(
+            bbuilder(body), sort_keys=True,
+            separators=(",", ":")).encode())
+        inv_entries[f"DAY_CAPSULE/cascadia/{day}"] = {
+            "sha256": rec["raw_body_sha256"],
+            "bytes": rec["raw_body_bytes"]}
+    b_inv = CAP.build_staged_body_inventory("s4t", "s4t://window2",
+                                            inv_entries)
+    b_desc = {"schema": "f2g-w2-store-descriptor-v1",
+              "store_id": "s4t", "store_root": "s4t://window2",
+              "physical_root": staging}
+    pre = "docs/f2g_window2_execution/staged_envelopes/"
+    add_pin(pre + "staged_body_inventory.json",
+            json.dumps(b_inv, sort_keys=True,
+                       separators=(",", ":")).encode())
+    add_pin(pre + "store_descriptor.json",
+            json.dumps(b_desc, sort_keys=True,
+                       separators=(",", ":")).encode())
+
+    def breader(c, path):
+        return blobs[(c, path)]
+    bman = man_with("BOUND", pins2)
+    out = verify_staged_boundary(".", bman, blob_reader=breader)
+    assert out["report"]["lanes"]["DAY_CAPSULE/cascadia"]["days"]         == 2
+    assert len(out["staged_boundary_sha256"]) == 64
+    # OPEN slot -> None
+    assert verify_staged_boundary(".", man_with("OPEN", [])) is None
+    # inventory + descriptor ONLY -> never a staged boundary
+    try:
+        verify_staged_boundary(
+            ".", man_with("BOUND", pins2[-2:]), blob_reader=breader)
+        raise AssertionError("inventory+descriptor must refuse")
+    except InstrumentRefusal as e:
+        assert "never a staged boundary" in str(e)
+    # a MISSING class for a lane/carrier refuses
+    no_art = [pn for pn in pins2
+              if not pn["path"].endswith(".artifact.json")]
+    try:
+        verify_staged_boundary(".", man_with("BOUND", no_art),
+                               blob_reader=breader)
+        raise AssertionError("missing artifact class must refuse")
+    except InstrumentRefusal as e:
+        assert "lacks staged classes" in str(e)
+    # a FORGED produced artifact refuses through the REAL gate
+    forged = [dict(pn) for pn in pins2]
+    for pn in forged:
+        if pn["path"].endswith("_2026-08-20.artifact.json"):
+            raw = json.dumps({"n_bytes": 999}, sort_keys=True,
+                             separators=(",", ":")).encode()
+            blobs[("0" * 40, pn["path"])] = raw
+            pn["commit"] = "0" * 40
+            pn["blob_sha256"] = hashlib.sha256(raw).hexdigest()
+    try:
+        verify_staged_boundary(".", man_with("BOUND", forged),
+                               blob_reader=breader)
+        raise AssertionError("forged artifact must refuse")
+    except InstrumentRefusal as e:
+        assert "S/T/E join failed" in str(e)
+    # SWAPPED records across days refuse (cross-day replay at the
+    # real gate)
+    swapped = [dict(pn) for pn in pins2]
+    r20 = blobs[("f" * 40, pre + "day_capsule_cascadia_"
+                 "2026-08-20.record.json")]
+    r21 = blobs[("f" * 40, pre + "day_capsule_cascadia_"
+                 "2026-08-21.record.json")]
+    blobs[("1" * 40, pre + "day_capsule_cascadia_2026-08-20"
+           ".record.json")] = r21
+    blobs[("1" * 40, pre + "day_capsule_cascadia_2026-08-21"
+           ".record.json")] = r20
+    for pn in swapped:
+        if pn["path"].endswith(".record.json"):
+            pn["commit"] = "1" * 40
+            other = blobs[("1" * 40, pn["path"])]
+            pn["blob_sha256"] = hashlib.sha256(other).hexdigest()
+    try:
+        verify_staged_boundary(".", man_with("BOUND", swapped),
+                               blob_reader=breader)
+        raise AssertionError("swapped records must refuse")
+    except InstrumentRefusal as e:
+        assert "S/T/E join failed" in str(e)
+    # TAMPERED pin bytes refuse before any gate
+    tam = [dict(pn) for pn in pins2]
+    tam[0] = dict(tam[0], blob_sha256="0" * 64)
+    try:
+        verify_staged_boundary(".", man_with("BOUND", tam),
+                               blob_reader=breader)
+        raise AssertionError("tampered pin must refuse")
+    except InstrumentRefusal as e:
+        assert "diverge" in str(e)
 
     # barrier-level: bare bindings refuse even with valid-shape state
     try:

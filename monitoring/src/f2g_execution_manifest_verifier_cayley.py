@@ -233,8 +233,14 @@ def _verify_obj(repo, manifest_commit, obj, prestart=False):
                 have_amend = PRODUCER_AMENDMENT_PATH in paths
                 have_code = any(str(p).startswith("monitoring/src/")
                                 for p in paths)
+                # codex 2235Z item 1: an inventory/descriptor under
+                # staged_envelopes/ is NEVER an envelope record --
+                # only actual .record.json envelopes satisfy the
+                # class
                 have_env = any(str(p).startswith(
-                    PRODUCER_ENVELOPE_PREFIX) for p in paths)
+                    PRODUCER_ENVELOPE_PREFIX)
+                    and str(p).endswith(".record.json")
+                    for p in paths)
                 if not (have_amend and have_code and have_env):
                     _refuse(res, "PRODUCER_BOUNDARY_PINS_INCOMPLETE",
                             name,
@@ -506,7 +512,29 @@ def kat(repo, manifest_commit):
          _has(_verify_obj(repo, full, d),
               "PRODUCER_BOUNDARY_PINS_INCOMPLETE"))
 
-    print(f"KAT: {19 - len(failures)}/19 pass"
+    # 20. codex 2235Z item 1 lock: inventory + descriptor under
+    # staged_envelopes/ (plus amendment + code) can NEVER satisfy the
+    # envelope-record class -- only .record.json envelopes count
+    d = copy.deepcopy(base)
+    real_pin = copy.deepcopy(
+        base["slots"]["design_pin_verifier"]["pins"][0])
+    pins = []
+    for path in (PRODUCER_AMENDMENT_PATH,
+                 "monitoring/src/w2_producer_grassmann.py",
+                 PRODUCER_ENVELOPE_PREFIX
+                 + "staged_body_inventory.json",
+                 PRODUCER_ENVELOPE_PREFIX + "store_descriptor.json"):
+        p = copy.deepcopy(real_pin)
+        p["path"] = path
+        pins.append(p)
+    d["slots"]["producer_boundary"] = {
+        "status": "BOUND", "owner": "grassmann", "note": "kat",
+        "boundary_mode": PRODUCER_BOUNDARY_MODE, "pins": pins}
+    case("producer-inventory-not-envelope",
+         _has(_verify_obj(repo, full, d),
+              "PRODUCER_BOUNDARY_PINS_INCOMPLETE"))
+
+    print(f"KAT: {20 - len(failures)}/20 pass"
           + (f"; DEFECTS: {failures}" if failures else ""))
     return not failures
 

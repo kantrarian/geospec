@@ -1,40 +1,37 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """Window-2 CERTIFICATION CAMPAIGN RUNNER (cayley) -- per-point
-process parallelism under codex's BINDING 1544Z ack, REV 2 folding
-the codex 1909Z items 2-4 repairs.
+process parallelism under codex's BINDING 1544Z ack; REV 3 folding
+the codex 2235Z items 2-4 (runner half) onto the REV 2 repairs
+(1909Z items 2-4).
 
-THE ACK'S TERMS, implemented structurally:
-- The unit of dispatch is the WHOLE POINT: one worker process runs one
-  certification start-to-finish; there is no replicate-level dispatch
-  surface to misuse.
-- Same-family points deliberately share common random numbers (the
-  registered seed grammar omits the point); scheduling is irrelevant
-  because every worker reconstructs its own (authority, family, r)
-  sequence -- this runner adds NO randomness and NO seed handling.
+STRUCTURAL TERMS (unchanged): the unit of dispatch is the WHOLE POINT
+(no replicate-level surface exists); the runner adds no randomness
+and no seed handling.
 
-codex 1909Z repairs folded:
-- item 2 (TOCTOU): the ordered point list comes ONLY from the
-  COMMITTED SELECTOR ARTIFACT (digest recomputed against its own
-  recorded ordered_points_sha256); the manifest commit is resolved to
-  the exact 40-hex BEFORE the invocation writes; workers read the
-  INVOCATION RECORD ITSELF (never the caller's mutable file) and
-  refuse a points-digest mismatch; after workers finish the parent
-  requires result.index == i, result.spec == invocation point i, and
-  the returned record's family/point identity to equal that spec.
-- item 3 (refusal absorption): a typed harness refusal writes its
-  diagnostic then EXITS NONZERO; the parent refuses the campaign on
-  any nonzero worker, refusal, missing record, or identity mismatch,
-  TERMINATES + JOINS every still-live worker, and writes a typed
-  campaign_aborted artifact.
-- item 4 (fire-input validation): strict integer
-  1 <= process_count <= n_points, resolvable manifest commit, and a
-  campaign-artifact-free output directory are all required BEFORE the
-  invocation record exists.
+REV 3 (codex 2235Z):
+- item 2: the selector is a COMMITTED git object -- the fire input is
+  (selector_commit, selector_path); the blob reopens via git cat-file
+  and `verify_selector_artifact` reruns the registered rule against
+  the artifact's BOUND smoke/effect-grid carriers and enforces the
+  exact 14-point shape with gains 3 then 10. A fabricated local file
+  has no entry path.
+- item 3: workers authenticate the COMPLETE INVOCATION, not the point
+  list: the closed invocation core is canonically hashed
+  (invocation_sha256); every worker receives the expected digest and
+  recomputes it on reopen BEFORE reading any field -- manifest-only or
+  geometry-only post-write mutation refuses. Spawn/poll/read failures
+  inside the parent all route through terminate+join+typed abort.
+- item 4 (runner half): the invocation, summary, and abort artifacts
+  publish via an ATOMIC CREATE-ONCE primitive (unique same-directory
+  temp + os.link, which never replaces); a pre-existing destination
+  refuses -- check-then-overwrite is gone.
 
-Outputs: <outdir>/invocation_record.json (pre-fire),
-<outdir>/point_<idx>.json per point, <outdir>/campaign_summary.json,
-or <outdir>/campaign_aborted.json on refusal.
+REV 2 terms retained: pre-fire invocation record; ordered scheduling
+with a strict cap; typed harness refusals exit nonzero; the parent
+refuses on any refusal/missing record/identity mismatch; strict
+fire-input validation (process count, resolvable 40-hex manifest,
+stale-outdir).
 
 No certification runs at import or selftest (stub workers only).
 Opens no window-2 value.
@@ -45,9 +42,12 @@ import os
 import platform
 import subprocess
 import sys
+import tempfile
 import time
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
+if _HERE not in sys.path:
+    sys.path.insert(0, _HERE)
 
 POINT_ENTRIES = {"detection", "specificity"}
 CAMPAIGN_ARTIFACTS = ("invocation_record.json",
@@ -67,6 +67,32 @@ def _canon(obj):
 
 def _digest(obj):
     return hashlib.sha256(_canon(obj).encode()).hexdigest()
+
+
+def _publish_once(path, body_text):
+    """codex 2235Z item 4: atomic CREATE-ONCE publication -- unique
+    same-directory temp + os.link (which never replaces). An existing
+    destination refuses typed; there is no check-then-overwrite
+    window."""
+    d = os.path.dirname(os.path.abspath(path))
+    os.makedirs(d, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=d, suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as f:
+            f.write(body_text)
+            f.flush()
+            os.fsync(f.fileno())
+        try:
+            os.link(tmp, path)
+        except FileExistsError:
+            raise RunnerRefusal(
+                f"RUNNER_PUBLISH_EXISTS: {os.path.basename(path)} "
+                "already published (create-once; never replaced)")
+    finally:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
 
 
 def validate_points(pts, where="selector"):
@@ -96,21 +122,33 @@ def validate_points(pts, where="selector"):
     return pts
 
 
-def load_selector(selector_path):
-    """codex item 2: the ordered list comes from the COMMITTED
-    selector artifact; its recorded digest must recompute."""
-    with open(selector_path, "rb") as f:
-        raw = f.read()
+def _git_blob(repo, commit, path):
+    p = subprocess.run(["git", "-C", repo, "cat-file", "blob",
+                        f"{commit}:{path}"], capture_output=True)
+    if p.returncode != 0:
+        raise RunnerRefusal(
+            f"RUNNER_SELECTOR_INVALID: {path} unreadable at "
+            f"{commit} (only a COMMITTED selector can fire)")
+    return p.stdout
+
+
+def load_selector_committed(repo, selector_commit, selector_path,
+                            *, blob_reader=None):
+    """codex 2235Z item 2: the selector comes from a COMMITTED git
+    object and is verified by an independent rerun against its bound
+    carriers -- a self-consistent digest alone never fires."""
+    import w2_tier_selector_cayley as TS
+    if blob_reader is None:
+        def blob_reader(commit, path):
+            return _git_blob(repo, commit, path)
+    raw = blob_reader(selector_commit, selector_path)
     art = json.loads(raw.decode("utf-8"))
-    if not isinstance(art, dict) or \
-            art.get("schema") != "f2g-w2-tier-selector-v1":
-        raise RunnerRefusal(
-            "RUNNER_SELECTOR_INVALID: not a selector artifact")
-    pts = validate_points(art.get("ordered_points"))
-    if _digest(pts) != art.get("ordered_points_sha256"):
-        raise RunnerRefusal(
-            "RUNNER_SELECTOR_INVALID: ordered_points digest does not "
-            "recompute")
+    try:
+        TS.verify_selector_artifact(repo, art,
+                                    blob_reader=blob_reader)
+    except TS.SelectorRefusal as e:
+        raise RunnerRefusal(f"RUNNER_SELECTOR_INVALID: {e}")
+    pts = validate_points(art["ordered_points"])
     return art, pts, hashlib.sha256(raw).hexdigest()
 
 
@@ -128,7 +166,7 @@ def resolve_manifest_commit(repo, mc):
 
 def _validate_fire_inputs(repo, manifest_commit, n_procs, points,
                           outdir):
-    """codex item 4: everything validated BEFORE the invocation
+    """codex 1909Z item 4: everything validated BEFORE the invocation
     record exists."""
     if type(n_procs) is not int or not \
             1 <= n_procs <= len(points):
@@ -146,13 +184,23 @@ def _validate_fire_inputs(repo, manifest_commit, n_procs, points,
     return resolve_manifest_commit(repo, manifest_commit)
 
 
+def _invocation_digest(rec):
+    """The digest of the COMPLETE closed invocation core (every field
+    except the digest itself)."""
+    return _digest({k: v for k, v in rec.items()
+                    if k != "invocation_sha256"})
+
+
 def write_invocation_record(outdir, points, manifest_commit_full,
                             geometry_path, n_procs, argv,
-                            selector_path, selector_sha256):
-    """codex 1544Z: recorded PRE-FIRE, before any worker starts.
-    Workers read THIS record; it is the single points carrier."""
+                            selector_commit, selector_path,
+                            selector_sha256):
+    """codex 1544Z: recorded PRE-FIRE, before any worker starts;
+    2235Z item 3: the whole closed core is hashed
+    (invocation_sha256), and workers authenticate THAT; 2235Z item 4:
+    published atomically create-once."""
     rec = {
-        "schema": "f2g-w2-cert-invocation-v2",
+        "schema": "f2g-w2-cert-invocation-v3",
         "fired_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ",
                                    time.gmtime()),
         "argv": list(argv),
@@ -163,6 +211,7 @@ def write_invocation_record(outdir, points, manifest_commit_full,
         "host": platform.node(),
         "manifest_commit": str(manifest_commit_full),
         "geometry_path": str(geometry_path),
+        "selector_commit": str(selector_commit),
         "selector_path": str(selector_path),
         "selector_sha256": str(selector_sha256),
         "ordered_points": points,
@@ -171,46 +220,47 @@ def write_invocation_record(outdir, points, manifest_commit_full,
                          "replicate sequence never splits across "
                          "workers",
         "overrides": None}
-    os.makedirs(outdir, exist_ok=True)
-    p = os.path.join(outdir, "invocation_record.json")
-    if os.path.exists(p):
-        raise RunnerRefusal(
-            "RUNNER_INVOCATION_EXISTS: refusing to overwrite a "
-            "fired campaign's record")
-    with open(p, "w", encoding="utf-8", newline="\n") as f:
-        f.write(json.dumps(rec, indent=1, sort_keys=True) + "\n")
+    rec["invocation_sha256"] = _invocation_digest(rec)
+    _publish_once(os.path.join(outdir, "invocation_record.json"),
+                  json.dumps(rec, indent=1, sort_keys=True) + "\n")
     return rec
 
 
-def _load_invocation(outdir, expected_points_sha):
+def _load_invocation(outdir, expected_invocation_sha):
+    """2235Z item 3: recompute the digest of the COMPLETE closed core
+    and require it to equal BOTH the stored field and the expected
+    value BEFORE any field is consumed."""
     with open(os.path.join(outdir, "invocation_record.json"),
               encoding="utf-8") as f:
         inv = json.load(f)
+    got = _invocation_digest(inv)
+    if got != inv.get("invocation_sha256") or \
+            got != expected_invocation_sha:
+        raise RunnerRefusal(
+            "RUNNER_INVOCATION_DIGEST_MISMATCH: the invocation "
+            "carrier diverges from the fired digest")
     pts = inv["ordered_points"]
-    if _digest(pts) != inv["ordered_points_sha256"] or \
-            inv["ordered_points_sha256"] != expected_points_sha:
+    if _digest(pts) != inv["ordered_points_sha256"]:
         raise RunnerRefusal(
             "RUNNER_POINTS_DIGEST_MISMATCH: invocation points "
-            "diverge from the fired digest")
+            "diverge from their recorded digest")
     return inv, pts
 
 
-def run_worker(repo, outdir, idx, expected_points_sha):
-    """ONE point, start to finish, in THIS process. The spec comes
-    from the INVOCATION RECORD (codex item 2), never a caller file.
-    A typed harness refusal writes its diagnostic then exits nonzero
-    (codex item 3)."""
-    if _HERE not in sys.path:
-        sys.path.insert(0, _HERE)
+def run_worker(repo, outdir, idx, expected_invocation_sha):
+    """ONE point, start to finish, in THIS process. Every consumed
+    field comes from the digest-authenticated invocation. A typed
+    harness refusal writes its diagnostic then exits nonzero."""
     import w2_power_harness_cayley as PH
-    inv, pts = _load_invocation(outdir, expected_points_sha)
+    inv, pts = _load_invocation(outdir, expected_invocation_sha)
     idx = int(idx)
     if not 0 <= idx < len(pts):
         raise RunnerRefusal(f"RUNNER_POINT_INDEX_INVALID: {idx}")
     spec = pts[idx]
     ref = {"manifest_commit": inv["manifest_commit"],
            "path": inv["geometry_path"]}
-    out = {"index": idx, "spec": spec}
+    out = {"index": idx, "spec": spec,
+           "invocation_sha256": inv["invocation_sha256"]}
     refused = False
     try:
         if spec["entry"] == "specificity":
@@ -247,8 +297,9 @@ def _record_identity_ok(spec, rec):
 
 
 def _abort(outdir, running, reason, detail):
-    """codex item 3: terminate + join every live worker, write the
-    typed abort artifact, refuse."""
+    """Terminate + join every live worker, publish the typed abort
+    artifact (create-once; a racing second abort tolerates the
+    winner), refuse."""
     for h in running.values():
         try:
             h.terminate()
@@ -263,42 +314,54 @@ def _abort(outdir, running, reason, detail):
            "aborted_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ",
                                         time.gmtime()),
            "reason": reason, "detail": detail}
-    with open(os.path.join(outdir, "campaign_aborted.json"), "w",
-              encoding="utf-8", newline="\n") as f:
-        f.write(json.dumps(art, indent=1, sort_keys=True) + "\n")
+    try:
+        _publish_once(os.path.join(outdir, "campaign_aborted.json"),
+                      json.dumps(art, indent=1, sort_keys=True)
+                      + "\n")
+    except RunnerRefusal:
+        pass                      # first abort artifact wins
     raise RunnerRefusal(f"{reason}: {detail}")
 
 
-def run_campaign(repo, manifest_commit, geometry_path, selector_path,
-                 n_procs, outdir, argv=None, spawn=None):
-    """Parent: validate ALL fire inputs, write the pre-fire record,
-    then at most n_procs concurrent whole-point workers over the
-    selector's ordered list. `spawn` is injectable for the selftest;
-    production spawns this module as a subprocess per point."""
-    selector, points, selector_sha = load_selector(selector_path)
+def run_campaign(repo, manifest_commit, geometry_path,
+                 selector_commit, selector_path, n_procs, outdir,
+                 argv=None, spawn=None, blob_reader=None):
+    """Parent: committed-selector verification, fire-input
+    validation, atomic pre-fire record, then at most n_procs
+    concurrent whole-point workers. Every parent-side failure --
+    spawn, poll, read, refusal, identity -- routes through _abort."""
+    selector, points, selector_sha = load_selector_committed(
+        repo, selector_commit, selector_path,
+        blob_reader=blob_reader)
     mc_full = _validate_fire_inputs(repo, manifest_commit, n_procs,
                                     points, outdir)
     inv = write_invocation_record(
         outdir, points, mc_full, geometry_path, n_procs,
-        argv if argv is not None else sys.argv, selector_path,
-        selector_sha)
-    psha = inv["ordered_points_sha256"]
+        argv if argv is not None else sys.argv, selector_commit,
+        selector_path, selector_sha)
+    isha = inv["invocation_sha256"]
 
     def _spawn(idx):
         return subprocess.Popen(
             [sys.executable, os.path.abspath(__file__), "--worker",
-             repo, outdir, str(idx), psha])
+             repo, outdir, str(idx), isha])
     spawn = spawn or _spawn
     running = {}
     order_started = []
     idx = 0
     while idx < len(points) or running:
-        while idx < len(points) and len(running) < n_procs:
-            running[idx] = spawn(idx)
-            order_started.append(idx)
-            idx += 1
-        done = [i for i, h in running.items()
-                if h.poll() is not None]
+        try:
+            while idx < len(points) and len(running) < n_procs:
+                running[idx] = spawn(idx)
+                order_started.append(idx)
+                idx += 1
+            done = [i for i, h in running.items()
+                    if h.poll() is not None]
+        except RunnerRefusal:
+            raise
+        except Exception as e:
+            _abort(outdir, running, "RUNNER_SCHEDULER_FAILED",
+                   f"{type(e).__name__}: {e}")
         if not done:
             time.sleep(0.2)
             continue
@@ -312,11 +375,15 @@ def run_campaign(repo, manifest_commit, geometry_path, selector_path,
         p = os.path.join(outdir, f"point_{i:03d}.json")
         if not os.path.exists(p):
             _abort(outdir, {}, "RUNNER_RESULT_MISSING", f"point {i}")
-        with open(p, encoding="utf-8") as f:
-            results.append(json.load(f))
-    # codex item 2/3: identity + refusal checks over EVERY result
+        try:
+            with open(p, encoding="utf-8") as f:
+                results.append(json.load(f))
+        except Exception as e:
+            _abort(outdir, {}, "RUNNER_RESULT_UNREADABLE",
+                   f"point {i}: {e}")
     for i, r in enumerate(results):
-        if r.get("index") != i or r.get("spec") != points[i]:
+        if r.get("index") != i or r.get("spec") != points[i] or \
+                r.get("invocation_sha256") != isha:
             _abort(outdir, {}, "RUNNER_RESULT_IDENTITY_MISMATCH",
                    f"point {i} result does not match the invocation")
         if r.get("refusal") is not None or r.get("record") is None:
@@ -327,13 +394,17 @@ def run_campaign(repo, manifest_commit, geometry_path, selector_path,
                    f"point {i} certification record family/point "
                    "diverges from the invocation spec")
     summary = {
-        "schema": "f2g-w2-cert-campaign-summary-v2",
+        "schema": "f2g-w2-cert-campaign-summary-v3",
         "completed_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ",
                                        time.gmtime()),
         "n_points": len(points),
         "order_started": order_started,
-        "selector_sha256": selector_sha,
+        "invocation_sha256": isha,
         "manifest_commit": mc_full,
+        "selector_commit": str(selector_commit),
+        "selector_path": str(selector_path),
+        "selector_sha256": selector_sha,
+        "geometry_path": str(geometry_path),
         "per_point": [{"index": r["index"],
                        "family": r["spec"]["family"],
                        "entry": r["spec"]["entry"],
@@ -341,122 +412,134 @@ def run_campaign(repo, manifest_commit, geometry_path, selector_path,
                        "status": r["record"].get("status"),
                        "record_sha256": _digest(r["record"])}
                       for r in results],
-        "ordered_points_sha256": psha}
-    with open(os.path.join(outdir, "campaign_summary.json"), "w",
-              encoding="utf-8", newline="\n") as f:
-        f.write(json.dumps(summary, indent=1, sort_keys=True) + "\n")
+        "ordered_points_sha256": inv["ordered_points_sha256"]}
+    _publish_once(os.path.join(outdir, "campaign_summary.json"),
+                  json.dumps(summary, indent=1, sort_keys=True)
+                  + "\n")
     return summary
 
 
 # ---------------------------------------------------------------- selftest
 def _selftest():
-    import tempfile
-    tmp = tempfile.mkdtemp(prefix="w2runner_")
+    import copy
+    import tempfile as _tf
+    import w2_tier_selector_cayley as TS
+    tmp = _tf.mkdtemp(prefix="w2runner_")
     repo_g = os.path.abspath(os.path.join(_HERE, "..", ".."))
 
-    good = [{"family": "B2B", "point": {"m": 2}, "entry": "detection"},
-            {"family": "B1B", "point": {"gain": 3.0},
-             "entry": "specificity"},
-            {"family": "B1B", "point": {"k": 3, "n_e": 2,
-                                        "delta_lat": 0.2},
-             "entry": "detection"}]
+    # a VALID committed-style 14-point selector over an in-memory
+    # blob store (the registered rule applied to a hand fixture)
+    def outs(k):
+        return [True] * k + [False] * (50 - k)
+    grids = {
+        "B2A": [{"m": 1}, {"m": 2}, {"m": 3}],
+        "B2B": [{"m": 1}, {"m": 2}, {"m": 3},
+                {"m": 2, "dropout": 0.1}, {"m": 2, "dropout": 0.25}],
+        "B3A": [{"delta": d} for d in range(1, 5)],
+        "B1B": [{"delta_lat": 0.1 * j, "k": 3, "n_e": 2}
+                for j in range(1, 10)]
+               + [{"gain": 3.0}, {"gain": 10.0}]}
+    fams = {}
+    for fam in ("B2A", "B2B", "B1B", "B3A"):
+        det = [(i, p) for i, p in enumerate(grids[fam])
+               if "gain" not in p]
+        entries = []
+        for k, (gi, gp) in enumerate(det):
+            e = {"point": dict(gp), "outcomes": outs(30 + k)}
+            if fam == "B1B":
+                e["post_loco_outcomes"] = None
+            entries.append(e)
+        fams[fam] = entries
+    # B1B: give the top-8 (by pre-LOCO rank) post-LOCO outcomes
+    b1b_counts = [(30 + k, k) for k in range(9)]
+    keep = sorted(range(9), key=lambda k: (-(30 + k), k))[:8]
+    for k in keep:
+        fams["B1B"][k]["post_loco_outcomes"] = outs(20 + k)
+    smoke = {"quality": {"R": 50, "n_draws": 999},
+             "geometry_capsule_digest": "kat", "families": fams}
+    store = {("d" * 40, "smoke.json"): json.dumps(smoke).encode(),
+             ("d" * 40, "grids.json"): json.dumps(
+                 {"schema": "f2g-w2-effect-grids-v1",
+                  "grids": grids}).encode()}
+    refs = {"smoke_ref": {"commit": "d" * 40, "path": "smoke.json"},
+            "effect_grids_ref": {"commit": "d" * 40,
+                                 "path": "grids.json"}}
+    art = TS.select_candidates(smoke, grids, **refs)
+    store[("d" * 40, "selector.json")] = json.dumps(art).encode()
 
-    def mk_selector(pts, path, doctor=None):
-        pts = json.loads(json.dumps(pts))     # isolate the fixture
-        art = {"schema": "f2g-w2-tier-selector-v1",
-               "ordered_points": pts,
-               "ordered_points_sha256": _digest(pts)}
-        if doctor:
-            doctor(art)
-        with open(path, "w") as f:
-            json.dump(art, f)
-        return path
-
-    sp = mk_selector(good, os.path.join(tmp, "sel.json"))
-    art, pts, sha = load_selector(sp)
-    assert pts == good and len(sha) == 64
-
-    # selector doctors: wrong schema, digest mismatch, bad points
-    for doctor, label in (
-            (lambda a: a.update(schema="x"), "schema"),
-            (lambda a: a.update(ordered_points_sha256="0" * 64),
-             "digest"),
-            (lambda a: a["ordered_points"].append(
-                a["ordered_points"][0]), "duplicate")):
-        bp = mk_selector(good, os.path.join(tmp, "bad.json"), doctor)
+    def reader(commit, path):
         try:
-            load_selector(bp)
-            raise AssertionError(f"{label} selector must refuse")
-        except RunnerRefusal:
-            pass
+            return store[(commit, path)]
+        except KeyError:
+            raise RunnerRefusal(
+                f"RUNNER_SELECTOR_INVALID: {path} unreadable at "
+                f"{commit} (only a COMMITTED selector can fire)")
 
-    # item 4: fire-input doctors BEFORE any invocation exists
+    art2, pts, sha = load_selector_committed(
+        ".", "d" * 40, "selector.json", blob_reader=reader)
+    assert len(pts) == 14
+
+    # item 2 locks: fabricated minimal selector; altered points;
+    # uncommitted path (real git)
+    fab = {"schema": "f2g-w2-tier-selector-v1",
+           "ordered_points": [{"family": "B2A", "point": {"m": 999},
+                               "entry": "detection"}]}
+    fab["ordered_points_sha256"] = _digest(fab["ordered_points"])
+    store[("d" * 40, "fab.json")] = json.dumps(fab).encode()
+    try:
+        load_selector_committed(".", "d" * 40, "fab.json",
+                                blob_reader=reader)
+        raise AssertionError("fabricated selector must refuse")
+    except RunnerRefusal as e:
+        assert "RUNNER_SELECTOR_INVALID" in str(e)
+    try:
+        load_selector_committed(repo_g, "HEAD",
+                                "docs/no-such-selector.json")
+        raise AssertionError("uncommitted selector must refuse")
+    except RunnerRefusal as e:
+        assert "unreadable" in str(e)
+
     hexmc = subprocess.run(["git", "-C", repo_g, "rev-parse", "HEAD"],
                            capture_output=True).stdout.decode().strip()
-    for n, label in ((0, "zero"), (-2, "negative"), ("2", "string"),
-                     (99, "over")):
-        try:
-            _validate_fire_inputs(repo_g, hexmc, n, good,
-                                  os.path.join(tmp, "ov"))
-            raise AssertionError(f"{label} n_procs must refuse")
-        except RunnerRefusal as e:
-            assert "RUNNER_PROCESS_COUNT_INVALID" in str(e)
-    try:
-        _validate_fire_inputs(repo_g, "no-such-ref-xyz", 2, good,
-                              os.path.join(tmp, "ov"))
-        raise AssertionError("unresolvable manifest must refuse")
-    except RunnerRefusal as e:
-        assert "RUNNER_MANIFEST_UNRESOLVABLE" in str(e)
-    assert len(_validate_fire_inputs(repo_g, hexmc[:12], 2, good,
-                                     os.path.join(tmp, "ov"))) == 40
-    stale = os.path.join(tmp, "stale")
-    os.makedirs(stale)
-    open(os.path.join(stale, "point_000.json"), "w").close()
-    try:
-        _validate_fire_inputs(repo_g, hexmc, 2, good, stale)
-        raise AssertionError("stale outdir must refuse")
-    except RunnerRefusal as e:
-        assert "RUNNER_OUTDIR_STALE" in str(e)
 
-    # pre-fire record: shape + no-overwrite
-    od = os.path.join(tmp, "out1")
-    rec = write_invocation_record(od, good, "f" * 40, "docs/x.json",
-                                  2, ["argv0"], sp, sha)
-    assert rec["ordered_points_sha256"] == _digest(good)
-    assert rec["selector_sha256"] == sha
+    # item 4 (runner): create-once -- a pre-existing invocation
+    # refuses regardless of bytes
+    od0 = os.path.join(tmp, "race")
+    os.makedirs(od0)
+    with open(os.path.join(od0, "invocation_record.json"), "w") as f:
+        f.write("{}")
     try:
-        write_invocation_record(od, good, "f" * 40, "x", 2, [], sp,
+        write_invocation_record(od0, pts, "f" * 40, "g.json", 2,
+                                ["kat"], "d" * 40, "selector.json",
                                 sha)
-        raise AssertionError("second record must refuse")
+        raise AssertionError("existing invocation must refuse")
     except RunnerRefusal as e:
-        assert "RUNNER_INVOCATION_EXISTS" in str(e)
+        assert "RUNNER_PUBLISH_EXISTS" in str(e)
 
-    # item 2: workers read the INVOCATION; mutating the selector file
-    # after fire cannot reach them (stub workers copy spec from the
-    # written invocation record, exactly like the real worker)
+    # stub workers that read + authenticate the invocation like the
+    # real worker
     live = {"n": 0, "max": 0}
 
-    def stub_writer(outdir, transform=None, rc=0):
+    def stub_writer(outdir, isha_holder, transform=None, rc=0,
+                    raise_on=None):
         class StubProc:
             def __init__(self, idx):
+                if raise_on is not None and idx == raise_on:
+                    raise OSError("spawn blew up")
                 self.idx = idx
                 self.returncode = None
                 self.terminated = False
                 live["n"] += 1
                 live["max"] = max(live["max"], live["n"])
-                with open(os.path.join(outdir,
-                                       "invocation_record.json"),
-                          encoding="utf-8") as f:
-                    inv = json.load(f)
-                out = {"index": idx,
-                       "spec": inv["ordered_points"][idx],
-                       "record": {
-                           "status": "STUB",
-                           "family":
-                               inv["ordered_points"][idx]["family"],
-                           "point":
-                               inv["ordered_points"][idx]["point"],
-                           "class": "B1B_GAIN_STEP_SPECIFICITY"},
+                inv, ipts = _load_invocation(outdir,
+                                             isha_holder["sha"])
+                out = {"index": idx, "spec": ipts[idx],
+                       "invocation_sha256": inv["invocation_sha256"],
+                       "record": {"status": "STUB",
+                                  "family": ipts[idx]["family"],
+                                  "point": ipts[idx]["point"],
+                                  "class":
+                                      "B1B_GAIN_STEP_SPECIFICITY"},
                        "refusal": None}
                 if transform:
                     transform(idx, out)
@@ -479,82 +562,113 @@ def _selftest():
                 return self.returncode
         return StubProc
 
-    od2 = os.path.join(tmp, "out2")
-    sp2 = mk_selector(good, os.path.join(tmp, "sel2.json"))
-
-    def fire(outdir, selector, transform=None, rc=0, n=2,
-             mutate_after=False):
-        Stub = stub_writer(outdir, transform, rc)
+    def fire(outdir, transform=None, rc=0, raise_on=None, n=3):
+        holder = {"sha": None}
+        Stub = stub_writer(outdir, holder, transform, rc, raise_on)
 
         def spawn(idx):
-            if mutate_after and idx == 0:
-                mk_selector([good[0]], selector)   # caller mutates
+            if holder["sha"] is None:
+                with open(os.path.join(outdir,
+                                       "invocation_record.json"),
+                          encoding="utf-8") as f:
+                    holder["sha"] = json.load(
+                        f)["invocation_sha256"]
             return Stub(idx)
-        return run_campaign(repo_g, hexmc[:12], "docs/x.json",
-                            selector, n, outdir, argv=["kat"],
-                            spawn=spawn)
-    s = fire(od2, sp2, mutate_after=True)
-    assert s["n_points"] == 3 and s["order_started"] == [0, 1, 2]
-    assert live["max"] <= 2
-    assert [pp["point"] for pp in s["per_point"]] == \
-        [p["point"] for p in good]        # mutation never reached work
-    assert len(s["manifest_commit"]) == 40
+        return run_campaign(repo_g, hexmc[:12], "docs/g.json",
+                            "d" * 40, "selector.json", n, outdir,
+                            argv=["kat"], spawn=spawn,
+                            blob_reader=reader)
 
-    # item 3: a refusal-writing worker (nonzero exit) aborts the
-    # campaign, terminates siblings, writes the typed artifact
-    od3 = os.path.join(tmp, "out3")
-    sp3 = mk_selector(good, os.path.join(tmp, "sel3.json"))
+    od1 = os.path.join(tmp, "ok")
+    s = fire(od1)
+    assert s["n_points"] == 14 and live["max"] <= 3
+    assert s["invocation_sha256"] and len(s["manifest_commit"]) == 40
+    assert s["selector_sha256"] == sha
+
+    # item 3 locks: manifest-only + geometry-only post-write mutation
+    # refuse at the worker
+    for field, val in (("manifest_commit", "c" * 40),
+                       ("geometry_path", "docs/geometry-B.json")):
+        odm = os.path.join(tmp, f"mut_{field}")
+        os.makedirs(odm)
+        rec = write_invocation_record(odm, pts, "a" * 40,
+                                      "docs/geometry-A.json", 2,
+                                      ["kat"], "d" * 40,
+                                      "selector.json", sha)
+        with open(os.path.join(odm, "invocation_record.json"),
+                  encoding="utf-8") as f:
+            doc = json.load(f)
+        doc[field] = val                      # points untouched
+        with open(os.path.join(odm, "invocation_record.json"), "w",
+                  encoding="utf-8") as f:
+            json.dump(doc, f)
+        try:
+            _load_invocation(odm, rec["invocation_sha256"])
+            raise AssertionError(f"{field} mutation must refuse")
+        except RunnerRefusal as e:
+            assert "RUNNER_INVOCATION_DIGEST_MISMATCH" in str(e)
+
+    # item 3 lock: second spawn raises while the first is live ->
+    # typed abort artifact + sibling terminated
+    od2 = os.path.join(tmp, "spawnfail")
     try:
-        fire(od3, sp3, transform=lambda i, o: o.update(
-            record=None, refusal="POWER_GEOMETRY_UNBOUND: kat")
-            if i == 1 else None, rc=WORKER_REFUSAL_EXIT)
-        raise AssertionError("refusing worker must abort campaign")
+        fire(od2, raise_on=1, n=2)
+        raise AssertionError("spawn failure must abort")
     except RunnerRefusal as e:
-        assert "RUNNER_WORKER_FAILED" in str(e)
-    assert os.path.exists(os.path.join(od3, "campaign_aborted.json"))
-    assert not os.path.exists(os.path.join(od3,
-                                           "campaign_summary.json"))
+        assert "RUNNER_SCHEDULER_FAILED" in str(e)
+    assert os.path.exists(os.path.join(od2, "campaign_aborted.json"))
 
-    # item 3 (zero-exit path): a refusal that somehow exits 0 is
-    # still caught by the parent's result checks
-    od4 = os.path.join(tmp, "out4")
-    sp4 = mk_selector(good, os.path.join(tmp, "sel4.json"))
+    # refusal + identity locks (REV 2 semantics retained)
+    od3 = os.path.join(tmp, "refusal")
     try:
-        fire(od4, sp4, transform=lambda i, o: o.update(
-            record=None, refusal="POWER_X: kat") if i == 2 else None)
+        fire(od3, transform=lambda i, o: o.update(
+            record=None, refusal="POWER_X: kat") if i == 4 else None,
+            rc=0)
         raise AssertionError("zero-exit refusal must abort")
     except RunnerRefusal as e:
         assert "RUNNER_WORKER_REFUSED" in str(e)
-
-    # identity mismatch: record family diverging from spec aborts
-    od5 = os.path.join(tmp, "out5")
-    sp5 = mk_selector(good, os.path.join(tmp, "sel5.json"))
+    od4 = os.path.join(tmp, "ident")
     try:
-        fire(od5, sp5, transform=lambda i, o: o["record"].update(
+        fire(od4, transform=lambda i, o: o["record"].update(
             family="B3A") if i == 0 else None)
         raise AssertionError("identity mismatch must abort")
     except RunnerRefusal as e:
         assert "RUNNER_RESULT_IDENTITY_MISMATCH" in str(e)
 
-    # direct worker: a REAL typed harness refusal writes its
-    # diagnostic and exits nonzero (codex item 3, worker level)
-    od6 = os.path.join(tmp, "out6")
-    write_invocation_record(od6, good, hexmc, "docs/no-such.json", 1,
-                            ["kat"], sp, sha)
+    # fire-input validation retained (REV 2)
+    for n, label in ((0, "zero"), (-2, "negative"), ("2", "string"),
+                     (99, "over")):
+        try:
+            _validate_fire_inputs(repo_g, hexmc, n, pts,
+                                  os.path.join(tmp, "ov"))
+            raise AssertionError(f"{label} n_procs must refuse")
+        except RunnerRefusal as e:
+            assert "RUNNER_PROCESS_COUNT_INVALID" in str(e)
     try:
-        run_worker(repo_g, od6, 0, _digest(good))
+        _validate_fire_inputs(repo_g, "no-such-ref-xyz", 2, pts,
+                              os.path.join(tmp, "ov"))
+        raise AssertionError("unresolvable manifest must refuse")
+    except RunnerRefusal as e:
+        assert "RUNNER_MANIFEST_UNRESOLVABLE" in str(e)
+
+    # direct worker: a REAL typed harness refusal exits nonzero
+    od6 = os.path.join(tmp, "worker")
+    rec6 = write_invocation_record(od6, pts, hexmc,
+                                   "docs/no-such.json", 1, ["kat"],
+                                   "d" * 40, "selector.json", sha)
+    try:
+        run_worker(repo_g, od6, 0, rec6["invocation_sha256"])
         raise AssertionError("worker must exit nonzero on refusal")
     except SystemExit as e:
         assert e.code == WORKER_REFUSAL_EXIT
     with open(os.path.join(od6, "point_000.json")) as f:
         d = json.load(f)
     assert d["record"] is None and "POWER_GEOMETRY" in d["refusal"]
-    # worker refuses a points-digest mismatch before any work
     try:
         run_worker(repo_g, od6, 0, "0" * 64)
         raise AssertionError("digest mismatch must refuse")
     except RunnerRefusal as e:
-        assert "RUNNER_POINTS_DIGEST_MISMATCH" in str(e)
+        assert "RUNNER_INVOCATION_DIGEST_MISMATCH" in str(e)
 
     print("w2_cert_runner selftest: ALL PASS (stub workers + typed "
           "refusal paths; no certification executed)")
@@ -562,18 +676,18 @@ def _selftest():
 
 def main():
     if len(sys.argv) >= 2 and sys.argv[1] == "--worker":
-        _, _, repo, outdir, idx, psha = sys.argv
-        run_worker(repo, outdir, int(idx), psha)
+        _, _, repo, outdir, idx, isha = sys.argv
+        run_worker(repo, outdir, int(idx), isha)
         return
     if len(sys.argv) == 1:
         _selftest()
         return
-    repo, mc, gp, sel, n, od = sys.argv[1:7]
-    summary = run_campaign(os.path.abspath(repo), mc, gp, sel,
-                           int(n), od)
+    repo, mc, gp, sel_c, sel_p, n, od = sys.argv[1:8]
+    summary = run_campaign(os.path.abspath(repo), mc, gp, sel_c,
+                           sel_p, int(n), od)
     print(json.dumps({k: summary[k] for k in
                       ("n_points", "completed_utc", "manifest_commit",
-                       "ordered_points_sha256")}, indent=1))
+                       "invocation_sha256")}, indent=1))
 
 
 if __name__ == "__main__":

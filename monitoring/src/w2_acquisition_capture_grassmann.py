@@ -148,9 +148,15 @@ def _write_once_json(path, obj, divergent_code):
 
     if os.path.exists(path):
         return _reopen_or_refuse()
-    tmp = f"{path}.{os.getpid()}.tmp"
+    # codex 0130Z item-4 residual: the temp must be unique PER CALL
+    # (a per-PID temp lets a second THREAD mutate the already-linked
+    # inode); mkstemp gives an exclusive unique same-directory file
+    import tempfile as _tf
+    fd, tmp = _tf.mkstemp(dir=os.path.dirname(path) or ".",
+                          suffix=".tmp")
     try:
-        with open(tmp, "w", encoding="utf-8", newline="\n") as f:
+        with os.fdopen(fd, "w", encoding="utf-8",
+                       newline="\n") as f:
             json.dump(obj, f, indent=1, sort_keys=True)
             f.write("\n")
             f.flush()
@@ -159,13 +165,15 @@ def _write_once_json(path, obj, divergent_code):
             os.link(tmp, path)        # atomic create-once, no replace
         except FileExistsError:
             return _reopen_or_refuse()
+        # post-link verification: the published destination must equal
+        # THIS caller's canonical bytes (any mutation via a shared
+        # inode surfaces here), exactly as the losing path checks
+        return _reopen_or_refuse()
     finally:
         try:
             os.remove(tmp)
         except OSError:
             pass
-    with open(path, encoding="utf-8") as f:
-        return json.load(f)
 
 
 _CARRIER_TOKEN = None
@@ -617,6 +625,39 @@ def _selftest():
         final = json.load(f)
     assert final == winner and final["marker"] in ("a", "b")
     assert next(v for k, v in res if k == "refused").startswith(
+        "CAPTURE_RECORD_DIVERGENT")
+
+    # --- the codex 0130Z TWO-THREAD divergent race (same PID): the
+    # per-call temp + post-link verification give exactly one winner,
+    # a typed loser, intact winner bytes ---
+    import threading
+    t_path = os.path.join(root, "race_threads.json")
+    t_barrier = threading.Barrier(2)
+    t_res = []
+    t_lock = threading.Lock()
+
+    def t_worker(marker):
+        t_barrier.wait()
+        try:
+            got = _write_once_json(t_path, {"marker": marker},
+                                   "CAPTURE_RECORD_DIVERGENT")
+            with t_lock:
+                t_res.append(("ok", got))
+        except CaptureRefusal as e:
+            with t_lock:
+                t_res.append(("refused", str(e)))
+    th_a = threading.Thread(target=t_worker, args=("a",))
+    th_b = threading.Thread(target=t_worker, args=("b",))
+    th_a.start()
+    th_b.start()
+    th_a.join(30)
+    th_b.join(30)
+    t_kinds = sorted(k for k, _ in t_res)
+    assert t_kinds == ["ok", "refused"], t_res
+    t_winner = next(v for k, v in t_res if k == "ok")
+    with open(t_path, encoding="utf-8") as f:
+        assert json.load(f) == t_winner
+    assert next(v for k, v in t_res if k == "refused").startswith(
         "CAPTURE_RECORD_DIVERGENT")
 
     print("w2_acquisition_capture selftest: ALL PASS (no network)")

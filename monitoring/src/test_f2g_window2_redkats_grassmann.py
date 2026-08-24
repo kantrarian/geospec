@@ -1902,7 +1902,22 @@ def w_selrun():
         smoke = {"quality": {"R": 50, "n_draws": 999},
                  "geometry_capsule_digest": "ab" * 32,
                  "families": fams}
-        art = WTS.select_candidates(smoke, grids)
+        REF_S = {"commit": "kat-commit", "path": "kat/smoke.json"}
+        REF_G = {"commit": "kat-commit", "path": "kat/grids.json"}
+        art = WTS.select_candidates(smoke, grids, smoke_ref=REF_S,
+                                    effect_grids_ref=REF_G)
+
+        def kat_reader(commit, path):
+            if commit != "kat-commit":
+                raise WTS.SelectorRefusal(
+                    f"SELECTOR_ARTIFACT_INVALID: {path} unreadable "
+                    f"at {commit} (uncommitted carriers never bind)")
+            if path == "kat/smoke.json":
+                return json.dumps(smoke).encode()
+            if path == "kat/grids.json":
+                return json.dumps({"grids": grids}).encode()
+            raise WTS.SelectorRefusal(
+                f"SELECTOR_ARTIFACT_INVALID: {path} unreadable")
 
         # IN-BAR oracle: my own two-stage derivation
         def oracle(fam):
@@ -1942,7 +1957,8 @@ def w_selrun():
             and art["tier_s_label"].startswith("PRELIMINARY_SMOKE")
         # determinism
         ok_ord = ok_ord and WTS.select_candidates(
-            smoke, grids)["ordered_points_sha256"] == \
+            smoke, grids, smoke_ref=REF_S,
+            effect_grids_ref=REF_G)["ordered_points_sha256"] == \
             art["ordered_points_sha256"]
 
         # selector doctors
@@ -2011,32 +2027,98 @@ def w_selrun():
                 [{"family": "B2A", "point": {"m": 1},
                   "entry": "specificity"}]),
             "RUNNER_POINTS_INVALID")
-        # selector-artifact digest must recompute at load
-        seldir = tempfile.mkdtemp(prefix="w2_bar_sel_")
-        sp = os.path.join(seldir, "selector.json")
-        tampered = _j.loads(_j.dumps(art))
-        tampered["ordered_points"][0]["point"] = {"m": 99}
-        with open(sp, "w") as f:
-            _j.dump(tampered, f)
+        # --- codex 2235Z item 2 (in-bar per the 0130Z ask): the
+        # selector fires ONLY as a verified COMMITTED artifact ---
+        # positive: the engine artifact + its bound carriers verify
+        ok_run = ok_run and WTS.verify_selector_artifact(
+            _REPO, art, blob_reader=kat_reader) is True
+        # a fabricated minimal artifact (self-consistent digest, no
+        # bindings) refuses -- integrity is not correctness
+        fab = {"schema": "f2g-w2-tier-selector-v1",
+               "ordered_points": [{"family": "B2A",
+                                   "point": {"m": 999},
+                                   "entry": "detection"}],
+               "ordered_points_sha256": canon_sha(
+                   [{"family": "B2A", "point": {"m": 999},
+                     "entry": "detection"}])}
         ok_run = ok_run and refuses(
-            lambda: WCR.load_selector(sp),
-            "RUNNER_SELECTOR_INVALID")
-        with open(sp, "w") as f:
-            _j.dump(art, f)
-        art2, pts2, _sha = WCR.load_selector(sp)
+            lambda: WTS.verify_selector_artifact(
+                _REPO, fab, blob_reader=kat_reader),
+            "SELECTOR_ARTIFACT_INVALID")
+        # uncommitted carriers never bind (real git reader, bogus ref)
+        art_bogus = _j.loads(_j.dumps(art))
+        art_bogus["smoke_ref"] = {"commit": "0" * 40,
+                                  "path": "no/such.json"}
+        ok_run = ok_run and refuses(
+            lambda: WTS.verify_selector_artifact(_REPO, art_bogus),
+            "SELECTOR_ARTIFACT_INVALID")
+        # altered points/gains diverge from the independent rerun
+        art_gain = _j.loads(_j.dumps(art))
+        art_gain["ordered_points"][13]["point"] = {"gain": 99.0}
+        ok_run = ok_run and refuses(
+            lambda: WTS.verify_selector_artifact(
+                _REPO, art_gain, blob_reader=kat_reader),
+            "SELECTOR_ARTIFACT_INVALID")
+        # the runner load path: committed-object semantics via the
+        # injected reader; a fabricated artifact refuses at load
+        sel_blob = _j.dumps(art).encode()
+
+        def sel_reader(commit, path):
+            if (commit, path) == ("kat-commit", "kat/selector.json"):
+                return sel_blob
+            return kat_reader(commit, path)
+        art2, pts2, sel_sha = WCR.load_selector_committed(
+            _REPO, "kat-commit", "kat/selector.json",
+            blob_reader=sel_reader)
         ok_run = ok_run and pts2 == pts
-        # invocation record is write-once
+
+        def fab_reader(commit, path):
+            if (commit, path) == ("kat-commit", "kat/selector.json"):
+                return _j.dumps(fab).encode()
+            return kat_reader(commit, path)
+        ok_run = ok_run and refuses(
+            lambda: WCR.load_selector_committed(
+                _REPO, "kat-commit", "kat/selector.json",
+                blob_reader=fab_reader),
+            "RUNNER_SELECTOR_INVALID")
+
+        # --- codex 2235Z item 3 (in-bar): workers authenticate the
+        # COMPLETE invocation core, and publication is create-once ---
         inv_dir = tempfile.mkdtemp(prefix="w2_bar_inv_")
-        WCR.write_invocation_record(inv_dir, pts, full, "geom.json",
-                                    2, ["kat"], sp, "ab" * 32)
+        rec_inv = WCR.write_invocation_record(
+            inv_dir, pts, full, "geom.json", 2, ["kat"],
+            "kat-commit", "kat/selector.json", sel_sha)
+        isha = rec_inv["invocation_sha256"]
+        inv2, ipts2 = WCR._load_invocation(inv_dir, isha)
+        ok_run = ok_run and ipts2 == pts
         ok_run = ok_run and refuses(
             lambda: WCR.write_invocation_record(
-                inv_dir, pts, full, "geom.json", 2, ["kat"], sp,
-                "ab" * 32),
-            "RUNNER_INVOCATION_EXISTS")
+                inv_dir, pts, full, "geom.json", 2, ["kat"],
+                "kat-commit", "kat/selector.json", sel_sha),
+            "RUNNER_PUBLISH_EXISTS")
+        # manifest-only and geometry-only post-write mutations refuse
+        # at the worker (the points digest alone no longer
+        # authenticates)
+        inv_path = os.path.join(inv_dir, "invocation_record.json")
+        for fld, val in (("manifest_commit", "c" * 40),
+                         ("geometry_path", "geometry-B.json")):
+            with open(inv_path, encoding="utf-8") as f:
+                doct = _j.load(f)
+            doct[fld] = val
+            with open(inv_path, "w", encoding="utf-8") as f:
+                _j.dump(doct, f)
+            ok_run = ok_run and refuses(
+                lambda: WCR._load_invocation(inv_dir, isha),
+                "RUNNER_INVOCATION_DIGEST_MISMATCH"), fld
+            with open(inv_path, "w", encoding="utf-8",
+                      newline="\n") as f:
+                _j.dump(rec_inv, f, indent=1, sort_keys=True)
+                f.write("\n")
+        inv3, _ = WCR._load_invocation(inv_dir, isha)
+        ok_run = ok_run and inv3["invocation_sha256"] == isha
         ok_run = ok_run and refuses(
             lambda: WCR._load_invocation(inv_dir, "0" * 64),
-            "RUNNER_POINTS_DIGEST_MISMATCH")
+            "RUNNER_INVOCATION_DIGEST_MISMATCH")
 
         check("SELRUN candidate-selector + cert-runner locks "
               "(two-stage selector == in-bar oracle w/ tie + stage-2 "

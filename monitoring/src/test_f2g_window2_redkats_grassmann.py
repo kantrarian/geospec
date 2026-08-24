@@ -1765,22 +1765,26 @@ def w_cal():
             return [(d0 + _tdc(days=i)).isoformat()
                     for i in range((d1 - d0).days + 1)]
 
-        # (1) my own derivation from the codex 1400Z ruling text
-        my_base = _span("2026-06-27", "2026-08-25")
-        my_eval = _span("2026-08-27", "2027-01-05")
+        # (1) my own derivation from the SUCCESSOR schedule (owner
+        # redate to PRESTART 2026-08-28, quote sha c2fdcf76...):
+        # cutoff = 08-27 the last complete day, baseline 60 ending at
+        # cutoff, 08-28 the excluded PRESTART day, evaluation 132
+        # from 08-29
+        my_base = _span("2026-06-29", "2026-08-27")
+        my_eval = _span("2026-08-29", "2027-01-07")
         my_frame = {"baseline_days": my_base,
-                    "excluded_days": ["2026-08-26"],
+                    "excluded_days": ["2026-08-28"],
                     "evaluation_days": my_eval,
                     "engine_days": my_base + my_eval}
         eng_frame = WPH.w2_calendar_frame()
         ok_id = len(my_base) == 60 and len(my_eval) == 132 \
             and len(my_frame["engine_days"]) == 192 \
-            and "2026-08-26" not in my_frame["engine_days"] \
+            and "2026-08-28" not in my_frame["engine_days"] \
             and all(eng_frame[k] == my_frame[k] for k in my_frame)
         # ... == the COMMITTED authority artifact bytes
         with open(os.path.join(
                 _REPO, "docs", "f2g_window2_execution",
-                "calendar_authority_w2_v2.json"),
+                "calendar_authority_w2_v3.json"),
                 encoding="utf-8") as f:
             auth = json.load(f)
         af = auth.get("frame", auth)
@@ -1804,20 +1808,21 @@ def w_cal():
                        [d for d in eng if d != "2026-07-01"]},
                 eng_frame) is None
 
-        # (3) 08-26 refusals + shifted/extra/missing authority dates
+        # (3) 08-28 (PRESTART) refusals + shifted/extra authority
+        # dates
         ok_x = refuses(
             lambda: WPH._validate_carrier_mask(
                 "c1", {"registered_days": list(eng),
-                       "available_days": ["2026-08-26"]}, eng_frame),
+                       "available_days": ["2026-08-28"]}, eng_frame),
             "CALENDAR_EXCLUDED_DAY")
         shifted = json.loads(json.dumps(eng_frame))
-        shifted["baseline_days"] = ["2026-06-26"] \
+        shifted["baseline_days"] = ["2026-06-28"] \
             + shifted["baseline_days"][1:]
         ok_x = ok_x and refuses(
             lambda: WPH._validate_calendar_frame(shifted),
             "CALENDAR_AUTHORITY_MISMATCH")
         extra = json.loads(json.dumps(eng_frame))
-        extra["engine_days"] = extra["engine_days"] + ["2027-01-06"]
+        extra["engine_days"] = extra["engine_days"] + ["2027-01-08"]
         ok_x = ok_x and refuses(
             lambda: WPH._validate_calendar_frame(extra),
             "CALENDAR_AUTHORITY_MISMATCH")

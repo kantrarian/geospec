@@ -281,26 +281,40 @@ def build(repo):
                            verdict="TEMPLATE_GRAMMAR_CONFIRMED"),
              source_class=sclass)
 
-    # socal_coachella + kp: PROBE_REFUSED -- templates BLOCKED
-    # pending a new codex ruling; the OPEN tokens keep the freeze
-    # gate refusing (structurally honest partial fill)
-    for lane, ck, why in (
-            ("SELECTION_RECORDS", "socal_coachella",
-             "PROBE_REFUSED: SCEDC HTTP 400 on the single "
-             "authorized request"),
-            ("MF4_FEED", "kp",
-             "PROBE_REFUSED: local SSL trust-store failure before "
-             "any response (environment defect)")):
-        lanes[lane]["carriers"][ck]["fill_status"] = (
-            "BLOCKED_" + why.split(":")[0] +
-            " -- pending a new codex ruling")
-        lanes[lane]["carriers"][ck]["fill_evidence"] = {
-            "refusal": why,
-            "probe_envelope": "docs/f2g_window2_execution/"
-            "probe_evidence/" + (
-                "selection_records_socal_coachella.envelope.json"
-                if ck == "socal_coachella"
-                else "mf4_feed_kp.envelope.json")}
+    # kp: CONFIRMED at attempt-2 (codex 1623Z two-retry ruling;
+    # identical URL bytes, delta = verified TLS w/ a real CA bundle
+    # -- attempt-1 was purely the local trust store)
+    pk = probe_rec["keys"]["MF4_FEED/kp"]
+    rp = dict(pk["request_params"])
+    assert rp.pop("start") == PROBE_DAY + "T00:00:00Z"
+    assert rp.pop("end") == PROBE_DAY + "T23:59:59Z"
+    rp["start"] = "{day}T00:00:00Z"
+    rp["end"] = "{day}T23:59:59Z"
+    ev = verify_probe_fill("kp_attempt2.envelope.json",
+                           pk["endpoint"], rp)
+    fill("MF4_FEED", "kp", kind="gfz-kp-json",
+         endpoint=pk["endpoint"], request_params=rp,
+         evidence=dict(ev, verdict="TEMPLATE_GRAMMAR_CONFIRMED",
+                       attempt="2 (verified TLS; attempt-1 refusal "
+                               "was the local trust store)"),
+         source_class="GFZ Kp JSON (three-hourly definitive)")
+
+    # socal_coachella: REFUSED at BOTH ruled attempts (HTTP 400 on
+    # abbreviated AND long-form FDSN grammars) -- template BLOCKED;
+    # exclusion or another request = a separate codex decision. The
+    # OPEN tokens keep the freeze gate refusing (structurally honest)
+    lanes["SELECTION_RECORDS"]["carriers"]["socal_coachella"][
+        "fill_status"] = ("BLOCKED_PROBE_REFUSED -- two ruled "
+                          "attempts (abbrev + long-form) both HTTP "
+                          "400; pending a separate codex decision")
+    lanes["SELECTION_RECORDS"]["carriers"]["socal_coachella"][
+        "fill_evidence"] = {
+        "refusal": "SCEDC HTTP 400 on both authorized requests",
+        "probe_envelopes": [
+            "docs/f2g_window2_execution/probe_evidence/"
+            "selection_records_socal_coachella.envelope.json",
+            "docs/f2g_window2_execution/probe_evidence/"
+            "socal_coachella_attempt2.envelope.json"]}
 
     # codex 0238Z item 1: THE sole exact authority for the PRESTART
     # (lane, carrier, day) key set -- derived ONLY from the calendar/

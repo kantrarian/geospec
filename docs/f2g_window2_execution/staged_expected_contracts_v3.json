@@ -2710,7 +2710,7 @@
    "carriers": {
     "kp": {
      "cutoff": "2026-08-27",
-     "endpoint": "OPEN_REVIEW_ROUND",
+     "endpoint": "https://kp.gfz-potsdam.de/app/json/",
      "expected_days": [
       "2026-01-01",
       "2026-01-02",
@@ -2952,22 +2952,39 @@
       "2026-08-26",
       "2026-08-27"
      ],
-     "expected_keys": "OPEN_REVIEW_ROUND",
+     "expected_keys": "one key per expected day (derived contract binds the day)",
      "fill_evidence": {
-      "probe_envelope": "docs/f2g_window2_execution/probe_evidence/mf4_feed_kp.envelope.json",
-      "refusal": "PROBE_REFUSED: local SSL trust-store failure before any response (environment defect)"
+      "attempt": "2 (verified TLS; attempt-1 refusal was the local trust store)",
+      "probe_body_sha256": "aa0bbabe5fca62df3be9e9e8197f970648940fc6e55282c6c8b0a8d61c056449",
+      "probe_day_utc": "2025-11-15",
+      "probe_envelope": "docs/f2g_window2_execution/probe_evidence/kp_attempt2.envelope.json",
+      "verdict": "TEMPLATE_GRAMMAR_CONFIRMED"
      },
-     "fill_status": "BLOCKED_PROBE_REFUSED -- pending a new codex ruling",
-     "operation_params": "OPEN_REVIEW_ROUND",
-     "request_params": "OPEN_REVIEW_ROUND",
-     "source_class": "GFZ Kp",
+     "fill_status": "FILLED",
+     "operation_params": {
+      "carrier": "kp",
+      "day": "{day}"
+     },
+     "request_params": {
+      "end": "{day}T23:59:59Z",
+      "index": "Kp",
+      "start": "{day}T00:00:00Z"
+     },
+     "source_class": "GFZ Kp JSON (three-hourly definitive)",
      "static_contract_template": {
-      "endpoint": "OPEN_REVIEW_ROUND",
-      "operation_params": "OPEN_REVIEW_ROUND",
-      "request_params": "OPEN_REVIEW_ROUND",
+      "endpoint": "https://kp.gfz-potsdam.de/app/json/",
+      "operation_params": {
+       "carrier": "kp",
+       "day": "{day}"
+      },
+      "request_params": {
+       "end": "{day}T23:59:59Z",
+       "index": "Kp",
+       "start": "{day}T00:00:00Z"
+      },
       "source": {
-       "kind": "driver-series",
-       "ref": "OPEN_REVIEW_ROUND"
+       "kind": "gfz-kp-json",
+       "ref": "https://kp.gfz-potsdam.de/app/json/"
       }
      }
     },
@@ -3936,10 +3953,13 @@
      ],
      "expected_keys": "OPEN_REVIEW_ROUND",
      "fill_evidence": {
-      "probe_envelope": "docs/f2g_window2_execution/probe_evidence/selection_records_socal_coachella.envelope.json",
-      "refusal": "PROBE_REFUSED: SCEDC HTTP 400 on the single authorized request"
+      "probe_envelopes": [
+       "docs/f2g_window2_execution/probe_evidence/selection_records_socal_coachella.envelope.json",
+       "docs/f2g_window2_execution/probe_evidence/socal_coachella_attempt2.envelope.json"
+      ],
+      "refusal": "SCEDC HTTP 400 on both authorized requests"
      },
-     "fill_status": "BLOCKED_PROBE_REFUSED -- pending a new codex ruling",
+     "fill_status": "BLOCKED_PROBE_REFUSED -- two ruled attempts (abbrev + long-form) both HTTP 400; pending a separate codex decision",
      "operation_params": "OPEN_REVIEW_ROUND",
      "request_params": "OPEN_REVIEW_ROUND",
      "source_class": "FDSN dataselect/station (registered carrier networks)",

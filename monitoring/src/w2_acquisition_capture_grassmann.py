@@ -35,6 +35,21 @@ station set, THE exact epoch-overlap predicate), MAG minute series
 OMNIWeb CGI listing with per-carrier registered fill sentinels). The
 production capture path builds its artifact through this dispatcher;
 a caller-supplied builder can cross-check but never substitute.
+
+REV 8 (codex end-to-end findings 1-3): (1) cascadia routes through
+w2_cascadia.registry_for_day ITSELF -- canonical NET.STA identity at
+the required day-START instant, frozen location precedence, and
+same-location overlap refusal; no second semantic implementation.
+(2) MAG/MF4 scientific gates: canonical UTC instants (fullmatch), the
+registered cadences as EXACT unique ordered grids (minute 1440/1441;
+OMNIWeb full 1440; GFZ 8x3h at 00..21), finite-real values only
+(booleans/strings/NaN/Inf refuse; None is the registered missingness
+state, counted per channel), the registered GFZ status vocabulary
+(unregistered tokens refuse; 'prov' registered from the provider's
+definitive/provisional dichotomy, only 'def' probe-evidenced and only
+'def' counts definitive). (3) capture_authorized requires the
+authority slot to be a closed BOUND mapping BEFORE any pin read -- a
+pin sitting in an OPEN slot never authorizes capture.
 """
 import hashlib
 import json
@@ -373,8 +388,19 @@ def capture_authorized(repo, manifest_commit, authority_path, lane,
     manifest = json.loads(blob_reader(
         mc_full, EXEC_MANIFEST_PATH).decode("utf-8"))
     pin = None
-    slot = manifest.get("slots", {}).get(AUTHORITY_SLOT, {})
-    for p in slot.get("pins", ()) or ():
+    slot = manifest.get("slots", {}).get(AUTHORITY_SLOT)
+    # codex end-to-end finding 3: the authority slot must be a CLOSED
+    # BOUND mapping BEFORE any pin is read -- a pin sitting in an
+    # OPEN (or malformed) slot never authorizes capture
+    if not isinstance(slot, dict) or \
+            slot.get("status") != "BOUND" or \
+            not isinstance(slot.get("pins"), list):
+        raise CaptureRefusal(
+            f"CAPTURE_AUTHORITY_UNADMITTED: the {AUTHORITY_SLOT!r} "
+            f"slot of the execution manifest at {mc_full[:12]} is "
+            "not a BOUND closed mapping -- a pin in an OPEN slot "
+            "never authorizes capture")
+    for p in slot["pins"]:
         if isinstance(p, dict) and \
                 p.get("path") == str(authority_path):
             pin = p
@@ -707,16 +733,21 @@ def _xf_instant(raw, what):
 
 def _xf_selection(raw_body, s):
     """SELECTION_RECORDS: closed 17-column FDSN station-text rows ->
-    per-day station presence. The registered station set comes from
-    operation_params.registered_station_filter (socal) or the request
-    'sta' list (istanbul/turkey); a bbox carrier with neither
-    (cascadia) reports every returned station. Presence = at least
-    one registered-channel epoch whose [start, end) OVERLAPS
-    [day, day_next) -- the ONE exact epoch-overlap predicate; an
-    absent EndTime is open-ended. Outside-station rows are retained
-    in the raw evidence and can never enter the artifact's presence
-    set. Malformed rows, unregistered networks/channels, and
-    duplicate epochs refuse."""
+    per-day station presence. Registered-list carriers (socal via
+    operation_params.registered_station_filter; istanbul/turkey via
+    the request 'sta' list) retain STA identity and the registered
+    OVERLAP predicate ([start, end) intersects [day, day_next); an
+    absent EndTime is open-ended) -- the 1647Z parser contract.
+    CASCADIA (the bbox multi-network carrier) uses the FROZEN carrier
+    identity and time frame (codex end-to-end finding 1): rows parse
+    into the frozen epoch capsule and run through
+    w2_cascadia.registry_for_day ITSELF -- canonical NET.STA
+    identity, activity at the required day-START instant, blank ->
+    '00' -> lexicographic location precedence, same-location overlap
+    refusal. No second semantic implementation exists. Outside-
+    station rows are retained in the raw evidence and can never enter
+    the presence set. Malformed rows, unregistered networks/channels,
+    and duplicate epochs refuse."""
     text = _xf_text(raw_body)
     day0, day1, _ = _xf_day_window(s["utc_day"])
     rp = dict(s.get("request_params") or {})
@@ -738,8 +769,7 @@ def _xf_selection(raw_body, s):
     if not rows:
         _xerr("selection body carries zero data rows")
     seen_epochs = set()
-    outside = 0
-    present = set()
+    parsed = []
     for ln in rows:
         f = ln.split("|")
         if len(f) != _FDSN_COLS:
@@ -762,14 +792,61 @@ def _xf_selection(raw_body, s):
             _xerr(f"duplicate channel epoch {net}.{sta}.{loc}.{cha} "
                   f"@ {start_s}")
         seen_epochs.add(ekey)
-        if registered is not None and sta not in registered:
+        parsed.append({"network": net, "station": sta,
+                       "location": loc, "channel": cha,
+                       "lat_raw": f[4].strip(),
+                       "lon_raw": f[5].strip(),
+                       "epoch_start": ep_start,
+                       "epoch_end": ep_end})
+    if s.get("carrier") == "cascadia":
+        if registered is not None:
+            _xerr("cascadia is the bbox carrier; a registered "
+                  "station list is not part of its frozen identity")
+        import w2_cascadia as CASC
+        epochs = []
+        for r in parsed:
+            try:
+                lat = float(r["lat_raw"])
+                lon = float(r["lon_raw"])
+            except ValueError:
+                _xerr("malformed FDSN coordinate for "
+                      f"{r['network']}.{r['station']}")
+            epochs.append({"network": r["network"],
+                           "station": r["station"],
+                           "location": r["location"],
+                           "channel": r["channel"],
+                           "latitude": lat, "longitude": lon,
+                           "epoch_start": r["epoch_start"],
+                           "epoch_end": r["epoch_end"]})
+        try:
+            reg_rows = CASC.registry_for_day(s["utc_day"],
+                                             epochs=epochs)
+        except (CASC.EpochOverlapError,
+                CASC.RegistryInputInvalid) as exc:
+            _xerr(f"frozen cascadia registry refusal: {exc}")
+        present = sorted(r["id"] for r in reg_rows)
+        return {"schema": ARTIFACT_SCHEMA, "lane": s["lane"],
+                "carrier": s["carrier"], "utc_day": s["utc_day"],
+                "kind": "fdsn-station-presence",
+                "identity": "net.sta-registry-day-start",
+                "registered_stations": None,
+                "present_stations": present,
+                "absent_stations": [],
+                "data_rows": len(rows),
+                "outside_station_rows_excluded": 0}
+    outside = 0
+    present = set()
+    for r in parsed:
+        if registered is not None and r["station"] not in registered:
             outside += 1
             continue
-        if ep_start < day1 and (ep_end is None or ep_end > day0):
-            present.add(sta)
+        if r["epoch_start"] < day1 and (r["epoch_end"] is None
+                                        or r["epoch_end"] > day0):
+            present.add(r["station"])
     return {"schema": ARTIFACT_SCHEMA, "lane": s["lane"],
             "carrier": s["carrier"], "utc_day": s["utc_day"],
             "kind": "fdsn-station-presence",
+            "identity": "sta-overlap",
             "registered_stations": (sorted(registered)
                                     if registered is not None
                                     else None),
@@ -780,12 +857,70 @@ def _xf_selection(raw_body, s):
             "outside_station_rows_excluded": outside}
 
 
+# the registered GFZ Kp status vocabulary + definitive policy: only
+# 'def' counts definitive; 'prov' is the provider's provisional state
+# (registered from the GFZ definitive/provisional dichotomy; only
+# 'def' is probe-evidenced -- an unregistered token REFUSES rather
+# than admitting)
+KP_STATUS_VOCAB = ("def", "prov")
+_CANON_TS = None
+
+
+def _xf_grid_instant(ts_raw, what):
+    """Canonical UTC instant grammar (fullmatch) -> parsed naive
+    instant. Fractional seconds 1-6 digits allowed; anything else
+    refuses."""
+    global _CANON_TS
+    if _CANON_TS is None:
+        import re
+        _CANON_TS = re.compile(
+            r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,6})?Z")
+    ts = str(ts_raw)
+    if not isinstance(ts_raw, str) or not _CANON_TS.fullmatch(ts):
+        _xerr(f"{what}: non-canonical UTC instant {ts_raw!r}")
+    from datetime import datetime
+    return datetime.fromisoformat(ts[:-1])
+
+
+def _xf_time_grid(instants, day, step_minutes, counts, what):
+    """The registered cadence gate: the instant list must BE the
+    exact unique ordered grid day0 + i*step for i in 0..N-1 with N in
+    `counts` -- duplicates, gaps, out-of-order, off-grid fractionals,
+    and wrong-day instants all refuse as cadence violations."""
+    from datetime import timedelta
+    day0, _, _ = _xf_day_window(day)
+    if not isinstance(instants, list) or not instants:
+        _xerr(f"{what}: zero samples")
+    if len(instants) not in counts:
+        _xerr(f"{what}: {len(instants)} samples violates the "
+              f"registered cadence (allowed {sorted(counts)})")
+    for i, t in enumerate(instants):
+        got = _xf_grid_instant(t, what)
+        want = day0 + timedelta(minutes=step_minutes * i)
+        if got != want:
+            _xerr(f"{what}: instant {t!r} at index {i} violates the "
+                  f"registered cadence (expected "
+                  f"{want.isoformat()}Z)")
+
+
+def _xf_numeric_or_null(v, what):
+    """A scientific sample is None (the registered missingness state)
+    or a FINITE real -- booleans, strings, NaN, and Inf refuse."""
+    import math
+    if v is None:
+        return
+    if isinstance(v, bool) or not isinstance(v, (int, float)) \
+            or not math.isfinite(v):
+        _xerr(f"{what}: nonnumeric or nonfinite sample {v!r}")
+
+
 def _xf_mag(raw_body, s):
     """MAG_FEED minute series (USGS ws JSON / INTERMAGNET GIN JSON):
-    structural validation + day binding + honest null accounting. A
-    series with ZERO definitive samples is provider-null and refuses
-    -- a null day is a typed capture failure, never an admitted
-    observation."""
+    structural validation + the registered minute cadence (exact
+    unique ordered grid; 1440 samples, or 1441 with the inclusive
+    day-next terminal) + finite-real values (None = the registered
+    missingness state, counted per channel) + provider-null refusal.
+    A series with ZERO definitive samples never admits."""
     kind = (s.get("source") or {}).get("kind")
     if kind not in ("usgs-geomag-ws-minute",
                     "intermagnet-gin-minute"):
@@ -796,18 +931,38 @@ def _xf_mag(raw_body, s):
     except ValueError:
         _xerr("MAG body is not valid JSON")
     day = s["utc_day"]
-    _, _, day_next = _xf_day_window(day)
     rp = dict(s.get("request_params") or {})
 
-    def _day_bound(instants, what):
-        if not isinstance(instants, list) or not instants:
-            _xerr(f"MAG body carries zero {what} samples")
-        for t in instants:
-            ts = str(t)
-            if not (ts.startswith(day)
-                    or ts.startswith(day_next + "T00:00:00")):
-                _xerr(f"MAG sample instant {ts!r} is outside the "
-                      f"registered day {day}")
+    def _series(times, comps, observatory, what):
+        _xf_time_grid(times, day, 1, (1440, 1441), what)
+        nulls = {}
+        definitive = [False] * len(times)
+        for cid in sorted(comps):
+            vals = comps[cid]
+            if not isinstance(vals, list) or \
+                    len(vals) != len(times):
+                _xerr(f"channel {cid} length diverges from the "
+                      f"time grid ({what})")
+            for v in vals:
+                _xf_numeric_or_null(v, f"{what} channel {cid}")
+            nulls[cid] = sum(1 for v in vals if v is None)
+            for i, v in enumerate(vals):
+                if v is not None:
+                    definitive[i] = True
+        if not nulls:
+            _xerr(f"{what}: zero channels")
+        n_def = sum(definitive)
+        if n_def == 0:
+            _xerr("provider-null MAG series (zero definitive "
+                  "samples)")
+        return {"schema": ARTIFACT_SCHEMA, "lane": s["lane"],
+                "carrier": s["carrier"], "utc_day": day,
+                "kind": "mag-minute-series",
+                "observatory": observatory,
+                "samples": len(times), "channels": sorted(nulls),
+                "null_by_channel": {k: nulls[k] for k in
+                                    sorted(nulls)},
+                "definitive_samples": n_def}
     if kind == "usgs-geomag-ws-minute":
         if not isinstance(doc, dict) or \
                 not isinstance(doc.get("values"), list):
@@ -817,69 +972,21 @@ def _xf_mag(raw_body, s):
         if iaga != rp.get("id"):
             _xerr(f"observatory {iaga!r} diverges from the "
                   f"registered id {rp.get('id')!r}")
-        times = doc.get("times")
-        _day_bound(times, "time")
-        nulls = {}
-        definitive = [False] * len(times)
+        comps = {}
         for ch in doc["values"]:
             if not isinstance(ch, dict) or \
                     not isinstance(ch.get("values"), list):
                 _xerr("USGS MAG channel entry is not closed")
-            cid = str(ch.get("id"))
-            vals = ch["values"]
-            if len(vals) != len(times):
-                _xerr(f"channel {cid} length {len(vals)} diverges "
-                      f"from times length {len(times)}")
-            nulls[cid] = sum(1 for v in vals if v is None)
-            for i, v in enumerate(vals):
-                if v is not None:
-                    definitive[i] = True
-        if not nulls:
-            _xerr("USGS MAG body carries zero channels")
-        n_def = sum(definitive)
-        if n_def == 0:
-            _xerr("provider-null MAG series (zero definitive "
-                  "samples)")
-        return {"schema": ARTIFACT_SCHEMA, "lane": s["lane"],
-                "carrier": s["carrier"], "utc_day": day,
-                "kind": "mag-minute-series", "observatory": iaga,
-                "samples": len(times),
-                "channels": sorted(nulls),
-                "null_by_channel": {k: nulls[k] for k in
-                                    sorted(nulls)},
-                "definitive_samples": n_def}
-    if kind == "intermagnet-gin-minute":
-        if not isinstance(doc, dict):
-            _xerr("GIN MAG body is not a JSON object")
-        dts = doc.get("datetime")
-        _day_bound(dts, "datetime")
-        comps = {k: v for k, v in doc.items()
-                 if k != "datetime" and isinstance(v, list)}
-        if not comps:
-            _xerr("GIN MAG body carries zero component arrays")
-        nulls = {}
-        definitive = [False] * len(dts)
-        for cid in sorted(comps):
-            vals = comps[cid]
-            if len(vals) != len(dts):
-                _xerr(f"component {cid} length {len(vals)} diverges "
-                      f"from datetime length {len(dts)}")
-            nulls[cid] = sum(1 for v in vals if v is None)
-            for i, v in enumerate(vals):
-                if v is not None:
-                    definitive[i] = True
-        n_def = sum(definitive)
-        if n_def == 0:
-            _xerr("provider-null MAG series (zero definitive "
-                  "samples)")
-        return {"schema": ARTIFACT_SCHEMA, "lane": s["lane"],
-                "carrier": s["carrier"], "utc_day": day,
-                "kind": "mag-minute-series",
-                "observatory": rp.get("observatoryIagaCode"),
-                "samples": len(dts), "channels": sorted(comps),
-                "null_by_channel": {k: nulls[k] for k in
-                                    sorted(nulls)},
-                "definitive_samples": n_def}
+            comps[str(ch.get("id"))] = ch["values"]
+        return _series(doc.get("times"), comps, iaga, "USGS MAG")
+    if not isinstance(doc, dict):
+        _xerr("GIN MAG body is not a JSON object")
+    comps = {k: v for k, v in doc.items()
+             if k != "datetime" and isinstance(v, list)}
+    if not comps:
+        _xerr("GIN MAG body carries zero component arrays")
+    return _series(doc.get("datetime"), comps,
+                   rp.get("observatoryIagaCode"), "GIN MAG")
 
 
 def _xf_mf4(raw_body, s):
@@ -890,6 +997,7 @@ def _xf_mf4(raw_body, s):
     kind = (s.get("source") or {}).get("kind")
     day = s["utc_day"]
     if kind == "gfz-kp-json":
+        import math
         try:
             doc = json.loads(_xf_text(raw_body))
         except ValueError:
@@ -901,19 +1009,26 @@ def _xf_mf4(raw_body, s):
             _xerr("Kp body lacks the Kp/datetime/status arrays")
         if not (len(kp) == len(dts) == len(st)) or not kp:
             _xerr("Kp arrays are empty or length-divergent")
-        for t in dts:
-            if not str(t).startswith(day):
-                _xerr(f"Kp interval instant {t!r} is outside the "
-                      f"registered day {day}")
+        # the registered GFZ cadence: EXACTLY eight three-hour
+        # intervals at 00..21 on the registered day, unique ordered
+        _xf_time_grid(dts, day, 180, (8,), "Kp intervals")
         for v in kp:
-            if not isinstance(v, (int, float)) or \
-                    isinstance(v, bool) or not (0.0 <= v <= 9.0):
+            if isinstance(v, bool) or \
+                    not isinstance(v, (int, float)) or \
+                    not math.isfinite(v) or not (0.0 <= v <= 9.0):
                 _xerr(f"Kp value {v!r} is not a finite index value "
                       "in [0, 9]")
+        for x in st:
+            if x not in KP_STATUS_VOCAB:
+                _xerr(f"Kp status {x!r} is not in the registered "
+                      f"GFZ vocabulary {KP_STATUS_VOCAB}")
         n_def = sum(1 for x in st if x == "def")
         return {"schema": ARTIFACT_SCHEMA, "lane": s["lane"],
                 "carrier": s["carrier"], "utc_day": day,
                 "kind": "kp-intervals", "intervals": len(kp),
+                "status_counts": {v: st.count(v)
+                                  for v in KP_STATUS_VOCAB
+                                  if v in st},
                 "definitive_intervals": n_def}
     if kind == "omniweb-highres-cgi":
         from datetime import datetime
@@ -953,11 +1068,19 @@ def _xf_mf4(raw_body, s):
             if yy != want_year or doy != want_doy:
                 _xerr(f"OMNIWeb row {yy}/{doy:03d} is outside the "
                       f"registered day {day} (DOY {want_doy:03d})")
-            if not (0 <= hh <= 23 and 0 <= mn <= 59):
-                _xerr(f"OMNIWeb row time {hh:02d}:{mn:02d} invalid")
+            # the registered minute cadence: row i must sit at
+            # EXACTLY minute i -- duplicates, gaps, and out-of-order
+            # rows all violate the grid
+            i = len(rows)
+            if (hh, mn) != (i // 60, i % 60):
+                _xerr(f"OMNIWeb row {hh:02d}:{mn:02d} at index {i} "
+                      "violates the registered minute cadence "
+                      f"(expected {i // 60:02d}:{i % 60:02d})")
             rows.append(tok[4:])
-        if not rows:
-            _xerr("OMNIWeb listing carries zero data rows")
+        if len(rows) != 1440:
+            _xerr(f"OMNIWeb listing carries {len(rows)} rows -- the "
+                  "registered cadence is the full 1440-minute grid")
+        import math
         fill_by_col = [0] * n_vars
         n_def = 0
         for vals in rows:
@@ -965,8 +1088,15 @@ def _xf_mf4(raw_body, s):
             for i, x in enumerate(vals):
                 if x in fills:
                     fill_by_col[i] += 1
-                else:
-                    all_fill = False
+                    continue
+                try:
+                    fv = float(x)
+                except ValueError:
+                    _xerr("nonnumeric OMNIWeb value token "
+                          f"{x!r} (not a registered fill sentinel)")
+                if not math.isfinite(fv):
+                    _xerr(f"nonfinite OMNIWeb value token {x!r}")
+                all_fill = False
             if not all_fill:
                 n_def += 1
         if n_def == 0:
@@ -1269,7 +1399,11 @@ def _selftest():
         kat_auth, "SELECTION_RECORDS", "cascadia", "2026-08-20")
     art3 = admission_transform("SELECTION_RECORDS", FDSN_KAT_BODY,
                                s_kat)
-    assert art3["present_stations"] == ["KAT1"]
+    # fixture carrier 'cascadia' routes through the FROZEN registry:
+    # canonical NET.STA identity at the day-start instant (KAT2's
+    # epoch closed 2021 -> absent)
+    assert art3["present_stations"] == ["UW.KAT1"]
+    assert art3["identity"] == "net.sta-registry-day-start"
     assert art3["absent_stations"] == []
     assert art3["registered_stations"] is None
     assert art3["data_rows"] == 2
@@ -1293,6 +1427,23 @@ def _selftest():
     ws_raw = json.dumps(wrongslot_man).encode()
     assert refuses(lambda: a_call(
         reader=lambda c, p: ws_raw if p == EXEC_MANIFEST_PATH
+        else m_reader(c, p)), "CAPTURE_AUTHORITY_UNADMITTED")
+    # codex end-to-end finding 3: an OPEN slot STILL carrying the
+    # reviewed pin never authorizes capture -- status is checked
+    # BEFORE any pin is read, zero network
+    open_slot_man = json.loads(man_raw.decode())
+    open_slot_man["slots"][AUTHORITY_SLOT]["status"] = "OPEN"
+    osm_raw = json.dumps(open_slot_man).encode()
+    assert refuses(lambda: a_call(
+        reader=lambda c, p: osm_raw if p == EXEC_MANIFEST_PATH
+        else m_reader(c, p)), "CAPTURE_AUTHORITY_UNADMITTED")
+    # ...and a slot with no status key at all is not a closed
+    # BOUND mapping either
+    nostatus_man = json.loads(man_raw.decode())
+    del nostatus_man["slots"][AUTHORITY_SLOT]["status"]
+    ns_raw = json.dumps(nostatus_man).encode()
+    assert refuses(lambda: a_call(
+        reader=lambda c, p: ns_raw if p == EXEC_MANIFEST_PATH
         else m_reader(c, p)), "CAPTURE_AUTHORITY_UNADMITTED")
     # the codex fresh-repo probe: a COMMITTED but UNPINNED authority
     # (wrong path / no manifest pin) refuses UNADMITTED
@@ -1590,6 +1741,63 @@ def _selftest():
         sel_s(source={"kind": "evil", "ref": "kat://f"})),
         "unregistered SELECTION source kind")
 
+    # --- cascadia: the FROZEN carrier identity + time frame (codex
+    # end-to-end finding 1) through w2_cascadia.registry_for_day ---
+    def casc_s(**over):
+        s = sel_s(carrier="cascadia",
+                  request_params={"net": "UW,CC,CN", "cha": "HHZ"},
+                  operation_params={"carrier": "cascadia",
+                                    "day": "2026-08-20"})
+        s.update(over)
+        return s
+
+    def crow(net, sta, loc, start, end, cha="HHZ"):
+        return (f"{net}|{sta}|{loc}|{cha}|1.0|2.0|0|0|0|-90|kat|1|1|"
+                f"m/s|100|{start}|{end}")
+    # NET.STA identity (cross-network collision stays distinct);
+    # day-START instant (a later-that-day starter is ABSENT -- the
+    # exact class behind codex's nine extra stations); simultaneous
+    # blank/'00' locations resolve blank-first without refusal
+    art_c = admission_transform("SELECTION_RECORDS", sel_body(
+        crow("UW", "ABC", "", "2020-01-01T00:00:00", ""),
+        crow("CC", "ABC", "", "2020-01-01T00:00:00", ""),
+        crow("CC", "LATE", "", "2026-08-20T10:00:00", ""),
+        crow("CN", "PREC", "", "2019-01-01T00:00:00", ""),
+        crow("CN", "PREC", "00", "2018-01-01T00:00:00", "")),
+        casc_s())
+    assert art_c["present_stations"] == ["CC.ABC", "CN.PREC",
+                                         "UW.ABC"]
+    assert art_c["identity"] == "net.sta-registry-day-start"
+    # TOUT: the blank epoch ends exactly as '00' opens at day start
+    # -- the dead blank epoch is never selected
+    art_t = admission_transform("SELECTION_RECORDS", sel_body(
+        crow("UW", "TOUT", "", "2019-01-01T00:00:00",
+             "2026-08-20T00:00:00"),
+        crow("UW", "TOUT", "00", "2026-08-20T00:00:00", "")),
+        casc_s())
+    assert art_t["present_stations"] == ["UW.TOUT"]
+    # RER: three adjacent epochs -- exactly the day-start one active
+    art_r = admission_transform("SELECTION_RECORDS", sel_body(
+        crow("UW", "RER", "", "2018-01-01T00:00:00",
+             "2019-01-01T00:00:00"),
+        crow("UW", "RER", "", "2019-01-01T00:00:00",
+             "2027-01-01T00:00:00"),
+        crow("UW", "RER", "", "2027-01-01T00:00:00", "")), casc_s())
+    assert art_r["present_stations"] == ["UW.RER"]
+    # same-location overlap refuses THROUGH the frozen registry
+    assert xrefuses(lambda: admission_transform(
+        "SELECTION_RECORDS", sel_body(
+            crow("UW", "OVL", "", "2019-01-01T00:00:00", ""),
+            crow("UW", "OVL", "", "2020-01-01T00:00:00", "")),
+        casc_s()), "frozen cascadia registry refusal")
+    # a registered station list contradicts the frozen bbox identity
+    assert xrefuses(lambda: admission_transform(
+        "SELECTION_RECORDS", sel_body(
+            crow("UW", "ABC", "", "2020-01-01T00:00:00", "")),
+        casc_s(request_params={"net": "UW,CC,CN", "cha": "HHZ",
+                               "sta": "ABC"})),
+        "not part of its frozen identity")
+
     def mag_s(**over):
         s = {"lane": "MAG_FEED", "carrier": "katmag",
              "utc_day": "2026-08-20",
@@ -1604,40 +1812,86 @@ def _selftest():
         s.update(over)
         return s
 
+    def grid_times(n=1440, day="2026-08-20"):
+        from datetime import datetime as _dt, timedelta as _td
+        d0 = _dt.fromisoformat(day + "T00:00:00")
+        return [(d0 + _td(minutes=i)).strftime(
+            "%Y-%m-%dT%H:%M:%S.000Z") for i in range(n)]
+
     def usgs_body(vals, iaga="KAT", times=None):
-        times = times or ["2026-08-20T00:0%d:00.000Z" % i
-                          for i in range(len(vals))]
+        times = times if times is not None else grid_times(len(vals))
         return json.dumps({
             "type": "Timeseries",
             "metadata": {"intermagnet": {"imo": {"iaga_code": iaga}}},
             "times": times,
             "values": [{"id": "X", "values": vals}]}).encode()
-    art_m = admission_transform("MAG_FEED",
-                                usgs_body([1.0, None, 2.0]), mag_s())
-    assert art_m["samples"] == 3 and art_m["definitive_samples"] == 2
+    full = [1.0] * 1439 + [None]
+    art_m = admission_transform("MAG_FEED", usgs_body(full), mag_s())
+    assert art_m["samples"] == 1440
+    assert art_m["definitive_samples"] == 1439
     assert art_m["null_by_channel"] == {"X": 1}
+    # the inclusive day-next terminal (the USGS 1441 shape) admits
+    art_m2 = admission_transform("MAG_FEED",
+                                 usgs_body([2.0] * 1441), mag_s())
+    assert art_m2["samples"] == 1441
     assert xrefuses(lambda: admission_transform(
-        "MAG_FEED", usgs_body([None, None, None]), mag_s()),
+        "MAG_FEED", usgs_body([None] * 1440), mag_s()),
         "provider-null MAG series")
     assert xrefuses(lambda: admission_transform(
-        "MAG_FEED", usgs_body([1.0], iaga="EVIL"), mag_s()),
+        "MAG_FEED", usgs_body([1.0] * 1440, iaga="EVIL"), mag_s()),
         "diverges from the registered id")
+    # codex end-to-end finding 2, exact repro 1: one timestamp +
+    # values=["NOT_A_NUMBER"] must refuse (cadence gate)
     assert xrefuses(lambda: admission_transform(
-        "MAG_FEED", usgs_body([1.0], times=["2026-08-21T05:00:00Z"]),
-        mag_s()), "outside the registered day")
+        "MAG_FEED", usgs_body(["NOT_A_NUMBER"]), mag_s()),
+        "violates the registered cadence")
+    # ...and a full-grid nonnumeric string refuses at the value gate
+    assert xrefuses(lambda: admission_transform(
+        "MAG_FEED", usgs_body([1.0] * 1439 + ["NOT_A_NUMBER"]),
+        mag_s()), "nonnumeric or nonfinite sample")
+    # nonfinite (NaN survives JSON round-trip) refuses
+    assert xrefuses(lambda: admission_transform(
+        "MAG_FEED", usgs_body([1.0] * 1439 + [float("nan")]),
+        mag_s()), "nonnumeric or nonfinite sample")
+    # cadence doctors: duplicate, out-of-order, missing slot,
+    # wrong-day grid, non-canonical instant
+    t_dup = grid_times()
+    t_dup[5] = t_dup[4]
+    assert xrefuses(lambda: admission_transform(
+        "MAG_FEED", usgs_body([1.0] * 1440, times=t_dup), mag_s()),
+        "violates the registered cadence")
+    t_ooo = grid_times()
+    t_ooo[7], t_ooo[8] = t_ooo[8], t_ooo[7]
+    assert xrefuses(lambda: admission_transform(
+        "MAG_FEED", usgs_body([1.0] * 1440, times=t_ooo), mag_s()),
+        "violates the registered cadence")
+    assert xrefuses(lambda: admission_transform(
+        "MAG_FEED", usgs_body([1.0] * 1439), mag_s()),
+        "violates the registered cadence")
+    assert xrefuses(lambda: admission_transform(
+        "MAG_FEED", usgs_body([1.0] * 1440,
+                              times=grid_times(day="2026-08-21")),
+        mag_s()), "violates the registered cadence")
+    t_bad = grid_times()
+    t_bad[0] = "2026-08-20 00:00:00"
+    assert xrefuses(lambda: admission_transform(
+        "MAG_FEED", usgs_body([1.0] * 1440, times=t_bad), mag_s()),
+        "non-canonical UTC instant")
     gin_raw = json.dumps({
-        "datetime": ["2026-08-20T00:00:00.000Z",
-                     "2026-08-20T00:01:00.000Z"],
-        "@info": {}, "H": [1.0, None], "Z": [None, 2.0]}).encode()
+        "datetime": grid_times(), "@info": {},
+        "H": [1.0] * 1440,
+        "Z": [None] + [2.0] * 1439}).encode()
     art_g = admission_transform("MAG_FEED", gin_raw, mag_s(
         source={"kind": "intermagnet-gin-minute", "ref": "kat://g"},
         request_params={"observatoryIagaCode": "KAT"}))
-    assert art_g["samples"] == 2 and art_g["definitive_samples"] == 2
+    assert art_g["samples"] == 1440
+    assert art_g["definitive_samples"] == 1440
     assert art_g["channels"] == ["H", "Z"]
+    assert art_g["null_by_channel"] == {"H": 0, "Z": 1}
     assert xrefuses(lambda: admission_transform(
         "MAG_FEED", json.dumps(
-            {"datetime": ["2026-08-20T00:00:00Z"],
-             "H": [None]}).encode(),
+            {"datetime": grid_times(),
+             "H": [None] * 1440}).encode(),
         mag_s(source={"kind": "intermagnet-gin-minute",
                       "ref": "kat://g"})), "provider-null")
 
@@ -1653,51 +1907,116 @@ def _selftest():
              "expected_keys": ["2026-08-20"]}
         s.update(over)
         return s
-    kp_raw = json.dumps({
-        "Kp": [1.0, 2.0], "status": ["def", "prelim"],
-        "datetime": ["2026-08-20T00:00:00Z",
-                     "2026-08-20T03:00:00Z"]}).encode()
-    art_k = admission_transform("MF4_FEED", kp_raw, mf4_s())
-    assert art_k["intervals"] == 2
-    assert art_k["definitive_intervals"] == 1
+
+    def kp_body(vals=None, status=None, dts=None):
+        return json.dumps({
+            "Kp": vals if vals is not None else [1.0] * 8,
+            "status": status if status is not None
+            else ["def"] * 8,
+            "datetime": dts if dts is not None
+            else ["2026-08-20T%02d:00:00Z" % (3 * i)
+                  for i in range(8)]}).encode()
+    art_k = admission_transform("MF4_FEED", kp_body(
+        status=["def"] * 7 + ["prov"]), mf4_s())
+    assert art_k["intervals"] == 8
+    assert art_k["definitive_intervals"] == 7
+    assert art_k["status_counts"] == {"def": 7, "prov": 1}
+    # codex end-to-end finding 2, exact repro 3: an unregistered
+    # status token refuses instead of admitting
     assert xrefuses(lambda: admission_transform(
-        "MF4_FEED", json.dumps(
-            {"Kp": [11.0], "status": ["def"],
-             "datetime": ["2026-08-20T00:00:00Z"]}).encode(),
+        "MF4_FEED", kp_body(status=["NOT_REGISTERED"] * 8),
+        mf4_s()), "not in the registered GFZ vocabulary")
+    assert xrefuses(lambda: admission_transform(
+        "MF4_FEED", kp_body(vals=[11.0] + [1.0] * 7), mf4_s()),
+        "not a finite index value")
+    assert xrefuses(lambda: admission_transform(
+        "MF4_FEED", kp_body(vals=[float("nan")] + [1.0] * 7),
         mf4_s()), "not a finite index value")
+    # the registered 8x3h cadence: short, duplicated, out-of-order,
+    # and wrong-day interval lists all refuse
     assert xrefuses(lambda: admission_transform(
         "MF4_FEED", json.dumps(
             {"Kp": [1.0], "status": ["def"],
-             "datetime": ["2026-08-21T00:00:00Z"]}).encode(),
-        mf4_s()), "outside the registered day")
-    omni_txt = ("<HTML><pre>Selected parameters:\n"
-                "YYYY DOY HR MN      1       2      3 \n"
-                "2026 232  0  0   -4.68   556.3   0.95\n"
-                "2026 232  0  1 9999.99 99999.9 999.99\n"
-                "</pre></HTML>\n").encode()
-    art_o = admission_transform("MF4_FEED", omni_txt, mf4_s(
+             "datetime": ["2026-08-20T00:00:00Z"]}).encode(),
+        mf4_s()), "violates the registered cadence")
+    kp_dts = ["2026-08-20T%02d:00:00Z" % (3 * i) for i in range(8)]
+    kp_dup = list(kp_dts)
+    kp_dup[3] = kp_dup[2]
+    assert xrefuses(lambda: admission_transform(
+        "MF4_FEED", kp_body(dts=kp_dup), mf4_s()),
+        "violates the registered cadence")
+    kp_ooo = list(kp_dts)
+    kp_ooo[0], kp_ooo[1] = kp_ooo[1], kp_ooo[0]
+    assert xrefuses(lambda: admission_transform(
+        "MF4_FEED", kp_body(dts=kp_ooo), mf4_s()),
+        "violates the registered cadence")
+    assert xrefuses(lambda: admission_transform(
+        "MF4_FEED", kp_body(dts=["2026-08-21T%02d:00:00Z" % (3 * i)
+                                 for i in range(8)]), mf4_s()),
+        "violates the registered cadence")
+
+    def omni_body(make=None, n=1440,
+                  header="YYYY DOY HR MN      1       2      3 "):
+        lines = ["<HTML><pre>Selected parameters:", header]
+        for i in range(n):
+            hh, mn = divmod(i, 60)
+            vals = make(i) if make else "  -4.68   556.3   0.95"
+            lines.append(f"2026 232 {hh:2d} {mn:2d} {vals}")
+        lines.append("</pre></HTML>")
+        return ("\n".join(lines) + "\n").encode()
+    art_o = admission_transform("MF4_FEED", omni_body(
+        make=lambda i: ("9999.99 99999.9 999.99" if i == 1
+                        else "  -4.68   556.3   0.95")), mf4_s(
         carrier="omni", kind="omniweb-highres-cgi",
         request_params={"vars": ["17", "21", "25"]}))
-    assert art_o["samples"] == 2 and art_o["definitive_samples"] == 1
+    assert art_o["samples"] == 1440
+    assert art_o["definitive_samples"] == 1439
     assert art_o["fill_by_column"] == [1, 1, 1]
-    all_fill = ("<pre>\nYYYY DOY HR MN    1 \n"
-                "2026 232  0  0 99999\n</pre>\n").encode()
+    # codex end-to-end finding 2, exact repro 2: nonnumeric value
+    # tokens refuse instead of counting as definitive
     assert xrefuses(lambda: admission_transform(
-        "MF4_FEED", all_fill, mf4_s(
-            carrier="sym_h", kind="omniweb-highres-cgi",
-            request_params={"vars": "41"})),
-        "provider fill sentinels")
+        "MF4_FEED", omni_body(
+            make=lambda i: ("NOT_A_NUMBER ALSO_BAD STILL_BAD"
+                            if i == 0
+                            else "  -4.68   556.3   0.95")), mf4_s(
+            carrier="omni", kind="omniweb-highres-cgi",
+            request_params={"vars": ["17", "21", "25"]})),
+        "nonnumeric OMNIWeb value token")
+    sym_s = mf4_s(carrier="sym_h", kind="omniweb-highres-cgi",
+                  request_params={"vars": "41"})
+    art_sym = admission_transform("MF4_FEED", omni_body(
+        make=lambda i: "  -28", header="YYYY DOY HR MN    1 "),
+        sym_s)
+    assert art_sym["samples"] == 1440
     assert xrefuses(lambda: admission_transform(
-        "MF4_FEED", omni_txt, mf4_s(
+        "MF4_FEED", omni_body(make=lambda i: "99999",
+                              header="YYYY DOY HR MN    1 "),
+        sym_s), "provider fill sentinels")
+    # cadence doctors: short listing and a duplicated minute row
+    assert xrefuses(lambda: admission_transform(
+        "MF4_FEED", omni_body(make=lambda i: "  -28", n=1439,
+                              header="YYYY DOY HR MN    1 "),
+        sym_s), "full 1440-minute grid")
+    dup_lines = omni_body(make=lambda i: "  -28",
+                          header="YYYY DOY HR MN    1 "
+                          ).decode().splitlines()
+    dup_lines[10] = dup_lines[9]      # minute 7 repeats minute 6
+    assert xrefuses(lambda: admission_transform(
+        "MF4_FEED", ("\n".join(dup_lines) + "\n").encode(), sym_s),
+        "violates the registered minute cadence")
+    omni_txt2 = ("<HTML><pre>Selected parameters:\n"
+                 "YYYY DOY HR MN      1       2      3 \n"
+                 "2026 232  0  0   -4.68   556.3   0.95\n"
+                 "</pre></HTML>\n").encode()
+    assert xrefuses(lambda: admission_transform(
+        "MF4_FEED", omni_txt2, mf4_s(
             carrier="omni", kind="omniweb-highres-cgi",
             request_params={"vars": ["17", "21"]})),
         "malformed OMNIWeb data row")
     wrong_day_omni = ("<pre>\nYYYY DOY HR MN    1 \n"
                       "2026 001  0  0   -28\n</pre>\n").encode()
     assert xrefuses(lambda: admission_transform(
-        "MF4_FEED", wrong_day_omni, mf4_s(
-            carrier="sym_h", kind="omniweb-highres-cgi",
-            request_params={"vars": "41"})),
+        "MF4_FEED", wrong_day_omni, sym_s),
         "outside the registered day")
     assert xrefuses(lambda: admission_transform(
         "DAY_CAPSULE", b"x", sel_s(lane="DAY_CAPSULE")),

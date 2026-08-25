@@ -2420,16 +2420,19 @@ def w_selrun():
                     "dynamic_layer": {}, "digests": {},
                     "provenance": {}}
         bar_auth_raw = _j.dumps(bar_auth).encode()
-        bar_pins = {"pins": [
+        bar_pins = {"status": "BOUND", "pins": [
             {"path": "kat/auth.json", "commit": "kat-auth",
              "blob_sha256": hashlib.sha256(bar_auth_raw)
              .hexdigest()}]}
-        # freeze finding 1: the authority pin is admitted ONLY from
-        # the AUTHORITY_SLOT (accrual_impl) slot
+        # freeze finding 1 + end-to-end finding 3: the authority pin
+        # is admitted ONLY from a BOUND AUTHORITY_SLOT (accrual_impl)
         bar_man = {"slots": {CAPB.AUTHORITY_SLOT: bar_pins}}
         bar_man_raw = _j.dumps(bar_man).encode()
         wrong_man_raw = _j.dumps(
             {"slots": {"producer_boundary": bar_pins}}).encode()
+        open_man_raw = _j.dumps(
+            {"slots": {CAPB.AUTHORITY_SLOT:
+                       dict(bar_pins, status="OPEN")}}).encode()
 
         def cap_reader(c, p):
             if p == CAPB.EXEC_MANIFEST_PATH:
@@ -2458,6 +2461,16 @@ def w_selrun():
         # a same-path pin in the WRONG slot refuses UNADMITTED
         try:
             cap_call(reader=lambda c, p: wrong_man_raw
+                     if p == CAPB.EXEC_MANIFEST_PATH
+                     else cap_reader(c, p))
+            ok_run = False
+        except CAPB.CaptureRefusal as exc:
+            ok_run = ok_run and "CAPTURE_AUTHORITY_UNADMITTED" in \
+                str(exc)
+        # end-to-end finding 3: an OPEN slot STILL carrying the
+        # reviewed pin refuses UNADMITTED before any pin read
+        try:
+            cap_call(reader=lambda c, p: open_man_raw
                      if p == CAPB.EXEC_MANIFEST_PATH
                      else cap_reader(c, p))
             ok_run = False
@@ -2964,15 +2977,66 @@ def w_xform():
             [s for s in regs if s != "ACP"] \
             and art_n["outside_station_rows_excluded"] == 48
 
+        # end-to-end finding 1: the REAL frozen cascadia receipt
+        # swept across ALL 90 selection days -- the registered
+        # transform must equal w2_cascadia.registry_for_day EXACTLY
+        # (one semantics, no fork); 2026-07-14 locked at the frozen
+        # registry's 169 NET.STA identities (the day whose nine
+        # later-that-day starters exposed the fork)
+        import w2_cascadia as CASC
+        import subprocess
+        from datetime import date as _date, timedelta as _td
+        casc_raw = subprocess.run(
+            ["git", "-C", _REPO, "cat-file", "blob",
+             f"{CASC.MANIFEST_COMMIT}:{CASC.RECEIPT_PATH}"],
+            capture_output=True).stdout
+        cc = authx["static_layer"]["SELECTION_RECORDS"][
+            "carriers"]["cascadia"]
+        ctpl = cc["static_contract_template"]
+        days90 = authx["prestart_expected_keys"][
+            "SELECTION_RECORDS"]["cascadia"]
+        ok_casc = len(days90) == 90 and len(casc_raw) > 0
+        for d in days90:
+            dn = (_date.fromisoformat(d) + _td(days=1)).isoformat()
+
+            def subd(v):
+                return (v.replace("{day_next}", dn)
+                        .replace("{day}", d)) \
+                    if isinstance(v, str) else v
+            sc = {"lane": "SELECTION_RECORDS",
+                  "carrier": "cascadia", "utc_day": d,
+                  "endpoint": ctpl["endpoint"],
+                  "request_params": {k: subd(v) for k, v in
+                                     ctpl["request_params"].items()},
+                  "source": dict(ctpl["source"]),
+                  "cutoff": cc["cutoff"],
+                  "operation_params": {k: subd(v) for k, v in
+                                       ctpl["operation_params"]
+                                       .items()},
+                  "expected_keys": [d]}
+            art_cd = CAPX.admission_transform("SELECTION_RECORDS",
+                                              casc_raw, sc)
+            frozen = sorted(r["id"] for r in
+                            CASC.registry_for_day(d, repo=_REPO))
+            if art_cd["present_stations"] != frozen:
+                ok_casc = False
+                break
+            if d == "2026-07-14" and len(frozen) != 169:
+                ok_casc = False
+                break
+
         check("XFORM registered admission transform + canonical URL "
               "(exact OMNI repeated-parameter URL + stringification "
               "negatives, frozen-socal-template derivation "
               "parse-equality vs the pinned attempt-4 envelope, REAL "
               "59-row body -> 12/12 registered w/ 47 outside "
-              "excluded, registered-set narrowing doctor)",
-              ok_url and ok_neg and ok_derive and ok_soc,
+              "excluded, registered-set narrowing doctor, REAL "
+              "cascadia receipt 90-day sweep == frozen "
+              "registry_for_day incl the 169-identity 2026-07-14 "
+              "lock)",
+              ok_url and ok_neg and ok_derive and ok_soc and ok_casc,
               f"url={ok_url} neg={ok_neg} derive={ok_derive} "
-              f"soc={ok_soc}")
+              f"soc={ok_soc} casc={ok_casc}")
     except ImportError:
         check("XFORM registered admission transform + canonical URL",
               False, "W2_ENGINE_ABSENT")

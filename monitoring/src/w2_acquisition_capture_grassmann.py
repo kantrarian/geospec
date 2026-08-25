@@ -668,6 +668,170 @@ def verify_staged_body_inventory(inventory, store_descriptor):
     return {"objects_verified": len(seen)}
 
 
+# ---- the CLOSED two-part capture-run archive (codex postflight
+# ruling 5): ONE inventory over ALL authority keys, partitioned
+# EXACTLY into ADMITTED and REFUSED. The raw-store verifier checks
+# the UNION, so a refused key's preserved body is archived evidence
+# rather than an orphan; the boundary verifier consumes ONLY the
+# admitted partition. Marking a key REFUSED preserves its evidence
+# and can NEVER satisfy an expected scientific key -- quarantine is
+# an audit partition, not a census-shrinking loophole. ----
+
+CAPTURE_ARCHIVE_SCHEMA = "f2g-w2-capture-run-archive-v1"
+ARCHIVE_TOP_KEYS = {"schema", "store_id", "store_root", "authority",
+                    "transform_identity", "admitted", "refused",
+                    "counts"}
+_ARCHIVE_COMMON = {"lane", "carrier", "utc_day",
+                   "static_contract_sha256", "transcript_sha256",
+                   "raw_body_sha256", "raw_body_bytes"}
+ADMITTED_ENTRY_KEYS = _ARCHIVE_COMMON | {"output_sha256"}
+REFUSED_ENTRY_KEYS = _ARCHIVE_COMMON | {"refusal_code",
+                                        "refusal_detail"}
+
+
+def transform_identity():
+    """The identity of the committed transform that produced every
+    admitted artifact and recomputed every typed refusal code."""
+    with open(os.path.abspath(__file__), "rb") as f:
+        src = f.read()
+    return {"module": os.path.basename(os.path.abspath(__file__)),
+            "source_sha256": hashlib.sha256(src).hexdigest(),
+            "artifact_schema": ARTIFACT_SCHEMA}
+
+
+def build_capture_run_archive(store_id, store_root, authority_id,
+                              admitted, refused):
+    """Assemble the closed archive. `admitted`/`refused` are
+    key -> entry mappings whose entries the verifier re-checks; the
+    counts block is derived, never submitted."""
+    PROD._validate_authority_id(authority_id, "archive authority",
+                                CaptureRefusal)
+    both = set(admitted) & set(refused)
+    if both:
+        raise CaptureRefusal(
+            "CAPTURE_ARCHIVE_PARTITION_OVERLAP: "
+            f"{sorted(both)[:4]} appear in BOTH partitions -- a key "
+            "is admitted or refused, never both")
+    return {"schema": CAPTURE_ARCHIVE_SCHEMA,
+            "store_id": str(store_id), "store_root": str(store_root),
+            "authority": dict(authority_id),
+            "transform_identity": transform_identity(),
+            "admitted": dict(admitted), "refused": dict(refused),
+            "counts": {"authority_keys": len(admitted) + len(refused),
+                       "admitted": len(admitted),
+                       "refused": len(refused)}}
+
+
+def admitted_keys(archive):
+    """THE only door to the admitted partition (the boundary
+    verifier's input). Refused keys are structurally unreachable."""
+    if not isinstance(archive, dict) or \
+            archive.get("schema") != CAPTURE_ARCHIVE_SCHEMA:
+        raise CaptureRefusal("CAPTURE_ARCHIVE_NOT_CLOSED")
+    return sorted(archive["admitted"])
+
+
+def verify_capture_run_archive(archive, store_descriptor,
+                               expected_keys):
+    """The archive verifier: closed schema, EXACT partition of the
+    registered authority key set, per-entry closure and key/field
+    agreement, every referenced body reopened from the NAMED store
+    and digest-verified, and the UNION checked against the store so
+    no body is an orphan and no body is unaccounted."""
+    a = archive
+    if not isinstance(a, dict) or \
+            a.get("schema") != CAPTURE_ARCHIVE_SCHEMA or \
+            set(a) != ARCHIVE_TOP_KEYS:
+        raise CaptureRefusal("CAPTURE_ARCHIVE_NOT_CLOSED")
+    PROD._validate_authority_id(a["authority"], "archive authority",
+                                CaptureRefusal)
+    d = store_descriptor
+    if not isinstance(d, dict) or \
+            d.get("schema") != STORE_DESCRIPTOR_SCHEMA or \
+            set(d) != STORE_DESCRIPTOR_KEYS:
+        raise CaptureRefusal("CAPTURE_STORE_DESCRIPTOR_NOT_CLOSED")
+    if a["store_id"] != d["store_id"] or \
+            a["store_root"] != d["store_root"]:
+        raise CaptureRefusal(
+            f"CAPTURE_STORE_IDENTITY_MISMATCH: archive names "
+            f"{a['store_id']!r} but the registered descriptor is "
+            f"{d['store_id']!r}")
+    want = set()
+    for lane in expected_keys:
+        for ck, days in expected_keys[lane].items():
+            for day in days:
+                want.add(f"{lane}/{ck}/{day}")
+    adm, ref = set(a["admitted"]), set(a["refused"])
+    both = adm & ref
+    if both:
+        raise CaptureRefusal(
+            "CAPTURE_ARCHIVE_PARTITION_OVERLAP: "
+            f"{sorted(both)[:4]}")
+    got = adm | ref
+    if got != want:
+        raise CaptureRefusal(
+            "CAPTURE_ARCHIVE_KEY_SET_MISMATCH: the archive must "
+            "partition EXACTLY the registered authority key set "
+            f"(missing={sorted(want - got)[:3]}, "
+            f"extra={sorted(got - want)[:3]})")
+    if a["counts"] != {"authority_keys": len(want),
+                       "admitted": len(adm), "refused": len(ref)}:
+        raise CaptureRefusal(
+            "CAPTURE_ARCHIVE_COUNTS_MISMATCH: the counts block is "
+            "derived, never submitted")
+    store_dir = os.path.realpath(str(d["physical_root"]))
+    if not os.path.isdir(store_dir):
+        raise CaptureRefusal(
+            f"CAPTURE_STORE_UNAVAILABLE: {d['store_id']}")
+    seen = set()
+    for part, keyset in (("admitted", ADMITTED_ENTRY_KEYS),
+                         ("refused", REFUSED_ENTRY_KEYS)):
+        for key in sorted(a[part]):
+            e = a[part][key]
+            if not isinstance(e, dict) or set(e) != keyset:
+                raise CaptureRefusal(
+                    f"CAPTURE_ARCHIVE_ENTRY_NOT_CLOSED: {part}/{key}")
+            if f"{e['lane']}/{e['carrier']}/{e['utc_day']}" != key:
+                raise CaptureRefusal(
+                    "CAPTURE_ARCHIVE_ENTRY_KEY_DIVERGENT: "
+                    f"{part}/{key} interior names "
+                    f"{e['lane']}/{e['carrier']}/{e['utc_day']}")
+            for f_ in ("static_contract_sha256", "transcript_sha256",
+                       "raw_body_sha256"):
+                if not (isinstance(e[f_], str) and len(e[f_]) == 64):
+                    raise CaptureRefusal(
+                        f"CAPTURE_ARCHIVE_ENTRY_NOT_CLOSED: "
+                        f"{part}/{key} {f_}")
+            if part == "refused" and not str(
+                    e["refusal_code"]).endswith("_REFUSED"):
+                raise CaptureRefusal(
+                    "CAPTURE_ARCHIVE_REFUSAL_UNTYPED: "
+                    f"{key} -> {e['refusal_code']!r}")
+            name = e["raw_body_sha256"] + ".body"
+            p = os.path.realpath(os.path.join(store_dir, name))
+            if not p.startswith(store_dir + os.sep) or \
+                    not os.path.isfile(p):
+                raise CaptureRefusal(
+                    f"CAPTURE_ARCHIVE_BODY_MISSING: {part}/{key}")
+            with open(p, "rb") as f:
+                raw = f.read()
+            if hashlib.sha256(raw).hexdigest() != \
+                    e["raw_body_sha256"] or \
+                    len(raw) != e["raw_body_bytes"]:
+                raise CaptureRefusal(
+                    f"CAPTURE_ARCHIVE_BODY_MISMATCH: {part}/{key}")
+            seen.add(name)
+    extra = {f for f in os.listdir(store_dir)
+             if f.endswith(".body")} - seen
+    if extra:
+        raise CaptureRefusal(
+            "CAPTURE_ARCHIVE_UNACCOUNTED_OBJECTS: "
+            f"{sorted(extra)[:4]} -- the archive UNION must account "
+            "for every body in the named store")
+    return {"authority_keys": len(want), "admitted": len(adm),
+            "refused": len(ref), "bodies_verified": len(seen)}
+
+
 def _race_worker(path, obj, code, barrier, q):
     """Module-level worker for the two-process divergent-race lock
     (codex 2235Z item 4); spawn-safe."""
@@ -857,12 +1021,18 @@ def _xf_selection(raw_body, s):
             "outside_station_rows_excluded": outside}
 
 
-# the registered GFZ Kp status vocabulary + definitive policy: only
-# 'def' counts definitive; 'prov' is the provider's provisional state
-# (registered from the GFZ definitive/provisional dichotomy; only
-# 'def' is probe-evidenced -- an unregistered token REFUSES rather
-# than admitting)
-KP_STATUS_VOCAB = ("def", "prov")
+# The registered GFZ Kp status vocabulary + definitive policy.
+# AMENDMENT 2026-08-25 (codex postflight ruling 4, capture-run
+# evidence): the provider-observed provisional spelling is 'pre', NOT
+# the 'prov' I had registered from the definitive/provisional
+# dichotomy -- a guess codex's Phase-A close carried as explicitly
+# disclosed-not-probe-evidenced. 24 capture-run bodies settle it
+# (e.g. store ebcdbb70dde2, a complete 8x3h day whose status array is
+# all 'pre'). 'prov' is REPLACED, not supplemented: it was never
+# emitted by the provider and now refuses like any other unregistered
+# token. Only 'def' is definitive, so a complete 'pre' day ADMITS
+# with definitive_intervals=0 -- honest maturity, never absence.
+KP_STATUS_VOCAB = ("def", "pre")
 _CANON_TS = None
 
 
@@ -1598,6 +1768,126 @@ def _selftest():
         lambda: verify_staged_body_inventory(inv_esc, desc()),
         "CAPTURE_INVENTORY_PATH_ESCAPE")
 
+    # --- the CLOSED two-part capture-run archive (codex postflight
+    # ruling 5): the UNION accounts for every body in the store, the
+    # partition is EXACT over the authority key set, and a REFUSED
+    # marking can never satisfy an expected scientific key ---
+    A_ADM = "DAY_CAPSULE/cascadia/2026-08-20"
+    A_REF = "SELECTION_RECORDS/cascadia/2026-08-20"
+    arch_expect = {"DAY_CAPSULE": {"cascadia": ["2026-08-20"]},
+                   "SELECTION_RECORDS": {"cascadia": ["2026-08-20"]}}
+    arch_auth = dict(rec3["receipt"]["authority"])
+    adm_e = {A_ADM: {
+        "lane": "DAY_CAPSULE", "carrier": "cascadia",
+        "utc_day": "2026-08-20",
+        "static_contract_sha256": tr["static_contract_sha256"],
+        "transcript_sha256": rec["receipt"]["transcript_sha256"],
+        "raw_body_sha256": rec["raw_body_sha256"],
+        "raw_body_bytes": rec["raw_body_bytes"],
+        "output_sha256": rec["output_sha256"]}}
+    ref_e = {A_REF: {
+        "lane": "SELECTION_RECORDS", "carrier": "cascadia",
+        "utc_day": "2026-08-20",
+        "static_contract_sha256": tr3["static_contract_sha256"],
+        "transcript_sha256": rec3["receipt"]["transcript_sha256"],
+        "raw_body_sha256": rec3["raw_body_sha256"],
+        "raw_body_bytes": rec3["raw_body_bytes"],
+        "refusal_code": "ADMISSION_TRANSFORM_REFUSED",
+        "refusal_detail": "kat: recomputed typed refusal"}}
+    arch = build_capture_run_archive("s4t-kat", "kat://store",
+                                     arch_auth, adm_e, ref_e)
+    assert verify_capture_run_archive(arch, desc(), arch_expect) == \
+        {"authority_keys": 2, "admitted": 1, "refused": 1,
+         "bodies_verified": 2}
+    # the boundary's ONLY door exposes the admitted partition alone
+    assert admitted_keys(arch) == [A_ADM]
+
+    def arch_mut(**over):
+        a2 = json.loads(json.dumps(arch))
+        a2.update(over)
+        return a2
+    # a REFUSED marking NEVER satisfies an expected key: moving the
+    # admitted key into the refused partition leaves the boundary's
+    # admitted set short while the archive still verifies -- the
+    # census can only be met by REAL admitted quadruples
+    moved = json.loads(json.dumps(arch))
+    moved["refused"][A_ADM] = dict(
+        moved["admitted"].pop(A_ADM),
+        refusal_code="ADMISSION_TRANSFORM_REFUSED",
+        refusal_detail="kat: reclassified")
+    del moved["refused"][A_ADM]["output_sha256"]
+    moved["counts"] = {"authority_keys": 2, "admitted": 0,
+                       "refused": 2}
+    assert verify_capture_run_archive(
+        moved, desc(), arch_expect)["admitted"] == 0
+    assert admitted_keys(moved) == []
+    # partition overlap refuses at BUILD and at VERIFY
+    assert refuses(lambda: build_capture_run_archive(
+        "s4t-kat", "kat://store", arch_auth, adm_e,
+        dict(ref_e, **{A_ADM: ref_e[A_REF]})),
+        "CAPTURE_ARCHIVE_PARTITION_OVERLAP")
+    dup = json.loads(json.dumps(arch))
+    dup["refused"][A_ADM] = dup["refused"][A_REF]
+    dup["counts"]["refused"] = 2
+    dup["counts"]["authority_keys"] = 3
+    assert refuses(lambda: verify_capture_run_archive(
+        dup, desc(), arch_expect),
+        "CAPTURE_ARCHIVE_PARTITION_OVERLAP")
+    # a key silently dropped from BOTH partitions refuses (census
+    # shrinking is exactly the loophole this closes)
+    short = json.loads(json.dumps(arch))
+    short["refused"].pop(A_REF)
+    short["counts"] = {"authority_keys": 1, "admitted": 1,
+                       "refused": 0}
+    assert refuses(lambda: verify_capture_run_archive(
+        short, desc(), arch_expect),
+        "CAPTURE_ARCHIVE_KEY_SET_MISMATCH")
+    # a submitted counts block that disagrees with the partition
+    assert refuses(lambda: verify_capture_run_archive(
+        arch_mut(counts={"authority_keys": 2, "admitted": 2,
+                         "refused": 0}), desc(), arch_expect),
+        "CAPTURE_ARCHIVE_COUNTS_MISMATCH")
+    # entry interior disagreeing with its own key
+    bad_key = json.loads(json.dumps(arch))
+    bad_key["refused"][A_REF]["carrier"] = "istanbul_marmara"
+    assert refuses(lambda: verify_capture_run_archive(
+        bad_key, desc(), arch_expect),
+        "CAPTURE_ARCHIVE_ENTRY_KEY_DIVERGENT")
+    # an UNTYPED refusal reason never archives
+    untyped = json.loads(json.dumps(arch))
+    untyped["refused"][A_REF]["refusal_code"] = "it just failed"
+    assert refuses(lambda: verify_capture_run_archive(
+        untyped, desc(), arch_expect),
+        "CAPTURE_ARCHIVE_REFUSAL_UNTYPED")
+    # a refused entry may not smuggle an output digest (closure)
+    smug = json.loads(json.dumps(arch))
+    smug["refused"][A_REF]["output_sha256"] = "0" * 64
+    assert refuses(lambda: verify_capture_run_archive(
+        smug, desc(), arch_expect),
+        "CAPTURE_ARCHIVE_ENTRY_NOT_CLOSED")
+    # body digest mismatch and a body absent from the store
+    mism = json.loads(json.dumps(arch))
+    mism["admitted"][A_ADM]["raw_body_bytes"] += 1
+    assert refuses(lambda: verify_capture_run_archive(
+        mism, desc(), arch_expect),
+        "CAPTURE_ARCHIVE_BODY_MISMATCH")
+    gone = json.loads(json.dumps(arch))
+    gone["admitted"][A_ADM]["raw_body_sha256"] = "ab" * 32
+    assert refuses(lambda: verify_capture_run_archive(
+        gone, desc(), arch_expect),
+        "CAPTURE_ARCHIVE_BODY_MISSING")
+    # THE orphan gate: a body in the store accounted for by NEITHER
+    # partition refuses -- refusal evidence is archived, never loose
+    stray2 = os.path.join(staging, "cd" * 32 + ".body")
+    with open(stray2, "wb") as f:
+        f.write(b"unaccounted")
+    assert refuses(lambda: verify_capture_run_archive(
+        arch, desc(), arch_expect),
+        "CAPTURE_ARCHIVE_UNACCOUNTED_OBJECTS")
+    os.remove(stray2)
+    assert verify_capture_run_archive(
+        arch, desc(), arch_expect)["bodies_verified"] == 2
+
     # --- the REAL two-process divergent race (2235Z item 4): exactly
     # one publication wins, the loser refuses typed, the winner's
     # bytes remain intact ---
@@ -1917,10 +2207,23 @@ def _selftest():
             else ["2026-08-20T%02d:00:00Z" % (3 * i)
                   for i in range(8)]}).encode()
     art_k = admission_transform("MF4_FEED", kp_body(
-        status=["def"] * 7 + ["prov"]), mf4_s())
+        status=["def"] * 7 + ["pre"]), mf4_s())
     assert art_k["intervals"] == 8
     assert art_k["definitive_intervals"] == 7
-    assert art_k["status_counts"] == {"def": 7, "prov": 1}
+    assert art_k["status_counts"] == {"def": 7, "pre": 1}
+    # AMENDMENT 2026-08-25 (postflight ruling 4): a COMPLETE 'pre'
+    # day ADMITS with definitive_intervals=0 -- the exact shape of
+    # the 24 replayed capture-run days
+    art_pre = admission_transform("MF4_FEED", kp_body(
+        status=["pre"] * 8), mf4_s())
+    assert art_pre["intervals"] == 8
+    assert art_pre["definitive_intervals"] == 0
+    assert art_pre["status_counts"] == {"pre": 8}
+    # ...and the RETIRED guess 'prov' now refuses like any other
+    # unregistered token (replaced, never supplemented)
+    assert xrefuses(lambda: admission_transform(
+        "MF4_FEED", kp_body(status=["prov"] * 8), mf4_s()),
+        "not in the registered GFZ vocabulary")
     # codex end-to-end finding 2, exact repro 3: an unregistered
     # status token refuses instead of admitting
     assert xrefuses(lambda: admission_transform(

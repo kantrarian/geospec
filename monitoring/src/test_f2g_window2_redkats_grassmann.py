@@ -2584,6 +2584,7 @@ def w_admit():
         blobmap = {}
         entries = {}
         held = {}
+        adm_entries = {}
         for lane, ck in LANES:
             for day in DAYS:
                 body = f"{lane}|{ck}|{day}".encode()
@@ -2620,6 +2621,20 @@ def w_admit():
                     "sha256": rec["raw_body_sha256"],
                     "bytes": rec["raw_body_bytes"]}
                 held[(lane, ck, day)] = (spec, body, tr)
+                # cayley part 7 (codex ruling 4): the boundary now
+                # REQUIRES the closed ADMITTED|REFUSED partition, so
+                # this fixture carries an archive built from its OWN
+                # records -- every fixture key captured cleanly, so
+                # all of them are ADMITTED and none are REFUSED
+                adm_entries[f"{lane}/{ck}/{day}"] = {
+                    "lane": lane, "carrier": ck, "utc_day": day,
+                    "static_contract_sha256":
+                        tr["static_contract_sha256"],
+                    "transcript_sha256":
+                        rec["receipt"]["transcript_sha256"],
+                    "raw_body_sha256": rec["raw_body_sha256"],
+                    "raw_body_bytes": rec["raw_body_bytes"],
+                    "output_sha256": rec["output_sha256"]}
         inv = CAP.build_staged_body_inventory("s4t-kat", "kat://s",
                                               entries)
         desc = {"schema": CAP.STORE_DESCRIPTOR_SCHEMA,
@@ -2684,10 +2699,23 @@ def w_admit():
         def reader(commit, path):
             return blobmap[(commit, path)]
 
-        def boundary(pin_list, dispatcher=disp, reproducer=None):
+        # the fixture's own closed capture-run archive: every key
+        # captured cleanly, so ADMITTED is complete and REFUSED empty
+        bar_archive = CAP.build_capture_run_archive(
+            "s4t-kat", "kat://s",
+            {"commit": "ab" * 20,
+             "path": ACC.STAGED_PREFIX + ACC.EXPECTED_KEYS_BASENAME,
+             "blob_sha256": "a" * 64,
+             "keys_sha256": keys_sha(auth_keys)},
+            adm_entries, {})
+
+        def boundary(pin_list, dispatcher=disp, reproducer=None,
+                     archive=None):
             return ACC.verify_staged_boundary(
                 _REPO, man_of(pin_list), blob_reader=reader,
                 transform_dispatcher=dispatcher,
+                capture_archive=(bar_archive if archive is None
+                                 else archive),
                 authority_reproducer=(
                     reproducer or (lambda: json.loads(
                         json.dumps(auth)))))
@@ -2708,6 +2736,33 @@ def w_admit():
             and all(v["days"] == 2
                     for v in res["report"]["lanes"].values()) \
             and len(res["staged_boundary_sha256"]) == 64
+
+        # ARCHIVE-GATE doctors (cayley part 7 / codex ruling 4), from
+        # this side of the seam: the boundary must fail CLOSED without
+        # an archive, and a key reclassified REFUSED must never
+        # satisfy its scientific key even though its evidence is
+        # preserved and the archive still verifies.
+        ok_arch = refuses_detail(
+            lambda: ACC.verify_staged_boundary(
+                _REPO, man_of(pins), blob_reader=reader,
+                transform_dispatcher=disp,
+                authority_reproducer=lambda: json.loads(
+                    json.dumps(auth))),
+            "no capture-run archive was supplied")
+        moved_key = f"{LANES[0][0]}/{LANES[0][1]}/{DAYS[0]}"
+        arch_moved = json.loads(json.dumps(bar_archive))
+        _ent = arch_moved["admitted"].pop(moved_key)
+        _ent.pop("output_sha256")
+        arch_moved["refused"][moved_key] = dict(
+            _ent, refusal_code="ADMISSION_TRANSFORM_REFUSED",
+            refusal_detail="bar: reclassified for the gate doctor")
+        arch_moved["counts"] = {
+            "authority_keys": len(auth_keys) * len(DAYS),
+            "admitted": len(arch_moved["admitted"]),
+            "refused": len(arch_moved["refused"])}
+        ok_arch = ok_arch and refuses_detail(
+            lambda: boundary(pins, archive=arch_moved),
+            "never satisfies a scientific key")
 
         # doctor 1: a WHOLE authorized day consistently omitted from
         # every class refuses against the independent authority
@@ -2897,12 +2952,13 @@ def w_admit():
               "coordinated artifact+digest forgery vs transform "
               "recomputation, fail-closed no-dispatcher, "
               "wrong-prefix pin, closed authority capsule locks, "
+              "archive fail-closed + REFUSED-never-satisfies, "
               "evil-endpoint S-admission)",
               ok_pos and ok_omit and ok_forge and ok_fc and ok_pre
-              and ok_auth and ok_evil,
+              and ok_auth and ok_evil and ok_arch,
               f"pos={ok_pos} omit={ok_omit} forge={ok_forge} "
               f"fc={ok_fc} prefix={ok_pre} auth={ok_auth} "
-              f"evil={ok_evil}")
+              f"evil={ok_evil} archive={ok_arch}")
     except ImportError:
         check("ADMIT admission-boundary locks", False,
               "W2_ENGINE_ABSENT")

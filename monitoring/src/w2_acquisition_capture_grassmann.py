@@ -1163,6 +1163,105 @@ def _finite(v):
 
 
 EXEC_CAPSULE_DIR = "docs/f2g_window2_execution/mag_capsules"
+# the registered value-free-absence markers (codex 1900Z HIGH 2):
+# an absence artifact must NEVER claim that convert_frame ran
+FRAME_NOT_APPLICABLE = "NOT_APPLICABLE_ALL_NULL"
+SUPPORT_STRUCTURAL_ALL_NULL = "STRUCTURAL_ALL_COMPONENTS_NULL"
+
+
+def _registered_component_set(orient):
+    """The EXACT complete component key set of a registered frame
+    convention (identity components + its excluded scalar), or None
+    when the orientation is not registered."""
+    import w2_mag1 as MAG1
+    for table in (MAG1.FRAME_CONVENTIONS, MAG1.ANGULAR_CONVENTIONS,
+                  MAG1.REPORTED_CONVENTIONS):
+        if orient in table:
+            comps, excluded = table[orient]
+            return set(comps) | {excluded}
+    return None
+
+
+def _expected_capsule_identity(carrier):
+    """Identity ONLY -- reads the committed capsule to report which
+    frame WAS expected, without applying any conversion."""
+    path = f"{EXEC_CAPSULE_DIR}/mag_capsule_{carrier}.json"
+    full = os.path.join(os.path.dirname(os.path.dirname(_HERE)),
+                        *path.split("/"))
+    if not os.path.isfile(full):
+        return None
+    with open(full, "rb") as f:
+        raw = f.read()
+    cap = json.loads(raw.decode("utf-8"))
+    return {"capsule_path": path,
+            "capsule_sha256": hashlib.sha256(raw).hexdigest(),
+            "expected_orientation":
+                (cap.get("sensor_orientation")
+                 if cap.get("component_map")
+                 else cap.get("reported_orientation"))}
+
+
+def _value_free_absence(comps, doc, s):
+    """codex 1900Z ruling (a) + HIGH 1: recognise a VALUE-FREE day
+    BEFORE frame conversion by validating a CLOSED predicate
+    DIRECTLY -- never as `except frame_error: if all_null`, so a
+    malformed frame, an unknown component signature, or an unrelated
+    conversion defect can never collapse into absence.
+
+    It follows from TYPE ORDER, not from the count it produces: an
+    exact all-false support mask contains no coordinate-bearing
+    value, so no frame map is applied or needed. Frame conversion
+    stays mandatory before interpreting ANY value -- one non-null
+    sample anywhere, including only the excluded scalar, keeps a
+    frame mismatch fatal.
+
+    (codex's correction, recorded because the wording matters: the
+    justification is that NO VALUES EXIST TO TRANSFORM. My earlier
+    phrasing -- "canonical X/Y are NaN under any frame" -- asserted a
+    computation that never happened; no canonical X/Y are computed on
+    this path at all.)
+
+    Returns the provenance block when the predicate holds, else None.
+    The registered day/cadence grid is validated by the caller BEFORE
+    this is consulted."""
+    meta = ((doc.get("metadata") or {}).get("intermagnet")
+            if isinstance(doc, dict) else None) or {}
+    info = (doc.get("@info") if isinstance(doc, dict) else None) or {}
+    # 1. the provider must supply an EXPLICIT source orientation
+    orient = None
+    for cand in (info.get("sensor_orientation"),
+                 meta.get("sensor_orientation"),
+                 info.get("reported_orientation"),
+                 meta.get("reported_orientation")):
+        if isinstance(cand, str) and cand and cand != "Unknown":
+            orient = cand
+            break
+    if orient is None:
+        return None
+    # 2. it must be a REGISTERED complete component convention
+    want = _registered_component_set(orient)
+    if want is None:
+        return None
+    # 3. the component key set must equal that convention EXACTLY --
+    #    no missing array, no extra array
+    if set(comps) != want:
+        return None
+    # 4. EVERY sample of EVERY supplied component must be null
+    for cid in comps:
+        vals = comps[cid]
+        if not isinstance(vals, list) or not vals:
+            return None
+        for v in vals:
+            if v is not None:
+                return None
+    ident = {"frame_application": FRAME_NOT_APPLICABLE,
+             "source_orientation": orient,
+             "component_set": sorted(want),
+             "rule": "codex-1900Z-value-free-absence"}
+    exp = _expected_capsule_identity(str(s.get("carrier")))
+    if exp is not None:
+        ident.update(exp)
+    return ident
 
 
 def _mag_frame_authority(s, doc, what, capsule=None):
@@ -1274,6 +1373,24 @@ def _xf_mag(raw_body, s):
                     support[i] = True
         if not nulls:
             _xerr(f"{what}: zero channels")
+        # codex 1900Z HIGH 1: the VALUE-FREE absence gate sits HERE --
+        # after JSON/object, observatory, exact grid, nonempty-channel,
+        # per-array length and numeric-or-null validation, and BEFORE
+        # any frame conversion. A day with no values to transform is
+        # registered absence, not a frame refusal.
+        vfa = _value_free_absence(comps, doc, s)
+        if vfa is not None:
+            return dict(
+                {"schema": ARTIFACT_SCHEMA, "lane": s["lane"],
+                 "carrier": s["carrier"], "utc_day": day,
+                 "kind": "mag-minute-series",
+                 "observatory": observatory,
+                 "samples": len(times), "channels": sorted(nulls),
+                 "support_predicate": SUPPORT_STRUCTURAL_ALL_NULL,
+                 "canonical_frame": vfa,
+                 "null_by_channel": {k: nulls[k] for k in
+                                     sorted(nulls)}},
+                **_support_block([False] * len(times)))
         # codex 1501Z: the frozen MAG-1 statistic is the horizontal
         # magnitude sqrt(rX^2 + rY^2), so a minute is supported IFF
         # canonical geographic X_north AND Y_east are BOTH valid
@@ -2474,6 +2591,91 @@ def _selftest():
         h=[None] * 1440), gin_s())
     assert art_gabs["outcome"] == OUTCOME_ADMITTED_ABSENCE
     assert art_gabs["definitive_samples"] == 0
+
+    # --- codex 1900Z ruling (a) + HIGH 3: the VALUE-FREE absence
+    # boundary. A day with no values to transform is registered
+    # absence; ONE non-null sample anywhere -- including only the
+    # excluded scalar -- keeps an unexpected frame FATAL. ---
+    def xyzs_body(x=None, y=None, z=None, sc=None, n=1440,
+                  orient="XYZS", times=None, drop=None, extra=None):
+        """The IZN 2026-03-01 signature: GIN served X/Y/Z/S where the
+        pinned capsule expects H/D/Z/S, with every value null."""
+        d = {"datetime": times if times is not None
+             else grid_times(n),
+             "@info": {"sensor_orientation": orient,
+                       "reported_orientation": "Unknown"},
+             "X": x if x is not None else [None] * n,
+             "Y": y if y is not None else [None] * n,
+             "Z": z if z is not None else [None] * n,
+             "S": sc if sc is not None else [None] * n}
+        if drop:
+            d.pop(drop)
+        if extra:
+            d[extra] = [None] * n
+        return json.dumps(d).encode()
+    # (1) the value-free day ADMITS as absence, with provenance that
+    # does NOT claim a conversion ran
+    a_vf = admission_transform("MAG_FEED", xyzs_body(), gin_s())
+    assert a_vf["outcome"] == OUTCOME_ADMITTED_ABSENCE
+    assert a_vf["definitive_samples"] == 0
+    assert a_vf["support_mask"] == [False] * 1440
+    assert a_vf["support_predicate"] == SUPPORT_STRUCTURAL_ALL_NULL
+    cf = a_vf["canonical_frame"]
+    assert cf["frame_application"] == FRAME_NOT_APPLICABLE
+    assert cf["source_orientation"] == "XYZS"
+    assert cf["expected_orientation"] == "HDZS"
+    assert len(cf["capsule_sha256"]) == 64
+    assert "conversion" not in cf          # never claims it ran
+    assert a_vf["null_by_channel"] == {"S": 1440, "X": 1440,
+                                       "Y": 1440, "Z": 1440}
+    # (2) ONE non-null X -> the frame mismatch stays FATAL
+    assert xrefuses(lambda: admission_transform(
+        "MAG_FEED", xyzs_body(x=[1.0] + [None] * 1439), gin_s()),
+        "capsule-pinned frame conversion refused")
+    # (3) ONE non-null S -- the EXCLUDED scalar -- is still fatal
+    assert xrefuses(lambda: admission_transform(
+        "MAG_FEED", xyzs_body(sc=[1.0] + [None] * 1439), gin_s()),
+        "capsule-pinned frame conversion refused")
+    # (4) all-null but structurally wrong: missing component, extra
+    # component, unknown orientation, wrong length, duplicate time,
+    # wrong day -- each refuses typed, none collapse into absence
+    assert xrefuses(lambda: admission_transform(
+        "MAG_FEED", xyzs_body(drop="Y"), gin_s()),
+        "capsule-pinned frame conversion refused")
+    assert xrefuses(lambda: admission_transform(
+        "MAG_FEED", xyzs_body(extra="Q"), gin_s()),
+        "capsule-pinned frame conversion refused")
+    assert xrefuses(lambda: admission_transform(
+        "MAG_FEED", xyzs_body(orient="XYZQ"), gin_s()),
+        "capsule-pinned frame conversion refused")
+    assert xrefuses(lambda: admission_transform(
+        "MAG_FEED", xyzs_body(orient="Unknown"), gin_s()),
+        "capsule-pinned frame conversion refused")
+    assert xrefuses(lambda: admission_transform(
+        "MAG_FEED", xyzs_body(z=[None] * 1439), gin_s()),
+        "length diverges from the time grid")
+    _tdup = grid_times()
+    _tdup[9] = _tdup[8]
+    assert xrefuses(lambda: admission_transform(
+        "MAG_FEED", xyzs_body(times=_tdup), gin_s()),
+        "violates the registered cadence")
+    assert xrefuses(lambda: admission_transform(
+        "MAG_FEED", xyzs_body(times=grid_times(day="2026-08-21")),
+        gin_s()), "violates the registered cadence")
+    # (5) the SAME-frame all-null and populated paths keep their
+    # prior outcomes -- the new gate widened nothing
+    assert admission_transform("MAG_FEED", gin_body(
+        h=[None] * 1440), gin_s())["outcome"] == \
+        OUTCOME_ADMITTED_ABSENCE
+    assert admission_transform(
+        "MAG_FEED", gin_body(), gin_s())["definitive_samples"] == 1440
+    # the same-frame all-null day still reports a REAL conversion,
+    # because H/D/Z/S matches the capsule and the frame DID apply
+    _same = admission_transform("MAG_FEED", gin_body(
+        h=[None] * 1440, d=[None] * 1440, z=[None] * 1440), gin_s())
+    assert _same["canonical_frame"].get("conversion") == \
+        "w2_mag1.convert_frame"
+    assert _same["support_predicate"] != SUPPORT_STRUCTURAL_ALL_NULL
     # --- codex 1501Z canonical-mask doctors on the XYZF path ---
     # X-only loss and Y-only loss BOTH unsupport that minute
     art_xo = admission_transform("MAG_FEED", usgs_body(

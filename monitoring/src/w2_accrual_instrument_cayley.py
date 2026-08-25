@@ -656,8 +656,14 @@ def verify_staged_boundary(repo, manifest, *, blob_reader=None,
         # lineage_evidence_verified=False. It fails CLOSED without
         # the source-body store, which is correct: the boundary can
         # only pass where the evidence actually lives.
-        DISP.verify_lineage_registry(disposition_capsule,
-                                     authority=authority)
+        # verify against the store this boundary is actually
+        # binding -- taken from the REGISTERED descriptor, not a
+        # default path or an environment variable. A boundary that
+        # authenticated lineage against some other store would be
+        # proving something about bytes it is not admitting.
+        DISP.verify_lineage_registry(
+            disposition_capsule, authority=authority,
+            store_root=descriptor["physical_root"])
     except Exception as e:                                # noqa: BLE001
         raise InstrumentRefusal(
             "PRESTART_ADMISSION_REFUSED: the disposition capsule "

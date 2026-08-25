@@ -2,8 +2,8 @@
  "design_manifest_blob_sha256": "d6decbd6ab5814bc005ce69c538311ff1b11cb1d13c19e2999e03a92bc7cca1f",
  "design_manifest_commit": "5fba5446cd96722fb86021df5065a46b8a1a78f5",
  "design_target_commit": "12161f6cf2000b2d4aa86fe659f834839ac0d27b",
- "execution_target_commit": "658a52a5dac0112e4010b2299a7f704d8437d76f",
- "generated_utc": "2026-08-25T01:22:25Z",
+ "execution_target_commit": "5e7cbee760cfaf6e62d713f37ed91afd0b74b5b5",
+ "generated_utc": "2026-08-25T15:39:42Z",
  "manifest_state": "OPEN",
  "repository_url": "https://github.com/kantrarian/geospec",
  "schema": "f2g-window2-execution-manifest-v1.2",
@@ -18,8 +18,8 @@
      "path": "monitoring/src/w2_barrier.py"
     },
     {
-     "blob_sha256": "3c7417bd9d1b4290bb03bb020ec9e276c91e36e97ab362489aaef3e224fcfa29",
-     "commit": "da842b8467d874a8308f7e3d82ab0ce10b2cd05d",
+     "blob_sha256": "938bde31262af164d3ed33fa2dbe64b462107422ec870d97caa35339bbc74a3c",
+     "commit": "5e7cbee760cfaf6e62d713f37ed91afd0b74b5b5",
      "path": "monitoring/src/w2_accrual_instrument_cayley.py"
     },
     {
@@ -33,13 +33,13 @@
      "path": "monitoring/src/w2_mag1.py"
     },
     {
-     "blob_sha256": "10080bcd5f9db21fe11086daebe974b339ab57aa51b89bef62ebc58c3bf2649d",
-     "commit": "3c2db6bda846b63e97c67ec43d66de7b752c9f28",
+     "blob_sha256": "902094ba5631cf2dee7d5a7eb19696c024534dc9580a9eb497b2ea15dd5a588f",
+     "commit": "ddd5748b942216cc24915b77d84df36f71d0ad82",
      "path": "monitoring/src/w2_expected_contracts_gen_cayley.py"
     },
     {
-     "blob_sha256": "b5b0a61a4edcdac2bfcd8a819f2e118a81c492947a0b6167ffd07ef09338967e",
-     "commit": "332a98acd34797163413350dc4989fdb37ec87b2",
+     "blob_sha256": "32aa61d901d2aaf6a6701caff602fd6359bbef8dfbce49e37f17a60e0d2fda2b",
+     "commit": "5e7cbee760cfaf6e62d713f37ed91afd0b74b5b5",
      "path": "docs/f2g_window2_execution/staged_expected_contracts_v3.json"
     }
    ],
@@ -82,8 +82,8 @@
    "owner": "grassmann",
    "pins": [
     {
-     "blob_sha256": "e06b7b37be1dcea2eb8182d565f25fac3d11250e43c9adf5c6bf97446476e96e",
-     "commit": "658a52a5dac0112e4010b2299a7f704d8437d76f",
+     "blob_sha256": "77961a600dcd234263a629e8c7529a66bed0d9c5cb39d6b7925dd9a8f01064c3",
+     "commit": "9c122360a31e821e681005fcf1c75662fa1f9305",
      "path": "monitoring/src/test_f2g_window2_redkats_grassmann.py"
     }
    ],

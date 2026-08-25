@@ -621,8 +621,33 @@ def build(repo):
             ck: list(v["expected_days"])
             for ck, v in lanes[lane]["carriers"].items()}
 
+    # codex 1304Z bridge finding 3: the v4 authority PINS the probe
+    # authority (commit/path/LF-blob sha) so the predecessor lineage
+    # is REGISTERED rather than asserted by a caller.
+    probe_rel = ("docs/f2g_window2_execution/"
+                 "omni_probe_authority_v4.json")
+    probe_blob = subprocess.run(
+        ["git", "-C", repo, "cat-file", "blob", f"HEAD:{probe_rel}"],
+        capture_output=True)
+    probe_commit = subprocess.run(
+        ["git", "-C", repo, "log", "-1", "--format=%H", "HEAD", "--",
+         probe_rel], capture_output=True)
+    if probe_blob.returncode != 0 or not probe_commit.stdout.strip():
+        raise AssertionError(
+            "PROBE_AUTHORITY_UNPINNABLE: the corrected-OMNI probe "
+            "authority must be committed before the v4 authority can "
+            "register its lineage")
+    registered_probe_authority = {
+        "path": probe_rel,
+        "commit": probe_commit.stdout.decode().strip(),
+        "blob_sha256": hashlib.sha256(probe_blob.stdout).hexdigest(),
+        "role": "predecessor-evidence lineage for "
+                "MAG_WEATHER_FEED/omni/2026-01-01; the bridge reopens "
+                "THIS blob, never a caller-supplied object"}
+
     return {
         "schema": "f2g-w2-expected-contracts-v3",
+        "registered_probe_authority": registered_probe_authority,
         "template_token_vocabulary": template_tokens,
         "prestart_expected_keys": prestart_keys,
         "prestart_expected_keys_sha256": _digest(prestart_keys),

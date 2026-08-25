@@ -428,6 +428,51 @@ def capture_authorized(repo, manifest_commit, authority_path, lane,
             repo, authority, reproducer=authority_reproducer)
     except Exception as exc:
         raise CaptureRefusal(f"CAPTURE_AUTHORITY_INVALID: {exc}")
+    # registration precedes disposition: a key that is not in the
+    # authority at all has no disposition to test, and "not a
+    # registered authority key" is the truer refusal for it
+    _days = authority.get("prestart_expected_keys", {}) \
+        .get(lane, {}).get(carrier)
+    if not _days or str(utc_day) not in _days:
+        raise CaptureRefusal(
+            f"CAPTURE_AUTHORITY_INVALID: {lane}/{carrier}/{utc_day} "
+            "is not a registered authority key (post-dated or "
+            "unauthorized)")
+    # codex 1746Z finding 3: THE CEILING GATE. The production
+    # network entrypoint -- not merely a runner's loop -- reopens the
+    # manifest-pinned disposition capsule and requires the key to be
+    # a member of HTTP_CAPTURE before the opener can be reached. A
+    # careful runner is not enough: direct calls bypass runner-only
+    # filtering. Fail-closed: an absent or unpinned capsule REFUSES.
+    import w2_disposition_capsule_grassmann as DISP
+    cpin = None
+    for p in slot["pins"]:
+        if isinstance(p, dict) and \
+                p.get("path") == DISP.CAPSULE_PATH:
+            cpin = p
+    if cpin is None:
+        raise CaptureRefusal(
+            "CAPTURE_DISPOSITION_UNPINNED: the key-disposition "
+            f"capsule {DISP.CAPSULE_PATH} is not a pin of the "
+            f"{AUTHORITY_SLOT!r} slot -- no request may be fired "
+            "without the registered HTTP_CAPTURE ceiling")
+    craw = blob_reader(git_resolve(cpin["commit"]), DISP.CAPSULE_PATH)
+    cgot = hashlib.sha256(craw).hexdigest()
+    if cgot != cpin.get("blob_sha256"):
+        raise CaptureRefusal(
+            "CAPTURE_DISPOSITION_INVALID: capsule bytes diverge from "
+            f"the MANIFEST pin ({cgot[:12]} != "
+            f"{str(cpin.get('blob_sha256'))[:12]})")
+    try:
+        capsule = json.loads(craw.decode("utf-8"))
+        DISP.verify(capsule, authority)
+        DISP.may_fire(capsule, lane, carrier, str(utc_day))
+    except DISP.DispositionRefusal as exc:
+        raise CaptureRefusal(f"CAPTURE_DISPOSITION_REFUSED: {exc}")
+    except Exception as exc:
+        raise CaptureRefusal(
+            f"CAPTURE_DISPOSITION_INVALID: {type(exc).__name__}: "
+            f"{exc}")
     return _capture_from_validated_authority(
         repo, authority,
         {"commit": pin_commit, "path": str(authority_path),
@@ -1883,10 +1928,36 @@ def _selftest():
                  "staged_expected_contracts_v3.json")
     MAN_C = "e" * 40
     PIN_C = "b" * 40
+    # the manifest-pinned DISPOSITION CAPSULE (codex finding 3): the
+    # fixture registers cascadia/2026-08-20 as the ONLY firable key
+    import w2_disposition_capsule_grassmann as DISPK
+    kat_caps = {
+        "schema": DISPK.CAPSULE_SCHEMA,
+        "authority": {"path": AUTH_PATH,
+                      "blob_sha256": hashlib.sha256(auth_raw)
+                      .hexdigest(),
+                      "keys_sha256":
+                          kat_auth["prestart_expected_keys_sha256"],
+                      "census": sum(len(d) for cs in kat_keys.values()
+                                    for d in cs.values())},
+        "transform_identity": {"module": "kat"},
+        "v3_archive": {"path": DISPK.V3_ARCHIVE_PATH,
+                       "sha256": "b" * 64, "store_id": "kat"},
+        "lane_map": dict(DISPK.LANE_MAP),
+        "superseded_v3": [list(x) for x in DISPK.SUPERSEDED_V3],
+        "reuse_or_bridge": {}, "predecessor": {},
+        "http_capture": sorted(
+            f"{ln}/{ck}/{d}" for ln, cs in kat_keys.items()
+            for ck, ds in cs.items() for d in ds)}
+    kat_caps["partitions"] = DISPK._partition_block(kat_caps)
+    caps_raw = json.dumps(kat_caps).encode()
     kat_man = {"slots": {AUTHORITY_SLOT: {
         "status": "BOUND",
         "pins": [{"path": AUTH_PATH, "commit": "kat-auth",
                   "blob_sha256": hashlib.sha256(auth_raw)
+                  .hexdigest()},
+                 {"path": DISPK.CAPSULE_PATH, "commit": "kat-auth",
+                  "blob_sha256": hashlib.sha256(caps_raw)
                   .hexdigest()}]}}}
     man_raw = json.dumps(kat_man).encode()
 
@@ -1903,6 +1974,8 @@ def _selftest():
             return man_raw
         if (commit, path) == (PIN_C, AUTH_PATH):
             return auth_raw
+        if path == DISPK.CAPSULE_PATH:
+            return caps_raw
         raise CaptureRefusal(
             f"CAPTURE_AUTHORITY_INVALID: {path} unreadable at "
             f"{commit}")
@@ -2040,6 +2113,67 @@ def _selftest():
         reader=open_reader,
         repro=lambda: json.loads(open_raw.decode())),
         "CAPTURE_AUTHORITY_INVALID")
+    # --- codex finding 3 CEILING doctors: the ENTRYPOINT itself
+    # enforces HTTP_CAPTURE membership, so a direct call cannot
+    # bypass a runner's filtering. Every one refuses with the opener
+    # counter provably unmoved. ---
+    def _with_caps(c2):
+        r2 = json.dumps(c2).encode()
+        m2 = json.loads(man_raw.decode())
+        m2["slots"][AUTHORITY_SLOT]["pins"][1]["blob_sha256"] = \
+            hashlib.sha256(r2).hexdigest()
+        mr2 = json.dumps(m2).encode()
+
+        def rdr(c, p):
+            if p == EXEC_MANIFEST_PATH:
+                return mr2
+            if p == DISPK.CAPSULE_PATH:
+                return r2
+            return m_reader(c, p)
+        return rdr
+    # a registered key that is NOT in HTTP_CAPTURE refuses
+    c_out = json.loads(json.dumps(kat_caps))
+    c_out["http_capture"] = [k for k in c_out["http_capture"]
+                             if not k.startswith("SELECTION_RECORDS/")]
+    c_out["reuse_or_bridge"] = {
+        "SELECTION_RECORDS/cascadia/2026-08-20": {
+            "v3_key": "SELECTION_RECORDS/cascadia/2026-08-20",
+            "raw_body_sha256": "c" * 64, "raw_body_bytes": 1,
+            "outcome": "ADMITTED"}}
+    c_out["partitions"] = DISPK._partition_block(c_out)
+    assert refuses(lambda: a_call(reader=_with_caps(c_out)),
+                   "CAPTURE_DISPOSITION_REFUSED")
+    # the PREDECESSOR (already-fired probe) key can never re-fire
+    c_pred = json.loads(json.dumps(kat_caps))
+    c_pred["http_capture"] = [k for k in c_pred["http_capture"]
+                              if not k.startswith("SELECTION_RECORDS/")]
+    c_pred["predecessor"] = {
+        "SELECTION_RECORDS/cascadia/2026-08-20": {"spent_probe": True}}
+    c_pred["partitions"] = DISPK._partition_block(c_pred)
+    assert refuses(lambda: a_call(reader=_with_caps(c_pred)),
+                   "CAPTURE_DISPOSITION_REFUSED")
+    # an UNPINNED capsule fails closed -- no ceiling, no request
+    m_nc = json.loads(man_raw.decode())
+    m_nc["slots"][AUTHORITY_SLOT]["pins"] = \
+        m_nc["slots"][AUTHORITY_SLOT]["pins"][:1]
+    mnc_raw = json.dumps(m_nc).encode()
+    assert refuses(lambda: a_call(
+        reader=lambda c, p: mnc_raw if p == EXEC_MANIFEST_PATH
+        else m_reader(c, p)), "CAPTURE_DISPOSITION_UNPINNED")
+    # capsule bytes diverging from the manifest pin refuse
+    tam_caps = json.loads(json.dumps(kat_caps))
+    tam_caps["http_capture"] = list(tam_caps["http_capture"])
+    tr_raw = json.dumps(tam_caps, sort_keys=True).encode()
+    assert refuses(lambda: a_call(
+        reader=lambda c, p: tr_raw if p == DISPK.CAPSULE_PATH
+        else m_reader(c, p)), "CAPTURE_DISPOSITION_INVALID")
+    # a capsule whose partition is not EXACT over the authority
+    # refuses through the capsule's OWN verifier
+    c_bad = json.loads(json.dumps(kat_caps))
+    c_bad["http_capture"] = c_bad["http_capture"][:1]
+    c_bad["partitions"] = DISPK._partition_block(c_bad)
+    assert refuses(lambda: a_call(reader=_with_caps(c_bad)),
+                   "CAPTURE_DISPOSITION_REFUSED")
     assert counted["n"] == base_n     # zero network on every refusal
     # freeze finding 3: a caller-supplied builder whose product
     # diverges from the registered transform refuses (this one DOES

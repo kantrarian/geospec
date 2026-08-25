@@ -44,10 +44,22 @@ values nulled, so structure/cadence/timestamps stay authentic and the
 ONLY difference is the presence of values. A hand-built "null body"
 could pass by being malformed in a way the real one is not.
 
+REFINED by grassmann's 1330Z item (a), raised from their real
+corrected-OMNI probe and deliberately NOT self-applied: a COMPLETE
+grid with PER-SAMPLE fills is neither "all present" nor "absent" --
+1,179 of 1,440 minutes definitive, 261 with no computable Newell
+regressor. A whole-day absence flag cannot express that, and counts
+alone lose WHICH minutes. So the semantics generalise: grid
+COMPLETENESS stays structural (a short grid refuses), while per-sample
+SUPPORT is carried as an explicit per-sample mask on EVERY admitted
+artifact -- and ADMITTED_ABSENCE is simply the all-unsupported case of
+that mask rather than a separate concept. AB-5 locks it.
+
 STATUS: RED-FIRST. AB-1 fails today (the transform refuses a
-structurally valid provider-null day). AB-2/3/4 guard the opposite
-direction and should hold already -- if one of THOSE ever goes red,
-absence has been over-applied.
+structurally valid provider-null day); AB-5 is red pending the v4 lane
+registration (codex bridge finding 4, grassmann). AB-2/3/4 guard the
+opposite direction and should hold already -- if one of THOSE ever
+goes red, absence has been over-applied.
 
 Opens no window-2 value; no network; admits nothing scientifically.
 """
@@ -146,6 +158,55 @@ def _selftest():
     except Exception:
         pass
     print("  AB-3 PASS  partial grid refuses (absence is whole-day)")
+
+    # ---- AB-5 (grassmann 1330Z item (a), NOT self-applied): a
+    # COMPLETE grid with PER-SAMPLE fills is neither "all present"
+    # nor "absent". Their real corrected-OMNI probe: 1440 rows, but
+    # speed carries 260 fills against 9 for By/Bz and only 8 rows are
+    # all-fill -- so 261 minutes have NO computable Newell regressor
+    # while 1179 are fully definitive. A whole-day absence flag
+    # cannot express that, and counts alone lose WHICH minutes.
+    #
+    # The refinement this locks: grid COMPLETENESS stays structural
+    # (a short grid still refuses, AB-3), while per-sample SUPPORT is
+    # semantic and must be carried as an explicit per-sample mask.
+    # ADMITTED_ABSENCE then becomes the degenerate all-unsupported
+    # case of that mask rather than a separate concept.
+    omni_body = _blob("docs/f2g_window2_execution/probe_evidence/"
+                      "omni_corrected_probe_20260101.body")
+    omni_sc = json.loads(_blob(
+        "docs/f2g_window2_execution/probe_evidence/"
+        "omni_corrected_probe_20260101.contract.json"
+    ).decode("utf-8"))
+    try:
+        oart = CAP.admission_transform(omni_sc["lane"], omni_body,
+                                       omni_sc)
+    except Exception as e:                               # noqa: BLE001
+        raise AbsenceRefusal(
+            "AB-5 PARTIAL_SUPPORT_UNREPRESENTABLE: the REAL "
+            "corrected-OMNI probe body could not be transformed "
+            f"({type(e).__name__}: {str(e)[:80]}) -- expected while "
+            "the v4 lane names are unregistered (codex bridge "
+            "finding 4, grassmann)")
+    mask = oart.get("support_mask")
+    if not isinstance(mask, list):
+        raise AbsenceRefusal(
+            "AB-5 PARTIAL_SUPPORT_UNREPRESENTABLE: the artifact "
+            "carries no PER-SAMPLE support_mask. grassmann's real "
+            "probe has 1179 definitive minutes and 261 with no "
+            "computable Newell regressor; counts alone cannot say "
+            "WHICH minutes, and a whole-day absence flag cannot "
+            "express a partially supported day. Every admitted "
+            "artifact must carry a per-sample mask, of which "
+            f"{ABSENCE_OUTCOME} is the all-unsupported case.")
+    if len(mask) != oart.get("samples"):
+        raise AbsenceRefusal(
+            "AB-5: support_mask length must equal the sample grid")
+    if sum(1 for m in mask if m) != oart.get("definitive_samples"):
+        raise AbsenceRefusal(
+            "AB-5: supported entries must equal definitive_samples")
+    print(f"  AB-5 PASS  per-sample support mask: "
+          f"{sum(1 for m in mask if m)}/{len(mask)} supported")
 
     # ---- AB-1 (THE LOCK): structurally valid provider-null day ----
     null_body = _nulled(raw)

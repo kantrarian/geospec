@@ -2,8 +2,8 @@
  "design_manifest_blob_sha256": "d6decbd6ab5814bc005ce69c538311ff1b11cb1d13c19e2999e03a92bc7cca1f",
  "design_manifest_commit": "5fba5446cd96722fb86021df5065a46b8a1a78f5",
  "design_target_commit": "12161f6cf2000b2d4aa86fe659f834839ac0d27b",
- "execution_target_commit": "2f91143ec1b36a0b59558bdb0741987ef0fbba10",
- "generated_utc": "2026-08-25T18:02:41Z",
+ "execution_target_commit": "9b0107830814c7746ddb95b0bf295f20fe5489c7",
+ "generated_utc": "2026-08-25T20:21:33Z",
  "manifest_state": "OPEN",
  "repository_url": "https://github.com/kantrarian/geospec",
  "schema": "f2g-window2-execution-manifest-v1.2",
@@ -41,6 +41,16 @@
      "blob_sha256": "3c24182b042de1a14d2717610b8940acd93f44be8dc8fdc344cce771d28d4f66",
      "commit": "2f91143ec1b36a0b59558bdb0741987ef0fbba10",
      "path": "docs/f2g_window2_execution/staged_expected_contracts_v3.json"
+    },
+    {
+     "blob_sha256": "c3e5a2cd12905f4563f914d6680f645045f308d426c937ad7048376828093ce5",
+     "commit": "5b076c7a1703a2f38019ae195d079efddb6623e2",
+     "path": "monitoring/src/w2_disposition_capsule_grassmann.py"
+    },
+    {
+     "blob_sha256": "c715b70bad211452fc8933cb25d9d4f980f5683ec6e01c54a65888b61e1c28c4",
+     "commit": "5b076c7a1703a2f38019ae195d079efddb6623e2",
+     "path": "docs/f2g_window2_execution/key_disposition_capsule_v4.json"
     }
    ],
    "status": "BOUND"
@@ -124,8 +134,8 @@
    "owner": "cayley",
    "pins": [
     {
-     "blob_sha256": "4f2070fecd0d9c867b3f4b2e3f240561ddee77817ec46951a7cce70dfdf31139",
-     "commit": "8243d8a3071f69eded434929656e36d804b1eaec",
+     "blob_sha256": "48418d5f04108579c4bdeef5b5b4bb0d12d3784fedb2d8d30e4228e5ebf39ef5",
+     "commit": "9b0107830814c7746ddb95b0bf295f20fe5489c7",
      "path": "monitoring/src/f2g_execution_manifest_gen_cayley.py"
     }
    ],

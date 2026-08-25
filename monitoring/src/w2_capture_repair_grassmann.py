@@ -32,6 +32,7 @@ Usage:
 import hashlib
 import json
 import os
+import re
 import sys
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
@@ -70,9 +71,29 @@ def _body(sha):
     return raw
 
 
+# FROZEN v3 HISTORICAL VOCABULARY (codex 1304Z bridge finding 4).
+# The v3 capture run used the lane name MF4_FEED, which the v4
+# dispatcher retires and does NOT alias. This driver reads v3
+# evidence, so it carries the historical stem formula itself rather
+# than asking the production token validator to keep accepting a
+# retired lane -- the alias codex forbids never exists in production,
+# and the v3 archive stays independently reproducible.
+V3_LANES = ("DAY_CAPSULE", "SELECTION_RECORDS", "MAG_FEED",
+            "MF4_FEED")
+_V3_DAY = None
+
+
 def _stem(key):
+    """The frozen v3 stem: <lane-lower>_<carrier>_<YYYY-MM-DD>."""
+    global _V3_DAY
+    if _V3_DAY is None:
+        import re
+        _V3_DAY = re.compile(r"\d{4}-\d{2}-\d{2}")
     lane, ck, day = key.split("/")
-    return CAP._path_tokens(lane, ck, day), lane, ck, day
+    if lane not in V3_LANES or not _V3_DAY.fullmatch(day) or \
+            not re.fullmatch(r"[a-z0-9_]{1,64}", ck):
+        raise SystemExit(f"REFUSING: {key} is not a v3 archive key")
+    return f"{lane.lower()}_{ck}_{day}", lane, ck, day
 
 
 def _cls(stem, cls):

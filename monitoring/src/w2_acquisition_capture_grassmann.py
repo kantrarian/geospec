@@ -852,11 +852,81 @@ def _race_worker(path, obj, code, barrier, q):
 
 ARTIFACT_SCHEMA = "f2g-w2-admission-artifact-v1"
 _FDSN_COLS = 17
-# per-carrier registered fill sentinels (probe-evidenced: parser notes
-# v1 pinned 9999.99/99999.9/999.99 for omni vars 17/21/25; SYM/H
-# minute fill is 99999)
-_OMNIWEB_FILL = {"omni": ("9999.99", "99999.9", "999.99"),
-                 "sym_h": ("99999",)}
+# VARIABLE-SPECIFIC registered fill sentinels (codex 1424Z ruling 2).
+# The retired set was a flat per-CARRIER token set inherited from
+# vars 17/21/25, so density's '999.99' was still tested against the
+# magnetic columns after var 25 was superseded -- a legitimate
+# 999.99 nT reading would have been silently read as missing. The
+# sentinel now derives from the REGISTERED VARIABLE of each column,
+# so a superseded variable cannot leave its fill behind, and an
+# unregistered variable has no sentinel and REFUSES rather than
+# guessing. Var 25 (proton density, '999.99') retires with it.
+_OMNIWEB_VAR_FILL = {"17": "9999.99",     # By_GSM, nT
+                     "18": "9999.99",     # Bz_GSM, nT
+                     "21": "99999.9",     # flow speed, km/s
+                     "41": "99999"}       # SYM/H, nT
+# the registered per-sample outcome vocabulary (codex 1424Z ruling 1)
+OUTCOME_ADMITTED = "ADMITTED"
+OUTCOME_ADMITTED_ABSENCE = "ADMITTED_ABSENCE"
+
+
+def _support_block(support):
+    """The registered support seam carried by EVERY admitted
+    artifact: the exact per-sample mask, its supported count, and the
+    outcome -- ADMITTED_ABSENCE is PRECISELY the all-false mask, not
+    a separate concept. Counts never substitute for the mask: which
+    samples are supported is the part a count destroys."""
+    n = sum(1 for x in support if x)
+    return {"support_mask": [bool(x) for x in support],
+            "definitive_samples": n,
+            "outcome": (OUTCOME_ADMITTED if n
+                        else OUTCOME_ADMITTED_ABSENCE)}
+
+
+# ---- the PINNED Newell coupling join (codex 0527Z finding 2: the
+# frozen regressor v^(4/3) * B_T^(2/3) * sin^(8/3)(theta/2), which is
+# why Bz_GSM = var 18 had to be captured). Pinned here as production
+# code so cayley's recompute-at-bind provenance gate can rerun it
+# unchanged against the admitted inputs. ----
+
+NEWELL_JOIN_ID = "f2g-w2-newell-coupling-v1"
+
+
+def newell_coupling(by_gsm, bz_gsm, speed):
+    """One sample of the frozen coupling. Clock angle theta is taken
+    from atan2(By, Bz) in the GSM plane. CONTINUOUS EXTENSION (codex
+    1424Z ruling 1): valid By == Bz == 0 is SUPPORTED and the
+    coupling is exactly 0 -- B_T is 0 there, so the value is zero for
+    every theta and an implementation-dependent atan2(0, 0) must
+    never become a hidden refusal."""
+    import math
+    b_t = math.hypot(by_gsm, bz_gsm)
+    if b_t == 0.0:
+        return 0.0
+    theta = math.atan2(by_gsm, bz_gsm)
+    return (abs(speed) ** (4.0 / 3.0)) * (b_t ** (2.0 / 3.0)) * \
+        (abs(math.sin(theta / 2.0)) ** (8.0 / 3.0))
+
+
+def newell_join(by_series, bz_series, speed_series, support):
+    """The registered series join: one coupling value per registered
+    minute, and None EXACTLY where the support mask is false. The
+    mask governs; no unsupported minute is ever imputed, and no
+    supported minute is silently dropped."""
+    n = len(support)
+    if not (len(by_series) == len(bz_series) == len(speed_series)
+            == n):
+        _xerr("newell_join: series and support length divergence")
+    out = []
+    for i in range(n):
+        if not support[i]:
+            out.append(None)
+            continue
+        out.append(newell_coupling(float(by_series[i]),
+                                   float(bz_series[i]),
+                                   float(speed_series[i])))
+    return {"join": NEWELL_JOIN_ID, "values": out,
+            "supported": sum(1 for x in support if x)}
 
 
 def _xerr(msg):
@@ -1106,7 +1176,7 @@ def _xf_mag(raw_body, s):
     def _series(times, comps, observatory, what):
         _xf_time_grid(times, day, 1, (1440, 1441), what)
         nulls = {}
-        definitive = [False] * len(times)
+        support = [False] * len(times)
         for cid in sorted(comps):
             vals = comps[cid]
             if not isinstance(vals, list) or \
@@ -1118,21 +1188,28 @@ def _xf_mag(raw_body, s):
             nulls[cid] = sum(1 for v in vals if v is None)
             for i, v in enumerate(vals):
                 if v is not None:
-                    definitive[i] = True
+                    support[i] = True
         if not nulls:
             _xerr(f"{what}: zero channels")
-        n_def = sum(definitive)
-        if n_def == 0:
-            _xerr("provider-null MAG series (zero definitive "
-                  "samples)")
-        return {"schema": ARTIFACT_SCHEMA, "lane": s["lane"],
-                "carrier": s["carrier"], "utc_day": day,
-                "kind": "mag-minute-series",
-                "observatory": observatory,
-                "samples": len(times), "channels": sorted(nulls),
-                "null_by_channel": {k: nulls[k] for k in
-                                    sorted(nulls)},
-                "definitive_samples": n_def}
+        # codex 1424Z ruling 1: a provider-null day is now the
+        # ALL-FALSE mask (ADMITTED_ABSENCE), not a refusal -- the
+        # census stays data-independent and the absence is carried
+        # explicitly instead of shrinking the expected key set.
+        # DISCLOSED: this support predicate is ANY registered
+        # channel present. If the MAG-1 features require ALL
+        # components at a sample, the predicate must tighten -- that
+        # is a frozen-instantiation question, so I raise it rather
+        # than decide it here.
+        return dict(
+            {"schema": ARTIFACT_SCHEMA, "lane": s["lane"],
+             "carrier": s["carrier"], "utc_day": day,
+             "kind": "mag-minute-series",
+             "observatory": observatory,
+             "samples": len(times), "channels": sorted(nulls),
+             "support_predicate": "any-registered-channel-present",
+             "null_by_channel": {k: nulls[k] for k in
+                                 sorted(nulls)}},
+            **_support_block(support))
     if kind == "usgs-geomag-ws-minute":
         if not isinstance(doc, dict) or \
                 not isinstance(doc.get("values"), list):
@@ -1159,11 +1236,14 @@ def _xf_mag(raw_body, s):
                    rp.get("observatoryIagaCode"), "GIN MAG")
 
 
-def _xf_mf4(raw_body, s):
-    """MF4_FEED: GFZ Kp JSON (eight three-hour intervals, definitive
-    counted by status) or OMNIWeb high-res CGI listings (minute rows
-    bound to the registered day by YYYY+DOY; per-carrier registered
-    fill sentinels counted; an all-sentinel listing refuses)."""
+def _xf_weather(raw_body, s):
+    """MAG_WEATHER_FEED (the v4 lane split out of the retired
+    MF4_FEED name): GFZ Kp JSON (eight three-hour intervals; support
+    and 'def' maturity reported separately) or OMNIWeb high-res CGI
+    listings (minute rows bound to the registered day by YYYY+DOY;
+    per-VARIABLE registered fill sentinels; per-sample support mask;
+    the pinned Newell join for the corrected 17/18/21 form). An
+    all-unsupported day is ADMITTED_ABSENCE, never a refusal."""
     kind = (s.get("source") or {}).get("kind")
     day = s["utc_day"]
     if kind == "gfz-kp-json":
@@ -1193,23 +1273,40 @@ def _xf_mf4(raw_body, s):
                 _xerr(f"Kp status {x!r} is not in the registered "
                       f"GFZ vocabulary {KP_STATUS_VOCAB}")
         n_def = sum(1 for x in st if x == "def")
-        return {"schema": ARTIFACT_SCHEMA, "lane": s["lane"],
-                "carrier": s["carrier"], "utc_day": day,
-                "kind": "kp-intervals", "intervals": len(kp),
-                "status_counts": {v: st.count(v)
-                                  for v in KP_STATUS_VOCAB
-                                  if v in st},
-                "definitive_intervals": n_def}
+        # DISCLOSED SEAM: for Kp, SUPPORT and MATURITY are different
+        # properties and are reported separately. Every interval that
+        # passed the value+cadence+vocabulary gates carries a usable
+        # index value, so support is true there; `definitive_intervals`
+        # remains the STATUS-based maturity count ('def' only, per the
+        # 2026-08-25 amendment). A complete 'pre' day is fully
+        # SUPPORTED and zero-mature -- collapsing the two would read
+        # provisional data as missing.
+        return dict(
+            {"schema": ARTIFACT_SCHEMA, "lane": s["lane"],
+             "carrier": s["carrier"], "utc_day": day,
+             "kind": "kp-intervals", "intervals": len(kp),
+             "support_predicate": "value-present-and-in-range",
+             "status_counts": {v: st.count(v)
+                               for v in KP_STATUS_VOCAB if v in st},
+             "definitive_intervals": n_def},
+            **_support_block([True] * len(kp)))
     if kind == "omniweb-highres-cgi":
         from datetime import datetime
-        carrier = s["carrier"]
-        if carrier not in _OMNIWEB_FILL:
-            _xerr(f"no registered fill-sentinel set for OMNIWeb "
-                  f"carrier {carrier!r}")
-        fills = set(_OMNIWEB_FILL[carrier])
         rp = dict(s.get("request_params") or {})
         v = rp.get("vars")
-        n_vars = len(v) if isinstance(v, (list, tuple)) else 1
+        # the registered variable LIST governs both column count and
+        # the per-column sentinel; an unregistered variable has no
+        # registered fill and refuses rather than guessing
+        var_list = ([str(x) for x in v]
+                    if isinstance(v, (list, tuple)) else [str(v)])
+        n_vars = len(var_list)
+        unknown = [x for x in var_list
+                   if x not in _OMNIWEB_VAR_FILL]
+        if unknown:
+            _xerr("no registered fill sentinel for OMNIWeb "
+                  f"variable(s) {unknown} -- a variable without a "
+                  "registered fill can never be read for support")
+        col_fill = [_OMNIWEB_VAR_FILL[x] for x in var_list]
         want_doy = datetime.fromisoformat(
             day + "T00:00:00").timetuple().tm_yday
         want_year = int(day[:4])
@@ -1252,33 +1349,51 @@ def _xf_mf4(raw_body, s):
                   "registered cadence is the full 1440-minute grid")
         import math
         fill_by_col = [0] * n_vars
-        n_def = 0
+        support = []
+        columns = [[] for _ in range(n_vars)]
         for vals in rows:
-            all_fill = True
+            # codex 1424Z ruling 1: support[i] is the CONJUNCTION of
+            # valid, nonsentinel samples across EVERY registered
+            # variable at that exact minute -- the regressor needs
+            # all of its terms, so one missing column unsupports the
+            # sample even when the others are present.
+            ok = True
             for i, x in enumerate(vals):
-                if x in fills:
+                if x == col_fill[i]:
                     fill_by_col[i] += 1
+                    columns[i].append(None)
+                    ok = False
                     continue
                 try:
                     fv = float(x)
                 except ValueError:
                     _xerr("nonnumeric OMNIWeb value token "
-                          f"{x!r} (not a registered fill sentinel)")
+                          f"{x!r} (not the registered fill sentinel "
+                          f"for variable {var_list[i]})")
                 if not math.isfinite(fv):
                     _xerr(f"nonfinite OMNIWeb value token {x!r}")
-                all_fill = False
-            if not all_fill:
-                n_def += 1
-        if n_def == 0:
-            _xerr("all OMNIWeb samples are provider fill sentinels "
-                  "(zero definitive samples)")
-        return {"schema": ARTIFACT_SCHEMA, "lane": s["lane"],
-                "carrier": s["carrier"], "utc_day": day,
-                "kind": "omniweb-minute-listing", "samples":
-                    len(rows), "value_columns": n_vars,
-                "fill_by_column": list(fill_by_col),
-                "definitive_samples": n_def}
-    _xerr(f"unregistered MF4 source kind {kind!r}")
+                columns[i].append(fv)
+            support.append(ok)
+        art = dict(
+            {"schema": ARTIFACT_SCHEMA, "lane": s["lane"],
+             "carrier": s["carrier"], "utc_day": day,
+             "kind": "omniweb-minute-listing", "samples": len(rows),
+             "value_columns": n_vars,
+             "registered_vars": list(var_list),
+             "registered_fill_by_column": list(col_fill),
+             "support_predicate":
+                 "all-registered-variables-present-at-the-minute",
+             "fill_by_column": list(fill_by_col)},
+            **_support_block(support))
+        # the PINNED Newell join runs here for the corrected
+        # three-variable weather form (By_GSM, Bz_GSM, flow speed) --
+        # exactly the registered variable order, None wherever the
+        # mask is false
+        if var_list == ["17", "18", "21"]:
+            art["newell"] = newell_join(columns[0], columns[1],
+                                        columns[2], support)
+        return art
+    _xerr(f"unregistered weather source kind {kind!r}")
 
 
 def admission_transform(lane, raw_body, static_contract):
@@ -1294,14 +1409,34 @@ def admission_transform(lane, raw_body, static_contract):
               f"authoritative S lane "
               f"{static_contract.get('lane')!r}")
     kind = (static_contract.get("source") or {}).get("kind")
+    if lane == "MF4_FEED":
+        # codex 1304Z bridge finding 4: the old name is NOT routed
+        # and is NOT an alias. It conflated the MAG weather
+        # regressors with the M-F4 monitor continuity carrier, which
+        # is the collision the successor exists to remove.
+        _xerr("MF4_FEED is a RETIRED v3 lane name that carried two "
+              "different carrier spaces; route MAG_WEATHER_FEED "
+              "(sym_h/kp/corrected omni) or MF4_MONITOR_FEED (the "
+              "daily-risk archive carrier) explicitly -- no "
+              "compatibility alias exists")
     if lane == "SELECTION_RECORDS":
         if kind != "fdsn-station-channel":
             _xerr(f"unregistered SELECTION source kind {kind!r}")
         return _xf_selection(raw_body, static_contract)
     if lane == "MAG_FEED":
         return _xf_mag(raw_body, static_contract)
-    if lane == "MF4_FEED":
-        return _xf_mf4(raw_body, static_contract)
+    if lane == "MF4_MONITOR_FEED":
+        # REGISTERED but fail-closed: the frozen M-F4 engine consumes
+        # {risk_by_region, catalog_snapshot, snapshot_end, freeze_day,
+        # bboxes, regions} from the owner-renewed daily-risk archive
+        # (codex 0527Z finding 3). Its producer is not landed, so the
+        # lane refuses with its OWN typed reason -- distinguishable
+        # from an unregistered lane, and never silently absent.
+        _xerr("MF4_MONITOR_FEED is registered but its archive "
+              "producer is not yet landed; the monitor continuity "
+              "carrier is never satisfied by a weather artifact")
+    if lane == "MAG_WEATHER_FEED":
+        return _xf_weather(raw_body, static_contract)
     _xerr(f"unregistered capture lane {lane!r}")
 
 
@@ -1487,17 +1622,23 @@ def _selftest():
     def copener(url):
         counted["n"] += 1
         return opener(url)
-    kat_keys = {"SELECTION_RECORDS": {"cascadia": ["2026-08-20"]},
-                "MAG_FEED": {"frn": ["2026-08-20"]},
-                "MF4_FEED": {"mf4drv": ["2026-08-20"]}}
+    # the authority fixture's LANE SET is DERIVED from the registered
+    # PRESTART_LANES constant rather than hard-coded, so this KAT
+    # tracks the v3 -> v4 lane rename across the seam instead of
+    # pinning either vocabulary. Only the SELECTION key is actually
+    # captured below, so the other lanes are never routed through the
+    # dispatcher; they exist so the authority validates.
+    import w2_accrual_instrument_cayley as _ACCL
+    kat_keys = {ln: {("cascadia" if ln == "SELECTION_RECORDS"
+                      else "katc"): ["2026-08-20"]}
+                for ln in _ACCL.PRESTART_LANES}
 
     def kat_template(lane, ck):
         # registered (lane, source.kind) pairs so the PRODUCTION
         # admission transform (freeze finding 3) routes the fixture
-        kinds = {"SELECTION_RECORDS": "fdsn-station-channel",
-                 "MAG_FEED": "usgs-geomag-ws-minute",
-                 "MF4_FEED": "gfz-kp-json"}
-        return {"source": {"kind": kinds[lane],
+        kind = ("fdsn-station-channel" if lane == "SELECTION_RECORDS"
+                else "usgs-geomag-ws-minute")
+        return {"source": {"kind": kind,
                            "ref": "https://kat.example/fdsn2"},
                 "endpoint": "https://kat.example/fdsn2",
                 "request_params": {"net": "UW", "cha": "HHZ"},
@@ -2124,9 +2265,20 @@ def _selftest():
     art_m2 = admission_transform("MAG_FEED",
                                  usgs_body([2.0] * 1441), mag_s())
     assert art_m2["samples"] == 1441
-    assert xrefuses(lambda: admission_transform(
-        "MAG_FEED", usgs_body([None] * 1440), mag_s()),
-        "provider-null MAG series")
+    # codex 1424Z ruling 1: a provider-null day is now the ALL-FALSE
+    # mask -- ADMITTED_ABSENCE, not a refusal. It SATISFIES its key,
+    # so the census stays data-independent.
+    art_abs = admission_transform("MAG_FEED",
+                                  usgs_body([None] * 1440), mag_s())
+    assert art_abs["outcome"] == OUTCOME_ADMITTED_ABSENCE
+    assert art_abs["definitive_samples"] == 0
+    assert art_abs["support_mask"] == [False] * 1440
+    # the mask is the primary object: length == grid, sum == count
+    assert len(art_m["support_mask"]) == art_m["samples"]
+    assert sum(art_m["support_mask"]) == art_m["definitive_samples"]
+    assert art_m["outcome"] == OUTCOME_ADMITTED
+    assert art_m["support_mask"][-1] is False    # the one null
+    assert all(art_m["support_mask"][:-1])
     assert xrefuses(lambda: admission_transform(
         "MAG_FEED", usgs_body([1.0] * 1440, iaga="EVIL"), mag_s()),
         "diverges from the registered id")
@@ -2178,15 +2330,17 @@ def _selftest():
     assert art_g["definitive_samples"] == 1440
     assert art_g["channels"] == ["H", "Z"]
     assert art_g["null_by_channel"] == {"H": 0, "Z": 1}
-    assert xrefuses(lambda: admission_transform(
+    art_gabs = admission_transform(
         "MAG_FEED", json.dumps(
             {"datetime": grid_times(),
              "H": [None] * 1440}).encode(),
         mag_s(source={"kind": "intermagnet-gin-minute",
-                      "ref": "kat://g"})), "provider-null")
+                      "ref": "kat://g"}))
+    assert art_gabs["outcome"] == OUTCOME_ADMITTED_ABSENCE
+    assert art_gabs["definitive_samples"] == 0
 
     def mf4_s(carrier="kp", kind="gfz-kp-json", **over):
-        s = {"lane": "MF4_FEED", "carrier": carrier,
+        s = {"lane": "MAG_WEATHER_FEED", "carrier": carrier,
              "utc_day": "2026-08-20",
              "endpoint": "https://kat.example/k",
              "request_params": {"start": "2026-08-20T00:00:00Z"},
@@ -2206,7 +2360,7 @@ def _selftest():
             "datetime": dts if dts is not None
             else ["2026-08-20T%02d:00:00Z" % (3 * i)
                   for i in range(8)]}).encode()
-    art_k = admission_transform("MF4_FEED", kp_body(
+    art_k = admission_transform("MAG_WEATHER_FEED", kp_body(
         status=["def"] * 7 + ["pre"]), mf4_s())
     assert art_k["intervals"] == 8
     assert art_k["definitive_intervals"] == 7
@@ -2214,7 +2368,7 @@ def _selftest():
     # AMENDMENT 2026-08-25 (postflight ruling 4): a COMPLETE 'pre'
     # day ADMITS with definitive_intervals=0 -- the exact shape of
     # the 24 replayed capture-run days
-    art_pre = admission_transform("MF4_FEED", kp_body(
+    art_pre = admission_transform("MAG_WEATHER_FEED", kp_body(
         status=["pre"] * 8), mf4_s())
     assert art_pre["intervals"] == 8
     assert art_pre["definitive_intervals"] == 0
@@ -2222,23 +2376,23 @@ def _selftest():
     # ...and the RETIRED guess 'prov' now refuses like any other
     # unregistered token (replaced, never supplemented)
     assert xrefuses(lambda: admission_transform(
-        "MF4_FEED", kp_body(status=["prov"] * 8), mf4_s()),
+        "MAG_WEATHER_FEED", kp_body(status=["prov"] * 8), mf4_s()),
         "not in the registered GFZ vocabulary")
     # codex end-to-end finding 2, exact repro 3: an unregistered
     # status token refuses instead of admitting
     assert xrefuses(lambda: admission_transform(
-        "MF4_FEED", kp_body(status=["NOT_REGISTERED"] * 8),
+        "MAG_WEATHER_FEED", kp_body(status=["NOT_REGISTERED"] * 8),
         mf4_s()), "not in the registered GFZ vocabulary")
     assert xrefuses(lambda: admission_transform(
-        "MF4_FEED", kp_body(vals=[11.0] + [1.0] * 7), mf4_s()),
+        "MAG_WEATHER_FEED", kp_body(vals=[11.0] + [1.0] * 7), mf4_s()),
         "not a finite index value")
     assert xrefuses(lambda: admission_transform(
-        "MF4_FEED", kp_body(vals=[float("nan")] + [1.0] * 7),
+        "MAG_WEATHER_FEED", kp_body(vals=[float("nan")] + [1.0] * 7),
         mf4_s()), "not a finite index value")
     # the registered 8x3h cadence: short, duplicated, out-of-order,
     # and wrong-day interval lists all refuse
     assert xrefuses(lambda: admission_transform(
-        "MF4_FEED", json.dumps(
+        "MAG_WEATHER_FEED", json.dumps(
             {"Kp": [1.0], "status": ["def"],
              "datetime": ["2026-08-20T00:00:00Z"]}).encode(),
         mf4_s()), "violates the registered cadence")
@@ -2246,15 +2400,15 @@ def _selftest():
     kp_dup = list(kp_dts)
     kp_dup[3] = kp_dup[2]
     assert xrefuses(lambda: admission_transform(
-        "MF4_FEED", kp_body(dts=kp_dup), mf4_s()),
+        "MAG_WEATHER_FEED", kp_body(dts=kp_dup), mf4_s()),
         "violates the registered cadence")
     kp_ooo = list(kp_dts)
     kp_ooo[0], kp_ooo[1] = kp_ooo[1], kp_ooo[0]
     assert xrefuses(lambda: admission_transform(
-        "MF4_FEED", kp_body(dts=kp_ooo), mf4_s()),
+        "MAG_WEATHER_FEED", kp_body(dts=kp_ooo), mf4_s()),
         "violates the registered cadence")
     assert xrefuses(lambda: admission_transform(
-        "MF4_FEED", kp_body(dts=["2026-08-21T%02d:00:00Z" % (3 * i)
+        "MAG_WEATHER_FEED", kp_body(dts=["2026-08-21T%02d:00:00Z" % (3 * i)
                                  for i in range(8)]), mf4_s()),
         "violates the registered cadence")
 
@@ -2267,37 +2421,88 @@ def _selftest():
             lines.append(f"2026 232 {hh:2d} {mn:2d} {vals}")
         lines.append("</pre></HTML>")
         return ("\n".join(lines) + "\n").encode()
-    art_o = admission_transform("MF4_FEED", omni_body(
-        make=lambda i: ("9999.99 99999.9 999.99" if i == 1
-                        else "  -4.68   556.3   0.95")), mf4_s(
-        carrier="omni", kind="omniweb-highres-cgi",
-        request_params={"vars": ["17", "21", "25"]}))
+    # the CORRECTED registered variable form 17/18/21 (By, Bz, speed)
+    omni_s = mf4_s(carrier="omni", kind="omniweb-highres-cgi",
+                   request_params={"vars": ["17", "18", "21"]})
+    art_o = admission_transform("MAG_WEATHER_FEED", omni_body(
+        make=lambda i: ("9999.99    2.53   498.5" if i == 1
+                        else "  -9.30    2.53   498.5")), omni_s)
     assert art_o["samples"] == 1440
     assert art_o["definitive_samples"] == 1439
-    assert art_o["fill_by_column"] == [1, 1, 1]
+    assert art_o["registered_vars"] == ["17", "18", "21"]
+    assert art_o["registered_fill_by_column"] == \
+        ["9999.99", "9999.99", "99999.9"]
+    # codex 1424Z ruling 1: support is the CONJUNCTION -- one filled
+    # column unsupports the whole minute even though two are present
+    assert art_o["support_mask"][1] is False
+    assert art_o["fill_by_column"] == [1, 0, 0]
+    assert sum(art_o["support_mask"]) == art_o["definitive_samples"]
+    # the PINNED Newell join: a value at every supported minute, None
+    # EXACTLY where the mask is false
+    nj = art_o["newell"]
+    assert nj["join"] == NEWELL_JOIN_ID
+    assert len(nj["values"]) == 1440
+    assert nj["values"][1] is None
+    assert isinstance(nj["values"][0], float) and nj["values"][0] > 0
+    assert [v is None for v in nj["values"]] == \
+        [not b for b in art_o["support_mask"]]
+    # continuous extension (codex 1424Z ruling 1): valid By=Bz=0 is
+    # SUPPORTED and the coupling is exactly 0 -- atan2(0,0) must
+    # never become a hidden refusal
+    art_z = admission_transform("MAG_WEATHER_FEED", omni_body(
+        make=lambda i: "   0.00    0.00   400.0"), omni_s)
+    assert art_z["outcome"] == OUTCOME_ADMITTED
+    assert art_z["definitive_samples"] == 1440
+    assert art_z["newell"]["values"][0] == 0.0
+    assert newell_coupling(0.0, 0.0, 400.0) == 0.0
+    # codex 1424Z ruling 2: an ordinary 999.99 in a MAGNETIC column
+    # is a VALUE, not fill -- the retired density sentinel is gone
+    art_999 = admission_transform("MAG_WEATHER_FEED", omni_body(
+        make=lambda i: ("999.99    2.53   498.5" if i == 3
+                        else "  -9.30    2.53   498.5")), omni_s)
+    assert art_999["definitive_samples"] == 1440
+    assert art_999["support_mask"][3] is True
+    assert art_999["fill_by_column"] == [0, 0, 0]
+    # ...while the registered per-variable fills DO unsupport
+    art_reg = admission_transform("MAG_WEATHER_FEED", omni_body(
+        make=lambda i: ("  -9.30    2.53 99999.9" if i == 5
+                        else "  -9.30    2.53   498.5")), omni_s)
+    assert art_reg["support_mask"][5] is False
+    assert art_reg["fill_by_column"] == [0, 0, 1]
+    # a RETIRED/unregistered variable has no registered fill and
+    # refuses rather than guessing one
+    assert xrefuses(lambda: admission_transform(
+        "MAG_WEATHER_FEED", omni_body(
+            make=lambda i: "  -9.30    2.53   498.5"),
+        mf4_s(carrier="omni", kind="omniweb-highres-cgi",
+              request_params={"vars": ["17", "21", "25"]})),
+        "no registered fill sentinel for OMNIWeb variable")
     # codex end-to-end finding 2, exact repro 2: nonnumeric value
     # tokens refuse instead of counting as definitive
     assert xrefuses(lambda: admission_transform(
-        "MF4_FEED", omni_body(
+        "MAG_WEATHER_FEED", omni_body(
             make=lambda i: ("NOT_A_NUMBER ALSO_BAD STILL_BAD"
                             if i == 0
-                            else "  -4.68   556.3   0.95")), mf4_s(
-            carrier="omni", kind="omniweb-highres-cgi",
-            request_params={"vars": ["17", "21", "25"]})),
-        "nonnumeric OMNIWeb value token")
+                            else "  -9.30    2.53   498.5")),
+        omni_s), "nonnumeric OMNIWeb value token")
     sym_s = mf4_s(carrier="sym_h", kind="omniweb-highres-cgi",
                   request_params={"vars": "41"})
-    art_sym = admission_transform("MF4_FEED", omni_body(
+    art_sym = admission_transform("MAG_WEATHER_FEED", omni_body(
         make=lambda i: "  -28", header="YYYY DOY HR MN    1 "),
         sym_s)
     assert art_sym["samples"] == 1440
-    assert xrefuses(lambda: admission_transform(
-        "MF4_FEED", omni_body(make=lambda i: "99999",
-                              header="YYYY DOY HR MN    1 "),
-        sym_s), "provider fill sentinels")
+    assert art_sym["outcome"] == OUTCOME_ADMITTED
+    # an all-sentinel day is ADMITTED_ABSENCE, not a refusal
+    art_symabs = admission_transform("MAG_WEATHER_FEED", omni_body(
+        make=lambda i: "99999", header="YYYY DOY HR MN    1 "),
+        sym_s)
+    assert art_symabs["outcome"] == OUTCOME_ADMITTED_ABSENCE
+    assert art_symabs["definitive_samples"] == 0
+    assert art_symabs["support_mask"] == [False] * 1440
+    assert "newell" not in art_symabs      # single-variable form
     # cadence doctors: short listing and a duplicated minute row
     assert xrefuses(lambda: admission_transform(
-        "MF4_FEED", omni_body(make=lambda i: "  -28", n=1439,
+        "MAG_WEATHER_FEED", omni_body(make=lambda i: "  -28", n=1439,
                               header="YYYY DOY HR MN    1 "),
         sym_s), "full 1440-minute grid")
     dup_lines = omni_body(make=lambda i: "  -28",
@@ -2305,25 +2510,75 @@ def _selftest():
                           ).decode().splitlines()
     dup_lines[10] = dup_lines[9]      # minute 7 repeats minute 6
     assert xrefuses(lambda: admission_transform(
-        "MF4_FEED", ("\n".join(dup_lines) + "\n").encode(), sym_s),
+        "MAG_WEATHER_FEED", ("\n".join(dup_lines) + "\n").encode(), sym_s),
         "violates the registered minute cadence")
     omni_txt2 = ("<HTML><pre>Selected parameters:\n"
                  "YYYY DOY HR MN      1       2      3 \n"
                  "2026 232  0  0   -4.68   556.3   0.95\n"
                  "</pre></HTML>\n").encode()
     assert xrefuses(lambda: admission_transform(
-        "MF4_FEED", omni_txt2, mf4_s(
+        "MAG_WEATHER_FEED", omni_txt2, mf4_s(
             carrier="omni", kind="omniweb-highres-cgi",
             request_params={"vars": ["17", "21"]})),
         "malformed OMNIWeb data row")
     wrong_day_omni = ("<pre>\nYYYY DOY HR MN    1 \n"
                       "2026 001  0  0   -28\n</pre>\n").encode()
     assert xrefuses(lambda: admission_transform(
-        "MF4_FEED", wrong_day_omni, sym_s),
+        "MAG_WEATHER_FEED", wrong_day_omni, sym_s),
         "outside the registered day")
     assert xrefuses(lambda: admission_transform(
         "DAY_CAPSULE", b"x", sel_s(lane="DAY_CAPSULE")),
         "unregistered capture lane")
+    # --- codex 1304Z bridge finding 4: the v4 lane split, with NO
+    # MF4_FEED compatibility alias ---
+    assert "MF4_FEED" not in PROD.RECORD_LANES
+    assert {"MAG_WEATHER_FEED", "MF4_MONITOR_FEED"} <= \
+        PROD.RECORD_LANES
+    # the RETIRED name is not routed and does not fall through to a
+    # generic "unregistered lane" message -- it names its own retirement
+    assert xrefuses(lambda: admission_transform(
+        "MF4_FEED", kp_body(), mf4_s(lane="MF4_FEED")),
+        "RETIRED v3 lane name")
+    # the monitor carrier is REGISTERED but fail-closed, and is
+    # distinguishable from both a retired and an unregistered lane
+    assert xrefuses(lambda: admission_transform(
+        "MF4_MONITOR_FEED", kp_body(),
+        mf4_s(lane="MF4_MONITOR_FEED")),
+        "archive producer is not yet landed")
+    # a weather artifact can never satisfy the monitor carrier
+    assert xrefuses(lambda: admission_transform(
+        "MF4_MONITOR_FEED", omni_body(
+            make=lambda i: "  -9.30    2.53   498.5"),
+        mf4_s(lane="MF4_MONITOR_FEED", carrier="omni",
+              kind="omniweb-highres-cgi",
+              request_params={"vars": ["17", "18", "21"]})),
+        "never satisfied by a weather artifact")
+
+    # --- the REAL corrected-OMNI probe body (request 1 of 636) run
+    # through the production transform: the strongest available
+    # fixture, and the numbers must match the independently
+    # recomputed parser note ---
+    _probe_body = os.path.join(
+        os.path.dirname(os.path.dirname(_HERE)),
+        "docs", "f2g_window2_execution", "probe_evidence",
+        "omni_corrected_probe_20260101.body")
+    if os.path.isfile(_probe_body):
+        with open(_probe_body, "rb") as f:
+            _pb = f.read()
+        _ps = dict(omni_s, utc_day="2026-01-01",
+                   operation_params={"carrier": "omni",
+                                     "day": "2026-01-01"},
+                   expected_keys=["2026-01-01"])
+        _pa = admission_transform("MAG_WEATHER_FEED", _pb, _ps)
+        assert _pa["samples"] == 1440
+        assert _pa["fill_by_column"] == [9, 9, 260]
+        assert _pa["definitive_samples"] == 1179
+        assert sum(_pa["support_mask"]) == 1179
+        assert _pa["outcome"] == OUTCOME_ADMITTED
+        assert len(_pa["newell"]["values"]) == 1440
+        assert sum(1 for v in _pa["newell"]["values"]
+                   if v is None) == 261
+        assert _pa["newell"]["supported"] == 1179
 
     print("w2_acquisition_capture selftest: ALL PASS (no network)")
 

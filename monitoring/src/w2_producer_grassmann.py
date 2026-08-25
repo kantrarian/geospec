@@ -540,8 +540,17 @@ ENVELOPE_RECORD_KEYS = {
     "raw_body_bytes", "source", "endpoint", "request_params",
     "receipt", "capture_time_utc", "cutoff", "operation_params",
     "expected_keys", "output_sha256"}
-RECORD_LANES = {"DAY_CAPSULE", "SELECTION_RECORDS", "MF4_FEED",
-                "MAG_FEED"}
+# v4 lane vocabulary (codex 0527Z finding 3 + 1304Z bridge finding 4
+# + 1424Z ruling 4): the old MF4_FEED name carried TWO different
+# carrier spaces -- MAG weather regressors and the M-F4 monitor
+# continuity carrier. It is SPLIT here and deliberately NOT retained
+# as a compatibility alias; keeping it would recreate exactly the
+# collision the successor exists to remove. The v3 capture-run
+# evidence that used the old name stays reproducible through the
+# frozen historical vocabulary carried by the v3-only drivers, never
+# through a live alias in production.
+RECORD_LANES = {"DAY_CAPSULE", "SELECTION_RECORDS", "MAG_FEED",
+                "MAG_WEATHER_FEED", "MF4_MONITOR_FEED"}
 # codex 1843Z item 3: the ENVELOPE receipt interior is CLOSED and
 # carries the transcript link -- the envelope's dynamic seam is a
 # projection of the capture transcript, never caller-assembled.

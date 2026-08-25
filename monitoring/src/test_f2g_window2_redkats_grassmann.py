@@ -2398,7 +2398,7 @@ def w_selrun():
             raise AssertionError("must never be reached")
         bar_keys = {"SELECTION_RECORDS": {"cascadia": ["2026-08-20"]},
                     "MAG_FEED": {"frn": ["2026-08-20"]},
-                    "MF4_FEED": {"mf4drv": ["2026-08-20"]}}
+                    "MAG_WEATHER_FEED": {"mf4drv": ["2026-08-20"]}}
         bar_auth = {"schema": "f2g-w2-expected-contracts-v3",
                     "template_token_vocabulary":
                         ["{day}", "{day_next}"],
@@ -2516,6 +2516,31 @@ def w_admit():
         import w2_producer_grassmann as PRODM
         import w2_accrual_instrument_cayley as ACC
 
+        # DISCLOSED TRANSITIONAL SEAM (codex 1304Z bridge finding 4 +
+        # 1424Z ruling 4). The v4 split retires MF4_FEED, which named
+        # two carrier spaces at once, into MAG_WEATHER_FEED +
+        # MF4_MONITOR_FEED with NO compatibility alias. Until the
+        # registered PRESTART_LANES constant is rebased onto the v4
+        # vocabulary, this group cannot construct a valid authority:
+        # the lane the instrument REQUIRES is one production now
+        # REFUSES. That is the cascade cayley flagged in advance, not
+        # a defect in either surface -- so it is reported RED with an
+        # exact reason rather than softened into a pass.
+        _retired = [ln for ln in ACC.PRESTART_LANES
+                    if ln not in PRODM.RECORD_LANES]
+        if _retired:
+            check("ADMIT admission-boundary locks",
+                  False,
+                  "DISCLOSED SEAM (not a defect): registered "
+                  f"PRESTART_LANES still names {_retired}, retired by "
+                  "the v4 lane split; the boundary requires the "
+                  "authority lane set to EQUAL PRESTART_LANES while "
+                  "production refuses the retired name. Owner: "
+                  "cayley's v4 rebase (PRESTART_LANES -> "
+                  "MAG_WEATHER_FEED + MF4_MONITOR_FEED). This group "
+                  "goes green on that rebase with no change here.")
+            return
+
         def canon(o):
             return PRODM._canon_digest(o)
 
@@ -2523,8 +2548,15 @@ def w_admit():
         store = os.path.join(root, "store")
         rdir = os.path.join(root, "records")
         tdir = os.path.join(root, "transcripts")
-        LANES = (("SELECTION_RECORDS", "cascadia"),
-                 ("MAG_FEED", "frn"), ("MF4_FEED", "mf4drv"))
+        # the fixture lane set is DERIVED from the registered
+        # PRESTART_LANES constant, so this group tracks the v3 -> v4
+        # rename (MF4_FEED split into MAG_WEATHER_FEED +
+        # MF4_MONITOR_FEED, codex 1304Z bridge finding 4) across the
+        # cross-module seam instead of pinning either vocabulary
+        _CARRIER = {"SELECTION_RECORDS": "cascadia",
+                    "MAG_FEED": "frn"}
+        LANES = tuple((ln, _CARRIER.get(ln, "katc"))
+                      for ln in ACC.PRESTART_LANES)
         DAYS = ("2026-08-20", "2026-08-21")
         bodies_by_url = {}
 
@@ -2652,8 +2684,7 @@ def w_admit():
         res = boundary(pins)
         ok_pos = isinstance(res, dict) \
             and set(res["report"]["lanes"]) == {
-                "SELECTION_RECORDS/cascadia", "MAG_FEED/frn",
-                "MF4_FEED/mf4drv"} \
+                f"{ln}/{ck}" for ln, ck in LANES} \
             and all(v["days"] == 2
                     for v in res["report"]["lanes"].values()) \
             and len(res["staged_boundary_sha256"]) == 64
@@ -2753,7 +2784,7 @@ def w_admit():
             "does not recompute")
         # empty carrier map for a named lane
         ek = json.loads(json.dumps(auth_keys))
-        ek["MF4_FEED"] = {}
+        ek[LANES[-1][0]] = {}
         a_empty = mut_auth(prestart_expected_keys=ek,
                            prestart_expected_keys_sha256=keys_sha(ek))
         ok_auth = ok_auth and refuses_detail(

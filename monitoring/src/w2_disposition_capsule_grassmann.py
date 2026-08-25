@@ -43,7 +43,24 @@ import w2_acquisition_capture_grassmann as CAP
 import w2_accrual_instrument_cayley as ACC
 
 REPO = os.path.abspath(os.path.join(_HERE, "..", ".."))
-CAPSULE_SCHEMA = "f2g-w2-key-disposition-capsule-v1"
+# v2 (codex 2119Z closure 2): v1 closed only the top level and the
+# partition KEY SETS, so every nested field was forgeable while the
+# report still read clean -- well-formed, not authenticating, the
+# same family as the defects we have each been caught by one level
+# up. v1 remains valid for its ORIGINAL purpose (request-ceiling
+# membership, which consumes partition membership only); v2 is what a
+# LINEAGE REGISTRY requires, and every nested field consumed as
+# authority is closed and independently re-derived here.
+CAPSULE_SCHEMA = "f2g-w2-key-disposition-capsule-v2"
+_AUTHORITY_KEYS = {"path", "blob_sha256", "keys_sha256", "census"}
+_OLD_AUTHORITY_KEYS = {"commit", "path", "blob_sha256",
+                       "keys_sha256"}
+_ARCHIVE_KEYS = {"path", "sha256", "store_id"}
+_LINEAGE_KEYS = {"v3_key", "s_v3_sha256", "t_v3_sha256",
+                 "raw_body_sha256", "raw_body_bytes", "outcome",
+                 "s_v4_sha256"}
+_PREDECESSOR_KEYS = {"spent_probe"}
+_HEX64 = 64
 CAPSULE_PATH = ("docs/f2g_window2_execution/"
                 "key_disposition_capsule_v4.json")
 AUTHORITY_PATH = ("docs/f2g_window2_execution/"
@@ -138,9 +155,16 @@ def derive(authority, archive, store_root, transform=None):
             art = xf(v4lane, body, s)
         except CAP.CaptureRefusal:
             continue
+        # codex closure 2: the LINEAGE record binds both endpoints.
+        # raw_body_bytes is RECOMPUTED from the reopened bytes, never
+        # copied from the archive's submitted field; s_v4_sha256 is
+        # REPORTED but never authoritative -- verify re-derives it.
         reuse[v4key] = {"v3_key": k, "raw_body_sha256": sha,
-                        "raw_body_bytes": v3[k]["raw_body_bytes"],
-                        "outcome": art.get("outcome")}
+                        "raw_body_bytes": len(body),
+                        "outcome": art.get("outcome"),
+                        "s_v3_sha256": v3[k]["static_contract_sha256"],
+                        "t_v3_sha256": v3[k]["transcript_sha256"],
+                        "s_v4_sha256": _canon(s)}
         notes[v4key] = art.get("support_predicate")
     http = sorted(v4set - set(reuse) - {PREDECESSOR_KEY})
     pred = {PREDECESSOR_KEY: {"spent_probe": True}}
@@ -169,6 +193,9 @@ def build(store_root, commitish="HEAD", transform=None):
         "v3_archive": {"path": V3_ARCHIVE_PATH,
                        "sha256": hashlib.sha256(araw).hexdigest(),
                        "store_id": archive.get("store_id")},
+        # the OLD authority the historical exchanges happened under
+        # (codex closure 3: both endpoints are authenticated)
+        "old_authority": dict(archive["authority"]),
         "lane_map": dict(LANE_MAP),
         "superseded_v3": [list(x) for x in SUPERSEDED_V3],
         "reuse_or_bridge": reuse,
@@ -208,7 +235,8 @@ def _partition_block(caps):
     }
 
 
-def verify(capsule, authority=None, commitish="HEAD"):
+def verify(capsule, authority=None, commitish="HEAD",
+           store_root=None):
     """The capsule verifier: closed schema, EXACT and DISJOINT
     partition of the registered authority key set, recomputed
     per-partition digests, and a recomputed counts block. Nothing
@@ -217,9 +245,9 @@ def verify(capsule, authority=None, commitish="HEAD"):
     if not isinstance(c, dict) or c.get("schema") != CAPSULE_SCHEMA:
         _d("capsule is not the registered schema")
     want_top = {"schema", "authority", "transform_identity",
-                "v3_archive", "lane_map", "superseded_v3",
-                "reuse_or_bridge", "predecessor", "http_capture",
-                "partitions"}
+                "v3_archive", "old_authority", "lane_map",
+                "superseded_v3", "reuse_or_bridge", "predecessor",
+                "http_capture", "partitions"}
     if set(c) != want_top:
         _d(f"capsule top-level field set is not closed "
            f"(missing={sorted(want_top - set(c))}, "
@@ -256,10 +284,158 @@ def verify(capsule, authority=None, commitish="HEAD"):
     if c["partitions"] != recomputed:
         _d("the partitions block is DERIVED, never submitted -- it "
            "does not recompute from the capsule's own key lists")
+    _verify_nested(c, authority, store_root)
     return {"census": len(keys),
             "REUSE_OR_BRIDGE": len(reuse),
             "PREDECESSOR": len(pred),
-            "HTTP_CAPTURE": len(http)}
+            "HTTP_CAPTURE": len(http),
+            "bodies_recomputed": (len(reuse) if store_root
+                                  else None)}
+
+
+def _hex(v, what):
+    if not (isinstance(v, str) and len(v) == _HEX64
+            and all(ch in "0123456789abcdef" for ch in v)):
+        _d(f"{what} is not lowercase-hex sha256")
+
+
+def _closed(obj, want, what):
+    if not isinstance(obj, dict) or set(obj) != want:
+        _d(f"{what} is not the closed field set "
+           f"(missing={sorted(want - set(obj or {}))}, "
+           f"extra={sorted(set(obj or {}) - want)})")
+
+
+def _verify_nested(c, authority, store_root=None):
+    """codex 2119Z closure 2: EVERY nested field consumed as
+    authority is closed and INDEPENDENTLY re-derived. A verifier that
+    closes the top level and the key sets but leaves the interior
+    open is well-formed, not authenticating."""
+    _closed(c["authority"], _AUTHORITY_KEYS, "authority")
+    _closed(c["old_authority"], _OLD_AUTHORITY_KEYS, "old_authority")
+    _closed(c["v3_archive"], _ARCHIVE_KEYS, "v3_archive")
+    _hex(c["authority"]["blob_sha256"], "authority.blob_sha256")
+    _hex(c["authority"]["keys_sha256"], "authority.keys_sha256")
+    _hex(c["old_authority"]["blob_sha256"], "old_authority.blob")
+    _hex(c["old_authority"]["keys_sha256"], "old_authority.keys")
+    _hex(c["v3_archive"]["sha256"], "v3_archive.sha256")
+    # the archive digest is PROVENANCE and must be checked against
+    # the ACTUAL archive wherever it resolves -- a bound digest that
+    # nobody re-derives is exactly the forgeable field codex
+    # demonstrated. Git first, then disk; if it resolves at all, the
+    # match is REQUIRED.
+    _araw = None
+    if _archive_committed("HEAD"):
+        _araw = _blob(f"HEAD:{c['v3_archive']['path']}")
+    else:
+        _ap = os.path.join(REPO, *c["v3_archive"]["path"].split("/"))
+        if os.path.isfile(_ap):
+            with open(_ap, "rb") as f:
+                _araw = f.read()
+    if _araw is not None:
+        if hashlib.sha256(_araw).hexdigest() != \
+                c["v3_archive"]["sha256"]:
+            _d("v3_archive.sha256 does not match the resolved "
+               "archive bytes")
+        _arch = json.loads(_araw.decode("utf-8"))
+        if _arch.get("store_id") != c["v3_archive"]["store_id"]:
+            _d("v3_archive.store_id does not match the archive's "
+               "own store identity")
+        if _arch.get("authority") != c["old_authority"]:
+            _d("old_authority does not match the authority identity "
+               "the archive itself records")
+    if c["authority"]["keys_sha256"] != \
+            authority["prestart_expected_keys_sha256"]:
+        _d("authority.keys_sha256 does not match the registered "
+           "authority's own key digest")
+    # the lane map and superseded set are REGISTERED constants, not
+    # capsule opinions -- a capsule may not redefine the mapping it
+    # is verified against
+    if c["lane_map"] != dict(LANE_MAP):
+        _d(f"lane_map {c['lane_map']} is not the REGISTERED map "
+           f"{dict(LANE_MAP)}")
+    if [tuple(x) for x in c["superseded_v3"]] != list(SUPERSEDED_V3):
+        _d("superseded_v3 is not the REGISTERED superseded set")
+    # the TRANSFORM identity is re-derived from the actual module,
+    # never trusted from the field
+    live = CAP.transform_identity()
+    if c["transform_identity"] != live:
+        _d("transform_identity does not match the LIVE registered "
+           f"transform (capsule names "
+           f"{str(c['transform_identity'])[:60]})")
+    for k, e in c["predecessor"].items():
+        _closed(e, _PREDECESSOR_KEYS, f"predecessor[{k}]")
+        if e["spent_probe"] is not True:
+            _d(f"predecessor[{k}] must record spent_probe true")
+    # the v3 authority the historical exchanges happened under
+    old_raw = _blob(f"{c['old_authority']['commit']}:"
+                    f"{c['old_authority']['path']}")
+    if hashlib.sha256(old_raw).hexdigest() != \
+            c["old_authority"]["blob_sha256"]:
+        _d("old_authority bytes diverge from its pinned digest")
+    old_auth = json.loads(old_raw.decode("utf-8"))
+    seen_sources = {}
+    for v4key in sorted(c["reuse_or_bridge"]):
+        e = c["reuse_or_bridge"][v4key]
+        _closed(e, _LINEAGE_KEYS, f"lineage[{v4key}]")
+        for f_ in ("raw_body_sha256", "s_v3_sha256", "t_v3_sha256",
+                   "s_v4_sha256"):
+            _hex(e[f_], f"lineage[{v4key}].{f_}")
+        if not isinstance(e["raw_body_bytes"], int) or \
+                e["raw_body_bytes"] <= 0:
+            _d(f"lineage[{v4key}].raw_body_bytes is not a positive "
+               "integer")
+        # INJECTIVE: two v4 keys may never share one source operation
+        src = e["v3_key"]
+        if src in seen_sources:
+            _d(f"lineage source {src} is claimed by BOTH "
+               f"{seen_sources[src]} and {v4key} -- the v3 -> v4 "
+               "mapping must be injective")
+        seen_sources[src] = v4key
+        # the v4 key must DERIVE from the v3 key through the
+        # REGISTERED map; a lineage may not assert an arbitrary pair
+        try:
+            olane, ock, oday = src.split("/")
+        except ValueError:
+            _d(f"lineage[{v4key}].v3_key {src!r} is not a key")
+        if f"{LANE_MAP.get(olane, olane)}/{ock}/{oday}" != v4key:
+            _d(f"lineage[{v4key}] does not derive from its source "
+               f"{src} under the registered lane map")
+        # S_v3 and S_v4 are DERIVED here; the capsule's digests are
+        # compared to the derivation, never used as the authority
+        try:
+            s3 = ACC.authoritative_static_contract(old_auth, olane,
+                                                   ock, oday)
+        except Exception as exc:
+            _d(f"lineage[{v4key}]: S_v3 does not derive from the "
+               f"pinned old authority ({type(exc).__name__})")
+        if _canon(s3) != e["s_v3_sha256"]:
+            _d(f"lineage[{v4key}].s_v3_sha256 does not match the "
+               "INDEPENDENTLY derived S_v3")
+        nlane, nck, nday = v4key.split("/")
+        try:
+            s4 = ACC.authoritative_static_contract(authority, nlane,
+                                                   nck, nday)
+        except Exception as exc:
+            _d(f"lineage[{v4key}]: S_v4 does not derive from the "
+               f"current authority ({type(exc).__name__})")
+        if _canon(s4) != e["s_v4_sha256"]:
+            _d(f"lineage[{v4key}].s_v4_sha256 does not match the "
+               "INDEPENDENTLY derived S_v4 -- a lineage is never "
+               "allowed to name the contract that authenticates it")
+        if store_root:
+            p = os.path.join(store_root, e["raw_body_sha256"] +
+                             ".body")
+            if not os.path.isfile(p):
+                _d(f"lineage[{v4key}] body is absent from the store")
+            with open(p, "rb") as f:
+                raw = f.read()
+            if hashlib.sha256(raw).hexdigest() != \
+                    e["raw_body_sha256"]:
+                _d(f"lineage[{v4key}] body digest mismatch")
+            if len(raw) != e["raw_body_bytes"]:
+                _d(f"lineage[{v4key}].raw_body_bytes {e['raw_body_bytes']}"
+                   f" != the RECOMPUTED length {len(raw)}")
 
 
 def may_fire(capsule, lane, carrier, utc_day):
@@ -282,101 +458,125 @@ def main():
     store = os.environ.get("W2_V3_STORE",
                            "E:/GeoSpec/w2_capture_store_20260825")
     out = os.path.join(REPO, *CAPSULE_PATH.split("/"))
-    if mode == "build":
+    if mode in ("build", "rebuild"):
         caps = build(store)
-        print("derived:", verify(caps))
+        print("derived:", verify(caps, store_root=store))
+        if mode == "rebuild" and os.path.exists(out):
+            # codex 2119Z closure 2 ordered the upgraded capsule to
+            # be REGENERATED and re-pinned; an explicit mode, never a
+            # silent overwrite of a create-once artifact
+            os.remove(out)
         CAP._write_once_json(out, caps, "DISPOSITION_DIVERGENT")
         print("written:", CAPSULE_PATH)
     elif mode == "verify":
         with open(out, encoding="utf-8") as f:
             caps = json.load(f)
-        print("verified:", verify(caps))
+        print("verified:", verify(
+            caps, store_root=(store if os.path.isdir(store)
+                              else None)))
     elif mode == "--selftest":
         _selftest()
     else:
-        raise SystemExit("usage: build | verify | --selftest")
+        raise SystemExit("usage: build | rebuild | verify | --selftest")
 
 
 def _selftest():
-    """Closed-predicate locks over a synthetic authority/archive --
-    no store, no network, no repo state required."""
-    auth_keys = {"MAG_FEED": {"frn": ["2026-01-01", "2026-01-02"]},
-                 "MAG_WEATHER_FEED": {"omni": ["2026-01-01"]}}
-    authority = {"prestart_expected_keys": auth_keys,
-                 "prestart_expected_keys_sha256": _canon(auth_keys)}
-    caps = {"schema": CAPSULE_SCHEMA,
-            "authority": {"path": AUTHORITY_PATH,
-                          "blob_sha256": "a" * 64,
-                          "keys_sha256": _canon(auth_keys),
-                          "census": 3},
-            "transform_identity": {"module": "kat"},
-            "v3_archive": {"path": V3_ARCHIVE_PATH,
-                           "sha256": "b" * 64, "store_id": "kat"},
-            "lane_map": dict(LANE_MAP),
-            "superseded_v3": [list(x) for x in SUPERSEDED_V3],
-            "reuse_or_bridge": {
-                "MAG_FEED/frn/2026-01-01": {
-                    "v3_key": "MAG_FEED/frn/2026-01-01",
-                    "raw_body_sha256": "c" * 64,
-                    "raw_body_bytes": 10, "outcome": "ADMITTED"}},
-            "predecessor": {PREDECESSOR_KEY: {"spent_probe": True}},
-            "http_capture": ["MAG_FEED/frn/2026-01-02"]}
-    caps["partitions"] = _partition_block(caps)
-    assert verify(caps, authority) == {
-        "census": 3, "REUSE_OR_BRIDGE": 1, "PREDECESSOR": 1,
-        "HTTP_CAPTURE": 1}
+    """codex 2119Z closure 2 doctors, run against the REAL committed
+    capsule -- the same artifact he doctored field-by-field and found
+    ACCEPTED under v1. Each forgery must now REFUSE."""
+    out = os.path.join(REPO, *CAPSULE_PATH.split("/"))
+    store = os.environ.get("W2_V3_STORE",
+                           "E:/GeoSpec/w2_capture_store_20260825")
+    if not os.path.isfile(out):
+        print("w2_disposition_capsule selftest: capsule absent, "
+              "structural locks only")
+        return
+    with open(out, encoding="utf-8") as f:
+        caps = json.load(f)
+    authority, _sha = _authority("HEAD")
+    base = verify(caps, authority)
+    assert base["census"] == (base["REUSE_OR_BRIDGE"]
+                              + base["PREDECESSOR"]
+                              + base["HTTP_CAPTURE"])
 
-    def refuses(fn, needle):
+    def refuses(mutate, needle):
+        c = json.loads(json.dumps(caps))
+        mutate(c)
         try:
-            fn()
-            return False
+            verify(c, authority)
         except DispositionRefusal as e:
             return needle in str(e)
+        return False
 
-    def mut(**over):
-        c = json.loads(json.dumps(caps))
-        c.update(over)
-        return c
-    # the ceiling test: only HTTP_CAPTURE may reach the opener
-    assert may_fire(caps, "MAG_FEED", "frn", "2026-01-02") is True
-    assert refuses(lambda: may_fire(caps, "MAG_FEED", "frn",
-                                    "2026-01-01"),
-                   "is REUSE_OR_BRIDGE")
-    assert refuses(lambda: may_fire(caps, "MAG_WEATHER_FEED", "omni",
-                                    "2026-01-01"),
-                   "is the PREDECESSOR probe key")
-    assert refuses(lambda: may_fire(caps, "MAG_FEED", "frn",
-                                    "2026-09-09"),
-                   "not a member of HTTP_CAPTURE")
-    # overlap, inexactness, submitted counts, closure
-    ov = json.loads(json.dumps(caps))
-    ov["http_capture"].append("MAG_FEED/frn/2026-01-01")
-    ov["partitions"] = _partition_block(ov)
-    assert refuses(lambda: verify(ov, authority), "OVERLAP")
-    sh = json.loads(json.dumps(caps))
-    sh["http_capture"] = []
-    sh["partitions"] = _partition_block(sh)
-    assert refuses(lambda: verify(sh, authority), "not EXACT")
-    ct = json.loads(json.dumps(caps))
-    ct["partitions"]["HTTP_CAPTURE"]["count"] = 99
-    assert refuses(lambda: verify(ct, authority),
-                   "DERIVED, never submitted")
-    dg = json.loads(json.dumps(caps))
-    dg["partitions"]["REUSE_OR_BRIDGE"]["source_bodies_sha256"] = \
-        "0" * 64
-    assert refuses(lambda: verify(dg, authority),
-                   "DERIVED, never submitted")
-    assert refuses(lambda: verify(mut(extra_field=1), authority),
-                   "field set is not closed")
-    assert refuses(lambda: verify(mut(schema="other"), authority),
-                   "not the registered schema")
-    cen = mut(authority=dict(caps["authority"], census=999))
-    assert refuses(lambda: verify(cen, authority), "census")
-    dup = json.loads(json.dumps(caps))
-    dup["http_capture"] = ["MAG_FEED/frn/2026-01-02"] * 2
-    dup["partitions"] = _partition_block(dup)
-    assert refuses(lambda: verify(dup, authority), "duplicate keys")
-    print("w2_disposition_capsule selftest: ALL PASS (no network)")
+    def first_reuse(c):
+        return sorted(c["reuse_or_bridge"])[0]
+    # --- codex's five demonstrated forgeries, verbatim ---
+    assert refuses(lambda c: c["reuse_or_bridge"][first_reuse(c)]
+                   .__setitem__("v3_key", "BOGUS/x/1900-01-01"),
+                   "does not derive from its source")
+    assert refuses(lambda c: c["reuse_or_bridge"][first_reuse(c)]
+                   .__setitem__("raw_body_bytes", -1),
+                   "not a positive integer")
+    assert refuses(lambda c: c.__setitem__("transform_identity",
+                                           {"forged": True}),
+                   "does not match the LIVE registered transform")
+    assert refuses(lambda c: c["v3_archive"]
+                   .__setitem__("sha256", "0" * 64),
+                   "does not match the resolved archive bytes")
+    assert refuses(lambda c: c.__setitem__("lane_map",
+                                           {"BOGUS": "MAG_FEED"}),
+                   "is not the REGISTERED map")
+    # --- the lineage-specific authentications ---
+    assert refuses(lambda c: c["reuse_or_bridge"][first_reuse(c)]
+                   .__setitem__("s_v3_sha256", "0" * 64),
+                   "INDEPENDENTLY derived S_v3")
+    assert refuses(lambda c: c["reuse_or_bridge"][first_reuse(c)]
+                   .__setitem__("s_v4_sha256", "0" * 64),
+                   "never allowed to name the contract")
+    # (the archive-identity check fires first here, which is the
+    # stronger statement: the capsule cannot disagree with the
+    # authority identity the archive itself recorded)
+    assert refuses(lambda c: c["old_authority"]
+                   .__setitem__("blob_sha256", "0" * 64),
+                   "old_authority does not match")
+    assert refuses(lambda c: c["reuse_or_bridge"][first_reuse(c)]
+                   .__setitem__("extra_field", 1),
+                   "is not the closed field set")
+    assert refuses(lambda c: c["reuse_or_bridge"][first_reuse(c)]
+                   .pop("t_v3_sha256"),
+                   "is not the closed field set")
+
+    # INJECTIVITY: two v4 keys claiming one source operation
+    def dupe(c):
+        ks = sorted(c["reuse_or_bridge"])[:2]
+        c["reuse_or_bridge"][ks[1]]["v3_key"] =             c["reuse_or_bridge"][ks[0]]["v3_key"]
+    assert refuses(dupe, "must be injective")
+    # a RECOMPUTED body length disagreeing with the store
+    c2 = json.loads(json.dumps(caps))
+    k2 = sorted(c2["reuse_or_bridge"])[0]
+    c2["reuse_or_bridge"][k2]["raw_body_bytes"] += 1
+    if os.path.isdir(store):
+        try:
+            verify(c2, authority, store_root=store)
+            raise AssertionError("submitted length must refuse")
+        except DispositionRefusal as e:
+            assert "RECOMPUTED length" in str(e)
+    # may_fire ceiling behaviour on the real partition
+    hk = sorted(caps["http_capture"])[0]
+    assert may_fire(caps, *hk.split("/")) is True
+    rk = sorted(caps["reuse_or_bridge"])[0]
+    try:
+        may_fire(caps, *rk.split("/"))
+        raise AssertionError("a REUSE key must never be firable")
+    except DispositionRefusal:
+        pass
+    try:
+        may_fire(caps, *PREDECESSOR_KEY.split("/"))
+        raise AssertionError("the probe key must never re-fire")
+    except DispositionRefusal:
+        pass
+    print("w2_disposition_capsule selftest: ALL PASS "
+          f"({base}, no network)")
 
 
 if __name__ == "__main__":

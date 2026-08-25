@@ -877,6 +877,34 @@ def verify_capture_run_archive(archive, store_descriptor,
             "refused": len(ref), "bodies_verified": len(seen)}
 
 
+def _kat_archive_block(DISPK):
+    """Fixture helper: the real v3-archive identity when it resolves
+    on this host, else placeholders (the capsule verifier skips the
+    archive cross-check when the archive cannot be resolved at all,
+    and that skip is reported, never silent)."""
+    p = os.path.join(os.path.dirname(os.path.dirname(_HERE)),
+                     *DISPK.V3_ARCHIVE_PATH.split("/"))
+    if os.path.isfile(p):
+        with open(p, "rb") as f:
+            raw = f.read()
+        return {"path": DISPK.V3_ARCHIVE_PATH,
+                "sha256": hashlib.sha256(raw).hexdigest(),
+                "store_id": json.loads(
+                    raw.decode("utf-8")).get("store_id")}
+    return {"path": DISPK.V3_ARCHIVE_PATH, "sha256": "b" * 64,
+            "store_id": "kat"}
+
+
+def _kat_old_authority(DISPK):
+    p = os.path.join(os.path.dirname(os.path.dirname(_HERE)),
+                     *DISPK.V3_ARCHIVE_PATH.split("/"))
+    if os.path.isfile(p):
+        with open(p, encoding="utf-8") as f:
+            return dict(json.load(f)["authority"])
+    return {"commit": "a" * 40, "path": DISPK.AUTHORITY_PATH,
+            "blob_sha256": "c" * 64, "keys_sha256": "d" * 64}
+
+
 def _race_worker(path, obj, code, barrier, q):
     """Module-level worker for the two-process divergent-race lock
     (codex 2235Z item 4); spawn-safe."""
@@ -1940,9 +1968,14 @@ def _selftest():
                           kat_auth["prestart_expected_keys_sha256"],
                       "census": sum(len(d) for cs in kat_keys.values()
                                     for d in cs.values())},
-        "transform_identity": {"module": "kat"},
-        "v3_archive": {"path": DISPK.V3_ARCHIVE_PATH,
-                       "sha256": "b" * 64, "store_id": "kat"},
+        # the capsule verifier re-derives these rather than trusting
+        # them (codex 2119Z closure 2), so the fixture must supply
+        # them TRUTHFULLY: the live transform identity, and -- where
+        # the v3 archive resolves on this host -- its actual digest,
+        # store identity and recorded authority
+        "transform_identity": transform_identity(),
+        "v3_archive": _kat_archive_block(DISPK),
+        "old_authority": _kat_old_authority(DISPK),
         "lane_map": dict(DISPK.LANE_MAP),
         "superseded_v3": [list(x) for x in DISPK.SUPERSEDED_V3],
         "reuse_or_bridge": {}, "predecessor": {},

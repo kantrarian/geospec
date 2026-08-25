@@ -650,7 +650,14 @@ def verify_staged_boundary(repo, manifest, *, blob_reader=None,
             "total'")
     import w2_disposition_capsule_grassmann as DISP
     try:
-        DISP.verify(disposition_capsule, authority=authority)
+        # closure 2 (2303Z): the boundary must use the LINEAGE
+        # REGISTRY contract, never verify_ceiling -- a ceiling PASS
+        # only establishes request membership and explicitly reports
+        # lineage_evidence_verified=False. It fails CLOSED without
+        # the source-body store, which is correct: the boundary can
+        # only pass where the evidence actually lives.
+        DISP.verify_lineage_registry(disposition_capsule,
+                                     authority=authority)
     except Exception as e:                                # noqa: BLE001
         raise InstrumentRefusal(
             "PRESTART_ADMISSION_REFUSED: the disposition capsule "

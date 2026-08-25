@@ -3686,13 +3686,8 @@
      }
     },
     "omni": {
-     "corrected_request_vars": [
-      "17",
-      "18",
-      "21"
-     ],
      "cutoff": "2026-07-31",
-     "endpoint": "OPEN_REVIEW_ROUND",
+     "endpoint": "https://omniweb.gsfc.nasa.gov/cgi/nx1.cgi",
      "expected_days": [
       "2026-01-01",
       "2026-01-02",
@@ -3907,18 +3902,54 @@
       "2026-07-30",
       "2026-07-31"
      ],
-     "expected_keys": "OPEN_REVIEW_ROUND",
-     "fill_status": "BLOCKED_AWAITING_CORRECTIVE_EVIDENCE -- corrected vars 17/18/21 (By_GSM, Bz_GSM, flow speed) registered; the captured 17/21/25 body cannot compute the frozen Newell regressor and is NOT reused",
-     "operation_params": "OPEN_REVIEW_ROUND",
-     "request_params": "OPEN_REVIEW_ROUND",
+     "expected_keys": "one key per expected day (derived contract binds the day)",
+     "fill_evidence": {
+      "probe_body_sha256": "bc39dbab8f24d1ec718710cd58875ecd556dd1299851dc64acdd850ce965b3c8",
+      "probe_contract": "docs/f2g_window2_execution/probe_evidence/omni_corrected_probe_20260101.contract.json",
+      "probe_day_utc": "2026-01-01",
+      "probe_transcript": "docs/f2g_window2_execution/probe_evidence/omni_corrected_probe_20260101.transcript.json",
+      "source": "corrected-OMNI probe, request 1 of 636 (codex 1304Z step-2 clearance)",
+      "verdict": "TEMPLATE_GRAMMAR_CONFIRMED"
+     },
+     "fill_status": "FILLED",
+     "operation_params": {
+      "carrier": "omni",
+      "day": "{day}"
+     },
+     "request_params": {
+      "activity": "retrieve",
+      "end_date": "{day_compact}",
+      "res": "min",
+      "spacecraft": "omni_min",
+      "start_date": "{day_compact}",
+      "vars": [
+       "17",
+       "18",
+       "21"
+      ]
+     },
      "source_class": "NASA OMNIWeb high-res By_GSM/Bz_GSM/flow speed (vars 17/18/21)",
      "static_contract_template": {
-      "endpoint": "OPEN_REVIEW_ROUND",
-      "operation_params": "OPEN_REVIEW_ROUND",
-      "request_params": "OPEN_REVIEW_ROUND",
+      "endpoint": "https://omniweb.gsfc.nasa.gov/cgi/nx1.cgi",
+      "operation_params": {
+       "carrier": "omni",
+       "day": "{day}"
+      },
+      "request_params": {
+       "activity": "retrieve",
+       "end_date": "{day_compact}",
+       "res": "min",
+       "spacecraft": "omni_min",
+       "start_date": "{day_compact}",
+       "vars": [
+        "17",
+        "18",
+        "21"
+       ]
+      },
       "source": {
-       "kind": "driver-series",
-       "ref": "OPEN_REVIEW_ROUND"
+       "kind": "omniweb-highres-cgi",
+       "ref": "https://omniweb.gsfc.nasa.gov/cgi/nx1.cgi"
       }
      },
      "superseded_evidence": {

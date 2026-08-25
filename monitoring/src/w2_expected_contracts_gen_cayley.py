@@ -150,6 +150,15 @@ def _span(a, b):
             for i in range((d1 - d0).days + 1)]
 
 
+def _blob_at_head(repo, rel):
+    """Committed bytes only -- working copies EOL-convert."""
+    r = subprocess.run(["git", "-C", repo, "cat-file", "blob",
+                        f"HEAD:{rel}"], capture_output=True)
+    if r.returncode != 0:
+        raise AssertionError(f"EVIDENCE_UNREADABLE: {rel}")
+    return r.stdout
+
+
 def _digest(obj):
     return hashlib.sha256(json.dumps(
         obj, sort_keys=True, separators=(",", ":")).encode()
@@ -517,24 +526,67 @@ def build(repo):
                            verdict="TEMPLATE_GRAMMAR_CONFIRMED"))
 
     # sym_h/omni: OMNIWeb high-res CGI; compact-date {day_compact}
-    # codex 0527Z finding 2: vars 17/21/25 are By_GSM / flow speed /
-    # proton density -- Bz_GSM is var 18, so the registered Newell
-    # coupling was UNCOMPUTABLE from the captured OMNI. The corrected
-    # template (17/18/21) has NO pinned envelope yet, so OMNI stays
-    # structurally OPEN until the authorized corrective capture
-    # supplies its grammar anchor (asylum go f2411fa7; sequencing
-    # ruling requested of codex). sym_h keeps its confirmed lock.
-    lanes["MAG_WEATHER_FEED"]["carriers"]["omni"]["fill_status"] = (
-        "BLOCKED_AWAITING_CORRECTIVE_EVIDENCE -- corrected vars "
-        "17/18/21 (By_GSM, Bz_GSM, flow speed) registered; the "
-        "captured 17/21/25 body cannot compute the frozen Newell "
-        "regressor and is NOT reused")
-    lanes["MAG_WEATHER_FEED"]["carriers"]["omni"][
-        "corrected_request_vars"] = ["17", "18", "21"]
+    # codex 0527Z finding 2 + 1746Z gate-1 finding 1: vars 17/21/25
+    # were By_GSM / flow speed / proton density -- Bz_GSM is var 18,
+    # so the frozen Newell coupling was UNCOMPUTABLE. The corrected
+    # probe (request 1 of 636) FIRED and created closed evidence, so
+    # OMNI is filled from THOSE COMMITTED BYTES -- reopened and
+    # verified here, never transcribed.
+    pe = "docs/f2g_window2_execution/probe_evidence/"
+    stem = pe + "omni_corrected_probe_20260101"
+    p_contract = json.loads(_blob_at_head(
+        repo, stem + ".contract.json").decode("utf-8"))
+    p_transcript = json.loads(_blob_at_head(
+        repo, stem + ".transcript.json").decode("utf-8"))
+    p_body = _blob_at_head(repo, stem + ".body")
+    p_auth = json.loads(_blob_at_head(
+        repo, "docs/f2g_window2_execution/"
+              "omni_probe_authority_v4.json").decode("utf-8"))
+    # the probe evidence must agree with the reviewed probe AUTHORITY
+    pa_probe = p_auth["probe"]
+    if p_contract.get("endpoint") != pa_probe["endpoint"]:
+        raise AssertionError(
+            "OMNI_PROBE_EVIDENCE_DIVERGENT: contract endpoint != the "
+            "reviewed probe authority")
+    if p_contract["request_params"].get("vars") != \
+            pa_probe["request_params"]["vars"]:
+        raise AssertionError(
+            "OMNI_PROBE_EVIDENCE_DIVERGENT: contract vars != the "
+            "reviewed corrected vars")
+    # T must bind THIS body and THIS contract
+    if hashlib.sha256(p_body).hexdigest() != \
+            p_transcript.get("raw_body_sha256"):
+        raise AssertionError(
+            "OMNI_PROBE_EVIDENCE_DIVERGENT: transcript does not bind "
+            "the committed body")
+    if p_transcript.get("http_status") != 200:
+        raise AssertionError(
+            "OMNI_PROBE_EVIDENCE_DIVERGENT: non-200 probe transcript")
+    # day-template the concrete probe day back out of the evidence
+    o_rp = dict(p_contract["request_params"])
+    pday_compact = pa_probe["utc_day"].replace("-", "")
+    for k in ("start_date", "end_date"):
+        if o_rp.get(k) != pday_compact:
+            raise AssertionError(
+                f"OMNI_PROBE_EVIDENCE_DIVERGENT: {k} is not the "
+                "probe day")
+        o_rp[k] = "{day_compact}"
+    fill("MAG_WEATHER_FEED", "omni",
+         kind=p_contract["source"]["kind"],
+         endpoint=p_contract["endpoint"], request_params=o_rp,
+         evidence={"probe_contract": stem + ".contract.json",
+                   "probe_transcript": stem + ".transcript.json",
+                   "probe_body_sha256":
+                       hashlib.sha256(p_body).hexdigest(),
+                   "probe_day_utc": pa_probe["utc_day"],
+                   "verdict": "TEMPLATE_GRAMMAR_CONFIRMED",
+                   "source": "corrected-OMNI probe, request 1 of 636 "
+                             "(codex 1304Z step-2 clearance)"},
+         source_class="NASA OMNIWeb high-res By_GSM/Bz_GSM/flow "
+                      "speed (vars 17/18/21)")
     lanes["MAG_WEATHER_FEED"]["carriers"]["omni"][
         "superseded_evidence"] = {
-        "envelope": "docs/f2g_window2_execution/probe_evidence/"
-                    "mf4_feed_omni.envelope.json",
+        "envelope": pe + "mf4_feed_omni.envelope.json",
         "reason": "vars 17/21/25 mis-identified as Bz; retained as "
                   "evidence, never as an admitted grammar"}
     for ck, env_rel, sclass in (

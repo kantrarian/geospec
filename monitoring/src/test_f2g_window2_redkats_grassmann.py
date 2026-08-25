@@ -2400,6 +2400,16 @@ def w_selrun():
                     "MAG_FEED": {"frn": ["2026-08-20"]},
                     "MAG_WEATHER_FEED": {"mf4drv": ["2026-08-20"]}}
         bar_auth = {"schema": "f2g-w2-expected-contracts-v3",
+                # DISCLOSED cross-owner fixture touch
+                # (cayley): the v4 authority top-field set
+                # gained registered_probe_authority -- the
+                # predecessor lineage the bridge reopens.
+                "registered_probe_authority": {
+                    "path": "docs/f2g_window2_execution/"
+                            "omni_probe_authority_v4.json",
+                    "commit": "a" * 40,
+                    "blob_sha256": "b" * 64,
+                    "role": "bar fixture lineage"},
                     "template_token_vocabulary":
                         ["{day}", "{day_next}"],
                     "prestart_expected_keys": bar_keys,
@@ -2634,6 +2644,16 @@ def w_admit():
         # REV 16: the CLOSED self-verifying authority capsule (codex
         # 0320Z item 3) with the per-key static templates (item 1)
         auth = {"schema": "f2g-w2-expected-contracts-v3",
+                # DISCLOSED cross-owner fixture touch
+                # (cayley): the v4 authority top-field set
+                # gained registered_probe_authority -- the
+                # predecessor lineage the bridge reopens.
+                "registered_probe_authority": {
+                    "path": "docs/f2g_window2_execution/"
+                            "omni_probe_authority_v4.json",
+                    "commit": "a" * 40,
+                    "blob_sha256": "b" * 64,
+                    "role": "bar fixture lineage"},
                 "template_token_vocabulary": ["{day}", "{day_next}", "{day_compact}"],
                 "prestart_expected_keys": auth_keys,
                 "prestart_expected_keys_sha256": keys_sha(auth_keys),

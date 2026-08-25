@@ -237,9 +237,16 @@ def _selftest():
         "AB-4: an absence artifact must carry zero definitive samples"
     assert art.get("utc_day") == PROBE_DAY, \
         "AB-4: the absence artifact must bind its day"
-    assert art.get("support_mask_value", "MISSING") is None, \
-        ("AB-4: the absence artifact must deterministically insert "
-         "None into the registered support mask")
+    # codex 1424Z ruling 1 accepted the per-sample refinement, so
+    # ADMITTED_ABSENCE is PRECISELY the all-false mask -- not the
+    # scalar sentinel I first guessed at. Updated to the ruled shape.
+    amask = art.get("support_mask")
+    assert isinstance(amask, list) and len(amask) == art["samples"], \
+        ("AB-4: the absence artifact must carry a per-sample support "
+         "mask over the full grid")
+    assert not any(amask), \
+        ("AB-4: ADMITTED_ABSENCE is precisely the ALL-FALSE mask; got "
+         f"{sum(1 for m in amask if m)} supported samples")
     print(f"  AB-1 PASS  provider-null -> {ABSENCE_OUTCOME}")
     print("  AB-4 PASS  absence typed, evidence-bound, no value, "
           "support mask None")

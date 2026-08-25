@@ -1736,6 +1736,15 @@ def _selftest():
                 "request_params": {"net": "UW", "cha": "HHZ"},
                 "operation_params": {"carrier": ck, "day": "{day}"}}
     kat_auth = {"schema": "f2g-w2-expected-contracts-v3",
+                # DISCLOSED cross-owner fixture touch (cayley): the
+                # v4 authority's closed top-field set gained
+                # registered_probe_authority (the predecessor lineage
+                # the bridge reopens). One literal, no semantics.
+                "registered_probe_authority": {
+                    "path": "docs/f2g_window2_execution/"
+                            "omni_probe_authority_v4.json",
+                    "commit": "a" * 40, "blob_sha256": "b" * 64,
+                    "role": "kat fixture lineage"},
                 "template_token_vocabulary": ["{day}", "{day_next}", "{day_compact}"],
                 "prestart_expected_keys": kat_keys,
                 "prestart_expected_keys_sha256": hashlib.sha256(

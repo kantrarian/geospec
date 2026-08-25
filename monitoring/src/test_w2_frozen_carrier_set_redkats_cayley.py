@@ -29,9 +29,11 @@ already govern this program. A future frozen-carrier addition that the
 authority fails to register trips FC-1 automatically. Typing the five
 names into this file would have reproduced the very defect it locks.
 
-STATUS: RED-FIRST. FC-1 fails at authorship (3 registered != 5
-admitted) and is the executable proof of finding 1. It goes green only
-when the successor authority registers the full frozen set.
+STATUS: red-first at authorship (geospec 2e1b2f2, FC-1 RED: 3
+registered != 5 admitted -- the executable proof of finding 1), GREEN
+from the successor v4 generator, which replaced the typed tuple with
+the derivation above. It is now the REGRESSION lock: any future frozen
+carrier the authority fails to register trips FC-1 again.
 
 This module opens no window-2 value, makes no network call, and
 admits nothing.
@@ -119,7 +121,13 @@ def _selftest():
 
     admitted = admitted_observatories()
     derived = {k.upper() for k in admitted}
-    registered = {str(o).upper() for o in GEN.MAG_OBSERVATORIES}
+    # the REGISTERED set is what the authority actually publishes --
+    # read from the built artifact's MAG_FEED carriers, not from any
+    # module constant (successor v4 removed the typed tuple that was
+    # the defect; this now checks the real end-to-end output)
+    built = GEN.build(REPO)
+    registered = {str(c).upper() for c in
+                  built["static_layer"]["MAG_FEED"]["carriers"]}
     print(f"  derived (pinned capsules) : {sorted(derived)}")
     print(f"  registered (authority)    : {sorted(registered)}")
 

@@ -35,26 +35,111 @@ import subprocess
 OUT_REL = os.path.join("docs", "f2g_window2_execution",
                        "staged_expected_contracts_v3.json")
 
-CUTOFF = "2026-08-27"
+# --- SUCCESSOR v4 (codex 0527Z postflight findings 1-3) ------------
+# PER-LANE cutoffs: selection keeps 08-27; the MAG lanes cap at 07-31
+# because NASA publishes high-resolution SYM/H only through 07-31, and
+# the MAG fit needs observatory minutes AND weather regressors on ONE
+# grid -- so observatory minutes past the weather cutoff carry no
+# regressors. (The observatory cap is cayley's inference, flagged for
+# codex in the 0538Z design spec; it is one constant, not a design.)
+SELECTION_CUTOFF = "2026-08-27"
 SELECTION_LOOKBACK_START = "2026-05-30"     # cutoff - 89 (90 days)
+MAG_CUTOFF = "2026-07-31"
 CALIBRATION_START = "2026-01-01"
+CUTOFF = SELECTION_CUTOFF                   # back-compat alias
+LANE_CUTOFF = {"SELECTION_RECORDS": SELECTION_CUTOFF,
+               "MAG_FEED": MAG_CUTOFF,
+               "MAG_WEATHER_FEED": MAG_CUTOFF}
 CARRIERS = ("istanbul_marmara", "socal_coachella",
             "turkey_kahramanmaras", "cascadia")
-MAG_OBSERVATORIES = ("izn", "frn", "tuc")
-# MF4 driver-series carrier TOKENS (registered here; the key set is
-# CLOSED even while endpoints stay OPEN for the specs round):
-# sym_h = WDC-Kyoto SYM-H, kp = GFZ Kp, omni = NASA OMNI
-MF4_DRIVERS = ("sym_h", "kp", "omni")
+# codex finding 3: one lane name was masking two carrier spaces.
+# MAG_WEATHER_FEED = the MAG-1 regressors (sym_h/kp/corrected omni).
+# MF4_MONITOR_FEED = the true M-F4 daily-risk monitor carrier, which
+# is an ARCHIVE (risk_by_region/catalog_snapshot/...), NOT a per-day
+# HTTP key set -- registered OPEN here pending its producer.
+MAG_WEATHER_DRIVERS = ("sym_h", "kp", "omni")
+MF4_DRIVERS = MAG_WEATHER_DRIVERS           # back-compat alias
+DESIGN_MANIFEST_REL = "docs/f2g_window2_freeze/byte_pin_manifest.json"
+EXEC_MANIFEST_REL = ("docs/f2g_window2_execution/"
+                     "execution_manifest.json")
+import re as _re                            # noqa: E402
+_CAPSULE_RE = _re.compile(r"mag_capsule_[a-z0-9_]+\.json$")
 
-# endpoints: REGISTERED evidence = the pinned probe envelopes'
-# requested_url hosts (mag_<obs>_probe.envelope.json); the per-day
-# query params are request_params (OPEN below). Every value is
-# verified against the pinned envelope bytes at generation.
-MAG_ENDPOINTS = {
-    "izn": "https://imag-data.bgs.ac.uk/GIN_V1/GINServices",
-    "frn": "https://geomag.usgs.gov/ws/data/",
-    "tuc": "https://geomag.usgs.gov/ws/data/",
-}
+
+def admitted_mag_observatories(repo):
+    """codex 0527Z finding 1: THE admitted MAG observatory set, DERIVED
+    from the typed capsules pinned by the two REGISTERED manifests --
+    never a typed constant. A typed tuple is exactly what omitted VIC
+    and NEW: it agreed with itself while diverging from the freeze.
+
+    design/byte-pin manifest -> the 2026-08-22 cascadia amendment
+    capsules (VIC, NEW); execution manifest -> IZN, FRN, TUC.
+    Returns {iaga_lower: {"iaga", "capsule", "probe_envelope"}}.
+    """
+    def _load(rel):
+        with open(os.path.join(repo, rel.replace("/", os.sep)),
+                  encoding="utf-8") as f:
+            return json.load(f)
+    paths = set()
+    dm = _load(DESIGN_MANIFEST_REL)
+    pins = dm.get("pins")
+    for e in (pins.values() if isinstance(pins, dict) else pins or []):
+        p = e.get("path") if isinstance(e, dict) else None
+        if p and _CAPSULE_RE.search(str(p)):
+            paths.add(str(p))
+    for slot in (_load(EXEC_MANIFEST_REL).get("slots") or {}).values():
+        if not isinstance(slot, dict):
+            continue
+        for pin in slot.get("pins") or []:
+            p = pin.get("path") if isinstance(pin, dict) else pin
+            if p and _CAPSULE_RE.search(str(p)):
+                paths.add(str(p))
+    if not paths:
+        raise AssertionError(
+            "CARRIER_SET_UNDERIVABLE: no MAG capsule is pinned by "
+            "either registered manifest")
+    out = {}
+    for p in sorted(paths):
+        iaga = _load(p).get("iaga_code")
+        if not isinstance(iaga, str) or not iaga:
+            raise AssertionError(
+                f"CARRIER_CAPSULE_UNTYPED: {p} carries no iaga_code")
+        key = iaga.lower()
+        if key in out:
+            raise AssertionError(
+                f"CARRIER_CAPSULE_DUPLICATE: {iaga} pinned twice")
+        # the probe envelope sits beside the capsule, named for the obs
+        d = os.path.dirname(p)
+        stem = f"mag_{key}_probe.envelope.json"
+        env = (f"{d}/receipts/{stem}" if os.path.exists(
+            os.path.join(repo, d.replace("/", os.sep), "receipts",
+                         stem)) else f"{d}/{stem}")
+        out[key] = {"iaga": iaga, "capsule": p,
+                    "probe_envelope": env}
+    return out
+
+
+# per-observatory request FORM, keyed by the provider the capsule
+# names; the concrete endpoint + query are verified at generation
+# against that observatory's PINNED probe envelope.
+GIN_ENDPOINT = "https://imag-data.bgs.ac.uk/GIN_V1/GINServices"
+USGS_ENDPOINT = "https://geomag.usgs.gov/ws/data/"
+
+
+def mag_request(iaga):
+    """The registered per-day request for one observatory, in the
+    provider form its pinned probe envelope demonstrates."""
+    up = iaga.upper()
+    if up in ("IZN", "VIC"):            # INTERMAGNET GIN
+        return GIN_ENDPOINT, "gin-minute", {
+            "Request": "GetData", "format": "json", "testObsys": "0",
+            "observatoryIagaCode": up, "samplesPerDay": "minute",
+            "dataStartDate": "{day}", "dataDuration": "1",
+            "publicationState": "adj-or-rep"}
+    return USGS_ENDPOINT, "usgs-minute", {   # USGS geomag ws
+        "id": up, "format": "json", "sampling_period": "60",
+        "starttime": "{day}T00:00:00Z",
+        "endtime": "{day_next}T00:00:00Z"}
 
 
 def _span(a, b):
@@ -183,10 +268,19 @@ def validate_evidence_obj(env, body, *, endpoint, tmpl_params,
 
 
 def build(repo):
-    sel_days = _span(SELECTION_LOOKBACK_START, CUTOFF)
-    cal_days = _span(CALIBRATION_START, CUTOFF)
+    sel_days = _span(SELECTION_LOOKBACK_START, SELECTION_CUTOFF)
+    # successor v4: the MAG lanes end at their OWN cutoff (07-31)
+    cal_days = _span(CALIBRATION_START, MAG_CUTOFF)
+    mag_obs = admitted_mag_observatories(repo)
     assert len(sel_days) == 90
-    assert sel_days[-1] == cal_days[-1] == CUTOFF
+    # successor v4: cutoffs are PER LANE -- each day set must end at
+    # its own registered cutoff, and the MAG cutoff must not exceed
+    # the selection cutoff (the weather publishes with more lag)
+    assert sel_days[-1] == SELECTION_CUTOFF
+    assert cal_days[-1] == MAG_CUTOFF
+    assert MAG_CUTOFF <= SELECTION_CUTOFF
+    assert set(LANE_CUTOFF) == {"SELECTION_RECORDS", "MAG_FEED",
+                                "MAG_WEATHER_FEED"}
 
     # registered template token vocabulary (consumed by
     # authoritative_static_contract): {day} = the capture UTC day;
@@ -218,29 +312,39 @@ def build(repo):
         "day_set_rule": f"[cutoff-89, cutoff] = "
                         f"[{SELECTION_LOOKBACK_START}, {CUTOFF}], "
                         "90 days exact (selection frame)"}
+    def _mag_carrier(obs):
+        ep, kind, _rp = mag_request(mag_obs[obs]["iaga"])
+        return {"expected_days": cal_days,
+                "cutoff": MAG_CUTOFF,
+                "source_class": ("INTERMAGNET GIN" if kind ==
+                                 "gin-minute"
+                                 else "USGS geomagnetism"),
+                "capsule": mag_obs[obs]["capsule"],
+                "endpoint": ep,
+                "request_params": "OPEN_REVIEW_ROUND",
+                "operation_params": "OPEN_REVIEW_ROUND",
+                "expected_keys": "OPEN_REVIEW_ROUND",
+                "static_contract_template": tmpl(kind, ep, ep)}
     lanes["MAG_FEED"] = {
-        "carriers": {obs: {
-            "expected_days": cal_days,
-            "cutoff": CUTOFF,
-            "source_class": ("INTERMAGNET GIN" if obs == "izn"
-                             else "USGS geomagnetism"),
-            "endpoint": MAG_ENDPOINTS[obs],
-            "request_params": "OPEN_REVIEW_ROUND",
-            "operation_params": "OPEN_REVIEW_ROUND",
-            "expected_keys": "OPEN_REVIEW_ROUND",
-            "static_contract_template": tmpl(
-                "gin-minute" if obs == "izn" else "usgs-minute",
-                MAG_ENDPOINTS[obs], MAG_ENDPOINTS[obs])}
-            for obs in MAG_OBSERVATORIES},
+        "carriers": {obs: _mag_carrier(obs)
+                     for obs in sorted(mag_obs)},
         "day_set_rule": f"calibration span [{CALIBRATION_START}, "
-                        f"{CUTOFF}] (mag1 instantiation)"}
-    lanes["MF4_FEED"] = {
+                        f"{MAG_CUTOFF}] (mag1 instantiation); the "
+                        "carrier set is DERIVED from the capsules "
+                        "pinned by the design + execution manifests "
+                        "(codex 0527Z finding 1), never typed"}
+    # codex 0527Z finding 3: the captured sym_h/kp/omni objects are
+    # MAG-1 WEATHER REGRESSORS, not the M-F4 monitor feed. The lane
+    # name split follows the carrier spaces.
+    lanes["MAG_WEATHER_FEED"] = {
         "carriers": {drv: {
             "expected_days": cal_days,
-            "cutoff": CUTOFF,
-            "source_class": {"sym_h": "WDC-Kyoto SYM-H",
-                             "kp": "GFZ Kp",
-                             "omni": "NASA OMNI"}[drv],
+            "cutoff": MAG_CUTOFF,
+            "source_class": {
+                "sym_h": "NASA OMNIWeb high-res SYM/H",
+                "kp": "GFZ Kp (def/pre)",
+                "omni": ("NASA OMNIWeb high-res By_GSM/Bz_GSM/flow "
+                         "speed (vars 17/18/21)")}[drv],
             "endpoint": "OPEN_REVIEW_ROUND",
             "request_params": "OPEN_REVIEW_ROUND",
             "operation_params": "OPEN_REVIEW_ROUND",
@@ -248,9 +352,21 @@ def build(repo):
             "static_contract_template": tmpl(
                 "driver-series", "OPEN_REVIEW_ROUND",
                 "OPEN_REVIEW_ROUND")}
-            for drv in MF4_DRIVERS},
-        "day_set_rule": f"calibration span [{CALIBRATION_START}, "
-                        f"{CUTOFF}]"}
+            for drv in MAG_WEATHER_DRIVERS},
+        "day_set_rule": f"MAG regressor span [{CALIBRATION_START}, "
+                        f"{MAG_CUTOFF}] (NASA publishes high-res "
+                        "SYM/H only through 07-31)"}
+    # the TRUE M-F4 carrier: a daily-risk ARCHIVE + pinned catalog
+    # snapshot, NOT a per-day HTTP key set -- registered here so the
+    # lane exists and is visibly unfilled; its producer and key rule
+    # land with the M-F4 continuity carrier (codex finding 3).
+    lanes["MF4_MONITOR_FEED"] = {
+        "carriers": "OPEN_REVIEW_ROUND (daily-monitor risk archive + "
+                    "pinned catalog snapshot; {risk_by_region, "
+                    "catalog_snapshot, snapshot_end, freeze_day, "
+                    "bboxes, regions} accepted by the REAL "
+                    "run_mf4_calibration -- not a per-day HTTP lane)",
+        "day_set_rule": "OPEN_REVIEW_ROUND (archive carrier)"}
     lanes["DAY_CAPSULE"] = {
         "carriers": "EXCLUDED_FROM_PRESTART (accrual-time lane per "
                     "codex 1843Z item 5 + 0238Z item 1: separate "
@@ -340,9 +456,22 @@ def build(repo):
     # MAG izn/frn/tuc + SELECTION cascadia: EVIDENCE_PINNED verbatim
     # from capture specs v1 (MAG endpoints already asserted against
     # the pinned mag probe envelopes above)
-    for lane, ck in (("MAG_FEED", "izn"), ("MAG_FEED", "frn"),
-                     ("MAG_FEED", "tuc"),
-                     ("SELECTION_RECORDS", "cascadia")):
+    # successor v4: the MAG fill iterates the DERIVED observatory set
+    # (izn/frn/tuc + the amendment's VIC/NEW), building each request
+    # from the ONE registered form in mag_request() and locking it
+    # against that observatory's own pinned probe envelope -- so
+    # adding a frozen carrier can never again mean an unfilled lane.
+    for obs in sorted(mag_obs):
+        ep, kind, rp = mag_request(mag_obs[obs]["iaga"])
+        ev = _validate_evidence(mag_obs[obs]["probe_envelope"],
+                                endpoint=ep, tmpl_params=rp,
+                                probe_day=MAG_PROBE_DAY)
+        fill("MAG_FEED", obs, kind=kind, endpoint=ep,
+             request_params=rp,
+             evidence=dict(ev, verdict="TEMPLATE_GRAMMAR_CONFIRMED",
+                           capsule=mag_obs[obs]["capsule"],
+                           spec_status="EVIDENCE_PINNED"))
+    for lane, ck in (("SELECTION_RECORDS", "cascadia"),):
         sp = specs["lanes"][lane][ck]
         assert sp["status"] == "EVIDENCE_PINNED", (lane, ck)
         # finding 4: the SAME executable evidence lock as the probe
@@ -362,12 +491,6 @@ def build(repo):
                 time_fields=("starttime", "endtime"),
                 evidence_time_values={"starttime": "2026-07-11",
                                       "endtime": "2026-11-30"})
-        else:
-            _validate_evidence(
-                sp["evidence"]["pinned_probe_envelope"],
-                endpoint=sp["endpoint"],
-                tmpl_params=dict(sp["request_params"]),
-                probe_day=MAG_PROBE_DAY)
         fill(lane, ck, kind=sp["source"]["kind"],
              endpoint=sp["endpoint"],
              request_params=dict(sp["request_params"]),
@@ -394,12 +517,29 @@ def build(repo):
                            verdict="TEMPLATE_GRAMMAR_CONFIRMED"))
 
     # sym_h/omni: OMNIWeb high-res CGI; compact-date {day_compact}
+    # codex 0527Z finding 2: vars 17/21/25 are By_GSM / flow speed /
+    # proton density -- Bz_GSM is var 18, so the registered Newell
+    # coupling was UNCOMPUTABLE from the captured OMNI. The corrected
+    # template (17/18/21) has NO pinned envelope yet, so OMNI stays
+    # structurally OPEN until the authorized corrective capture
+    # supplies its grammar anchor (asylum go f2411fa7; sequencing
+    # ruling requested of codex). sym_h keeps its confirmed lock.
+    lanes["MAG_WEATHER_FEED"]["carriers"]["omni"]["fill_status"] = (
+        "BLOCKED_AWAITING_CORRECTIVE_EVIDENCE -- corrected vars "
+        "17/18/21 (By_GSM, Bz_GSM, flow speed) registered; the "
+        "captured 17/21/25 body cannot compute the frozen Newell "
+        "regressor and is NOT reused")
+    lanes["MAG_WEATHER_FEED"]["carriers"]["omni"][
+        "corrected_request_vars"] = ["17", "18", "21"]
+    lanes["MAG_WEATHER_FEED"]["carriers"]["omni"][
+        "superseded_evidence"] = {
+        "envelope": "docs/f2g_window2_execution/probe_evidence/"
+                    "mf4_feed_omni.envelope.json",
+        "reason": "vars 17/21/25 mis-identified as Bz; retained as "
+                  "evidence, never as an admitted grammar"}
     for ck, env_rel, sclass in (
             ("sym_h", "mf4_feed_sym_h.envelope.json",
-             "NASA OMNIWeb high-res SYM/H (var 41)"),
-            ("omni", "mf4_feed_omni.envelope.json",
-             "NASA OMNIWeb high-res BZ-GSM/flow/density "
-             "(vars 17/21/25)")):
+             "NASA OMNIWeb high-res SYM/H (var 41)"),):
         pk = probe_rec["keys"][f"MF4_FEED/{ck}"]
         rp = dict(pk["request_params"])
         assert rp.pop("start_date") == PROBE_DAY_COMPACT
@@ -407,7 +547,7 @@ def build(repo):
         rp["start_date"] = "{day_compact}"
         rp["end_date"] = "{day_compact}"
         ev = verify_probe_fill(env_rel, pk["endpoint"], rp)
-        fill("MF4_FEED", ck, kind="omniweb-highres-cgi",
+        fill("MAG_WEATHER_FEED", ck, kind="omniweb-highres-cgi",
              endpoint=pk["endpoint"], request_params=rp,
              evidence=dict(ev,
                            verdict="TEMPLATE_GRAMMAR_CONFIRMED"),
@@ -424,7 +564,7 @@ def build(repo):
     rp["end"] = "{day}T23:59:59Z"
     ev = verify_probe_fill("kp_attempt2.envelope.json",
                            pk["endpoint"], rp)
-    fill("MF4_FEED", "kp", kind="gfz-kp-json",
+    fill("MAG_WEATHER_FEED", "kp", kind="gfz-kp-json",
          endpoint=pk["endpoint"], request_params=rp,
          evidence=dict(ev, verdict="TEMPLATE_GRAMMAR_CONFIRMED",
                        attempt="2 (verified TLS; attempt-1 refusal "
@@ -475,7 +615,8 @@ def build(repo):
     # (lane, carrier, day) key set -- derived ONLY from the calendar/
     # probe/schedule registrations above, never from submitted pins
     prestart_keys = {}
-    for lane in ("SELECTION_RECORDS", "MAG_FEED", "MF4_FEED"):
+    for lane in ("SELECTION_RECORDS", "MAG_FEED",
+                 "MAG_WEATHER_FEED"):
         prestart_keys[lane] = {
             ck: list(v["expected_days"])
             for ck, v in lanes[lane]["carriers"].items()}

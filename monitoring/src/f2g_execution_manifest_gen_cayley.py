@@ -66,7 +66,15 @@ BOUND_SLOTS = {
                   "monitoring/src/w2_mag1.py",
                   "monitoring/src/w2_expected_contracts_gen_cayley.py",
                   "docs/f2g_window2_execution/"
-                  "staged_expected_contracts_v3.json"]},
+                  "staged_expected_contracts_v3.json",
+                  # the 2056-key three-way disposition capsule +
+                  # its generator/verifier: capture_authorized
+                  # reopens THIS pin and requires HTTP_CAPTURE
+                  # membership before the opener, so an unpinned
+                  # capsule fails the entrypoint closed
+                  "monitoring/src/w2_disposition_capsule_grassmann.py",
+                  "docs/f2g_window2_execution/"
+                  "key_disposition_capsule_v4.json"]},
     # v1.1 (codex 1358Z item 4/5): the two repaired execution tools
     # join the runtime allowlist as explicit slots
     "power_harness": {

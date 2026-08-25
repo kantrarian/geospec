@@ -74,7 +74,11 @@ BOUND_SLOTS = {
                   # capsule fails the entrypoint closed
                   "monitoring/src/w2_disposition_capsule_grassmann.py",
                   "docs/f2g_window2_execution/"
-                  "key_disposition_capsule_v4.json"]},
+                  "key_disposition_capsule_v4.json",
+                  # the two-leg RESTAGED_LINEAGE verifier: my
+                  # boundary calls it, so it must be reopenable
+                  # from a pin rather than merely imported
+                  "monitoring/src/w2_restage_lineage_grassmann.py"]},
     # v1.1 (codex 1358Z item 4/5): the two repaired execution tools
     # join the runtime allowlist as explicit slots
     "power_harness": {

@@ -179,6 +179,66 @@ STAGED_PREFIX = "docs/f2g_window2_execution/staged_envelopes/"
 EXPECTED_KEYS_BASENAME = "staged_expected_contracts_v3.json"
 # v4 lane split (codex 0527Z finding 3): MF4_FEED named two
 # carrier spaces at once and is RETIRED with no alias.
+# codex 2119Z closure 4: the three proof kinds. A key's REQUIRED
+# proof is DERIVED from its registered disposition in the pinned
+# capsule -- never read from a submitted label, or a mislabelled key
+# would authenticate itself. Disposition answers "how were the bytes
+# obtained"; proof kind answers "what does admitting it establish".
+PROOF_KIND_FOR_DISPOSITION = {
+    "HTTP_CAPTURE": "NATIVE_V4_CAPTURE",
+    "REUSE_OR_BRIDGE": "RESTAGED_LINEAGE",
+    "PREDECESSOR": "PREDECESSOR_BRIDGE"}
+PROOF_KINDS = tuple(sorted(PROOF_KIND_FOR_DISPOSITION.values()))
+
+def compute_proof_kind_partitions(authorized_keys, capsule):
+    """codex 2119Z closure 4. Returns the three EXACT, DISJOINT,
+    RECOMPUTED proof-kind partitions over the authority key set.
+
+    A key's required proof is DERIVED from its registered disposition
+    in the capsule -- never read from a submitted label, since a
+    mislabelled key would otherwise authenticate itself. Refuses
+    typed on double disposition, on any authority key left
+    undisposed, and on any disposed key outside the authority.
+    """
+    disposed = {
+        "HTTP_CAPTURE": set(capsule["http_capture"]),
+        "REUSE_OR_BRIDGE": set(capsule["reuse_or_bridge"]),
+        "PREDECESSOR": set(capsule["predecessor"])}
+    seen = {}
+    for disp, keyset in disposed.items():
+        kind = PROOF_KIND_FOR_DISPOSITION[disp]
+        for k in keyset:
+            if k in seen:
+                raise InstrumentRefusal(
+                    "PRESTART_ADMISSION_REFUSED: key {} is disposed "
+                    "twice ({} and {}) -- proof-kind partitions must "
+                    "be DISJOINT".format(k, seen[k], kind))
+            seen[k] = kind
+    want = set(authorized_keys)
+    missing = sorted(want - set(seen))
+    extra = sorted(set(seen) - want)
+    if missing or extra:
+        raise InstrumentRefusal(
+            "PRESTART_ADMISSION_REFUSED: proof-kind partitions do not "
+            f"cover the authority EXACTLY -- {len(missing)} undisposed "
+            f"(first {missing[:2]}), {len(extra)} outside the "
+            f"authority (first {extra[:2]})")
+    parts = {}
+    for kind in PROOF_KINDS:
+        ks = sorted(k for k, v in seen.items() if v == kind)
+        parts[kind] = {
+            "count": len(ks),                       # RECOMPUTED
+            "keys_sha256": hashlib.sha256(json.dumps(
+                ks, separators=(",", ":")).encode()).hexdigest(),
+            "join_result": "ADMITTED"}
+    total = sum(p["count"] for p in parts.values())
+    if total != len(want):
+        raise InstrumentRefusal(
+            f"PRESTART_ADMISSION_REFUSED: proof-kind union {total} != "
+            f"authority {len(want)}")
+    return parts
+
+
 PRESTART_LANES = ("SELECTION_RECORDS", "MAG_FEED",
                   "MAG_WEATHER_FEED")
 
@@ -360,7 +420,8 @@ def verify_staged_boundary(repo, manifest, *, blob_reader=None,
                            store_reader=None, day_set_gate=None,
                            transform_dispatcher=None,
                            authority_reproducer=None,
-                           capture_archive=None):
+                           capture_archive=None,
+                           disposition_capsule=None):
     """codex 2235Z item 1 + 0238Z items 1-2: the admission-owned
     S/T/E consumer. The (lane, carrier, day) key set comes ONLY from
     the REGISTERED expected-keys authority pin (never from the
@@ -576,7 +637,37 @@ def verify_staged_boundary(repo, manifest, *, blob_reader=None,
             "ADMITTED_ABSENCE, or removal by an authority amendment "
             "declared BEFORE the failures were seen. Dropping it "
             "here would make the authority data-dependent.")
-    return {"report": full, "staged_boundary_sha256": digest}
+    # ---- closure 4: typed proof-kind partitions -----------------
+    # Three DIFFERENT claims are being made across the 2,056 keys. A
+    # report aggregated by lane/carrier lets them disappear into one
+    # total that reads with the strength of its strongest member.
+    if disposition_capsule is None:
+        raise InstrumentRefusal(
+            "PRESTART_ADMISSION_REFUSED: no disposition capsule was "
+            "supplied -- the boundary cannot report proof kinds "
+            "without the registered dispositions, and an absent "
+            "capsule can never mean 'report one undifferentiated "
+            "total'")
+    import w2_disposition_capsule_grassmann as DISP
+    try:
+        DISP.verify(disposition_capsule, authority=authority)
+    except Exception as e:                                # noqa: BLE001
+        raise InstrumentRefusal(
+            "PRESTART_ADMISSION_REFUSED: the disposition capsule "
+            f"failed its own verifier ({type(e).__name__}: "
+            f"{str(e)[:110]})")
+    authorized_keys = {f"{ln}/{ck}/{d}"
+                       for (ln, ck, d) in authorized}
+    partitions = compute_proof_kind_partitions(authorized_keys,
+                                               disposition_capsule)
+    total = sum(p["count"] for p in partitions.values())
+    # the typed partitions come FIRST; the aggregate is reported only
+    # after them, and is derived from them rather than beside them
+    full = dict(full)
+    full["proof_kinds"] = partitions
+    full["proof_kind_total"] = total
+    return {"report": full, "staged_boundary_sha256": digest,
+            "proof_kinds": partitions}
 
 
 def assemble_prestart_admission(repo, manifest_commit, bindings,

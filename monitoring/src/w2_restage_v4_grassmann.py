@@ -78,7 +78,10 @@ def _capsule(commitish="HEAD"):
                          f"committed at {commitish}")
     caps = json.loads(raw.decode("utf-8"))
     authority, _sha = DISP._authority(commitish)
-    DISP.verify(caps, authority, commitish)
+    # the restager consumes LINEAGE evidence, so it must use the
+    # strict registry contract -- fail-closed if the archive or the
+    # source bodies cannot be reopened (codex 2303Z closure 2)
+    DISP.verify_lineage_registry(caps, authority, commitish)
     return caps, authority, subprocess.run(
         ["git", "-C", REPO, "rev-parse", commitish],
         capture_output=True).stdout.decode().strip()

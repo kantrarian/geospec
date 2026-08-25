@@ -465,7 +465,11 @@ def capture_authorized(repo, manifest_commit, authority_path, lane,
             f"{str(cpin.get('blob_sha256'))[:12]})")
     try:
         capsule = json.loads(craw.decode("utf-8"))
-        DISP.verify(capsule, authority)
+        # the network entrypoint consumes MEMBERSHIP only, so it
+        # uses the CEILING contract; the lineage registry is a
+        # different, strictly fail-closed contract (codex 2303Z
+        # closure 2) and is never satisfied by this call
+        DISP.verify_ceiling(capsule, authority)
         DISP.may_fire(capsule, lane, carrier, str(utc_day))
     except DISP.DispositionRefusal as exc:
         raise CaptureRefusal(f"CAPTURE_DISPOSITION_REFUSED: {exc}")

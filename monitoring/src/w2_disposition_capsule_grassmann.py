@@ -235,8 +235,45 @@ def _partition_block(caps):
     }
 
 
+def verify_ceiling(capsule, authority=None, commitish="HEAD"):
+    """THE REQUEST-CEILING contract ONLY (codex 2303Z closure 2):
+    exact/disjoint request-membership over the authority key set. It
+    REPORTS that lineage evidence is NOT verified, so a ceiling PASS
+    can never be misread as a lineage PASS. The network entrypoint
+    may use this; the boundary and restager may NOT."""
+    out = _verify(capsule, authority, commitish, None, False)
+    out["lineage_evidence_verified"] = False
+    return out
+
+
+def verify_lineage_registry(capsule, authority=None,
+                            commitish="HEAD", store_root=None):
+    """THE LINEAGE-REGISTRY contract (codex 2303Z closure 2): FAILS
+    CLOSED unless it can reopen the registered archive AND the
+    source bodies. A missing archive or store can never produce a
+    clean lineage pass -- that fail-open policy is exactly what let
+    six doctored fields through on a host without the store."""
+    root = store_root or os.environ.get(
+        "W2_V3_STORE", "E:/GeoSpec/w2_capture_store_20260825")
+    if not os.path.isdir(root):
+        _d("LINEAGE registry verification requires the source body "
+           f"store; {root} is not readable -- fail CLOSED")
+    out = _verify(capsule, authority, commitish, root, True)
+    out["lineage_evidence_verified"] = True
+    return out
+
+
 def verify(capsule, authority=None, commitish="HEAD",
            store_root=None):
+    """Deprecated shim: callers must choose verify_ceiling() or
+    verify_lineage_registry() explicitly. Kept only so existing
+    call sites keep working while they are migrated."""
+    return _verify(capsule, authority, commitish, store_root,
+                   bool(store_root))
+
+
+def _verify(capsule, authority=None, commitish="HEAD",
+            store_root=None, lineage=False):
     """The capsule verifier: closed schema, EXACT and DISJOINT
     partition of the registered authority key set, recomputed
     per-partition digests, and a recomputed counts block. Nothing
@@ -284,7 +321,7 @@ def verify(capsule, authority=None, commitish="HEAD",
     if c["partitions"] != recomputed:
         _d("the partitions block is DERIVED, never submitted -- it "
            "does not recompute from the capsule's own key lists")
-    _verify_nested(c, authority, store_root)
+    _verify_nested(c, authority, store_root, lineage)
     return {"census": len(keys),
             "REUSE_OR_BRIDGE": len(reuse),
             "PREDECESSOR": len(pred),
@@ -306,7 +343,7 @@ def _closed(obj, want, what):
            f"extra={sorted(set(obj or {}) - want)})")
 
 
-def _verify_nested(c, authority, store_root=None):
+def _verify_nested(c, authority, store_root=None, lineage=False):
     """codex 2119Z closure 2: EVERY nested field consumed as
     authority is closed and INDEPENDENTLY re-derived. A verifier that
     closes the top level and the key sets but leaves the interior
@@ -332,6 +369,10 @@ def _verify_nested(c, authority, store_root=None):
         if os.path.isfile(_ap):
             with open(_ap, "rb") as f:
                 _araw = f.read()
+    if _araw is None and lineage:
+        _d("LINEAGE registry verification requires the registered "
+           "archive; it could not be resolved -- fail CLOSED. A "
+           "missing evidence source is never a clean pass")
     if _araw is not None:
         if hashlib.sha256(_araw).hexdigest() != \
                 c["v3_archive"]["sha256"]:

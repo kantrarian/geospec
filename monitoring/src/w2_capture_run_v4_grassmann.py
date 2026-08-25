@@ -113,7 +113,9 @@ def load_plan(commitish="HEAD"):
         raise SystemExit(
             "REFUSING: the capsule does not bind the authority at "
             f"{commitish}")
-    counts = DISP.verify(capsule, authority)
+    # the runner plans REQUESTS, so the ceiling contract is the
+    # right one; it reports that lineage evidence is unverified
+    counts = DISP.verify_ceiling(capsule, authority)
     keys = sorted(capsule["http_capture"])
     if len(keys) != counts["HTTP_CAPTURE"]:
         raise SystemExit("REFUSING: plan size diverges from the "

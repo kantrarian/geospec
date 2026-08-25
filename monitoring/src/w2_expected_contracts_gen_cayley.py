@@ -131,12 +131,12 @@ def mag_request(iaga):
     provider form its pinned probe envelope demonstrates."""
     up = iaga.upper()
     if up in ("IZN", "VIC"):            # INTERMAGNET GIN
-        return GIN_ENDPOINT, "gin-minute", {
+        return GIN_ENDPOINT, "intermagnet-gin-minute", {
             "Request": "GetData", "format": "json", "testObsys": "0",
             "observatoryIagaCode": up, "samplesPerDay": "minute",
             "dataStartDate": "{day}", "dataDuration": "1",
             "publicationState": "adj-or-rep"}
-    return USGS_ENDPOINT, "usgs-minute", {   # USGS geomag ws
+    return USGS_ENDPOINT, "usgs-geomag-ws-minute", {  # USGS ws
         "id": up, "format": "json", "sampling_period": "60",
         "starttime": "{day}T00:00:00Z",
         "endtime": "{day_next}T00:00:00Z"}
@@ -317,7 +317,7 @@ def build(repo):
         return {"expected_days": cal_days,
                 "cutoff": MAG_CUTOFF,
                 "source_class": ("INTERMAGNET GIN" if kind ==
-                                 "gin-minute"
+                                 "intermagnet-gin-minute"
                                  else "USGS geomagnetism"),
                 "capsule": mag_obs[obs]["capsule"],
                 "endpoint": ep,

@@ -177,7 +177,10 @@ STAGED_CLASS_SUFFIX = {"record": ".record.json",
                        "artifact": ".artifact.json"}
 STAGED_PREFIX = "docs/f2g_window2_execution/staged_envelopes/"
 EXPECTED_KEYS_BASENAME = "staged_expected_contracts_v3.json"
-PRESTART_LANES = ("SELECTION_RECORDS", "MAG_FEED", "MF4_FEED")
+# v4 lane split (codex 0527Z finding 3): MF4_FEED named two
+# carrier spaces at once and is RETIRED with no alias.
+PRESTART_LANES = ("SELECTION_RECORDS", "MAG_FEED",
+                  "MAG_WEATHER_FEED")
 
 
 def _parse_staged_pin(path):
@@ -212,8 +215,12 @@ AUTHORITY_TOP_FIELDS = {
     "schema", "prestart_expected_keys",
     "prestart_expected_keys_sha256", "static_layer",
     "dynamic_layer", "digests", "provenance",
-    "template_token_vocabulary"}
-AUTHORITY_CENSUS = 1794          # 4x90 + 3x239 + 3x239
+    "template_token_vocabulary",
+    # v4: the registered predecessor lineage the bridge reopens
+    "registered_probe_authority"}
+AUTHORITY_CENSUS = 2056          # v4: 5x212 + 3x212 + 4x90
+#   MAG 5 obs x 212d (07-31 cutoff) + weather 3 x 212d
+#   + selection 4 x 90d (08-27 cutoff)
 AUTHORITY_SCHEMA = "f2g-w2-expected-contracts-v3"
 TEMPLATE_TOKEN_VOCABULARY = ("{day}", "{day_next}", "{day_compact}")
 
@@ -352,7 +359,8 @@ def authoritative_static_contract(authority, lane, carrier, day):
 def verify_staged_boundary(repo, manifest, *, blob_reader=None,
                            store_reader=None, day_set_gate=None,
                            transform_dispatcher=None,
-                           authority_reproducer=None):
+                           authority_reproducer=None,
+                           capture_archive=None):
     """codex 2235Z item 1 + 0238Z items 1-2: the admission-owned
     S/T/E consumer. The (lane, carrier, day) key set comes ONLY from
     the REGISTERED expected-keys authority pin (never from the
@@ -525,6 +533,49 @@ def verify_staged_boundary(repo, manifest, *, blob_reader=None,
     digest = hashlib.sha256(json.dumps(
         full, sort_keys=True, separators=(",", ":")).encode()
         ).hexdigest()
+    # ---- v4 part 7 (codex 0527Z finding 5, boundary side) --------
+    # The authority says what is EXPECTED; grassmann's capture-run
+    # archive says what was ADMITTED. Without it, a key REFUSED at
+    # capture is indistinguishable here from one never attempted --
+    # and a REFUSED key must NEVER silently satisfy a scientific key.
+    # Fail closed: an absent archive can never mean "skip the check".
+    if capture_archive is None:
+        raise InstrumentRefusal(
+            "PRESTART_ADMISSION_REFUSED: no capture-run archive was "
+            "supplied -- the boundary cannot bind without the "
+            "registered ADMITTED|REFUSED partition")
+    import w2_acquisition_capture_grassmann as CAP
+    # verify the archive OURSELVES; trusting a caller-verified one
+    # would accept a forgery (the content-auth mistake again)
+    try:
+        # the archive verifier takes the AUTHORITY key mapping, so
+        # it re-derives the partition from the same registered source
+        # this boundary uses -- not from a list we flattened
+        CAP.verify_capture_run_archive(capture_archive, descriptor,
+                                       auth_keys)
+    except Exception as e:                                # noqa: BLE001
+        raise InstrumentRefusal(
+            "PRESTART_ADMISSION_REFUSED: the capture-run archive "
+            f"failed its own verifier ({type(e).__name__}: "
+            f"{str(e)[:110]})")
+    admitted = set()
+    for k in CAP.admitted_keys(capture_archive):
+        parts = str(k).split("/")
+        if len(parts) == 3:
+            admitted.add(tuple(parts))
+    unmet = sorted(f"{ln}/{ck}/{d}"
+                   for (ln, ck, d) in authorized
+                   if (ln, ck, d) not in admitted)
+    if unmet:
+        raise InstrumentRefusal(
+            f"PRESTART_ADMISSION_REFUSED: {len(unmet)} expected "
+            "authority key(s) are NOT in the archive's ADMITTED "
+            f"partition (first: {unmet[:3]}). A REFUSED key preserves "
+            "its evidence but never satisfies a scientific key; the "
+            "lawful resolutions are re-admission, a registered "
+            "ADMITTED_ABSENCE, or removal by an authority amendment "
+            "declared BEFORE the failures were seen. Dropping it "
+            "here would make the authority data-dependent.")
     return {"report": full, "staged_boundary_sha256": digest}
 
 
@@ -1129,7 +1180,8 @@ def _selftest():
                           hashlib.sha256(raw).hexdigest()})
     b_keys = {"SELECTION_RECORDS": {"kat_sel": ["2026-08-20"]},
               "MAG_FEED": {"izn": list(days)},
-              "MF4_FEED": {"kat_drv": ["2026-08-20"]}}
+              "MAG_WEATHER_FEED": {"kat_drv": ["2026-08-20"]}}
+    arch_admitted = {}
     fixture_keys = [(lane, ck, d)
                     for lane in sorted(b_keys)
                     for ck in b_keys[lane]
@@ -1159,6 +1211,15 @@ def _selftest():
         inv_entries[f"{lane}/{ck}/{day}"] = {
             "sha256": rec["raw_body_sha256"],
             "bytes": rec["raw_body_bytes"]}
+        # v4 part 7: the archive entry for this ADMITTED key
+        arch_admitted[f"{lane}/{ck}/{day}"] = {
+            "lane": lane, "carrier": ck, "utc_day": day,
+            "static_contract_sha256":
+                tr["static_contract_sha256"],
+            "transcript_sha256": PROD._canon_digest(tr),
+            "raw_body_sha256": rec["raw_body_sha256"],
+            "raw_body_bytes": rec["raw_body_bytes"],
+            "output_sha256": PROD._canon_digest(bbuilder(body))}
     b_inv = CAP.build_staged_body_inventory("s4t", "s4t://window2",
                                             inv_entries)
     b_desc = {"schema": "f2g-w2-store-descriptor-v1",
@@ -1180,6 +1241,11 @@ def _selftest():
             "static_contract_template": tmpl_for(ck)}
             for ck in b_keys[lane]}}
     b_auth = {"schema": AUTHORITY_SCHEMA,
+              "registered_probe_authority": {
+                  "path": "docs/f2g_window2_execution/"
+                          "omni_probe_authority_v4.json",
+                  "commit": "a" * 40, "blob_sha256": "b" * 64,
+                  "role": "kat fixture lineage"},
               "template_token_vocabulary":
                   list(TEMPLATE_TOKEN_VOCABULARY),
               "prestart_expected_keys": b_keys,
@@ -1208,7 +1274,19 @@ def _selftest():
 
     def bman(pins):
         return man_with("BOUND", pins)
+    b_auth_id = {"commit": "f" * 40,
+                 "path": ("docs/f2g_window2_execution/"
+                          + EXPECTED_KEYS_BASENAME),
+                 "blob_sha256": hashlib.sha256(
+                     json.dumps(b_auth, sort_keys=True,
+                                separators=(",", ":")).encode()
+                     ).hexdigest(),
+                 "keys_sha256": b_auth[
+                     "prestart_expected_keys_sha256"]}
+    b_archive = CAP.build_capture_run_archive(
+        "s4t", "s4t://window2", b_auth_id, arch_admitted, {})
     out = verify_staged_boundary(".", bman(pins2),
+                                 capture_archive=b_archive,
                                  blob_reader=breader,
                                  transform_dispatcher=bdispatch,
                                  authority_reproducer=b_repro)
@@ -1219,6 +1297,7 @@ def _selftest():
     def brefuses(pins, needle, **kw):
         try:
             verify_staged_boundary(".", bman(pins),
+                                   capture_archive=b_archive,
                                    blob_reader=breader,
                                    transform_dispatcher=kw.pop(
                                        "transform_dispatcher",
@@ -1335,6 +1414,7 @@ def _selftest():
     if not hasattr(CAP, "admission_transform"):
         try:
             verify_staged_boundary(".", bman(pins2),
+                                   capture_archive=b_archive,
                                    blob_reader=breader,
                                    authority_reproducer=b_repro)
             raise AssertionError("absent dispatcher must refuse")
@@ -1369,7 +1449,7 @@ def _selftest():
                     authority_reproducer=lambda: a_forge)
     # empty carrier map
     a_empty = _cp.deepcopy(b_auth)
-    a_empty["prestart_expected_keys"]["MF4_FEED"] = {}
+    a_empty["prestart_expected_keys"]["MAG_WEATHER_FEED"] = {}
     a_empty["prestart_expected_keys_sha256"] = hashlib.sha256(
         json.dumps(a_empty["prestart_expected_keys"],
                    sort_keys=True, separators=(",", ":")).encode()

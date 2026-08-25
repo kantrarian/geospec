@@ -1154,6 +1154,89 @@ def _xf_numeric_or_null(v, what):
         _xerr(f"{what}: nonnumeric or nonfinite sample {v!r}")
 
 
+def _finite(v):
+    import math
+    try:
+        return math.isfinite(float(v))
+    except (TypeError, ValueError):
+        return False
+
+
+EXEC_CAPSULE_DIR = "docs/f2g_window2_execution/mag_capsules"
+
+
+def _mag_frame_authority(s, doc, what, capsule=None):
+    """Resolve the FRAME authority for a MAG body, in registered
+    order (codex 1501Z): an explicitly injected capsule; else the
+    body's OWN registered REPORTED convention (convert_frame's
+    map-less path -- the basis codex accepted for the NEW/FRN/TUC
+    class, where the provider's reported elements are already
+    geographic); else the committed execution capsule for the
+    carrier, which the ANGULAR (HDZ) path needs for its component
+    map and declination units. The identity is bound into the
+    artifact so the frame that produced the mask is auditable."""
+    import w2_mag1 as MAG1
+    carrier = str(s.get("carrier"))
+    if capsule is not None:
+        orient = (capsule.get("sensor_orientation")
+                  if capsule.get("component_map")
+                  else capsule.get("reported_orientation"))
+        return capsule, orient, {"authority": "injected-capsule",
+                                 "carrier": carrier,
+                                 "orientation": orient}
+    meta = ((doc.get("metadata") or {}).get("intermagnet")
+            if isinstance(doc, dict) else None) or {}
+    info = (doc.get("@info") if isinstance(doc, dict) else None) or {}
+    rep = meta.get("reported_orientation") or \
+        info.get("reported_orientation")
+    if rep in MAG1.REPORTED_CONVENTIONS:
+        return ({"reported_orientation": rep}, rep,
+                {"authority": "body-reported-convention",
+                 "carrier": carrier, "orientation": rep})
+    # ANGULAR / non-identity source: the capsule is the authority
+    src = meta.get("sensor_orientation") or \
+        info.get("sensor_orientation")
+    path = f"{EXEC_CAPSULE_DIR}/mag_capsule_{carrier}.json"
+    full = os.path.join(os.path.dirname(os.path.dirname(_HERE)),
+                        *path.split("/"))
+    if not os.path.isfile(full):
+        _xerr(f"{what}: source orientation {src!r} is not a "
+              "registered REPORTED convention and no committed "
+              f"frame capsule exists at {path} -- the canonical "
+              "mask is never derived without the pinned frame")
+    with open(full, "rb") as f:
+        raw = f.read()
+    cap = json.loads(raw.decode("utf-8"))
+    orient = (cap.get("sensor_orientation")
+              if cap.get("component_map")
+              else cap.get("reported_orientation"))
+    return cap, orient, {"authority": "committed-execution-capsule",
+                         "carrier": carrier, "orientation": orient,
+                         "capsule_path": path,
+                         "capsule_sha256":
+                             hashlib.sha256(raw).hexdigest()}
+
+
+def _canonical_horizontal(comps, s, doc, what, capsule=None):
+    """Run the RAW component arrays through w2_mag1's PINNED
+    convert_frame and return (frame identity, X_north, Y_east). The
+    support mask derives from these CANONICAL arrays, per codex
+    1501Z: an XYZF source needs valid X and Y; an HDZ source needs
+    exactly the raw inputs its registered H/D -> X/Y conversion
+    consumes; Z or F alone never unsupport a horizontal sample. No
+    second implementation of the frame semantics exists here."""
+    import w2_mag1 as MAG1
+    cap, orient, ident = _mag_frame_authority(s, doc, what, capsule)
+    try:
+        x_arr, y_arr, _z = MAG1.convert_frame(cap, comps, orient)
+    except Exception as exc:
+        _xerr(f"{what}: capsule-pinned frame conversion refused "
+              f"({type(exc).__name__}: {exc})")
+    ident = dict(ident, conversion="w2_mag1.convert_frame",
+                 components=["X_north", "Y_east"])
+    return ident, list(x_arr), list(y_arr)
+
+
 def _xf_mag(raw_body, s):
     """MAG_FEED minute series (USGS ws JSON / INTERMAGNET GIN JSON):
     structural validation + the registered minute cadence (exact
@@ -1191,22 +1274,31 @@ def _xf_mag(raw_body, s):
                     support[i] = True
         if not nulls:
             _xerr(f"{what}: zero channels")
-        # codex 1424Z ruling 1: a provider-null day is now the
-        # ALL-FALSE mask (ADMITTED_ABSENCE), not a refusal -- the
-        # census stays data-independent and the absence is carried
-        # explicitly instead of shrinking the expected key set.
-        # DISCLOSED: this support predicate is ANY registered
-        # channel present. If the MAG-1 features require ALL
-        # components at a sample, the predicate must tighten -- that
-        # is a frozen-instantiation question, so I raise it rather
-        # than decide it here.
+        # codex 1501Z: the frozen MAG-1 statistic is the horizontal
+        # magnitude sqrt(rX^2 + rY^2), so a minute is supported IFF
+        # canonical geographic X_north AND Y_east are BOTH valid
+        # there -- derived AFTER the capsule-pinned orientation
+        # conversion, never from a raw-channel union. Missing Z or F
+        # alone does NOT unsupport a horizontal sample; an HDZ source
+        # needs exactly the raw inputs its registered H/D -> X/Y
+        # conversion consumes. The conversion is w2_mag1's PINNED
+        # convert_frame: no second implementation of the frame
+        # semantics exists here (the cascadia lesson).
+        frame, x_arr, y_arr = _canonical_horizontal(comps, s, doc,
+                                                    what)
+        support = [bool(_finite(x_arr[i]) and _finite(y_arr[i]))
+                   for i in range(len(times))]
+        # a provider-null day is the ALL-FALSE mask
+        # (ADMITTED_ABSENCE), not a refusal (codex 1424Z ruling 1)
         return dict(
             {"schema": ARTIFACT_SCHEMA, "lane": s["lane"],
              "carrier": s["carrier"], "utc_day": day,
              "kind": "mag-minute-series",
              "observatory": observatory,
              "samples": len(times), "channels": sorted(nulls),
-             "support_predicate": "any-registered-channel-present",
+             "support_predicate":
+                 "canonical-X_north-AND-Y_east-after-capsule-frame",
+             "canonical_frame": frame,
              "null_by_channel": {k: nulls[k] for k in
                                  sorted(nulls)}},
             **_support_block(support))
@@ -2230,14 +2322,14 @@ def _selftest():
         "not part of its frozen identity")
 
     def mag_s(**over):
-        s = {"lane": "MAG_FEED", "carrier": "katmag",
+        s = {"lane": "MAG_FEED", "carrier": "frn",
              "utc_day": "2026-08-20",
              "endpoint": "https://kat.example/m",
-             "request_params": {"id": "KAT"},
+             "request_params": {"id": "FRN"},
              "source": {"kind": "usgs-geomag-ws-minute",
                         "ref": "kat://m"},
              "cutoff": "2026-08-25",
-             "operation_params": {"carrier": "katmag",
+             "operation_params": {"carrier": "frn",
                                   "day": "2026-08-20"},
              "expected_keys": ["2026-08-20"]}
         s.update(over)
@@ -2249,18 +2341,29 @@ def _selftest():
         return [(d0 + _td(minutes=i)).strftime(
             "%Y-%m-%dT%H:%M:%S.000Z") for i in range(n)]
 
-    def usgs_body(vals, iaga="KAT", times=None):
+    def usgs_body(vals, iaga="FRN", times=None, y=None, extra=True):
+        """A REAL capsule-backed FRN body: the reported XYZF frame,
+        so the canonical mask is the X-and-Y conjunction."""
         times = times if times is not None else grid_times(len(vals))
+        n = len(vals)
+        yv = y if y is not None else [2.0] * n
+        chans = [{"id": "X", "values": vals},
+                 {"id": "Y", "values": yv}]
+        if extra:
+            chans += [{"id": "Z", "values": [3.0] * n},
+                      {"id": "F", "values": [4.0] * n}]
         return json.dumps({
             "type": "Timeseries",
             "metadata": {"intermagnet": {"imo": {"iaga_code": iaga}}},
             "times": times,
-            "values": [{"id": "X", "values": vals}]}).encode()
+            "values": chans}).encode()
     full = [1.0] * 1439 + [None]
     art_m = admission_transform("MAG_FEED", usgs_body(full), mag_s())
     assert art_m["samples"] == 1440
     assert art_m["definitive_samples"] == 1439
-    assert art_m["null_by_channel"] == {"X": 1}
+    assert art_m["null_by_channel"]["X"] == 1
+    assert art_m["support_predicate"] == \
+        "canonical-X_north-AND-Y_east-after-capsule-frame"
     # the inclusive day-next terminal (the USGS 1441 shape) admits
     art_m2 = admission_transform("MAG_FEED",
                                  usgs_body([2.0] * 1441), mag_s())
@@ -2319,25 +2422,77 @@ def _selftest():
     assert xrefuses(lambda: admission_transform(
         "MAG_FEED", usgs_body([1.0] * 1440, times=t_bad), mag_s()),
         "non-canonical UTC instant")
-    gin_raw = json.dumps({
-        "datetime": grid_times(), "@info": {},
-        "H": [1.0] * 1440,
-        "Z": [None] + [2.0] * 1439}).encode()
-    art_g = admission_transform("MAG_FEED", gin_raw, mag_s(
-        source={"kind": "intermagnet-gin-minute", "ref": "kat://g"},
-        request_params={"observatoryIagaCode": "KAT"}))
+    # the ANGULAR (HDZ) path against the REAL committed izn capsule:
+    # canonical X/Y come from H and D, so D is load-bearing and Z is
+    # not (codex 1501Z)
+    def gin_s(**over):
+        s = mag_s(carrier="izn",
+                  source={"kind": "intermagnet-gin-minute",
+                          "ref": "kat://g"},
+                  request_params={"observatoryIagaCode": "IZN"},
+                  operation_params={"carrier": "izn",
+                                    "day": "2026-08-20"})
+        s.update(over)
+        return s
+
+    def gin_body(h=None, d=None, z=None, n=1440):
+        return json.dumps({
+            "datetime": grid_times(n),
+            "@info": {"sensor_orientation": "HDZS"},
+            "H": h if h is not None else [100.0] * n,
+            "D": d if d is not None else [30.0] * n,
+            "Z": z if z is not None else [7.0] * n,
+            "S": [1.0] * n}).encode()
+    art_g = admission_transform("MAG_FEED", gin_body(), gin_s())
     assert art_g["samples"] == 1440
     assert art_g["definitive_samples"] == 1440
-    assert art_g["channels"] == ["H", "Z"]
-    assert art_g["null_by_channel"] == {"H": 0, "Z": 1}
-    art_gabs = admission_transform(
-        "MAG_FEED", json.dumps(
-            {"datetime": grid_times(),
-             "H": [None] * 1440}).encode(),
-        mag_s(source={"kind": "intermagnet-gin-minute",
-                      "ref": "kat://g"}))
+    assert art_g["canonical_frame"]["authority"] == \
+        "committed-execution-capsule"
+    assert art_g["canonical_frame"]["orientation"] == "HDZS"
+    assert len(art_g["canonical_frame"]["capsule_sha256"]) == 64
+    # HD source missing D: the conversion has no Y, so the minute is
+    # UNSUPPORTED even though H is present (codex's HD-missing-D KAT)
+    art_gd = admission_transform("MAG_FEED", gin_body(
+        d=[None] + [30.0] * 1439), gin_s())
+    assert art_gd["support_mask"][0] is False
+    assert art_gd["definitive_samples"] == 1439
+    # missing Z alone does NOT unsupport the horizontal sample
+    art_gz = admission_transform("MAG_FEED", gin_body(
+        z=[None] * 1440), gin_s())
+    assert art_gz["definitive_samples"] == 1440
+    assert art_gz["outcome"] == OUTCOME_ADMITTED
+    art_gabs = admission_transform("MAG_FEED", gin_body(
+        h=[None] * 1440), gin_s())
     assert art_gabs["outcome"] == OUTCOME_ADMITTED_ABSENCE
     assert art_gabs["definitive_samples"] == 0
+    # --- codex 1501Z canonical-mask doctors on the XYZF path ---
+    # X-only loss and Y-only loss BOTH unsupport that minute
+    art_xo = admission_transform("MAG_FEED", usgs_body(
+        [None] + [1.0] * 1439), mag_s())
+    assert art_xo["support_mask"][0] is False
+    assert art_xo["definitive_samples"] == 1439
+    art_yo = admission_transform("MAG_FEED", usgs_body(
+        [1.0] * 1440, y=[None] + [2.0] * 1439), mag_s())
+    assert art_yo["support_mask"][0] is False
+    assert art_yo["definitive_samples"] == 1439
+    # ...while losing every Z and F VALUE leaves the horizontal
+    # samples SUPPORTED -- they are not inputs to sqrt(rX^2 + rY^2).
+    # (The Z ARRAY must still be structurally present: the pinned
+    # convert_frame requires the registered component set to exist,
+    # which is a closure requirement, not a support one.)
+    zf_null = json.dumps({
+        "type": "Timeseries",
+        "metadata": {"intermagnet": {"imo": {"iaga_code": "FRN"},
+                                     "reported_orientation": "XYZF"}},
+        "times": grid_times(),
+        "values": [{"id": "X", "values": [1.0] * 1440},
+                   {"id": "Y", "values": [2.0] * 1440},
+                   {"id": "Z", "values": [None] * 1440},
+                   {"id": "F", "values": [None] * 1440}]}).encode()
+    art_zf = admission_transform("MAG_FEED", zf_null, mag_s())
+    assert art_zf["definitive_samples"] == 1440
+    assert art_zf["outcome"] == OUTCOME_ADMITTED
+    assert art_zf["null_by_channel"]["Z"] == 1440
 
     def mf4_s(carrier="kp", kind="gfz-kp-json", **over):
         s = {"lane": "MAG_WEATHER_FEED", "carrier": carrier,

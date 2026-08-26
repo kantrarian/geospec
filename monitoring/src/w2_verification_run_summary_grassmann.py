@@ -626,6 +626,22 @@ def merge_legs(legs):
                 matrix[sf][il] = "SCOPED_NOT_REQUIRED"
             else:
                 missing.append([sf, il])
+        # SELF-CATCH: EVIDENCE_HOST was DECLARED and never READ -- a
+        # requirement stated in a constant that no code enforced. The
+        # contract is "the EVIDENCE host's py3.11 cell", not "any
+        # host's": a store-dependent surface reported PASS by a host
+        # with no v3 store would have satisfied a requirement it
+        # cannot physically meet.
+        if sf in EVIDENCE_HOST_ONLY:
+            il = f"py{REQUIRED_INTERPRETERS[-1]}"
+            covered_by = matrix[sf][il]
+            if isinstance(covered_by, list) and covered_by and \
+                    not any(EVIDENCE_HOST in h for h in covered_by):
+                _mr(f"{sf} is evidence-host-only and its {il} cell is "
+                    f"covered only by {covered_by} -- that surface "
+                    f"requires the {EVIDENCE_HOST!r} host, which is "
+                    "where the v3 store lives; a host without the "
+                    "store cannot have exercised it")
     covered = sorted({r["interpreter_version"].rsplit(".", 1)[0]
                       for r in rows
                       if r.get("interpreter_version")
@@ -774,8 +790,27 @@ def _merge_selftest():
     assert refuses(lambda: merge_legs(
         [leg("devildog", C1), leg("geomen", C1, rows=fbad)]),
         "missing required field")
-    print("w2 leg-merge selftest: ALL PASS (13 directions -- 7 frame "
-          "+ 6 completeness)")
+    # (14) SELF-CATCH doctor: an evidence-host-only surface whose
+    # py3.11 cell is covered ONLY by a host with no v3 store. The
+    # EVIDENCE_HOST constant used to be declared and never read, so
+    # this passed.
+    PY = f"py{REQUIRED_INTERPRETERS[-1]}"
+    d_rows, g_rows = [], []
+    for sf in SURFACES:
+        for il in INTERPRETER_LABELS:
+            # devildog does NOT cover the store-dependent surfaces...
+            dv = "NOT_RUN" if sf in EVIDENCE_HOST_ONLY else "PASS"
+            d_rows.append(cell("devildog", C1, sf, il, dv))
+            # ...and geomen claims it did, on the required cell
+            gv = "PASS" if (sf in EVIDENCE_HOST_ONLY and il == PY) \
+                else "PASS"
+            g_rows.append(cell("geomen", C1, sf, il, gv))
+    assert refuses(lambda: merge_legs(
+        [leg("devildog", C1, rows=d_rows),
+         leg("geomen", C1, rows=g_rows)]),
+        "requires the 'devildog' host")
+    print("w2 leg-merge selftest: ALL PASS (14 directions -- 7 frame "
+          "+ 6 completeness + 1 evidence-host)")
 
 
 
@@ -828,20 +863,29 @@ def _argv_selftest():
     mistyped flag cannot perform a destructive write."""
     import subprocess
     out = os.path.join(REPO, *SUMMARY_PATH.split("/"))
-    before = None
-    if os.path.isfile(out):
-        with open(out, "rb") as f:
-            before = hashlib.sha256(f.read()).hexdigest()
+    # SELF-CATCH: this used to read `before = None if absent`, and
+    # then compare `after == before` -- so on any host WITHOUT the
+    # record it compared None to None and passed having observed
+    # NOTHING. A destructive-write doctor that cannot see the file it
+    # protects is the "the case never got there" defect I had just
+    # warned cayley about, in my own code, one turn later. The record
+    # is committed, so its absence means the doctor cannot certify.
+    if not os.path.isfile(out):
+        raise RuntimeError(
+            "the canonical record is ABSENT, so this doctor cannot "
+            "observe whether a bad flag modified it -- refusing "
+            "rather than passing vacuously")
+    with open(out, "rb") as f:
+        before = hashlib.sha256(f.read()).hexdigest()
     me = os.path.abspath(__file__)
     for bad in (["--selftest"], ["--bogus"], [], ["--generate=x"],
                 ["--Generate"], ["--merge-selftest", "--generate"]):
         r = subprocess.run([sys.executable, me] + bad,
                            capture_output=True)
         assert r.returncode == 2, (bad, r.returncode)
-        after = None
-        if os.path.isfile(out):
-            with open(out, "rb") as f:
-                after = hashlib.sha256(f.read()).hexdigest()
+        assert os.path.isfile(out), f"{bad} DELETED the record"
+        with open(out, "rb") as f:
+            after = hashlib.sha256(f.read()).hexdigest()
         assert after == before, f"{bad} MODIFIED the record"
         assert not os.path.exists(out + ".tmp"), f"{bad} left a temp"
     print("w2 argv selftest: ALL PASS (6 refusing argv shapes, "

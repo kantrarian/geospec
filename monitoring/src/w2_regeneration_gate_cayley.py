@@ -89,6 +89,16 @@ REQUIRED_BY_SLOT = {
         "monitoring/src/w2_no_network_grassmann.py",
         "monitoring/src/w2_producer_grassmann.py",
     ),
+    # codex 1758Z P0-1: both power engines together in power_harness.
+    # They are fixture-only power-estimation engines behind the power
+    # machinery; `_cal_` is the CALENDAR lane (not the
+    # calibration-ledger runner), and it IMPORTS the non-calendar
+    # engine -- so calibration_runner would be the wrong authority and
+    # a split would separate a dependency from its dependent.
+    "power_harness": (
+        "monitoring/src/f2g_phase_b_power_estimation_cayley.py",
+        "monitoring/src/f2g_phase_b_power_estimation_cal_cayley.py",
+    ),
     "execution_verifier": (
         "monitoring/src/f2g_execution_manifest_verifier_cayley.py",
         "monitoring/src/w2_regeneration_gate_cayley.py",
@@ -260,61 +270,113 @@ def local_import_closure(src_dir, entrypoints=ADMISSION_ENTRYPOINTS):
     return seen
 
 
-def design_pinned_basenames(commit="HEAD"):
-    """Basenames carried by the linked design-pin registry."""
-    raw = _blob(commit, DESIGN_PIN_REGISTRY)
+def design_pinned_paths(manifest, *, commit=None):
+    """FULL repo-relative paths carried by the linked design registry.
+
+    codex 1758Z P1. My first version was a NOMINAL binding twice over
+    and both halves were real defects:
+
+    1. it regexed every `.py` token anywhere in the JSON, so
+       `{"note": "monitoring/src/ghost_unbound.py", "pins": {}}`
+       reported ghost_unbound.py as design-pinned when the registry
+       pins nothing at all -- prose in a note counted as a pin;
+    2. it compared BASENAMES, so a same-named file in another
+       directory would inherit an unrelated pin.
+
+    Both are the defect class I have spent this session finding in
+    other people's checks: a check that matches the NAME of a thing
+    instead of binding the thing. Now: parse strictly, take `path`
+    only from `pins` entries, compare full paths, and REFUSE a
+    malformed registry rather than returning a partial authority --
+    an empty set read as "nothing is design-pinned" would silently
+    convert a broken registry into a flood of false findings.
+
+    Resolved at the manifest's own `design_manifest_commit`, not at
+    symbolic HEAD: the linked registry is whichever one the manifest
+    names, and reading HEAD would let a later edit satisfy an earlier
+    manifest.
+    """
+    ref = commit or manifest.get("design_manifest_commit")
+    if not isinstance(ref, str) or not ref:
+        raise RegenerationGateRefusal(
+            "REGENERATION_GATE_REFUSED: the manifest names no "
+            "design_manifest_commit, so the linked design registry "
+            "cannot be resolved -- refusing rather than reading HEAD")
+    raw = _blob(ref, DESIGN_PIN_REGISTRY)
     if raw is None:
-        return set()
+        raise RegenerationGateRefusal(
+            "REGENERATION_GATE_REFUSED: the linked design registry "
+            f"{DESIGN_PIN_REGISTRY} is not readable at "
+            f"{ref[:12]}")
     try:
-        blob = raw.decode("utf-8")
-    except Exception:                                     # noqa: BLE001
-        return set()
+        doc = json.loads(raw.decode("utf-8"))
+    except Exception as e:                                # noqa: BLE001
+        raise RegenerationGateRefusal(
+            "REGENERATION_GATE_REFUSED: the linked design registry is "
+            f"not parseable JSON ({type(e).__name__})")
+    pins = doc.get("pins")
+    if not isinstance(pins, dict) or not pins:
+        raise RegenerationGateRefusal(
+            "REGENERATION_GATE_REFUSED: the linked design registry "
+            "has no `pins` mapping; a malformed registry must refuse, "
+            "never be read as 'nothing is design-pinned'")
     out = set()
-    for tok in re.findall(r"[A-Za-z0-9_./-]+\.py", blob):
-        out.add(os.path.basename(tok))
+    for name, entry in pins.items():
+        if not isinstance(entry, dict):
+            raise RegenerationGateRefusal(
+                "REGENERATION_GATE_REFUSED: design pin "
+                f"{name!r} is not a record")
+        path = entry.get("path")
+        if not isinstance(path, str) or not path:
+            raise RegenerationGateRefusal(
+                "REGENERATION_GATE_REFUSED: design pin "
+                f"{name!r} carries no path")
+        out.add(path)
     return out
 
 
-def _generator_declared():
-    """Basenames the generator DECLARES (what the manifest will bind
-    at the next regeneration)."""
+def _generator_declared_paths():
+    """Repo-relative paths the generator DECLARES -- i.e. what the
+    manifest will bind at the next regeneration. Full paths, not
+    basenames (codex 1758Z P1)."""
     try:
         import f2g_execution_manifest_gen_cayley as GEN
     except Exception:                                     # noqa: BLE001
         return set()
-    return {os.path.basename(p)
+    return {p
             for d in getattr(GEN, "BOUND_SLOTS", {}).values()
             for p in d.get("paths", [])}
 
 
-def unbound_closure_members(manifest, *, src_dir=_HERE, commit="HEAD"):
+def unbound_closure_members(manifest, *, src_dir=_HERE,
+                            design_commit=None):
     """Split closure members by WHY they are not pinned.
 
-    Distinguishing these two is the whole point. Before the single
-    regeneration the committed manifest is deliberately stale, so a
-    module can be absent from it while the generator already declares
-    it -- that is pending, not a gap. Conflating them would make this
-    doctor cry wolf on six healthy modules today and bury the two that
-    are genuinely declared NOWHERE. It is the same distinction I had to
-    make by hand to find those two, so the doctor makes it too.
+    Compares FULL repo-relative paths (codex 1758Z P1): a basename
+    comparison would let a same-named file in another directory
+    inherit an unrelated pin.
 
-    Returns {"never_declared": [...], "pending_regeneration": [...]}.
-    Only `never_declared` is a defect.
+    Distinguishing never_declared from pending_regeneration is the
+    whole point. Before the single regeneration the committed manifest
+    is deliberately stale, so a module can be absent from it while the
+    generator already declares it -- pending, not a gap. Conflating
+    them cries wolf on six healthy modules and buries the two that are
+    genuinely declared NOWHERE.
     """
     closure = local_import_closure(src_dir)
-    pinned = {os.path.basename(p["path"])
-              for _, p in walk_pins(manifest)}
-    pinned |= design_pinned_basenames(commit)
-    # a slot that is honestly OPEN cannot yet carry its pins
+    rel_of = {f: "monitoring/src/" + f for f in closure}
+    pinned = {p["path"] for _, p in walk_pins(manifest)}
+    pinned |= design_pinned_paths(manifest, commit=design_commit)
     for slot_name in SLOT_REQUIRED_ONLY_WHEN_BOUND:
         for rel in REQUIRED_BY_SLOT.get(slot_name, ()):
-            pinned.add(os.path.basename(rel))
-    declared = _generator_declared()
+            pinned.add(rel)
+    declared = _generator_declared_paths()
     never, pending = [], []
     for f in sorted(closure):
-        if f in pinned:
+        rel = rel_of[f]
+        if rel in pinned:
             continue
-        (pending if f in declared else never).append(f)
+        (pending if rel in declared else never).append(rel)
     return {"never_declared": never,
             "pending_regeneration": pending}
 
@@ -355,6 +417,98 @@ def require_manifest_verifier_pass(commit="HEAD"):
             f"(verdict={v.get('verdict')}, "
             f"slots_open={v.get('slots_open')})")
     return v
+
+
+def dual_result_gate(manifest, *, manifest_commit="HEAD",
+                     blob=_blob_at_head):
+    """THE THREE-RESULT INSTRUMENT (codex 1758Z, adopting my 0458Z
+    option 2).
+
+    The tension this resolves: requiring a zero-OPEN prestart PASS
+    before judging pins made pin-currency unreportable at step 4,
+    because producer_boundary and calibration_ledgers are HONESTLY
+    OPEN until the post-capture bind. Dropping the precondition would
+    have let perfectly current pins on a structurally broken manifest
+    earn a green gate. Neither collapse is acceptable, so the
+    instrument reports three explicit results and short-circuits none
+    of them.
+
+      manifest_default_contract  PASS|REFUSE
+      pin_currency               PASS|REFUSE|NOT_EVALUATED_INVALID_MANIFEST
+      prestart_overall           PASS|REFUSE
+
+    Pin currency may read PASS only after the DEFAULT-mode verifier
+    PASS has established schema, linkage, slot coherence and every
+    existing BOUND pin -- otherwise currency would be measured against
+    a manifest not known to be well formed, and it is reported
+    NOT_EVALUATED_INVALID_MANIFEST rather than REFUSE, because "we did
+    not look" is not "we looked and it was wrong".
+
+    `prestart_overall` stays REFUSE while any slot is honestly OPEN.
+    **No caller may read pin_currency=PASS as an overall PASS**; that
+    collapse is the whole failure this design exists to prevent, and
+    the returned record keeps them as separate typed fields rather
+    than one verdict.
+    """
+    import f2g_execution_manifest_verifier_cayley as EMV
+    out = {"claim_scope": "PIN_BINDING_ONLY",
+           "authorizes": "NOTHING",
+           "manifest_commit": manifest_commit}
+
+    dflt = EMV.verify(REPO, manifest_commit)
+    out["manifest_default_contract"] = (
+        "PASS" if dflt.get("verdict") == "PASS" else "REFUSE")
+    out["manifest_default_detail"] = dflt.get("verdict")
+
+    if out["manifest_default_contract"] != "PASS":
+        out["pin_currency"] = "NOT_EVALUATED_INVALID_MANIFEST"
+        out["pin_currency_detail"] = (
+            "the default-mode manifest contract did not PASS, so pin "
+            "currency was never measured")
+    else:
+        try:
+            rep = audit(manifest, blob=blob)
+            clo = unbound_closure_members(manifest)
+            problems = []
+            if rep["stale"]:
+                problems.append(f"{len(rep['stale'])} stale")
+            if rep["missing"]:
+                problems.append(f"{len(rep['missing'])} missing")
+            if rep["unbound_surfaces"]:
+                problems.append(
+                    f"{len(rep['unbound_surfaces'])} unbound required")
+            if rep["misplaced"]:
+                problems.append(f"{len(rep['misplaced'])} misplaced")
+            if clo["never_declared"]:
+                problems.append(
+                    f"{len(clo['never_declared'])} closure "
+                    "dependenc(ies) in no registry")
+            out["pin_currency"] = "REFUSE" if problems else "PASS"
+            out["pin_currency_detail"] = "; ".join(problems) or "clean"
+            out["pin_audit"] = {
+                "match": rep["match"], "stale": len(rep["stale"]),
+                "missing": len(rep["missing"]),
+                "unbound_required": len(rep["unbound_surfaces"]),
+                "misplaced": len(rep["misplaced"]),
+                "closure_never_declared": clo["never_declared"],
+                "closure_pending": len(clo["pending_regeneration"])}
+        except RegenerationGateRefusal as e:
+            out["pin_currency"] = "REFUSE"
+            out["pin_currency_detail"] = str(e)[:200]
+
+    pre = EMV.verify(REPO, manifest_commit, prestart=True)
+    zero_open = (pre.get("verdict") == "PASS"
+                 and pre.get("slots_open", -1) == 0)
+    out["prestart_overall"] = "PASS" if zero_open else "REFUSE"
+    out["prestart_detail"] = (
+        f"verdict={pre.get('verdict')}, "
+        f"slots_open={pre.get('slots_open')}")
+    if out["prestart_overall"] == "PASS" and             out["pin_currency"] != "PASS":
+        raise RegenerationGateRefusal(
+            "REGENERATION_GATE_REFUSED: prestart_overall PASS with "
+            f"pin_currency {out['pin_currency']} -- an overall pass "
+            "may never outrank the pin audit beneath it")
+    return out
 
 
 def gate(manifest, *, blob=_blob_at_head, manifest_commit=None):
@@ -522,14 +676,14 @@ def _selftest():
     _base = unbound_closure_members(man)
     if _base["pending_regeneration"]:
         _victim = _base["pending_regeneration"][0]
-        _real = globals()["_generator_declared"]
+        _real = globals()["_generator_declared_paths"]
         try:
-            globals()["_generator_declared"] = (
+            globals()["_generator_declared_paths"] = (
                 lambda _v=_victim, _r=_real: {x for x in _r()
                                               if x != _v})
             _moved = unbound_closure_members(man)
         finally:
-            globals()["_generator_declared"] = _real
+            globals()["_generator_declared_paths"] = _real
         if _victim not in _moved["never_declared"]:
             raise RegenerationGateRefusal(
                 "RG-7 CLASSIFIER_INSENSITIVE: undeclaring "
@@ -544,6 +698,93 @@ def _selftest():
           f"the single regeneration (the two are NOT the same defect)")
     for _f in _clo["never_declared"]:
         print(f"    NO-REGISTRY {_f}")
+
+    # ---- codex 1758Z P1 doctors: the linked design registry ------
+    # Each of these PASSED under my old regex-any-.py-token version,
+    # which is why they exist.
+    import copy as _copy
+
+    def _reg_refuses(doc, label, want="REFUSE"):
+        _real = globals()["_blob"]
+        try:
+            globals()["_blob"] = (
+                lambda c, r, _d=doc, _r=_real:
+                json.dumps(_d).encode() if r == DESIGN_PIN_REGISTRY
+                else _r(c, r))
+            try:
+                got = design_pinned_paths(
+                    {"design_manifest_commit": "a" * 40})
+                return ("ACCEPTED", got)
+            except RegenerationGateRefusal as e:
+                return ("REFUSED", str(e)[:70])
+        finally:
+            globals()["_blob"] = _real
+
+    # (a) a path mentioned only in PROSE is not a pin
+    st, got = _reg_refuses(
+        {"note": "monitoring/src/ghost_unbound.py", "pins": {}}, "note")
+    if st == "ACCEPTED" and got:
+        raise RegenerationGateRefusal(
+            "RG-8a NOTE_READ_AS_PIN: prose in the registry counted as "
+            f"a design pin ({sorted(got)[:2]})")
+    print("  RG-8a PASS  a path named only in a note is NOT a pin "
+          f"({st.lower()})")
+
+    # (b) a real pin exposes its FULL path, so a same-named file in
+    #     another directory cannot inherit it
+    st, got = _reg_refuses(
+        {"pins": {"x": {"path": "somewhere/else/w2_producer_grassmann.py"}}},
+        "basename")
+    same_basename_leaked = (
+        st == "ACCEPTED"
+        and "monitoring/src/w2_producer_grassmann.py" in got)
+    if same_basename_leaked:
+        raise RegenerationGateRefusal(
+            "RG-8b BASENAME_COLLISION: a same-named file in another "
+            "directory inherited an unrelated design pin")
+    print("  RG-8b PASS  pins compare as FULL paths; a same basename "
+          "elsewhere inherits nothing")
+
+    # (c) a malformed registry REFUSES rather than reading as
+    #     "nothing is design-pinned" (which would flood false findings)
+    for bad, lab in (({"pins": {}}, "empty pins"),
+                     ({"pins": "not-a-map"}, "pins not a map"),
+                     ({"pins": {"x": {"no_path": 1}}}, "pin without path"),
+                     ({}, "no pins key")):
+        st, _d = _reg_refuses(bad, lab)
+        if st != "REFUSED":
+            raise RegenerationGateRefusal(
+                f"RG-8c MALFORMED_REGISTRY_ACCEPTED: {lab}")
+    print("  RG-8c PASS  a malformed registry REFUSES (never reads as "
+          "'nothing is design-pinned')")
+
+    # ---- RG-9: the COLLAPSE GUARD, exercised not asserted ---------
+    # Second time today I wrote a print claiming a guard existed
+    # without driving it. Forcing the verifier to report a zero-OPEN
+    # prestart PASS while the pins are demonstrably stale is the only
+    # way to know the guard fires; a comment saying so is not.
+    import f2g_execution_manifest_verifier_cayley as _EMV
+    _rv = _EMV.verify
+    try:
+        _EMV.verify = (lambda *a, **k: {"verdict": "PASS",
+                                        "slots_open": 0,
+                                        "mode": "prestart",
+                                        "pins_checked": 1})
+        try:
+            _bad = dual_result_gate(man, manifest_commit="HEAD")
+            raise RegenerationGateRefusal(
+                "RG-9 COLLAPSE_ADMITTED: prestart_overall="
+                f"{_bad.get('prestart_overall')} was returned with "
+                f"pin_currency={_bad.get('pin_currency')} -- an "
+                "overall pass outranked the pin audit beneath it")
+        except RegenerationGateRefusal as e:
+            if "may never outrank" not in str(e):
+                raise
+    finally:
+        _EMV.verify = _rv
+    print("  RG-9 PASS  collapse guard BITES: a forced zero-OPEN "
+          "prestart PASS over stale pins is refused, so "
+          "pin_currency can never be read as an overall pass")
 
     # Now the live state, reported honestly whatever it is.
     print(f"\n  live: {rep['match']} match / {len(rep['stale'])} "

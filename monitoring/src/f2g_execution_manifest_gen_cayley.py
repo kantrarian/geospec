@@ -124,6 +124,18 @@ BOUND_SLOTS = {
                 "selector with their registered amendments (codex "
                 "1909Z items 1-4)",
         "paths": ["monitoring/src/w2_power_harness_cayley.py",
+                  # codex 1758Z P0-1: the two power-estimation engines
+                  # behind this machinery, found by the dependency
+                  # closure doctor and previously in NO registry.
+                  # Placed TOGETHER: `_cal_` is the CALENDAR lane (not
+                  # the calibration-ledger runner) and it IMPORTS the
+                  # non-calendar engine, so calibration_runner would
+                  # be the wrong authority and a split would separate
+                  # a dependency from its dependent.
+                  "monitoring/src/"
+                  "f2g_phase_b_power_estimation_cayley.py",
+                  "monitoring/src/"
+                  "f2g_phase_b_power_estimation_cal_cayley.py",
                   "docs/f2g_window2_execution/"
                   "loco_composition_amendment_v1.md",
                   "monitoring/src/w2_cert_runner_cayley.py",

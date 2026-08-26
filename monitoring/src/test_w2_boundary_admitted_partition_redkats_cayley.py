@@ -113,21 +113,35 @@ def _selftest():
     # this program keeps paying for -- a summary line asserting more
     # than the checks underneath it establish.
     #
-    # The property (an expected key sitting in the archive's REFUSED
-    # half must refuse the bind, absent a registered resolution) needs
-    # a populated boundary invocation, which currently cannot run here:
-    # the boundary requires a disposition capsule and
-    # verify_lineage_registry is un-satisfiable over a fixture BY
-    # DESIGN (fails closed without the registered archive + source
-    # bodies -- probed 2026-08-25T23:57Z). So BP-2 is blocked on the
-    # same seam routed to codex, and it is reported as OPEN rather
-    # than dressed up as passing.
-    open_reqs = ["BP-2 refused-key-refuses-the-bind"]
-    print("  BP-2 OPEN  refused-key-refuses-the-bind is NOT tested "
-          "here -- blocked on the capsule/fixture seam, not passing")
+    # RESOLVED 2026-08-26 as COVERED-ELSEWHERE, and I checked rather
+    # than trusting the label. The property (an expected key sitting
+    # in the archive's REFUSED half must refuse the bind, absent a
+    # registered resolution) is exercised behaviourally in the shared
+    # bar, `test_f2g_window2_redkats_grassmann.py` ~L2767-2779:
+    # an admitted key is reclassified into `refused` with counts
+    # recomputed, and the boundary is required to refuse with
+    # "never satisfies a scientific key". I read that assertion and
+    # ran the bar (19/19, both interpreters) before writing this.
+    #
+    # It is deliberately NOT duplicated here. Re-implementing it would
+    # mean rebuilding the whole fixture manifest/store/archive
+    # scaffolding to re-prove something already proven against real
+    # machinery -- and the shared bar is, at present, the ONLY w2
+    # lock the manifest actually pins, so that is also where the
+    # coverage is BOUND (see my 0321Z note on the unpinned locks).
+    #
+    # Stated as covered-elsewhere rather than PASS: this file does not
+    # test it, and a summary line implying otherwise would be the same
+    # over-claim I removed from BP-1 above.
+    covered_elsewhere = [
+        "BP-2 refused-key-refuses-the-bind -> "
+        "test_f2g_window2_redkats_grassmann.py W2-ADMIT"]
+    print("  BP-2 COVERED-ELSEWHERE  refused-key-refuses-the-bind is "
+          "proven in the shared bar's W2-ADMIT (verified, not "
+          "assumed); not re-tested here")
     print(f"w2 boundary admitted-partition red-KATs: 2 structural "
-          f"PASS, {len(open_reqs)} OPEN (NOT 'all pass') -- open: "
-          f"{open_reqs}")
+          f"PASS, 0 OPEN, {len(covered_elsewhere)} covered elsewhere "
+          f"-- {covered_elsewhere}")
 
 
 if __name__ == "__main__":

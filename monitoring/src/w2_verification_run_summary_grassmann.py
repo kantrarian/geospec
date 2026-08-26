@@ -183,7 +183,20 @@ def _classify(rc, tail):
     return "REFUSE"
 
 
-def run_surface(name, interp_label, interp_argv):
+def _resolved_executable(interp_argv):
+    p = subprocess.run(list(interp_argv) +
+                       ["-c", "import sys;print(sys.executable)"],
+                       capture_output=True)
+    return p.stdout.decode().strip() or None
+
+
+def _utc_now():
+    import time
+    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+
+
+def run_surface(name, interp_label, interp_argv, host_id=None,
+                source_commit=None):
     rel = f"monitoring/src/{name}"
     argv = list(interp_argv) + [name] + SELFTEST_ARG.get(name, [])
     p = subprocess.run(argv, cwd=os.path.join(REPO, "monitoring",
@@ -205,6 +218,10 @@ def run_surface(name, interp_label, interp_argv):
                 "green run of uncommitted source is not a PASS :: "
                 + tail)
     return {"surface": rel, "argv": argv,
+            "host_id": host_id, "source_commit": source_commit,
+            "resolved_executable": _resolved_executable(interp_argv),
+            "run_utc": _utc_now(),
+            "digest_domain": "UTF8_SOURCE_LF_V1",
             "interpreter_label": interp_label,
             "interpreter_version": _interp_version(interp_argv),
             "exit_code": p.returncode,
@@ -262,12 +279,26 @@ def _inventory():
     return inv
 
 
+def _host_id():
+    import platform
+    return f"{platform.node()}/{platform.system()}"
+
+
 def build():
+    # codex 0509Z item 2: a multi-host summary may combine rows ONLY
+    # when every row records its host and the source commit resolved
+    # ONCE at build start -- otherwise a row from another machine
+    # reads as if it ran here.
+    host_id = _host_id()
+    source_commit = subprocess.run(
+        ["git", "-C", REPO, "rev-parse", "HEAD"],
+        capture_output=True).stdout.decode().strip()
     runnable, missing = discover_interpreters()
     rows = []
     for name in SURFACES:
         for label, argv, _ver in runnable:
-            rows.append(run_surface(name, label, argv))
+            rows.append(run_surface(name, label, argv, host_id,
+                                    source_commit))
         for spec in missing:
             rows.append({
                 "surface": f"monitoring/src/{name}",
@@ -281,12 +312,24 @@ def build():
                     f"monitoring/src/{name}"),
                 "blob_sha256": _blob_sha256(
                     f"monitoring/src/{name}"),
+                "host_id": host_id, "source_commit": source_commit,
+                "resolved_executable": None,
+                "run_utc": _utc_now(),
+                "digest_domain": "UTF8_SOURCE_LF_V1",
+                "canonical_committed_sha256": _blob_sha256_canonical(
+                    f"monitoring/src/{name}"),
+                "canonical_executed_sha256": None,
                 "disk_sha256": _disk_sha(os.path.join(
                     REPO, "monitoring", "src", name))})
     counts = {}
     for r in rows:
         counts[r["verdict"]] = counts.get(r["verdict"], 0) + 1
     return {"schema": SUMMARY_SCHEMA,
+            "host_id": host_id, "source_commit": source_commit,
+            "producer_generator_blob_sha256": _blob_sha256(
+                "monitoring/src/"
+                "w2_verification_run_summary_grassmann.py"),
+            "missing_required_interpreters": list(missing),
             "claim_scope": "PRE_MANIFEST_VERIFICATION_RECORD",
             "authorizes": "NOTHING",
             "note": ("execution outcomes only; manifest-owned "

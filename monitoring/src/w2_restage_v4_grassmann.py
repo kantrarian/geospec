@@ -197,7 +197,12 @@ def _selftest():
     _usable = os.path.isdir(V3_STORE) and any(
         n.endswith(".body") for n in os.listdir(V3_STORE))
     if not (_usable and os.path.isdir(V3_STAGED)):
-        print("w2_restage_v4 selftest: inputs absent, skipped W2_RESULT=SKIPPED_NO_INPUTS")
+        # codex 1758Z P0-2: the token must be its OWN
+        # stripped LINE. Printed as a line SUFFIX it was
+        # only ever detectable by substring, which is the
+        # defect being removed.
+        print("w2_restage_v4 selftest: inputs absent, skipped")
+        print("W2_RESULT=SKIPPED_NO_INPUTS")
         return
     caps, _a, head = _capsule("HEAD")
     new_auth = _new_authority(caps, head)

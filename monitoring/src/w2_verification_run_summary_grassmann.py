@@ -177,12 +177,22 @@ def _disk_sha(abspath):
         return hashlib.sha256(f.read()).hexdigest()
 
 
+def _has_skip_line(text):
+    """codex 1758Z P0-2: the "exact token" was still SUBSTRING
+    membership. `PASS XW2_RESULT=SKIPPED_NO_INPUTSY` classified as a
+    skip -- I replaced a `skip` substring test with a SKIP_TOKEN
+    substring test and called it exact. A token is exact when it is a
+    LINE, so the line boundary has to survive to the comparison.
+    """
+    return SKIP_TOKEN in [ln.strip() for ln in (text or "").splitlines()]
+
+
 def _classify(rc, tail):
     """A typed verdict, never a bare exit code. An expected red is
     still recorded as a red."""
     t = (tail or "").lower()
     if rc == 0:
-        if SKIP_TOKEN in (tail or ""):
+        if _has_skip_line(tail):
             # cayley 1701Z P0: NOT_RUN carried TWO events. "nothing
             # executed (no interpreter)" and "a real process RAN,
             # exited 0, and declined for want of inputs" are not the
@@ -226,7 +236,10 @@ def run_surface(name, interp_label, interp_argv, host_id=None,
                                               "src"),
                        capture_output=True)
     out = (p.stdout + p.stderr).decode("utf-8", "replace")
-    tail = " ".join(out.strip().splitlines()[-2:])[:300]
+    # codex 1758Z P0-2: this JOINED WITH A SPACE, flattening away the
+    # very boundary the token needs, and truncated from the LEFT so a
+    # trailing token could be cut. Keep the newline and keep the END.
+    tail = "\n".join(out.strip().splitlines()[-2:])[-300:]
     # codex 0445Z item 1: a PASS must come from bytes that MATCH the
     # committed blob. The executed disk bytes are canonicalised
     # CRLF->LF and compared to the committed blob's canonical digest;
@@ -234,7 +247,11 @@ def run_surface(name, interp_label, interp_argv, host_id=None,
     committed = _blob_sha256_canonical(rel)
     executed = _disk_sha256_canonical(
         os.path.join(REPO, "monitoring", "src", name))
-    verdict = _classify(p.returncode, tail)
+    verdict = _classify(p.returncode, out)
+    # a genuine skip must carry its token LINE in the recorded tail,
+    # or classification and evidence would disagree after truncation
+    if verdict == "SKIPPED_NO_INPUTS" and not _has_skip_line(tail):
+        tail = (tail + "\n" + SKIP_TOKEN)[-300:]
     if verdict == "PASS" and committed and executed             and committed != executed:
         verdict = "REFUSE"
         tail = ("executed bytes diverge from the committed blob; a "
@@ -710,6 +727,14 @@ def _validate_leg_header(lg, n):
     if not _is_hex(lg.get("producer_generator_blob_sha256"), 64):
         _mr(f"leg {n} producer_generator_blob_sha256 is not a "
             "64-hex digest")
+    vv = lg.get("verdict_vocabulary")
+    # codex 1758Z P0-2: verdict_vocabulary=7 reached list(7) and
+    # leaked a raw TypeError. A typed contract may not be escaped by
+    # the TYPE of the field that declares it. Checked HERE, before
+    # any list()/comparison anywhere downstream.
+    if not isinstance(vv, list) or             not all(isinstance(x, str) for x in vv):
+        _mr(f"leg {n} verdict_vocabulary is {type(vv).__name__}, "
+            "not a list of strings")
     st = lg.get("store_identity")
     if st is not None and (not isinstance(st, str) or not st.strip()):
         _mr(f"leg {n} store_identity is "
@@ -827,7 +852,7 @@ def _validate_row_provenance(r, sf, commit, cache):
                 "the committed blob; committed==executed is what "
                 "makes the verdict bind to the source")
     elif v == "SKIPPED_NO_INPUTS":
-        if SKIP_TOKEN not in (r.get("tail") or ""):
+        if not _has_skip_line(r.get("tail")):
             _mr(f"a SKIPPED_NO_INPUTS row for {sf} does not carry "
                 f"the exact token {SKIP_TOKEN} in its tail -- the "
                 "verdict is a claim about what the process PRINTED, "
@@ -1230,7 +1255,7 @@ def _merge_selftest():
         base["canonical_executed_sha256"] = \
             base["canonical_committed_sha256"]
         if verdict == "SKIPPED_NO_INPUTS":
-            base["tail"] = "inputs absent, skipped " + SKIP_TOKEN
+            base["tail"] = ("inputs absent, skipped" + chr(10) + SKIP_TOKEN)
         base["exit_code"] = 0 if verdict in (
             "PASS", "COVERED_ELSEWHERE",
             "SKIPPED_NO_INPUTS") else 1
@@ -1490,7 +1515,8 @@ def _merge_selftest():
         assert (sf, PY11) in missing_pairs, sf
 
     # ---- codex 1716Z P0-1: the contract must be internally closed
-    for vv in (None, [], list(VERDICTS)[:4],
+    for vv in (None, 7, {"a": 1}, "PASS", [1, 2], [],
+               list(VERDICTS)[:4],
                list(VERDICTS) + ["EXTRA"],
                ["PASS", "COVERED_ELSEWHERE", "REFUSE",
                 "SKIPPED_NO_INPUTS", "NOT_RUN"]):
@@ -1499,10 +1525,13 @@ def _merge_selftest():
             del h["verdict_vocabulary"]
         else:
             h["verdict_vocabulary"] = vv
+        # one needle for every case: the deleted-key case now trips
+        # the TYPE guard in _validate_leg_header before the
+        # required-field loop, and both messages name the field. A
+        # needle that had to guess WHICH guard fires would be
+        # asserting call order rather than the property.
         assert refuses(lambda h=h: merge_legs([ev(), h]),
-                       "verdict_vocabulary"
-                       if vv is not None else "missing required "
-                       "field"), vv
+                       "verdict_vocabulary"), vv
     # a SKIPPED row must carry the EXACT token, not a resemblance
     tk = list(sk)
     i2 = next(n for n, r in enumerate(tk)
@@ -1510,8 +1539,22 @@ def _merge_selftest():
     # NB: an EMPTY tail is deliberately not listed -- it refuses via
     # the null-field rule instead, which is also correct. Listing it
     # here would have made this doctor pass for the wrong reason.
+    # codex 1758Z P0-2 locks: prefixed, suffixed, embedded-in-prose,
+    # lowercase and near-token lines must all stay NON-skip; only an
+    # exact standalone (stripped) line skips.
+    assert _has_skip_line(SKIP_TOKEN)
+    assert _has_skip_line("first line\n   " + SKIP_TOKEN + "  ")
+    for nope in ("PASS X" + SKIP_TOKEN + "Y", "X" + SKIP_TOKEN,
+                 SKIP_TOKEN + "Y", "note: " + SKIP_TOKEN + " printed",
+                 SKIP_TOKEN.lower(), "W2_RESULT=SKIPPED",
+                 "19 passed, 0 skipped", ""):
+        assert not _has_skip_line(nope), nope
+        assert _classify(0, nope) != "SKIPPED_NO_INPUTS", nope
+    assert _classify(0, "x\n" + SKIP_TOKEN) == "SKIPPED_NO_INPUTS"
     for bad_tail in ("19 passed, 0 skipped", "inputs absent, skipped",
-                     "W2_RESULT=SKIPPED", "w2_result=skipped_no_inputs"):
+                     "W2_RESULT=SKIPPED", "w2_result=skipped_no_inputs",
+                     "PASS X" + SKIP_TOKEN + "Y",
+                     "note: " + SKIP_TOKEN + " printed"):
         tk[i2] = dict(tk[i2], tail=bad_tail)
         assert refuses(lambda t=list(tk): merge_legs(
             [ev(), leg("geomen/Windows", rows=t)]),

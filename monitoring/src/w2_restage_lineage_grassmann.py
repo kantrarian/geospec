@@ -366,7 +366,12 @@ def _selftest():
     _usable = os.path.isdir(store) and any(
         n.endswith(".body") for n in os.listdir(store))
     if not (os.path.isfile(caps_p) and _usable):
-        print("w2_restage_lineage selftest: inputs absent, skipped W2_RESULT=SKIPPED_NO_INPUTS")
+        # codex 1758Z P0-2: the token must be its OWN
+        # stripped LINE. Printed as a line SUFFIX it was
+        # only ever detectable by substring, which is the
+        # defect being removed.
+        print("w2_restage_lineage selftest: inputs absent, skipped")
+        print("W2_RESULT=SKIPPED_NO_INPUTS")
         return
     with open(caps_p, encoding="utf-8") as f:
         caps = json.load(f)

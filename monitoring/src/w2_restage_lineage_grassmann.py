@@ -115,7 +115,7 @@ CAPTURE_MODULE_PATH = ("monitoring/src/"
 TRANSFORM_PIN_SLOTS = (CAP.AUTHORITY_SLOT, "producer_boundary")
 
 
-def resolveresolve_pinned_bytes(repo, manifest_commit, path,
+def resolve_pinned_bytes(repo, manifest_commit, path,
                   slots=(CAP.AUTHORITY_SLOT,)):
     """Reopen `path` from an EXACT manifest pin at the reviewed
     commit. Only a BOUND closed slot may carry a pin, and the bytes

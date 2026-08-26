@@ -100,15 +100,38 @@ def _require(path, what):
     return path
 
 
-def run(manifest_commit, store_root=None):
-    full, _verdict = _require_valid_manifest(manifest_commit)
-    # codex 0509Z item 3: resolve the capsule through the UNIQUE
-    # MANIFEST PIN, never from <commit>:path -- a smaller capsule at
-    # the manifest commit could otherwise choose a smaller key
-    # universe while the manifest pins the full capsule elsewhere.
+def _resolve_batch_preflight(full, resolver=None,
+                             allowlist_check=None):
+    """codex 0534Z P0: the positive path is FACTORED so doctors can
+    actually EXECUTE it. My previous doctors asserted on the SOURCE
+    STRING of run(), and they stayed green while the promoted
+    resolver was misspelled at its DEFINITION -- the desired spelling
+    appeared at the call site, nothing ever resolved the symbol, and
+    both selftest calls refused in _require_valid_manifest() long
+    before reaching it. A substring is not a behaviour.
+
+    Production supplies the real defaults; there is no bypass flag.
+    """
+    if resolver is None:
+        resolver = getattr(LIN, "resolve_pinned_bytes", None)
+    if allowlist_check is None:
+        import w2_accrual_instrument_cayley as _ACC
+        allowlist_check = getattr(_ACC, "runtime_allowlist_check",
+                                  None)
+    if not callable(resolver):
+        _b("the manifest-pin resolver is ABSENT or not callable -- "
+           "a misspelled or missing symbol must refuse here, never "
+           "surface as an AttributeError from the positive path")
+    if not callable(allowlist_check):
+        _b("the runtime allowlist check is ABSENT or not callable")
+    # resolve the capsule through the UNIQUE MANIFEST PIN, never from
+    # <commit>:path -- a smaller capsule at the manifest commit could
+    # otherwise choose a smaller key universe while the manifest pins
+    # the full capsule elsewhere.
     try:
-        caps_raw, caps_pin = LIN.resolve_pinned_bytes(
-            REPO, full, DISP.CAPSULE_PATH)
+        caps_raw, caps_pin = resolver(REPO, full, DISP.CAPSULE_PATH)
+    except BatchRefusal:
+        raise
     except Exception as exc:
         _b(f"the disposition capsule pin did not resolve at "
            f"{full[:12]} ({type(exc).__name__}: {exc})")
@@ -116,12 +139,30 @@ def run(manifest_commit, store_root=None):
     # ...and the EXECUTING tree must equal the pinned bytes, or a
     # dirty batch could emit a receipt while the manifest pins clean
     # code (the same self-authentication defect one level out)
-    import w2_accrual_instrument_cayley as _ACC
     try:
-        allow = _ACC.runtime_allowlist_check(REPO, full)
+        allow = allowlist_check(REPO, full)
+    except BatchRefusal:
+        raise
     except Exception as exc:
         _b(f"the runtime allowlist REFUSED at {full[:12]} "
            f"({type(exc).__name__}: {str(exc)[:160]})")
+    # codex 0534Z P1: the receipt read allow["checked"], a key this
+    # function never returns, so a successful walk was recorded as
+    # ZERO checked pins -- a receipt contradicting the check that
+    # just ran. Require the REAL key, positive, and copy it verbatim.
+    pins = allow.get("pins_checked") if isinstance(allow, dict) \
+        else None
+    if isinstance(pins, bool) or not isinstance(pins, int) \
+            or pins <= 0:
+        _b(f"the runtime allowlist reported pins_checked={pins!r}; a "
+           "post-manifest receipt may not rest on an allowlist walk "
+           "that checked no pins")
+    return caps_raw, caps_pin, caps, allow
+
+
+def run(manifest_commit, store_root=None):
+    full, _verdict = _require_valid_manifest(manifest_commit)
+    caps_raw, caps_pin, caps, allow = _resolve_batch_preflight(full)
     keys = sorted(caps.get("reuse_or_bridge") or {})
     if not keys:
         _b("the registered capsule has an EMPTY reuse partition -- "
@@ -192,15 +233,23 @@ def run(manifest_commit, store_root=None):
     if not (registered == attempted == verified):
         _b(f"registered_reuse_count {registered} != attempted "
            f"{attempted} != verified {verified}")
-    return {"schema": RECEIPT_SCHEMA,
+    # codex 0534Z P1: populate these from the reports that were
+    # actually returned. Hard-coded literals restate the happy path
+    # instead of recording it -- the receipt would have said PASS /
+    # prestart / 0 no matter what the verifier found.
+    _slots = _verdict.get("slots") or {}
+    _open = [n for n, sl in _slots.items()
+             if isinstance(sl, dict) and sl.get("status") == "OPEN"]
+    receipt = {"schema": RECEIPT_SCHEMA,
             "manifest_commit": full,
-            "manifest_verdict": {"verdict": "PASS",
-                                 "mode": "prestart",
-                                 "slots_open": 0},
+            "manifest_verdict": {
+                "verdict": _verdict.get("verdict"),
+                "mode": _verdict.get("mode", "prestart"),
+                "slots_open": len(_open),
+                "pins_checked": _verdict.get("pins_checked")},
             "runtime_allowlist": {
                 "result": "PASS",
-                "pins_checked": len(allow.get("checked", []))
-                if isinstance(allow, dict) else None},
+                "pins_checked": allow["pins_checked"]},
             "capsule_pin": {"path": DISP.CAPSULE_PATH,
                             "commit": caps_pin.get("commit"),
                             "blob_sha256": caps_pin.get(
@@ -225,6 +274,18 @@ def run(manifest_commit, store_root=None):
             "interpreter": sys.version.split()[0],
             "claim_scope": "MANIFEST_OWNED_RESTAGE_VERIFICATION",
             "authorizes": "NOTHING"}
+    # codex 0534Z: the emitted counts must EQUAL the injected reports
+    if receipt["runtime_allowlist"]["pins_checked"] != \
+            allow["pins_checked"]:
+        _b("the receipt's allowlist pins_checked does not equal the "
+           "allowlist report it claims to record")
+    if receipt["manifest_verdict"]["verdict"] != \
+            _verdict.get("verdict"):
+        _b("the receipt's manifest verdict does not equal the "
+           "verifier verdict it claims to record")
+    if receipt["manifest_verdict"]["slots_open"] != 0:
+        _b("a post-manifest receipt may not record OPEN slots")
+    return receipt
 
 
 def _selftest():
@@ -255,25 +316,80 @@ def _selftest():
     new = inspect.signature(
         LIN.verify_restage_lineage_pinned).parameters
     assert "manifest_commit" in new
-    # --- codex 0509Z item 3 doctors: both must REFUSE before any
-    # receipt is emitted ---
-    # (a) a SMALLER capsule sitting at the manifest commit path can
-    # never shrink the key universe, because the universe comes from
-    # the unique manifest PIN, not from <commit>:path
+    # --- codex 0534Z: BEHAVIORAL doctors over the factored positive
+    # preflight. The previous versions asserted on run()'s SOURCE
+    # STRING and were satisfied by a call site whose symbol did not
+    # exist. These EXECUTE the path. ---
+    # (0) the promoted resolver must actually RESOLVE and be callable
+    assert callable(LIN.resolve_pinned_bytes), \
+        "the promoted pin resolver must exist under its real name"
+    assert not hasattr(LIN, "resolveresolve_pinned_bytes"), \
+        "the misspelled definition must be gone, not shadowed"
+    FULL = {"reuse_or_bridge": {f"mag/ck/2026-01-{d:02d}": {}
+                                for d in range(1, 6)}}
+    _pin = {"commit": "0" * 40, "blob_sha256": "1" * 64}
+
+    def _full_resolver(repo, commit, path):
+        return (json.dumps(FULL).encode("utf-8"), dict(_pin))
+
+    def _ok_allow(repo, commit):
+        return {"manifest_commit": commit, "manifest_state": "CLOSED",
+                "pins_checked": 9, "pins": []}
+    # (a) a SMALLER capsule sitting at <commit>:path can never shrink
+    # the key universe: the universe comes from the PIN. We prove the
+    # commit-path reader is UNTOUCHED by recording every git argv the
+    # preflight issues and requiring none of them to name
+    # <commit>:CAPSULE_PATH.
+    _seen = []
+    _real_run = subprocess.run
+
+    def _spy(cmd, *a, **kw):
+        _seen.append(list(cmd) if isinstance(cmd, (list, tuple))
+                     else [str(cmd)])
+        return _real_run(cmd, *a, **kw)
+    subprocess.run = _spy
+    try:
+        _craw, _cpin, _caps, _allow = _resolve_batch_preflight(
+            "f" * 40, resolver=_full_resolver,
+            allowlist_check=_ok_allow)
+    finally:
+        subprocess.run = _real_run
+    assert sorted(_caps["reuse_or_bridge"]) == \
+        sorted(FULL["reuse_or_bridge"]), \
+        "the key universe must be the FULL pinned set"
+    _forbidden = f"{'f' * 40}:{DISP.CAPSULE_PATH}"
+    assert not any(_forbidden in str(tok) for c in _seen
+                   for tok in c), \
+        "the batch must never read the capsule from <commit>:path"
+    assert _allow["pins_checked"] == 9
+    # (b) a fake allowlist that RAISES on a dirty pinned path must
+    # refuse in preflight, before any receipt assembly
+
+    def _dirty_allow(repo, commit):
+        raise RuntimeError("RUNTIME_ALLOWLIST_VIOLATION: "
+                           "[('accrual_impl', 'x.py', 'aa!=bb')]")
+    assert refuses(lambda: _resolve_batch_preflight(
+        "f" * 40, resolver=_full_resolver,
+        allowlist_check=_dirty_allow), "runtime allowlist REFUSED")
+    # (c) an allowlist that checked NOTHING cannot support a receipt
+    assert refuses(lambda: _resolve_batch_preflight(
+        "f" * 40, resolver=_full_resolver,
+        allowlist_check=lambda r, c: {"pins_checked": 0, "pins": []}),
+        "pins_checked=0")
+    # (d) a missing/misspelled resolver REFUSES rather than raising
+    # AttributeError out of the positive path. The needle is the
+    # guard's OWN wording: "not callable" alone was ALSO matched by
+    # Python's incidental "'str' object is not callable" once the
+    # guard was deleted, so that doctor passed a live mutant -- the
+    # same accidental-substring failure as the defect being repaired.
+    assert refuses(lambda: _resolve_batch_preflight(
+        "f" * 40, resolver="not-callable",
+        allowlist_check=_ok_allow),
+        "the manifest-pin resolver is ABSENT")
+    # and the count identity is enforced in the receipt path
     import inspect as _insp
-    src = _insp.getsource(run)
-    assert "resolve_pinned_bytes" in src, \
-        "the capsule must resolve through the manifest PIN"
-    assert f'f"{{full}}:{{DISP.CAPSULE_PATH}}"' not in src, \
-        "the batch must not read the capsule from <commit>:path"
-    # (b) a DIRTY executing tree cannot emit a receipt: the runtime
-    # allowlist is consulted, and it compares on-disk bytes to the
-    # pinned blob for every BOUND pin
-    assert "runtime_allowlist_check" in src, \
-        "the batch must consult the runtime allowlist"
-    # and the count identity is enforced, not merely reported
-    assert "registered_reuse_count" in src and \
-        "!= attempted" in src, \
+    assert "registered_reuse_count" in _insp.getsource(run) and \
+        "!= attempted" in _insp.getsource(run), \
         "registered == attempted == verified must be enforced"
 
     # codex 0445Z item 3: the exact 360 + 1060 mixed composition

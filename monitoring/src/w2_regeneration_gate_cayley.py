@@ -758,6 +758,43 @@ def _selftest():
     print("  RG-8c PASS  a malformed registry REFUSES (never reads as "
           "'nothing is design-pinned')")
 
+    # (d) HEAD-DRIFT: a pin added to the registry at HEAD, AFTER the
+    #     commit the manifest links, must NOT count. This is the
+    #     doctor for resolving at design_manifest_commit rather than
+    #     symbolic HEAD -- without it, a later edit to the registry
+    #     could satisfy an earlier manifest retroactively, which is
+    #     provenance running backwards.
+    _LINKED = "b" * 40
+    _real_blob = globals()["_blob"]
+    try:
+        def _drifting(c, r, _r=_real_blob):
+            if r != DESIGN_PIN_REGISTRY:
+                return _r(c, r)
+            at_linked = {"pins": {"real": {
+                "path": "docs/f2g_window2_freeze/annex_b1b.md"}}}
+            at_head = {"pins": {
+                "real": {"path": "docs/f2g_window2_freeze/annex_b1b.md"},
+                "added_later": {
+                    "path": "monitoring/src/drifted_in_at_head.py"}}}
+            return json.dumps(
+                at_linked if c == _LINKED else at_head).encode()
+        globals()["_blob"] = _drifting
+        _paths = design_pinned_paths(
+            {"design_manifest_commit": _LINKED})
+        if "monitoring/src/drifted_in_at_head.py" in _paths:
+            raise RegenerationGateRefusal(
+                "RG-8d HEAD_DRIFT_ADMITTED: a pin added to the "
+                "registry at HEAD satisfied a manifest linked to an "
+                "EARLIER commit -- provenance running backwards")
+        if "docs/f2g_window2_freeze/annex_b1b.md" not in _paths:
+            raise RegenerationGateRefusal(
+                "RG-8d resolved the wrong commit entirely")
+    finally:
+        globals()["_blob"] = _real_blob
+    print("  RG-8d PASS  a pin added at HEAD after the linked design "
+          "commit does NOT count (resolution is at "
+          "design_manifest_commit, not HEAD)")
+
     # ---- RG-9: the COLLAPSE GUARD, exercised not asserted ---------
     # Second time today I wrote a print claiming a guard existed
     # without driving it. Forcing the verifier to report a zero-OPEN

@@ -314,13 +314,34 @@ def build_fixture_capsule(authority, http_keys, store_root,
     return caps
 
 
+def verify_fixture_lineage_registry(capsule, authority,
+                                    store_root):
+    """FIXTURE-ONLY lineage verification (codex 0311Z P1). The schema
+    barrier that closed the mint-side forgery also left the fixture
+    path with no accepting verifier, so my claim that it "survives
+    and tests the verifier through the same strict logic" was not
+    true as written. This restores it WITHOUT creating an injection
+    path: the same private core runs with the same strictness, but
+    it will only accept the FIXTURE schema -- so a production capsule
+    refuses here exactly as a fixture refuses in production."""
+    out = _verify(capsule, authority, "HEAD", store_root, True,
+                  expected_schema=FIXTURE_CAPSULE_SCHEMA)
+    if not out.get("bodies_recomputed"):
+        _d("FIXTURE lineage verification is VACUOUS -- it recomputed "
+           "zero bodies, and a check of nothing is not a pass")
+    return {**out, "claim_scope": "FIXTURE_ONLY",
+            "admission_eligible": False, "authorizes": "NOTHING",
+            "lineage_evidence_verified": True}
+
+
 def verify_ceiling(capsule, authority=None, commitish="HEAD"):
     """THE REQUEST-CEILING contract ONLY (codex 2303Z closure 2):
     exact/disjoint request-membership over the authority key set. It
     REPORTS that lineage evidence is NOT verified, so a ceiling PASS
     can never be misread as a lineage PASS. The network entrypoint
     may use this; the boundary and restager may NOT."""
-    out = _verify(capsule, authority, commitish, None, False)
+    out = _verify(capsule, authority, commitish, None, False,
+                  expected_schema=CAPSULE_SCHEMA)
     out["lineage_evidence_verified"] = False
     return out
 
@@ -342,7 +363,8 @@ def verify_lineage_registry(capsule, authority=None,
            "partition is VACUOUS -- there is no lineage to "
            "authenticate, so it can never report lineage evidence "
            "as verified (cayley 0110Z)")
-    out = _verify(capsule, authority, commitish, root, True)
+    out = _verify(capsule, authority, commitish, root, True,
+                  expected_schema=CAPSULE_SCHEMA)
     # honesty of the report itself: 'verified' means bodies were
     # actually recomputed, never merely that nothing was checked
     n = out.get("bodies_recomputed") or 0
@@ -363,14 +385,17 @@ def verify(capsule, authority=None, commitish="HEAD",
 
 
 def _verify(capsule, authority=None, commitish="HEAD",
-            store_root=None, lineage=False):
+            store_root=None, lineage=False,
+            expected_schema=None):
     """The capsule verifier: closed schema, EXACT and DISJOINT
     partition of the registered authority key set, recomputed
     per-partition digests, and a recomputed counts block. Nothing
     submitted is trusted."""
     c = capsule
-    if not isinstance(c, dict) or c.get("schema") != CAPSULE_SCHEMA:
-        _d("capsule is not the registered schema")
+    want_schema = expected_schema or CAPSULE_SCHEMA
+    if not isinstance(c, dict) or c.get("schema") != want_schema:
+        _d(f"capsule is not the registered schema (want "
+           f"{want_schema!r}, got {(c or {}).get('schema')!r})")
     want_top = {"schema", "authority", "transform_identity",
                 "v3_archive", "old_authority", "lane_map",
                 "superseded_v3", "reuse_or_bridge", "predecessor",

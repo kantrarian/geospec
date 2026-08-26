@@ -359,8 +359,14 @@ def _selftest():
                            "E:/GeoSpec/w2_capture_store_20260825")
     v3_staged = os.path.join(REPO, "docs", "f2g_window2_execution",
                              "staged_envelopes")
-    if not (os.path.isfile(caps_p) and os.path.isdir(store)):
-        print("w2_restage_lineage selftest: inputs absent, skipped")
+    # codex-class finding (mine): os.path.isdir is PRESENCE, not
+    # USABILITY. An existing-but-empty or mispointed store passed
+    # this guard and the code then died with a raw FileNotFoundError
+    # deeper in -- an untyped crash where a clean typed skip belongs.
+    _usable = os.path.isdir(store) and any(
+        n.endswith(".body") for n in os.listdir(store))
+    if not (os.path.isfile(caps_p) and _usable):
+        print("w2_restage_lineage selftest: inputs absent, skipped W2_RESULT=SKIPPED_NO_INPUTS")
         return
     with open(caps_p, encoding="utf-8") as f:
         caps = json.load(f)

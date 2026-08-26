@@ -46,7 +46,20 @@ REPO = os.path.abspath(os.path.join(_HERE, "..", ".."))
 SUMMARY_SCHEMA = "f2g-w2-verification-run-summary-v1"
 SUMMARY_PATH = ("docs/f2g_window2_execution/"
                 "w2_verification_run_summary_v1.json")
-VERDICTS = ("PASS", "COVERED_ELSEWHERE", "REFUSE", "NOT_RUN")
+# codex 1716Z P0-1: ONE canonical vocabulary. There were TWO --
+# VERDICTS (four values, serialized into the record header) and
+# VERDICT_VOCABULARY (five, used by the row validator) -- so the
+# validator knew a value the record header neither declared nor
+# bound. A contract with two spellings of itself is not closed.
+VERDICT_VOCABULARY = ("PASS", "COVERED_ELSEWHERE", "REFUSE",
+                      "NOT_RUN", "SKIPPED_NO_INPUTS")
+VERDICTS = VERDICT_VOCABULARY
+# The EXACT machine token a surface prints to declare it ran and
+# declined for want of inputs. Substring detection on "skip" turned
+# `19 passed, 0 skipped` into SKIPPED_NO_INPUTS and silently lost a
+# passing suite's coverage: the TYPE was right, the EVENT DETECTOR
+# was not.
+SKIP_TOKEN = "W2_RESULT=SKIPPED_NO_INPUTS"
 # every verification surface, with the interpreters it must run on
 SURFACES = (
     "test_f2g_window2_redkats_grassmann.py",
@@ -169,7 +182,7 @@ def _classify(rc, tail):
     still recorded as a red."""
     t = (tail or "").lower()
     if rc == 0:
-        if "skip" in t or "inputs absent" in t:
+        if SKIP_TOKEN in (tail or ""):
             # cayley 1701Z P0: NOT_RUN carried TWO events. "nothing
             # executed (no interpreter)" and "a real process RAN,
             # exited 0, and declined for want of inputs" are not the
@@ -573,7 +586,7 @@ def build():
             "repo_head": subprocess.run(
                 ["git", "-C", REPO, "rev-parse", "HEAD"],
                 capture_output=True).stdout.decode().strip(),
-            "verdict_vocabulary": list(VERDICTS),
+            "verdict_vocabulary": list(VERDICT_VOCABULARY),
             "invocations": rows,
             "verdict_counts": dict(sorted(counts.items())),
             "staged_inventory": _inv,
@@ -604,8 +617,6 @@ def build():
 # INTERPRETERS exactly, and every non-execution is an EXPLICIT
 # NOT_RUN row rather than an omitted one, because an omitted row is
 # indistinguishable from a row nobody thought to require.
-VERDICT_VOCABULARY = ("PASS", "COVERED_ELSEWHERE", "REFUSE",
-                      "NOT_RUN", "SKIPPED_NO_INPUTS")
 # NOT_RUN alone means NOTHING EXECUTED, so it alone may omit the
 # execution facts. SKIPPED_NO_INPUTS ran a real process on committed
 # bytes and must carry all of them -- there was something to bind.
@@ -816,6 +827,11 @@ def _validate_row_provenance(r, sf, commit, cache):
                 "the committed blob; committed==executed is what "
                 "makes the verdict bind to the source")
     elif v == "SKIPPED_NO_INPUTS":
+        if SKIP_TOKEN not in (r.get("tail") or ""):
+            _mr(f"a SKIPPED_NO_INPUTS row for {sf} does not carry "
+                f"the exact token {SKIP_TOKEN} in its tail -- the "
+                "verdict is a claim about what the process PRINTED, "
+                "not about what a substring resembled")
         if r["exit_code"] != 0:
             _mr(f"a SKIPPED_NO_INPUTS row for {sf} carries exit_code "
                 f"{r['exit_code']!r} -- a clean decline exits 0; a "
@@ -894,7 +910,8 @@ def merge_legs(legs):
         for f in ("source_commit", "repo_head", "host_id",
                   "producer_generator_blob_sha256", "schema",
                   "host_role", "store_identity",
-                  "store_attestation", "invocations"):
+                  "store_attestation", "verdict_vocabulary",
+                  "invocations"):
             if f not in lg:
                 _mr(f"leg {i} is missing required field {f!r}; a leg "
                     "without full provenance cannot enter a merge")
@@ -904,6 +921,13 @@ def merge_legs(legs):
                 f"{lg['source_commit'][:12]} != repo_head "
                 f"{lg['repo_head'][:12]} -- it did not run from its "
                 "own committed snapshot")
+        if list(lg["verdict_vocabulary"]) != \
+                list(VERDICT_VOCABULARY):
+            _mr(f"leg {i} declares verdict_vocabulary "
+                f"{lg['verdict_vocabulary']!r}, not the canonical "
+                f"{list(VERDICT_VOCABULARY)!r} -- a leg whose header "
+                "does not declare the vocabulary its rows are judged "
+                "against is not bound to this contract")
         if lg["schema"] != SUMMARY_SCHEMA:
             _mr(f"leg {i} declares schema {lg['schema']!r}, not "
                 f"{SUMMARY_SCHEMA!r} -- two legs AGREEING on an "
@@ -1205,6 +1229,8 @@ def _merge_selftest():
         base["interpreter_version"] = il[2:] + ".9"
         base["canonical_executed_sha256"] = \
             base["canonical_committed_sha256"]
+        if verdict == "SKIPPED_NO_INPUTS":
+            base["tail"] = "inputs absent, skipped " + SKIP_TOKEN
         base["exit_code"] = 0 if verdict in (
             "PASS", "COVERED_ELSEWHERE",
             "SKIPPED_NO_INPUTS") else 1
@@ -1228,6 +1254,7 @@ def _merge_selftest():
         c = COMMIT if commit is None else commit
         return {"host_id": host, "source_commit": c, "repo_head": c,
                 "schema": schema, "host_role": role,
+                "verdict_vocabulary": list(VERDICT_VOCABULARY),
                 "store_identity": store,
                 "store_attestation":
                     (ATT_OK if role == "EVIDENCE" else ATT_NO)
@@ -1462,6 +1489,34 @@ def _merge_selftest():
     for sf in EVIDENCE_HOST_ONLY:
         assert (sf, PY11) in missing_pairs, sf
 
+    # ---- codex 1716Z P0-1: the contract must be internally closed
+    for vv in (None, [], list(VERDICTS)[:4],
+               list(VERDICTS) + ["EXTRA"],
+               ["PASS", "COVERED_ELSEWHERE", "REFUSE",
+                "SKIPPED_NO_INPUTS", "NOT_RUN"]):
+        h = leg("geomen/Windows")
+        if vv is None:
+            del h["verdict_vocabulary"]
+        else:
+            h["verdict_vocabulary"] = vv
+        assert refuses(lambda h=h: merge_legs([ev(), h]),
+                       "verdict_vocabulary"
+                       if vv is not None else "missing required "
+                       "field"), vv
+    # a SKIPPED row must carry the EXACT token, not a resemblance
+    tk = list(sk)
+    i2 = next(n for n, r in enumerate(tk)
+              if r["verdict"] == "SKIPPED_NO_INPUTS")
+    # NB: an EMPTY tail is deliberately not listed -- it refuses via
+    # the null-field rule instead, which is also correct. Listing it
+    # here would have made this doctor pass for the wrong reason.
+    for bad_tail in ("19 passed, 0 skipped", "inputs absent, skipped",
+                     "W2_RESULT=SKIPPED", "w2_result=skipped_no_inputs"):
+        tk[i2] = dict(tk[i2], tail=bad_tail)
+        assert refuses(lambda t=list(tk): merge_legs(
+            [ev(), leg("geomen/Windows", rows=t)]),
+            "does not carry the exact token"), bad_tail
+
     # ---- codex 1534Z P0 #1: presence is not PROVENANCE binding ----
     def one_row(**over):
         rows = full_rows("geomen/Windows")
@@ -1587,6 +1642,8 @@ USAGE = """w2_verification_run_summary_grassmann
                      build)
   --merge-selftest   read-only; the leg-merge refusal directions
   --argv-selftest    read-only; proves unknown flags cannot write
+  --portable-selftest read-only; a REAL PORTABLE build with the
+                     store absent -- typed skips, no populated NOT_RUN
   --store-selftest   read-only; proves store INTEGRITY is not store
                      IDENTITY (a valid subset must not earn EVIDENCE)
 
@@ -1723,6 +1780,86 @@ def _store_selftest():
           "still earns the role)")
 
 
+def _portable_selftest():
+    """codex 1716Z P0-1 lock 3: a REAL PORTABLE build(), not a
+    synthetic fixture.
+
+    codex asked for "the observed four typed skips". devildog
+    produces TWO, and the difference is fully explained rather than a
+    defect: cayley's geomen has BOTH interpreters, so the two
+    store-dependent surfaces skip on each -- 2 x 2 = 4. devildog has
+    no 3.14 at all, so those two cells are NOT_RUN (interpreter
+    ABSENT) and only the py3.11 pair can skip. Asserting four here
+    would be asserting another host's shape.
+    """
+    import subprocess as sp
+    import tempfile
+    me = os.path.abspath(__file__)
+    empty = tempfile.mkdtemp(prefix="portable_nostore_")
+    code = (
+        "import sys,json,importlib.util as u;"
+        "sp=u.spec_from_file_location('m'," + repr(me) + ");"
+        "S=u.module_from_spec(sp);"
+        "sys.path.insert(0," + repr(os.path.dirname(me)) + ");"
+        "sp.loader.exec_module(S);"
+        "rec=S.build();"
+        "print(json.dumps(rec))")
+    try:
+        r = sp.run([sys.executable, "-c", code], capture_output=True,
+                   env=dict(os.environ, W2_V3_STORE=empty),
+                   cwd=os.path.dirname(me))
+        line = (r.stdout.decode().strip().splitlines() or [""])[-1]
+        rec = json.loads(line)
+    finally:
+        import shutil
+        shutil.rmtree(empty, ignore_errors=True)
+    assert rec["host_role"] == "PORTABLE", rec["host_role"]
+    assert rec["store_identity"] is None
+    assert rec["verdict_vocabulary"] == list(VERDICT_VOCABULARY)
+    skips = [r_ for r_ in rec["invocations"]
+             if r_["verdict"] == "SKIPPED_NO_INPUTS"]
+    PY = f"py{REQUIRED_INTERPRETERS[-1]}"
+    assert sorted((r_["surface"].split("/")[-1],
+                   r_["interpreter_label"]) for r_ in skips) == \
+        sorted((sf, PY) for sf in
+               ("w2_restage_lineage_grassmann.py",
+                "w2_restage_v4_grassmann.py")), skips
+    # every skip carries the EXACT token and its execution facts
+    for r_ in skips:
+        assert SKIP_TOKEN in (r_["tail"] or ""), r_["surface"]
+        assert r_["exit_code"] == 0
+        for f in NULLABLE_ON_NOT_RUN:
+            assert r_[f] is not None, (r_["surface"], f)
+        assert r_["canonical_executed_sha256"] == \
+            r_["canonical_committed_sha256"]
+    # ZERO populated NOT_RUN rows -- cayley's original refusal
+    pop = [r_ for r_ in rec["invocations"]
+           if r_["verdict"] == "NOT_RUN" and r_["argv"] is not None]
+    assert not pop, pop
+    # ...and it MERGES against the real evidence leg, with the skip
+    # not counted as coverage
+    ev_leg = json.load(open(os.path.join(REPO,
+                                         *SUMMARY_PATH.split("/")),
+                            encoding="utf-8"))
+    if ev_leg["source_commit"] == rec["source_commit"]:
+        m = merge_legs([ev_leg, rec])
+        assert m["coverage_status"] in ("COMPLETE", "INCOMPLETE")
+        for r_ in skips:
+            sf = r_["surface"].split("/")[-1]
+            by = m["coverage_matrix"][sf][PY]
+            assert rec["host_id"] not in (by if isinstance(by, list)
+                                          else []), \
+                f"a SKIP was counted as coverage for {sf}"
+        print(f"  merged with the committed evidence leg -> "
+              f"{m['coverage_status']}, skip not counted as coverage")
+    else:
+        print("  (evidence leg is at a different commit; merge half "
+              "of this doctor is SKIPPED and says so)")
+    print(f"w2 portable-build selftest: ALL PASS ({len(skips)} typed "
+          "skips, 0 populated NOT_RUN rows; devildog observes 2 where "
+          "geomen observes 4 because 3.14 is absent here)")
+
+
 def _argv_selftest():
     """Prove -- by SUBPROCESS, not by reading argv handling -- that a
     mistyped flag cannot perform a destructive write."""
@@ -1761,7 +1898,8 @@ def _cli(argv):
     """Closed grammar: exactly one recognised verb, or exit 2."""
     verbs = [a for a in argv[1:] if a.startswith("--")]
     known = {"--generate", "--merge-selftest",
-             "--argv-selftest", "--store-selftest"}
+             "--argv-selftest", "--store-selftest",
+             "--portable-selftest"}
     if len(argv) > 1 and (set(verbs) - known or len(argv) != 2):
         sys.stderr.write(f"REFUSED: unrecognised arguments "
                          f"{argv[1:]}\n{USAGE}\n")
@@ -1776,6 +1914,8 @@ def _cli(argv):
         _argv_selftest()
     elif argv[1] == "--store-selftest":
         _store_selftest()
+    elif argv[1] == "--portable-selftest":
+        _portable_selftest()
     elif argv[1] == "--generate":
         main()
     else:

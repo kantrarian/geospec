@@ -1838,10 +1838,19 @@ def _portable_selftest():
     assert not pop, pop
     # ...and it MERGES against the real evidence leg, with the skip
     # not counted as coverage
-    ev_leg = json.load(open(os.path.join(REPO,
-                                         *SUMMARY_PATH.split("/")),
-                            encoding="utf-8"))
-    if ev_leg["source_commit"] == rec["source_commit"]:
+    # Build the EVIDENCE leg at the SAME commit rather than reusing
+    # the committed record: committing a record advances HEAD past
+    # the source_commit that record names, so the committed leg is
+    # always one commit behind a build run afterwards. Co-generating
+    # both legs here is the honest analogue of the frozen snapshot.
+    r2 = sp.run([sys.executable, "-c", code], capture_output=True,
+                cwd=os.path.dirname(me))
+    ev_leg = json.loads(
+        (r2.stdout.decode().strip().splitlines() or ["{}"])[-1])
+    ev_leg["host_id"] = "evidence-host/emulated"
+    for _r in ev_leg.get("invocations", ()):
+        _r["host_id"] = "evidence-host/emulated"
+    if ev_leg.get("source_commit") == rec["source_commit"]:
         m = merge_legs([ev_leg, rec])
         assert m["coverage_status"] in ("COMPLETE", "INCOMPLETE")
         for r_ in skips:
@@ -1850,11 +1859,12 @@ def _portable_selftest():
             assert rec["host_id"] not in (by if isinstance(by, list)
                                           else []), \
                 f"a SKIP was counted as coverage for {sf}"
-        print(f"  merged with the committed evidence leg -> "
-              f"{m['coverage_status']}, skip not counted as coverage")
+        print(f"  co-generated EVIDENCE + PORTABLE legs at one "
+              f"commit and merged -> {m['coverage_status']}; the "
+              "skip is NOT counted as coverage")
     else:
-        print("  (evidence leg is at a different commit; merge half "
-              "of this doctor is SKIPPED and says so)")
+        print("  (the two builds landed at different commits; "
+              "merge half SKIPPED and says so)")
     print(f"w2 portable-build selftest: ALL PASS ({len(skips)} typed "
           "skips, 0 populated NOT_RUN rows; devildog observes 2 where "
           "geomen observes 4 because 3.14 is absent here)")

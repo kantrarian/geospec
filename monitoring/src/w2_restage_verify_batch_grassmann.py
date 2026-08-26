@@ -100,6 +100,22 @@ def _require(path, what):
     return path
 
 
+def _require_count_identity(registered, attempted, verified):
+    """registered == attempted == verified, ENFORCED not printed.
+
+    The only doctor for this used to be
+    `"registered_reuse_count" in getsource(run)` -- a SOURCE-SUBSTRING
+    check standing in for a RUNTIME behaviour, which is the exact
+    defect class codex found in the misspelled resolver. A substring
+    cannot tell you the comparison fires, or fires the right way
+    round. Factored out so doctors call it with real numbers.
+    """
+    if not (registered == attempted == verified):
+        _b(f"registered_reuse_count {registered} != attempted "
+           f"{attempted} != verified {verified}")
+    return registered
+
+
 def _resolve_batch_preflight(full, resolver=None,
                              allowlist_check=None):
     """codex 0534Z P0: the positive path is FACTORED so doctors can
@@ -229,10 +245,8 @@ def run(manifest_commit, store_root=None):
 
     def counts(xs):
         return {"observations": len(xs), "distinct": len(set(xs))}
-    registered = len(keys)
-    if not (registered == attempted == verified):
-        _b(f"registered_reuse_count {registered} != attempted "
-           f"{attempted} != verified {verified}")
+    registered = _require_count_identity(len(keys), attempted,
+                                        verified)
     # codex 0534Z P1: populate these from the reports that were
     # actually returned. Hard-coded literals restate the happy path
     # instead of recording it -- the receipt would have said PASS /
@@ -386,11 +400,13 @@ def _selftest():
         "f" * 40, resolver="not-callable",
         allowlist_check=_ok_allow),
         "the manifest-pin resolver is ABSENT")
-    # and the count identity is enforced in the receipt path
-    import inspect as _insp
-    assert "registered_reuse_count" in _insp.getsource(run) and \
-        "!= attempted" in _insp.getsource(run), \
-        "registered == attempted == verified must be enforced"
+    # (e) the count identity is EXECUTED, not read out of source
+    assert _require_count_identity(1420, 1420, 1420) == 1420
+    for _r, _a, _v in ((1420, 1419, 1419), (1420, 1420, 1419),
+                       (1419, 1420, 1420), (0, 0, 1)):
+        assert refuses(
+            lambda r=_r, a=_a, v=_v: _require_count_identity(r, a, v),
+            "registered_reuse_count"), (_r, _a, _v)
 
     # codex 0445Z item 3: the exact 360 + 1060 mixed composition
     # must ASSEMBLE DETERMINISTICALLY before the evidence-host run

@@ -1596,9 +1596,55 @@ def w_loco():
         pv_ok = {"B2A": .001, "B2B": .002, "B3A": .003, "B1B": .020}
         v_all = mk_view(set(REG4))
         fc = []
-        eng_all = WPH._b1b_loco_recovery({"b1b": v_all}, pv_ok,
-                                         capsule(), ND, DS,
-                                         fold_counter=fc)
+
+        # ---- codex 1327Z item 5 (cayley) --------------------------
+        # ABSENCE-OF-CALL, PROVEN BY EXECUTION.
+        #
+        # The line further down asserting "b2a" not in
+        # getsource(_b1b_loco_recovery) is absence-in-TEXT. That is a
+        # weaker property than the one we want: the function
+        # delegates to seven helpers, so a transitive call, an aliased
+        # import or dynamic dispatch reaches the forbidden B2A
+        # shortcut while the literal string stays absent from the
+        # inspected frame. Not calling something IS observable -- spy
+        # the target, run the real case, require zero invocations.
+        #
+        # The text check is kept as complementary lint: it is
+        # universal within that body, where the spy is only as good as
+        # the inputs exercised. Neither dominates; both are cheap.
+        import contextlib as _ctx
+
+        @_ctx.contextmanager
+        def _call_spy(targets):
+            """targets: [(module, attr)] -> {qualname: count}."""
+            counts, saved = {}, []
+            for _mod, _nm in targets:
+                _orig = getattr(_mod, _nm)
+                _key = f"{_mod.__name__}.{_nm}"
+                counts[_key] = 0
+
+                def _mk(_orig=_orig, _key=_key):
+                    def _w(*a, **k):
+                        counts[_key] += 1
+                        return _orig(*a, **k)
+                    return _w
+                setattr(_mod, _nm, _mk())
+                saved.append((_mod, _nm, _orig))
+            try:
+                yield counts
+            finally:
+                for _mod, _nm, _orig in saved:
+                    setattr(_mod, _nm, _orig)
+
+        _PB = WPH._pb          # d2_f2g_phase_b_stats, as WPH binds it
+        _FORBIDDEN_B2A = [(_PB, n) for n in
+                          ("b2a_family", "b2a_family_cal",
+                           "b3a_family_cal", "b1a_family_cal")]
+        with _call_spy(_FORBIDDEN_B2A) as _spy_loco:
+            eng_all = WPH._b1b_loco_recovery({"b1b": v_all}, pv_ok,
+                                             capsule(), ND, DS,
+                                             fold_counter=fc)
+        ok_b2a_exec = sum(_spy_loco.values()) == 0
         ora_all = oracle_recovery(v_all, pv_ok, REG4)
         v_gain = mk_view({"D"})
         fc2 = []
@@ -1610,7 +1656,8 @@ def w_loco():
             and eng_gain is False and eng_gain == ora_gain \
             and fc == sorted(REG4) and fc2 == sorted(REG4) \
             and "b2a" not in inspect.getsource(
-                WPH._b1b_loco_recovery).lower()
+                WPH._b1b_loco_recovery).lower() \
+            and ok_b2a_exec
         # early-exit without folds on full-Holm non-rejection
         pv_no = {"B2A": .001, "B2B": .002, "B3A": .003, "B1B": .8}
         fc3 = []

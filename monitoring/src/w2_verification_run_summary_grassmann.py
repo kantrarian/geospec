@@ -402,6 +402,14 @@ EXPECTED_STORE_DESCRIPTOR = (
     "docs/f2g_window2_execution/w2_expected_store_descriptor.json")
 
 
+def _resolve_commit(commitish):
+    p = subprocess.run(
+        ["git", "-C", REPO, "rev-parse", f"{commitish}^{{commit}}"],
+        capture_output=True)
+    out = p.stdout.decode().strip()
+    return out if p.returncode == 0 and len(out) == 40 else None
+
+
 def expected_store(commitish):
     """The committed authority for WHICH store counts. Resolved from
     a commit, never from a constant in the running module."""
@@ -473,7 +481,8 @@ def attest_store(commitish="HEAD"):
         "body_count": len(names),
         "bodies_verified": verified,
         "name_set_digest": digest,
-        "expected_store_matched": True}
+        "expected_store_matched": True,
+        "authority_commit": _resolve_commit(commitish)}
 
 
 def _host_id():
@@ -491,10 +500,20 @@ def build():
     # capability -- the v3 store is either present on this host or it
     # is not -- and validated at merge. It is never inferred from a
     # nickname.
-    host_role, store_identity, store_attestation = attest_store()
     source_commit = subprocess.run(
         ["git", "-C", REPO, "rev-parse", "HEAD"],
         capture_output=True).stdout.decode().strip()
+    # SELF-CATCH: attest_store() used to resolve the descriptor at the
+    # SYMBOLIC "HEAD" while source_commit was a SEPARATE rev-parse of
+    # the same moving reference -- two independent reads, so the
+    # record could carry an attestation made against one authority
+    # while recording a different commit, and the merger validates
+    # against the RECORDED one. The comment directly above promises
+    # the commit is "resolved ONCE at build start"; the attestation
+    # line above it broke that promise. Attest against the RESOLVED
+    # commit, and record which authority was used.
+    host_role, store_identity, store_attestation = \
+        attest_store(source_commit)
     runnable, missing = discover_interpreters()
     rows = []
     for name in SURFACES:
@@ -949,6 +968,12 @@ def merge_legs(legs):
         if lg["store_identity"] != exp.get("store_id"):
             _mr(f"leg {i} names store {lg['store_identity']!r}, but "
                 f"{commit[:12]} declares {exp.get('store_id')!r}")
+        if att.get("authority_commit") != commit:
+            _mr(f"leg {i} attested against authority commit "
+                f"{str(att.get('authority_commit'))[:12]}, but this "
+                f"merge agrees on {commit[:12]} -- an attestation "
+                "made against a DIFFERENT authority is not an "
+                "attestation for this record")
         if att.get("body_count") != exp.get("body_count") or \
                 att.get("name_set_digest") != \
                 exp.get("body_name_set_digest"):
@@ -1169,7 +1194,8 @@ def _merge_selftest():
               "body_count": _EXP.get("body_count"),
               "bodies_verified": _EXP.get("body_count"),
               "name_set_digest": _EXP.get("body_name_set_digest"),
-              "expected_store_matched": True}
+              "expected_store_matched": True,
+              "authority_commit": COMMIT}
     ATT_NO = {"attested": False, "reason": "no store on this host"}
 
     def leg(host, commit=None, gen=None, schema=SUMMARY_SCHEMA,
@@ -1341,7 +1367,8 @@ def _merge_selftest():
     assert refuses(lambda: merge_legs(
         [ev(att={"attested": True, "body_count": 1,
                  "bodies_verified": 1,
-                 "name_set_digest": "0" * 64}),
+                 "name_set_digest": "0" * 64,
+                 "authority_commit": COMMIT}),
          leg("geomen/Windows")]),
         "content-address integrity is not MEMBERSHIP")
     assert refuses(lambda: merge_legs(
@@ -1354,6 +1381,17 @@ def _merge_selftest():
     assert refuses(lambda: merge_legs(
         [ev(att="not-a-dict"), leg("geomen/Windows")]),
         "carries no store_attestation")
+    # SELF-CATCH doctor: an attestation made against a DIFFERENT
+    # authority commit than the one this merge agrees on
+    assert refuses(lambda: merge_legs(
+        [ev(att=dict(ATT_OK, authority_commit="b" * 40)),
+         leg("geomen/Windows")]),
+        "is not an attestation for this record")
+    assert refuses(lambda: merge_legs(
+        [ev(att={k: v for k, v in ATT_OK.items()
+                 if k != "authority_commit"}),
+         leg("geomen/Windows")]),
+        "is not an attestation for this record")
 
     # ---- codex 1534Z P0 #1: presence is not PROVENANCE binding ----
     def one_row(**over):

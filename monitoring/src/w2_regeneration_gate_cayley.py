@@ -781,6 +781,39 @@ def _selftest():
     print("  RG-8c PASS  a malformed registry REFUSES (never reads as "
           "'nothing is design-pinned')")
 
+    # RG-7b (codex 1953Z): the SUBPROCESS EDGE, committed as a
+    # doctor rather than verified once by hand.
+    #
+    # I checked this branch in a temp tree and reported the
+    # result. That is execution EVIDENCE, not a LOCK. codex's
+    # reproduction is the whole point: the OLD import-only
+    # implementation at 65988bcd passes the identical committed
+    # RG-0..RG-9 suite, so nothing in the suite bites if
+    # subprocess discovery is deleted again. A branch I tested
+    # once is not a branch the bar defends.
+    #
+    # The entrypoint deliberately carries NO import edge to the
+    # helper -- only a literal subprocess argv -- so this can
+    # only pass through the subprocess detector.
+    import tempfile as _tempfile
+    from pathlib import Path as _Path
+
+    with _tempfile.TemporaryDirectory() as _td:
+        _root = _Path(_td)
+        (_root / "entry.py").write_text(
+            "import subprocess\n"
+            "subprocess.run(['python', 'spawned_helper.py'])\n",
+            encoding="utf-8")
+        (_root / "spawned_helper.py").write_text(
+            "VALUE = 1\n", encoding="utf-8")
+        _got = local_import_closure(
+            str(_root), entrypoints=("entry.py",))
+        if "spawned_helper.py" not in _got:
+            raise RegenerationGateRefusal(
+                "RG-7b SUBPROCESS_EDGE_ESCAPED: a subprocess-only "
+                "local helper was absent from dependency closure")
+    print("  RG-7b PASS  subprocess-only local helper joins closure")
+
     # (d) HEAD-DRIFT: a pin added to the registry at HEAD, AFTER the
     #     commit the manifest links, must NOT count. This is the
     #     doctor for resolving at design_manifest_commit rather than

@@ -93,14 +93,41 @@ def _selftest():
             "(re-admission, ADMITTED_ABSENCE, or a pre-declared "
             "authority amendment). codex 0527Z finding 5, boundary "
             "side.")
-    print("  BP-1 PASS  the boundary consumes the archive partition")
+    # HONESTY BOUND on what BP-1 establishes (cayley, self-found
+    # 2026-08-26): this is an `inspect.signature` check, so it proves
+    # the boundary ACCEPTS the archive -- NOT that it consumes it. A
+    # boundary that took `capture_archive` and ignored it would pass
+    # this line. That is the same name-not-property proxy that let me
+    # call the predecessor bridge bypass-proof when it was not, and I
+    # am not going to let it read as behavioural coverage in my own
+    # lock. Necessary, not sufficient; the behavioural half is BP-2.
+    print("  BP-1 PASS  (STRUCTURAL ONLY) the boundary ACCEPTS the "
+          "archive partition -- signature-level, not behaviour")
 
     # ---- BP-2: a REFUSED expected key must make the bind refuse ---
-    # (reachable only once BP-1 is wired; asserted here so the
-    # requirement is registered rather than remembered)
-    print("  BP-2 PENDING  refused-key-refuses-the-bind, testable "
-          "once BP-1 is wired")
-    print("w2 boundary admitted-partition red-KATs: ALL PASS")
+    # OPEN. Previously this printed "PENDING ... testable once BP-1 is
+    # wired" and the file then declared "ALL PASS" anyway. Both halves
+    # of that were wrong: BP-1 is wired now, so the stated precondition
+    # has expired, and a file may not claim ALL PASS while one of its
+    # own named requirements is untested. That is exactly the shape
+    # this program keeps paying for -- a summary line asserting more
+    # than the checks underneath it establish.
+    #
+    # The property (an expected key sitting in the archive's REFUSED
+    # half must refuse the bind, absent a registered resolution) needs
+    # a populated boundary invocation, which currently cannot run here:
+    # the boundary requires a disposition capsule and
+    # verify_lineage_registry is un-satisfiable over a fixture BY
+    # DESIGN (fails closed without the registered archive + source
+    # bodies -- probed 2026-08-25T23:57Z). So BP-2 is blocked on the
+    # same seam routed to codex, and it is reported as OPEN rather
+    # than dressed up as passing.
+    open_reqs = ["BP-2 refused-key-refuses-the-bind"]
+    print("  BP-2 OPEN  refused-key-refuses-the-bind is NOT tested "
+          "here -- blocked on the capsule/fixture seam, not passing")
+    print(f"w2 boundary admitted-partition red-KATs: 2 structural "
+          f"PASS, {len(open_reqs)} OPEN (NOT 'all pass') -- open: "
+          f"{open_reqs}")
 
 
 if __name__ == "__main__":

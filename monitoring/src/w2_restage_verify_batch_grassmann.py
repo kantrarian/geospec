@@ -83,6 +83,15 @@ def _require_valid_manifest(manifest_commit):
     return full, verdict
 
 
+def _tally(acc, claim):
+    """Nest by claim kind; a status is never a raw None key."""
+    kind = claim["artifact_claim_kind"]
+    status = claim.get("outcome") or claim.get("support_outcome")
+    acc.setdefault(kind, {})
+    acc[kind][status] = acc[kind].get(status, 0) + 1
+    return acc
+
+
 def _require(path, what):
     if not os.path.exists(path):
         _b(f"{what} is ABSENT at {path} -- strict mode: a missing "
@@ -139,7 +148,12 @@ def run(manifest_commit, store_root=None):
         tset.append(rec["t_v3_sha256"])
         bset.append(rec["raw_body_sha256"])
         aset.append(rec["artifact_sha256"])
-        outcomes[out["outcome"]] = outcomes.get(out["outcome"], 0) + 1
+        # codex 0445Z item 3: counts are NESTED BY CLAIM KIND and
+        # never keyed by a raw outcome -- the 360 station-presence
+        # artifacts have no outcome, and aggregating that None both
+        # lost the distinction and CRASHED assembly (None is not
+        # orderable against str).
+        _tally(outcomes, out["claim"])
     if attempted != verified:
         _b("attempted != verified")
 
@@ -155,7 +169,8 @@ def run(manifest_commit, store_root=None):
             "original_t_digest_set": dg(tset),
             "body_digest_set": dg(bset),
             "artifact_digest_set": dg(aset),
-            "outcomes": dict(sorted(outcomes.items())),
+            "claims": {k: dict(sorted(v.items()))
+                       for k, v in sorted(outcomes.items())},
             "http_requests": 0,
             "interpreter": sys.version.split()[0],
             "claim_scope": "MANIFEST_OWNED_RESTAGE_VERIFICATION",
@@ -190,6 +205,25 @@ def _selftest():
     new = inspect.signature(
         LIN.verify_restage_lineage_pinned).parameters
     assert "manifest_commit" in new
+    # codex 0445Z item 3: the exact 360 + 1060 mixed composition
+    # must ASSEMBLE DETERMINISTICALLY before the evidence-host run
+    mixed = {}
+    for _ in range(1057):
+        _tally(mixed, {"artifact_claim_kind": "SUPPORT_SERIES",
+                       "outcome": "ADMITTED"})
+    for _ in range(3):
+        _tally(mixed, {"artifact_claim_kind": "SUPPORT_SERIES",
+                       "outcome": "ADMITTED_ABSENCE"})
+    for _ in range(360):
+        _tally(mixed, {"artifact_claim_kind": "STATION_PRESENCE",
+                       "support_outcome": "NOT_APPLICABLE"})
+    assembled = {k: dict(sorted(v.items()))
+                 for k, v in sorted(mixed.items())}
+    assert assembled == {
+        "STATION_PRESENCE": {"NOT_APPLICABLE": 360},
+        "SUPPORT_SERIES": {"ADMITTED": 1057,
+                           "ADMITTED_ABSENCE": 3}}, assembled
+    assert sum(sum(v.values()) for v in assembled.values()) == 1420
     print("w2_restage_verify_batch selftest: ALL PASS "
           "(refusal contract only; no manifest-owned PASS exists "
           "before the single regeneration)")

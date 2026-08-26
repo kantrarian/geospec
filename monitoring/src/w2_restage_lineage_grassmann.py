@@ -49,7 +49,7 @@ RESTAGE_KEYS = {
     "schema", "join_kind", "v3_key", "v4_key", "old_authority",
     "new_authority", "s_v3_sha256", "s_v4_sha256", "t_v3_sha256",
     "raw_body_sha256", "raw_body_bytes", "transform_identity",
-    "artifact_sha256", "outcome"}
+    "artifact_sha256", "claim"}
 _AUTH_KEYS = {"commit", "path", "blob_sha256", "keys_sha256"}
 
 
@@ -209,7 +209,7 @@ def verify_restage_lineage_pinned(repo, manifest_commit, record,
            "set -- a derivable pair is not an authorised one")
     for f_ in ("v3_key", "raw_body_sha256", "raw_body_bytes",
                "s_v3_sha256", "s_v4_sha256", "t_v3_sha256",
-               "outcome"):
+               "claim"):
         if record[f_] != entry.get(f_):
             _r(f"record.{f_} does not EQUAL the registered lineage "
                f"entry ({record[f_]!r} != {entry.get(f_)!r})")
@@ -318,10 +318,10 @@ def verify_restage_lineage(repo, record, transcript, raw_body):
         _r("artifact_sha256 does not match the RECOMPUTED v4 "
            "artifact -- the artifact is derived here, never taken "
            "from the record")
-    if art.get("outcome") != rec["outcome"]:
-        _r("outcome does not match the recomputed artifact")
+    if CAP.claim_of(art) != rec["claim"]:
+        _r("the typed CLAIM does not match the recomputed artifact")
     return {"join_kind": JOIN_KIND, "v4_key": rec["v4_key"],
-            "v3_key": rec["v3_key"], "outcome": art.get("outcome"),
+            "v3_key": rec["v3_key"], "claim": CAP.claim_of(art),
             "artifact_sha256": rec["artifact_sha256"]}
 
 
@@ -341,12 +341,12 @@ def build_restage_lineage(repo, v3_key, v4_key, old_authority,
     derived = _derive_pair(repo, dict(rec, s_v3_sha256="0" * 64,
                                       s_v4_sha256="0" * 64,
                                       artifact_sha256="0" * 64,
-                                      outcome=None))
+                                      claim=None))
     rec["s_v3_sha256"] = PROD._canon_digest(derived["v3"][1])
     rec["s_v4_sha256"] = PROD._canon_digest(derived["v4"][1])
     art = CAP.admission_transform(lane4, raw_body, derived["v4"][1])
     rec["artifact_sha256"] = PROD._canon_digest(art)
-    rec["outcome"] = art.get("outcome")
+    rec["claim"] = CAP.claim_of(art)
     verify_restage_lineage(repo, rec, transcript, raw_body)
     return rec, art
 
@@ -434,7 +434,7 @@ def _selftest():
     assert refuses(lambda r: r["old_authority"].__setitem__(
         "blob_sha256", "0" * 64), "diverge from its pinned digest")
     print(f"w2_restage_lineage selftest: ALL PASS ({v4_key} via "
-          f"{v3_key}, outcome={out['outcome']}, no network)")
+          f"{v3_key}, claim={out['claim']}, no network)")
 
 
 if __name__ == "__main__":

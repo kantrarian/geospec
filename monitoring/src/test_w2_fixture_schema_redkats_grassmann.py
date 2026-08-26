@@ -116,7 +116,7 @@ def main():
         lineage = {v4key: {
             "v3_key": v4key, "raw_body_sha256": bsha,
             "raw_body_bytes": len(body),
-            "outcome": art.get("outcome"),
+            "claim": CAP.claim_of(art),
             "s_v3_sha256": DISP._canon(
                 ACC.authoritative_static_contract(real, lane, ck,
                                                   day)),

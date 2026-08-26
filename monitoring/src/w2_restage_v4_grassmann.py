@@ -170,7 +170,7 @@ def run(commitish="HEAD"):
             f.write(json.dumps(
                 {"v4_key": k, "v3_key": rec["v3_key"],
                  "join_kind": rec["join_kind"],
-                 "outcome": rec["outcome"],
+                 "claim": rec["claim"],
                  "raw_body_sha256": rec["raw_body_sha256"],
                  "artifact_sha256": rec["artifact_sha256"],
                  "http_requests": 0}, sort_keys=True) + "\n")

@@ -65,7 +65,7 @@ _OLD_AUTHORITY_KEYS = {"commit", "path", "blob_sha256",
                        "keys_sha256"}
 _ARCHIVE_KEYS = {"path", "sha256", "store_id"}
 _LINEAGE_KEYS = {"v3_key", "s_v3_sha256", "t_v3_sha256",
-                 "raw_body_sha256", "raw_body_bytes", "outcome",
+                 "raw_body_sha256", "raw_body_bytes", "claim",
                  "s_v4_sha256"}
 _PREDECESSOR_KEYS = {"spent_probe"}
 _HEX64 = 64
@@ -169,7 +169,7 @@ def derive(authority, archive, store_root, transform=None):
         # REPORTED but never authoritative -- verify re-derives it.
         reuse[v4key] = {"v3_key": k, "raw_body_sha256": sha,
                         "raw_body_bytes": len(body),
-                        "outcome": art.get("outcome"),
+                        "claim": CAP.claim_of(art),
                         "s_v3_sha256": v3[k]["static_contract_sha256"],
                         "t_v3_sha256": v3[k]["transcript_sha256"],
                         "s_v4_sha256": _canon(s)}

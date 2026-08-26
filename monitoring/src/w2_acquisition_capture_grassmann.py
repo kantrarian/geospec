@@ -977,6 +977,28 @@ CLAIM_STATION_PRESENCE = "STATION_PRESENCE"
 SUPPORT_NOT_APPLICABLE = "NOT_APPLICABLE"
 
 
+def claim_of(artifact):
+    """THE typed claim projection of a recomputed artifact (codex
+    0445Z item 3). `join_kind` answers provenance; this answers what
+    the artifact CLAIMS -- and it is a CLOSED block, so a station-
+    presence result can never be represented as a null outcome. A
+    JSON null in an audit record is indistinguishable from an
+    omitted or unknown result, and aggregating it also crashed the
+    receipt assembly (`None` is not orderable against `str`)."""
+    kind = artifact.get("artifact_claim_kind")
+    if kind == CLAIM_STATION_PRESENCE:
+        return {"artifact_claim_kind": kind,
+                "support_outcome": artifact.get(
+                    "support_outcome", SUPPORT_NOT_APPLICABLE)}
+    if kind == CLAIM_SUPPORT_SERIES:
+        out = artifact.get("outcome")
+        if out not in (OUTCOME_ADMITTED, OUTCOME_ADMITTED_ABSENCE):
+            _xerr(f"support-series artifact carries an unregistered "
+                  f"outcome {out!r}")
+        return {"artifact_claim_kind": kind, "outcome": out}
+    _xerr(f"artifact carries an unregistered claim kind {kind!r}")
+
+
 def _support_block(support):
     """The registered support seam carried by every TIME-SERIES
     artifact: the exact per-sample mask, its supported count, the

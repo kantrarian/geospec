@@ -398,6 +398,25 @@ def _require_measured(inv):
     return inv["http_requests"], inv["http_counter_source"]
 
 
+EXPECTED_STORE_DESCRIPTOR = (
+    "docs/f2g_window2_execution/w2_expected_store_descriptor.json")
+
+
+def expected_store(commitish):
+    """The committed authority for WHICH store counts. Resolved from
+    a commit, never from a constant in the running module."""
+    raw = subprocess.run(
+        ["git", "-C", REPO, "cat-file", "blob",
+         f"{commitish}:{EXPECTED_STORE_DESCRIPTOR}"],
+        capture_output=True).stdout
+    if not raw:
+        return None
+    try:
+        return json.loads(raw.decode("utf-8"))
+    except Exception:
+        return None
+
+
 def attest_store():
     """codex 1534Z P1 #3: EVIDENCE was inferred from
     `os.path.isdir(V3_STORE)`, so ANY existing empty or mispointed
@@ -429,12 +448,32 @@ def attest_store():
                 return portable(f"{n} does not match its content "
                                 "address")
         verified += 1
-    return "EVIDENCE", V3_STORE_IDENTITY, {
+    digest = hashlib.sha256(json.dumps(
+        names, separators=(",", ":")).encode()).hexdigest()
+    # codex 1617Z: INTEGRITY is not IDENTITY. Every body matching its
+    # content address says the directory is internally consistent --
+    # a single valid body satisfies that -- while the store_id came
+    # from a CONSTANT with nothing compared against it. Membership
+    # must match a COMMITTED descriptor exactly.
+    exp = expected_store("HEAD")
+    if not isinstance(exp, dict):
+        return portable("the expected-store descriptor is absent at "
+                        "HEAD; identity cannot be claimed without "
+                        "an authority to claim it against")
+    if len(names) != exp.get("body_count") or \
+            digest != exp.get("body_name_set_digest"):
+        return portable(
+            f"this directory holds {len(names)} bodies with name-set "
+            f"digest {digest[:12]}, but {exp.get('store_id')!r} is "
+            f"{exp.get('body_count')} / "
+            f"{str(exp.get('body_name_set_digest'))[:12]} -- "
+            "internally consistent is not the named store")
+    return "EVIDENCE", exp["store_id"], {
         "attested": True,
         "body_count": len(names),
         "bodies_verified": verified,
-        "name_set_digest": hashlib.sha256(json.dumps(
-            names, separators=(",", ":")).encode()).hexdigest()}
+        "name_set_digest": digest,
+        "expected_store_matched": True}
 
 
 def _host_id():
@@ -677,10 +716,22 @@ def _validate_row_values(r, n):
             f"declared label {r['interpreter_label']!r}")
 
 
+_BINDINGS_BY_COMMIT = {}
+
+
 def _committed_bindings(commit, cache):
-    """The 14 declared surfaces at the AGREED commit, recomputed."""
-    if cache:
-        return cache
+    """The 14 declared surfaces at the AGREED commit, recomputed.
+
+    Cached PER COMMIT at module level: a commit's blobs are
+    immutable, and re-deriving them inside every merge_legs() call
+    meant 28 git subprocesses per call -- ~2660 across the selftest,
+    which is why codex's combined 3.11/3.14 run exceeded their
+    300-second budget without returning a verdict. That timeout was
+    my regression, not their environment.
+    """
+    if commit in _BINDINGS_BY_COMMIT:
+        return _BINDINGS_BY_COMMIT[commit]
+    cache = _BINDINGS_BY_COMMIT.setdefault(commit, {})
     for sf in SURFACES:
         path = SURFACE_PREFIX + sf
         oid = subprocess.run(
@@ -794,6 +845,7 @@ def merge_legs(legs):
                     "a record")
         _validate_leg_header(lg, n)
     commits, gens, schemas, hosts = set(), set(), set(), []
+    _evidence_att = []
     for i, lg in enumerate(legs):
         for f in ("source_commit", "repo_head", "host_id",
                   "producer_generator_blob_sha256", "schema",
@@ -830,6 +882,7 @@ def merge_legs(legs):
                     "content-address verified")
             if not _is_hex(att.get("name_set_digest"), 64):
                 _mr(f"leg {i} attestation carries no name-set digest")
+            _evidence_att.append((i, lg, att))
         elif att.get("attested"):
             _mr(f"leg {i} is {lg['host_role']} yet attests a store")
         if lg["host_role"] == "EVIDENCE" and \
@@ -883,6 +936,28 @@ def merge_legs(legs):
         _mr(f"the declared producer_generator_blob_sha256 "
             f"{declared[:12]} does not recompute from "
             f"{commit[:12]}:{gen_path} (got {recomputed[:12]})")
+    # codex 1617Z merger half: resolve the expected store from the
+    # AGREED commit and require exact membership. Positive counts,
+    # equal counts, 64-hex shape and a constant name all held while
+    # a 1/1 attestation with a shaped-but-wrong digest was accepted.
+    exp = expected_store(commit)
+    if not isinstance(exp, dict):
+        _mr(f"the expected-store descriptor is absent at "
+            f"{commit[:12]}; an EVIDENCE role cannot be validated "
+            "without the authority it claims membership of")
+    for i, lg, att in _evidence_att:
+        if lg["store_identity"] != exp.get("store_id"):
+            _mr(f"leg {i} names store {lg['store_identity']!r}, but "
+                f"{commit[:12]} declares {exp.get('store_id')!r}")
+        if att.get("body_count") != exp.get("body_count") or \
+                att.get("name_set_digest") != \
+                exp.get("body_name_set_digest"):
+            _mr(f"leg {i} attests {att.get('body_count')} bodies / "
+                f"{str(att.get('name_set_digest'))[:12]}, but "
+                f"{exp.get('store_id')!r} at {commit[:12]} is "
+                f"{exp.get('body_count')} / "
+                f"{str(exp.get('body_name_set_digest'))[:12]} -- "
+                "content-address integrity is not MEMBERSHIP")
     roles = [lg["host_role"] for lg in legs]
     if roles.count("EVIDENCE") != 1:
         _mr(f"a merged record requires EXACTLY ONE EVIDENCE leg, "
@@ -1089,8 +1164,12 @@ def _merge_selftest():
         return [cell(host, sf, il, verdict)
                 for sf in SURFACES for il in INTERPRETER_LABELS]
 
-    ATT_OK = {"attested": True, "body_count": 1405,
-              "bodies_verified": 1405, "name_set_digest": "a" * 64}
+    _EXP = expected_store(COMMIT) or {}
+    ATT_OK = {"attested": True,
+              "body_count": _EXP.get("body_count"),
+              "bodies_verified": _EXP.get("body_count"),
+              "name_set_digest": _EXP.get("body_name_set_digest"),
+              "expected_store_matched": True}
     ATT_NO = {"attested": False, "reason": "no store on this host"}
 
     def leg(host, commit=None, gen=None, schema=SUMMARY_SCHEMA,
@@ -1108,8 +1187,8 @@ def _merge_selftest():
                                 else rows)}
 
     def ev(host="Rmath151409/Windows", **kw):
-        return leg(host, role="EVIDENCE", store=V3_STORE_IDENTITY,
-                   **kw)
+        kw.setdefault("store", _EXP.get("store_id"))
+        return leg(host, role="EVIDENCE", **kw)
 
     def refuses(fn, needle):
         try:
@@ -1255,6 +1334,23 @@ def _merge_selftest():
     assert refuses(lambda: merge_legs(
         [ev(), leg("geomen/Windows", att=ATT_OK)]),
         "yet attests a store")
+    # codex 1617Z doctor 4: an EVIDENCE header with 1/1 and a
+    # shaped-but-WRONG digest was ACCEPTED and returned an ordinary
+    # INCOMPLETE record -- shape and self-consistency without
+    # MEMBERSHIP.
+    assert refuses(lambda: merge_legs(
+        [ev(att={"attested": True, "body_count": 1,
+                 "bodies_verified": 1,
+                 "name_set_digest": "0" * 64}),
+         leg("geomen/Windows")]),
+        "content-address integrity is not MEMBERSHIP")
+    assert refuses(lambda: merge_legs(
+        [ev(att=dict(ATT_OK, body_count=1404, bodies_verified=1404)),
+         leg("geomen/Windows")]),
+        "content-address integrity is not MEMBERSHIP")
+    assert refuses(lambda: merge_legs(
+        [ev(store="some-other-store"), leg("geomen/Windows")]),
+        "declares 's4t-w2-capture-20260825'")
     assert refuses(lambda: merge_legs(
         [ev(att="not-a-dict"), leg("geomen/Windows")]),
         "carries no store_attestation")
@@ -1383,6 +1479,8 @@ USAGE = """w2_verification_run_summary_grassmann
                      build)
   --merge-selftest   read-only; the leg-merge refusal directions
   --argv-selftest    read-only; proves unknown flags cannot write
+  --store-selftest   read-only; proves store INTEGRITY is not store
+                     IDENTITY (a valid subset must not earn EVIDENCE)
 
 Any other argument, and the no-argument invocation, REFUSE with exit
 2 before build() and before any file is opened."""
@@ -1418,6 +1516,76 @@ def main():
             print(f"  {r['verdict']:17s} {r['interpreter_label']} "
                   f"{os.path.basename(r['surface'])}")
     print("written:", SUMMARY_PATH)
+
+
+def _store_selftest():
+    """codex 1617Z's four locks. Three are filesystem-level on the
+    PRODUCER path; the fourth is on the MERGER path and lives in the
+    merge selftest. Each must DEGRADE to PORTABLE, never earn the
+    named identity."""
+    import shutil
+    import subprocess as sp
+    import tempfile
+    import w2_restage_v4_grassmann as _RES
+    real = _RES.V3_STORE
+    names = sorted(f for f in os.listdir(real) if f.endswith(".body"))
+    assert len(names) > 3, real
+    me = os.path.abspath(__file__)
+    code = ("import sys;sys.path.insert(0,'.');"
+            "import w2_verification_run_summary_grassmann as S;"
+            "r,i,a=S.attest_store();print(r,'|',i,'|',"
+            "a.get('reason',''))")
+
+    def role_at(root):
+        env = dict(os.environ, W2_V3_STORE=root)
+        r = sp.run([sys.executable, "-c", code], capture_output=True,
+                   env=env, cwd=os.path.dirname(me))
+        return r.stdout.decode().strip()
+    tmps = []
+    try:
+        # (1) ONE valid body -- internally consistent, not the store
+        one = tempfile.mkdtemp(prefix="store_one_")
+        tmps.append(one)
+        shutil.copy2(os.path.join(real, names[0]),
+                     os.path.join(one, names[0]))
+        # (2) a PROPER SUBSET of valid bodies
+        sub = tempfile.mkdtemp(prefix="store_sub_")
+        tmps.append(sub)
+        for n in names[:3]:
+            shutil.copy2(os.path.join(real, n),
+                         os.path.join(sub, n))
+        # (3) the FULL set PLUS one extra valid body (hardlinks so
+        #     this stays cheap)
+        sup = tempfile.mkdtemp(prefix="store_sup_")
+        tmps.append(sup)
+        for n in names:
+            try:
+                os.link(os.path.join(real, n), os.path.join(sup, n))
+            except OSError:
+                shutil.copy2(os.path.join(real, n),
+                             os.path.join(sup, n))
+        extra = hashlib.sha256(b"an extra valid body").hexdigest()
+        with open(os.path.join(sup, extra + ".body"), "wb") as f:
+            f.write(b"an extra valid body")
+        for label, root in (("one valid body", one),
+                            ("proper subset", sub),
+                            ("full set + one extra", sup)):
+            out = role_at(root)
+            assert out.startswith("PORTABLE"), f"{label}: {out}"
+            assert "is not the named store" in out or \
+                "internally consistent is not" in out, \
+                f"{label}: {out}"
+            print(f"  {label:22s} -> PORTABLE (degraded, reason "
+                  "stated)")
+        # the REAL store still earns it
+        out = role_at(real)
+        assert out.startswith("EVIDENCE"), out
+        print(f"  {'the real store':22s} -> EVIDENCE")
+    finally:
+        for t in tmps:
+            shutil.rmtree(t, ignore_errors=True)
+    print("w2 store-membership selftest: ALL PASS (3 degrade "
+          "directions + the real store still earns the role)")
 
 
 def _argv_selftest():
@@ -1457,7 +1625,8 @@ def _argv_selftest():
 def _cli(argv):
     """Closed grammar: exactly one recognised verb, or exit 2."""
     verbs = [a for a in argv[1:] if a.startswith("--")]
-    known = {"--generate", "--merge-selftest", "--argv-selftest"}
+    known = {"--generate", "--merge-selftest",
+             "--argv-selftest", "--store-selftest"}
     if len(argv) > 1 and (set(verbs) - known or len(argv) != 2):
         sys.stderr.write(f"REFUSED: unrecognised arguments "
                          f"{argv[1:]}\n{USAGE}\n")
@@ -1470,6 +1639,8 @@ def _cli(argv):
         _merge_selftest()
     elif argv[1] == "--argv-selftest":
         _argv_selftest()
+    elif argv[1] == "--store-selftest":
+        _store_selftest()
     elif argv[1] == "--generate":
         main()
     else:

@@ -78,7 +78,12 @@ BOUND_SLOTS = {
                   # the two-leg RESTAGED_LINEAGE verifier: my
                   # boundary calls it, so it must be reopenable
                   # from a pin rather than merely imported
-                  "monitoring/src/w2_restage_lineage_grassmann.py"]},
+                  "monitoring/src/w2_restage_lineage_grassmann.py",
+                  # codex 0404Z item 1: the offline restager is part
+                  # of the production OPERATION record, so it binds
+                  # here and NOT in bars -- one path must not answer
+                  # to two slot authorities
+                  "monitoring/src/w2_restage_v4_grassmann.py"]},
     # v1.1 (codex 1358Z item 4/5): the two repaired execution tools
     # join the runtime allowlist as explicit slots
     "power_harness": {
@@ -134,17 +139,62 @@ BOUND_SLOTS = {
                   "mag_tuc_probe.envelope.json"]},
     "bars": {
         "owner": "grassmann",
-        "note": "the complete window-2 bar REV 19, 18/18 green @ "
-                "2309ab7 (W-CAL rebased to the v3 successor frame: "
-                "three-way identity vs the committed calendar_"
-                "authority_w2_v3 bytes, excluded-day doctor at "
-                "08-28; REV 18's composed-path W-SELRUN + REV 6 "
-                "zero-network capture doctor carried; dual-verified "
-                "by cayley py3.14+py3.11). families = "
-                "the EIGHT scientific names (W-LOCO/W-CAL/W-SELRUN/"
-                "W-ADMIT are KAT groups, never families)",
+        # codex 0404Z item 2: SCOPE ONLY. The previous note asserted
+        # "REV 19, 18/18 green @ 2309ab7" -- wrong in three ways at
+        # HEAD, and the dangerous one was that it described a
+        # boundary-admission result the pinned bytes no longer
+        # establish. No REV number, group count, commit nickname or
+        # "green" assertion belongs here: pinning bytes does not, by
+        # that act, prove those bytes were executed successfully, and
+        # static prose making execution claims goes stale silently and
+        # survives a zero-stale-pin regeneration. Time-varying
+        # execution facts live ONLY in the pinned run summary.
+        "note": "Window-2 verification surfaces. The shared bar's "
+                "W2-ADMIT group is STRUCTURAL_KAT_ONLY, not closure-4 "
+                "PASS; it carries admission_eligible=false and no "
+                "production boundary digest or proof kinds. Closure-4 "
+                "635/1420/1 and capsule pin binding are established "
+                "by separately pinned locks. Other separately pinned "
+                "locks cover the admitted partition, "
+                "ADMITTED_ABSENCE, whole-authority serving, the "
+                "frozen carrier set, and fixture/production schema "
+                "separation. Interpreter identities and execution "
+                "outcomes live only in the pinned compact run "
+                "summary.",
+        # codex 0404Z item 1: the COMPLETE verification record. The
+        # shared bar alone stopped being sufficient the moment
+        # W2-ADMIT was relabelled STRUCTURAL_KAT_ONLY -- after that,
+        # closure 4 and the capsule pin-bind rest solely on the locks
+        # below, and unbound evidence cannot support a packet claim.
         "paths": ["monitoring/src/"
-                  "test_f2g_window2_redkats_grassmann.py"],
+                  "test_f2g_window2_redkats_grassmann.py",
+                  # closure 4 (635/1420/1) and the P0 pin-bind: the
+                  # two claims the shared bar no longer makes
+                  "monitoring/src/"
+                  "test_w2_capsule_pin_bind_redkats_cayley.py",
+                  "monitoring/src/"
+                  "test_w2_report_proof_kinds_redkats_cayley.py",
+                  "monitoring/src/"
+                  "test_w2_boundary_admitted_partition_redkats_cayley"
+                  ".py",
+                  "monitoring/src/"
+                  "test_w2_admitted_absence_redkats_cayley.py",
+                  "monitoring/src/"
+                  "test_w2_authority_serves_every_key_redkats_cayley"
+                  ".py",
+                  "monitoring/src/"
+                  "test_w2_frozen_carrier_set_redkats_cayley.py",
+                  # grassmann's item-3 lock; lands before the single
+                  # regeneration, which is when this list is read
+                  "monitoring/src/"
+                  "test_w2_fixture_schema_redkats_grassmann.py",
+                  # the execution record itself: argv, interpreter,
+                  # exit code, typed verdict per invocation, with
+                  # PASS / COVERED_ELSEWHERE / REFUSE / NOT_RUN kept
+                  # distinct so a missing input is a typed failure and
+                  # never a green skip
+                  "docs/f2g_window2_execution/"
+                  "w2_verification_run_summary_v1.json"],
         "families": ["W-SEL", "W-CAS", "W-B2B", "W-B1B", "W-MF4",
                      "W-MAG", "W-BARRIER", "W-PIN"]},
 }

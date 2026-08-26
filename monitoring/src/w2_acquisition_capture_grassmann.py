@@ -738,14 +738,35 @@ REFUSED_ENTRY_KEYS = _ARCHIVE_COMMON | {"refusal_code",
                                         "refusal_detail"}
 
 
+# codex 0410Z fix 3: ONE canonical digest domain for transform
+# identity. The previous identity hashed RAW CHECKOUT BYTES, so a
+# capsule built on a CRLF checkout was not portable to an LF one --
+# and my EOL-normalised comparison in the lineage verifier could then
+# call two sources identical while the identity the record REPORTS
+# called them different. Normalising INSIDE the identity makes the
+# two agree by construction instead of by a comparison that argues
+# with them. My earlier `_lf` reasoning was wrong for exactly this
+# reason: content-equality is the right idea in the wrong place.
+SOURCE_DIGEST_DOMAIN = "UTF8_SOURCE_LF_V1"
+
+
+def transform_identity_from_source(raw):
+    """The canonical identity of a given source byte string. CRLF is
+    normalised to LF BEFORE hashing, so the same source has the same
+    identity on every checkout."""
+    lf = bytes(raw).replace(b"\r\n", b"\n")
+    return {"module": "w2_acquisition_capture_grassmann.py",
+            "source_sha256": hashlib.sha256(lf).hexdigest(),
+            "artifact_schema": ARTIFACT_SCHEMA,
+            "digest_domain": SOURCE_DIGEST_DOMAIN}
+
+
 def transform_identity():
     """The identity of the committed transform that produced every
     admitted artifact and recomputed every typed refusal code."""
     with open(os.path.abspath(__file__), "rb") as f:
         src = f.read()
-    return {"module": os.path.basename(os.path.abspath(__file__)),
-            "source_sha256": hashlib.sha256(src).hexdigest(),
-            "artifact_schema": ARTIFACT_SCHEMA}
+    return transform_identity_from_source(src)
 
 
 def build_capture_run_archive(store_id, store_root, authority_id,

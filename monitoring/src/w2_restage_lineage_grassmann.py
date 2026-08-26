@@ -124,7 +124,7 @@ def _pinned_bytes(repo, manifest_commit, path,
     man = json.loads(_blob(
         repo, f"{manifest_commit}:{CAP.EXEC_MANIFEST_PATH}"
     ).decode("utf-8"))
-    pin = None
+    found = []
     for name in slots:
         slot = man.get("slots", {}).get(name)
         if not isinstance(slot, dict) or \
@@ -133,7 +133,16 @@ def _pinned_bytes(repo, manifest_commit, path,
             continue
         for p in slot["pins"]:
             if isinstance(p, dict) and p.get("path") == path:
-                pin = p
+                found.append((name, p))
+    # codex 0410Z fix 2: require EXACTLY ONE match. Last-match-wins
+    # silently selected the second of two slots pinning the same path
+    # to different bytes -- the self-selecting-authority defect moved
+    # up one level. Ambiguity is never resolved by picking one.
+    if len(found) > 1:
+        _r(f"{path} is pinned in MULTIPLE bound slots "
+           f"{[n for n, _ in found]} -- one production path answers "
+           "to ONE slot authority")
+    pin = found[0][1] if found else None
     if pin is None:
         _r(f"{path} is not a pin of any BOUND slot in {list(slots)} "
            f"at {manifest_commit} -- a lineage may never be "
@@ -221,14 +230,23 @@ def verify_restage_lineage_pinned(repo, manifest_commit, record,
     traw, _tpin = _pinned_bytes(repo, manifest_commit,
                                 CAPTURE_MODULE_PATH,
                                 slots=TRANSFORM_PIN_SLOTS)
-    live_path = os.path.join(repo, *CAPTURE_MODULE_PATH.split("/"))
-    with open(live_path, "rb") as f:
-        live_src = f.read()
-    if _lf(live_src) != _lf(traw):
-        _r("the EXECUTING transform source differs from the PINNED "
-           "transform source -- a record built with dirty code and "
+    # codex 0410Z fix 3: compare CANONICAL identities, not raw bytes
+    # and not an ad-hoc EOL-normalised comparison. My earlier `_lf`
+    # check could call two sources identical while the identity the
+    # record REPORTS called them different; normalising INSIDE the
+    # identity makes them agree by construction instead.
+    pinned_id = CAP.transform_identity_from_source(traw)
+    if CAP.transform_identity() != pinned_id:
+        _r("the EXECUTING transform identity differs from the PINNED "
+           "transform identity -- a record built with dirty code and "
            "checked by that same dirty code would agree with itself "
            "while the manifest pins something else")
+    if record["transform_identity"] != pinned_id:
+        _r("record.transform_identity does not equal the PINNED "
+           "transform identity")
+    if capsule.get("transform_identity") != pinned_id:
+        _r("the registered capsule's transform_identity does not "
+           "equal the PINNED transform identity")
     if transcript.get("authority") != capsule["old_authority"]:
         _r("the original transcript's own authority does not equal "
            "the REGISTERED old authority -- the generic transcript "

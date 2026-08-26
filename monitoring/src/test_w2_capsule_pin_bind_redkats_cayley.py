@@ -96,50 +96,70 @@ def _selftest():
           f"{len(real['reuse_or_bridge'])} reuse / "
           f"{len(real['predecessor'])} pred)")
 
-    # ---- PB-1 (THE LOCK): the forgery is REFUSED -------------------
+    # ---- PB-1 (THE LOCK): the forged SHAPE is REFUSED --------------
+    # Originally this minted the forgery through grassmann's
+    # build_fixture_capsule. Their d4740ea closed that door -- the
+    # constructor now refuses the real registered authority -- which
+    # is the stronger fix and broke this test, exactly the mirror of
+    # what my pin-bind did to their bar.
+    #
+    # The repair makes the lock BETTER, not merely green again: my
+    # layer must refuse the forged SHAPE regardless of where it came
+    # from. Depending on a peer's constructor still being able to
+    # produce the bad shape would make my defence untested the moment
+    # they hardened theirs -- and a hand-written capsule, an older
+    # revision of their module, or any other constructor can still
+    # present these bytes. Two doors, tested independently: they stop
+    # it being MINTED (PB-5), I stop it being SUPPLIED (here).
+    all_keys = sorted(
+        set(real["http_capture"])
+        | set(real["reuse_or_bridge"])
+        | set(real["predecessor"]))
+    forged = dict(real)
+    forged["http_capture"] = list(all_keys)   # every key "native"
+    forged["reuse_or_bridge"] = {}            # 1420 restages erased
+    forged["predecessor"] = {}                # the bridge erased
+    # the hazard is real: it would report a FALSE provenance
+    parts = AI.compute_proof_kind_partitions(set(all_keys), forged)
+    assert parts["NATIVE_V4_CAPTURE"]["count"] == len(all_keys)
+    assert parts["RESTAGED_LINEAGE"]["count"] == 0
+    assert parts["PREDECESSOR_BRIDGE"]["count"] == 0
+    try:
+        AI.bind_registered_capsule(man, reader, supplied=forged)
+        raise PinBindRefusal(
+            "PB-1 CAPSULE_SUBSTITUTION_ADMITTED: a capsule claiming "
+            "every key is a native capture was accepted in place of "
+            f"the pinned one -- {len(all_keys)} native / 0 lineage / "
+            f"0 bridge against a truth of {TRUTH['NATIVE_V4_CAPTURE']}"
+            f" / {TRUTH['RESTAGED_LINEAGE']} / "
+            f"{TRUTH['PREDECESSOR_BRIDGE']}")
+    except AI.InstrumentRefusal as e:
+        assert "NOT_THE_REGISTERED_CAPSULE" in str(e), str(e)[:120]
+    print(f"  PB-1 PASS  the forged shape (claims {len(all_keys)} "
+          f"native vs truth {TRUTH['NATIVE_V4_CAPTURE']}) is REFUSED "
+          "as a substitute, whatever constructed it")
+
+    # ---- PB-5: the MINT door, verified from my side ----------------
+    # grassmann's half. Not my defence, but I depend on it, so I check
+    # it rather than assume it.
     if not hasattr(DISP, "build_fixture_capsule"):
-        print("  PB-1 SKIP  fixture path absent on this revision")
+        print("  PB-5 SKIP  fixture path absent on this revision")
     else:
         auth = GEN.build(REPO)
-        keys = auth["prestart_expected_keys"]
-        all_keys = sorted(f"{ln}/{ck}/{d}"
-                          for ln, cs in keys.items()
-                          for ck, ds in cs.items() for d in ds)
         with tempfile.TemporaryDirectory() as td:
-            forged = DISP.build_fixture_capsule(
-                auth, all_keys, os.path.join(td, "store"),
-                os.path.join(td, "arch.json"))
-            # the hazard is REAL: it passes the strict verifier
-            passed_own = True
             try:
-                DISP.verify_lineage_registry(
-                    forged, authority=auth,
-                    store_root=os.path.join(td, "store"))
-            except Exception:                             # noqa: BLE001
-                passed_own = False
-            # ... and it would have reported a FALSE provenance
-            parts = AI.compute_proof_kind_partitions(set(all_keys),
-                                                     forged)
-            assert parts["NATIVE_V4_CAPTURE"]["count"] == len(all_keys)
-            assert parts["RESTAGED_LINEAGE"]["count"] == 0
-            # THE LOCK: production refuses it as a substitute
-            try:
-                AI.bind_registered_capsule(man, reader,
-                                           supplied=forged)
+                DISP.build_fixture_capsule(
+                    auth, all_keys, os.path.join(td, "store"),
+                    os.path.join(td, "arch.json"))
                 raise PinBindRefusal(
-                    "PB-1 CAPSULE_SUBSTITUTION_ADMITTED: a "
-                    "fixture-built capsule over the REAL authority "
-                    "was accepted in place of the pinned one. It "
-                    "verifies clean with bodies_recomputed=0 and "
-                    "reports 2056 native / 0 lineage / 0 bridge "
-                    "against a truth of 635 / 1420 / 1.")
-            except AI.InstrumentRefusal as e:
-                assert "NOT_THE_REGISTERED_CAPSULE" in str(e), \
-                    str(e)[:120]
-        print(f"  PB-1 PASS  the forgery (verifier-clean={passed_own}, "
-              f"claims {len(all_keys)} native vs truth "
-              f"{TRUTH['NATIVE_V4_CAPTURE']}) is REFUSED as a "
-              "substitute for the pinned capsule")
+                    "PB-5 FORGERY_STILL_MINTABLE: the fixture "
+                    "constructor accepted the REAL registered "
+                    "authority")
+            except DISP.DispositionRefusal:
+                pass
+        print("  PB-5 PASS  the fixture constructor REFUSES the real "
+              "registered authority (grassmann d4740ea: the forgery "
+              "cannot be minted either)")
 
     # ---- PB-2: a tampered PIN refuses (bytes must match) -----------
     bad_man, bad_reader = _manifest_pinning(real_raw)

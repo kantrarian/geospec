@@ -696,24 +696,53 @@ def _selftest():
     # comment here claimed an injected fake entrypoint, which I had
     # not written. Correcting the claim rather than leaving prose
     # ahead of the code.)
+    # codex 2118Z P2: this must ALWAYS run. It previously fired only
+    # while `pending_regeneration` was non-empty, so a clean
+    # post-regeneration tree SKIPPED it -- a sensitivity doctor that
+    # stops exercising exactly when the system is healthy proves
+    # nothing about the state it is meant to police. Precondition is
+    # now CONSTRUCTED from a deep copy rather than borrowed.
     _base = unbound_closure_members(man)
-    if _base["pending_regeneration"]:
-        _victim = _base["pending_regeneration"][0]
-        _real = globals()["_generator_declared_paths"]
-        try:
-            globals()["_generator_declared_paths"] = (
-                lambda _v=_victim, _r=_real: {x for x in _r()
-                                              if x != _v})
-            _moved = unbound_closure_members(man)
-        finally:
-            globals()["_generator_declared_paths"] = _real
-        if _victim not in _moved["never_declared"]:
-            raise RegenerationGateRefusal(
-                "RG-7 CLASSIFIER_INSENSITIVE: undeclaring "
-                f"{_victim} did not move it to never_declared, so the "
-                "split does not track declaration at all")
-        print(f"  RG-7a PASS  sensitivity: undeclaring {_victim} "
-              "moves it pending -> NO-REGISTRY")
+    _declared = _generator_declared_paths()
+    _closure_rel = {"monitoring/src/" + f
+                    for f in local_import_closure(_HERE)}
+    _exempt = set(design_pinned_paths(man))
+    for _sn in SLOT_REQUIRED_ONLY_WHEN_BOUND:
+        _exempt |= set(REQUIRED_BY_SLOT.get(_sn, ()))
+    _cands = sorted((_closure_rel & _declared) - _exempt)
+    if not _cands:
+        raise RegenerationGateRefusal(
+            "RG-7a NO_CANDIDATE: no closure path is generator-declared "
+            "and unexempt, so the sensitivity doctor cannot construct "
+            "its own precondition")
+    _victim = _cands[0]
+    _doc7 = copy.deepcopy(man)
+    for _sl in _doc7.get("slots", {}).values():
+        if isinstance(_sl, dict):
+            _sl["pins"] = [p for p in _sl.get("pins", ())
+                           if not (isinstance(p, dict)
+                                   and p.get("path") == _victim)]
+    _step1 = unbound_closure_members(_doc7)
+    if _victim not in _step1["pending_regeneration"]:
+        raise RegenerationGateRefusal(
+            f"RG-7a UNPINNED_NOT_PENDING: {_victim} was unpinned but "
+            "did not appear as pending_regeneration")
+    _real = globals()["_generator_declared_paths"]
+    try:
+        globals()["_generator_declared_paths"] = (
+            lambda _v=_victim, _r=_real: {x for x in _r() if x != _v})
+        _step2 = unbound_closure_members(_doc7)
+    finally:
+        globals()["_generator_declared_paths"] = _real
+    if _victim not in _step2["never_declared"] or \
+            _victim in _step2["pending_regeneration"]:
+        raise RegenerationGateRefusal(
+            "RG-7a CLASSIFIER_INSENSITIVE: undeclaring "
+            f"{_victim} did not move it pending -> never_declared, so "
+            "the split does not track declaration at all")
+    print(f"  RG-7a PASS  sensitivity CONSTRUCTED on a copy: "
+          f"{os.path.basename(_victim)} unpinned -> pending, then "
+          f"undeclared -> NO-REGISTRY")
     _clo = _base
     print(f"  RG-7 PASS  closure walked: "
           f"{len(_clo['never_declared'])} declared in NO registry, "
@@ -851,11 +880,19 @@ def _selftest():
           "commit does NOT count (resolution is at "
           "design_manifest_commit, not HEAD)")
 
-    # ---- RG-9: the COLLAPSE GUARD, exercised not asserted ---------
-    # Second time today I wrote a print claiming a guard existed
-    # without driving it. Forcing the verifier to report a zero-OPEN
-    # prestart PASS while the pins are demonstrably stale is the only
-    # way to know the guard fires; a comment saying so is not.
+    # ---- RG-9: the COLLAPSE GUARD, with BOTH controls -------------
+    # codex 2118Z P1. My previous version mocked a zero-OPEN prestart
+    # PASS and then unconditionally demanded a refusal. That was only
+    # ever right while pins happened to be stale: once the manifest
+    # regeneration made them current, the mocked PASS produced a
+    # LEGITIMATE all-PASS and my doctor raised a false red on correct
+    # state. It borrowed ambient staleness instead of constructing the
+    # contradiction, so it decayed the moment the system got healthy.
+    #
+    # Now both controls run under the SAME installed mock:
+    #   positive -- current pins must be accepted as a real all-PASS;
+    #   negative -- a doctored pin must force pin_currency REFUSE and
+    #               trip the typed guard.
     import f2g_execution_manifest_verifier_cayley as _EMV
     _rv = _EMV.verify
     try:
@@ -863,8 +900,31 @@ def _selftest():
                                         "slots_open": 0,
                                         "mode": "prestart",
                                         "pins_checked": 1})
+        # (+) legitimate all-PASS is ACCEPTED, not mistaken for a
+        #     collapse. This is the control whose absence made the
+        #     old doctor a false red.
+        _pos = dual_result_gate(man, manifest_commit="HEAD")
+        if not all(_pos[k] == "PASS" for k in
+                   ("manifest_default_contract", "pin_currency",
+                    "prestart_overall")):
+            raise RegenerationGateRefusal(
+                "RG-9 POSITIVE_CONTROL_FAILED: a legitimate all-PASS "
+                f"state was not accepted ({_pos.get('pin_currency')}/"
+                f"{_pos.get('prestart_overall')})")
+        # (-) doctor ONE real pin so pin_currency must REFUSE while
+        #     the mock still forces a zero-OPEN prestart PASS
+        _doc9 = copy.deepcopy(man)
+        _tampered = False
+        for _t, _pin in walk_pins(_doc9):
+            _pin["blob_sha256"] = "0" * 64
+            _tampered = True
+            break
+        if not _tampered:
+            raise RegenerationGateRefusal(
+                "RG-9 NO_PIN_TO_DOCTOR: cannot construct the negative "
+                "control")
         try:
-            _bad = dual_result_gate(man, manifest_commit="HEAD")
+            _bad = dual_result_gate(_doc9, manifest_commit="HEAD")
             raise RegenerationGateRefusal(
                 "RG-9 COLLAPSE_ADMITTED: prestart_overall="
                 f"{_bad.get('prestart_overall')} was returned with "
@@ -875,9 +935,9 @@ def _selftest():
                 raise
     finally:
         _EMV.verify = _rv
-    print("  RG-9 PASS  collapse guard BITES: a forced zero-OPEN "
-          "prestart PASS over stale pins is refused, so "
-          "pin_currency can never be read as an overall pass")
+    print("  RG-9 PASS  collapse guard, BOTH controls constructed: a "
+          "legitimate all-PASS is accepted, and a doctored pin under a "
+          "forced zero-OPEN prestart PASS is refused")
 
     # Now the live state, reported honestly whatever it is.
     print(f"\n  live: {rep['match']} match / {len(rep['stale'])} "

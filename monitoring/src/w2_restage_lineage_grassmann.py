@@ -108,6 +108,136 @@ def _derive_pair(repo, record):
     return out
 
 
+CAPTURE_MODULE_PATH = ("monitoring/src/"
+                       "w2_acquisition_capture_grassmann.py")
+
+
+TRANSFORM_PIN_SLOTS = (CAP.AUTHORITY_SLOT, "producer_boundary")
+
+
+def _pinned_bytes(repo, manifest_commit, path,
+                  slots=(CAP.AUTHORITY_SLOT,)):
+    """Reopen `path` from an EXACT manifest pin at the reviewed
+    commit. Only a BOUND closed slot may carry a pin, and the bytes
+    must match its digest -- there is no caller input here beyond the
+    manifest commit itself."""
+    man = json.loads(_blob(
+        repo, f"{manifest_commit}:{CAP.EXEC_MANIFEST_PATH}"
+    ).decode("utf-8"))
+    pin = None
+    for name in slots:
+        slot = man.get("slots", {}).get(name)
+        if not isinstance(slot, dict) or \
+                slot.get("status") != "BOUND" or \
+                not isinstance(slot.get("pins"), list):
+            continue
+        for p in slot["pins"]:
+            if isinstance(p, dict) and p.get("path") == path:
+                pin = p
+    if pin is None:
+        _r(f"{path} is not a pin of any BOUND slot in {list(slots)} "
+           f"at {manifest_commit} -- a lineage may never be "
+           "authenticated against an unpinned surface")
+    raw = _blob(repo, f"{pin['commit']}:{path}")
+    if hashlib.sha256(raw).hexdigest() != pin.get("blob_sha256"):
+        _r(f"{path} bytes diverge from the MANIFEST pin")
+    return raw, pin
+
+
+def _lf(b):
+    """Content identity independent of checkout EOL policy: a CRLF
+    working copy and its LF blob are the same SOURCE, and a digest
+    that disagreed only about line endings would refuse for a reason
+    that has nothing to do with what the code does."""
+    return b.replace(b"\r\n", b"\n")
+
+
+def verify_restage_lineage_pinned(repo, manifest_commit, record,
+                                  transcript, raw_body, *,
+                                  store_root=None):
+    """THE MANIFEST-OWNED verifier (codex 2303Z finding 1).
+
+    The earlier signature took the old and current authorities FROM
+    THE RECORD it was checking, so a self-consistent alternate
+    authority reference could authenticate itself -- the same
+    resolve-from-a-registered-pin defect codex had already made
+    cayley fix on the predecessor bridge, in my surface at the API
+    boundary. Here every authority comes from the MANIFEST PIN:
+
+      - the disposition capsule is reopened from its pin and
+        STRICTLY verified (lineage-registry contract);
+      - the per-key lineage entry, the old authority and the current
+        authority are taken from that capsule, never from the record;
+      - the record must EQUAL the registered entry, field by field;
+      - the ORIGINAL transcript's own authority must equal the
+        registered old authority;
+      - the EXECUTING transform source must equal the PINNED
+        transform source before anything is recomputed.
+
+    The record may REPORT these identities. It may never SELECT
+    them."""
+    _closed(record, RESTAGE_KEYS, "restage record")
+    if record.get("schema") != RESTAGE_SCHEMA:
+        _r("record is not the registered restage schema")
+    if record.get("join_kind") != JOIN_KIND:
+        _r(f"join_kind must be {JOIN_KIND}")
+    craw, _cpin = _pinned_bytes(repo, manifest_commit,
+                                DISP.CAPSULE_PATH)
+    araw, _apin = _pinned_bytes(repo, manifest_commit,
+                                DISP.AUTHORITY_PATH)
+    capsule = json.loads(craw.decode("utf-8"))
+    authority = json.loads(araw.decode("utf-8"))
+    try:
+        DISP.verify_lineage_registry(capsule, authority,
+                                     store_root=store_root)
+    except Exception as exc:
+        _r(f"the PINNED disposition capsule failed its own strict "
+           f"verifier ({type(exc).__name__}: {str(exc)[:120]})")
+    entry = (capsule.get("reuse_or_bridge") or {}).get(
+        record["v4_key"])
+    if entry is None:
+        _r(f"{record['v4_key']} is not in the REGISTERED lineage "
+           "set -- a derivable pair is not an authorised one")
+    for f_ in ("v3_key", "raw_body_sha256", "raw_body_bytes",
+               "s_v3_sha256", "s_v4_sha256", "t_v3_sha256",
+               "outcome"):
+        if record[f_] != entry.get(f_):
+            _r(f"record.{f_} does not EQUAL the registered lineage "
+               f"entry ({record[f_]!r} != {entry.get(f_)!r})")
+    if record["old_authority"] != capsule["old_authority"]:
+        _r("record.old_authority does not equal the REGISTERED old "
+           "authority -- the record reports it, never selects it")
+    for f_ in ("blob_sha256", "keys_sha256"):
+        if record["new_authority"].get(f_) != \
+                capsule["authority"].get(f_):
+            _r(f"record.new_authority.{f_} does not equal the "
+               "REGISTERED current authority")
+    # ORDERING, disclosed rather than fudged: codex 1424Z ruling 3
+    # binds the transform in `producer_boundary`, which stays OPEN
+    # until the POST-CAPTURE bind -- and an OPEN slot cannot carry
+    # pins. So until that bind exists this verifier REFUSES, which
+    # is correct: it is the scientific-admission verifier, and
+    # scientific admission is gate 2. Fail closed, never conditional.
+    traw, _tpin = _pinned_bytes(repo, manifest_commit,
+                                CAPTURE_MODULE_PATH,
+                                slots=TRANSFORM_PIN_SLOTS)
+    live_path = os.path.join(repo, *CAPTURE_MODULE_PATH.split("/"))
+    with open(live_path, "rb") as f:
+        live_src = f.read()
+    if _lf(live_src) != _lf(traw):
+        _r("the EXECUTING transform source differs from the PINNED "
+           "transform source -- a record built with dirty code and "
+           "checked by that same dirty code would agree with itself "
+           "while the manifest pins something else")
+    if transcript.get("authority") != capsule["old_authority"]:
+        _r("the original transcript's own authority does not equal "
+           "the REGISTERED old authority -- the generic transcript "
+           "verifier only checks that its authority object is "
+           "well-formed")
+    return verify_restage_lineage(repo, record, transcript,
+                                  raw_body)
+
+
 def verify_restage_lineage(repo, record, transcript, raw_body):
     """THE two-leg verifier (closures 1 + 3). `transcript` is the
     ORIGINAL T_v3 reopened verbatim from the v3 staged tree and

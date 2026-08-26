@@ -97,7 +97,23 @@ BOUND_SLOTS = {
                   # contents while its producer stayed unauthenticated
                   "monitoring/src/w2_restage_verify_batch_grassmann.py",
                   "monitoring/src/"
-                  "w2_verification_run_summary_grassmann.py"]},
+                  "w2_verification_run_summary_grassmann.py",
+                  # codex 1716Z P0-2: two RUNTIME DEPENDENCIES of the
+                  # admission path that were pinned nowhere at all.
+                  # The sentinel produces a MEASURED fact in the
+                  # pre-manifest record and is called by the batch and
+                  # summary producers already bound here -- under
+                  # execution_verifier the manifest-certifying
+                  # authority would own a measurement belonging to a
+                  # different producer authority. w2_producer is a
+                  # runtime dependency of my own instrument and of
+                  # restage lineage; producer_boundary is the LATER
+                  # staged-envelope trust boundary, and pre-stage
+                  # acquisition source there would contradict its rule
+                  # that acquisition before staged bytes is
+                  # receipt-attested, not source-code-attested.
+                  "monitoring/src/w2_no_network_grassmann.py",
+                  "monitoring/src/w2_producer_grassmann.py"]},
     # v1.1 (codex 1358Z item 4/5): the two repaired execution tools
     # join the runtime allowlist as explicit slots
     "power_harness": {

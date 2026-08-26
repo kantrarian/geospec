@@ -41,6 +41,7 @@ Read-only. Opens no window-2 value, no network, admits nothing.
 import hashlib
 import json
 import os
+import re
 import subprocess
 import sys
 
@@ -81,6 +82,12 @@ REQUIRED_BY_SLOT = {
         "monitoring/src/w2_restage_v4_grassmann.py",
         "monitoring/src/w2_restage_verify_batch_grassmann.py",
         "monitoring/src/w2_verification_run_summary_grassmann.py",
+        # codex 1716Z P0-2 -- runtime dependencies of the admission
+        # path, pinned nowhere until now. The sentinel is what makes
+        # http_requests=0 a MEASURED claim; unpinned, that measurement
+        # came from code the manifest did not bind.
+        "monitoring/src/w2_no_network_grassmann.py",
+        "monitoring/src/w2_producer_grassmann.py",
     ),
     "execution_verifier": (
         "monitoring/src/f2g_execution_manifest_verifier_cayley.py",
@@ -94,6 +101,29 @@ REQUIRED_BY_SLOT = {
     ),
 }
 SLOT_REQUIRED_ONLY_WHEN_BOUND = ("producer_boundary",)
+
+
+# codex 1716Z P0-2: the admission/verification ENTRYPOINTS whose
+# transitive local imports must all be bound somewhere. Binding two
+# named modules fixes two instances; this closes the CLASS, which is
+# what stops the next helper arriving unbound and unnoticed.
+ADMISSION_ENTRYPOINTS = (
+    "w2_accrual_instrument_cayley.py",
+    "w2_restage_verify_batch_grassmann.py",
+    "w2_verification_run_summary_grassmann.py",
+    "w2_disposition_capsule_grassmann.py",
+    "w2_restage_lineage_grassmann.py",
+    "w2_acquisition_capture_grassmann.py",
+    "w2_regeneration_gate_cayley.py",
+    "f2g_execution_manifest_verifier_cayley.py",
+)
+
+# The linked DESIGN-PIN set. codex's wording is "escape both an
+# execution slot AND the linked design-pin set" -- a module carried by
+# the byte-pin manifest is bound, just by the other registry, and
+# reporting it as unbound would be a false finding. Checking only
+# execution slots would have over-reported by two.
+DESIGN_PIN_REGISTRY = "docs/f2g_window2_freeze/byte_pin_manifest.json"
 
 
 class RegenerationGateRefusal(AssertionError):
@@ -191,6 +221,104 @@ def audit(manifest, *, blob=_blob_at_head):
             "misplaced": misplaced}
 
 
+def local_import_closure(src_dir, entrypoints=ADMISSION_ENTRYPOINTS):
+    """Transitive closure of LOCAL module imports from the entrypoints.
+
+    HONEST BOUND on what this sees: static `import`/`from` statements
+    resolving to a .py beside the entrypoint. It does NOT see a module
+    imported under a computed name, nor one invoked purely as a
+    subprocess argv built at runtime. So it is a floor on the
+    dependency set, not a proof of completeness -- said plainly here
+    because an unbounded claim is the defect this gate exists to
+    catch.
+    """
+    import ast
+    seen, stack = set(), [e for e in entrypoints]
+    while stack:
+        f = stack.pop()
+        if f in seen:
+            continue
+        seen.add(f)
+        path = os.path.join(src_dir, f)
+        if not os.path.isfile(path):
+            continue
+        try:
+            tree = ast.parse(open(path, encoding="utf-8").read())
+        except Exception:                                 # noqa: BLE001
+            continue
+        for n in ast.walk(tree):
+            names = []
+            if isinstance(n, ast.Import):
+                names = [a.name for a in n.names]
+            elif isinstance(n, ast.ImportFrom) and n.module:
+                names = [n.module]
+            for nm in names:
+                cand = nm + ".py"
+                if os.path.isfile(os.path.join(src_dir, cand)) and \
+                        cand not in seen:
+                    stack.append(cand)
+    return seen
+
+
+def design_pinned_basenames(commit="HEAD"):
+    """Basenames carried by the linked design-pin registry."""
+    raw = _blob(commit, DESIGN_PIN_REGISTRY)
+    if raw is None:
+        return set()
+    try:
+        blob = raw.decode("utf-8")
+    except Exception:                                     # noqa: BLE001
+        return set()
+    out = set()
+    for tok in re.findall(r"[A-Za-z0-9_./-]+\.py", blob):
+        out.add(os.path.basename(tok))
+    return out
+
+
+def _generator_declared():
+    """Basenames the generator DECLARES (what the manifest will bind
+    at the next regeneration)."""
+    try:
+        import f2g_execution_manifest_gen_cayley as GEN
+    except Exception:                                     # noqa: BLE001
+        return set()
+    return {os.path.basename(p)
+            for d in getattr(GEN, "BOUND_SLOTS", {}).values()
+            for p in d.get("paths", [])}
+
+
+def unbound_closure_members(manifest, *, src_dir=_HERE, commit="HEAD"):
+    """Split closure members by WHY they are not pinned.
+
+    Distinguishing these two is the whole point. Before the single
+    regeneration the committed manifest is deliberately stale, so a
+    module can be absent from it while the generator already declares
+    it -- that is pending, not a gap. Conflating them would make this
+    doctor cry wolf on six healthy modules today and bury the two that
+    are genuinely declared NOWHERE. It is the same distinction I had to
+    make by hand to find those two, so the doctor makes it too.
+
+    Returns {"never_declared": [...], "pending_regeneration": [...]}.
+    Only `never_declared` is a defect.
+    """
+    closure = local_import_closure(src_dir)
+    pinned = {os.path.basename(p["path"])
+              for _, p in walk_pins(manifest)}
+    pinned |= design_pinned_basenames(commit)
+    # a slot that is honestly OPEN cannot yet carry its pins
+    for slot_name in SLOT_REQUIRED_ONLY_WHEN_BOUND:
+        for rel in REQUIRED_BY_SLOT.get(slot_name, ()):
+            pinned.add(os.path.basename(rel))
+    declared = _generator_declared()
+    never, pending = [], []
+    for f in sorted(closure):
+        if f in pinned:
+            continue
+        (pending if f in declared else never).append(f)
+    return {"never_declared": never,
+            "pending_regeneration": pending}
+
+
 def load_manifest(commit="HEAD"):
     """Read the manifest from a COMMIT, never the working file.
 
@@ -260,9 +388,20 @@ def gate(manifest, *, blob=_blob_at_head, manifest_commit=None):
                 for r, s, e in rep["misplaced"][:6])
             + " -- a path in the wrong slot answers to the wrong "
               "authority even though it is bound")
+    clo = unbound_closure_members(manifest)
+    if clo["never_declared"]:
+        problems.append(
+            f"{len(clo['never_declared'])} admission-path "
+            "dependenc(ies) declared in NO registry: "
+            + ", ".join(clo["never_declared"][:6])
+            + " -- imported by the admission/verification entrypoints "
+              "yet bound by neither an execution slot nor the design "
+              "pins, so a governed claim would rest on code the "
+              "manifest never bound")
     if problems:
         raise RegenerationGateRefusal(
             "REGENERATION_GATE_REFUSED: " + "; ".join(problems))
+    rep["closure"] = clo
     return rep
 
 
@@ -370,6 +509,41 @@ def _selftest():
     else:
         print("  RG-6 SKIP  no accrual_impl required path pinned yet "
               "to move (expected before the single regeneration)")
+
+    # RG-7 (codex 1716Z P0-2): DEPENDENCY CLOSURE. Binding two named
+    # modules fixes two instances; this closes the class.
+    #
+    # SENSITIVITY DOCTOR, because a classifier that never moves proves
+    # nothing: drop one DECLARED module from the generator's view and
+    # the same module must flip pending -> never_declared. (My first
+    # comment here claimed an injected fake entrypoint, which I had
+    # not written. Correcting the claim rather than leaving prose
+    # ahead of the code.)
+    _base = unbound_closure_members(man)
+    if _base["pending_regeneration"]:
+        _victim = _base["pending_regeneration"][0]
+        _real = globals()["_generator_declared"]
+        try:
+            globals()["_generator_declared"] = (
+                lambda _v=_victim, _r=_real: {x for x in _r()
+                                              if x != _v})
+            _moved = unbound_closure_members(man)
+        finally:
+            globals()["_generator_declared"] = _real
+        if _victim not in _moved["never_declared"]:
+            raise RegenerationGateRefusal(
+                "RG-7 CLASSIFIER_INSENSITIVE: undeclaring "
+                f"{_victim} did not move it to never_declared, so the "
+                "split does not track declaration at all")
+        print(f"  RG-7a PASS  sensitivity: undeclaring {_victim} "
+              "moves it pending -> NO-REGISTRY")
+    _clo = _base
+    print(f"  RG-7 PASS  closure walked: "
+          f"{len(_clo['never_declared'])} declared in NO registry, "
+          f"{len(_clo['pending_regeneration'])} declared and awaiting "
+          f"the single regeneration (the two are NOT the same defect)")
+    for _f in _clo["never_declared"]:
+        print(f"    NO-REGISTRY {_f}")
 
     # Now the live state, reported honestly whatever it is.
     print(f"\n  live: {rep['match']} match / {len(rep['stale'])} "

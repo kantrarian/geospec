@@ -2,8 +2,8 @@
  "design_manifest_blob_sha256": "d6decbd6ab5814bc005ce69c538311ff1b11cb1d13c19e2999e03a92bc7cca1f",
  "design_manifest_commit": "5fba5446cd96722fb86021df5065a46b8a1a78f5",
  "design_target_commit": "12161f6cf2000b2d4aa86fe659f834839ac0d27b",
- "execution_target_commit": "6716aa4e84c8aecb56b541aa4c56a975a19ae382",
- "generated_utc": "2026-08-25T22:57:00Z",
+ "execution_target_commit": "4afba237cded3f63e20aeeb82396de4eeb50c95b",
+ "generated_utc": "2026-08-26T20:51:47Z",
  "manifest_state": "OPEN",
  "repository_url": "https://github.com/kantrarian/geospec",
  "schema": "f2g-window2-execution-manifest-v1.2",
@@ -18,8 +18,8 @@
      "path": "monitoring/src/w2_barrier.py"
     },
     {
-     "blob_sha256": "938bde31262af164d3ed33fa2dbe64b462107422ec870d97caa35339bbc74a3c",
-     "commit": "5e7cbee760cfaf6e62d713f37ed91afd0b74b5b5",
+     "blob_sha256": "d021deda9d5a45e2c5df7c135449c292e24662ba6b802536d9f7053411343e9c",
+     "commit": "ee8ea00ada8b7ccc9a629b9ddea79e3f5902174c",
      "path": "monitoring/src/w2_accrual_instrument_cayley.py"
     },
     {
@@ -43,19 +43,44 @@
      "path": "docs/f2g_window2_execution/staged_expected_contracts_v3.json"
     },
     {
-     "blob_sha256": "903ae2365e18fc497e5d001d7661687f43881eacde009acc753aeaa48a603e25",
-     "commit": "c299fc2e609a8570693040ac5e07679d05a456c8",
+     "blob_sha256": "f46b0b404f5dd874448f41b876e81259f6e6038c41f301c11b2f44113123e0c3",
+     "commit": "a201083934d186f803d2d3ce8ab6046acff2e124",
      "path": "monitoring/src/w2_disposition_capsule_grassmann.py"
     },
     {
-     "blob_sha256": "00c1e9a99f655ebdb4fade6209f70c685cad32d619607e06f2096e08434f13ba",
-     "commit": "db53ad3bca109fe8e96fac0366e987b088896e6b",
+     "blob_sha256": "d0bfd8a703ed31d57b1aa1713f4c20904d05ef30feb8872e1df6002a51059d5f",
+     "commit": "9d887a027cda79495f45ce676e83981be3ebfc4e",
      "path": "docs/f2g_window2_execution/key_disposition_capsule_v4.json"
     },
     {
-     "blob_sha256": "853d2f6996c7e2c007f96b5f80156284ae210bb12b40bcae6e19dce1fa8cda1c",
-     "commit": "3ba9ce3cfa0fbb204d259d5855cedbebb2222c69",
+     "blob_sha256": "aab0f649e5a97dc6bc23f7b4246deac804d23fadf8ec8e7271a3905126239ecc",
+     "commit": "cd6893d47c84a7a14673713418993363a0e25edb",
      "path": "monitoring/src/w2_restage_lineage_grassmann.py"
+    },
+    {
+     "blob_sha256": "bb76575ed6ba5f471ab153e218a49f1dae7eb622dabd494f5689c1d5e526f978",
+     "commit": "cd6893d47c84a7a14673713418993363a0e25edb",
+     "path": "monitoring/src/w2_restage_v4_grassmann.py"
+    },
+    {
+     "blob_sha256": "cbe2e38d00c45fe0f16434c7d04d124028b4e7778ea58b46ee4a879372fa0fb4",
+     "commit": "e28c29ae5fa0e75e9b14b3d8ee5ef48f12b933da",
+     "path": "monitoring/src/w2_restage_verify_batch_grassmann.py"
+    },
+    {
+     "blob_sha256": "ee21653407485339b980632597ddacb10e90ac0f91c8c73dd5a636ee84bd908d",
+     "commit": "cd6893d47c84a7a14673713418993363a0e25edb",
+     "path": "monitoring/src/w2_verification_run_summary_grassmann.py"
+    },
+    {
+     "blob_sha256": "eceafc49c57fd0ff765732c1935c168c60235494f26dfafa6c7485538fcbbfa8",
+     "commit": "66b1d4bd3e757df5af70d37996ed9c73e3eca1b9",
+     "path": "monitoring/src/w2_no_network_grassmann.py"
+    },
+    {
+     "blob_sha256": "b460a8d1a24343d12d6893a215ca184b3215d1f60aeed338a5e81b585924e2b6",
+     "commit": "9c122360a31e821e681005fcf1c75662fa1f9305",
+     "path": "monitoring/src/w2_producer_grassmann.py"
     }
    ],
    "status": "BOUND"
@@ -93,13 +118,53 @@
     "W-BARRIER",
     "W-PIN"
    ],
-   "note": "the complete window-2 bar REV 19, 18/18 green @ 2309ab7 (W-CAL rebased to the v3 successor frame: three-way identity vs the committed calendar_authority_w2_v3 bytes, excluded-day doctor at 08-28; REV 18's composed-path W-SELRUN + REV 6 zero-network capture doctor carried; dual-verified by cayley py3.14+py3.11). families = the EIGHT scientific names (W-LOCO/W-CAL/W-SELRUN/W-ADMIT are KAT groups, never families)",
+   "note": "Window-2 verification surfaces. The shared bar's W2-ADMIT group is STRUCTURAL_KAT_ONLY, not closure-4 PASS; it carries admission_eligible=false and no production boundary digest or proof kinds. Closure-4 635/1420/1 and capsule pin binding are established by separately pinned locks. Other separately pinned locks cover the admitted partition, ADMITTED_ABSENCE, whole-authority serving, the frozen carrier set, and fixture/production schema separation. Interpreter identities and PRE-MANIFEST execution outcomes live only in the pinned compact run summary. Manifest-owned admission verification cannot appear in that summary at all: it can only run against the finished manifest commit, so a summary pinned inside that same manifest could never honestly contain its own post-manifest result. Those outcomes exist solely in the separate downstream post-manifest verification receipt, whose authority is the manifest it names rather than a pin the manifest recursively holds.",
    "owner": "grassmann",
    "pins": [
     {
-     "blob_sha256": "91a524e6856889fe6b9ae276d87d6eb50b1c1c9b15d55d63d56881e8b7e51578",
-     "commit": "183398366d4304513373620bab6689eb67c4f694",
+     "blob_sha256": "6ddd12154bef6ec8cefb2418dfdcced4b765b32cabf4ed8e15d7a6d9031e8838",
+     "commit": "77423071a6873e76eafb0cf1a872717a2cdea377",
      "path": "monitoring/src/test_f2g_window2_redkats_grassmann.py"
+    },
+    {
+     "blob_sha256": "c9e16f052ea99bc0b2fb3bda98e5f9280c70b5614a75e9eea5b588eeb6975c88",
+     "commit": "5067e54a96d56d064c7d56958b3c4d7c59e7eb37",
+     "path": "monitoring/src/test_w2_capsule_pin_bind_redkats_cayley.py"
+    },
+    {
+     "blob_sha256": "fd76b3f1afa257f79cba0e98a55d9f6670ddabfd2dda44db93899ca75b8bf922",
+     "commit": "19e24f722a3c052464d229dd3c8a0c1f213f90a1",
+     "path": "monitoring/src/test_w2_report_proof_kinds_redkats_cayley.py"
+    },
+    {
+     "blob_sha256": "19bca292977ce43cdfc0aef6013d86227cb2a3410fb349f3c52283ba6f5fb883",
+     "commit": "ea4870f317bc18ee1af81f271d3a3dfa1bfb95f4",
+     "path": "monitoring/src/test_w2_boundary_admitted_partition_redkats_cayley.py"
+    },
+    {
+     "blob_sha256": "05d8020d9de50645e06bb2752d1ef25b28c8cff7939d0bae39d87c9557ae6e7e",
+     "commit": "94492c790ec5ec9e961498ff4d7b5305d1c87c9e",
+     "path": "monitoring/src/test_w2_admitted_absence_redkats_cayley.py"
+    },
+    {
+     "blob_sha256": "3977d7f9917d6ba48956b71e20d16305e592232774f64d80a30cf8f0f6464a49",
+     "commit": "2f91143ec1b36a0b59558bdb0741987ef0fbba10",
+     "path": "monitoring/src/test_w2_authority_serves_every_key_redkats_cayley.py"
+    },
+    {
+     "blob_sha256": "27c1849535c27addf0f221731c219f2987a44eaa1e839fc5ea8c1aec47130416",
+     "commit": "1ffe977a73beb8ccb89c062596de308eb1ed9282",
+     "path": "monitoring/src/test_w2_frozen_carrier_set_redkats_cayley.py"
+    },
+    {
+     "blob_sha256": "64065f16829e1f63f1479b291b693e4a82ee1a20356d65de23de98e6789f151e",
+     "commit": "a201083934d186f803d2d3ce8ab6046acff2e124",
+     "path": "monitoring/src/test_w2_fixture_schema_redkats_grassmann.py"
+    },
+    {
+     "blob_sha256": "e768b3cbc9b98d0ecafc48d576755468af765e9491cc78b1c3a4c80419b598c0",
+     "commit": "e44392c492c11a27a118dea1d3b8e7c7f41d65e4",
+     "path": "docs/f2g_window2_execution/w2_verification_run_summary_v1.json"
     }
    ],
    "status": "BOUND"
@@ -139,21 +204,26 @@
    "owner": "cayley",
    "pins": [
     {
-     "blob_sha256": "9fdfecdfba4b87a947ea960f5aefd20f132a85974c754b905fe643d72ef3d408",
-     "commit": "6716aa4e84c8aecb56b541aa4c56a975a19ae382",
+     "blob_sha256": "a6df320f6f057aaea13a146774e47e46b9c4f3733a6d68fddda0008eab73f5e7",
+     "commit": "883efa58de1d1e109bbcc43c807827b9e243bcd0",
      "path": "monitoring/src/f2g_execution_manifest_gen_cayley.py"
     }
    ],
    "status": "BOUND"
   },
   "execution_verifier": {
-   "note": "executable verifier (design linkage + slot/pin walk + prestart gate)",
+   "note": "executable verifier (design linkage + slot/pin walk + prestart gate) and the post-regeneration gate. codex 0445Z item 5: verification CODE is its own authority, distinct from production operation bytes and from the execution records -- the gate must be pinned by the manifest it audits, or the check that certifies the pin set is itself unbound",
    "owner": "cayley",
    "pins": [
     {
      "blob_sha256": "aa988d40e861bd92f98c8f0d72e4ae5a1b2d31b8eedad97437ccd921a5633f47",
      "commit": "151454e33e548b72cdbfe44769f75fb3e43b431d",
      "path": "monitoring/src/f2g_execution_manifest_verifier_cayley.py"
+    },
+    {
+     "blob_sha256": "20b68460d4a57456d07f3b1034eb488746693e51bf51731decb3fda22a8b3c55",
+     "commit": "4afba237cded3f63e20aeeb82396de4eeb50c95b",
+     "path": "monitoring/src/w2_regeneration_gate_cayley.py"
     }
    ],
    "status": "BOUND"
@@ -218,6 +288,16 @@
      "blob_sha256": "b49c5cf5e44dfe3d15c73529870e43e7a5ce5707b1edb62251cadcc9a4f3d944",
      "commit": "4952eb75cf5982c5d4922987939a80172947086a",
      "path": "monitoring/src/w2_power_harness_cayley.py"
+    },
+    {
+     "blob_sha256": "5cbf543f4f1a239707ad3c5eee458b01c35ac9093d354cc3e32b0ea164f41e78",
+     "commit": "951eee9d4e22e4f2c5a1cfab2556586dd6fdceb0",
+     "path": "monitoring/src/f2g_phase_b_power_estimation_cayley.py"
+    },
+    {
+     "blob_sha256": "d0df4d38b0c03438112db1fdc3d2b61d00014ce9925ae7aed652f9ab8f6bbd74",
+     "commit": "60509f715e82aa38c230e5bf3339c60f143fbe4a",
+     "path": "monitoring/src/f2g_phase_b_power_estimation_cal_cayley.py"
     },
     {
      "blob_sha256": "354fbfb3d628ce12efa82d19b69adc8b601f8d3702d7c1414fdf56bc21bb74e9",

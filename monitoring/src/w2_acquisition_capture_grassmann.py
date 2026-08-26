@@ -945,17 +945,28 @@ _OMNIWEB_VAR_FILL = {"17": "9999.99",     # By_GSM, nT
 # the registered per-sample outcome vocabulary (codex 1424Z ruling 1)
 OUTCOME_ADMITTED = "ADMITTED"
 OUTCOME_ADMITTED_ABSENCE = "ADMITTED_ABSENCE"
+# the registered ARTIFACT CLAIM KIND vocabulary (codex 0057Z P1-3).
+# `join_kind` answers PROVENANCE (how the key is proven); this
+# answers ARTIFACT SEMANTICS (what the artifact claims). They are
+# independent, and a null outcome is never left to stand in for
+# "this claim has no support dimension" -- in an audit ledger a null
+# is indistinguishable from an omitted or unknown result.
+CLAIM_SUPPORT_SERIES = "SUPPORT_SERIES"
+CLAIM_STATION_PRESENCE = "STATION_PRESENCE"
+SUPPORT_NOT_APPLICABLE = "NOT_APPLICABLE"
 
 
 def _support_block(support):
-    """The registered support seam carried by EVERY admitted
-    artifact: the exact per-sample mask, its supported count, and the
-    outcome -- ADMITTED_ABSENCE is PRECISELY the all-false mask, not
-    a separate concept. Counts never substitute for the mask: which
-    samples are supported is the part a count destroys."""
+    """The registered support seam carried by every TIME-SERIES
+    artifact: the exact per-sample mask, its supported count, the
+    typed claim kind, and the outcome -- ADMITTED_ABSENCE is
+    PRECISELY the all-false mask, not a separate concept. Counts
+    never substitute for the mask: which samples are supported is
+    the part a count destroys."""
     n = sum(1 for x in support if x)
     return {"support_mask": [bool(x) for x in support],
             "definitive_samples": n,
+            "artifact_claim_kind": CLAIM_SUPPORT_SERIES,
             "outcome": (OUTCOME_ADMITTED if n
                         else OUTCOME_ADMITTED_ABSENCE)}
 
@@ -1139,6 +1150,8 @@ def _xf_selection(raw_body, s):
         return {"schema": ARTIFACT_SCHEMA, "lane": s["lane"],
                 "carrier": s["carrier"], "utc_day": s["utc_day"],
                 "kind": "fdsn-station-presence",
+                "artifact_claim_kind": CLAIM_STATION_PRESENCE,
+                "support_outcome": SUPPORT_NOT_APPLICABLE,
                 "identity": "net.sta-registry-day-start",
                 "registered_stations": None,
                 "present_stations": present,
@@ -1157,6 +1170,8 @@ def _xf_selection(raw_body, s):
     return {"schema": ARTIFACT_SCHEMA, "lane": s["lane"],
             "carrier": s["carrier"], "utc_day": s["utc_day"],
             "kind": "fdsn-station-presence",
+            "artifact_claim_kind": CLAIM_STATION_PRESENCE,
+            "support_outcome": SUPPORT_NOT_APPLICABLE,
             "identity": "sta-overlap",
             "registered_stations": (sorted(registered)
                                     if registered is not None

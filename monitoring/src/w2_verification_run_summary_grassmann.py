@@ -398,6 +398,45 @@ def _require_measured(inv):
     return inv["http_requests"], inv["http_counter_source"]
 
 
+def attest_store():
+    """codex 1534Z P1 #3: EVIDENCE was inferred from
+    `os.path.isdir(V3_STORE)`, so ANY existing empty or mispointed
+    directory labelled this host EVIDENCE and attached the named
+    store identity from a CONSTANT -- a header fact stronger than the
+    measurement behind it. Fail-closed: the role is earned by
+    CONTENT-ADDRESS verifying the store, or it is not claimed.
+
+    Returns (role, store_identity, attestation).
+    """
+    import w2_restage_v4_grassmann as _RES
+
+    def portable(why):
+        return "PORTABLE", None, {"attested": False, "reason": why}
+    root = _RES.V3_STORE
+    if not os.path.isdir(root):
+        return portable(f"no store directory at {root}")
+    names = sorted(f for f in os.listdir(root) if f.endswith(".body"))
+    if not names:
+        return portable(f"{root} exists but holds no bodies -- an "
+                        "empty directory is not an evidence store")
+    verified = 0
+    for n in names:
+        sha = n[:-len(".body")]
+        if not _is_hex(sha, 64):
+            return portable(f"{n} is not content-addressed")
+        with open(os.path.join(root, n), "rb") as f:
+            if hashlib.sha256(f.read()).hexdigest() != sha:
+                return portable(f"{n} does not match its content "
+                                "address")
+        verified += 1
+    return "EVIDENCE", V3_STORE_IDENTITY, {
+        "attested": True,
+        "body_count": len(names),
+        "bodies_verified": verified,
+        "name_set_digest": hashlib.sha256(json.dumps(
+            names, separators=(",", ":")).encode()).hexdigest()}
+
+
 def _host_id():
     import platform
     return f"{platform.node()}/{platform.system()}"
@@ -413,10 +452,7 @@ def build():
     # capability -- the v3 store is either present on this host or it
     # is not -- and validated at merge. It is never inferred from a
     # nickname.
-    import w2_restage_v4_grassmann as _RES
-    _has_store = os.path.isdir(_RES.V3_STORE)
-    host_role = "EVIDENCE" if _has_store else "PORTABLE"
-    store_identity = V3_STORE_IDENTITY if _has_store else None
+    host_role, store_identity, store_attestation = attest_store()
     source_commit = subprocess.run(
         ["git", "-C", REPO, "rev-parse", "HEAD"],
         capture_output=True).stdout.decode().strip()
@@ -455,6 +491,7 @@ def build():
     return {"schema": SUMMARY_SCHEMA,
             "host_role": host_role,
             "store_identity": store_identity,
+            "store_attestation": store_attestation,
             "host_id": host_id, "source_commit": source_commit,
             "producer_generator_blob_sha256": _blob_sha256(
                 "monitoring/src/"
@@ -562,6 +599,146 @@ def _canonical_surface(path):
         if path.startswith(SURFACE_PREFIX) else None
 
 
+DIGEST_DOMAIN = "UTF8_SOURCE_LF_V1"
+_HEX = "0123456789abcdef"
+
+
+def _is_hex(v, n):
+    return isinstance(v, str) and len(v) == n and \
+        all(c in _HEX for c in v)
+
+
+def _validate_leg_header(lg, n):
+    """codex 1534Z P1 #2: malformed HEADERS escaped as raw TypeError.
+    An equal integer source_commit/repo_head sliced
+    (`'int' object is not subscriptable`); a list host_id hit
+    `unhashable type: 'list'`. My earlier shape guard covered
+    CONTAINERS but not FIELD TYPES, so the typed contract still had a
+    hole one level in. Pure, and runs before any set/slice op."""
+    for f in ("host_id", "schema", "host_role"):
+        if not isinstance(lg.get(f), str) or not lg[f].strip():
+            _mr(f"leg {n} field {f!r} is "
+                f"{type(lg.get(f)).__name__}, not a non-empty string")
+    for f in ("source_commit", "repo_head"):
+        if not _is_hex(lg.get(f), 40):
+            _mr(f"leg {n} field {f!r} is not a 40-hex commit "
+                f"({lg.get(f)!r})")
+    if not _is_hex(lg.get("producer_generator_blob_sha256"), 64):
+        _mr(f"leg {n} producer_generator_blob_sha256 is not a "
+            "64-hex digest")
+    st = lg.get("store_identity")
+    if st is not None and (not isinstance(st, str) or not st.strip()):
+        _mr(f"leg {n} store_identity is "
+            f"{type(st).__name__}, not a string or None")
+
+
+def _validate_row_values(r, n):
+    """Every row field's TYPE and FORMAT. codex accepted
+    argv='not-a-list', run_utc=7, git_blob_oid=7, digest_domain=[],
+    tail={}, resolved_executable=7 and interpreter_version=[] one at
+    a time -- presence and 64-hex shape were checked, the rest were
+    not."""
+    nr = r["verdict"] == "NOT_RUN"
+    for f in ("host_id", "surface", "interpreter_label", "verdict",
+              "digest_domain"):
+        if not isinstance(r.get(f), str) or not r[f].strip():
+            _mr(f"row field {f!r} is {type(r.get(f)).__name__}, not "
+                "a non-empty string")
+    if r["digest_domain"] != DIGEST_DOMAIN:
+        _mr(f"row digest_domain {r['digest_domain']!r} is not "
+            f"{DIGEST_DOMAIN!r}")
+    if not isinstance(r.get("tail"), str):
+        _mr(f"row tail is {type(r.get('tail')).__name__}, not a "
+            "string")
+    if not _is_hex(r.get("git_blob_oid"), 40):
+        _mr(f"row git_blob_oid is not a 40-hex object id "
+            f"({r.get('git_blob_oid')!r})")
+    if not isinstance(r.get("run_utc"), str) or \
+            not r["run_utc"].endswith("Z"):
+        _mr(f"row run_utc {r.get('run_utc')!r} is not a UTC "
+            "timestamp string")
+    if nr:
+        return
+    a = r.get("argv")
+    if not isinstance(a, list) or not a or \
+            not all(isinstance(x, str) for x in a):
+        _mr(f"row argv is {type(a).__name__}, not a non-empty list "
+            "of strings")
+    if not isinstance(r.get("resolved_executable"), str) or \
+            not r["resolved_executable"].strip():
+        _mr("row resolved_executable is not a non-empty string")
+    iv = r.get("interpreter_version")
+    if not isinstance(iv, str) or not iv.strip():
+        _mr(f"row interpreter_version is {type(iv).__name__}, not a "
+            "string")
+    want = r["interpreter_label"][2:]
+    if not iv.startswith(want + "."):
+        _mr(f"row interpreter_version {iv!r} does not match its "
+            f"declared label {r['interpreter_label']!r}")
+
+
+def _committed_bindings(commit, cache):
+    """The 14 declared surfaces at the AGREED commit, recomputed."""
+    if cache:
+        return cache
+    for sf in SURFACES:
+        path = SURFACE_PREFIX + sf
+        oid = subprocess.run(
+            ["git", "-C", REPO, "rev-parse", f"{commit}:{path}"],
+            capture_output=True)
+        raw = subprocess.run(
+            ["git", "-C", REPO, "cat-file", "blob", f"{commit}:{path}"],
+            capture_output=True)
+        if oid.returncode != 0 or raw.returncode != 0 or not raw.stdout:
+            _mr(f"{path} is absent at the agreed commit "
+                f"{commit[:12]}")
+        cache[sf] = {
+            "git_blob_oid": oid.stdout.decode().strip(),
+            "blob_sha256": hashlib.sha256(raw.stdout).hexdigest(),
+            "canonical_committed_sha256":
+                hashlib.sha256(_canon_bytes(raw.stdout)).hexdigest()}
+    return cache
+
+
+def _validate_row_provenance(r, sf, commit, cache):
+    """codex 1534Z P0 #1: exact field PRESENCE is not exact
+    EXECUTION/PROVENANCE binding. A cloned real record was accepted
+    with exit_code=9 on a PASS, and with canonical_executed_sha256 or
+    blob_sha256 set to 64 zeros -- the hex check proves SYNTAX, not
+    the binding, so a PASS could name non-executed bytes or an
+    unsuccessful process and still cover a required cell.
+
+    The three committed bindings are RECOMPUTED from the agreed
+    commit. disk_sha256, resolved_executable and run_utc stay
+    self-attested: the merger cannot reopen another host's disk, and
+    pretending otherwise would be a stronger claim than the evidence.
+    """
+    want = _committed_bindings(commit, cache)[sf]
+    for f, v in want.items():
+        if r[f] != v:
+            _mr(f"row {f!r} for {sf} is {str(r[f])[:12]}, but "
+                f"{commit[:12]} gives {v[:12]} -- a recomputable "
+                "binding must be RECOMPUTED, not accepted as stated")
+    v = r["verdict"]
+    if v in ("PASS", "COVERED_ELSEWHERE"):
+        if r["exit_code"] != 0:
+            _mr(f"a {v} row for {sf} carries exit_code "
+                f"{r['exit_code']!r} -- a successful verdict over an "
+                "unsuccessful process is not a result")
+        if r["canonical_executed_sha256"] != \
+                r["canonical_committed_sha256"]:
+            _mr(f"a {v} row for {sf} executed bytes that differ from "
+                "the committed blob; committed==executed is what "
+                "makes the verdict bind to the source")
+    elif v == "REFUSE":
+        diverged = (r["canonical_executed_sha256"] is not None and
+                    r["canonical_executed_sha256"] !=
+                    r["canonical_committed_sha256"])
+        if r["exit_code"] == 0 and not diverged:
+            _mr(f"a REFUSE row for {sf} has exit_code 0 and matching "
+                "digests -- nothing about it refused")
+
+
 MERGED_SCHEMA = "f2g-w2-verification-run-summary-merged-v1"
 
 
@@ -615,11 +792,13 @@ def merge_legs(legs):
             if not isinstance(r, dict):
                 _mr(f"leg {n} row {m} is a {type(r).__name__}, not "
                     "a record")
+        _validate_leg_header(lg, n)
     commits, gens, schemas, hosts = set(), set(), set(), []
     for i, lg in enumerate(legs):
         for f in ("source_commit", "repo_head", "host_id",
                   "producer_generator_blob_sha256", "schema",
-                  "host_role", "store_identity", "invocations"):
+                  "host_role", "store_identity",
+                  "store_attestation", "invocations"):
             if f not in lg:
                 _mr(f"leg {i} is missing required field {f!r}; a leg "
                     "without full provenance cannot enter a merge")
@@ -636,6 +815,23 @@ def merge_legs(legs):
         if lg["host_role"] not in HOST_ROLES:
             _mr(f"leg {i} declares host_role {lg['host_role']!r}, "
                 f"not one of {list(HOST_ROLES)}")
+        att = lg.get("store_attestation")
+        if not isinstance(att, dict):
+            _mr(f"leg {i} carries no store_attestation; a role must "
+                "be earned by measurement, not declared")
+        if lg["host_role"] == "EVIDENCE":
+            if not att.get("attested"):
+                _mr(f"leg {i} claims the EVIDENCE role with an "
+                    f"UNATTESTED store ({att.get('reason')!r})")
+            bc, bv = att.get("body_count"), att.get("bodies_verified")
+            if not isinstance(bc, int) or bc <= 0 or bv != bc:
+                _mr(f"leg {i} attests body_count={bc!r} "
+                    f"bodies_verified={bv!r}; every body must be "
+                    "content-address verified")
+            if not _is_hex(att.get("name_set_digest"), 64):
+                _mr(f"leg {i} attestation carries no name-set digest")
+        elif att.get("attested"):
+            _mr(f"leg {i} is {lg['host_role']} yet attests a store")
         if lg["host_role"] == "EVIDENCE" and \
                 lg["store_identity"] != V3_STORE_IDENTITY:
             _mr(f"leg {i} claims the EVIDENCE role but names store "
@@ -694,7 +890,7 @@ def merge_legs(legs):
             "exercised on exactly one host")
     evidence_host = [lg["host_id"] for lg in legs
                      if lg["host_role"] == "EVIDENCE"][0]
-    rows, seen = [], {}
+    rows, seen, _bind_cache = [], {}, {}
     for lg in legs:
         for r in lg["invocations"]:
             if r.get("source_commit") != commit:
@@ -745,6 +941,8 @@ def merge_legs(legs):
             if r["interpreter_label"] not in INTERPRETER_LABELS:
                 _mr(f"row interpreter {r['interpreter_label']!r} is "
                     f"not one of {list(INTERPRETER_LABELS)}")
+            _validate_row_values(r, lg["host_id"])
+            _validate_row_provenance(r, cs, commit, _bind_cache)
             k = (r["host_id"], cs, r["interpreter_label"])
             if k in seen:
                 _mr(f"duplicate cell {k}")
@@ -849,37 +1047,61 @@ def _merge_selftest():
                           encoding="utf-8"))
     COMMIT = real["source_commit"]
     GEN = real["producer_generator_blob_sha256"]
-    TEMPLATE = {r["verdict"]: r for r in real["invocations"]}
+    PY311 = f"py{REQUIRED_INTERPRETERS[-1]}"
+    BY_CELL = {(r["surface"].split("/")[-1], r["interpreter_label"]):
+               r for r in real["invocations"]}
 
     def cell(host, sf, il, verdict="PASS"):
-        base = TEMPLATE.get(verdict) or TEMPLATE["PASS"]
-        r = dict(base)
-        r["host_id"] = host
-        r["source_commit"] = COMMIT
-        r["surface"] = SURFACE_PREFIX + sf
-        r["interpreter_label"] = il
-        r["verdict"] = verdict
-        for f in NULLABLE_ON_NOT_RUN:
-            if verdict == "NOT_RUN":
-                r[f] = None
-            elif r[f] is None:
-                r[f] = (0 if f == "exit_code"
-                        else "3.11.9" if f == "interpreter_version"
-                        else "f" * 64
-                        if f == "canonical_executed_sha256"
-                        else "x")
-        return r
+        """Built from the REAL row for THAT EXACT CELL, so a fixture
+        cannot assert a shape the artifact does not have. My previous
+        version copied one template row across every surface and
+        interpreter, which produced a py3.14 row carrying 3.11.9 --
+        the validator caught my own fixture, which is the point."""
+        base = dict(BY_CELL[(sf, il)])
+        # committed bindings are per-SURFACE; the py3.11 row always
+        # carries them non-null
+        src = BY_CELL[(sf, PY311)]
+        for f in ("git_blob_oid", "blob_sha256",
+                  "canonical_committed_sha256", "disk_sha256"):
+            base[f] = src[f]
+        base["digest_domain"] = DIGEST_DOMAIN
+        base["host_id"] = host
+        base["source_commit"] = COMMIT
+        base["surface"] = SURFACE_PREFIX + sf
+        base["interpreter_label"] = il
+        base["verdict"] = verdict
+        base["run_utc"] = real["invocations"][0]["run_utc"]
+        if verdict == "NOT_RUN":
+            for f in NULLABLE_ON_NOT_RUN:
+                base[f] = None
+            return base
+        base["argv"] = [f"py-{il}", SURFACE_PREFIX + sf]
+        base["resolved_executable"] = f"C:/Python/{il}/python.exe"
+        base["interpreter_version"] = il[2:] + ".9"
+        base["canonical_executed_sha256"] = \
+            base["canonical_committed_sha256"]
+        base["exit_code"] = 0 if verdict in ("PASS",
+                                             "COVERED_ELSEWHERE") \
+            else 1
+        return base
 
     def full_rows(host, verdict="PASS"):
         return [cell(host, sf, il, verdict)
                 for sf in SURFACES for il in INTERPRETER_LABELS]
 
+    ATT_OK = {"attested": True, "body_count": 1405,
+              "bodies_verified": 1405, "name_set_digest": "a" * 64}
+    ATT_NO = {"attested": False, "reason": "no store on this host"}
+
     def leg(host, commit=None, gen=None, schema=SUMMARY_SCHEMA,
-            rows=None, role="PORTABLE", store=None):
+            rows=None, role="PORTABLE", store=None, att=None):
         c = COMMIT if commit is None else commit
         return {"host_id": host, "source_commit": c, "repo_head": c,
                 "schema": schema, "host_role": role,
                 "store_identity": store,
+                "store_attestation":
+                    (ATT_OK if role == "EVIDENCE" else ATT_NO)
+                    if att is None else att,
                 "producer_generator_blob_sha256":
                     GEN if gen is None else gen,
                 "invocations": (full_rows(host) if rows is None
@@ -954,8 +1176,13 @@ def _merge_selftest():
     assert refuses(lambda: merge_legs([ev(), sneak]),
                    "every ROW is checked")
     assert refuses(lambda: merge_legs(
-        [ev(), leg("geomen/Windows", gen="h" * 64)]),
+        [ev(), leg("geomen/Windows", gen="a" * 64)]),
         "DIFFERENT generator bytes")
+    # a non-hex generator digest is refused by the HEADER validator
+    # before it can even be compared across legs
+    assert refuses(lambda: merge_legs(
+        [ev(), leg("geomen/Windows", gen="h" * 64)]),
+        "not a 64-hex digest")
     assert refuses(lambda: merge_legs([ev(), ev()]),
                    "duplicate host")
     assert refuses(lambda: merge_legs([ev()]), "at least two legs")
@@ -1007,6 +1234,90 @@ def _merge_selftest():
     assert refuses(lambda: merge_legs(
         [ev(), leg("geomen/Windows", rows=pop)]),
         "POPULATED on a NOT_RUN row")
+    # ---- codex 1534Z P1 #3: the ROLE is earned, not declared ----
+    assert refuses(lambda: merge_legs(
+        [ev(att=ATT_NO), leg("geomen/Windows")]),
+        "UNATTESTED store")
+    for bad_att in ({"attested": True, "body_count": 0,
+                     "bodies_verified": 0,
+                     "name_set_digest": "a" * 64},
+                    {"attested": True, "body_count": 1405,
+                     "bodies_verified": 1404,
+                     "name_set_digest": "a" * 64},
+                    {"attested": True, "body_count": 1405,
+                     "bodies_verified": 1405,
+                     "name_set_digest": "nope"}):
+        assert refuses(lambda b=bad_att: merge_legs(
+            [ev(att=b), leg("geomen/Windows")]),
+            "content-address verified"
+            if bad_att.get("bodies_verified") != 1405
+            else "name-set digest"), bad_att
+    assert refuses(lambda: merge_legs(
+        [ev(), leg("geomen/Windows", att=ATT_OK)]),
+        "yet attests a store")
+    assert refuses(lambda: merge_legs(
+        [ev(att="not-a-dict"), leg("geomen/Windows")]),
+        "carries no store_attestation")
+
+    # ---- codex 1534Z P0 #1: presence is not PROVENANCE binding ----
+    def one_row(**over):
+        rows = full_rows("geomen/Windows")
+        rows[0] = dict(rows[0], **over)
+        return lambda: merge_legs(
+            [ev(), leg("geomen/Windows", rows=rows)])
+    # codex's exact three accepted forgeries
+    assert refuses(one_row(exit_code=9),
+                   "over an unsuccessful process is not a result")
+    assert refuses(one_row(canonical_executed_sha256="0" * 64),
+                   "committed==executed")
+    assert refuses(one_row(blob_sha256="0" * 64),
+                   "must be RECOMPUTED")
+    # every recomputable binding, independently
+    for f in ("git_blob_oid",):
+        assert refuses(one_row(**{f: "0" * 40}), "must be RECOMPUTED")
+    assert refuses(one_row(canonical_committed_sha256="0" * 64),
+                   "must be RECOMPUTED")
+    # a REFUSE that refused nothing
+    rr = full_rows("geomen/Windows", "REFUSE")
+    rr[0] = dict(rr[0], exit_code=0)
+    rr[0]["canonical_executed_sha256"] = \
+        rr[0]["canonical_committed_sha256"]
+    assert refuses(lambda: merge_legs(
+        [ev(), leg("geomen/Windows", rows=rr)]),
+        "nothing about it refused")
+    # ---- codex 1534Z P1 #2: every field TYPE, always MergeRefusal --
+    for over, needle in (
+            ({"argv": "not-a-list"}, "not a non-empty list"),
+            ({"argv": []}, "not a non-empty list"),
+            ({"argv": [1, 2]}, "not a non-empty list"),
+            ({"run_utc": 7}, "not a UTC timestamp"),
+            ({"run_utc": "no-zed"}, "not a UTC timestamp"),
+            ({"git_blob_oid": 7}, "not a 40-hex object id"),
+            ({"digest_domain": []}, "not a non-empty string"),
+            ({"digest_domain": "OTHER"}, "is not 'UTF8_SOURCE_LF_V1'"),
+            ({"tail": {}}, "not a string"),
+            ({"resolved_executable": 7}, "not a non-empty string"),
+            ({"interpreter_version": []}, "not a string"),
+            ({"interpreter_version": "9.9.9"},
+             "does not match its declared label")):
+        assert refuses(one_row(**over), needle), over
+    # header types -- codex's two raw TypeErrors
+    for over in ({"source_commit": 7, "repo_head": 7},
+                 {"host_id": ["a"]}, {"host_id": ""},
+                 {"schema": 7}, {"host_role": None},
+                 {"store_identity": 7},
+                 {"producer_generator_blob_sha256": 7}):
+        h = leg("geomen/Windows")
+        h.update(over)
+        try:
+            merge_legs([ev(), h])
+            raise AssertionError(f"{over} was ACCEPTED")
+        except MergeRefusal:
+            pass
+        except Exception as e:
+            raise AssertionError(
+                f"{over} raised {type(e).__name__}, not MergeRefusal")
+
     # ---- completeness ----
     tiny = [cell("geomen/Windows", SURFACES[0], "py3.14")]
     assert refuses(lambda: merge_legs(
@@ -1059,8 +1370,9 @@ def _merge_selftest():
         allref["missing_required_interpreters"]
     assert allref["interpreters_covered"] == []
     print("w2 leg-merge selftest: ALL PASS "
-          f"({7 + 3 + 2 * len(ROW_FIELDS) + len(HEX64) + 10} "
-          "directions -- frame, closed row schema, alias, "
+          f"({7 + 3 + 2 * len(ROW_FIELDS) + len(HEX64) + 10 + 10 + 19 + 8} "
+          "directions -- frame, shape, closed row schema, alias, "
+          "PROVENANCE binding, field types, store attestation, "
           "completeness, evidence ROLE, ledger consistency)")
 
 

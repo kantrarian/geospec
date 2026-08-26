@@ -416,12 +416,11 @@ def authoritative_static_contract(authority, lane, carrier, day):
     return contract
 
 
-def verify_staged_boundary(repo, manifest, *, blob_reader=None,
-                           store_reader=None, day_set_gate=None,
-                           transform_dispatcher=None,
-                           authority_reproducer=None,
-                           capture_archive=None,
-                           disposition_capsule=None):
+def _boundary_mechanics(repo, manifest, *, blob_reader=None,
+                        store_reader=None, day_set_gate=None,
+                        transform_dispatcher=None,
+                        authority_reproducer=None,
+                        capture_archive=None):
     """codex 2235Z item 1 + 0238Z items 1-2: the admission-owned
     S/T/E consumer. The (lane, carrier, day) key set comes ONLY from
     the REGISTERED expected-keys authority pin (never from the
@@ -637,50 +636,214 @@ def verify_staged_boundary(repo, manifest, *, blob_reader=None,
             "ADMITTED_ABSENCE, or removal by an authority amendment "
             "declared BEFORE the failures were seen. Dropping it "
             "here would make the authority data-dependent.")
-    # ---- closure 4: typed proof-kind partitions -----------------
-    # Three DIFFERENT claims are being made across the 2,056 keys. A
-    # report aggregated by lane/carrier lets them disappear into one
-    # total that reads with the strength of its strongest member.
-    if disposition_capsule is None:
+    # MECHANICS ONLY. Deliberately returns neither
+    # staged_boundary_sha256 nor proof kinds: those are admission
+    # facts, and this function is shared with a structural KAT that
+    # must be incapable of establishing them.
+    return {"full": full, "digest": digest, "authority": authority,
+            "descriptor": descriptor, "authorized": authorized}
+
+
+DISPOSITION_CAPSULE_BASENAME = "key_disposition_capsule_v4.json"
+
+
+def _registered_disposition_capsule(manifest, blob_reader):
+    """Resolve the capsule from the REGISTERED accrual_impl pin.
+
+    My 0110Z finding: build_fixture_capsule can mint a capsule over
+    the REAL authority claiming all 2,056 keys are native captures,
+    and it passes strict verify_lineage_registry with
+    bodies_recomputed=0. Nothing in the capsule's own verifier can
+    stop that, because the verifier can only check INTERNAL
+    consistency against the authority key set. A capsule\'s authority
+    comes from its PROVENANCE -- derived by build() from the real
+    archive and store, then PINNED -- so the boundary must resolve it
+    from the pin rather than trust what a caller hands it. This is
+    the same repair codex required on the predecessor bridge, which I
+    applied to the dispatcher and failed to apply here.
+    """
+    slot = manifest.get("slots", {}).get("accrual_impl")
+    if not isinstance(slot, dict):
         raise InstrumentRefusal(
-            "PRESTART_ADMISSION_REFUSED: no disposition capsule was "
-            "supplied -- the boundary cannot report proof kinds "
-            "without the registered dispositions, and an absent "
-            "capsule can never mean 'report one undifferentiated "
-            "total'")
+            "PRESTART_ADMISSION_REFUSED: no accrual_impl slot pins "
+            "the disposition capsule -- the boundary will not accept "
+            "a caller-supplied capsule in its place")
+    pins = [p for p in slot.get("pins", ())
+            if isinstance(p, dict)
+            and str(p.get("path", "")).endswith(
+                DISPOSITION_CAPSULE_BASENAME)]
+    if len(pins) != 1:
+        raise InstrumentRefusal(
+            "PRESTART_ADMISSION_REFUSED: accrual_impl must pin "
+            f"exactly one {DISPOSITION_CAPSULE_BASENAME} "
+            f"(found {len(pins)})")
+    pin = pins[0]
+    raw = blob_reader(pin["commit"], pin["path"])
+    got = hashlib.sha256(raw).hexdigest()
+    if got != pin["blob_sha256"]:
+        raise InstrumentRefusal(
+            "PRESTART_ADMISSION_REFUSED: the pinned disposition "
+            f"capsule bytes diverge from the manifest pin ({got[:12]} "
+            f"!= {pin['blob_sha256'][:12]})")
+    return json.loads(raw.decode("utf-8"))
+
+
+def bind_registered_capsule(manifest, blob_reader, supplied=None):
+    """Resolve the capsule from the pin and REFUSE any substitute.
+
+    Extracted so the lock can exercise it directly against the REAL
+    committed capsule and a REAL forgery, rather than asserting on a
+    parameter name -- the weak proxy that already cost me the bridge.
+    """
+    registered = _registered_disposition_capsule(manifest, blob_reader)
+    if supplied is not None:
+        a = json.dumps(supplied, sort_keys=True, separators=(",", ":"))
+        b = json.dumps(registered, sort_keys=True,
+                       separators=(",", ":"))
+        if a != b:
+            raise InstrumentRefusal(
+                "PRESTART_ADMISSION_REFUSED: the supplied disposition "
+                "capsule is NOT_THE_REGISTERED_CAPSULE. A capsule that "
+                "passes its own verifier can still report a FALSE "
+                "provenance -- a fixture-built capsule over the real "
+                "authority verifies clean with bodies_recomputed=0 "
+                "while claiming every key is a native capture -- so "
+                "the boundary binds the pin and never the argument.")
+    return registered
+
+
+def verify_staged_boundary(repo, manifest, *, blob_reader=None,
+                           store_reader=None, day_set_gate=None,
+                           transform_dispatcher=None,
+                           authority_reproducer=None,
+                           capture_archive=None,
+                           disposition_capsule=None):
+    """THE PRODUCTION ADMISSION BOUNDARY -- strict, and the only
+    entrypoint whose result may be consumed as an admission fact.
+
+    The disposition capsule is RESOLVED FROM THE MANIFEST PIN. A
+    supplied capsule is permitted only if it is byte-identical to the
+    pinned one; it never substitutes for it. Returns
+    {report, staged_boundary_sha256, proof_kinds}; None while the slot
+    is honestly OPEN.
+    """
+    mech = _boundary_mechanics(
+        repo, manifest, blob_reader=blob_reader,
+        store_reader=store_reader, day_set_gate=day_set_gate,
+        transform_dispatcher=transform_dispatcher,
+        authority_reproducer=authority_reproducer,
+        capture_archive=capture_archive)
+    if mech is None:
+        return None
+    full, digest = mech["full"], mech["digest"]
+    authority, descriptor = mech["authority"], mech["descriptor"]
+    if blob_reader is None:
+        def blob_reader(commit, path):
+            return _git(repo, ["cat-file", "blob",
+                               f"{commit}:{path}"], binary=True)
+    # ---- closure 4 + 0110Z: the capsule comes from the PIN --------
+    registered = bind_registered_capsule(manifest, blob_reader,
+                                         supplied=disposition_capsule)
     import w2_disposition_capsule_grassmann as DISP
     try:
-        # closure 2 (2303Z): the boundary must use the LINEAGE
-        # REGISTRY contract, never verify_ceiling -- a ceiling PASS
-        # only establishes request membership and explicitly reports
-        # lineage_evidence_verified=False. It fails CLOSED without
-        # the source-body store, which is correct: the boundary can
-        # only pass where the evidence actually lives.
-        # verify against the store this boundary is actually
-        # binding -- taken from the REGISTERED descriptor, not a
-        # default path or an environment variable. A boundary that
-        # authenticated lineage against some other store would be
-        # proving something about bytes it is not admitting.
+        # closure 2 (2303Z): the LINEAGE REGISTRY contract, never
+        # verify_ceiling -- a ceiling PASS establishes only request
+        # membership and reports lineage_evidence_verified=False.
+        # Verified against the store this boundary is actually
+        # binding, from the REGISTERED descriptor.
         DISP.verify_lineage_registry(
-            disposition_capsule, authority=authority,
+            registered, authority=authority,
             store_root=descriptor["physical_root"])
     except Exception as e:                                # noqa: BLE001
         raise InstrumentRefusal(
-            "PRESTART_ADMISSION_REFUSED: the disposition capsule "
-            f"failed its own verifier ({type(e).__name__}: "
+            "PRESTART_ADMISSION_REFUSED: the registered disposition "
+            f"capsule failed its own verifier ({type(e).__name__}: "
             f"{str(e)[:110]})")
     authorized_keys = {f"{ln}/{ck}/{d}"
-                       for (ln, ck, d) in authorized}
+                       for (ln, ck, d) in mech["authorized"]}
     partitions = compute_proof_kind_partitions(authorized_keys,
-                                               disposition_capsule)
+                                               registered)
     total = sum(p["count"] for p in partitions.values())
-    # the typed partitions come FIRST; the aggregate is reported only
-    # after them, and is derived from them rather than beside them
+    # the typed partitions come FIRST; the aggregate is derived from
+    # them rather than reported beside them
     full = dict(full)
     full["proof_kinds"] = partitions
     full["proof_kind_total"] = total
     return {"report": full, "staged_boundary_sha256": digest,
             "proof_kinds": partitions}
+
+
+STRUCTURAL_KAT_SCHEMA = ("claim_scope", "admission_eligible",
+                         "proof_kind_status", "authorizes",
+                         "structural_kat_sha256", "structure")
+
+
+def verify_staged_boundary_structure_kat(
+        repo, manifest, *, blob_reader=None, store_reader=None,
+        day_set_gate=None, transform_dispatcher=None,
+        authority_reproducer=None, capture_archive=None):
+    """codex 0057Z P0: the PORTABLE STRUCTURAL KERNEL.
+
+    Exercises the pin walk, staged store, S/T/E bijection, artifact
+    recomputation and the archive ADMITTED|REFUSED partition -- the
+    mechanics -- on any host, WITHOUT the lineage registry or the
+    source-body store.
+
+    Its result is structurally incapable of satisfying admission: it
+    carries no staged_boundary_sha256, no proof kinds, and a closed
+    stamp saying so. That is what lets the production entrypoint bind
+    the pinned capsule strictly without making the shared bar
+    permanently red off the evidence host. Portability and admission
+    semantics are different things and must not be selected by a flag
+    on one function.
+    """
+    mech = _boundary_mechanics(
+        repo, manifest, blob_reader=blob_reader,
+        store_reader=store_reader, day_set_gate=day_set_gate,
+        transform_dispatcher=transform_dispatcher,
+        authority_reproducer=authority_reproducer,
+        capture_archive=capture_archive)
+    if mech is None:
+        return None
+    lanes = dict(mech["full"].get("lanes", {}))
+    body = {"claim_scope": "STRUCTURAL_KAT_ONLY",
+            "admission_eligible": False,
+            "proof_kind_status": "NOT_EVALUATED",
+            "authorizes": "NOTHING",
+            "structure": {"lanes": lanes,
+                          "authority_keys": len(mech["authorized"])}}
+    body["structural_kat_sha256"] = hashlib.sha256(json.dumps(
+        body, sort_keys=True, separators=(",", ":")).encode()
+    ).hexdigest()
+    return body
+
+
+def consume_as_admission(result):
+    """THE ANTI-CONFUSION DOOR (codex 0057Z P0).
+
+    Any consumer treating a boundary result as an admission fact must
+    pass it through here. A STRUCTURAL_KAT_ONLY stamp refuses -- so a
+    structural result can never be read as a production boundary
+    result merely because both are dicts with plausible fields.
+    """
+    if not isinstance(result, dict):
+        raise InstrumentRefusal(
+            "PRESTART_ADMISSION_REFUSED: boundary result is not a "
+            "closed record")
+    if result.get("claim_scope") == "STRUCTURAL_KAT_ONLY" or \
+            result.get("admission_eligible") is False or \
+            result.get("authorizes") == "NOTHING":
+        raise InstrumentRefusal(
+            "PRESTART_ADMISSION_REFUSED: a STRUCTURAL_KAT_ONLY result "
+            "was offered as an admission fact. It establishes "
+            "mechanics only -- no lineage registry, no source bodies, "
+            "no proof kinds -- and authorizes NOTHING.")
+    if "staged_boundary_sha256" not in result or \
+            "proof_kinds" not in result:
+        raise InstrumentRefusal(
+            "PRESTART_ADMISSION_REFUSED: an admission fact requires "
+            "both staged_boundary_sha256 and the three proof kinds")
+    return result
 
 
 def assemble_prestart_admission(repo, manifest_commit, bindings,
@@ -1389,26 +1552,42 @@ def _selftest():
                      "prestart_expected_keys_sha256"]}
     b_archive = CAP.build_capture_run_archive(
         "s4t", "s4t://window2", b_auth_id, arch_admitted, {})
-    out = verify_staged_boundary(".", bman(pins2),
-                                 capture_archive=b_archive,
-                                 blob_reader=breader,
-                                 transform_dispatcher=bdispatch,
-                                 authority_reproducer=b_repro)
-    assert out["report"]["lanes"]["MAG_FEED/izn"]["days"] == 2
-    assert len(out["staged_boundary_sha256"]) == 64
-    assert verify_staged_boundary(".", man_with("OPEN", [])) is None
+    # codex 0057Z P0: these fixture manifests exercise MECHANICS, so
+    # they run the STRUCTURAL kernel. They cannot run production --
+    # production resolves the disposition capsule from the manifest
+    # pin and a six-key fixture manifest carries none. That is the
+    # intended property, not a limitation: portable structural
+    # testing must be incapable of producing an admission fact.
+    out = verify_staged_boundary_structure_kat(
+        ".", bman(pins2), capture_archive=b_archive,
+        blob_reader=breader, transform_dispatcher=bdispatch,
+        authority_reproducer=b_repro)
+    assert out["structure"]["lanes"]["MAG_FEED/izn"]["days"] == 2
+    assert len(out["structural_kat_sha256"]) == 64
+    assert out["claim_scope"] == "STRUCTURAL_KAT_ONLY"
+    assert out["admission_eligible"] is False
+    assert out["proof_kind_status"] == "NOT_EVALUATED"
+    assert "staged_boundary_sha256" not in out
+    assert "proof_kinds" not in out
+    try:
+        consume_as_admission(out)
+        raise AssertionError(
+            "a STRUCTURAL_KAT_ONLY result must never be consumable "
+            "as an admission fact")
+    except InstrumentRefusal:
+        pass
+    assert verify_staged_boundary_structure_kat(
+        ".", man_with("OPEN", [])) is None
 
     def brefuses(pins, needle, **kw):
         try:
-            verify_staged_boundary(".", bman(pins),
-                                   capture_archive=b_archive,
-                                   blob_reader=breader,
-                                   transform_dispatcher=kw.pop(
-                                       "transform_dispatcher",
-                                       bdispatch),
-                                   authority_reproducer=kw.pop(
-                                       "authority_reproducer",
-                                       b_repro), **kw)
+            verify_staged_boundary_structure_kat(
+                ".", bman(pins), capture_archive=b_archive,
+                blob_reader=breader,
+                transform_dispatcher=kw.pop(
+                    "transform_dispatcher", bdispatch),
+                authority_reproducer=kw.pop(
+                    "authority_reproducer", b_repro), **kw)
             return False
         except InstrumentRefusal as e:
             return needle in str(e)
@@ -1517,10 +1696,9 @@ def _selftest():
     # dispatcher ABSENT -> fail-closed (never digest-only admission)
     if not hasattr(CAP, "admission_transform"):
         try:
-            verify_staged_boundary(".", bman(pins2),
-                                   capture_archive=b_archive,
-                                   blob_reader=breader,
-                                   authority_reproducer=b_repro)
+            verify_staged_boundary_structure_kat(
+                ".", bman(pins2), capture_archive=b_archive,
+                blob_reader=breader, authority_reproducer=b_repro)
             raise AssertionError("absent dispatcher must refuse")
         except InstrumentRefusal as e:
             assert "transform dispatcher is not yet available" \

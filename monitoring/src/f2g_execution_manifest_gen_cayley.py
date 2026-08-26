@@ -30,8 +30,14 @@ BOUND_SLOTS = {
     "execution_verifier": {
         "owner": "cayley",
         "note": "executable verifier (design linkage + slot/pin walk + "
-                "prestart gate)",
-        "paths": ["monitoring/src/f2g_execution_manifest_verifier_cayley.py"]},
+                "prestart gate) and the post-regeneration gate. codex "
+                "0445Z item 5: verification CODE is its own authority, "
+                "distinct from production operation bytes and from the "
+                "execution records -- the gate must be pinned by the "
+                "manifest it audits, or the check that certifies the "
+                "pin set is itself unbound",
+        "paths": ["monitoring/src/f2g_execution_manifest_verifier_cayley.py",
+                  "monitoring/src/w2_regeneration_gate_cayley.py"]},
     "design_pin_verifier": {
         "owner": "cayley",
         "note": "design-pin walk executable (landed b755ce1)",
@@ -83,7 +89,15 @@ BOUND_SLOTS = {
                   # of the production OPERATION record, so it binds
                   # here and NOT in bars -- one path must not answer
                   # to two slot authorities
-                  "monitoring/src/w2_restage_v4_grassmann.py"]},
+                  "monitoring/src/w2_restage_v4_grassmann.py",
+                  # codex 0445Z item 2: the tools that PRODUCE the two
+                  # execution records must themselves be bound, or a
+                  # receipt could be emitted by code the manifest
+                  # never pinned -- the record would authenticate its
+                  # contents while its producer stayed unauthenticated
+                  "monitoring/src/w2_restage_verify_batch_grassmann.py",
+                  "monitoring/src/"
+                  "w2_verification_run_summary_grassmann.py"]},
     # v1.1 (codex 1358Z item 4/5): the two repaired execution tools
     # join the runtime allowlist as explicit slots
     "power_harness": {

@@ -158,9 +158,17 @@ BOUND_SLOTS = {
                 "locks cover the admitted partition, "
                 "ADMITTED_ABSENCE, whole-authority serving, the "
                 "frozen carrier set, and fixture/production schema "
-                "separation. Interpreter identities and execution "
-                "outcomes live only in the pinned compact run "
-                "summary.",
+                "separation. Interpreter identities and PRE-MANIFEST "
+                "execution outcomes live only in the pinned compact "
+                "run summary. Manifest-owned admission verification "
+                "cannot appear in that summary at all: it can only "
+                "run against the finished manifest commit, so a "
+                "summary pinned inside that same manifest could never "
+                "honestly contain its own post-manifest result. Those "
+                "outcomes exist solely in the separate downstream "
+                "post-manifest verification receipt, whose authority "
+                "is the manifest it names rather than a pin the "
+                "manifest recursively holds.",
         # codex 0404Z item 1: the COMPLETE verification record. The
         # shared bar alone stopped being sufficient the moment
         # W2-ADMIT was relabelled STRUCTURAL_KAT_ONLY -- after that,

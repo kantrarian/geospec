@@ -444,6 +444,169 @@ def build():
             "http_counter_source": "MEASURED_SENTINEL"}
 
 
+
+MERGED_SCHEMA = "f2g-w2-verification-run-summary-merged-v1"
+
+
+class MergeRefusal(ValueError):
+    """Typed refusal; a merged record REFUSES rather than interleaves."""
+
+
+def _mr(msg):
+    raise MergeRefusal("LEG_MERGE_REFUSED: " + str(msg))
+
+
+def merge_legs(legs):
+    """cayley 2026-08-26T1258Z: my committed==executed gate protects a
+    ROW against its own divergent bytes; NOTHING protected the RECORD
+    against rows generated at different snapshots. Two legs four
+    commits apart would union into one record describing two code
+    states -- and it would read as one coherent dual-interpreter
+    verification while being an interleaving of two.
+
+    cayley proposed the rule (co-generate at one frozen commit) and
+    asked for the invariant anyway, because "we were careful to run at
+    the same commit" is true until the once it is not. This is that
+    invariant: it makes the class UNSAYABLE rather than remembered.
+
+    `legs` is a sequence of leg records (already-parsed dicts).
+    Returns the merged record, or raises MergeRefusal.
+    """
+    legs = list(legs)
+    if len(legs) < 2:
+        _mr(f"a merge needs at least two legs, got {len(legs)}")
+    commits, gens, schemas, hosts = set(), set(), set(), []
+    for i, lg in enumerate(legs):
+        for f in ("source_commit", "repo_head", "host_id",
+                  "producer_generator_blob_sha256", "schema",
+                  "invocations"):
+            if f not in lg:
+                _mr(f"leg {i} is missing required field {f!r}; a leg "
+                    "without full provenance cannot enter a merge")
+        # each leg must still be INTERNALLY honest
+        if lg["source_commit"] != lg["repo_head"]:
+            _mr(f"leg {i} ({lg['host_id']}) has source_commit "
+                f"{lg['source_commit'][:12]} != repo_head "
+                f"{lg['repo_head'][:12]} -- it did not run from its "
+                "own committed snapshot")
+        commits.add(lg["source_commit"])
+        gens.add(lg["producer_generator_blob_sha256"])
+        schemas.add(lg["schema"])
+        hosts.append(lg["host_id"])
+    # THE invariant cayley asked for: one snapshot, or refuse
+    if len(commits) != 1:
+        _mr("the legs were generated at DIFFERENT snapshots "
+            f"{sorted(c[:12] for c in commits)} -- cross-host legs "
+            "must be CO-GENERATED at one frozen commit; a union of "
+            "these rows would be one record describing two code "
+            "states")
+    if len(schemas) != 1:
+        _mr(f"the legs use different schemas {sorted(schemas)}")
+    if len(gens) != 1:
+        _mr("the legs were produced by DIFFERENT generator bytes "
+            f"{sorted(g[:12] for g in gens)} -- same commit but a "
+            "divergent producer still means two records")
+    if len(set(hosts)) != len(hosts):
+        _mr(f"duplicate host_id in {hosts}; a merge of one host with "
+            "itself double-counts rather than adds coverage")
+    commit = commits.pop()
+    rows, seen = [], {}
+    for lg in legs:
+        for r in lg["invocations"]:
+            if r.get("source_commit") != commit:
+                _mr(f"a row on {lg['host_id']} carries source_commit "
+                    f"{str(r.get('source_commit'))[:12]}, not the "
+                    f"agreed {commit[:12]} -- every ROW is checked, "
+                    "not just the leg header")
+            if r.get("host_id") != lg["host_id"]:
+                _mr(f"a row claims host {r.get('host_id')!r} inside "
+                    f"the {lg['host_id']!r} leg")
+            k = (r["host_id"], r["surface"], r["interpreter_label"])
+            if k in seen:
+                _mr(f"duplicate row {k}")
+            seen[k] = True
+            rows.append(r)
+    counts = {}
+    for r in rows:
+        counts[r["verdict"]] = counts.get(r["verdict"], 0) + 1
+    covered = sorted({r["interpreter_version"].rsplit(".", 1)[0]
+                      for r in rows
+                      if r.get("interpreter_version")
+                      and r["verdict"] != "NOT_RUN"})
+    return {"schema": MERGED_SCHEMA,
+            "source_commit": commit,
+            "legs": [{"host_id": lg["host_id"],
+                      "rows": len(lg["invocations"])}
+                     for lg in legs],
+            "producer_generator_blob_sha256": gens.pop(),
+            "leg_schema": schemas.pop(),
+            "invocations": rows,
+            "verdict_counts": dict(sorted(counts.items())),
+            "interpreters_covered": covered,
+            "missing_required_interpreters": [
+                v for v in REQUIRED_INTERPRETERS if v not in covered],
+            "claim_scope": "MULTI_HOST_PRE_MANIFEST_VERIFICATION",
+            "authorizes": "NOTHING"}
+
+
+def _merge_selftest():
+    """BEHAVIORAL doctors, each MUTATION-TESTED below. After the
+    doctor that keyed on a substring Python itself emits, no invariant
+    here is asserted by reading source."""
+    def leg(host, commit, gen="g" * 64, schema="s-v1", rows=None):
+        return {"host_id": host, "source_commit": commit,
+                "repo_head": commit, "schema": schema,
+                "producer_generator_blob_sha256": gen,
+                "invocations": rows if rows is not None else [
+                    {"host_id": host, "source_commit": commit,
+                     "surface": "a.py", "interpreter_label": "py3.x",
+                     "interpreter_version": "3.11.9",
+                     "verdict": "PASS"}]}
+
+    def refuses(fn, needle):
+        try:
+            fn()
+            return False
+        except MergeRefusal as e:
+            return needle in str(e)
+    C1, C2 = "a" * 40, "b" * 40
+    ok = merge_legs([leg("devildog", C1), leg("geomen", C1)])
+    assert ok["source_commit"] == C1 and len(ok["invocations"]) == 2
+    assert ok["verdict_counts"] == {"PASS": 2}
+    assert [l["host_id"] for l in ok["legs"]] == ["devildog", "geomen"]
+    # (1) THE case cayley found: legs at different snapshots
+    assert refuses(lambda: merge_legs(
+        [leg("devildog", C1), leg("geomen", C2)]),
+        "DIFFERENT snapshots")
+    # (2) a leg that did not run from its own committed snapshot
+    bad = leg("geomen", C1)
+    bad["repo_head"] = C2
+    assert refuses(lambda: merge_legs([leg("devildog", C1), bad]),
+                   "did not run from its own committed snapshot")
+    # (3) a ROW at the wrong commit inside a correct-looking leg --
+    # the header agreeing is not the rows agreeing
+    sneak = leg("geomen", C1)
+    sneak["invocations"][0]["source_commit"] = C2
+    assert refuses(lambda: merge_legs([leg("devildog", C1), sneak]),
+                   "every ROW is checked")
+    # (4) divergent generator bytes at the same commit
+    assert refuses(lambda: merge_legs(
+        [leg("devildog", C1), leg("geomen", C1, gen="h" * 64)]),
+        "DIFFERENT generator bytes")
+    # (5) one host merged with itself is not coverage
+    assert refuses(lambda: merge_legs(
+        [leg("devildog", C1), leg("devildog", C1)]), "duplicate host")
+    # (6) a single leg is not a merge
+    assert refuses(lambda: merge_legs([leg("devildog", C1)]),
+                   "at least two legs")
+    # (7) a row claiming a host it did not run on
+    liar = leg("geomen", C1)
+    liar["invocations"][0]["host_id"] = "devildog"
+    assert refuses(lambda: merge_legs([leg("devildog", C1), liar]),
+                   "claims host")
+    print("w2 leg-merge selftest: ALL PASS (7 refusal directions)")
+
+
 def main():
     s = build()
     out = os.path.join(REPO, *SUMMARY_PATH.split("/"))
@@ -459,4 +622,7 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    if "--merge-selftest" in sys.argv:
+        _merge_selftest()
+    else:
+        main()

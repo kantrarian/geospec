@@ -380,10 +380,10 @@ def unbound_closure_members(manifest, *, src_dir=_HERE,
     inherit an unrelated pin.
 
     Distinguishing never_declared from pending_regeneration is the
-    whole point. Before the single regeneration the committed manifest
-    is deliberately stale, so a module can be absent from it while the
-    generator already declares it -- pending, not a gap. Conflating
-    them cries wolf on six healthy modules and buries the two that are
+    whole point, and the distinction is PHASE-NEUTRAL:
+    generator-declared but absent from the CURRENT manifest is a
+    pending manifest refresh, not a no-registry gap. Conflating them
+    cries wolf on healthy modules and buries the ones that are
     genuinely declared NOWHERE.
     """
     closure = local_import_closure(src_dir)
@@ -684,8 +684,8 @@ def _selftest():
               f"REFUSES ({os.path.basename(moved)}: bound, current, "
               f"still wrong)")
     else:
-        print("  RG-6 SKIP  no accrual_impl required path pinned yet "
-              "to move (expected before the single regeneration)")
+        print("  RG-6 SKIP  no currently pinned accrual_impl "
+              "required path exists to move")
 
     # RG-7 (codex 1716Z P0-2): DEPENDENCY CLOSURE. Binding two named
     # modules fixes two instances; this closes the class.
@@ -746,8 +746,9 @@ def _selftest():
     _clo = _base
     print(f"  RG-7 PASS  closure walked: "
           f"{len(_clo['never_declared'])} declared in NO registry, "
-          f"{len(_clo['pending_regeneration'])} declared and awaiting "
-          f"the single regeneration (the two are NOT the same defect)")
+          f"{len(_clo['pending_regeneration'])} generator-declared "
+          f"but absent from the current manifest (the two are NOT the "
+          f"same defect)")
     for _f in _clo["never_declared"]:
         print(f"    NO-REGISTRY {_f}")
 
@@ -901,19 +902,40 @@ def _selftest():
                                         "mode": "prestart",
                                         "pins_checked": 1})
         # (+) legitimate all-PASS is ACCEPTED, not mistaken for a
-        #     collapse. This is the control whose absence made the
-        #     old doctor a false red.
-        _pos = dual_result_gate(man, manifest_commit="HEAD")
+        #     collapse. codex 2145Z: this must CONSTRUCT its currency
+        #     rather than read ambient `man`. Reading ambient pins made
+        #     the control circular -- it could only pass when the tree
+        #     already happened to be current, and the replacement that
+        #     would make it current is blocked until this very test
+        #     passes.
+        _posdoc = copy.deepcopy(man)
+        _refreshed = 0
+        for _t, _pin in walk_pins(_posdoc):
+            _cur = _blob_at_head(None, _pin["path"])
+            if _cur is None:
+                raise RegenerationGateRefusal(
+                    "RG-9 POSITIVE_UNREADABLE: cannot read "
+                    f"{_pin['path']} at HEAD to construct the positive "
+                    "control")
+            _pin["blob_sha256"] = hashlib.sha256(_cur).hexdigest()
+            _refreshed += 1
+        if _refreshed < 1:
+            raise RegenerationGateRefusal(
+                "RG-9 POSITIVE_NO_PINS: no pin was refreshed, so the "
+                "positive control would be vacuous")
+        _pos = dual_result_gate(_posdoc, manifest_commit="HEAD")
         if not all(_pos[k] == "PASS" for k in
                    ("manifest_default_contract", "pin_currency",
                     "prestart_overall")):
             raise RegenerationGateRefusal(
-                "RG-9 POSITIVE_CONTROL_FAILED: a legitimate all-PASS "
-                f"state was not accepted ({_pos.get('pin_currency')}/"
+                "RG-9 POSITIVE_CONTROL_FAILED: a CONSTRUCTED "
+                f"all-current manifest ({_refreshed} pins refreshed) "
+                "was not accepted as all-PASS "
+                f"({_pos.get('pin_currency')}/"
                 f"{_pos.get('prestart_overall')})")
         # (-) doctor ONE real pin so pin_currency must REFUSE while
         #     the mock still forces a zero-OPEN prestart PASS
-        _doc9 = copy.deepcopy(man)
+        _doc9 = copy.deepcopy(_posdoc)
         _tampered = False
         for _t, _pin in walk_pins(_doc9):
             _pin["blob_sha256"] = "0" * 64
@@ -935,9 +957,10 @@ def _selftest():
                 raise
     finally:
         _EMV.verify = _rv
-    print("  RG-9 PASS  collapse guard, BOTH controls constructed: a "
-          "legitimate all-PASS is accepted, and a doctored pin under a "
-          "forced zero-OPEN prestart PASS is refused")
+    print(f"  RG-9 PASS  collapse guard, BOTH controls CONSTRUCTED "
+          f"({_refreshed} pins refreshed): an all-current manifest is "
+          "accepted as all-PASS, and doctoring one of those pins under "
+          "a forced zero-OPEN prestart PASS is refused")
 
     # Now the live state, reported honestly whatever it is.
     print(f"\n  live: {rep['match']} match / {len(rep['stale'])} "
@@ -958,8 +981,8 @@ def _selftest():
               "and the post-manifest receipt.")
         return 0
     except RegenerationGateRefusal as e:
-        print(f"\nREGENERATION GATE: REFUSED (expected before the "
-              f"single regeneration)\n  {str(e)[:400]}")
+        print(f"\nREGENERATION GATE: REFUSED (full gate not "
+              f"satisfied)\n  {str(e)[:400]}")
         return 1
 
 

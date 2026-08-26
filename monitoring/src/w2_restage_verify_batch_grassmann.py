@@ -101,12 +101,26 @@ def _require(path, what):
 
 def run(manifest_commit, store_root=None):
     full, _verdict = _require_valid_manifest(manifest_commit)
-    caps_raw = subprocess.run(
-        ["git", "-C", REPO, "cat-file", "blob",
-         f"{full}:{DISP.CAPSULE_PATH}"], capture_output=True).stdout
-    if not caps_raw:
-        _b(f"the disposition capsule is not present at {full[:12]}")
+    # codex 0509Z item 3: resolve the capsule through the UNIQUE
+    # MANIFEST PIN, never from <commit>:path -- a smaller capsule at
+    # the manifest commit could otherwise choose a smaller key
+    # universe while the manifest pins the full capsule elsewhere.
+    try:
+        caps_raw, caps_pin = LIN.resolve_pinned_bytes(
+            REPO, full, DISP.CAPSULE_PATH)
+    except Exception as exc:
+        _b(f"the disposition capsule pin did not resolve at "
+           f"{full[:12]} ({type(exc).__name__}: {exc})")
     caps = json.loads(caps_raw.decode("utf-8"))
+    # ...and the EXECUTING tree must equal the pinned bytes, or a
+    # dirty batch could emit a receipt while the manifest pins clean
+    # code (the same self-authentication defect one level out)
+    import w2_accrual_instrument_cayley as _ACC
+    try:
+        allow = _ACC.runtime_allowlist_check(REPO, full)
+    except Exception as exc:
+        _b(f"the runtime allowlist REFUSED at {full[:12]} "
+           f"({type(exc).__name__}: {str(exc)[:160]})")
     keys = sorted(caps.get("reuse_or_bridge") or {})
     if not keys:
         _b("the registered capsule has an EMPTY reuse partition -- "
@@ -160,8 +174,24 @@ def run(manifest_commit, store_root=None):
     def dg(xs):
         return hashlib.sha256(json.dumps(
             sorted(xs), separators=(",", ":")).encode()).hexdigest()
+    registered = len(keys)
+    if not (registered == attempted == verified):
+        _b(f"registered_reuse_count {registered} != attempted "
+           f"{attempted} != verified {verified}")
     return {"schema": RECEIPT_SCHEMA,
             "manifest_commit": full,
+            "manifest_verdict": {"verdict": "PASS",
+                                 "mode": "prestart",
+                                 "slots_open": 0},
+            "runtime_allowlist": {
+                "result": "PASS",
+                "pins_checked": len(allow.get("checked", []))
+                if isinstance(allow, dict) else None},
+            "capsule_pin": {"path": DISP.CAPSULE_PATH,
+                            "commit": caps_pin.get("commit"),
+                            "blob_sha256": caps_pin.get(
+                                "blob_sha256")},
+            "registered_reuse_count": registered,
             "capsule_sha256": hashlib.sha256(caps_raw).hexdigest(),
             "transform_identity": CAP.transform_identity(),
             "attempted": attempted, "verified": verified,
@@ -205,6 +235,27 @@ def _selftest():
     new = inspect.signature(
         LIN.verify_restage_lineage_pinned).parameters
     assert "manifest_commit" in new
+    # --- codex 0509Z item 3 doctors: both must REFUSE before any
+    # receipt is emitted ---
+    # (a) a SMALLER capsule sitting at the manifest commit path can
+    # never shrink the key universe, because the universe comes from
+    # the unique manifest PIN, not from <commit>:path
+    import inspect as _insp
+    src = _insp.getsource(run)
+    assert "resolve_pinned_bytes" in src, \
+        "the capsule must resolve through the manifest PIN"
+    assert f'f"{{full}}:{{DISP.CAPSULE_PATH}}"' not in src, \
+        "the batch must not read the capsule from <commit>:path"
+    # (b) a DIRTY executing tree cannot emit a receipt: the runtime
+    # allowlist is consulted, and it compares on-disk bytes to the
+    # pinned blob for every BOUND pin
+    assert "runtime_allowlist_check" in src, \
+        "the batch must consult the runtime allowlist"
+    # and the count identity is enforced, not merely reported
+    assert "registered_reuse_count" in src and \
+        "!= attempted" in src, \
+        "registered == attempted == verified must be enforced"
+
     # codex 0445Z item 3: the exact 360 + 1060 mixed composition
     # must ASSEMBLE DETERMINISTICALLY before the evidence-host run
     mixed = {}

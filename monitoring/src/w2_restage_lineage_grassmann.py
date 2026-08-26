@@ -115,7 +115,7 @@ CAPTURE_MODULE_PATH = ("monitoring/src/"
 TRANSFORM_PIN_SLOTS = (CAP.AUTHORITY_SLOT, "producer_boundary")
 
 
-def _pinned_bytes(repo, manifest_commit, path,
+def resolveresolve_pinned_bytes(repo, manifest_commit, path,
                   slots=(CAP.AUTHORITY_SLOT,)):
     """Reopen `path` from an EXACT manifest pin at the reviewed
     commit. Only a BOUND closed slot may carry a pin, and the bytes
@@ -190,9 +190,9 @@ def verify_restage_lineage_pinned(repo, manifest_commit, record,
         _r("record is not the registered restage schema")
     if record.get("join_kind") != JOIN_KIND:
         _r(f"join_kind must be {JOIN_KIND}")
-    craw, _cpin = _pinned_bytes(repo, manifest_commit,
+    craw, _cpin = resolve_pinned_bytes(repo, manifest_commit,
                                 DISP.CAPSULE_PATH)
-    araw, _apin = _pinned_bytes(repo, manifest_commit,
+    araw, _apin = resolve_pinned_bytes(repo, manifest_commit,
                                 DISP.AUTHORITY_PATH)
     capsule = json.loads(craw.decode("utf-8"))
     authority = json.loads(araw.decode("utf-8"))
@@ -227,7 +227,7 @@ def verify_restage_lineage_pinned(repo, manifest_commit, record,
     # pins. So until that bind exists this verifier REFUSES, which
     # is correct: it is the scientific-admission verifier, and
     # scientific admission is gate 2. Fail closed, never conditional.
-    traw, _tpin = _pinned_bytes(repo, manifest_commit,
+    traw, _tpin = resolve_pinned_bytes(repo, manifest_commit,
                                 CAPTURE_MODULE_PATH,
                                 slots=TRANSFORM_PIN_SLOTS)
     # codex 0410Z fix 3: compare CANONICAL identities, not raw bytes

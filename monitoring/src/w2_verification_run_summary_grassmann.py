@@ -61,15 +61,70 @@ SELFTEST_ARG = {
     "w2_disposition_capsule_grassmann.py": ["--selftest"],
     "w2_restage_verify_batch_grassmann.py": ["--selftest"],
 }
-INTERPRETERS = (("py3.14", [sys.executable]),
-                ("py3.11", ["py", "-3.11"]))
+# codex requires dual-interpreter coverage; cayley's P0 found my
+# artifact LABELLING seven runs py3.14 while executing 3.11.9 -- this
+# host has NO 3.14 at all, so both "interpreters" were the same one.
+# The repair is not a better label but a DISCOVERED one: each
+# interpreter is probed, its REAL version recorded, and a REQUIRED
+# interpreter that is absent is emitted as an explicit NOT_RUN row.
+# An absence must be visible in the artifact, never papered over by
+# a label that claims a risk class was tested.
+REQUIRED_INTERPRETERS = ("3.14", "3.11")
+# ONLY the program's declared pair is reported. 3.13/3.12 exist on
+# this host but lack the pinned scientific stack, so running them
+# would emit refusals that read as defects in this code rather than
+# as an environment gap -- noise that obscures the one fact that
+# matters here: 3.14 is ABSENT and was NOT exercised.
+CANDIDATE_LAUNCHERS = REQUIRED_INTERPRETERS
 
 
-def _blob_sha(path):
+def _probe(spec):
+    """Return (argv, version) for a launcher spec, or (None, None)."""
+    for argv in ((["py", f"-{spec}"]), ):
+        p = subprocess.run(list(argv) + [
+            "-c", "import sys;print(sys.version.split()[0])"],
+            capture_output=True)
+        v = p.stdout.decode().strip()
+        if p.returncode == 0 and v.startswith(spec):
+            return list(argv), v
+    return None, None
+
+
+def discover_interpreters():
+    """Only interpreters that ACTUALLY resolve are runnable; every
+    REQUIRED one that does not is recorded as NOT_RUN."""
+    runnable, missing = [], []
+    for spec in CANDIDATE_LAUNCHERS:
+        argv, ver = _probe(spec)
+        if argv:
+            runnable.append((f"py{spec}", argv, ver))
+    have = {lbl.replace("py", "") for lbl, _a, _v in runnable}
+    for spec in REQUIRED_INTERPRETERS:
+        if spec not in have:
+            missing.append(spec)
+    return runnable, missing
+
+
+def _blob_object_id(path):
+    """The GIT OBJECT ID (SHA-1). cayley's P0: this was previously
+    emitted under the name `blob_sha256`, so the one field designed
+    to JOIN this summary to the manifest's blob_sha256 could never
+    join it -- a 40-hex SHA-1 under a name promising a 64-hex
+    SHA-256. Both are now present, each under its true name."""
     p = subprocess.run(["git", "-C", REPO, "rev-parse",
                         f"HEAD:{path}"], capture_output=True)
     out = p.stdout.decode().strip()
     return out if p.returncode == 0 and out else None
+
+
+def _blob_sha256(path):
+    """The TRUE sha256 of the committed blob bytes -- the value the
+    manifest's blob_sha256 can actually be joined against."""
+    p = subprocess.run(["git", "-C", REPO, "cat-file", "blob",
+                        f"HEAD:{path}"], capture_output=True)
+    if p.returncode != 0:
+        return None
+    return hashlib.sha256(p.stdout).hexdigest()
 
 
 def _disk_sha(abspath):
@@ -107,7 +162,8 @@ def run_surface(name, interp_label, interp_argv):
             "exit_code": p.returncode,
             "verdict": _classify(p.returncode, tail),
             "tail": tail,
-            "blob_sha256": _blob_sha(rel),
+            "blob_object_id": _blob_object_id(rel),
+            "blob_sha256": _blob_sha256(rel),
             "disk_sha256": _disk_sha(
                 os.path.join(REPO, "monitoring", "src", name))}
 
@@ -157,10 +213,26 @@ def _inventory():
 
 
 def build():
+    runnable, missing = discover_interpreters()
     rows = []
     for name in SURFACES:
-        for label, argv in INTERPRETERS:
+        for label, argv, _ver in runnable:
             rows.append(run_surface(name, label, argv))
+        for spec in missing:
+            rows.append({
+                "surface": f"monitoring/src/{name}",
+                "argv": None, "interpreter_label": f"py{spec}",
+                "interpreter_version": None,
+                "exit_code": None, "verdict": "NOT_RUN",
+                "tail": (f"no Python {spec} runtime exists on this "
+                         "host; this interpreter was NOT exercised "
+                         "here and no label may imply otherwise"),
+                "blob_object_id": _blob_object_id(
+                    f"monitoring/src/{name}"),
+                "blob_sha256": _blob_sha256(
+                    f"monitoring/src/{name}"),
+                "disk_sha256": _disk_sha(os.path.join(
+                    REPO, "monitoring", "src", name))})
     counts = {}
     for r in rows:
         counts[r["verdict"]] = counts.get(r["verdict"], 0) + 1

@@ -33,7 +33,10 @@ class _BlockedSocket(socket.socket):
 class no_network:
     """Context manager: blocks and COUNTS connection attempts."""
 
+    entered = False
+
     def __enter__(self):
+        self.entered = True
         self._saved = socket.socket
         self._create = socket.create_connection
         self._base = len(_ATTEMPTS)

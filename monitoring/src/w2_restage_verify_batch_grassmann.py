@@ -74,13 +74,24 @@ def _require_valid_manifest(manifest_commit):
     if verdict.get("verdict") != "PASS":
         _b(f"the execution manifest at {full[:12]} is not a prestart "
            f"PASS (verdict={verdict.get('verdict')!r})")
-    open_slots = [n for n, s in
-                  (verdict.get("slots") or {}).items()
-                  if isinstance(s, dict) and s.get("status") == "OPEN"]
-    if open_slots:
-        _b(f"the manifest at {full[:12]} still has OPEN slots "
-           f"{sorted(open_slots)} -- a post-manifest verification "
-           "runs only over a closed manifest")
+    # codex 1327Z P1, one layer further than they stated: the
+    # verifier returns TOP-LEVEL `slots_open`, never a `slots`
+    # mapping. This used to read (verdict.get("slots") or {}), which
+    # is ALWAYS empty -- so open_slots was always [] and this
+    # precondition NEVER FIRED. The selftest hid it behind an `or`
+    # (refuses "OPEN slots" OR refuses "not a prestart PASS"): the
+    # second branch always carried it and the dead branch was never
+    # exercised. Same defect family as the substring doctors -- a
+    # check that cannot fail is not a check.
+    opened = verdict.get("slots_open")
+    if not isinstance(opened, int) or isinstance(opened, bool):
+        _b(f"the verifier at {full[:12]} reported no integer "
+           f"slots_open ({opened!r}); a closed-manifest precondition "
+           "cannot rest on a field that is absent")
+    if opened:
+        _b(f"the manifest at {full[:12]} still has {opened} OPEN "
+           "slots -- a post-manifest verification runs only over a "
+           "closed manifest")
     return full, verdict
 
 
@@ -98,6 +109,43 @@ def _require(path, what):
         _b(f"{what} is ABSENT at {path} -- strict mode: a missing "
            "input is a typed failure, never a skip and never green")
     return path
+
+
+def _receipt_bindings(verdict, allowlist):
+    """codex 1327Z P1: COPY the returned facts; never restate them.
+
+    `slots_open` was computed from `verdict.get("slots")` -- a key the
+    verifier does not return -- so it was hard-zero regardless of what
+    the verifier found. Injecting a distinctive result reproduced
+    `injected slots_open = 7 / receipt slots_open = 0`: a receipt
+    contradicting the check it claims to record, the same class as the
+    `allow["checked"]` defect. Pure and side-effect free so doctors can
+    drive it with deliberately distinct injected values.
+    """
+    v = verdict.get("verdict")
+    if v != "PASS":
+        _b(f"a receipt may not be assembled over verdict {v!r}")
+    mode = verdict.get("mode", "prestart")
+    if mode != "prestart":
+        _b(f"a post-manifest receipt requires prestart mode, got "
+           f"{mode!r}")
+    so = verdict.get("slots_open")
+    if not isinstance(so, int) or isinstance(so, bool):
+        _b(f"the verifier reported no integer slots_open ({so!r})")
+    if so != 0:
+        _b(f"a post-manifest receipt may not record {so} OPEN slots")
+    vpc = verdict.get("pins_checked")
+    if not isinstance(vpc, int) or isinstance(vpc, bool) or vpc <= 0:
+        _b(f"the verifier reported pins_checked={vpc!r}")
+    apc = allowlist.get("pins_checked") \
+        if isinstance(allowlist, dict) else None
+    if not isinstance(apc, int) or isinstance(apc, bool) or apc <= 0:
+        _b(f"the allowlist reported pins_checked={apc!r}")
+    return {"manifest_verdict": {"verdict": v, "mode": mode,
+                                 "slots_open": so,
+                                 "pins_checked": vpc},
+            "runtime_allowlist": {"result": "PASS",
+                                  "pins_checked": apc}}
 
 
 def _require_count_identity(registered, attempted, verified):
@@ -177,6 +225,23 @@ def _resolve_batch_preflight(full, resolver=None,
 
 
 def run(manifest_commit, store_root=None):
+    """codex 1327Z P1: the sentinel now wraps the ENTIRE operation.
+
+    It used to be entered only AFTER manifest verification, pin
+    resolution, the allowlist walk and the store checks -- every one
+    of which touches git and the filesystem and none of which was
+    measured -- and `__exit__` was called only on the NORMAL path, so
+    any typed refusal mid-run left `socket.socket` globally replaced
+    by the blocked class for the rest of the process. codex forced a
+    refusal after entry and observed
+    `socket_restored_after_refusal = False`. A `with` block restores
+    on every exit, including exceptions.
+    """
+    with NONET.no_network() as _net:
+        return _run_measured(manifest_commit, store_root, _net)
+
+
+def _run_measured(manifest_commit, store_root, _net):
     full, _verdict = _require_valid_manifest(manifest_commit)
     caps_raw, caps_pin, caps, allow = _resolve_batch_preflight(full)
     keys = sorted(caps.get("reuse_or_bridge") or {})
@@ -189,8 +254,6 @@ def run(manifest_commit, store_root=None):
     attempted = verified = 0
     v4keys, v3keys, tset, bset, aset = [], [], [], [], []
     outcomes = {}
-    _net = NONET.no_network()
-    _net.__enter__()
     for k in keys:
         attempted += 1
         lane, ck, day = k.split("/")
@@ -228,7 +291,6 @@ def run(manifest_commit, store_root=None):
         # lost the distinction and CRASHED assembly (None is not
         # orderable against str).
         _tally(outcomes, out["claim"])
-    _net.__exit__()
     if attempted != verified:
         _b("attempted != verified")
     if _net.attempts:
@@ -247,23 +309,11 @@ def run(manifest_commit, store_root=None):
         return {"observations": len(xs), "distinct": len(set(xs))}
     registered = _require_count_identity(len(keys), attempted,
                                         verified)
-    # codex 0534Z P1: populate these from the reports that were
-    # actually returned. Hard-coded literals restate the happy path
-    # instead of recording it -- the receipt would have said PASS /
-    # prestart / 0 no matter what the verifier found.
-    _slots = _verdict.get("slots") or {}
-    _open = [n for n, sl in _slots.items()
-             if isinstance(sl, dict) and sl.get("status") == "OPEN"]
+    _bind = _receipt_bindings(_verdict, allow)
     receipt = {"schema": RECEIPT_SCHEMA,
             "manifest_commit": full,
-            "manifest_verdict": {
-                "verdict": _verdict.get("verdict"),
-                "mode": _verdict.get("mode", "prestart"),
-                "slots_open": len(_open),
-                "pins_checked": _verdict.get("pins_checked")},
-            "runtime_allowlist": {
-                "result": "PASS",
-                "pins_checked": allow["pins_checked"]},
+            "manifest_verdict": _bind["manifest_verdict"],
+            "runtime_allowlist": _bind["runtime_allowlist"],
             "capsule_pin": {"path": DISP.CAPSULE_PATH,
                             "commit": caps_pin.get("commit"),
                             "blob_sha256": caps_pin.get(
@@ -288,17 +338,6 @@ def run(manifest_commit, store_root=None):
             "interpreter": sys.version.split()[0],
             "claim_scope": "MANIFEST_OWNED_RESTAGE_VERIFICATION",
             "authorizes": "NOTHING"}
-    # codex 0534Z: the emitted counts must EQUAL the injected reports
-    if receipt["runtime_allowlist"]["pins_checked"] != \
-            allow["pins_checked"]:
-        _b("the receipt's allowlist pins_checked does not equal the "
-           "allowlist report it claims to record")
-    if receipt["manifest_verdict"]["verdict"] != \
-            _verdict.get("verdict"):
-        _b("the receipt's manifest verdict does not equal the "
-           "verifier verdict it claims to record")
-    if receipt["manifest_verdict"]["slots_open"] != 0:
-        _b("a post-manifest receipt may not record OPEN slots")
     return receipt
 
 
@@ -318,9 +357,12 @@ def _selftest():
     # batch must refuse against it -- proving it cannot be run early
     head = subprocess.run(["git", "-C", REPO, "rev-parse", "HEAD"],
                           capture_output=True).stdout.decode().strip()
-    assert refuses(lambda: run(head),
-                   "OPEN slots") or refuses(lambda: run(head),
-                                            "not a prestart PASS")
+    # NOT an `or`: the previous form (refuses "OPEN slots" OR refuses
+    # "not a prestart PASS") was always carried by the SECOND branch,
+    # so the first was never exercised -- which is exactly how the
+    # vacuous slots read survived. Assert the one that is true today
+    # and doctor the OPEN-slots path directly, below, by injection.
+    assert refuses(lambda: run(head), "not a prestart PASS")
     # the OLD record-owned API cannot produce this receipt: it has no
     # manifest input at all, so no call to it can yield a
     # manifest-owned claim (codex 0410Z fix 1 doctor)
@@ -407,6 +449,71 @@ def _selftest():
         assert refuses(
             lambda r=_r, a=_a, v=_v: _require_count_identity(r, a, v),
             "registered_reuse_count"), (_r, _a, _v)
+
+    # --- codex 1327Z P1 #3: receipt bindings are COPIED, doctored
+    # with deliberately DISTINCT injected values so a hard-coded or
+    # wrong-key field cannot pass ---
+    good_v = {"verdict": "PASS", "mode": "prestart",
+              "slots_open": 0, "pins_checked": 31}
+    good_a = {"pins_checked": 17, "pins": []}
+    b = _receipt_bindings(good_v, good_a)
+    # 31 and 17 are distinct from each other and from any literal the
+    # old code could have restated
+    assert b["manifest_verdict"] == {
+        "verdict": "PASS", "mode": "prestart", "slots_open": 0,
+        "pins_checked": 31}, b
+    assert b["runtime_allowlist"] == {"result": "PASS",
+                                      "pins_checked": 17}, b
+    # the exact case codex reproduced: injected slots_open = 7 must
+    # NOT be recorded as 0
+    assert refuses(lambda: _receipt_bindings(
+        dict(good_v, slots_open=7), good_a), "7 OPEN slots")
+    assert refuses(lambda: _receipt_bindings(
+        dict(good_v, verdict="REFUSE"), good_a), "may not be assembled")
+    assert refuses(lambda: _receipt_bindings(
+        dict(good_v, mode="poststart"), good_a), "requires prestart")
+    assert refuses(lambda: _receipt_bindings(
+        dict(good_v, pins_checked=0), good_a), "pins_checked=0")
+    for bad in ({"pins_checked": 0}, {"pins_checked": None}, {},
+                {"checked": [1, 2, 3]}):
+        assert refuses(lambda bad=bad: _receipt_bindings(good_v, bad),
+                       "allowlist reported pins_checked")
+    # a verifier that reports no integer slots_open cannot be copied
+    for miss in ({"verdict": "PASS", "mode": "prestart",
+                  "pins_checked": 3},
+                 dict(good_v, slots_open=True)):
+        assert refuses(lambda m=miss: _receipt_bindings(m, good_a),
+                       "no integer slots_open")
+
+    # --- codex 1327Z P1 #4: the sentinel is whole-operation and
+    # EXCEPTION-SAFE ---
+    import socket as _sock
+    _orig_sock, _orig_conn = _sock.socket, _sock.create_connection
+    # (a) a typed refusal mid-run must still restore BOTH hooks --
+    # codex observed socket_restored_after_refusal = False
+    assert refuses(lambda: run("not-a-real-commit"), "does not resolve")
+    assert _sock.socket is _orig_sock, \
+        "socket.socket was left globally replaced after a refusal"
+    assert _sock.create_connection is _orig_conn, \
+        "create_connection was left globally replaced after a refusal"
+    # ...and after a refusal raised DEEPER in, past preflight
+    assert refuses(lambda: run(head), "not a prestart PASS")
+    assert _sock.socket is _orig_sock and \
+        _sock.create_connection is _orig_conn
+    # (b) a PREFLIGHT connect attempt is blocked, COUNTED, and cannot
+    # emit a receipt -- preflight now runs inside the sentinel
+    def _connecting_resolver(repo, commit, path):
+        _sock.create_connection(("example.invalid", 80))
+        raise AssertionError("the connect should have been blocked")
+    with NONET.no_network() as _probe:
+        assert _probe.attempts == 0
+        assert refuses(lambda: _resolve_batch_preflight(
+            "f" * 40, resolver=_connecting_resolver,
+            allowlist_check=lambda r, c: {"pins_checked": 1}),
+            "did not resolve")
+        assert _probe.attempts == 1, _probe.attempts
+    assert _sock.socket is _orig_sock and \
+        _sock.create_connection is _orig_conn
 
     # codex 0445Z item 3: the exact 360 + 1060 mixed composition
     # must ASSEMBLE DETERMINISTICALLY before the evidence-host run

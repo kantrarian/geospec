@@ -267,6 +267,29 @@ def local_import_closure(src_dir, entrypoints=ADMISSION_ENTRYPOINTS):
                 if os.path.isfile(os.path.join(src_dir, cand)) and \
                         cand not in seen:
                     stack.append(cand)
+        # codex 1716Z said "imported OR SUBPROCESS-INVOKED". No
+        # subprocess-launched .py helper exists in this tree today, so
+        # scanning imports alone happens to be adequate -- which is
+        # exactly why this needed writing. A check that is correct
+        # because the tree is currently simple stops being correct
+        # silently, and the requirement names the MECHANISM, not
+        # today's instances.
+        for n in ast.walk(tree):
+            if not isinstance(n, ast.Call):
+                continue
+            fname = getattr(n.func, "attr",
+                            getattr(n.func, "id", ""))
+            if fname not in ("run", "Popen", "check_output",
+                             "call", "check_call"):
+                continue
+            for a in ast.walk(n):
+                if isinstance(a, ast.Constant) and \
+                        isinstance(a.value, str) and \
+                        a.value.endswith(".py"):
+                    cand = os.path.basename(a.value)
+                    if os.path.isfile(os.path.join(src_dir, cand)) \
+                            and cand not in seen:
+                        stack.append(cand)
     return seen
 
 

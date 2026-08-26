@@ -1,0 +1,243 @@
+{
+ "authorizes": "NOTHING",
+ "claim_scope": "PRE_MANIFEST_VERIFICATION_RECORD",
+ "http_requests": 0,
+ "invocations": [
+  {
+   "argv": [
+    "C:\\Users\\devildog\\AppData\\Local\\Programs\\Python\\Python311\\python.exe",
+    "test_f2g_window2_redkats_grassmann.py"
+   ],
+   "blob_sha256": "7a7ff530d1d601cfecb08181a35b98d4b12d5914",
+   "disk_sha256": "6364e2f667948f79dc6ec10f58bc68d439c845ee3aca6c65edef59f8e3610ad6",
+   "exit_code": 0,
+   "interpreter_label": "py3.14",
+   "interpreter_version": "3.11.9",
+   "surface": "monitoring/src/test_f2g_window2_redkats_grassmann.py",
+   "tail": " ALL WINDOW-2 RED-KATs PASS",
+   "verdict": "PASS"
+  },
+  {
+   "argv": [
+    "py",
+    "-3.11",
+    "test_f2g_window2_redkats_grassmann.py"
+   ],
+   "blob_sha256": "7a7ff530d1d601cfecb08181a35b98d4b12d5914",
+   "disk_sha256": "6364e2f667948f79dc6ec10f58bc68d439c845ee3aca6c65edef59f8e3610ad6",
+   "exit_code": 0,
+   "interpreter_label": "py3.11",
+   "interpreter_version": "3.11.9",
+   "surface": "monitoring/src/test_f2g_window2_redkats_grassmann.py",
+   "tail": " ALL WINDOW-2 RED-KATs PASS",
+   "verdict": "PASS"
+  },
+  {
+   "argv": [
+    "C:\\Users\\devildog\\AppData\\Local\\Programs\\Python\\Python311\\python.exe",
+    "test_w2_fixture_schema_redkats_grassmann.py"
+   ],
+   "blob_sha256": "41dc8b36aaa8660baab9bf9c31d3e0157774de49",
+   "disk_sha256": "aa5532579f7e587ece4e5e34fa6684378198053315ab5eb1306872317a4b614c",
+   "exit_code": 0,
+   "interpreter_label": "py3.14",
+   "interpreter_version": "3.11.9",
+   "surface": "monitoring/src/test_w2_fixture_schema_redkats_grassmann.py",
+   "tail": " ALL W2 FIXTURE-SCHEMA RED-KATs PASS",
+   "verdict": "PASS"
+  },
+  {
+   "argv": [
+    "py",
+    "-3.11",
+    "test_w2_fixture_schema_redkats_grassmann.py"
+   ],
+   "blob_sha256": "41dc8b36aaa8660baab9bf9c31d3e0157774de49",
+   "disk_sha256": "aa5532579f7e587ece4e5e34fa6684378198053315ab5eb1306872317a4b614c",
+   "exit_code": 0,
+   "interpreter_label": "py3.11",
+   "interpreter_version": "3.11.9",
+   "surface": "monitoring/src/test_w2_fixture_schema_redkats_grassmann.py",
+   "tail": " ALL W2 FIXTURE-SCHEMA RED-KATs PASS",
+   "verdict": "PASS"
+  },
+  {
+   "argv": [
+    "C:\\Users\\devildog\\AppData\\Local\\Programs\\Python\\Python311\\python.exe",
+    "w2_acquisition_capture_grassmann.py"
+   ],
+   "blob_sha256": "8287bf4d6da7f90d7cd3089c574915f2ceafa352",
+   "disk_sha256": "7ac58e05af5ca25039c1c06e5b223e89bc67be9ee0e64e2a7cc0c38cbfff89e1",
+   "exit_code": 0,
+   "interpreter_label": "py3.14",
+   "interpreter_version": "3.11.9",
+   "surface": "monitoring/src/w2_acquisition_capture_grassmann.py",
+   "tail": "w2_acquisition_capture selftest: ALL PASS (no network)",
+   "verdict": "PASS"
+  },
+  {
+   "argv": [
+    "py",
+    "-3.11",
+    "w2_acquisition_capture_grassmann.py"
+   ],
+   "blob_sha256": "8287bf4d6da7f90d7cd3089c574915f2ceafa352",
+   "disk_sha256": "7ac58e05af5ca25039c1c06e5b223e89bc67be9ee0e64e2a7cc0c38cbfff89e1",
+   "exit_code": 0,
+   "interpreter_label": "py3.11",
+   "interpreter_version": "3.11.9",
+   "surface": "monitoring/src/w2_acquisition_capture_grassmann.py",
+   "tail": "w2_acquisition_capture selftest: ALL PASS (no network)",
+   "verdict": "PASS"
+  },
+  {
+   "argv": [
+    "C:\\Users\\devildog\\AppData\\Local\\Programs\\Python\\Python311\\python.exe",
+    "w2_producer_grassmann.py"
+   ],
+   "blob_sha256": "f3017ddcedd616fe317030ec68ad0a8b6ff50fae",
+   "disk_sha256": "6d7379909f25dbc84daf74ec17f40ffcc031275ab5d3da64a3f3e4c998332535",
+   "exit_code": 0,
+   "interpreter_label": "py3.14",
+   "interpreter_version": "3.11.9",
+   "surface": "monitoring/src/w2_producer_grassmann.py",
+   "tail": "w2_producer selftest: ALL PASS",
+   "verdict": "PASS"
+  },
+  {
+   "argv": [
+    "py",
+    "-3.11",
+    "w2_producer_grassmann.py"
+   ],
+   "blob_sha256": "f3017ddcedd616fe317030ec68ad0a8b6ff50fae",
+   "disk_sha256": "6d7379909f25dbc84daf74ec17f40ffcc031275ab5d3da64a3f3e4c998332535",
+   "exit_code": 0,
+   "interpreter_label": "py3.11",
+   "interpreter_version": "3.11.9",
+   "surface": "monitoring/src/w2_producer_grassmann.py",
+   "tail": "w2_producer selftest: ALL PASS",
+   "verdict": "PASS"
+  },
+  {
+   "argv": [
+    "C:\\Users\\devildog\\AppData\\Local\\Programs\\Python\\Python311\\python.exe",
+    "w2_restage_lineage_grassmann.py"
+   ],
+   "blob_sha256": "50f1529ffb1c3caa7a7e57c8ab428009cda52e98",
+   "disk_sha256": "09d7dff7bd56d0204532ff4fc404f2698e016562084763922d57a938ad1c34de",
+   "exit_code": 0,
+   "interpreter_label": "py3.14",
+   "interpreter_version": "3.11.9",
+   "surface": "monitoring/src/w2_restage_lineage_grassmann.py",
+   "tail": "w2_restage_lineage selftest: ALL PASS (MAG_FEED/frn/2026-01-01 via MAG_FEED/frn/2026-01-01, outcome=ADMITTED, no network)",
+   "verdict": "PASS"
+  },
+  {
+   "argv": [
+    "py",
+    "-3.11",
+    "w2_restage_lineage_grassmann.py"
+   ],
+   "blob_sha256": "50f1529ffb1c3caa7a7e57c8ab428009cda52e98",
+   "disk_sha256": "09d7dff7bd56d0204532ff4fc404f2698e016562084763922d57a938ad1c34de",
+   "exit_code": 0,
+   "interpreter_label": "py3.11",
+   "interpreter_version": "3.11.9",
+   "surface": "monitoring/src/w2_restage_lineage_grassmann.py",
+   "tail": "w2_restage_lineage selftest: ALL PASS (MAG_FEED/frn/2026-01-01 via MAG_FEED/frn/2026-01-01, outcome=ADMITTED, no network)",
+   "verdict": "PASS"
+  },
+  {
+   "argv": [
+    "C:\\Users\\devildog\\AppData\\Local\\Programs\\Python\\Python311\\python.exe",
+    "w2_disposition_capsule_grassmann.py",
+    "--selftest"
+   ],
+   "blob_sha256": "b18adfa644990f1ad046ed823bf740f9eed13189",
+   "disk_sha256": "242aea2e8454fcd4ae217792013712b766ae49401a8f2267828ffb4f8e062176",
+   "exit_code": 1,
+   "interpreter_label": "py3.14",
+   "interpreter_version": "3.11.9",
+   "surface": "monitoring/src/w2_disposition_capsule_grassmann.py",
+   "tail": "    raise DispositionRefusal(\"DISPOSITION_REFUSED: \" + str(msg)) DispositionRefusal: DISPOSITION_REFUSED: v3_archive.sha256 does not match the resolved archive bytes",
+   "verdict": "REFUSE"
+  },
+  {
+   "argv": [
+    "py",
+    "-3.11",
+    "w2_disposition_capsule_grassmann.py",
+    "--selftest"
+   ],
+   "blob_sha256": "b18adfa644990f1ad046ed823bf740f9eed13189",
+   "disk_sha256": "242aea2e8454fcd4ae217792013712b766ae49401a8f2267828ffb4f8e062176",
+   "exit_code": 1,
+   "interpreter_label": "py3.11",
+   "interpreter_version": "3.11.9",
+   "surface": "monitoring/src/w2_disposition_capsule_grassmann.py",
+   "tail": "    raise DispositionRefusal(\"DISPOSITION_REFUSED: \" + str(msg)) DispositionRefusal: DISPOSITION_REFUSED: v3_archive.sha256 does not match the resolved archive bytes",
+   "verdict": "REFUSE"
+  },
+  {
+   "argv": [
+    "C:\\Users\\devildog\\AppData\\Local\\Programs\\Python\\Python311\\python.exe",
+    "w2_restage_verify_batch_grassmann.py",
+    "--selftest"
+   ],
+   "blob_sha256": "176e770ead45008b13feb1a324027d1ba1ee3eb4",
+   "disk_sha256": "c6bfb6519700cf8dbf8afc8cc5adaf632b4f0d5894a56c90f7fd9bb966a68ac3",
+   "exit_code": 0,
+   "interpreter_label": "py3.14",
+   "interpreter_version": "3.11.9",
+   "surface": "monitoring/src/w2_restage_verify_batch_grassmann.py",
+   "tail": "w2_restage_verify_batch selftest: ALL PASS (refusal contract only; no manifest-owned PASS exists before the single regeneration)",
+   "verdict": "PASS"
+  },
+  {
+   "argv": [
+    "py",
+    "-3.11",
+    "w2_restage_verify_batch_grassmann.py",
+    "--selftest"
+   ],
+   "blob_sha256": "176e770ead45008b13feb1a324027d1ba1ee3eb4",
+   "disk_sha256": "c6bfb6519700cf8dbf8afc8cc5adaf632b4f0d5894a56c90f7fd9bb966a68ac3",
+   "exit_code": 0,
+   "interpreter_label": "py3.11",
+   "interpreter_version": "3.11.9",
+   "surface": "monitoring/src/w2_restage_verify_batch_grassmann.py",
+   "tail": "w2_restage_verify_batch selftest: ALL PASS (refusal contract only; no manifest-owned PASS exists before the single regeneration)",
+   "verdict": "PASS"
+  }
+ ],
+ "note": "execution outcomes only; manifest-owned admission results exist ONLY in the downstream post-manifest receipt",
+ "repo_head": "621f20dbf930cd1250ab08b2db455ce3788041ce",
+ "schema": "f2g-w2-verification-run-summary-v1",
+ "staged_inventory": {
+  "body_name_digest": "b64048faf58d7e72b5ed314bb7c2c5695bb3322070b92e6f2101dd83c00453ef",
+  "class_counts": {
+   ".artifact.json": 1420,
+   ".contract.json": 1420,
+   ".restage.json": 1420,
+   ".transcript.json": 1420
+  },
+  "distinct_body_count": 1073,
+  "file_count": 5680,
+  "sorted_relative_path_digest": "f67194980f7b946b74b207f230f9b4c12ae2388563cdd094338ed53f32284441",
+  "status": "PRESENT",
+  "total_bytes": 17026513,
+  "v4_staged_tree": "E:\\GeoSpec\\geospec_sprint\\docs\\f2g_window2_execution\\staged_envelopes_v4",
+  "v4_store": "E:/GeoSpec/w2_capture_store_v4"
+ },
+ "verdict_counts": {
+  "PASS": 12,
+  "REFUSE": 2
+ },
+ "verdict_vocabulary": [
+  "PASS",
+  "COVERED_ELSEWHERE",
+  "REFUSE",
+  "NOT_RUN"
+ ]
+}

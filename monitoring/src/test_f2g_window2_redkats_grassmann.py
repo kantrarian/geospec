@@ -2709,30 +2709,30 @@ def w_admit():
              "keys_sha256": keys_sha(auth_keys)},
             adm_entries, {})
 
-        # cayley's closure-4 boundary now REQUIRES the disposition
-        # capsule and verifies it through the STRICT lineage-registry
-        # contract. The fixture uses the SUPPORTED fixture path: a
-        # real (small) archive file and a real store directory, so
-        # every check actually runs -- no injectable verifier and no
-        # fail-open hole, which is what closure 2 exists to prevent.
-        import w2_disposition_capsule_grassmann as DISPB
-        bar_capsule = DISPB.build_fixture_capsule(
-            auth, [f"{ln}/{ck}/{d}" for ln, ck in LANES
-                   for d in DAYS],
-            store, os.path.join(root, "fixture_archive.json"))
-
+        # codex 0057Z section 1 + cayley's 0248Z call-site move: this
+        # group exercises the boundary MECHANICS, and mechanics now
+        # live in a separately named kernel whose result is
+        # STRUCTURALLY incapable of satisfying admission. The kernel
+        # takes NO capsule at all -- a six-key fixture manifest
+        # carries no capsule pin, and production correctly refuses a
+        # supplied substitute (cayley's 0110Z forgery finding). So
+        # this line is STRUCTURAL_KAT_ONLY and is NOT closure-4 PASS.
         def boundary(pin_list, dispatcher=disp, reproducer=None,
-                     archive=None, capsule=None):
-            return ACC.verify_staged_boundary(
+                     archive=None):
+            res = ACC.verify_staged_boundary_structure_kat(
                 _REPO, man_of(pin_list), blob_reader=reader,
                 transform_dispatcher=dispatcher,
                 capture_archive=(bar_archive if archive is None
                                  else archive),
-                disposition_capsule=(bar_capsule if capsule is None
-                                     else capsule),
                 authority_reproducer=(
                     reproducer or (lambda: json.loads(
                         json.dumps(auth)))))
+            # the stamp must be present and must NOT carry admission
+            assert res["claim_scope"] == "STRUCTURAL_KAT_ONLY"
+            assert res["admission_eligible"] is False
+            assert "staged_boundary_sha256" not in res
+            assert "proof_kinds" not in res
+            return res
 
         def refuses_detail(fn, needle):
             try:
@@ -2745,11 +2745,11 @@ def w_admit():
         # POSITIVE: the full six-key boundary through everything real
         res = boundary(pins)
         ok_pos = isinstance(res, dict) \
-            and set(res["report"]["lanes"]) == {
+            and set(res["structure"]["lanes"]) == {
                 f"{ln}/{ck}" for ln, ck in LANES} \
             and all(v["days"] == 2
-                    for v in res["report"]["lanes"].values()) \
-            and len(res["staged_boundary_sha256"]) == 64
+                    for v in res["structure"]["lanes"].values()) \
+            and len(res["structural_kat_sha256"]) == 64
 
         # ARCHIVE-GATE doctors (cayley part 7 / codex ruling 4), from
         # this side of the seam: the boundary must fail CLOSED without
@@ -2960,7 +2960,8 @@ def w_admit():
             lambda: boundary(evil_pins),
             "S is admitted, never submitted")
 
-        check("ADMIT admission-boundary locks (six-key REAL positive "
+        check("ADMIT STRUCTURAL_KAT_ONLY boundary mechanics "
+              "(NOT closure-4 PASS; six-key REAL positive "
               "through capture_day + store + five-map join, "
               "whole-day-omission vs the independent authority, "
               "coordinated artifact+digest forgery vs transform "

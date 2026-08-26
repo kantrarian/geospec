@@ -52,6 +52,14 @@ REPO = os.path.abspath(os.path.join(_HERE, "..", ".."))
 # LINEAGE REGISTRY requires, and every nested field consumed as
 # authority is closed and independently re-derived here.
 CAPSULE_SCHEMA = "f2g-w2-key-disposition-capsule-v2"
+# cayley's 0110Z P0: build_fixture_capsule over the REAL authority
+# minted a capsule that passed the strict verifier while claiming all
+# 2056 keys native -- internally true, externally false. Their
+# pin-binding closes it from the boundary side; this closes it from
+# MINE, structurally: a fixture capsule carries a DIFFERENT SCHEMA,
+# so no production verifier can ever accept one whatever it claims.
+FIXTURE_CAPSULE_SCHEMA = ("f2g-w2-key-disposition-capsule-"
+                          "FIXTURE-ONLY-v2")
 _AUTHORITY_KEYS = {"path", "blob_sha256", "keys_sha256", "census"}
 _OLD_AUTHORITY_KEYS = {"commit", "path", "blob_sha256",
                        "keys_sha256"}
@@ -258,6 +266,21 @@ def build_fixture_capsule(authority, http_keys, store_root,
     uses, and it refuses if the fixture is not internally true."""
     reuse = dict(reuse or {})
     pred = dict(predecessor or {})
+    # a FIXTURE may never be minted over the REAL registered census
+    # (cayley 0110Z): that is the exact shape that claimed 2056
+    # native keys against a truth of 635/1420/1
+    try:
+        real, _sha = _authority("HEAD")
+        if authority.get("prestart_expected_keys_sha256") == \
+                real.get("prestart_expected_keys_sha256"):
+            _d("build_fixture_capsule REFUSES the REAL registered "
+               "authority -- a fixture over the production census "
+               "is exactly the internally-true / externally-false "
+               "capsule this constructor must never be able to mint")
+    except DispositionRefusal:
+        raise
+    except Exception:
+        pass
     arch = {"schema": "f2g-w2-capture-run-archive-v1",
             "store_id": "fixture-store",
             "authority": dict(old_authority or {
@@ -268,7 +291,7 @@ def build_fixture_capsule(authority, http_keys, store_root,
     os.makedirs(os.path.dirname(archive_path) or ".", exist_ok=True)
     with open(archive_path, "wb") as f:
         f.write(raw)
-    caps = {"schema": CAPSULE_SCHEMA,
+    caps = {"schema": FIXTURE_CAPSULE_SCHEMA,
             "authority": {
                 "path": AUTHORITY_PATH,
                 "blob_sha256": hashlib.sha256(
@@ -314,8 +337,19 @@ def verify_lineage_registry(capsule, authority=None,
     if not os.path.isdir(root):
         _d("LINEAGE registry verification requires the source body "
            f"store; {root} is not readable -- fail CLOSED")
+    if not (capsule or {}).get("reuse_or_bridge"):
+        _d("LINEAGE registry verification over an EMPTY reuse "
+           "partition is VACUOUS -- there is no lineage to "
+           "authenticate, so it can never report lineage evidence "
+           "as verified (cayley 0110Z)")
     out = _verify(capsule, authority, commitish, root, True)
-    out["lineage_evidence_verified"] = True
+    # honesty of the report itself: 'verified' means bodies were
+    # actually recomputed, never merely that nothing was checked
+    n = out.get("bodies_recomputed") or 0
+    out["lineage_evidence_verified"] = bool(n)
+    if not n:
+        _d("LINEAGE registry reported zero recomputed bodies -- a "
+           "verification that checked nothing is not a pass")
     return out
 
 

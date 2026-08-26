@@ -589,9 +589,32 @@ def merge_legs(legs):
     `legs` is a sequence of leg records (already-parsed dicts).
     Returns the merged record, or raises MergeRefusal.
     """
-    legs = list(legs)
+    try:
+        legs = list(legs)
+    except TypeError:
+        _mr(f"legs is not iterable ({type(legs).__name__})")
     if len(legs) < 2:
         _mr(f"a merge needs at least two legs, got {len(legs)}")
+    # cayley 1532Z near-finding, made real: their untyped KeyError
+    # traced to their own shell quoting, but probing the SHAPE space
+    # found five of eight malformed inputs leaking AttributeError or
+    # TypeError out of this function. An untyped exception is NOT a
+    # refusal: a caller catching MergeRefusal crashes instead of
+    # receiving a verdict, and a crash produces no typed result while
+    # leaving whatever it was going to replace looking untouched --
+    # the same class as the inventory KeyError I repaired earlier.
+    # Shapes are therefore checked BEFORE any field access.
+    for n, lg in enumerate(legs):
+        if not isinstance(lg, dict):
+            _mr(f"leg {n} is a {type(lg).__name__}, not a record")
+        inv = lg.get("invocations")
+        if not isinstance(inv, list):
+            _mr(f"leg {n} has invocations of type "
+                f"{type(inv).__name__}, not a list")
+        for m, r in enumerate(inv):
+            if not isinstance(r, dict):
+                _mr(f"leg {n} row {m} is a {type(r).__name__}, not "
+                    "a record")
     commits, gens, schemas, hosts = set(), set(), set(), []
     for i, lg in enumerate(legs):
         for f in ("source_commit", "repo_head", "host_id",
@@ -891,6 +914,31 @@ def _merge_selftest():
     assert ok["coverage_status"] == "COMPLETE", ok["coverage_status"]
     assert ok["missing_required_cells"] == []
     assert ok["missing_required_interpreters"] == []
+    # (S) SHAPE refusals: an untyped exception is not a refusal
+    def twin(**kw):
+        t = leg("geomen/Windows")
+        t.update(kw)
+        return t
+    for name, bad in (
+            ("invocations not a list", twin(invocations={"a": 1})),
+            ("row is an int", twin(invocations=[1, 2, 3])),
+            ("row is a string", twin(invocations=["row"])),
+            ("row is None", twin(invocations=[None])),
+            ("leg is None", None),
+            ("leg is a string", "leg"),
+            ("leg is a list", [1, 2])):
+        try:
+            merge_legs([ev(), bad])
+            raise AssertionError(f"{name} was ACCEPTED")
+        except MergeRefusal:
+            pass
+    for bad_legs in (None, 42, "legs"):
+        try:
+            merge_legs(bad_legs)
+            raise AssertionError(f"{bad_legs!r} was ACCEPTED")
+        except MergeRefusal:
+            pass
+
     # ---- frame ----
     OTHER = "b" * 40
     assert refuses(lambda: merge_legs(

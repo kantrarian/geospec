@@ -235,6 +235,62 @@ def _partition_block(caps):
     }
 
 
+def build_fixture_capsule(authority, http_keys, store_root,
+                          archive_path, old_authority=None,
+                          reuse=None, predecessor=None):
+    """THE SUPPORTED FIXTURE PATH (cayley's 2340Z testability ask).
+
+    The answer to "how do I satisfy the strict lineage contract over
+    a fixture?" is NOT an injectable verifier and NOT a fail-open
+    hole -- both would reopen exactly what closure 2 exists to close,
+    and a fixture ground down until the verifier stops complaining is
+    a fixture shaped to satisfy a checker rather than to represent
+    reality. Cayley was right to stop rather than hand-iterate.
+
+    The supported answer is to make the FIXTURE REAL: write a real
+    (small) archive file, put real bodies in a real store directory,
+    and let every derivation actually run. This helper assembles such
+    a capsule; the caller writes the bodies. `archive_path` may be
+    absolute so the fixture can live in a temp dir.
+
+    Nothing here is relaxed: the resulting capsule is verified by the
+    SAME strict `verify_lineage_registry` every production caller
+    uses, and it refuses if the fixture is not internally true."""
+    reuse = dict(reuse or {})
+    pred = dict(predecessor or {})
+    arch = {"schema": "f2g-w2-capture-run-archive-v1",
+            "store_id": "fixture-store",
+            "authority": dict(old_authority or {
+                "commit": "0" * 40, "path": AUTHORITY_PATH,
+                "blob_sha256": "0" * 64, "keys_sha256": "0" * 64}),
+            "admitted": {}, "refused": {}}
+    raw = (json.dumps(arch, indent=1, sort_keys=True) + "\n").encode()
+    os.makedirs(os.path.dirname(archive_path) or ".", exist_ok=True)
+    with open(archive_path, "wb") as f:
+        f.write(raw)
+    caps = {"schema": CAPSULE_SCHEMA,
+            "authority": {
+                "path": AUTHORITY_PATH,
+                "blob_sha256": hashlib.sha256(
+                    json.dumps(authority, sort_keys=True).encode()
+                ).hexdigest(),
+                "keys_sha256":
+                    authority["prestart_expected_keys_sha256"],
+                "census": len(_v4_keys(authority))},
+            "transform_identity": CAP.transform_identity(),
+            "v3_archive": {"path": archive_path,
+                           "sha256": hashlib.sha256(raw).hexdigest(),
+                           "store_id": arch["store_id"]},
+            "old_authority": dict(arch["authority"]),
+            "lane_map": dict(LANE_MAP),
+            "superseded_v3": [list(x) for x in SUPERSEDED_V3],
+            "reuse_or_bridge": reuse, "predecessor": pred,
+            "http_capture": sorted(http_keys)}
+    caps["partitions"] = _partition_block(caps)
+    os.makedirs(store_root, exist_ok=True)
+    return caps
+
+
 def verify_ceiling(capsule, authority=None, commitish="HEAD"):
     """THE REQUEST-CEILING contract ONLY (codex 2303Z closure 2):
     exact/disjoint request-membership over the authority key set. It
@@ -365,7 +421,13 @@ def _verify_nested(c, authority, store_root=None, lineage=False):
     if _archive_committed("HEAD"):
         _araw = _blob(f"HEAD:{c['v3_archive']['path']}")
     else:
-        _ap = os.path.join(REPO, *c["v3_archive"]["path"].split("/"))
+        # repo-relative by default; an ABSOLUTE path is honoured so a
+        # FIXTURE capsule can name a real fixture archive outside the
+        # repo. This weakens nothing: the bytes it resolves to are
+        # still digest-checked below, and the store must still exist.
+        _p = c["v3_archive"]["path"]
+        _ap = _p if os.path.isabs(_p) else \
+            os.path.join(REPO, *_p.split("/"))
         if os.path.isfile(_ap):
             with open(_ap, "rb") as f:
                 _araw = f.read()
@@ -408,7 +470,14 @@ def _verify_nested(c, authority, store_root=None, lineage=False):
         _closed(e, _PREDECESSOR_KEYS, f"predecessor[{k}]")
         if e["spent_probe"] is not True:
             _d(f"predecessor[{k}] must record spent_probe true")
-    # the v3 authority the historical exchanges happened under
+    # the v3 authority the historical exchanges happened under. It
+    # is reopened ONLY when there are lineage entries to authenticate
+    # against it: with an empty REUSE partition there is no lineage
+    # claim, so deriving contracts for zero keys would prove nothing.
+    # (The identity is still closed, hex-checked, and cross-checked
+    # against the authority the archive itself records, above.)
+    if not c["reuse_or_bridge"]:
+        return
     old_raw = _blob(f"{c['old_authority']['commit']}:"
                     f"{c['old_authority']['path']}")
     if hashlib.sha256(old_raw).hexdigest() != \

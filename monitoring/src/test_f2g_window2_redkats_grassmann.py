@@ -2709,13 +2709,27 @@ def w_admit():
              "keys_sha256": keys_sha(auth_keys)},
             adm_entries, {})
 
+        # cayley's closure-4 boundary now REQUIRES the disposition
+        # capsule and verifies it through the STRICT lineage-registry
+        # contract. The fixture uses the SUPPORTED fixture path: a
+        # real (small) archive file and a real store directory, so
+        # every check actually runs -- no injectable verifier and no
+        # fail-open hole, which is what closure 2 exists to prevent.
+        import w2_disposition_capsule_grassmann as DISPB
+        bar_capsule = DISPB.build_fixture_capsule(
+            auth, [f"{ln}/{ck}/{d}" for ln, ck in LANES
+                   for d in DAYS],
+            store, os.path.join(root, "fixture_archive.json"))
+
         def boundary(pin_list, dispatcher=disp, reproducer=None,
-                     archive=None):
+                     archive=None, capsule=None):
             return ACC.verify_staged_boundary(
                 _REPO, man_of(pin_list), blob_reader=reader,
                 transform_dispatcher=dispatcher,
                 capture_archive=(bar_archive if archive is None
                                  else archive),
+                disposition_capsule=(bar_capsule if capsule is None
+                                     else capsule),
                 authority_reproducer=(
                     reproducer or (lambda: json.loads(
                         json.dumps(auth)))))

@@ -242,41 +242,138 @@ def _interp_version(interp_argv):
     return p.stdout.decode().strip() or "UNKNOWN"
 
 
+EXPECTED_CLASSES = (".restage.json", ".contract.json",
+                    ".artifact.json", ".transcript.json")
+EXPECTED_KEYS = 1420
+EXPECTED_FILES = 5680
+EXPECTED_BODIES = 1073
+
+
 def _inventory():
-    """The 1,420-key / staged-tree inventory codex ruled must be
-    committed INSTEAD of the 5,680-file tree."""
+    """codex 0509Z item 5: the inventory VERIFIES its invariants and
+    FAILS CLOSED. Previously it printed 1420x4 / 5680 / 1073 without
+    requiring any of them, so `status=PRESENT` could survive a
+    materially wrong tree -- an observation dressed as a check."""
     import w2_restage_v4_grassmann as RES
-    inv = {"v4_staged_tree": RES.V4_STAGED,
-           "v4_store": RES.V4_STORE}
-    if not os.path.isdir(RES.V4_STAGED):
-        inv["status"] = "NOT_RUN: the v4 staged tree is absent here"
+    import w2_no_network_grassmann as NONET
+    import w2_disposition_capsule_grassmann as DISP
+    import w2_restage_lineage_grassmann as LIN
+    import w2_acquisition_capture_grassmann as CAPM
+    inv = {"v4_staged_tree": RES.V4_STAGED, "v4_store": RES.V4_STORE,
+           "source_store_id": "s4t-w2-capture-20260825",
+           "destination_store_id": "s4t-w2-capture-v4"}
+
+    def refuse(why):
+        inv["status"] = "REFUSE"
+        inv["reason"] = why
         return inv
-    files = sorted(os.listdir(RES.V4_STAGED))
-    per = {}
-    for f in files:
-        for suf in (".restage.json", ".record.json",
-                    ".contract.json", ".artifact.json",
-                    ".transcript.json"):
-            if f.endswith(suf):
-                per[suf] = per.get(suf, 0) + 1
-    total_bytes = sum(os.path.getsize(
-        os.path.join(RES.V4_STAGED, f)) for f in files)
-    bodies = sorted(x for x in os.listdir(RES.V4_STORE)
-                    if x.endswith(".body")) \
-        if os.path.isdir(RES.V4_STORE) else []
-    inv.update({
-        "status": "PRESENT",
-        "class_counts": dict(sorted(per.items())),
-        "file_count": len(files),
-        "sorted_relative_path_digest": hashlib.sha256(
-            json.dumps(files, separators=(",", ":")).encode()
-        ).hexdigest(),
-        "total_bytes": total_bytes,
-        "distinct_body_count": len(bodies),
-        "body_name_digest": hashlib.sha256(
-            json.dumps(bodies, separators=(",", ":")).encode()
-        ).hexdigest()})
-    return inv
+    if not os.path.isdir(RES.V4_STAGED):
+        return refuse("the v4 staged tree is absent on this host")
+    net = NONET.no_network()
+    net.__enter__()
+    try:
+        files = sorted(os.listdir(RES.V4_STAGED))
+        per, extras = {}, []
+        for f in files:
+            hit = [c for c in EXPECTED_CLASSES if f.endswith(c)]
+            if not hit:
+                extras.append(f)
+                continue
+            per[hit[0]] = per.get(hit[0], 0) + 1
+        if extras:
+            return refuse(f"{len(extras)} file(s) outside the four "
+                          f"allowed classes, e.g. {extras[:3]}")
+        if sorted(per) != sorted(EXPECTED_CLASSES) or \
+                any(v != EXPECTED_KEYS for v in per.values()):
+            return refuse(f"class counts are not {EXPECTED_KEYS} x 4: "
+                          f"{per}")
+        if len(files) != EXPECTED_FILES:
+            return refuse(f"{len(files)} files, expected "
+                          f"{EXPECTED_FILES}")
+        v4, v3, tset, bset, aset, claims = [], [], [], [], [], {}
+        for f in files:
+            if not f.endswith(".restage.json"):
+                continue
+            with open(os.path.join(RES.V4_STAGED, f),
+                      encoding="utf-8") as fh:
+                rec = json.load(fh)
+            v4.append(rec["v4_key"])
+            v3.append(rec["v3_key"])
+            tset.append(rec["t_v3_sha256"])
+            bset.append(rec["raw_body_sha256"])
+            aset.append(rec["artifact_sha256"])
+            if "claim" not in rec:
+                return refuse(
+                    "staged restage records predate the typed claim "
+                    "block (they carry a nullable `outcome`); this "
+                    "tree is STALE BY DESIGN and is regenerated in "
+                    "step 2 -- refusing rather than reporting a "
+                    "tree whose records the current contract cannot "
+                    "read")
+            c = rec["claim"]
+            kind = c["artifact_claim_kind"]
+            st = c.get("outcome") or c.get("support_outcome")
+            claims.setdefault(kind, {})
+            claims[kind][st] = claims[kind].get(st, 0) + 1
+        if len(set(v4)) != EXPECTED_KEYS or \
+                len(set(v3)) != EXPECTED_KEYS:
+            return refuse(f"unique keys v4={len(set(v4))} "
+                          f"v3={len(set(v3))}, expected "
+                          f"{EXPECTED_KEYS} each")
+        # every referenced body must EXIST and match its address
+        bad = []
+        for sha in sorted(set(bset)):
+            bp = os.path.join(RES.V4_STORE, sha + ".body")
+            if not os.path.isfile(bp):
+                bad.append(sha)
+                continue
+            with open(bp, "rb") as fh:
+                if hashlib.sha256(fh.read()).hexdigest() != sha:
+                    bad.append(sha)
+        if bad:
+            return refuse(f"{len(bad)} referenced body/bodies missing "
+                          f"or content-address mismatched")
+        if len(set(bset)) != EXPECTED_BODIES:
+            return refuse(f"{len(set(bset))} distinct bodies, "
+                          f"expected {EXPECTED_BODIES}")
+
+        def dg(xs):
+            return hashlib.sha256(json.dumps(
+                sorted(set(xs)), separators=(",", ":")).encode()
+            ).hexdigest()
+        inv.update({
+            "status": "VERIFIED",
+            "class_counts": dict(sorted(per.items())),
+            "file_count": len(files),
+            "sorted_relative_path_digest": hashlib.sha256(
+                json.dumps(files, separators=(",", ":")).encode()
+            ).hexdigest(),
+            "total_bytes": sum(os.path.getsize(os.path.join(
+                RES.V4_STAGED, f)) for f in files),
+            "v4_key_digest": dg(v4), "v3_key_digest": dg(v3),
+            "original_t_digest_set": dg(tset),
+            "body_digest_set": dg(bset),
+            "artifact_digest_set": dg(aset),
+            "distinct_body_count": len(set(bset)),
+            "claims": {k: dict(sorted(v.items()))
+                       for k, v in sorted(claims.items())},
+            "identities": {
+                "transform": CAPM.transform_identity(),
+                "restager": _blob_sha256(
+                    "monitoring/src/w2_restage_v4_grassmann.py"),
+                "verifier": _blob_sha256(
+                    "monitoring/src/"
+                    "w2_restage_lineage_grassmann.py"),
+                "capsule": _blob_sha256(DISP.CAPSULE_PATH),
+                "authority": _blob_sha256(DISP.AUTHORITY_PATH)},
+            "http_requests": net.attempts,
+            "http_counter_source": "MEASURED_SENTINEL"})
+        if net.attempts:
+            return refuse(f"the offline inventory ATTEMPTED "
+                          f"{net.attempts} network connection(s)")
+        return inv
+    finally:
+        net.__exit__()
 
 
 def _host_id():
@@ -321,6 +418,7 @@ def build():
                 "canonical_executed_sha256": None,
                 "disk_sha256": _disk_sha(os.path.join(
                     REPO, "monitoring", "src", name))})
+    _inv = _inventory()
     counts = {}
     for r in rows:
         counts[r["verdict"]] = counts.get(r["verdict"], 0) + 1
@@ -341,8 +439,9 @@ def build():
             "verdict_vocabulary": list(VERDICTS),
             "invocations": rows,
             "verdict_counts": dict(sorted(counts.items())),
-            "staged_inventory": _inventory(),
-            "http_requests": 0}
+            "staged_inventory": _inv,
+            "http_requests": _inv.get("http_requests", 0),
+            "http_counter_source": "MEASURED_SENTINEL"}
 
 
 def main():

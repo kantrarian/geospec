@@ -40,6 +40,7 @@ import w2_acquisition_capture_grassmann as CAP
 import w2_disposition_capsule_grassmann as DISP
 import w2_restage_lineage_grassmann as LIN
 import w2_restage_v4_grassmann as RES
+import w2_no_network_grassmann as NONET
 
 REPO = LIN.REPO
 RECEIPT_SCHEMA = "f2g-w2-postmanifest-verification-receipt-v1"
@@ -131,6 +132,8 @@ def run(manifest_commit, store_root=None):
     attempted = verified = 0
     v4keys, v3keys, tset, bset, aset = [], [], [], [], []
     outcomes = {}
+    _net = NONET.no_network()
+    _net.__enter__()
     for k in keys:
         attempted += 1
         lane, ck, day = k.split("/")
@@ -168,12 +171,23 @@ def run(manifest_commit, store_root=None):
         # lost the distinction and CRASHED assembly (None is not
         # orderable against str).
         _tally(outcomes, out["claim"])
+    _net.__exit__()
     if attempted != verified:
         _b("attempted != verified")
+    if _net.attempts:
+        _b(f"the offline batch ATTEMPTED {_net.attempts} network "
+           "connection(s) -- the counter is measured, not asserted")
 
     def dg(xs):
+        """codex 0509Z item 5: a field named *_digest_set must hash a
+        SET. Hashing sorted(xs) with duplicates made two different
+        multisets collide-or-differ for the wrong reason."""
         return hashlib.sha256(json.dumps(
-            sorted(xs), separators=(",", ":")).encode()).hexdigest()
+            sorted(set(xs)), separators=(",", ":")).encode()
+        ).hexdigest()
+
+    def counts(xs):
+        return {"observations": len(xs), "distinct": len(set(xs))}
     registered = len(keys)
     if not (registered == attempted == verified):
         _b(f"registered_reuse_count {registered} != attempted "
@@ -197,11 +211,17 @@ def run(manifest_commit, store_root=None):
             "attempted": attempted, "verified": verified,
             "v4_key_digest": dg(v4keys), "v3_key_digest": dg(v3keys),
             "original_t_digest_set": dg(tset),
+            "original_t_counts": counts(tset),
             "body_digest_set": dg(bset),
+            "body_counts": counts(bset),
             "artifact_digest_set": dg(aset),
+            "artifact_counts": counts(aset),
+            "v4_key_counts": counts(v4keys),
+            "v3_key_counts": counts(v3keys),
             "claims": {k: dict(sorted(v.items()))
                        for k, v in sorted(outcomes.items())},
-            "http_requests": 0,
+            "http_requests": _net.attempts,
+            "http_counter_source": "MEASURED_SENTINEL",
             "interpreter": sys.version.split()[0],
             "claim_scope": "MANIFEST_OWNED_RESTAGE_VERIFICATION",
             "authorizes": "NOTHING"}

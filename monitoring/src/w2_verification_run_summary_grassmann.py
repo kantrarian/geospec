@@ -170,7 +170,17 @@ def _classify(rc, tail):
     t = (tail or "").lower()
     if rc == 0:
         if "skip" in t or "inputs absent" in t:
-            return "NOT_RUN"
+            # cayley 1701Z P0: NOT_RUN carried TWO events. "nothing
+            # executed (no interpreter)" and "a real process RAN,
+            # exited 0, and declined for want of inputs" are not the
+            # same fact, and only the PORTABLE host can produce the
+            # second -- so the merge's argv rule, which encodes the
+            # first reading, rejected precisely the leg it exists to
+            # combine. A reader also could not tell whether a surface
+            # was untested because a TOOL was missing (an environment
+            # fact) or because the DATA was missing (a fact about the
+            # host's evidence). Typed apart, not merely permitted.
+            return "SKIPPED_NO_INPUTS"
         # codex 0445Z item 1: detect COVERED-ELSEWHERE LITERALLY so a
         # doctor that lives in another surface is never promoted to a
         # standalone PASS here (cayley's BP-2)
@@ -595,7 +605,12 @@ def build():
 # NOT_RUN row rather than an omitted one, because an omitted row is
 # indistinguishable from a row nobody thought to require.
 VERDICT_VOCABULARY = ("PASS", "COVERED_ELSEWHERE", "REFUSE",
-                      "NOT_RUN")
+                      "NOT_RUN", "SKIPPED_NO_INPUTS")
+# NOT_RUN alone means NOTHING EXECUTED, so it alone may omit the
+# execution facts. SKIPPED_NO_INPUTS ran a real process on committed
+# bytes and must carry all of them -- there was something to bind.
+EXECUTED_VERDICTS = ("PASS", "COVERED_ELSEWHERE", "REFUSE",
+                     "SKIPPED_NO_INPUTS")
 INTERPRETER_LABELS = tuple(f"py{v}" for v in REQUIRED_INTERPRETERS)
 # codex 1400Z P0 #1: the EXACT 17-field row schema build() emits.
 # `REQUIRED_ROW_FIELDS` was a five-field SUBSET, so a leg of
@@ -800,6 +815,16 @@ def _validate_row_provenance(r, sf, commit, cache):
             _mr(f"a {v} row for {sf} executed bytes that differ from "
                 "the committed blob; committed==executed is what "
                 "makes the verdict bind to the source")
+    elif v == "SKIPPED_NO_INPUTS":
+        if r["exit_code"] != 0:
+            _mr(f"a SKIPPED_NO_INPUTS row for {sf} carries exit_code "
+                f"{r['exit_code']!r} -- a clean decline exits 0; a "
+                "non-zero exit is a REFUSE")
+        if r["canonical_executed_sha256"] != \
+                r["canonical_committed_sha256"]:
+            _mr(f"a SKIPPED_NO_INPUTS row for {sf} executed bytes "
+                "that differ from the committed blob -- it ran, so "
+                "committed==executed still binds it to the source")
     elif v == "REFUSE":
         diverged = (r["canonical_executed_sha256"] is not None and
                     r["canonical_executed_sha256"] !=
@@ -1180,9 +1205,9 @@ def _merge_selftest():
         base["interpreter_version"] = il[2:] + ".9"
         base["canonical_executed_sha256"] = \
             base["canonical_committed_sha256"]
-        base["exit_code"] = 0 if verdict in ("PASS",
-                                             "COVERED_ELSEWHERE") \
-            else 1
+        base["exit_code"] = 0 if verdict in (
+            "PASS", "COVERED_ELSEWHERE",
+            "SKIPPED_NO_INPUTS") else 1
         return base
 
     def full_rows(host, verdict="PASS"):
@@ -1392,6 +1417,50 @@ def _merge_selftest():
                  if k != "authority_commit"}),
          leg("geomen/Windows")]),
         "is not an attestation for this record")
+
+    # ---- cayley 1701Z P0: NOT_RUN carried TWO events ----
+    sk = [cell("geomen/Windows", sf, il,
+               "SKIPPED_NO_INPUTS" if sf in EVIDENCE_HOST_ONLY
+               else "PASS")
+          for sf in SURFACES for il in INTERPRETER_LABELS]
+    okk = merge_legs([ev(), leg("geomen/Windows", rows=sk)])
+    assert okk["verdict_counts"].get("SKIPPED_NO_INPUTS") ==         len(EVIDENCE_HOST_ONLY) * len(INTERPRETER_LABELS),         okk["verdict_counts"]
+    for f in sorted(NULLABLE_ON_NOT_RUN):
+        bad = list(sk)
+        i0 = next(n for n, r in enumerate(bad)
+                  if r["verdict"] == "SKIPPED_NO_INPUTS")
+        bad[i0] = dict(bad[i0], **{f: None})
+        assert refuses(lambda b=bad: merge_legs(
+            [ev(), leg("geomen/Windows", rows=b)]),
+            "is null on a SKIPPED_NO_INPUTS row"), f
+    nr2 = full_rows("geomen/Windows", "NOT_RUN")
+    nr2[0] = dict(nr2[0], argv=["python", "x.py"])
+    assert refuses(lambda: merge_legs(
+        [ev(), leg("geomen/Windows", rows=nr2)]),
+        "POPULATED on a NOT_RUN row")
+    b2 = list(sk)
+    i1 = next(n for n, r in enumerate(b2)
+              if r["verdict"] == "SKIPPED_NO_INPUTS")
+    b2[i1] = dict(b2[i1], exit_code=3)
+    assert refuses(lambda: merge_legs(
+        [ev(), leg("geomen/Windows", rows=b2)]),
+        "a clean decline exits 0")
+    # COMPLETE is CORRECT here: the EVIDENCE leg covered those cells,
+    # so geomen declining them creates no gap. The property to test is
+    # that a SKIP is not itself COVERAGE -- so make the EVIDENCE leg
+    # skip and require the gap to appear.
+    ev_sk = [cell("Rmath151409/Windows", sf, il,
+                  "SKIPPED_NO_INPUTS" if sf in EVIDENCE_HOST_ONLY
+                  else "PASS")
+             for sf in SURFACES for il in INTERPRETER_LABELS]
+    gap = merge_legs([ev(rows=ev_sk),
+                      leg("geomen/Windows", rows=sk)])
+    assert gap["coverage_status"] == "INCOMPLETE", gap[
+        "coverage_status"]
+    PY11 = f"py{REQUIRED_INTERPRETERS[-1]}"
+    missing_pairs = {tuple(x) for x in gap["missing_required_cells"]}
+    for sf in EVIDENCE_HOST_ONLY:
+        assert (sf, PY11) in missing_pairs, sf
 
     # ---- codex 1534Z P0 #1: presence is not PROVENANCE binding ----
     def one_row(**over):

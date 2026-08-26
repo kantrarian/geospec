@@ -409,6 +409,14 @@ def build():
     # ONCE at build start -- otherwise a row from another machine
     # reads as if it ran here.
     host_id = _host_id()
+    # codex 1400Z P0 #2: the role is DECLARED from an observed
+    # capability -- the v3 store is either present on this host or it
+    # is not -- and validated at merge. It is never inferred from a
+    # nickname.
+    import w2_restage_v4_grassmann as _RES
+    _has_store = os.path.isdir(_RES.V3_STORE)
+    host_role = "EVIDENCE" if _has_store else "PORTABLE"
+    store_identity = V3_STORE_IDENTITY if _has_store else None
     source_commit = subprocess.run(
         ["git", "-C", REPO, "rev-parse", "HEAD"],
         capture_output=True).stdout.decode().strip()
@@ -445,6 +453,8 @@ def build():
     for r in rows:
         counts[r["verdict"]] = counts.get(r["verdict"], 0) + 1
     return {"schema": SUMMARY_SCHEMA,
+            "host_role": host_role,
+            "store_identity": store_identity,
             "host_id": host_id, "source_commit": source_commit,
             "producer_generator_blob_sha256": _blob_sha256(
                 "monitoring/src/"
@@ -462,8 +472,21 @@ def build():
             "invocations": rows,
             "verdict_counts": dict(sorted(counts.items())),
             "staged_inventory": _inv,
+            # codex 1400Z P1 #4: this zero measures the STAGED
+            # INVENTORY and nothing else. build() runs all 14
+            # surfaces as SUBPROCESSES, none of them inside a
+            # sentinel -- codex measured 0/14 -- and a parent
+            # monkey-patch could not instrument a child anyway. The
+            # counter stays, correctly scoped; calling it a
+            # build-wide measurement would be the label-vs-fact
+            # defect again, this time in my favour.
             "http_requests": _require_measured(_inv)[0],
-            "http_counter_source": _require_measured(_inv)[1]}
+            "http_counter_source": _require_measured(_inv)[1],
+            "http_counter_scope": "STAGED_INVENTORY_ONLY",
+            "http_counter_caveat": (
+                "the surface invocations are subprocesses and are "
+                "NOT measured by this counter; this record makes no "
+                "whole-build zero-network claim")}
 
 
 
@@ -476,20 +499,46 @@ def build():
 # INTERPRETERS exactly, and every non-execution is an EXPLICIT
 # NOT_RUN row rather than an omitted one, because an omitted row is
 # indistinguishable from a row nobody thought to require.
-VERDICT_VOCABULARY = ("PASS", "COVERED_ELSEWHERE", "REFUSE", "NOT_RUN")
+VERDICT_VOCABULARY = ("PASS", "COVERED_ELSEWHERE", "REFUSE",
+                      "NOT_RUN")
 INTERPRETER_LABELS = tuple(f"py{v}" for v in REQUIRED_INTERPRETERS)
-REQUIRED_ROW_FIELDS = ("host_id", "source_commit", "surface",
-                       "interpreter_label", "verdict")
-# Surfaces that can only be exercised where the v3 evidence store
-# lives. Per codex's option-(a) ruling these require the EVIDENCE
-# host's py3.11 cell; their py3.14 cell is an explicitly scoped
-# NOT_RUN and is NOT counted as a coverage gap. DECLARED here rather
-# than inferred, so the classification is reviewable.
+# codex 1400Z P0 #1: the EXACT 17-field row schema build() emits.
+# `REQUIRED_ROW_FIELDS` was a five-field SUBSET, so a leg of
+# synthetic rows carrying no argv, exit code, executable, UTC, git
+# object or digests was accepted and returned COMPLETE. A subset
+# check cannot establish that a row is a RECORD rather than a label.
+ROW_FIELDS = frozenset((
+    "argv", "blob_sha256", "canonical_committed_sha256",
+    "canonical_executed_sha256", "digest_domain", "disk_sha256",
+    "exit_code", "git_blob_oid", "host_id", "interpreter_label",
+    "interpreter_version", "resolved_executable", "run_utc",
+    "source_commit", "surface", "tail", "verdict"))
+# null EXACTLY on NOT_RUN -- nothing executed, so there is no argv,
+# exit code, resolved executable, version or executed digest
+NULLABLE_ON_NOT_RUN = frozenset((
+    "argv", "canonical_executed_sha256", "exit_code",
+    "interpreter_version", "resolved_executable"))
+HEX64 = frozenset((
+    "blob_sha256", "canonical_committed_sha256",
+    "canonical_executed_sha256", "disk_sha256"))
+SURFACE_PREFIX = "monitoring/src/"
+# codex 1400Z P0 #2: a ROLE, declared and validated -- never a
+# nickname. My own EVIDENCE_HOST = "devildog" did not equal the real
+# host_id "Rmath151409/Windows", so the guard I had just written
+# would have REFUSED the genuine devildog leg; my doctor passed only
+# because it fed the nickname as host_id, i.e. it was green against
+# data that does not exist.
+HOST_ROLES = ("EVIDENCE", "PORTABLE")
+V3_STORE_IDENTITY = "s4t-w2-capture-20260825"
+# Surfaces that REACH host-local evidence when invoked as this record
+# invokes them. codex ruled the capsule selftest belongs here: it
+# reopens the host-local capsule/archive/store. The batch selftest
+# does NOT -- that row claims only the refusal contract.
 EVIDENCE_HOST_ONLY = (
     "w2_restage_lineage_grassmann.py",
     "w2_restage_v4_grassmann.py",
+    "w2_disposition_capsule_grassmann.py",
 )
-EVIDENCE_HOST = "devildog"
 
 
 def required_cells():
@@ -498,8 +547,19 @@ def required_cells():
 
 
 def _leg_cells(lg):
-    return {(r["surface"].split("/")[-1], r["interpreter_label"])
+    """Canonical cells, so an alias path cannot collapse into a
+    declared one."""
+    return {(_canonical_surface(r["surface"]), r["interpreter_label"])
             for r in lg["invocations"]}
+
+
+def _canonical_surface(path):
+    """codex 1400Z: `alias/<declared-basename>` collapsed by basename
+    in the cell set while the duplicate check compared full paths, so
+    a 29th aliased row rode in and the leg still read COMPLETE. The
+    canonical path must be EXACTLY the declared one."""
+    return path[len(SURFACE_PREFIX):] \
+        if path.startswith(SURFACE_PREFIX) else None
 
 
 MERGED_SCHEMA = "f2g-w2-verification-run-summary-merged-v1"
@@ -536,7 +596,7 @@ def merge_legs(legs):
     for i, lg in enumerate(legs):
         for f in ("source_commit", "repo_head", "host_id",
                   "producer_generator_blob_sha256", "schema",
-                  "invocations"):
+                  "host_role", "store_identity", "invocations"):
             if f not in lg:
                 _mr(f"leg {i} is missing required field {f!r}; a leg "
                     "without full provenance cannot enter a merge")
@@ -546,6 +606,21 @@ def merge_legs(legs):
                 f"{lg['source_commit'][:12]} != repo_head "
                 f"{lg['repo_head'][:12]} -- it did not run from its "
                 "own committed snapshot")
+        if lg["schema"] != SUMMARY_SCHEMA:
+            _mr(f"leg {i} declares schema {lg['schema']!r}, not "
+                f"{SUMMARY_SCHEMA!r} -- two legs AGREEING on an "
+                "arbitrary string is not attestation of either")
+        if lg["host_role"] not in HOST_ROLES:
+            _mr(f"leg {i} declares host_role {lg['host_role']!r}, "
+                f"not one of {list(HOST_ROLES)}")
+        if lg["host_role"] == "EVIDENCE" and \
+                lg["store_identity"] != V3_STORE_IDENTITY:
+            _mr(f"leg {i} claims the EVIDENCE role but names store "
+                f"{lg['store_identity']!r}, not "
+                f"{V3_STORE_IDENTITY!r}")
+        if lg["host_role"] != "EVIDENCE" and lg["store_identity"]:
+            _mr(f"leg {i} is {lg['host_role']} yet names a store "
+                f"{lg['store_identity']!r}")
         commits.add(lg["source_commit"])
         gens.add(lg["producer_generator_blob_sha256"])
         schemas.add(lg["schema"])
@@ -567,6 +642,35 @@ def merge_legs(legs):
         _mr(f"duplicate host_id in {hosts}; a merge of one host with "
             "itself double-counts rather than adds coverage")
     commit = commits.pop()
+    # codex 1400Z: resolve the named commit and RECOMPUTE the
+    # generator digest from it. Cross-leg equality only proves the
+    # two legs said the same thing; a fabricated 40-hex string and a
+    # fabricated generator digest agree with themselves perfectly.
+    p = subprocess.run(
+        ["git", "-C", REPO, "rev-parse", f"{commit}^{{commit}}"],
+        capture_output=True)
+    if p.returncode != 0 or p.stdout.decode().strip() != commit:
+        _mr(f"the agreed source_commit {commit[:12]} does not "
+            "resolve to a commit in this repository")
+    gen_path = SURFACE_PREFIX + os.path.basename(__file__)
+    raw = subprocess.run(
+        ["git", "-C", REPO, "cat-file", "blob",
+         f"{commit}:{gen_path}"], capture_output=True).stdout
+    if not raw:
+        _mr(f"the producer generator is absent at {commit[:12]}")
+    recomputed = hashlib.sha256(raw).hexdigest()
+    declared = list(gens)[0]
+    if recomputed != declared:
+        _mr(f"the declared producer_generator_blob_sha256 "
+            f"{declared[:12]} does not recompute from "
+            f"{commit[:12]}:{gen_path} (got {recomputed[:12]})")
+    roles = [lg["host_role"] for lg in legs]
+    if roles.count("EVIDENCE") != 1:
+        _mr(f"a merged record requires EXACTLY ONE EVIDENCE leg, "
+            f"got {roles} -- the evidence-host-only surfaces can be "
+            "exercised on exactly one host")
+    evidence_host = [lg["host_id"] for lg in legs
+                     if lg["host_role"] == "EVIDENCE"][0]
     rows, seen = [], {}
     for lg in legs:
         for r in lg["invocations"]:
@@ -578,17 +682,49 @@ def merge_legs(legs):
             if r.get("host_id") != lg["host_id"]:
                 _mr(f"a row claims host {r.get('host_id')!r} inside "
                     f"the {lg['host_id']!r} leg")
-            for f in REQUIRED_ROW_FIELDS:
-                if r.get(f) in (None, ""):
-                    _mr(f"a row on {lg['host_id']} is missing "
-                        f"required field {f!r}; an incomplete row "
-                        "cannot enter a merged record")
+            if set(r) != ROW_FIELDS:
+                _mr(f"a row on {lg['host_id']} does not match the "
+                    f"closed row schema; missing "
+                    f"{sorted(ROW_FIELDS - set(r))}, unexpected "
+                    f"{sorted(set(r) - ROW_FIELDS)} -- a subset of "
+                    "fields makes a row a LABEL, not a record")
             if r["verdict"] not in VERDICT_VOCABULARY:
                 _mr(f"row verdict {r['verdict']!r} is outside the "
                     f"declared vocabulary {list(VERDICT_VOCABULARY)}")
-            k = (r["host_id"], r["surface"], r["interpreter_label"])
+            nr = r["verdict"] == "NOT_RUN"
+            for f in sorted(ROW_FIELDS):
+                nullable = nr and f in NULLABLE_ON_NOT_RUN
+                if r[f] in (None, "") and not nullable:
+                    _mr(f"row field {f!r} is null on a "
+                        f"{r['verdict']} row ({r['surface']}); only "
+                        "a NOT_RUN row may omit execution facts")
+                if nr and f in NULLABLE_ON_NOT_RUN \
+                        and r[f] is not None:
+                    _mr(f"row field {f!r} is POPULATED on a NOT_RUN "
+                        f"row ({r['surface']}) -- nothing executed, "
+                        "so there is no execution fact to record")
+                if f in HEX64 and r[f] is not None:
+                    v = r[f]
+                    if not isinstance(v, str) or len(v) != 64 or \
+                            not all(c in "0123456789abcdef"
+                                    for c in v):
+                        _mr(f"row field {f!r} is not a sha256 digest "
+                            f"({v!r})")
+            if not isinstance(r["exit_code"], (int, type(None))) \
+                    or isinstance(r["exit_code"], bool):
+                _mr(f"row exit_code {r['exit_code']!r} is not an int")
+            cs = _canonical_surface(r["surface"])
+            if cs is None or cs not in SURFACES:
+                _mr(f"row surface {r['surface']!r} is not exactly "
+                    f"{SURFACE_PREFIX}<declared surface> -- an alias "
+                    "path collapses in the cell set while surviving "
+                    "the duplicate check")
+            if r["interpreter_label"] not in INTERPRETER_LABELS:
+                _mr(f"row interpreter {r['interpreter_label']!r} is "
+                    f"not one of {list(INTERPRETER_LABELS)}")
+            k = (r["host_id"], cs, r["interpreter_label"])
             if k in seen:
-                _mr(f"duplicate row {k}")
+                _mr(f"duplicate cell {k}")
             seen[k] = True
             rows.append(r)
     # EXACT cells per leg -- no omissions and no extras. codex's
@@ -626,26 +762,33 @@ def merge_legs(legs):
                 matrix[sf][il] = "SCOPED_NOT_REQUIRED"
             else:
                 missing.append([sf, il])
-        # SELF-CATCH: EVIDENCE_HOST was DECLARED and never READ -- a
-        # requirement stated in a constant that no code enforced. The
-        # contract is "the EVIDENCE host's py3.11 cell", not "any
-        # host's": a store-dependent surface reported PASS by a host
-        # with no v3 store would have satisfied a requirement it
-        # cannot physically meet.
+        # codex 1400Z P0 #2: the requirement is the EVIDENCE ROLE's
+        # cell. My first attempt matched a NICKNAME ("devildog")
+        # against the real host_id ("Rmath151409/Windows"): it would
+        # have refused the genuine evidence leg, and its doctor
+        # passed only because the doctor fed it the nickname. A role
+        # is declared and validated; a nickname is guessed.
         if sf in EVIDENCE_HOST_ONLY:
             il = f"py{REQUIRED_INTERPRETERS[-1]}"
-            covered_by = matrix[sf][il]
-            if isinstance(covered_by, list) and covered_by and \
-                    not any(EVIDENCE_HOST in h for h in covered_by):
-                _mr(f"{sf} is evidence-host-only and its {il} cell is "
-                    f"covered only by {covered_by} -- that surface "
-                    f"requires the {EVIDENCE_HOST!r} host, which is "
-                    "where the v3 store lives; a host without the "
-                    "store cannot have exercised it")
-    covered = sorted({r["interpreter_version"].rsplit(".", 1)[0]
-                      for r in rows
-                      if r.get("interpreter_version")
-                      and r["verdict"] != "NOT_RUN"})
+            by = matrix[sf][il]
+            if not isinstance(by, list) or evidence_host not in by:
+                if [sf, il] not in missing:
+                    missing.append([sf, il])
+                matrix[sf][il] = {"covered_by": by,
+                                  "required_from": evidence_host,
+                                  "status": "NOT_COVERED_BY_"
+                                            "EVIDENCE_ROLE"}
+    # codex 1400Z P1 #3: `verdict != NOT_RUN` counted a REFUSE as
+    # coverage, so an all-REFUSE record reported INCOMPLETE with 26
+    # missing cells AND missing_required_interpreters=[] in the same
+    # header. Derive from the SAME predicate as the matrix: an
+    # interpreter is covered only when every required non-exempt cell
+    # for it is covered.
+    covered = []
+    for v in REQUIRED_INTERPRETERS:
+        il = f"py{v}"
+        if not any(m[1] == il for m in missing):
+            covered.append(v)
     complete = not missing
     return {"schema": MERGED_SCHEMA,
             "coverage_status": ("COMPLETE" if complete
@@ -674,27 +817,54 @@ def merge_legs(legs):
 
 
 def _merge_selftest():
-    """BEHAVIORAL doctors, each MUTATION-TESTED below. After the
-    doctor that keyed on a substring Python itself emits, no invariant
-    here is asserted by reading source."""
-    def cell(host, commit, sf, il, verdict="PASS"):
-        return {"host_id": host, "source_commit": commit,
-                "surface": "monitoring/src/" + sf,
-                "interpreter_label": il,
-                "interpreter_version": il[2:] + ".0",
-                "verdict": verdict}
+    """BEHAVIORAL doctors, each MUTATION-TESTED. Legs are built from
+    the REAL committed record so a doctor cannot pass against a row
+    shape that does not exist -- my nickname guard passed exactly that
+    way."""
+    real = json.load(open(os.path.join(REPO,
+                                       *SUMMARY_PATH.split("/")),
+                          encoding="utf-8"))
+    COMMIT = real["source_commit"]
+    GEN = real["producer_generator_blob_sha256"]
+    TEMPLATE = {r["verdict"]: r for r in real["invocations"]}
 
-    def full_rows(host, commit, verdict="PASS"):
-        """A COMPLETE leg: every declared cell present, explicitly."""
-        return [cell(host, commit, sf, il, verdict)
+    def cell(host, sf, il, verdict="PASS"):
+        base = TEMPLATE.get(verdict) or TEMPLATE["PASS"]
+        r = dict(base)
+        r["host_id"] = host
+        r["source_commit"] = COMMIT
+        r["surface"] = SURFACE_PREFIX + sf
+        r["interpreter_label"] = il
+        r["verdict"] = verdict
+        for f in NULLABLE_ON_NOT_RUN:
+            if verdict == "NOT_RUN":
+                r[f] = None
+            elif r[f] is None:
+                r[f] = (0 if f == "exit_code"
+                        else "3.11.9" if f == "interpreter_version"
+                        else "f" * 64
+                        if f == "canonical_executed_sha256"
+                        else "x")
+        return r
+
+    def full_rows(host, verdict="PASS"):
+        return [cell(host, sf, il, verdict)
                 for sf in SURFACES for il in INTERPRETER_LABELS]
 
-    def leg(host, commit, gen="g" * 64, schema="s-v1", rows=None):
-        return {"host_id": host, "source_commit": commit,
-                "repo_head": commit, "schema": schema,
-                "producer_generator_blob_sha256": gen,
-                "invocations": (full_rows(host, commit)
-                                if rows is None else rows)}
+    def leg(host, commit=None, gen=None, schema=SUMMARY_SCHEMA,
+            rows=None, role="PORTABLE", store=None):
+        c = COMMIT if commit is None else commit
+        return {"host_id": host, "source_commit": c, "repo_head": c,
+                "schema": schema, "host_role": role,
+                "store_identity": store,
+                "producer_generator_blob_sha256":
+                    GEN if gen is None else gen,
+                "invocations": (full_rows(host) if rows is None
+                                else rows)}
+
+    def ev(host="Rmath151409/Windows", **kw):
+        return leg(host, role="EVIDENCE", store=V3_STORE_IDENTITY,
+                   **kw)
 
     def refuses(fn, needle):
         try:
@@ -702,116 +872,148 @@ def _merge_selftest():
             return False
         except MergeRefusal as e:
             return needle in str(e)
-    C1, C2 = "a" * 40, "b" * 40
+
+    def refuses_any(fn):
+        """For field-removal/nulling, where an EARLIER guard (the row
+        host or row commit check) legitimately fires first. Catching
+        only my own typed MergeRefusal means any hit here is a
+        DELIBERATE refusal -- there is no accidental-substring risk of
+        the kind that made doctor (d) blind."""
+        try:
+            fn()
+            return False
+        except MergeRefusal:
+            return True
     NCELL = len(SURFACES) * len(INTERPRETER_LABELS)
-    ok = merge_legs([leg("devildog", C1), leg("geomen", C1)])
-    assert ok["source_commit"] == C1
+    ok = merge_legs([ev(), leg("geomen/Windows")])
+    assert ok["source_commit"] == COMMIT
     assert len(ok["invocations"]) == 2 * NCELL
-    assert ok["verdict_counts"] == {"PASS": 2 * NCELL}
-    assert [l["host_id"] for l in ok["legs"]] == ["devildog", "geomen"]
     assert ok["coverage_status"] == "COMPLETE", ok["coverage_status"]
     assert ok["missing_required_cells"] == []
-    # (1) THE case cayley found: legs at different snapshots
+    assert ok["missing_required_interpreters"] == []
+    # ---- frame ----
+    OTHER = "b" * 40
     assert refuses(lambda: merge_legs(
-        [leg("devildog", C1), leg("geomen", C2)]),
+        [ev(), leg("geomen/Windows", commit=OTHER)]),
         "DIFFERENT snapshots")
-    # (2) a leg that did not run from its own committed snapshot
-    bad = leg("geomen", C1)
-    bad["repo_head"] = C2
-    assert refuses(lambda: merge_legs([leg("devildog", C1), bad]),
+    bad = leg("geomen/Windows")
+    bad["repo_head"] = OTHER
+    assert refuses(lambda: merge_legs([ev(), bad]),
                    "did not run from its own committed snapshot")
-    # (3) a ROW at the wrong commit inside a correct-looking leg --
-    # the header agreeing is not the rows agreeing
-    sneak = leg("geomen", C1)
-    sneak["invocations"][0]["source_commit"] = C2
-    assert refuses(lambda: merge_legs([leg("devildog", C1), sneak]),
+    sneak = leg("geomen/Windows")
+    sneak["invocations"][0] = dict(sneak["invocations"][0],
+                                   source_commit=OTHER)
+    assert refuses(lambda: merge_legs([ev(), sneak]),
                    "every ROW is checked")
-    # (4) divergent generator bytes at the same commit
     assert refuses(lambda: merge_legs(
-        [leg("devildog", C1), leg("geomen", C1, gen="h" * 64)]),
+        [ev(), leg("geomen/Windows", gen="h" * 64)]),
         "DIFFERENT generator bytes")
-    # (5) one host merged with itself is not coverage
+    assert refuses(lambda: merge_legs([ev(), ev()]),
+                   "duplicate host")
+    assert refuses(lambda: merge_legs([ev()]), "at least two legs")
+    liar = leg("geomen/Windows")
+    liar["invocations"][0] = dict(liar["invocations"][0],
+                                  host_id="Rmath151409/Windows")
+    assert refuses(lambda: merge_legs([ev(), liar]), "claims host")
+    # ---- codex 1400Z #1: the header is not attestation ----
     assert refuses(lambda: merge_legs(
-        [leg("devildog", C1), leg("devildog", C1)]), "duplicate host")
-    # (6) a single leg is not a merge
-    assert refuses(lambda: merge_legs([leg("devildog", C1)]),
-                   "at least two legs")
-    # (7) a row claiming a host it did not run on
-    liar = leg("geomen", C1)
-    liar["invocations"][0]["host_id"] = "devildog"
-    assert refuses(lambda: merge_legs([leg("devildog", C1), liar]),
-                   "claims host")
-    # --- codex 1327Z P0 #2: snapshot agreement is not COMPLETENESS ---
-    # (8) THE exact case codex constructed: two one-row legs, one
-    # 3.11 row and one 3.14 row. This used to emit
-    # missing_required_interpreters=[] with 26 required cells absent.
-    tiny_d = [cell("devildog", C1, SURFACES[0], "py3.11")]
-    tiny_g = [cell("geomen", C1, SURFACES[0], "py3.14")]
+        [ev(commit=OTHER), leg("geomen/Windows", commit=OTHER)]),
+        "does not resolve to a commit")
     assert refuses(lambda: merge_legs(
-        [leg("devildog", C1, rows=tiny_d),
-         leg("geomen", C1, rows=tiny_g)]),
+        [ev(gen="c" * 64), leg("geomen/Windows", gen="c" * 64)]),
+        "does not recompute")
+    assert refuses(lambda: merge_legs(
+        [ev(schema="agreed-but-arbitrary"),
+         leg("geomen/Windows", schema="agreed-but-arbitrary")]),
+        "is not attestation of either")
+    # ---- codex 1400Z #1: closed ROW schema, field by field ----
+    for f in sorted(ROW_FIELDS):
+        rows = full_rows("geomen/Windows")
+        rows[0] = {k: v for k, v in rows[0].items() if k != f}
+        assert refuses_any(lambda rows=rows: merge_legs(
+            [ev(), leg("geomen/Windows", rows=rows)])), f
+        rows2 = full_rows("geomen/Windows")
+        rows2[0] = dict(rows2[0], **{f: None})
+        assert refuses_any(lambda rows2=rows2: merge_legs(
+            [ev(), leg("geomen/Windows", rows=rows2)])), f
+    extra = full_rows("geomen/Windows")
+    extra[0] = dict(extra[0], unexpected_field=1)
+    assert refuses(lambda: merge_legs(
+        [ev(), leg("geomen/Windows", rows=extra)]), "unexpected")
+    for f in sorted(HEX64):
+        rows = full_rows("geomen/Windows")
+        rows[0] = dict(rows[0], **{f: "not-a-digest"})
+        assert refuses(lambda rows=rows: merge_legs(
+            [ev(), leg("geomen/Windows", rows=rows)]),
+            "is not a sha256 digest"), f
+    # the ALIAS 29th row codex injected
+    alias = full_rows("geomen/Windows")
+    alias.append(dict(alias[0],
+                      surface=SURFACE_PREFIX + "alias/" + SURFACES[0]))
+    assert refuses(lambda: merge_legs(
+        [ev(), leg("geomen/Windows", rows=alias)]),
+        "is not exactly")
+    # a NOT_RUN row that carries execution facts it cannot have
+    pop = full_rows("geomen/Windows", "NOT_RUN")
+    pop[0] = dict(pop[0], exit_code=0)
+    assert refuses(lambda: merge_legs(
+        [ev(), leg("geomen/Windows", rows=pop)]),
+        "POPULATED on a NOT_RUN row")
+    # ---- completeness ----
+    tiny = [cell("geomen/Windows", SURFACES[0], "py3.14")]
+    assert refuses(lambda: merge_legs(
+        [ev(), leg("geomen/Windows", rows=tiny)]),
         "every non-execution must be an EXPLICIT NOT_RUN row")
-    # (9) an OMITTED cell is not the same as a NOT_RUN cell
-    short = full_rows("geomen", C1)[:-1]
+    short = full_rows("geomen/Windows")[:-1]
     assert refuses(lambda: merge_legs(
-        [leg("devildog", C1), leg("geomen", C1, rows=short)]),
-        "declares 27 cells")
-    # (10) an EXTRA cell outside the declared set is refused too
-    extra = full_rows("geomen", C1) + [
-        cell("geomen", C1, "not_a_declared_surface.py", "py3.11")]
-    assert refuses(lambda: merge_legs(
-        [leg("devildog", C1), leg("geomen", C1, rows=extra)]),
-        "unexpected")
-    # (11) a complete-but-UNCOVERED merge is explicitly INCOMPLETE
-    # rather than silently green: every cell present as NOT_RUN
-    nr_d = full_rows("devildog", C1, "NOT_RUN")
-    nr_g = full_rows("geomen", C1, "NOT_RUN")
-    inc = merge_legs([leg("devildog", C1, rows=nr_d),
-                      leg("geomen", C1, rows=nr_g)])
-    assert inc["coverage_status"] == "INCOMPLETE"
-    assert inc["missing_required_cells"], "must NAME the gaps"
-    assert "does NOT establish" in inc["coverage_claim"]
-    # the evidence-host-only surfaces are SCOPED, not counted as gaps
-    gaps = {tuple(x) for x in inc["missing_required_cells"]}
-    for sf in EVIDENCE_HOST_ONLY:
-        assert (sf, "py3.14") not in gaps, sf
-        assert (sf, "py3.11") in gaps, sf
-    # (12) a row outside the declared verdict vocabulary
-    vbad = full_rows("geomen", C1)
+        [ev(), leg("geomen/Windows", rows=short)]), "declares 27")
+    vbad = full_rows("geomen/Windows")
     vbad[0] = dict(vbad[0], verdict="GREEN")
     assert refuses(lambda: merge_legs(
-        [leg("devildog", C1), leg("geomen", C1, rows=vbad)]),
+        [ev(), leg("geomen/Windows", rows=vbad)]),
         "outside the declared vocabulary")
-    # (13) a row missing a required field
-    fbad = full_rows("geomen", C1)
-    fbad[0] = {k: v for k, v in fbad[0].items()
-               if k != "interpreter_version"}
-    fbad[0]["verdict"] = None
+    # ---- codex 1400Z #2: the ROLE, not a nickname ----
     assert refuses(lambda: merge_legs(
-        [leg("devildog", C1), leg("geomen", C1, rows=fbad)]),
-        "missing required field")
-    # (14) SELF-CATCH doctor: an evidence-host-only surface whose
-    # py3.11 cell is covered ONLY by a host with no v3 store. The
-    # EVIDENCE_HOST constant used to be declared and never read, so
-    # this passed.
+        [leg("Rmath151409/Windows"), leg("geomen/Windows")]),
+        "EXACTLY ONE EVIDENCE leg")
+    assert refuses(lambda: merge_legs([ev(), ev("geomen/Windows")]),
+                   "EXACTLY ONE EVIDENCE leg")
+    assert refuses(lambda: merge_legs(
+        [leg("Rmath151409/Windows", role="EVIDENCE", store="wrong"),
+         leg("geomen/Windows")]), "not 's4t-w2-capture-20260825'")
+    assert refuses(lambda: merge_legs(
+        [ev(), leg("geomen/Windows", store="s4t-w2-capture-20260825")
+         ]), "yet names a store")
+    # codex's exact case: the EVIDENCE leg did NOT run the
+    # store-dependent surfaces and the PORTABLE leg claims it did
+    d_rows = [cell("Rmath151409/Windows", sf, il,
+                   "NOT_RUN" if sf in EVIDENCE_HOST_ONLY else "PASS")
+              for sf in SURFACES for il in INTERPRETER_LABELS]
+    wrong = merge_legs([ev(rows=d_rows), leg("geomen/Windows")])
+    assert wrong["coverage_status"] == "INCOMPLETE", wrong[
+        "coverage_status"]
+    gaps = {tuple(x) for x in wrong["missing_required_cells"]}
     PY = f"py{REQUIRED_INTERPRETERS[-1]}"
-    d_rows, g_rows = [], []
-    for sf in SURFACES:
-        for il in INTERPRETER_LABELS:
-            # devildog does NOT cover the store-dependent surfaces...
-            dv = "NOT_RUN" if sf in EVIDENCE_HOST_ONLY else "PASS"
-            d_rows.append(cell("devildog", C1, sf, il, dv))
-            # ...and geomen claims it did, on the required cell
-            gv = "PASS" if (sf in EVIDENCE_HOST_ONLY and il == PY) \
-                else "PASS"
-            g_rows.append(cell("geomen", C1, sf, il, gv))
-    assert refuses(lambda: merge_legs(
-        [leg("devildog", C1, rows=d_rows),
-         leg("geomen", C1, rows=g_rows)]),
-        "requires the 'devildog' host")
-    print("w2 leg-merge selftest: ALL PASS (14 directions -- 7 frame "
-          "+ 6 completeness + 1 evidence-host)")
-
+    for sf in EVIDENCE_HOST_ONLY:
+        assert (sf, PY) in gaps, sf
+        assert wrong["coverage_matrix"][sf][PY]["status"] == \
+            "NOT_COVERED_BY_EVIDENCE_ROLE"
+    # ---- codex 1400Z #3: the scalar header may not contradict the
+    # cell ledger ----
+    ref_d = full_rows("Rmath151409/Windows", "REFUSE")
+    ref_g = full_rows("geomen/Windows", "REFUSE")
+    allref = merge_legs([ev(rows=ref_d),
+                         leg("geomen/Windows", rows=ref_g)])
+    assert allref["coverage_status"] == "INCOMPLETE"
+    assert allref["missing_required_cells"]
+    assert sorted(allref["missing_required_interpreters"]) == \
+        sorted(REQUIRED_INTERPRETERS), \
+        allref["missing_required_interpreters"]
+    assert allref["interpreters_covered"] == []
+    print("w2 leg-merge selftest: ALL PASS "
+          f"({7 + 3 + 2 * len(ROW_FIELDS) + len(HEX64) + 10} "
+          "directions -- frame, closed row schema, alias, "
+          "completeness, evidence ROLE, ledger consistency)")
 
 
 USAGE = """w2_verification_run_summary_grassmann

@@ -54,6 +54,33 @@ def _b(msg):
     raise BatchRefusal("RESTAGE_BATCH_REFUSED: " + str(msg))
 
 
+def _validate_manifest_verdict(verdict, full):
+    """codex 1400Z P2 #5: PURE, so the repaired OPEN-slots branch has
+    LOAD-BEARING evidence of its own.
+
+    The branch was previously reachable only through `run()`, whose
+    live doctor asserts `not a prestart PASS` and returns before this
+    point, while the injected slots_open=7 case exercises
+    `_receipt_bindings()` -- a different function. So the precondition
+    could be deleted with every test claimed for it still green. The
+    code was right; the evidence was not.
+    """
+    v = verdict.get("verdict")
+    if v != "PASS":
+        _b(f"the execution manifest at {full[:12]} is not a prestart "
+           f"PASS (verdict={v!r})")
+    opened = verdict.get("slots_open")
+    if not isinstance(opened, int) or isinstance(opened, bool):
+        _b(f"the verifier at {full[:12]} reported no integer "
+           f"slots_open ({opened!r}); a closed-manifest precondition "
+           "cannot rest on a field that is absent")
+    if opened:
+        _b(f"the manifest at {full[:12]} still has {opened} OPEN "
+           "slots -- a post-manifest verification runs only over a "
+           "closed manifest")
+    return opened
+
+
 def _require_valid_manifest(manifest_commit):
     """codex 0410Z fix 2 (outer half): establish that the object at
     `manifest_commit` IS a valid closed prestart manifest BEFORE any
@@ -71,9 +98,6 @@ def _require_valid_manifest(manifest_commit):
     except Exception as exc:
         _b(f"the execution-manifest verifier refused at {full[:12]} "
            f"({type(exc).__name__}: {exc})")
-    if verdict.get("verdict") != "PASS":
-        _b(f"the execution manifest at {full[:12]} is not a prestart "
-           f"PASS (verdict={verdict.get('verdict')!r})")
     # codex 1327Z P1, one layer further than they stated: the
     # verifier returns TOP-LEVEL `slots_open`, never a `slots`
     # mapping. This used to read (verdict.get("slots") or {}), which
@@ -83,15 +107,7 @@ def _require_valid_manifest(manifest_commit):
     # second branch always carried it and the dead branch was never
     # exercised. Same defect family as the substring doctors -- a
     # check that cannot fail is not a check.
-    opened = verdict.get("slots_open")
-    if not isinstance(opened, int) or isinstance(opened, bool):
-        _b(f"the verifier at {full[:12]} reported no integer "
-           f"slots_open ({opened!r}); a closed-manifest precondition "
-           "cannot rest on a field that is absent")
-    if opened:
-        _b(f"the manifest at {full[:12]} still has {opened} OPEN "
-           "slots -- a post-manifest verification runs only over a "
-           "closed manifest")
+    _validate_manifest_verdict(verdict, full)
     return full, verdict
 
 
@@ -449,6 +465,24 @@ def _selftest():
         assert refuses(
             lambda r=_r, a=_a, v=_v: _require_count_identity(r, a, v),
             "registered_reuse_count"), (_r, _a, _v)
+
+    # --- codex 1400Z P2 #5: the OPEN-slots precondition, DIRECTLY ---
+    assert _validate_manifest_verdict(
+        {"verdict": "PASS", "slots_open": 0, "pins_checked": 5},
+        "a" * 40) == 0
+    # the exact inconsistent shape: a PASS carrying open slots
+    assert refuses(lambda: _validate_manifest_verdict(
+        {"verdict": "PASS", "slots_open": 7}, "a" * 40),
+        "still has 7 OPEN slots")
+    for bad in ({"verdict": "PASS"},
+                {"verdict": "PASS", "slots_open": True},
+                {"verdict": "PASS", "slots_open": "0"},
+                {"verdict": "PASS", "slots_open": None}):
+        assert refuses(lambda b=bad: _validate_manifest_verdict(
+            b, "a" * 40), "no integer slots_open"), bad
+    assert refuses(lambda: _validate_manifest_verdict(
+        {"verdict": "REFUSE", "slots_open": 0}, "a" * 40),
+        "not a prestart PASS")
 
     # --- codex 1327Z P1 #3: receipt bindings are COPIED, doctored
     # with deliberately DISTINCT injected values so a hard-coded or

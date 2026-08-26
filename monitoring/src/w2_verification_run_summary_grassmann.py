@@ -56,10 +56,21 @@ SURFACES = (
     "w2_restage_lineage_grassmann.py",
     "w2_disposition_capsule_grassmann.py",
     "w2_restage_verify_batch_grassmann.py",
+    "w2_restage_v4_grassmann.py",
+    # codex 0445Z item 1: the six separately BOUND cayley locks must
+    # be invocations of this summary too -- a bound verification
+    # surface that this record never runs is a claim nobody executed
+    "test_w2_capsule_pin_bind_redkats_cayley.py",
+    "test_w2_report_proof_kinds_redkats_cayley.py",
+    "test_w2_boundary_admitted_partition_redkats_cayley.py",
+    "test_w2_admitted_absence_redkats_cayley.py",
+    "test_w2_authority_serves_every_key_redkats_cayley.py",
+    "test_w2_frozen_carrier_set_redkats_cayley.py",
 )
 SELFTEST_ARG = {
     "w2_disposition_capsule_grassmann.py": ["--selftest"],
     "w2_restage_verify_batch_grassmann.py": ["--selftest"],
+    "w2_restage_v4_grassmann.py": ["--selftest"],
 }
 # codex requires dual-interpreter coverage; cayley's P0 found my
 # artifact LABELLING seven runs py3.14 while executing 3.11.9 -- this
@@ -80,7 +91,7 @@ CANDIDATE_LAUNCHERS = REQUIRED_INTERPRETERS
 
 def _probe(spec):
     """Return (argv, version) for a launcher spec, or (None, None)."""
-    for argv in ((["py", f"-{spec}"]), ):
+    for argv in ((["py", f"-{spec}"]), ):  # explicit only
         p = subprocess.run(list(argv) + [
             "-c", "import sys;print(sys.version.split()[0])"],
             capture_output=True)
@@ -105,7 +116,7 @@ def discover_interpreters():
     return runnable, missing
 
 
-def _blob_object_id(path):
+def _git_blob_oid(path):
     """The GIT OBJECT ID (SHA-1). cayley's P0: this was previously
     emitted under the name `blob_sha256`, so the one field designed
     to JOIN this summary to the manifest's blob_sha256 could never
@@ -127,6 +138,25 @@ def _blob_sha256(path):
     return hashlib.sha256(p.stdout).hexdigest()
 
 
+def _canon_bytes(raw):
+    return raw.replace(b"\r\n", b"\n")
+
+
+def _blob_sha256_canonical(path):
+    p = subprocess.run(["git", "-C", REPO, "cat-file", "blob",
+                        f"HEAD:{path}"], capture_output=True)
+    if p.returncode != 0:
+        return None
+    return hashlib.sha256(_canon_bytes(p.stdout)).hexdigest()
+
+
+def _disk_sha256_canonical(abspath):
+    if not os.path.isfile(abspath):
+        return None
+    with open(abspath, "rb") as f:
+        return hashlib.sha256(_canon_bytes(f.read())).hexdigest()
+
+
 def _disk_sha(abspath):
     if not os.path.isfile(abspath):
         return None
@@ -141,6 +171,11 @@ def _classify(rc, tail):
     if rc == 0:
         if "skip" in t or "inputs absent" in t:
             return "NOT_RUN"
+        # codex 0445Z item 1: detect COVERED-ELSEWHERE LITERALLY so a
+        # doctor that lives in another surface is never promoted to a
+        # standalone PASS here (cayley's BP-2)
+        if "covered-elsewhere" in t or "covered_elsewhere" in t:
+            return "COVERED_ELSEWHERE"
         return "PASS"
     if "refus" in t or "vacuous" in t or "stale" in t \
             or "does not match" in t:
@@ -156,13 +191,28 @@ def run_surface(name, interp_label, interp_argv):
                        capture_output=True)
     out = (p.stdout + p.stderr).decode("utf-8", "replace")
     tail = " ".join(out.strip().splitlines()[-2:])[:300]
+    # codex 0445Z item 1: a PASS must come from bytes that MATCH the
+    # committed blob. The executed disk bytes are canonicalised
+    # CRLF->LF and compared to the committed blob's canonical digest;
+    # a green result from divergent bytes is REFUSE, not PASS.
+    committed = _blob_sha256_canonical(rel)
+    executed = _disk_sha256_canonical(
+        os.path.join(REPO, "monitoring", "src", name))
+    verdict = _classify(p.returncode, tail)
+    if verdict == "PASS" and committed and executed             and committed != executed:
+        verdict = "REFUSE"
+        tail = ("executed bytes diverge from the committed blob; a "
+                "green run of uncommitted source is not a PASS :: "
+                + tail)
     return {"surface": rel, "argv": argv,
             "interpreter_label": interp_label,
             "interpreter_version": _interp_version(interp_argv),
             "exit_code": p.returncode,
-            "verdict": _classify(p.returncode, tail),
+            "verdict": verdict,
+            "canonical_committed_sha256": committed,
+            "canonical_executed_sha256": executed,
             "tail": tail,
-            "blob_object_id": _blob_object_id(rel),
+            "git_blob_oid": _git_blob_oid(rel),
             "blob_sha256": _blob_sha256(rel),
             "disk_sha256": _disk_sha(
                 os.path.join(REPO, "monitoring", "src", name))}
@@ -227,7 +277,7 @@ def build():
                 "tail": (f"no Python {spec} runtime exists on this "
                          "host; this interpreter was NOT exercised "
                          "here and no label may imply otherwise"),
-                "blob_object_id": _blob_object_id(
+                "git_blob_oid": _git_blob_oid(
                     f"monitoring/src/{name}"),
                 "blob_sha256": _blob_sha256(
                     f"monitoring/src/{name}"),

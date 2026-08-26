@@ -185,6 +185,24 @@ def main():
         # B0c (closure 1): BYTE AUTHORITY on the public seam
         import inspect
         sig = str(inspect.signature(B.build_station_table))
+        # HARDENED 2026-08-26 (cayley): the "no digest override" half
+        # of B0c used to be `"sha256" not in sig and "expected" not in
+        # sig` -- a SUBSTRING scan of the signature string. The
+        # conclusion it drew was true (the seam really is
+        # (plan_bytes, pool_bytes)), but the proof was weak in the
+        # exact way that already burned me once: a parameter named
+        # `digest`/`plan_hash`/`override`, or a **kwargs, would carry
+        # a caller-supplied digest straight past it. Absence of a NAME
+        # is not unreachability of a CAPABILITY. So enumerate the
+        # accepted inputs instead of scanning for two spellings.
+        _params = inspect.signature(B.build_station_table).parameters
+        _kinds = [p.kind for p in _params.values()]
+        no_override = (
+            tuple(_params) == ("plan_bytes", "pool_bytes")
+            and inspect.Parameter.VAR_KEYWORD not in _kinds
+            and inspect.Parameter.VAR_POSITIONAL not in _kinds
+            and all(p.default is inspect.Parameter.empty
+                    for p in _params.values()))
         doc = json.loads(plan_bytes.decode("utf-8"))
         rows0 = doc["station_registry"][list(doc["station_registry"])[0]]
         deleted = json.loads(plan_bytes.decode("utf-8"))
@@ -208,9 +226,8 @@ def main():
         check("B0c byte authority: deletion/addition/reordering/re-encoding "
               "and forged-pool bytes ALL refuse; the public seam exposes NO "
               "digest override",
-              all(oks) and ok_p
-              and "sha256" not in sig and "expected" not in sig,
-              f"{codes}/{code_p} sig={sig}")
+              all(oks) and ok_p and no_override,
+              f"{codes}/{code_p} sig={sig} params={tuple(_params)}")
     except FileNotFoundError as e:
         cap("B0 real-shape", f"committed bundle/pool not present: {e}")
 

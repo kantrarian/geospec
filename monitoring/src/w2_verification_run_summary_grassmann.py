@@ -417,7 +417,7 @@ def expected_store(commitish):
         return None
 
 
-def attest_store():
+def attest_store(commitish="HEAD"):
     """codex 1534Z P1 #3: EVIDENCE was inferred from
     `os.path.isdir(V3_STORE)`, so ANY existing empty or mispointed
     directory labelled this host EVIDENCE and attached the named
@@ -455,7 +455,7 @@ def attest_store():
     # a single valid body satisfies that -- while the store_id came
     # from a CONSTANT with nothing compared against it. Membership
     # must match a COMMITTED descriptor exactly.
-    exp = expected_store("HEAD")
+    exp = expected_store(commitish)
     if not isinstance(exp, dict):
         return portable("the expected-store descriptor is absent at "
                         "HEAD; identity cannot be claimed without "
@@ -885,11 +885,11 @@ def merge_legs(legs):
             _evidence_att.append((i, lg, att))
         elif att.get("attested"):
             _mr(f"leg {i} is {lg['host_role']} yet attests a store")
-        if lg["host_role"] == "EVIDENCE" and \
-                lg["store_identity"] != V3_STORE_IDENTITY:
-            _mr(f"leg {i} claims the EVIDENCE role but names store "
-                f"{lg['store_identity']!r}, not "
-                f"{V3_STORE_IDENTITY!r}")
+        # NOTE: the store NAME is no longer compared against a
+        # module CONSTANT here. codex 1617Z: a constant supplying
+        # identity IS the defect, not the check. The committed
+        # descriptor at the agreed commit is the sole authority,
+        # and that comparison happens below, once commit is known.
         if lg["host_role"] != "EVIDENCE" and lg["store_identity"]:
             _mr(f"leg {i} is {lg['host_role']} yet names a store "
                 f"{lg['store_identity']!r}")
@@ -1434,8 +1434,9 @@ def _merge_selftest():
     assert refuses(lambda: merge_legs([ev(), ev("geomen/Windows")]),
                    "EXACTLY ONE EVIDENCE leg")
     assert refuses(lambda: merge_legs(
-        [leg("Rmath151409/Windows", role="EVIDENCE", store="wrong"),
-         leg("geomen/Windows")]), "not 's4t-w2-capture-20260825'")
+        [leg("Rmath151409/Windows", role="EVIDENCE", store="wrong",
+             att=ATT_OK), leg("geomen/Windows")]),
+        "declares 's4t-w2-capture-20260825'")
     assert refuses(lambda: merge_legs(
         [ev(), leg("geomen/Windows", store="s4t-w2-capture-20260825")
          ]), "yet names a store")
@@ -1531,8 +1532,18 @@ def _store_selftest():
     names = sorted(f for f in os.listdir(real) if f.endswith(".body"))
     assert len(names) > 3, real
     me = os.path.abspath(__file__)
-    code = ("import sys;sys.path.insert(0,'.');"
-            "import w2_verification_run_summary_grassmann as S;"
+    # SELF-CATCH: this used to `import
+    # w2_verification_run_summary_grassmann` BY NAME, so a mutated
+    # copy of this file saved under any other filename spawned
+    # children that imported the UNMUTATED original -- the doctor
+    # measured a different module than the one it ships in, and both
+    # membership mutations came back BLIND for that reason rather
+    # than because the guards were sound. Load THIS file by PATH.
+    code = ("import importlib.util as u,sys;"
+            "sp=u.spec_from_file_location('m'," + repr(me) + ");"
+            "S=u.module_from_spec(sp);"
+            "sys.path.insert(0," + repr(os.path.dirname(me)) + ");"
+            "sp.loader.exec_module(S);"
             "r,i,a=S.attest_store();print(r,'|',i,'|',"
             "a.get('reason',''))")
 
@@ -1584,8 +1595,25 @@ def _store_selftest():
     finally:
         for t in tmps:
             shutil.rmtree(t, ignore_errors=True)
+    # (4) no AUTHORITY at the named commit -> the role cannot be
+    # claimed at all. Parameterised so this guard is doctorable:
+    # with a hard-coded "HEAD" the descriptor always existed, and a
+    # guard that cannot be reached is a guard that cannot be shown
+    # to work.
+    add = sp.run(["git", "-C", REPO, "log", "--diff-filter=A",
+                  "--format=%H", "--", EXPECTED_STORE_DESCRIPTOR],
+                 capture_output=True).stdout.decode().split()
+    assert add, "the descriptor has no add-commit"
+    before = sp.run(["git", "-C", REPO, "rev-parse", add[-1] + "^"],
+                    capture_output=True).stdout.decode().strip()
+    role, ident, att = attest_store(before)
+    assert role == "PORTABLE" and ident is None, (role, ident)
+    assert "descriptor is absent" in att.get("reason", ""), att
+    print(f"  {'no authority at commit':22s} -> PORTABLE "
+          f"({before[:8]} predates the descriptor)")
     print("w2 store-membership selftest: ALL PASS (3 degrade "
-          "directions + the real store still earns the role)")
+          "directions + no-authority direction + the real store "
+          "still earns the role)")
 
 
 def _argv_selftest():

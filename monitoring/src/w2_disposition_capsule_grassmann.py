@@ -689,9 +689,74 @@ def _selftest():
     assert refuses(lambda c: c.__setitem__("transform_identity",
                                            {"forged": True}),
                    "does not match the LIVE registered transform")
-    assert refuses(lambda c: c["v3_archive"]
-                   .__setitem__("sha256", "0" * 64),
-                   "does not match the resolved archive bytes")
+    # codex 0151Z P1: this assertion used to ride on `refuses`, which
+    # calls verify(c, authority) with NO store or archive input. The
+    # digest comparison at _verify() sits under `if _araw is not
+    # None`, so when the archive cannot be resolved the mutated field
+    # is never compared and the doctor asserts a refusal from a branch
+    # it did not make reachable. It held on devildog ONLY because the
+    # evidence archive is ambiently present in the working tree --
+    # the same ambient-precondition shape as RG-9 and as my own runner
+    # doctor. The archive is now CONSTRUCTED in a temp dir and the
+    # source selector is pinned to the path branch, so the comparison
+    # is reachable on any host with the external store absent.
+    def _archive_digest_doctor():
+        import shutil
+        import tempfile
+        _g = globals()
+        _real_committed = _archive_committed
+        td = tempfile.mkdtemp(prefix="w2_archive_doctor_")
+        try:
+            apath = os.path.join(td, "capture_run_archive.json")
+            body = (json.dumps({"schema": "fixture-archive", "n": 1},
+                               indent=1, sort_keys=True) + "\n"
+                    ).encode()
+            with open(apath, "wb") as f:
+                f.write(body)
+            good = hashlib.sha256(body).hexdigest()
+            # _archive_committed() consults the module CONSTANT
+            # V3_ARCHIVE_PATH, not the capsule, so on a host where the
+            # archive is committed the git-blob branch would silently
+            # win and this doctor would measure bytes it did not
+            # write. Pin the selector to the path branch. The digest
+            # COMPARISON itself is never touched.
+            _g["_archive_committed"] = lambda commitish: False
+
+            def _at_temp(sha):
+                c = json.loads(json.dumps(caps))
+                c["v3_archive"]["path"] = apath.replace("\\", "/")
+                c["v3_archive"]["sha256"] = sha
+                return c
+            # POSITIVE control. A CORRECT digest over bytes the
+            # verifier can actually resolve must not raise the archive
+            # refusal. This also proves the resolved bytes were MINE:
+            # had any other source won, `good` would mismatch and the
+            # archive refusal would fire here.
+            try:
+                verify(_at_temp(good), authority)
+                pos = "accepted"
+            except DispositionRefusal as e:
+                pos = str(e)
+            assert "does not match the resolved archive bytes" \
+                not in pos, \
+                ("the archive digest check fired on a CORRECT digest "
+                 "over resolvable fixture bytes: " + pos[:200])
+            # NEGATIVE control: identical reachable bytes, wrong
+            # digest. Only the digest differs between the two.
+            try:
+                verify(_at_temp("0" * 64), authority)
+                raise AssertionError(
+                    "a WRONG v3_archive.sha256 over RESOLVABLE bytes "
+                    "was ACCEPTED")
+            except DispositionRefusal as e:
+                assert "does not match the resolved archive bytes" \
+                    in str(e), str(e)[:200]
+        finally:
+            _g["_archive_committed"] = _real_committed
+            shutil.rmtree(td, ignore_errors=True)
+        print("  P1 archive-digest doctor: constructed fixture "
+              "archive, positive+negative control, store absent")
+    _archive_digest_doctor()
     assert refuses(lambda c: c.__setitem__("lane_map",
                                            {"BOGUS": "MAG_FEED"}),
                    "is not the REGISTERED map")

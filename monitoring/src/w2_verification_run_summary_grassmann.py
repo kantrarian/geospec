@@ -70,6 +70,11 @@ SURFACES = (
     "w2_disposition_capsule_grassmann.py",
     "w2_restage_verify_batch_grassmann.py",
     "w2_restage_v4_grassmann.py",
+    # codex 0151Z P0-1: the executable that will fire the 635 was
+    # pinned nowhere, required by no closure, and executed by no
+    # record. A clean plan from unbound working-tree code is not a
+    # reviewed capture executable.
+    "w2_capture_run_v4_grassmann.py",
     # codex 0445Z item 1: the six separately BOUND cayley locks must
     # be invocations of this summary too -- a bound verification
     # surface that this record never runs is a claim nobody executed
@@ -84,6 +89,7 @@ SELFTEST_ARG = {
     "w2_disposition_capsule_grassmann.py": ["--selftest"],
     "w2_restage_verify_batch_grassmann.py": ["--selftest"],
     "w2_restage_v4_grassmann.py": ["--selftest"],
+    "w2_capture_run_v4_grassmann.py": ["--selftest"],
 }
 # codex requires dual-interpreter coverage; cayley's P0 found my
 # artifact LABELLING seven runs py3.14 while executing 3.11.9 -- this
@@ -790,7 +796,7 @@ _BINDINGS_BY_COMMIT = {}
 
 
 def _committed_bindings(commit, cache):
-    """The 14 declared surfaces at the AGREED commit, recomputed.
+    """Every declared surface at the AGREED commit, recomputed.
 
     Cached PER COMMIT at module level: a commit's blobs are
     immutable, and re-deriving them inside every merge_legs() call
@@ -1231,10 +1237,40 @@ def _merge_selftest():
         version copied one template row across every surface and
         interpreter, which produced a py3.14 row carrying 3.11.9 --
         the validator caught my own fixture, which is the point."""
-        base = dict(BY_CELL[(sf, il)])
-        # committed bindings are per-SURFACE; the py3.11 row always
-        # carries them non-null
-        src = BY_CELL[(sf, PY311)]
+        # BOOTSTRAP (codex 0151Z P0-1): SURFACES just gained
+        # w2_capture_run_v4_grassmann.py, which the COMMITTED record
+        # -- generated before the surface was bound -- cannot contain.
+        # A newly bound surface must not be silently dropped from the
+        # fixture (that is the decaying-coverage shape); instead its
+        # ROW SHAPE is taken from a sibling surface at the SAME
+        # interpreter and its BINDINGS from the real committed blobs
+        # for THAT surface, so every field is still validated. Once
+        # the record is regenerated the cell exists and this path
+        # stops being taken.
+        if (sf, il) not in BY_CELL:
+            sib = next((BY_CELL[(o, il)] for o in SURFACES
+                        if (o, il) in BY_CELL), None)
+            if sib is None:
+                _mr(f"no committed row at interpreter {il} to shape a "
+                    f"bootstrap fixture cell for {sf}")
+            bind = _committed_bindings(COMMIT, None)[sf]
+            base = dict(sib)
+            base.update(bind)
+            src = dict(bind)
+            # disk_sha256 is per-HOST self-attested, so it is not
+            # among the committed bindings. Take it from THIS host's
+            # actual bytes for THIS surface -- never from the sibling
+            # row, which would bind one surface's cell to a different
+            # surface's disk digest.
+            with open(os.path.join(REPO, *(SURFACE_PREFIX + sf)
+                                   .split("/")), "rb") as _fh:
+                src["disk_sha256"] = hashlib.sha256(
+                    _fh.read()).hexdigest()
+        else:
+            base = dict(BY_CELL[(sf, il)])
+            # committed bindings are per-SURFACE; the py3.11 row
+            # always carries them non-null
+            src = BY_CELL[(sf, PY311)]
         for f in ("git_blob_oid", "blob_sha256",
                   "canonical_committed_sha256", "disk_sha256"):
             base[f] = src[f]
@@ -1626,7 +1662,13 @@ def _merge_selftest():
         "every non-execution must be an EXPLICIT NOT_RUN row")
     short = full_rows("geomen/Windows")[:-1]
     assert refuses(lambda: merge_legs(
-        [ev(), leg("geomen/Windows", rows=short)]), "declares 27")
+        [ev(), leg("geomen/Windows", rows=short)]),
+        # DERIVED, not a literal: this read "declares 27" and went
+        # stale the moment SURFACES gained the capture runner. A
+        # doctor whose needle is a hand-typed count stops matching
+        # exactly when the surface set changes -- and a needle that
+        # never matches is a doctor that never fires.
+        f"declares {len(SURFACES) * len(INTERPRETER_LABELS) - 1}")
     vbad = full_rows("geomen/Windows")
     vbad[0] = dict(vbad[0], verdict="GREEN")
     assert refuses(lambda: merge_legs(

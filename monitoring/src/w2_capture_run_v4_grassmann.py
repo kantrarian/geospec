@@ -225,6 +225,26 @@ def run(manifest_commit):
     # this loop and capture_authorized() consume ONE object. Reading
     # the capsule at the named descendant while the entrypoint reads
     # it from the pin is two objects wearing one name.
+    # codex 0151Z P0-1(3): the runner must bind ITS OWN executed
+    # bytes before anything else. A pin that is never checked against
+    # executed disk bytes is nominal, not load-bearing -- and this
+    # executable is the one that would spend the 635.
+    import w2_accrual_instrument_cayley as ACC
+    _me = "monitoring/src/" + os.path.basename(__file__)
+    try:
+        _allow = ACC.runtime_allowlist_check(REPO, manifest_commit)
+    except Exception as exc:
+        raise SystemExit(
+            "REFUSING: the runtime allowlist refused at "
+            f"{manifest_commit} ({type(exc).__name__}: "
+            f"{str(exc)[:200]})")
+    _checked = {p for _s, p in (_allow.get("pins") or ())}
+    if _me not in _checked:
+        raise SystemExit(
+            f"REFUSING: {_me} is not among the BOUND pins checked "
+            f"against executed disk bytes at {manifest_commit} "
+            f"({len(_checked)} checked) -- the executable that would "
+            "spend the ceiling is not itself bound")
     _probe = load_plan(manifest_commit)[4]
     st = capsule_pin_status(manifest_commit, candidate_sha=_probe)
     if not st["runnable"]:
@@ -338,35 +358,92 @@ def _selftest():
     # (b) with no candidate supplied the pin still verifies on its own
     bare = capsule_pin_status("HEAD")
     assert bare["pin_recomputes"] is True and bare["runnable"] is True
-    # (c) run() must REFUSE on that divergence before an opener. We
-    # prove "before an opener" by making any network use impossible.
+    # (c) THREE separate refusal paths, each asserted on ITS OWN
+    # distinctive needle.
+    #
+    # codex 0151Z P0-2 said this doctor was AMBIENT: it ran only
+    # under `if not real["runnable"]`, so re-pinning the capsule
+    # would have silenced it. Constructing the divergence fixed that
+    # -- and immediately exposed a second defect in my own repair:
+    # run() now refuses on the ALLOWLIST first, so a doctor asserting
+    # only "REFUSING" passed on a refusal it did not construct. That
+    # is the accidental-needle defect, in a doctor written minutes
+    # after I argued the same point to cayley. Each path below names
+    # a string only that path can produce.
     import w2_no_network_grassmann as _NN
+    import w2_accrual_instrument_cayley as _ACC
+    _real_status = capsule_pin_status
+    _real_allow = _ACC.runtime_allowlist_check
+    _real_fetch = CAP.http_fetch
+    _g = globals()
 
-    def _run_would_refuse():
+    def _probe_run(needle, *, allow=None, status=None):
+        """Run run('HEAD') under injected conditions; require a typed
+        refusal carrying `needle`, zero network attempts, and NO
+        opener."""
+        reached = []
+
+        def _raiser(*a, **k):
+            reached.append(1)
+            raise AssertionError("OPENER REACHED")
+        if allow is not None:
+            _ACC.runtime_allowlist_check = allow
+        if status is not None:
+            _g["capsule_pin_status"] = status
         try:
             with _NN.no_network() as net:
-                _real = CAP.http_fetch
-                CAP.http_fetch = lambda *a, **k: (_ for _ in ()).throw(
-                    AssertionError("OPENER REACHED"))
+                CAP.http_fetch = _raiser
                 try:
                     run("HEAD")
-                finally:
-                    CAP.http_fetch = _real
-                assert net.attempts == 0
-        except SystemExit as exc:
-            return str(exc)
-        return None
-    # Only meaningful when the live capsule and the pin diverge; when
-    # they agree, run() would proceed to real work, so this doctor
-    # states which case it exercised rather than silently skipping.
-    if not real["runnable"]:
-        msg = _run_would_refuse()
-        assert msg and "REFUSING" in msg, msg
-        print("  P0-1 doctor: pin/candidate DIVERGE -> run() refused "
-              "before any opener")
-    else:
-        print("  P0-1 doctor: pin/candidate AGREE today; divergence "
-              "path proven by (a)+(b) on the typed status")
+                    raise AssertionError(
+                        f"run() accepted a condition it must refuse "
+                        f"({needle})")
+                except SystemExit as exc:
+                    assert needle in str(exc), \
+                        f"expected {needle!r}, got {str(exc)[:160]!r}"
+                assert net.attempts == 0, net.attempts
+        finally:
+            CAP.http_fetch = _real_fetch
+            _ACC.runtime_allowlist_check = _real_allow
+            _g["capsule_pin_status"] = _real_status
+        assert not reached, "an opener was reached before refusal"
+
+    _me_path = "monitoring/src/" + os.path.basename(
+        R_FILE if (R_FILE := __file__) else "")
+
+    def _allow_without_me(repo, commit):
+        return {"pins_checked": 3,
+                "pins": [("accrual_impl", "monitoring/src/other.py")]}
+
+    def _allow_raises(repo, commit):
+        raise _ACC.InstrumentRefusal(
+            "RUNTIME_ALLOWLIST_VIOLATION: [('accrual_impl', "
+            f"'{_me_path}', 'aa11!=bb22')]")
+
+    def _allow_ok(repo, commit):
+        return {"pins_checked": 9,
+                "pins": [("accrual_impl", _me_path)]}
+
+    def _forced_divergent(commitish, candidate_sha=None):
+        st = _real_status(commitish, candidate_sha)
+        st.update(current_pin=False, runnable=False,
+                  reason="CONSTRUCTED_CAPSULE_DIVERGENCE")
+        return st
+    # (c1) codex P0-1(4): the runner ABSENT from the checked BOUND pins
+    _probe_run("is not among the BOUND pins", allow=_allow_without_me)
+    # (c2) codex P0-1(4): the runner's DISK bytes diverge from its pin
+    _probe_run("the runtime allowlist refused", allow=_allow_raises)
+    # (c3) codex P0-2: a CONSTRUCTED divergent capsule, reached only
+    # because the allowlist is stubbed to PASS -- so this asserts the
+    # capsule path and cannot pass on the allowlist refusal
+    _probe_run("CONSTRUCTED_CAPSULE_DIVERGENCE",
+               allow=_allow_ok, status=_forced_divergent)
+    print("  P0-1/P0-2 doctors: runner-unbound, runner-disk-divergent "
+          "and constructed-capsule-divergence each refused before any "
+          "opener, sentinel attempts 0")
+    # live status is corroboration ONLY; it never gates the doctors
+    print(f"  live corroboration: current_pin={real['current_pin']} "
+          f"runnable={real['runnable']}")
     print(f"w2_capture_run_v4 selftest: ALL PASS (plan={len(keys)}, "
           "no network)")
 

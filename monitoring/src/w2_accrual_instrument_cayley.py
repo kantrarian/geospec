@@ -668,6 +668,23 @@ def _registered_disposition_capsule(manifest, blob_reader):
             "PRESTART_ADMISSION_REFUSED: no accrual_impl slot pins "
             "the disposition capsule -- the boundary will not accept "
             "a caller-supplied capsule in its place")
+    # codex 0151Z P0-3. Found by turning my own self-check on this
+    # helper after codex's P0-1 against grassmann's runner, and
+    # mutation-proved by both of us. The object check below is sound
+    # -- one pin, blob at the pinned commit, SHA recomputed -- but it
+    # never asserted that the slot is BOUND. That was correct only
+    # INCIDENTALLY, because the generator happens to emit accrual_impl
+    # in BOUND_SLOTS and OPEN slots happen to carry zero pins. The
+    # slot map is DATA, edited by people who never read this line, so
+    # "correct because of how the generator currently builds slots"
+    # is the RG-9 shape: right for the state it was written in,
+    # silently wrong when that state moves.
+    if slot.get("status") != "BOUND":
+        raise InstrumentRefusal(
+            "PRESTART_ADMISSION_REFUSED: accrual_impl carries a "
+            f"capsule pin but its status is {slot.get('status')!r}, "
+            "not BOUND -- a pin in a slot the manifest itself "
+            "declares unbound may not authorize an admission")
     pins = [p for p in slot.get("pins", ())
             if isinstance(p, dict)
             and str(p.get("path", "")).endswith(

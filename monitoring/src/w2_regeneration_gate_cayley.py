@@ -88,6 +88,8 @@ REQUIRED_BY_SLOT = {
         # came from code the manifest did not bind.
         "monitoring/src/w2_no_network_grassmann.py",
         "monitoring/src/w2_producer_grassmann.py",
+        # codex 0151Z P0-1: the capture executable itself.
+        "monitoring/src/w2_capture_run_v4_grassmann.py",
     ),
     # codex 1758Z P0-1: both power engines together in power_harness.
     # They are fixture-only power-estimation engines behind the power
@@ -126,6 +128,9 @@ ADMISSION_ENTRYPOINTS = (
     "w2_acquisition_capture_grassmann.py",
     "w2_regeneration_gate_cayley.py",
     "f2g_execution_manifest_verifier_cayley.py",
+    # codex 0151Z P0-1: the runner is an admission-path root,
+    # so its own imports join the dependency closure too.
+    "w2_capture_run_v4_grassmann.py",
 )
 
 # The linked DESIGN-PIN set. codex's wording is "escape both an
@@ -919,6 +924,34 @@ def _selftest():
                     "control")
             _pin["blob_sha256"] = hashlib.sha256(_cur).hexdigest()
             _refreshed += 1
+        # COMPLETENESS, not only currency. Refreshing existing pins
+        # cannot satisfy a surface that is REQUIRED but not yet
+        # pinned -- which is exactly the state right after a new
+        # required surface is declared and before the manifest
+        # replacement binds it. Without this the positive control
+        # constructs half its precondition and inherits the other
+        # half from whatever the tree happens to contain, which is
+        # the defect this doctor was rewritten to stop having.
+        _added = 0
+        _have = {p["path"] for _t, p in walk_pins(_posdoc)}
+        for _slot_name, _required in REQUIRED_BY_SLOT.items():
+            if _slot_name in SLOT_REQUIRED_ONLY_WHEN_BOUND:
+                continue
+            _slot = _posdoc.setdefault("slots", {}).setdefault(
+                _slot_name, {"status": "BOUND", "pins": []})
+            for _rel in _required:
+                if _rel in _have:
+                    continue
+                _cur = _blob_at_head(None, _rel)
+                if _cur is None:
+                    raise RegenerationGateRefusal(
+                        "RG-9 POSITIVE_UNREADABLE: required surface "
+                        f"{_rel} is not readable at HEAD")
+                _slot.setdefault("pins", []).append(
+                    {"path": _rel, "commit": "HEAD",
+                     "blob_sha256": hashlib.sha256(_cur).hexdigest()})
+                _have.add(_rel)
+                _added += 1
         if _refreshed < 1:
             raise RegenerationGateRefusal(
                 "RG-9 POSITIVE_NO_PINS: no pin was refreshed, so the "
@@ -958,7 +991,8 @@ def _selftest():
     finally:
         _EMV.verify = _rv
     print(f"  RG-9 PASS  collapse guard, BOTH controls CONSTRUCTED "
-          f"({_refreshed} pins refreshed): an all-current manifest is "
+          f"({_refreshed} refreshed + {_added} required pins added): "
+          "an all-current, all-complete manifest is "
           "accepted as all-PASS, and doctoring one of those pins under "
           "a forced zero-OPEN prestart PASS is refused")
 

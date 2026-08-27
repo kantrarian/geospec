@@ -66,7 +66,7 @@ class PinBindRefusal(AssertionError):
 def _manifest_pinning(raw_bytes, path=CAPSULE_REL, commit="ab" * 20):
     """A minimal manifest that pins the capsule, plus a reader."""
     import hashlib
-    man = {"slots": {"accrual_impl": {"pins": [
+    man = {"slots": {"accrual_impl": {"status": "BOUND", "pins": [
         {"path": path, "commit": commit,
          "blob_sha256": hashlib.sha256(raw_bytes).hexdigest()}]}}}
 
@@ -160,6 +160,36 @@ def _selftest():
         print("  PB-5 PASS  the fixture constructor REFUSES the real "
               "registered authority (grassmann d4740ea: the forgery "
               "cannot be minted either)")
+
+    # ---- PB-6 (codex 0151Z P0-3): the slot must be BOUND ----------
+    # The distinguishing fixture: accrual_impl OPEN while carrying
+    # exactly ONE VALID capsule pin. Right path, resolvable commit,
+    # blob recomputes -- every property the object check inspects is
+    # correct, and only the slot's own declared status is wrong.
+    #
+    # The old resolver accepted this. It was protected only
+    # INCIDENTALLY, because the generator emits accrual_impl in
+    # BOUND_SLOTS and OPEN slots happen to carry zero pins. Neither
+    # fact is asserted anywhere, and the slot map is data that gets
+    # edited by people who never read the resolver.
+    open_man = {"slots": {"accrual_impl": dict(
+        man["slots"]["accrual_impl"], status="OPEN")}}
+    try:
+        AI.bind_registered_capsule(open_man, reader)
+        raise PinBindRefusal(
+            "PB-6 OPEN_SLOT_ADMITTED: a valid capsule pin was accepted "
+            "from a slot the manifest itself declares OPEN -- a pin in "
+            "an unbound slot may not authorize an admission")
+    except AI.InstrumentRefusal as e:
+        assert "not BOUND" in str(e), str(e)[:130]
+    # and the SAME fixture with status BOUND must still resolve, so
+    # PB-6 refuses the STATUS and not the fixture
+    bound_man = {"slots": {"accrual_impl": dict(
+        man["slots"]["accrual_impl"], status="BOUND")}}
+    AI.bind_registered_capsule(bound_man, reader)
+    print("  PB-6 PASS  a valid pin in an OPEN slot REFUSES; the same "
+          "pin with status BOUND resolves (the status is what is "
+          "checked, not the fixture)")
 
     # ---- PB-2: a tampered PIN refuses (bytes must match) -----------
     bad_man, bad_reader = _manifest_pinning(real_raw)

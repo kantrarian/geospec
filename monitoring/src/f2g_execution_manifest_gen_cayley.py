@@ -113,7 +113,12 @@ BOUND_SLOTS = {
                   # that acquisition before staged bytes is
                   # receipt-attested, not source-code-attested.
                   "monitoring/src/w2_no_network_grassmann.py",
-                  "monitoring/src/w2_producer_grassmann.py"]},
+                  "monitoring/src/w2_producer_grassmann.py",
+                  # codex 0151Z P0-1: the executable that will
+                  # FIRE the 635 was pinned nowhere. A clean
+                  # plan produced by unbound working-tree code
+                  # is not a reviewed capture executable.
+                  "monitoring/src/w2_capture_run_v4_grassmann.py"]},
     # v1.1 (codex 1358Z item 4/5): the two repaired execution tools
     # join the runtime allowlist as explicit slots
     "power_harness": {

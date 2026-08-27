@@ -25,8 +25,8 @@
    "interpreter_label": "py3.11",
    "interpreter_version": "3.11.9",
    "resolved_executable": "C:\\Users\\devildog\\AppData\\Local\\Programs\\Python\\Python311\\python.exe",
-   "run_utc": "2026-08-26T19:23:27Z",
-   "source_commit": "65988bcd6450bb3867696db10739bf3bc8558005",
+   "run_utc": "2026-08-27T01:24:32Z",
+   "source_commit": "668b916575873c6f6b9fc446406ef793b21605d1",
    "surface": "monitoring/src/test_f2g_window2_redkats_grassmann.py",
    "tail": "\nALL WINDOW-2 RED-KATs PASS",
    "verdict": "PASS"
@@ -44,8 +44,8 @@
    "interpreter_label": "py3.14",
    "interpreter_version": null,
    "resolved_executable": null,
-   "run_utc": "2026-08-26T19:23:27Z",
-   "source_commit": "65988bcd6450bb3867696db10739bf3bc8558005",
+   "run_utc": "2026-08-27T01:24:32Z",
+   "source_commit": "668b916575873c6f6b9fc446406ef793b21605d1",
    "surface": "monitoring/src/test_f2g_window2_redkats_grassmann.py",
    "tail": "no Python 3.14 runtime exists on this host; this interpreter was NOT exercised here and no label may imply otherwise",
    "verdict": "NOT_RUN"
@@ -67,8 +67,8 @@
    "interpreter_label": "py3.11",
    "interpreter_version": "3.11.9",
    "resolved_executable": "C:\\Users\\devildog\\AppData\\Local\\Programs\\Python\\Python311\\python.exe",
-   "run_utc": "2026-08-26T19:23:28Z",
-   "source_commit": "65988bcd6450bb3867696db10739bf3bc8558005",
+   "run_utc": "2026-08-27T01:24:33Z",
+   "source_commit": "668b916575873c6f6b9fc446406ef793b21605d1",
    "surface": "monitoring/src/test_w2_fixture_schema_redkats_grassmann.py",
    "tail": "\nALL W2 FIXTURE-SCHEMA RED-KATs PASS",
    "verdict": "PASS"
@@ -86,8 +86,8 @@
    "interpreter_label": "py3.14",
    "interpreter_version": null,
    "resolved_executable": null,
-   "run_utc": "2026-08-26T19:23:28Z",
-   "source_commit": "65988bcd6450bb3867696db10739bf3bc8558005",
+   "run_utc": "2026-08-27T01:24:33Z",
+   "source_commit": "668b916575873c6f6b9fc446406ef793b21605d1",
    "surface": "monitoring/src/test_w2_fixture_schema_redkats_grassmann.py",
    "tail": "no Python 3.14 runtime exists on this host; this interpreter was NOT exercised here and no label may imply otherwise",
    "verdict": "NOT_RUN"
@@ -109,8 +109,8 @@
    "interpreter_label": "py3.11",
    "interpreter_version": "3.11.9",
    "resolved_executable": "C:\\Users\\devildog\\AppData\\Local\\Programs\\Python\\Python311\\python.exe",
-   "run_utc": "2026-08-26T19:23:30Z",
-   "source_commit": "65988bcd6450bb3867696db10739bf3bc8558005",
+   "run_utc": "2026-08-27T01:24:35Z",
+   "source_commit": "668b916575873c6f6b9fc446406ef793b21605d1",
    "surface": "monitoring/src/w2_acquisition_capture_grassmann.py",
    "tail": "w2_acquisition_capture selftest: ALL PASS (no network)",
    "verdict": "PASS"
@@ -128,8 +128,8 @@
    "interpreter_label": "py3.14",
    "interpreter_version": null,
    "resolved_executable": null,
-   "run_utc": "2026-08-26T19:23:30Z",
-   "source_commit": "65988bcd6450bb3867696db10739bf3bc8558005",
+   "run_utc": "2026-08-27T01:24:35Z",
+   "source_commit": "668b916575873c6f6b9fc446406ef793b21605d1",
    "surface": "monitoring/src/w2_acquisition_capture_grassmann.py",
    "tail": "no Python 3.14 runtime exists on this host; this interpreter was NOT exercised here and no label may imply otherwise",
    "verdict": "NOT_RUN"
@@ -151,8 +151,8 @@
    "interpreter_label": "py3.11",
    "interpreter_version": "3.11.9",
    "resolved_executable": "C:\\Users\\devildog\\AppData\\Local\\Programs\\Python\\Python311\\python.exe",
-   "run_utc": "2026-08-26T19:23:33Z",
-   "source_commit": "65988bcd6450bb3867696db10739bf3bc8558005",
+   "run_utc": "2026-08-27T01:24:38Z",
+   "source_commit": "668b916575873c6f6b9fc446406ef793b21605d1",
    "surface": "monitoring/src/w2_producer_grassmann.py",
    "tail": "w2_producer selftest: ALL PASS",
    "verdict": "PASS"
@@ -170,8 +170,8 @@
    "interpreter_label": "py3.14",
    "interpreter_version": null,
    "resolved_executable": null,
-   "run_utc": "2026-08-26T19:23:33Z",
-   "source_commit": "65988bcd6450bb3867696db10739bf3bc8558005",
+   "run_utc": "2026-08-27T01:24:38Z",
+   "source_commit": "668b916575873c6f6b9fc446406ef793b21605d1",
    "surface": "monitoring/src/w2_producer_grassmann.py",
    "tail": "no Python 3.14 runtime exists on this host; this interpreter was NOT exercised here and no label may imply otherwise",
    "verdict": "NOT_RUN"
@@ -193,8 +193,8 @@
    "interpreter_label": "py3.11",
    "interpreter_version": "3.11.9",
    "resolved_executable": "C:\\Users\\devildog\\AppData\\Local\\Programs\\Python\\Python311\\python.exe",
-   "run_utc": "2026-08-26T19:23:34Z",
-   "source_commit": "65988bcd6450bb3867696db10739bf3bc8558005",
+   "run_utc": "2026-08-27T01:24:39Z",
+   "source_commit": "668b916575873c6f6b9fc446406ef793b21605d1",
    "surface": "monitoring/src/w2_restage_lineage_grassmann.py",
    "tail": "w2_restage_lineage selftest: ALL PASS (MAG_FEED/frn/2026-01-01 via MAG_FEED/frn/2026-01-01, claim={'artifact_claim_kind': 'SUPPORT_SERIES', 'outcome': 'ADMITTED'}, no network)",
    "verdict": "PASS"
@@ -212,8 +212,8 @@
    "interpreter_label": "py3.14",
    "interpreter_version": null,
    "resolved_executable": null,
-   "run_utc": "2026-08-26T19:23:34Z",
-   "source_commit": "65988bcd6450bb3867696db10739bf3bc8558005",
+   "run_utc": "2026-08-27T01:24:39Z",
+   "source_commit": "668b916575873c6f6b9fc446406ef793b21605d1",
    "surface": "monitoring/src/w2_restage_lineage_grassmann.py",
    "tail": "no Python 3.14 runtime exists on this host; this interpreter was NOT exercised here and no label may imply otherwise",
    "verdict": "NOT_RUN"
@@ -230,17 +230,17 @@
    "canonical_executed_sha256": "f46b0b404f5dd874448f41b876e81259f6e6038c41f301c11b2f44113123e0c3",
    "digest_domain": "UTF8_SOURCE_LF_V1",
    "disk_sha256": "ed0e30671d6a98bd85e061fda789e42d22d33345f934a56ff2c6fdbaec213dae",
-   "exit_code": 1,
+   "exit_code": 0,
    "git_blob_oid": "457bb542c84897ddb4c975b9bf14c5a6e65fcaa5",
    "host_id": "Rmath151409/Windows",
    "interpreter_label": "py3.11",
    "interpreter_version": "3.11.9",
    "resolved_executable": "C:\\Users\\devildog\\AppData\\Local\\Programs\\Python\\Python311\\python.exe",
-   "run_utc": "2026-08-26T19:23:35Z",
-   "source_commit": "65988bcd6450bb3867696db10739bf3bc8558005",
+   "run_utc": "2026-08-27T01:24:41Z",
+   "source_commit": "668b916575873c6f6b9fc446406ef793b21605d1",
    "surface": "monitoring/src/w2_disposition_capsule_grassmann.py",
-   "tail": "    raise DispositionRefusal(\"DISPOSITION_REFUSED: \" + str(msg))\nDispositionRefusal: DISPOSITION_REFUSED: v3_archive.sha256 does not match the resolved archive bytes",
-   "verdict": "REFUSE"
+   "tail": "w2_disposition_capsule selftest: ALL PASS ({'census': 2056, 'REUSE_OR_BRIDGE': 1420, 'PREDECESSOR': 1, 'HTTP_CAPTURE': 635, 'bodies_recomputed': None}, no network)",
+   "verdict": "PASS"
   },
   {
    "argv": null,
@@ -255,8 +255,8 @@
    "interpreter_label": "py3.14",
    "interpreter_version": null,
    "resolved_executable": null,
-   "run_utc": "2026-08-26T19:23:35Z",
-   "source_commit": "65988bcd6450bb3867696db10739bf3bc8558005",
+   "run_utc": "2026-08-27T01:24:41Z",
+   "source_commit": "668b916575873c6f6b9fc446406ef793b21605d1",
    "surface": "monitoring/src/w2_disposition_capsule_grassmann.py",
    "tail": "no Python 3.14 runtime exists on this host; this interpreter was NOT exercised here and no label may imply otherwise",
    "verdict": "NOT_RUN"
@@ -279,8 +279,8 @@
    "interpreter_label": "py3.11",
    "interpreter_version": "3.11.9",
    "resolved_executable": "C:\\Users\\devildog\\AppData\\Local\\Programs\\Python\\Python311\\python.exe",
-   "run_utc": "2026-08-26T19:23:45Z",
-   "source_commit": "65988bcd6450bb3867696db10739bf3bc8558005",
+   "run_utc": "2026-08-27T01:24:59Z",
+   "source_commit": "668b916575873c6f6b9fc446406ef793b21605d1",
    "surface": "monitoring/src/w2_restage_verify_batch_grassmann.py",
    "tail": "w2_restage_verify_batch selftest: ALL PASS (refusal contract only; no manifest-owned PASS exists before the single regeneration)",
    "verdict": "PASS"
@@ -298,8 +298,8 @@
    "interpreter_label": "py3.14",
    "interpreter_version": null,
    "resolved_executable": null,
-   "run_utc": "2026-08-26T19:23:46Z",
-   "source_commit": "65988bcd6450bb3867696db10739bf3bc8558005",
+   "run_utc": "2026-08-27T01:25:00Z",
+   "source_commit": "668b916575873c6f6b9fc446406ef793b21605d1",
    "surface": "monitoring/src/w2_restage_verify_batch_grassmann.py",
    "tail": "no Python 3.14 runtime exists on this host; this interpreter was NOT exercised here and no label may imply otherwise",
    "verdict": "NOT_RUN"
@@ -316,17 +316,17 @@
    "canonical_executed_sha256": "bb76575ed6ba5f471ab153e218a49f1dae7eb622dabd494f5689c1d5e526f978",
    "digest_domain": "UTF8_SOURCE_LF_V1",
    "disk_sha256": "614fa69939dcc7ec37f9de94fb67a710bff7bd1849e6b3f1c38b0edfd9c0040d",
-   "exit_code": 1,
+   "exit_code": 0,
    "git_blob_oid": "d8459b9021122476dfc93d82b4c942543df66d69",
    "host_id": "Rmath151409/Windows",
    "interpreter_label": "py3.11",
    "interpreter_version": "3.11.9",
    "resolved_executable": "C:\\Users\\devildog\\AppData\\Local\\Programs\\Python\\Python311\\python.exe",
-   "run_utc": "2026-08-26T19:23:46Z",
-   "source_commit": "65988bcd6450bb3867696db10739bf3bc8558005",
+   "run_utc": "2026-08-27T01:25:01Z",
+   "source_commit": "668b916575873c6f6b9fc446406ef793b21605d1",
    "surface": "monitoring/src/w2_restage_v4_grassmann.py",
-   "tail": "    raise DispositionRefusal(\"DISPOSITION_REFUSED: \" + str(msg))\nw2_disposition_capsule_grassmann.DispositionRefusal: DISPOSITION_REFUSED: v3_archive.sha256 does not match the resolved archive bytes",
-   "verdict": "REFUSE"
+   "tail": "w2_restage_v4 selftest: ALL PASS (MAG_FEED/frn/2026-01-01, fetcher disabled, no network)",
+   "verdict": "PASS"
   },
   {
    "argv": null,
@@ -341,8 +341,8 @@
    "interpreter_label": "py3.14",
    "interpreter_version": null,
    "resolved_executable": null,
-   "run_utc": "2026-08-26T19:23:47Z",
-   "source_commit": "65988bcd6450bb3867696db10739bf3bc8558005",
+   "run_utc": "2026-08-27T01:25:01Z",
+   "source_commit": "668b916575873c6f6b9fc446406ef793b21605d1",
    "surface": "monitoring/src/w2_restage_v4_grassmann.py",
    "tail": "no Python 3.14 runtime exists on this host; this interpreter was NOT exercised here and no label may imply otherwise",
    "verdict": "NOT_RUN"
@@ -364,8 +364,8 @@
    "interpreter_label": "py3.11",
    "interpreter_version": "3.11.9",
    "resolved_executable": "C:\\Users\\devildog\\AppData\\Local\\Programs\\Python\\Python311\\python.exe",
-   "run_utc": "2026-08-26T19:23:48Z",
-   "source_commit": "65988bcd6450bb3867696db10739bf3bc8558005",
+   "run_utc": "2026-08-27T01:25:03Z",
+   "source_commit": "668b916575873c6f6b9fc446406ef793b21605d1",
    "surface": "monitoring/src/test_w2_capsule_pin_bind_redkats_cayley.py",
    "tail": "  SK-3 PASS  anti-vacuity: a production-shaped result IS consumable (SK-2 refuses the stamp, not every dict)\nw2 capsule pin-bind + structural-kat red-KATs: ALL PASS",
    "verdict": "PASS"
@@ -383,8 +383,8 @@
    "interpreter_label": "py3.14",
    "interpreter_version": null,
    "resolved_executable": null,
-   "run_utc": "2026-08-26T19:23:48Z",
-   "source_commit": "65988bcd6450bb3867696db10739bf3bc8558005",
+   "run_utc": "2026-08-27T01:25:03Z",
+   "source_commit": "668b916575873c6f6b9fc446406ef793b21605d1",
    "surface": "monitoring/src/test_w2_capsule_pin_bind_redkats_cayley.py",
    "tail": "no Python 3.14 runtime exists on this host; this interpreter was NOT exercised here and no label may imply otherwise",
    "verdict": "NOT_RUN"
@@ -406,8 +406,8 @@
    "interpreter_label": "py3.11",
    "interpreter_version": "3.11.9",
    "resolved_executable": "C:\\Users\\devildog\\AppData\\Local\\Programs\\Python\\Python311\\python.exe",
-   "run_utc": "2026-08-26T19:23:49Z",
-   "source_commit": "65988bcd6450bb3867696db10739bf3bc8558005",
+   "run_utc": "2026-08-27T01:25:04Z",
+   "source_commit": "668b916575873c6f6b9fc446406ef793b21605d1",
    "surface": "monitoring/src/test_w2_report_proof_kinds_redkats_cayley.py",
    "tail": "  PK-4 PASS  anti-vacuity: moving the bridge key changes both the counts AND the key digest (kinds are real, not labels)\nw2 report proof-kind red-KATs: ALL PASS",
    "verdict": "PASS"
@@ -425,8 +425,8 @@
    "interpreter_label": "py3.14",
    "interpreter_version": null,
    "resolved_executable": null,
-   "run_utc": "2026-08-26T19:23:49Z",
-   "source_commit": "65988bcd6450bb3867696db10739bf3bc8558005",
+   "run_utc": "2026-08-27T01:25:04Z",
+   "source_commit": "668b916575873c6f6b9fc446406ef793b21605d1",
    "surface": "monitoring/src/test_w2_report_proof_kinds_redkats_cayley.py",
    "tail": "no Python 3.14 runtime exists on this host; this interpreter was NOT exercised here and no label may imply otherwise",
    "verdict": "NOT_RUN"
@@ -448,8 +448,8 @@
    "interpreter_label": "py3.11",
    "interpreter_version": "3.11.9",
    "resolved_executable": "C:\\Users\\devildog\\AppData\\Local\\Programs\\Python\\Python311\\python.exe",
-   "run_utc": "2026-08-26T19:23:49Z",
-   "source_commit": "65988bcd6450bb3867696db10739bf3bc8558005",
+   "run_utc": "2026-08-27T01:25:04Z",
+   "source_commit": "668b916575873c6f6b9fc446406ef793b21605d1",
    "surface": "monitoring/src/test_w2_boundary_admitted_partition_redkats_cayley.py",
    "tail": "LSEWHERE  refused-key-refuses-the-bind is proven in the shared bar's W2-ADMIT (verified, not assumed); not re-tested here\nw2 boundary admitted-partition red-KATs: 2 structural PASS, 0 OPEN, 1 covered elsewhere -- ['BP-2 refused-key-refuses-the-bind -> test_f2g_window2_redkats_grassmann.py W2-ADMIT']",
    "verdict": "COVERED_ELSEWHERE"
@@ -467,8 +467,8 @@
    "interpreter_label": "py3.14",
    "interpreter_version": null,
    "resolved_executable": null,
-   "run_utc": "2026-08-26T19:23:50Z",
-   "source_commit": "65988bcd6450bb3867696db10739bf3bc8558005",
+   "run_utc": "2026-08-27T01:25:05Z",
+   "source_commit": "668b916575873c6f6b9fc446406ef793b21605d1",
    "surface": "monitoring/src/test_w2_boundary_admitted_partition_redkats_cayley.py",
    "tail": "no Python 3.14 runtime exists on this host; this interpreter was NOT exercised here and no label may imply otherwise",
    "verdict": "NOT_RUN"
@@ -490,8 +490,8 @@
    "interpreter_label": "py3.11",
    "interpreter_version": "3.11.9",
    "resolved_executable": "C:\\Users\\devildog\\AppData\\Local\\Programs\\Python\\Python311\\python.exe",
-   "run_utc": "2026-08-26T19:23:51Z",
-   "source_commit": "65988bcd6450bb3867696db10739bf3bc8558005",
+   "run_utc": "2026-08-27T01:25:06Z",
+   "source_commit": "668b916575873c6f6b9fc446406ef793b21605d1",
    "surface": "monitoring/src/test_w2_admitted_absence_redkats_cayley.py",
    "tail": "  AB-4 PASS  absence typed, evidence-bound, no value, support mask None\nw2 admitted-absence red-KATs: ALL PASS",
    "verdict": "PASS"
@@ -509,8 +509,8 @@
    "interpreter_label": "py3.14",
    "interpreter_version": null,
    "resolved_executable": null,
-   "run_utc": "2026-08-26T19:23:51Z",
-   "source_commit": "65988bcd6450bb3867696db10739bf3bc8558005",
+   "run_utc": "2026-08-27T01:25:06Z",
+   "source_commit": "668b916575873c6f6b9fc446406ef793b21605d1",
    "surface": "monitoring/src/test_w2_admitted_absence_redkats_cayley.py",
    "tail": "no Python 3.14 runtime exists on this host; this interpreter was NOT exercised here and no label may imply otherwise",
    "verdict": "NOT_RUN"
@@ -532,8 +532,8 @@
    "interpreter_label": "py3.11",
    "interpreter_version": "3.11.9",
    "resolved_executable": "C:\\Users\\devildog\\AppData\\Local\\Programs\\Python\\Python311\\python.exe",
-   "run_utc": "2026-08-26T19:23:52Z",
-   "source_commit": "65988bcd6450bb3867696db10739bf3bc8558005",
+   "run_utc": "2026-08-27T01:25:07Z",
+   "source_commit": "668b916575873c6f6b9fc446406ef793b21605d1",
    "surface": "monitoring/src/test_w2_authority_serves_every_key_redkats_cayley.py",
    "tail": "  SK-3 PASS  every contract names its own key\nw2 authority-serves-every-key red-KATs: ALL PASS",
    "verdict": "PASS"
@@ -551,8 +551,8 @@
    "interpreter_label": "py3.14",
    "interpreter_version": null,
    "resolved_executable": null,
-   "run_utc": "2026-08-26T19:23:52Z",
-   "source_commit": "65988bcd6450bb3867696db10739bf3bc8558005",
+   "run_utc": "2026-08-27T01:25:07Z",
+   "source_commit": "668b916575873c6f6b9fc446406ef793b21605d1",
    "surface": "monitoring/src/test_w2_authority_serves_every_key_redkats_cayley.py",
    "tail": "no Python 3.14 runtime exists on this host; this interpreter was NOT exercised here and no label may imply otherwise",
    "verdict": "NOT_RUN"
@@ -574,8 +574,8 @@
    "interpreter_label": "py3.11",
    "interpreter_version": "3.11.9",
    "resolved_executable": "C:\\Users\\devildog\\AppData\\Local\\Programs\\Python\\Python311\\python.exe",
-   "run_utc": "2026-08-26T19:23:53Z",
-   "source_commit": "65988bcd6450bb3867696db10739bf3bc8558005",
+   "run_utc": "2026-08-27T01:25:08Z",
+   "source_commit": "668b916575873c6f6b9fc446406ef793b21605d1",
    "surface": "monitoring/src/test_w2_frozen_carrier_set_redkats_cayley.py",
    "tail": "  FC-1 PASS  authority == frozen admitted set ['FRN', 'IZN', 'NEW', 'TUC', 'VIC']\nw2 frozen-carrier-set red-KATs: ALL PASS",
    "verdict": "PASS"
@@ -593,8 +593,8 @@
    "interpreter_label": "py3.14",
    "interpreter_version": null,
    "resolved_executable": null,
-   "run_utc": "2026-08-26T19:23:53Z",
-   "source_commit": "65988bcd6450bb3867696db10739bf3bc8558005",
+   "run_utc": "2026-08-27T01:25:08Z",
+   "source_commit": "668b916575873c6f6b9fc446406ef793b21605d1",
    "surface": "monitoring/src/test_w2_frozen_carrier_set_redkats_cayley.py",
    "tail": "no Python 3.14 runtime exists on this host; this interpreter was NOT exercised here and no label may imply otherwise",
    "verdict": "NOT_RUN"
@@ -605,22 +605,57 @@
  ],
  "note": "execution outcomes only; manifest-owned admission results exist ONLY in the downstream post-manifest receipt",
  "producer_generator_blob_sha256": "ee21653407485339b980632597ddacb10e90ac0f91c8c73dd5a636ee84bd908d",
- "repo_head": "65988bcd6450bb3867696db10739bf3bc8558005",
+ "repo_head": "668b916575873c6f6b9fc446406ef793b21605d1",
  "schema": "f2g-w2-verification-run-summary-v1",
- "source_commit": "65988bcd6450bb3867696db10739bf3bc8558005",
+ "source_commit": "668b916575873c6f6b9fc446406ef793b21605d1",
  "staged_inventory": {
+  "artifact_digest_set": "11fbbc5248d7b6df9acc19cde786db45d88f3c21c6b412172534c93b6200cd6f",
+  "body_digest_set": "5553b8293feb6bb19eb98104ac52dbe29fb4f72f235ed8b1bbd4f3a2c5f54f99",
+  "claims": {
+   "STATION_PRESENCE": {
+    "NOT_APPLICABLE": 360
+   },
+   "SUPPORT_SERIES": {
+    "ADMITTED": 1057,
+    "ADMITTED_ABSENCE": 3
+   }
+  },
+  "class_counts": {
+   ".artifact.json": 1420,
+   ".contract.json": 1420,
+   ".restage.json": 1420,
+   ".transcript.json": 1420
+  },
   "destination_store_id": "s4t-w2-capture-v4",
+  "distinct_body_count": 1073,
+  "file_count": 5680,
   "http_counter_source": "MEASURED_SENTINEL",
   "http_requests": 0,
-  "reason": "staged restage records predate the typed claim block (they carry a nullable `outcome`); this tree is STALE BY DESIGN and is regenerated in step 2 -- refusing rather than reporting a tree whose records the current contract cannot read",
+  "identities": {
+   "authority": "3c24182b042de1a14d2717610b8940acd93f44be8dc8fdc344cce771d28d4f66",
+   "capsule": "e7e99db9ff53377c58fbaad91e6e58cadb8ef9e16ba8fc87374e1236246a2b2c",
+   "restager": "bb76575ed6ba5f471ab153e218a49f1dae7eb622dabd494f5689c1d5e526f978",
+   "transform": {
+    "artifact_schema": "f2g-w2-admission-artifact-v1",
+    "digest_domain": "UTF8_SOURCE_LF_V1",
+    "module": "w2_acquisition_capture_grassmann.py",
+    "source_sha256": "a48baa50530854d966e2a6947af7c9108a1ca1e7068364a59f21e6597f3cee7f"
+   },
+   "verifier": "aab0f649e5a97dc6bc23f7b4246deac804d23fadf8ec8e7271a3905126239ecc"
+  },
+  "original_t_digest_set": "a813e6409dbadef7a0ed8a9d2b3596039806d5a56084a5044d409600efc4eef7",
+  "sorted_relative_path_digest": "f67194980f7b946b74b207f230f9b4c12ae2388563cdd094338ed53f32284441",
   "source_store_id": "s4t-w2-capture-20260825",
-  "status": "REFUSE",
+  "status": "VERIFIED",
+  "total_bytes": 15849643,
+  "v3_key_digest": "6abfa95e92a056dc92b32e37058e7e3e3f9eb2fcc31a085e92dd53725452ccd9",
+  "v4_key_digest": "b45afbe8883b00d4939ce49a0af6b2fee0255ae878ac402f933ac301b88b7d6c",
   "v4_staged_tree": "E:\\GeoSpec\\geospec_sprint\\docs\\f2g_window2_execution\\staged_envelopes_v4",
   "v4_store": "E:/GeoSpec/w2_capture_store_v4"
  },
  "store_attestation": {
   "attested": true,
-  "authority_commit": "65988bcd6450bb3867696db10739bf3bc8558005",
+  "authority_commit": "668b916575873c6f6b9fc446406ef793b21605d1",
   "bodies_verified": 1405,
   "body_count": 1405,
   "expected_store_matched": true,
@@ -630,8 +665,7 @@
  "verdict_counts": {
   "COVERED_ELSEWHERE": 1,
   "NOT_RUN": 14,
-  "PASS": 11,
-  "REFUSE": 2
+  "PASS": 13
  },
  "verdict_vocabulary": [
   "PASS",

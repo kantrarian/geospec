@@ -593,18 +593,29 @@ def _verify_nested(c, authority, store_root=None, lineage=False):
                "INDEPENDENTLY derived S_v4 -- a lineage is never "
                "allowed to name the contract that authenticates it")
         if store_root:
-            p = os.path.join(store_root, e["raw_body_sha256"] +
-                             ".body")
-            if not os.path.isfile(p):
-                _d(f"lineage[{v4key}] body is absent from the store")
-            with open(p, "rb") as f:
-                raw = f.read()
-            if hashlib.sha256(raw).hexdigest() != \
-                    e["raw_body_sha256"]:
-                _d(f"lineage[{v4key}] body digest mismatch")
-            if len(raw) != e["raw_body_bytes"]:
-                _d(f"lineage[{v4key}].raw_body_bytes {e['raw_body_bytes']}"
-                   f" != the RECOMPUTED length {len(raw)}")
+            verify_body_entry(store_root, v4key, e)
+
+
+def verify_body_entry(store_root, v4key, e):
+    """The content-address and length comparison for ONE lineage
+    body, factored out of _verify_nested (codex 0219Z P1-b).
+
+    It lived inline under `if store_root:` and was reachable in the
+    selftest only via `if os.path.isdir(store)` -- so a portable host
+    with no store ran ZERO body bytes while the surface still printed
+    ALL PASS. Factoring it out lets the doctors drive THIS production
+    code against one temp content-addressed body, so the comparisons
+    are exercised with the real store absent."""
+    p = os.path.join(store_root, e["raw_body_sha256"] + ".body")
+    if not os.path.isfile(p):
+        _d(f"lineage[{v4key}] body is absent from the store")
+    with open(p, "rb") as f:
+        raw = f.read()
+    if hashlib.sha256(raw).hexdigest() != e["raw_body_sha256"]:
+        _d(f"lineage[{v4key}] body digest mismatch")
+    if len(raw) != e["raw_body_bytes"]:
+        _d(f"lineage[{v4key}].raw_body_bytes {e['raw_body_bytes']}"
+           f" != the RECOMPUTED length {len(raw)}")
 
 
 def may_fire(capsule, lane, carrier, utc_day):
@@ -700,63 +711,196 @@ def _selftest():
     # doctor. The archive is now CONSTRUCTED in a temp dir and the
     # source selector is pinned to the path branch, so the comparison
     # is reachable on any host with the external store absent.
-    def _archive_digest_doctor():
+    def _portable_doctors():
+        """codex 0151Z P1 + 0219Z P1-a/P1-b.
+
+        Three checks in this selftest borrowed their precondition
+        from devildog's ambient evidence tree. The archive-digest
+        comparison sits under `if _araw is not None`; the
+        archive/authority cross-check sits in the same block; the
+        body comparison ran only under `if os.path.isdir(store)`
+        while the surface printed ALL PASS regardless. On a clean
+        portable host the first two silently compared nothing and
+        the third ran zero bytes.
+
+        Everything below is CONSTRUCTED in a temp dir, so all three
+        are reachable with the real archive and store ABSENT. Each
+        refusal is asserted on a needle only its own branch emits,
+        and each has a POSITIVE control so it cannot pass by
+        refusing everything."""
         import shutil
         import tempfile
         _g = globals()
         _real_committed = _archive_committed
-        td = tempfile.mkdtemp(prefix="w2_archive_doctor_")
+        td = tempfile.mkdtemp(prefix="w2_portable_doctors_")
         try:
-            apath = os.path.join(td, "capture_run_archive.json")
-            body = (json.dumps({"schema": "fixture-archive", "n": 1},
-                               indent=1, sort_keys=True) + "\n"
-                    ).encode()
-            with open(apath, "wb") as f:
-                f.write(body)
-            good = hashlib.sha256(body).hexdigest()
             # _archive_committed() consults the module CONSTANT
-            # V3_ARCHIVE_PATH, not the capsule, so on a host where the
-            # archive is committed the git-blob branch would silently
-            # win and this doctor would measure bytes it did not
-            # write. Pin the selector to the path branch. The digest
-            # COMPARISON itself is never touched.
+            # V3_ARCHIVE_PATH, not the capsule, so where the archive
+            # is committed the git-blob branch would silently win and
+            # these doctors would measure bytes they did not write.
+            # Pin the selector to the path branch. No COMPARISON is
+            # touched.
             _g["_archive_committed"] = lambda commitish: False
+            n = [0]
 
-            def _at_temp(sha):
+            def fixture_archive(authority_block):
+                """A real archive file carrying the capsule's OWN
+                store identity and a caller-chosen authority block."""
+                n[0] += 1
+                ap = os.path.join(td, f"archive_{n[0]}.json")
+                doc = {"schema": "f2g-w2-capture-run-archive-v1",
+                       "store_id": caps["v3_archive"]["store_id"],
+                       "authority": authority_block,
+                       "admitted": {}, "refused": {}}
+                raw = (json.dumps(doc, indent=1, sort_keys=True)
+                       + "\n").encode()
+                with open(ap, "wb") as f:
+                    f.write(raw)
+                return (ap.replace("\\", "/"),
+                        hashlib.sha256(raw).hexdigest())
+
+            def outcome(c):
+                try:
+                    verify(c, authority)
+                    return "accepted"
+                except DispositionRefusal as e:
+                    return str(e)
+
+            def at(ap, sha, mutate=None):
                 c = json.loads(json.dumps(caps))
-                c["v3_archive"]["path"] = apath.replace("\\", "/")
+                c["v3_archive"]["path"] = ap
                 c["v3_archive"]["sha256"] = sha
+                if mutate:
+                    mutate(c)
                 return c
-            # POSITIVE control. A CORRECT digest over bytes the
-            # verifier can actually resolve must not raise the archive
-            # refusal. This also proves the resolved bytes were MINE:
-            # had any other source won, `good` would mismatch and the
-            # archive refusal would fire here.
-            try:
-                verify(_at_temp(good), authority)
-                pos = "accepted"
-            except DispositionRefusal as e:
-                pos = str(e)
-            assert "does not match the resolved archive bytes" \
-                not in pos, \
-                ("the archive digest check fired on a CORRECT digest "
-                 "over resolvable fixture bytes: " + pos[:200])
-            # NEGATIVE control: identical reachable bytes, wrong
-            # digest. Only the digest differs between the two.
-            try:
-                verify(_at_temp("0" * 64), authority)
-                raise AssertionError(
-                    "a WRONG v3_archive.sha256 over RESOLVABLE bytes "
-                    "was ACCEPTED")
-            except DispositionRefusal as e:
-                assert "does not match the resolved archive bytes" \
-                    in str(e), str(e)[:200]
+            # ---- P1: the archive DIGEST -------------------------
+            # archive authority == the capsule's, so nothing but the
+            # digest can differ between the two controls.
+            ap, good = fixture_archive(dict(caps["old_authority"]))
+            NEEDLE_D = "does not match the resolved archive bytes"
+            pos = outcome(at(ap, good))
+            assert NEEDLE_D not in pos, (
+                "the archive digest check fired on a CORRECT digest "
+                "over resolvable fixture bytes: " + pos[:200])
+            # a correct digest passing here also proves the bytes
+            # resolved were the FIXTURE's: any other source would
+            # mismatch and raise exactly this refusal.
+            assert NEEDLE_D in outcome(at(ap, "0" * 64)), \
+                "a WRONG v3_archive.sha256 over RESOLVABLE bytes " \
+                "was accepted"
+            # ---- the archive STORE IDENTITY cross-check --------
+            # Not on codex's list: found here by carrying this
+            # comparison as a CONTROL mutation in the P1-a/P1-b
+            # harness, where deleting it left the suite GREEN. It is
+            # the same ambient class as the two branches beside it --
+            # the fixtures above always carried a correct store_id,
+            # so nothing ever exercised it.
+            NEEDLE_S = ("does not match the archive's own store "
+                        "identity")
+            assert NEEDLE_S not in pos, \
+                ("the store-identity check fired on an archive "
+                 "carrying the capsule's OWN store_id: " + pos[:200])
+            _n_before = n[0]
+            aps, goods = fixture_archive(dict(caps["old_authority"]))
+            _raw = open(aps, "rb").read().replace(
+                b'"' + caps["v3_archive"]["store_id"].encode() + b'"',
+                b'"NOT-THE-REGISTERED-STORE"')
+            with open(aps, "wb") as _f:
+                _f.write(_raw)
+            import hashlib as _h
+            assert NEEDLE_S in outcome(
+                at(aps, _h.sha256(_raw).hexdigest())), \
+                ("an archive declaring a DIFFERENT store identity "
+                 "than the capsule was accepted")
+            assert n[0] == _n_before + 1
+            # ---- P1-a: the archive/authority CROSS-CHECK --------
+            # This needle used to be unreachable without an ambient
+            # archive: the mutation still refused, but through the
+            # WEAKER pinned-digest branch below, so the doctor was
+            # asserting a statement it never made.
+            NEEDLE_X = ("old_authority does not match the authority "
+                        "identity")
+            assert NEEDLE_X not in pos, \
+                ("the cross-check fired on an archive that records "
+                 "the capsule's OWN old_authority: " + pos[:200])
+            assert NEEDLE_X in outcome(at(
+                ap, good,
+                lambda c: c["old_authority"].__setitem__(
+                    "blob_sha256", "0" * 64))), \
+                ("a capsule whose old_authority contradicts the "
+                 "archive's recorded authority was accepted")
+            # ---- P1-a: the pinned-digest FALLBACK, kept separate -
+            # Same mutation, but the fixture archive now RECORDS the
+            # mutated block, so the cross-check above is satisfied
+            # and only the pinned-digest branch can fire. codex
+            # 0219Z: one refusal must not carry the other.
+            forged = dict(caps["old_authority"])
+            forged["blob_sha256"] = "0" * 64
+            ap2, good2 = fixture_archive(forged)
+            NEEDLE_P = "old_authority bytes diverge from its pinned"
+            got = outcome(at(ap2, good2,
+                             lambda c: c["old_authority"].__setitem__(
+                                 "blob_sha256", "0" * 64)))
+            assert NEEDLE_X not in got, \
+                ("the cross-check fired where the archive AGREES "
+                 "with the capsule: " + got[:200])
+            assert NEEDLE_P in got, got[:200]
+            # ---- P1-b: the BODY address and length --------------
+            # Driven through the SAME production helper the verifier
+            # calls, against one temp content-addressed body.
+            sr = os.path.join(td, "store")
+            os.makedirs(sr, exist_ok=True)
+            body = b"portable-fixture-body\n"
+            bsha = hashlib.sha256(body).hexdigest()
+            with open(os.path.join(sr, bsha + ".body"), "wb") as f:
+                f.write(body)
+            KEY = "MAG_FEED/fixture/1970-01-01"
+
+            def body_outcome(entry):
+                try:
+                    verify_body_entry(sr, KEY, entry)
+                    return "accepted"
+                except DispositionRefusal as e:
+                    return str(e)
+                except OSError as e:
+                    # a crash is NOT a refusal. Surfacing it as text
+                    # keeps the needle assertions below the thing
+                    # that reports, instead of an opaque traceback
+                    # from the doctor's own call site.
+                    return f"UNTYPED {type(e).__name__}: {e}"
+            # POSITIVE control: a truthful entry must be accepted.
+            assert body_outcome({"raw_body_sha256": bsha,
+                                 "raw_body_bytes": len(body)}) == \
+                "accepted", "a TRUTHFUL body entry was refused"
+            # NEGATIVE 1: the recomputed length disagrees.
+            assert "RECOMPUTED length" in body_outcome(
+                {"raw_body_sha256": bsha,
+                 "raw_body_bytes": len(body) + 1}), \
+                "a WRONG raw_body_bytes was accepted"
+            # NEGATIVE 2: the stored bytes are not what the address
+            # names -- a file misfiled under another body's digest.
+            liar = hashlib.sha256(b"other\n").hexdigest()
+            with open(os.path.join(sr, liar + ".body"), "wb") as f:
+                f.write(body)
+            assert "body digest mismatch" in body_outcome(
+                {"raw_body_sha256": liar,
+                 "raw_body_bytes": len(body)}), \
+                "a MISFILED body was accepted at the wrong address"
+            # NEGATIVE 3: absent. Not in codex's list, but it is the
+            # third comparison in the same helper and leaving it
+            # undoctored would repeat the pattern being repaired.
+            assert "body is absent from the store" in body_outcome(
+                {"raw_body_sha256": "0" * 64, "raw_body_bytes": 1}), \
+                "an ABSENT body was accepted"
         finally:
             _g["_archive_committed"] = _real_committed
             shutil.rmtree(td, ignore_errors=True)
-        print("  P1 archive-digest doctor: constructed fixture "
-              "archive, positive+negative control, store absent")
-    _archive_digest_doctor()
+        print("  P1/P1-a/P1-b portable doctors: archive digest, "
+              "archive-authority cross-check, pinned-digest fallback "
+              "and body address/length -- constructed fixtures, "
+              "positive+negative controls, real archive and store "
+              "absent")
+    _portable_doctors()
     assert refuses(lambda c: c.__setitem__("lane_map",
                                            {"BOGUS": "MAG_FEED"}),
                    "is not the REGISTERED map")
@@ -767,12 +911,16 @@ def _selftest():
     assert refuses(lambda c: c["reuse_or_bridge"][first_reuse(c)]
                    .__setitem__("s_v4_sha256", "0" * 64),
                    "never allowed to name the contract")
-    # (the archive-identity check fires first here, which is the
-    # stronger statement: the capsule cannot disagree with the
-    # authority identity the archive itself recorded)
-    assert refuses(lambda c: c["old_authority"]
-                   .__setitem__("blob_sha256", "0" * 64),
-                   "old_authority does not match")
+    # The old_authority mutation is doctored in _portable_doctors()
+    # above, NOT here. codex 0219Z P1-a: this assertion claimed the
+    # archive-identity cross-check ("the archive-identity check fires
+    # first here, which is the stronger statement"), but `refuses`
+    # passes no archive, so on any host without the ambient evidence
+    # tree the mutation refused through the WEAKER pinned-digest
+    # branch instead -- and on a fresh detached worktree the needle
+    # matched nothing at all and the surface FAILED. Both branches
+    # now have their own constructed fixture and their own unique
+    # needle, so neither refusal can stand in for the other.
     assert refuses(lambda c: c["reuse_or_bridge"][first_reuse(c)]
                    .__setitem__("extra_field", 1),
                    "is not the closed field set")
@@ -785,7 +933,14 @@ def _selftest():
         ks = sorted(c["reuse_or_bridge"])[:2]
         c["reuse_or_bridge"][ks[1]]["v3_key"] =             c["reuse_or_bridge"][ks[0]]["v3_key"]
     assert refuses(dupe, "must be injective")
-    # a RECOMPUTED body length disagreeing with the store
+    # A RECOMPUTED body length disagreeing with the REAL store.
+    # codex 0219Z P1-b: this was the ONLY body doctor, and it was
+    # guarded by `if os.path.isdir(store)` while the surface printed
+    # ALL PASS regardless -- a portable host ran zero body bytes and
+    # still reported an unqualified full pass. The load-bearing body
+    # doctors are now the constructed ones in _portable_doctors().
+    # This block is kept as end-to-end CORROBORATION on a host that
+    # happens to have the store, and it decides nothing.
     c2 = json.loads(json.dumps(caps))
     k2 = sorted(c2["reuse_or_bridge"])[0]
     c2["reuse_or_bridge"][k2]["raw_body_bytes"] += 1

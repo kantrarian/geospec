@@ -2,8 +2,8 @@
  "design_manifest_blob_sha256": "d6decbd6ab5814bc005ce69c538311ff1b11cb1d13c19e2999e03a92bc7cca1f",
  "design_manifest_commit": "5fba5446cd96722fb86021df5065a46b8a1a78f5",
  "design_target_commit": "12161f6cf2000b2d4aa86fe659f834839ac0d27b",
- "execution_target_commit": "e14f82b4c8d51b2a18dc5acbd070232d92870124",
- "generated_utc": "2026-08-27T03:19:56Z",
+ "execution_target_commit": "bd50472464f79c008b24113722ad8b69f60d7fff",
+ "generated_utc": "2026-08-27T21:25:40Z",
  "manifest_state": "OPEN",
  "repository_url": "https://github.com/kantrarian/geospec",
  "schema": "f2g-window2-execution-manifest-v1.2",
@@ -18,8 +18,8 @@
      "path": "monitoring/src/w2_barrier.py"
     },
     {
-     "blob_sha256": "5226cadd8e4b23eb8309c8da1f9374447ad8acddef0704bf47bd3b9e4b372b5b",
-     "commit": "571e2274dd17b88d1b49e43a9a05bebb08e2b7bd",
+     "blob_sha256": "a8249f3591a2e79df9d28ae94c87ef13f6d3fc7ad0358ee1c3d80933b41d6627",
+     "commit": "bd0410d7908678b26bb1385c669cb6a21107da73",
      "path": "monitoring/src/w2_accrual_instrument_cayley.py"
     },
     {
@@ -33,8 +33,8 @@
      "path": "monitoring/src/w2_mag1.py"
     },
     {
-     "blob_sha256": "11b9c7e648849c883ae28097323754a1d1acbc5e3ecc695c9b83291f4218c129",
-     "commit": "2f91143ec1b36a0b59558bdb0741987ef0fbba10",
+     "blob_sha256": "20e1bacc76d9fe71363cde9c737986859ae40f352b19271e48139e9dc09b511a",
+     "commit": "bd0410d7908678b26bb1385c669cb6a21107da73",
      "path": "monitoring/src/w2_expected_contracts_gen_cayley.py"
     },
     {
@@ -83,9 +83,24 @@
      "path": "monitoring/src/w2_producer_grassmann.py"
     },
     {
-     "blob_sha256": "7282512d6ac98a00eab06d640f8d5822ae6c46eedec08731f58e3cde5fd9448e",
-     "commit": "a0322f032300f32b2ab4eb15bf4824f01408270b",
+     "blob_sha256": "b624df2cd94d710a952ada32872d8908320b76e7f11096d68031f907f89cf674",
+     "commit": "bd0410d7908678b26bb1385c669cb6a21107da73",
      "path": "monitoring/src/w2_capture_run_v4_grassmann.py"
+    },
+    {
+     "blob_sha256": "25495f60386ad8280bfa9d2ec9a3cc48d9484a72c6b79f429eb924d910e5cf35",
+     "commit": "bd0410d7908678b26bb1385c669cb6a21107da73",
+     "path": "monitoring/src/w2_capture_repair_v4_vic_cayley.py"
+    },
+    {
+     "blob_sha256": "bc2f9c7651d4ed78ba94f1d7e148c8cfb6649b61004532e043d4c371e4bfba64",
+     "commit": "e2784a598181844feb3bd136c5fa87f7353fe7f5",
+     "path": "monitoring/src/w2_capture_retry_404_v4_cayley.py"
+    },
+    {
+     "blob_sha256": "e7a56112b5aad3918d6ae87f3e32a0c68f723f4fc584962406db14bffbfaa7d6",
+     "commit": "ddd5748b942216cc24915b77d84df36f71d0ad82",
+     "path": "monitoring/src/w2_predecessor_bridge_cayley.py"
     }
    ],
    "status": "BOUND"
@@ -127,8 +142,8 @@
    "owner": "grassmann",
    "pins": [
     {
-     "blob_sha256": "6ddd12154bef6ec8cefb2418dfdcced4b765b32cabf4ed8e15d7a6d9031e8838",
-     "commit": "77423071a6873e76eafb0cf1a872717a2cdea377",
+     "blob_sha256": "8acc295a18e0c786c69aec6cfe39308db23de34c87315adc5630b3988988f380",
+     "commit": "bd50472464f79c008b24113722ad8b69f60d7fff",
      "path": "monitoring/src/test_f2g_window2_redkats_grassmann.py"
     },
     {
@@ -209,8 +224,8 @@
    "owner": "cayley",
    "pins": [
     {
-     "blob_sha256": "4c17e8629beb9cf625d9babee6c08093bd967a9592b6f5c2374c60e688b70672",
-     "commit": "571e2274dd17b88d1b49e43a9a05bebb08e2b7bd",
+     "blob_sha256": "74f8839f348a8b62b277952eb3fdd5a4aaeaf5e4a6af1f61d53f76da1421e7ca",
+     "commit": "bd0410d7908678b26bb1385c669cb6a21107da73",
      "path": "monitoring/src/f2g_execution_manifest_gen_cayley.py"
     }
    ],
@@ -221,20 +236,25 @@
    "owner": "cayley",
    "pins": [
     {
-     "blob_sha256": "aa988d40e861bd92f98c8f0d72e4ae5a1b2d31b8eedad97437ccd921a5633f47",
-     "commit": "151454e33e548b72cdbfe44769f75fb3e43b431d",
+     "blob_sha256": "fa11b159a0475994540bea935777ee0efe468f1595c0a00dc3f9905b5dd93545",
+     "commit": "bd0410d7908678b26bb1385c669cb6a21107da73",
      "path": "monitoring/src/f2g_execution_manifest_verifier_cayley.py"
     },
     {
-     "blob_sha256": "a2eb33cdf8b610b344316d83235e4cc8ae0fb69fcd426fcdc10b935f8cfb2eea",
-     "commit": "571e2274dd17b88d1b49e43a9a05bebb08e2b7bd",
+     "blob_sha256": "f0ab7d443ef4a11bd362a40c7c978e71f2e159db4923ff02718d69fff69822c0",
+     "commit": "bd0410d7908678b26bb1385c669cb6a21107da73",
      "path": "monitoring/src/w2_regeneration_gate_cayley.py"
+    },
+    {
+     "blob_sha256": "5cfd410004d1fbdea5a45ad239ca329e6b51e8bf040a4a28352588dfa3260ac6",
+     "commit": "bd0410d7908678b26bb1385c669cb6a21107da73",
+     "path": "monitoring/src/w2_frame_readiness_doctor_cayley.py"
     }
    ],
    "status": "BOUND"
   },
   "mag_capsules": {
-   "note": "IZN/FRN/TUC capsules + bodies + envelopes at the RELOCATED execution tree (codex 0451Z); loaded via load_execution_capsule under the dynamic manifest authority; W-MAG-EXEC green",
+   "note": "FOUR capsules at the execution tree -- IZN/FRN/TUC relocated under codex 0451Z with their probe receipts, plus VIC registered under codex 0532Z as an exact-byte copy of the preserved freeze capsule. VIC carries NO probe receipts here: its three historical receipts stay at the freeze path, and this slot must not imply otherwise. Loaded via load_execution_capsule under the dynamic manifest authority; W-MAG-EXEC green",
    "owner": "cayley",
    "pins": [
     {
@@ -251,6 +271,11 @@
      "blob_sha256": "83a272062e38060b30791ad0b237e6823178dcca444784bebc0623d3656442b5",
      "commit": "f2955cd5f3600f57e9a78a9f4f1e6286b8b966d0",
      "path": "docs/f2g_window2_execution/mag_capsules/mag_capsule_tuc.json"
+    },
+    {
+     "blob_sha256": "54564d5d97cadba5070dd169a06ba313583dd23322deaee0fa14c8fe67bf2e9e",
+     "commit": "bd0410d7908678b26bb1385c669cb6a21107da73",
+     "path": "docs/f2g_window2_execution/mag_capsules/mag_capsule_vic.json"
     },
     {
      "blob_sha256": "e3b5e0be9d2554549f3574d5ec1d88e9a949a366eaa49961458fc0501f4b9501",

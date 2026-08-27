@@ -18,6 +18,15 @@ import subprocess
 import sys
 import time
 
+_HERE = os.path.dirname(os.path.abspath(__file__))
+if _HERE not in sys.path:
+    sys.path.insert(0, _HERE)
+# codex 1547Z repair 1: the ADMISSION CONSUMER owns the staged-prefix
+# and operation-evidence path constants; this generator IMPORTS them,
+# so a carrier rename cannot close in the generator while the
+# consumer still refuses it (the exact defect codex reproduced).
+import w2_accrual_instrument_cayley as _ACCM
+
 MANIFEST_PATH = "docs/f2g_window2_execution/execution_manifest.json"
 DESIGN_MANIFEST_PATH = "docs/f2g_window2_freeze/byte_pin_manifest.json"
 SCHEMA = "f2g-window2-execution-manifest-v1.2"
@@ -37,7 +46,15 @@ BOUND_SLOTS = {
                 "manifest it audits, or the check that certifies the "
                 "pin set is itself unbound",
         "paths": ["monitoring/src/f2g_execution_manifest_verifier_cayley.py",
-                  "monitoring/src/w2_regeneration_gate_cayley.py"]},
+                  "monitoring/src/w2_regeneration_gate_cayley.py",
+                  # codex 0532Z: the pre-fire frame-readiness doctor.
+                  # VERIFICATION authority, not operation bytes: the
+                  # capture runner and RG-10 import the SAME one pinned
+                  # verifier, so the readiness claim and its
+                  # enforcement cannot drift apart. Binding it under
+                  # accrual_impl would put a verification surface under
+                  # an operation authority.
+                  "monitoring/src/w2_frame_readiness_doctor_cayley.py"]},
     "design_pin_verifier": {
         "owner": "cayley",
         "note": "design-pin walk executable (landed b755ce1)",
@@ -118,7 +135,28 @@ BOUND_SLOTS = {
                   # FIRE the 635 was pinned nowhere. A clean
                   # plan produced by unbound working-tree code
                   # is not a reviewed capture executable.
-                  "monitoring/src/w2_capture_run_v4_grassmann.py"]},
+                  "monitoring/src/w2_capture_run_v4_grassmann.py",
+                  # codex 0532Z: the zero-HTTP VIC repair driver is
+                  # PRODUCTION-OPERATION code -- it reaches the frozen
+                  # store, the registered transform and the producer
+                  # gate, and emits an operation record. It is
+                  # deliberately NOT producer_boundary, which is the
+                  # staged-envelope trust boundary rather than the
+                  # code that performs an operation.
+                  "monitoring/src/w2_capture_repair_v4_vic_cayley.py",
+                  # codex 1345Z: the exact-key 404 retry one-shot. A
+                  # NETWORK-SPENDING executable may not run unpinned --
+                  # its own precheck refuses RETRY_MODULE_UNBOUND
+                  # unless it is among the BOUND pins checked against
+                  # executed disk bytes. Operation bytes, same
+                  # authority as the capture runner it succeeds.
+                  "monitoring/src/w2_capture_retry_404_v4_cayley.py",
+                  # codex 0532Z: already-committed production-operation
+                  # code that was pinned NOWHERE. It stages the single
+                  # non-capture key (MAG_WEATHER_FEED/omni/2026-01-01),
+                  # so leaving it unbound would let the 2,056th key
+                  # arrive through code the manifest never bound.
+                  "monitoring/src/w2_predecessor_bridge_cayley.py"]},
     # v1.1 (codex 1358Z item 4/5): the two repaired execution tools
     # join the runtime allowlist as explicit slots
     "power_harness": {
@@ -162,8 +200,13 @@ BOUND_SLOTS = {
     # py3.14+py3.11)
     "mag_capsules": {
         "owner": "cayley",
-        "note": "IZN/FRN/TUC capsules + bodies + envelopes at the "
-                "RELOCATED execution tree (codex 0451Z); loaded via "
+        "note": "FOUR capsules at the execution tree -- IZN/FRN/TUC "
+                "relocated under codex 0451Z with their probe "
+                "receipts, plus VIC registered under codex 0532Z as an "
+                "exact-byte copy of the preserved freeze capsule. VIC "
+                "carries NO probe receipts here: its three historical "
+                "receipts stay at the freeze path, and this slot must "
+                "not imply otherwise. Loaded via "
                 "load_execution_capsule under the dynamic manifest "
                 "authority; W-MAG-EXEC green",
         "paths": ["docs/f2g_window2_execution/mag_capsules/"
@@ -172,6 +215,13 @@ BOUND_SLOTS = {
                   "mag_capsule_frn.json",
                   "docs/f2g_window2_execution/mag_capsules/"
                   "mag_capsule_tuc.json",
+                  # codex 0532Z: the carrier whose absence here fired
+                  # 212 keys that could never be admitted. VIC reports
+                  # sensor_orientation XYZS, which is not in
+                  # REPORTED_CONVENTIONS, so the transform resolves the
+                  # frame from THIS path or refuses.
+                  "docs/f2g_window2_execution/mag_capsules/"
+                  "mag_capsule_vic.json",
                   "docs/f2g_window2_execution/mag_capsules/receipts/"
                   "mag_izn_probe.json",
                   "docs/f2g_window2_execution/mag_capsules/receipts/"
@@ -276,6 +326,195 @@ OPEN_SLOTS = {
 }
 PRODUCER_BOUNDARY_MODE = "staged_envelope"
 
+# ---- codex 0532Z P0-1: the explicit, fail-closed FINAL-BIND contract -
+# DEFAULT generation is unchanged and must stay exactly the honest
+# 10/12 OPEN shape. Final bind is a DISTINCT mode that takes explicit,
+# sorted, unique, COMMITTED path specs for both OPEN slots.
+#
+# No glob, no directory walk, no `os.listdir` decides membership
+# anywhere in this contract. Readiness inferred from what happens to be
+# on disk is how a boundary closes over whatever was lying around; the
+# spec has to say it, and every path in it has to resolve at the named
+# target through the ordinary pin() -- which already refuses
+# PATH_NOT_AT_TARGET for anything uncommitted.
+FINAL_BIND_SCHEMA = "f2g-window2-final-bind-spec-v1"
+FINAL_BIND_SLOTS = ("producer_boundary", "calibration_ledgers")
+
+# the REGISTERED v4 staged prefix. The reviewed v4 producers
+# (w2_capture_run_v4_grassmann.py, w2_restage_v4_grassmann.py) both
+# write staged_envelopes_v4/. The legacy v3 prefix is RETIRED: it is
+# never a valid final-bind path, and copying v4 output into it would
+# hide an object-identity error rather than repair it. The two are
+# cleanly distinguishable -- ".../staged_envelopes_v4/" does NOT
+# startswith ".../staged_envelopes/" -- so no path satisfies both.
+STAGED_PREFIX_V4 = _ACCM.STAGED_PREFIX
+STAGED_PREFIX_LEGACY_RETIRED = _ACCM.STAGED_PREFIX_RETIRED
+STAGED_CLASS_SUFFIXES = (".record.json", ".transcript.json",
+                         ".contract.json", ".artifact.json")
+# 2,056 authorized keys x 4 staged classes. Recomputed from the
+# authority/class bijection by the boundary verifier -- this constant
+# is the DECLARED expectation, never the proof.
+FINAL_BIND_EXPECTED_CLASSES = 2056 * 4
+
+# codex 0551Z repair 1: required classes are EXACT registered
+# repo-relative paths, never basenames. A basename class collapsed
+# path identity, authority identity and one-authority-per-path into
+# cardinality -- six files under docs/attacker/ satisfied the whole
+# producer contract because their basenames matched. Each class below
+# is exactly ONE registered path; a same-basename file anywhere else
+# satisfies nothing.
+# The last three are the operation-evidence classes codex 0532Z/0551Z
+# rules into the boundary: (a) the compact terminal receipt binding
+# ledger + inventory, (b) the exact 212-key VIC repair operation-
+# record set, (c) the predecessor-bridge operation record. They are
+# AUDIT EVIDENCE: pinned and reopened by the boundary verifier, never
+# a substitute for any staged class. terminal_receipt and
+# predecessor_bridge_record REGISTER path names for artifacts
+# grassmann produces at freeze/bridge time -- newly registered here,
+# named for review, not yet committed. vic_repair_records must equal
+# w2_capture_repair_v4_vic_cayley.REPAIR_LEDGER (selftest-asserted).
+PRODUCER_BOUNDARY_REQUIRED = {
+    "amendment": ("docs/f2g_window2_execution/"
+                  "producer_boundary_amendment_v1.md"),
+    "boundary_code": ("monitoring/src/"
+                      "w2_acquisition_capture_grassmann.py"),
+    "authority": ("docs/f2g_window2_execution/"
+                  "staged_expected_contracts_v3.json"),
+    "inventory": STAGED_PREFIX_V4 + "staged_body_inventory.json",
+    "store_descriptor": STAGED_PREFIX_V4 + "store_descriptor.json",
+    # the three operation-evidence classes + the ledger come FROM the
+    # admission consumer, which reopens and recomputes them
+    # (codex 1547Z repair 2) -- one authority, three consumers
+    "ledger": _ACCM.CAPTURE_LEDGER_PATH,
+    "terminal_receipt": _ACCM.TERMINAL_RECEIPT_PATH,
+    "vic_repair_records": _ACCM.VIC_REPAIR_LEDGER_PATH,
+    "predecessor_bridge_record": _ACCM.PREDECESSOR_RECORD_PATH,
+}
+
+
+class FinalBindRefusal(SystemExit):
+    """Typed and fail-closed. The code leads the message."""
+
+
+def _fb_refuse(code, detail):
+    raise FinalBindRefusal(f"{code}: {detail}")
+
+
+def load_final_bind_spec(path):
+    """Parse a CLOSED spec object. Shape errors refuse before any path
+    is resolved, so a malformed spec can never partially bind."""
+    with open(path, "rb") as f:
+        raw = f.read()
+    try:
+        spec = json.loads(raw.decode("utf-8"))
+    except Exception as exc:
+        _fb_refuse("FINAL_BIND_SPEC_UNPARSEABLE", f"{path}: {exc}")
+    if not isinstance(spec, dict):
+        _fb_refuse("FINAL_BIND_SPEC_NOT_CLOSED", "spec is not an object")
+    want = {"schema"} | set(FINAL_BIND_SLOTS)
+    if set(spec) != want:
+        _fb_refuse("FINAL_BIND_SPEC_NOT_CLOSED",
+                   f"keys {sorted(set(spec) ^ want)} unexpected/missing")
+    if spec["schema"] != FINAL_BIND_SCHEMA:
+        _fb_refuse("FINAL_BIND_SCHEMA_MISMATCH",
+                   f"{spec['schema']!r} != {FINAL_BIND_SCHEMA!r}")
+    for name in FINAL_BIND_SLOTS:
+        slot = spec[name]
+        if not isinstance(slot, dict) or set(slot) != {"paths"}:
+            _fb_refuse("FINAL_BIND_SLOT_NOT_CLOSED",
+                       f"{name} must carry exactly one key 'paths'")
+        paths = slot["paths"]
+        if not isinstance(paths, list) or not paths or \
+                any(not isinstance(p, str) or not p for p in paths):
+            _fb_refuse("FINAL_BIND_PATHS_UNTYPED",
+                       f"{name}: paths must be a non-empty list of str")
+        if len(set(paths)) != len(paths):
+            dupes = sorted({p for p in paths if paths.count(p) > 1})
+            _fb_refuse("FINAL_BIND_PATHS_DUPLICATE",
+                       f"{name}: {dupes[:3]}")
+        if paths != sorted(paths):
+            _fb_refuse("FINAL_BIND_PATHS_UNSORTED",
+                       f"{name}: paths must be sorted for review "
+                       "determinism")
+    # codex 0551Z repair 1: ONE authority per path. The same path
+    # pinned in both slots would answer to two slot authorities.
+    both = set(spec["producer_boundary"]["paths"])         & set(spec["calibration_ledgers"]["paths"])
+    if both:
+        _fb_refuse("FINAL_BIND_PATH_IN_BOTH_SLOTS",
+                   f"{sorted(both)[:3]}")
+    return spec
+
+
+def _check_prefixes(name, paths):
+    """Legacy prefix is retired; mixed prefixes refuse. Applies to the
+    STAGED CLASS paths only -- the amendment, code, authority,
+    inventory, descriptor and ledger legitimately live elsewhere."""
+    legacy = [p for p in paths
+              if p.startswith(STAGED_PREFIX_LEGACY_RETIRED)]
+    if legacy:
+        _fb_refuse("FINAL_BIND_LEGACY_PREFIX",
+                   f"{name}: {len(legacy)} path(s) under the RETIRED v3 "
+                   f"prefix, e.g. {legacy[0]}")
+    staged = [p for p in paths if p.endswith(STAGED_CLASS_SUFFIXES)]
+    stray = [p for p in staged if not p.startswith(STAGED_PREFIX_V4)]
+    if stray:
+        _fb_refuse("FINAL_BIND_MIXED_PREFIX",
+                   f"{name}: {len(stray)} staged-class path(s) outside "
+                   f"the one registered prefix, e.g. {stray[0]}")
+    return staged
+
+
+def _check_producer_boundary(paths):
+    staged = _check_prefixes("producer_boundary", paths)
+    pathset = set(paths)
+    for cls, exact in sorted(PRODUCER_BOUNDARY_REQUIRED.items()):
+        if exact not in pathset:
+            same_base = [p for p in paths
+                         if os.path.basename(p)
+                         == os.path.basename(exact)]
+            hint = (f"; a same-basename file at {same_base[0]} "
+                    "satisfies NOTHING -- the class is the exact "
+                    "registered path" if same_base else "")
+        # exact-path identity: uniqueness within the slot is already
+        # guaranteed by load_final_bind_spec, so presence is the whole
+        # check and no ambiguity case exists
+            _fb_refuse("FINAL_BIND_CLASS_MISSING",
+                       f"producer_boundary: required class {cls} "
+                       f"missing its registered path {exact}{hint}")
+    if len(staged) != FINAL_BIND_EXPECTED_CLASSES:
+        _fb_refuse("FINAL_BIND_CLASS_COUNT",
+                   f"producer_boundary: {len(staged)} staged classes, "
+                   f"expected {FINAL_BIND_EXPECTED_CLASSES} "
+                   f"(2056 keys x 4). The count is a DECLARED "
+                   "expectation; the authority/class bijection is "
+                   "recomputed by the boundary verifier and this never "
+                   "substitutes for it")
+    return staged
+
+
+def final_bind_slots(spec, repo, target_full):
+    """Both slots, or a typed refusal. Every path resolves through the
+    ordinary pin(), so uncommitted paths refuse PATH_NOT_AT_TARGET."""
+    _check_producer_boundary(spec["producer_boundary"]["paths"])
+    _check_prefixes("calibration_ledgers",
+                    spec["calibration_ledgers"]["paths"])
+
+    # codex 0532Z: the production calibration path set is a genuinely
+    # missing P0-4 prerequisite -- no registered production
+    # orchestration and no exact output names exist yet. The parser and
+    # its refusal controls are authored here; PRODUCTION final bind
+    # must keep refusing until P0-4 routes an exact committed
+    # feed/ledger/receipt set derived from the registered staged
+    # carrier and cutoff. Inventing that list here is precisely what I
+    # was told not to do.
+    _fb_refuse("FINAL_BIND_CALIBRATION_UNREGISTERED",
+               "calibration_ledgers has no registered production path "
+               "set; P0-4 must route the exact committed "
+               "feed/ledger/receipt set before final bind can close. "
+               "The spec parsed and validated structurally -- this "
+               "refusal is the missing PRODUCTION prerequisite, not a "
+               "malformed spec")
+
 
 def _git(repo, args, binary=False):
     out = subprocess.check_output(["git", "-C", repo] + args)
@@ -295,7 +534,7 @@ def pin(repo, target_full, path):
             "blob_sha256": hashlib.sha256(blob).hexdigest()}
 
 
-def main(repo, target, design_manifest_commit):
+def main(repo, target, design_manifest_commit, final_bind_spec=None):
     target_full = _git(repo, ["rev-parse", f"{target}^{{commit}}"])
     dm_full = _git(repo, ["rev-parse",
                           f"{design_manifest_commit}^{{commit}}"])
@@ -315,6 +554,23 @@ def main(repo, target, design_manifest_commit):
     for name, (owner, note) in OPEN_SLOTS.items():
         slots[name] = {"status": "OPEN", "owner": owner, "note": note,
                        "pins": []}
+    # codex 0532Z P0-1: FINAL BIND is opt-in and fail-closed. Without a
+    # spec the shape above is untouched and both slots stay honestly
+    # OPEN -- the default generator can no more emit BOUND than it
+    # could before. With a spec, every path is validated and then
+    # resolved through the ordinary pin(), so an uncommitted path
+    # refuses PATH_NOT_AT_TARGET rather than binding a promise.
+    if final_bind_spec is not None:
+        spec = load_final_bind_spec(final_bind_spec)
+        for name, paths in final_bind_slots(spec, repo,
+                                            target_full).items():
+            owner, note = OPEN_SLOTS[name]
+            slots[name] = {"status": "BOUND", "owner": owner,
+                           "note": note,
+                           "pins": [pin(repo, target_full, p)
+                                    for p in paths]}
+        slots["producer_boundary"]["boundary_mode"] = \
+            PRODUCER_BOUNDARY_MODE
     # the registered boundary mode rides the slot object itself
     slots["producer_boundary"]["boundary_mode"] = \
         PRODUCER_BOUNDARY_MODE
@@ -342,5 +598,196 @@ def main(repo, target, design_manifest_commit):
           f"{bound}/{len(slots)} slots bound @ {target_full[:12]}")
 
 
+def _selftest():
+    """Final-bind contract controls. Pure shape/prefix/class logic --
+    no repo, no network, no writes, so it runs anywhere."""
+    import tempfile
+    fails = []
+
+    def check(name, ok, detail=""):
+        print(f"  [{'PASS' if ok else 'FAIL'}] {name}"
+              + (f"  -- {detail}" if detail and not ok else ""))
+        if not ok:
+            fails.append(name)
+
+    def refuses(fn, code):
+        try:
+            fn()
+        except FinalBindRefusal as exc:
+            return str(exc).startswith(code)
+        except Exception:
+            return False
+        return False
+
+    def spec_file(obj):
+        fd, p = tempfile.mkstemp(suffix=".json")
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(obj, f)
+        return p
+
+    staged = sorted(
+        f"{STAGED_PREFIX_V4}mag_feed_vic_2026-01-{d:02d}{s}"
+        for d in range(1, 3) for s in STAGED_CLASS_SUFFIXES)
+    # every required class at its EXACT registered path
+    others = sorted(PRODUCER_BOUNDARY_REQUIRED.values())
+    good_pb = sorted(staged + others)
+
+    def mk(pb=None, cal=None, schema=FINAL_BIND_SCHEMA):
+        return {"schema": schema,
+                "producer_boundary": {"paths": pb if pb is not None
+                                      else good_pb},
+                "calibration_ledgers": {"paths": cal if cal is not None
+                                        else ["docs/x/cal.json"]}}
+
+    # ---- DEFAULT SHAPE is the thing that must not regress
+    check("C1 default mode still emits both slots OPEN with no pins",
+          all(OPEN_SLOTS[n] for n in FINAL_BIND_SLOTS)
+          and set(FINAL_BIND_SLOTS) == set(OPEN_SLOTS))
+
+    # ---- spec shape
+    check("C2 non-closed spec refuses",
+          refuses(lambda: load_final_bind_spec(
+              spec_file({"schema": FINAL_BIND_SCHEMA, "extra": 1,
+                         "producer_boundary": {"paths": ["a"]},
+                         "calibration_ledgers": {"paths": ["b"]}})),
+              "FINAL_BIND_SPEC_NOT_CLOSED"))
+    check("C3 schema mismatch refuses",
+          refuses(lambda: load_final_bind_spec(
+              spec_file(mk(schema="wrong"))),
+              "FINAL_BIND_SCHEMA_MISMATCH"))
+    check("C4 duplicate paths refuse",
+          refuses(lambda: load_final_bind_spec(
+              spec_file(mk(pb=["a", "a"]))),
+              "FINAL_BIND_PATHS_DUPLICATE"))
+    check("C5 unsorted paths refuse (review determinism)",
+          refuses(lambda: load_final_bind_spec(
+              spec_file(mk(pb=["b", "a"]))),
+              "FINAL_BIND_PATHS_UNSORTED"))
+    check("C6 empty/untyped paths refuse",
+          refuses(lambda: load_final_bind_spec(spec_file(mk(pb=[]))),
+                  "FINAL_BIND_PATHS_UNTYPED"))
+    check("C7 a well-formed spec parses",
+          load_final_bind_spec(spec_file(mk()))["schema"]
+          == FINAL_BIND_SCHEMA)
+
+    # ---- prefix contract
+    check("C8 a RETIRED legacy-prefix path refuses",
+          refuses(lambda: _check_prefixes(
+              "producer_boundary",
+              [STAGED_PREFIX_LEGACY_RETIRED + "x.record.json"]),
+              "FINAL_BIND_LEGACY_PREFIX"))
+    check("C9 a staged class outside the one registered prefix refuses",
+          refuses(lambda: _check_prefixes(
+              "producer_boundary", ["docs/elsewhere/x.record.json"]),
+              "FINAL_BIND_MIXED_PREFIX"))
+    # NOT `... or True`: that reads as a control and cannot fail. The
+    # real assertion is that these paths do not raise AND that only the
+    # staged-suffixed ones are classified as staged.
+    _c10_raised = None
+    try:
+        _c10 = _check_prefixes("producer_boundary", others)
+    except FinalBindRefusal as exc:
+        _c10, _c10_raised = None, str(exc)
+    check("C10 non-staged paths outside the prefix are ALLOWED and are "
+          "NOT counted as staged classes (amendment/code/ledger "
+          "legitimately live elsewhere)",
+          _c10_raised is None and _c10 == [],
+          f"raised={_c10_raised} staged={_c10}")
+
+    # ---- producer_boundary required classes (all nine, exact paths)
+    for cls in sorted(PRODUCER_BOUNDARY_REQUIRED):
+        drop = [p for p in good_pb
+                if p != PRODUCER_BOUNDARY_REQUIRED[cls]]
+        check(f"C11 dropping required class {cls} refuses",
+              refuses(lambda d=drop: _check_producer_boundary(d),
+                      "FINAL_BIND_CLASS_MISSING"))
+    # codex 0551Z repair 1 KATs -- the attacks the basename contract
+    # let through, each now a typed refusal:
+    # (a) same-basename substitution: the amendment's basename under
+    # docs/attacker/ instead of its registered path
+    _amend = PRODUCER_BOUNDARY_REQUIRED["amendment"]
+    _attack = sorted([p for p in good_pb if p != _amend]
+                     + ["docs/attacker/"
+                        + os.path.basename(_amend)])
+    check("C11a same-basename file at an unregistered path does NOT "
+          "satisfy the class",
+          refuses(lambda: _check_producer_boundary(_attack),
+                  "FINAL_BIND_CLASS_MISSING"))
+    # (b) the same path in BOTH slots refuses at spec load
+    check("C11b a path pinned in both slots refuses (one authority "
+          "per path)",
+          refuses(lambda: load_final_bind_spec(spec_file(
+              mk(cal=[good_pb[0]]))),
+              "FINAL_BIND_PATH_IN_BOTH_SLOTS"))
+    # (c) count-preserving substitution: drop the inventory, add one
+    # more staged path so the 8,224 count survives -- the CLASS check
+    # must still refuse; cardinality is not identity
+    _inv = PRODUCER_BOUNDARY_REQUIRED["inventory"]
+    _sub = sorted([p for p in good_pb if p != _inv]
+                  + [f"{STAGED_PREFIX_V4}k_extra_0001.record.json"])
+    check("C11c preserving the staged count by substituting a "
+          "duplicate-class path still refuses CLASS_MISSING",
+          refuses(lambda: _check_producer_boundary(_sub),
+                  "FINAL_BIND_CLASS_MISSING"))
+    # (d) the registered VIC repair-record path equals the replay
+    # module's own REPAIR_LEDGER constant (drift here would pass
+    # authoring and refuse at bind time on the wrong path)
+    import w2_capture_repair_v4_vic_cayley as _VICR
+    _vic_reg = PRODUCER_BOUNDARY_REQUIRED["vic_repair_records"]
+    _vic_mod = os.path.relpath(
+        _VICR.REPAIR_LEDGER, _VICR.REPO).replace(os.sep, "/")
+    check("C11d vic_repair_records path equals the replay module's "
+          "REPAIR_LEDGER", _vic_reg == _vic_mod,
+          f"registered={_vic_reg} module={_vic_mod}")
+    check("C12 the declared staged-class count is enforced",
+          refuses(lambda: _check_producer_boundary(good_pb),
+                  "FINAL_BIND_CLASS_COUNT"))
+
+    # ---- the P0-4 hold, which must NOT be quietly satisfiable.
+    # An `or` between the class-count refusal and the calibration
+    # refusal would pass on the FIRST and never exercise the second --
+    # a live branch carrying a dead one. So build a producer_boundary
+    # spec that FULLY satisfies its own contract (exactly 8,224 staged
+    # classes + every required class), and require the calibration
+    # refusal to be the one that fires.
+    _full_staged = sorted(
+        f"{STAGED_PREFIX_V4}k{n:05d}{s}"
+        for n in range(FINAL_BIND_EXPECTED_CLASSES // 4)
+        for s in STAGED_CLASS_SUFFIXES)
+    _full_pb = sorted(_full_staged + others)
+    _pb_ok = True
+    try:
+        _check_producer_boundary(_full_pb)
+    except FinalBindRefusal as exc:
+        _pb_ok = False
+        _pb_why = str(exc)
+    check("C13a a FULLY satisfying producer_boundary spec passes its "
+          f"own contract ({FINAL_BIND_EXPECTED_CLASSES} classes + all "
+          "required classes) -- so the mode is not merely always-refuse",
+          _pb_ok, "" if _pb_ok else _pb_why)
+    check("C13b with producer_boundary fully satisfied, the refusal "
+          "that fires is the P0-4 calibration hold specifically",
+          refuses(lambda: final_bind_slots(mk(pb=_full_pb), ".", "HEAD"),
+                  "FINAL_BIND_CALIBRATION_UNREGISTERED"))
+    print()
+    if fails:
+        print(f"FINAL-BIND CONTRACT FAILURES ({len(fails)}): {fails}")
+        return 1
+    print("FINAL-BIND CONTRACT: ALL CONTROLS PASS")
+    return 0
+
+
 if __name__ == "__main__":
-    main(os.path.abspath(sys.argv[1]), sys.argv[2], sys.argv[3])
+    _args = sys.argv[1:]
+    if "--selftest" in _args:
+        raise SystemExit(_selftest())
+    _fb = None
+    if "--final-bind" in _args:
+        _i = _args.index("--final-bind")
+        if _i + 1 >= len(_args):
+            raise FinalBindRefusal(
+                "FINAL_BIND_SPEC_MISSING: --final-bind needs a spec path")
+        _fb = _args[_i + 1]
+        _args = _args[:_i] + _args[_i + 2:]
+    main(os.path.abspath(_args[0]), _args[1], _args[2],
+         final_bind_spec=_fb)

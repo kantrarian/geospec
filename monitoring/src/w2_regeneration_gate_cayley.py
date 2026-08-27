@@ -90,6 +90,20 @@ REQUIRED_BY_SLOT = {
         "monitoring/src/w2_producer_grassmann.py",
         # codex 0151Z P0-1: the capture executable itself.
         "monitoring/src/w2_capture_run_v4_grassmann.py",
+        # codex 0532Z: two PRODUCTION-OPERATION surfaces. The VIC
+        # repair module performs a zero-HTTP production operation and
+        # emits an operation record, so it is operation bytes and NOT
+        # producer_boundary. The predecessor bridge is already
+        # committed production-operation code that was pinned NOWHERE
+        # -- it stages the one non-capture key, so an unbound bridge
+        # would let the 2,056th key arrive through code the manifest
+        # never bound.
+        "monitoring/src/w2_capture_repair_v4_vic_cayley.py",
+        "monitoring/src/w2_predecessor_bridge_cayley.py",
+        # codex 1345Z: the one-shot 404 retry -- network-spending, so
+        # it must be a required surface the closure walks, or an
+        # edited copy could fire outside the pin discipline.
+        "monitoring/src/w2_capture_retry_404_v4_cayley.py",
     ),
     # codex 1758Z P0-1: both power engines together in power_harness.
     # They are fixture-only power-estimation engines behind the power
@@ -104,6 +118,26 @@ REQUIRED_BY_SLOT = {
     "execution_verifier": (
         "monitoring/src/f2g_execution_manifest_verifier_cayley.py",
         "monitoring/src/w2_regeneration_gate_cayley.py",
+        # codex 0532Z: the frame-readiness doctor is the COMMON
+        # verification/enforcement surface behind the Gate-1 readiness
+        # claim -- the runner and RG-10 import the same one pinned
+        # verifier. It is deliberately NOT accrual_impl: it verifies,
+        # it does not perform a production operation, and collapsing
+        # the two would let verification authority answer to operation
+        # bytes.
+        "monitoring/src/w2_frame_readiness_doctor_cayley.py",
+    ),
+    # codex 0532Z: an EXACT four-capsule lock. The 2026-08-27 VIC
+    # failure was a carrier-class omission -- IZN/FRN/TUC were
+    # relocated into the execution tree and VIC was not, so a 212-key
+    # lane was authorized to fire and impossible to admit. A membership
+    # check over "some capsules" cannot catch a missing carrier; only
+    # an exact required set can.
+    "mag_capsules": (
+        "docs/f2g_window2_execution/mag_capsules/mag_capsule_frn.json",
+        "docs/f2g_window2_execution/mag_capsules/mag_capsule_izn.json",
+        "docs/f2g_window2_execution/mag_capsules/mag_capsule_tuc.json",
+        "docs/f2g_window2_execution/mag_capsules/mag_capsule_vic.json",
     ),
     # only once the slot is BOUND -- it is honestly OPEN until the
     # post-capture bind, and requiring it earlier would demand a pin
@@ -131,6 +165,17 @@ ADMISSION_ENTRYPOINTS = (
     # codex 0151Z P0-1: the runner is an admission-path root,
     # so its own imports join the dependency closure too.
     "w2_capture_run_v4_grassmann.py",
+    # codex 0532Z: both production-operation roots join the closure.
+    # The VIC repair driver reaches the store, the transform and the
+    # producer gate; the predecessor bridge stages the one key capture
+    # never fires. Rooting them here is what makes their own helpers
+    # arrive bound rather than unnoticed.
+    "w2_capture_repair_v4_vic_cayley.py",
+    "w2_predecessor_bridge_cayley.py",
+    # codex 1345Z: the retry one-shot is an admission-path root -- it
+    # publishes ordinary staged classes on success -- so its imports
+    # join the dependency closure like the runner's.
+    "w2_capture_retry_404_v4_cayley.py",
 )
 
 # The linked DESIGN-PIN set. codex's wording is "escape both an
@@ -995,6 +1040,52 @@ def _selftest():
           "an all-current, all-complete manifest is "
           "accepted as all-PASS, and doctoring one of those pins under "
           "a forced zero-OPEN prestart PASS is refused")
+
+    # ---- RG-10 (codex 0510Z P1): frame readiness is a GATE concern,
+    # not only a runner concern. On 2026-08-27 a 212-key lane was
+    # perfectly authorized to fire and impossible to admit, because
+    # may_fire gates on HTTP_CAPTURE membership and nothing checked that
+    # the transform could resolve a frame. Runner-only enforcement would
+    # leave the gate's readiness claim blind to exactly that.
+    #
+    # BOTH controls are CONSTRUCTED here rather than read from ambient
+    # state -- a doctor that only fires while the tree happens to be
+    # broken stops proving anything the moment it is repaired.
+    import w2_frame_readiness_doctor_cayley as _FRD
+    _vic_src = "docs/f2g_window2_freeze/mag_capsule_vic.json"
+    _vic_bytes = _blob_at_head(None, _vic_src)
+    if not _vic_bytes:
+        raise RegenerationGateRefusal(
+            f"FRAME_DOCTOR_FIXTURE_ABSENT: {_vic_src} unreadable at "
+            "HEAD; RG-10 cannot construct its controls")
+    _exec_rel = _FRD.resolved_execution_capsule_path("vic")
+    _fplan = [f"MAG_FEED/vic/2026-01-{_d:02d}" for _d in (1, 2, 3)]
+
+    def _blob_without(path):
+        return None if path == _exec_rel else _blob_at_head(None, path)
+
+    def _blob_with(path):
+        return (_vic_bytes if path == _exec_rel
+                else _blob_at_head(None, path))
+
+    _fired = False
+    try:
+        _FRD.audit_plan(_fplan, blob=_blob_without)
+    except _FRD.FrameReadinessRefusal:
+        _fired = True
+    if not _fired:
+        raise RegenerationGateRefusal(
+            "FRAME_DOCTOR_INSENSITIVE: with no capsule at the "
+            f"production-resolved path {_exec_rel}, the frame doctor "
+            "accepted a plan it must refuse")
+    # positive control: the SAME bytes at the resolved path must ACCEPT,
+    # or the doctor is merely an always-refuse and proves nothing
+    _FRD.audit_plan(_fplan, blob=_blob_with)
+    print("  RG-10 PASS  frame readiness, BOTH controls CONSTRUCTED: a "
+          "plan whose carrier resolves no frame capsule at "
+          "the production-resolved path is REFUSED, and the same bytes "
+          "placed at that exact path are ACCEPTED (a capsule elsewhere "
+          "never satisfies)")
 
     # Now the live state, reported honestly whatever it is.
     print(f"\n  live: {rep['match']} match / {len(rep['stale'])} "

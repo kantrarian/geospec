@@ -258,6 +258,27 @@ def run(manifest_commit):
             "REFUSING: the capsule reopened from the pin does not "
             "match the pinned digest")
     print("plan:", len(keys), "keys; capsule", csha[:16])
+    # codex 0510Z P1: FRAME READINESS is enforced here -- after the
+    # pinned plan is opened, and BEFORE the loop or the opener can
+    # execute. On 2026-08-27 all 212 MAG_FEED/vic keys fired and were
+    # refused at the transform because the execution-path frame capsule
+    # was missing; may_fire gates on HTTP_CAPTURE membership, not on
+    # frame readiness, so a key can be perfectly authorized to fire and
+    # impossible to admit. Wired in BOTH the gate suite and here: a
+    # report-only doctor is skippable, and runner-only enforcement is
+    # invisible to the gate's readiness claim.
+    import w2_frame_readiness_doctor_cayley as FRD
+    try:
+        # codex 0551Z repair 3: readiness resolves at the MANIFEST
+        # commit, whose runtime allowlist already binds executed disk
+        # to the manifest pins -- NOT at st["pin_commit"], which is the
+        # last-touch commit of the disposition capsule and predates any
+        # later-landed frame capsule. The request PLAN still derives
+        # from the disposition pin above; only frame READINESS reads
+        # the manifest commit. Executed-call KAT in _selftest().
+        FRD.audit_plan(keys, commit=manifest_commit)
+    except FRD.FrameReadinessRefusal as exc:
+        raise SystemExit(f"REFUSING: {exc}")
     os.makedirs(STORE_PHYSICAL, exist_ok=True)
     os.makedirs(STAGED_DIR, exist_ok=True)
     import w2_expected_contracts_gen_cayley as GEN
@@ -441,6 +462,54 @@ def _selftest():
     print("  P0-1/P0-2 doctors: runner-unbound, runner-disk-divergent "
           "and constructed-capsule-divergence each refused before any "
           "opener, sentinel attempts 0")
+    # ---- codex 0551Z repair 3: the TWO-COMMIT frame-readiness KAT,
+    # asserted on the EXECUTED call rather than source text. run() is
+    # driven to the doctor call under stubs; the spy captures which
+    # commit the doctor was actually handed. The stubbed disposition
+    # pin_commit is a DISTINCT sentinel ("COMMIT_A..."), so a
+    # regression to st["pin_commit"] cannot pass by coincidence.
+    import w2_frame_readiness_doctor_cayley as _FRD
+    _real_load = _g["load_plan"]
+    _real_audit = _FRD.audit_plan
+    _seen_commit = []
+
+    def _load_stub(commitish="HEAD"):
+        return _a, capsule, keys, counts, _s
+
+    def _status_pin_a(commitish, candidate_sha=None):
+        st = _real_status(commitish, candidate_sha)
+        st.update(current_pin=True, runnable=True,
+                  pin_commit="COMMIT_A_DISPOSITION_LAST_TOUCH",
+                  pinned_blob_sha256=_s, reason=None)
+        return st
+
+    def _audit_spy(plan_keys, *, blob=None, commit="HEAD"):
+        _seen_commit.append(commit)
+        raise _FRD.FrameReadinessRefusal("FRAME_KAT_SENTINEL")
+    _ACC.runtime_allowlist_check = _allow_ok
+    _g["capsule_pin_status"] = _status_pin_a
+    _g["load_plan"] = _load_stub
+    _FRD.audit_plan = _audit_spy
+    try:
+        with _NN.no_network() as net:
+            try:
+                run("HEAD")
+                raise AssertionError(
+                    "run() must stop at the frame-doctor sentinel")
+            except SystemExit as exc:
+                assert "FRAME_KAT_SENTINEL" in str(exc), str(exc)[:160]
+            assert net.attempts == 0, net.attempts
+    finally:
+        CAP.http_fetch = _real_fetch
+        _ACC.runtime_allowlist_check = _real_allow
+        _g["capsule_pin_status"] = _real_status
+        _g["load_plan"] = _real_load
+        _FRD.audit_plan = _real_audit
+    assert _seen_commit == ["HEAD"], _seen_commit
+    assert _seen_commit[0] != "COMMIT_A_DISPOSITION_LAST_TOUCH"
+    print("  codex 0551Z r3 doctor: frame readiness EXECUTED with the "
+          "manifest commit, not the disposition pin's last-touch "
+          "commit (two-commit KAT, spy-asserted)")
     # live status is corroboration ONLY; it never gates the doctors
     print(f"  live corroboration: current_pin={real['current_pin']} "
           f"runnable={real['runnable']}")

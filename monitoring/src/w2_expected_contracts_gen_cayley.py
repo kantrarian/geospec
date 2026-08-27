@@ -106,8 +106,43 @@ def admitted_mag_observatories(repo):
                 f"CARRIER_CAPSULE_UNTYPED: {p} carries no iaga_code")
         key = iaga.lower()
         if key in out:
-            raise AssertionError(
-                f"CARRIER_CAPSULE_DUPLICATE: {iaga} pinned twice")
+            # codex 0532Z registered VIC at the execution tree as an
+            # EXACT BYTE COPY of the preserved freeze capsule, so one
+            # observatory can now be pinned at two paths (design
+            # manifest -> freeze; execution manifest -> execution).
+            # Byte-identical copies are ONE unambiguous authority --
+            # dedupe, preferring the EXECUTION path the transform
+            # reads. DIVERGENT bytes for one iaga remain the defect
+            # this check exists to refuse.
+            prev = json.dumps(_load(out[key]["capsule"]),
+                              sort_keys=True, separators=(",", ":"))
+            cur = json.dumps(_load(p), sort_keys=True,
+                             separators=(",", ":"))
+            if prev != cur:
+                raise AssertionError(
+                    f"CARRIER_CAPSULE_DUPLICATE: {iaga} pinned twice "
+                    "with DIVERGENT bytes")
+            # identical bytes: keep whichever entry can resolve its
+            # probe envelope -- VIC's receipts deliberately stay at
+            # the freeze path (codex 0532Z: the execution slot must
+            # not imply receipts it does not have), so the freeze
+            # entry is the one that carries the envelope.
+            def _env_exists(capsule_path):
+                dd = os.path.dirname(capsule_path)
+                st = f"mag_{key}_probe.envelope.json"
+                return (os.path.exists(os.path.join(
+                            repo, dd.replace("/", os.sep),
+                            "receipts", st))
+                        or os.path.exists(os.path.join(
+                            repo, dd.replace("/", os.sep), st)))
+            if _env_exists(out[key]["capsule"]):
+                continue      # existing entry resolves its envelope
+            if not _env_exists(p):
+                raise AssertionError(
+                    f"CARRIER_ENVELOPE_UNDERIVABLE: {iaga} pinned "
+                    "twice and neither path resolves a probe "
+                    "envelope")
+            # fall through: replace with the envelope-bearing path
         # the probe envelope sits beside the capsule, named for the obs
         d = os.path.dirname(p)
         stem = f"mag_{key}_probe.envelope.json"

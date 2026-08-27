@@ -56,8 +56,14 @@ REQUIRED_BAR_FAMILIES = {"W-SEL", "W-CAS", "W-B2B", "W-B1B", "W-MF4",
 PRODUCER_BOUNDARY_MODE = "staged_envelope"
 PRODUCER_AMENDMENT_PATH = ("docs/f2g_window2_execution/"
                            "producer_boundary_amendment_v1.md")
-PRODUCER_ENVELOPE_PREFIX = ("docs/f2g_window2_execution/"
-                            "staged_envelopes/")
+# codex 0551Z repair 4 + 1547Z repair 1: the v3 prefix is RETIRED and
+# a pin under it is a typed refusal, never a satisfied class. Both
+# values are IMPORTED from the admission consumer -- the one
+# authority -- so this verifier can never recognize a prefix the
+# production consumer refuses.
+import w2_accrual_instrument_cayley as _ACCM
+PRODUCER_ENVELOPE_PREFIX = _ACCM.STAGED_PREFIX
+PRODUCER_ENVELOPE_PREFIX_RETIRED = _ACCM.STAGED_PREFIX_RETIRED
 DPV_PATH = "monitoring/src/f2g_design_pin_verifier_cayley.py"
 REPO_IDENTITY = "kantrarian/geospec"
 
@@ -237,6 +243,20 @@ def _verify_obj(repo, manifest_commit, obj, prestart=False):
                 # staged_envelopes/ is NEVER an envelope record --
                 # only actual .record.json envelopes satisfy the
                 # class
+                # codex 0551Z repair 4: the RETIRED v3 prefix refuses
+                # typed. Checked BEFORE the class test so a retired
+                # pin is named as such, not misreported as merely
+                # incomplete. startswith(v3) cannot also match v4 --
+                # "staged_envelopes_v4/" does not extend
+                # "staged_envelopes/" -- so the two are disjoint.
+                retired = [str(p) for p in paths
+                           if str(p).startswith(
+                               PRODUCER_ENVELOPE_PREFIX_RETIRED)]
+                if retired:
+                    _refuse(res, "PRODUCER_BOUNDARY_RETIRED_PREFIX",
+                            name,
+                            f"{len(retired)} pin(s) under the retired "
+                            f"v3 prefix, e.g. {retired[0]}")
                 have_env = any(str(p).startswith(
                     PRODUCER_ENVELOPE_PREFIX)
                     and str(p).endswith(".record.json")
@@ -541,7 +561,51 @@ def kat(repo, manifest_commit):
          _has(_verify_obj(repo, full, d),
               "PRODUCER_BOUNDARY_PINS_INCOMPLETE"))
 
-    print(f"KAT: {20 - len(failures)}/20 pass"
+    # 21-23. codex 0551Z repair 4: v4 prefix controls IN THE VERIFIER
+    # (not only the generator selftest). The pins reuse a real pin's
+    # blob fields with substituted paths, so per-pin blob refusals may
+    # also fire; each case asserts only the presence/absence of ITS
+    # prefix-class code.
+    def _pb_slot(paths):
+        dd = copy.deepcopy(base)
+        pp = []
+        for path in paths:
+            q = copy.deepcopy(real_pin)
+            q["path"] = path
+            pp.append(q)
+        dd["slots"]["producer_boundary"] = {
+            "status": "BOUND", "owner": "grassmann", "note": "kat",
+            "boundary_mode": PRODUCER_BOUNDARY_MODE, "pins": pp}
+        return dd
+    common = [PRODUCER_AMENDMENT_PATH,
+              "monitoring/src/w2_acquisition_capture_grassmann.py",
+              "docs/f2g_window2_execution/"
+              "staged_expected_contracts_v3.json"]
+    # positive: a v4 .record.json satisfies the envelope class
+    r21 = _verify_obj(repo, full, _pb_slot(
+        common + [PRODUCER_ENVELOPE_PREFIX
+                  + "mag_feed_new_2026-01-02.record.json"]))
+    case("producer-v4-envelope-satisfies",
+         not _has(r21, "PRODUCER_BOUNDARY_PINS_INCOMPLETE")
+         and not _has(r21, "PRODUCER_BOUNDARY_RETIRED_PREFIX"))
+    # negative: the SAME record under the retired v3 prefix refuses
+    # typed AND no longer satisfies the class
+    r22 = _verify_obj(repo, full, _pb_slot(
+        common + [PRODUCER_ENVELOPE_PREFIX_RETIRED
+                  + "mag_feed_new_2026-01-02.record.json"]))
+    case("producer-v3-retired-refuses",
+         _has(r22, "PRODUCER_BOUNDARY_RETIRED_PREFIX")
+         and _has(r22, "PRODUCER_BOUNDARY_PINS_INCOMPLETE"))
+    # negative: mixed prefixes refuse even with a valid v4 envelope
+    r23 = _verify_obj(repo, full, _pb_slot(
+        common + [PRODUCER_ENVELOPE_PREFIX
+                  + "mag_feed_new_2026-01-02.record.json",
+                  PRODUCER_ENVELOPE_PREFIX_RETIRED
+                  + "staged_body_inventory.json"]))
+    case("producer-mixed-prefix-refuses",
+         _has(r23, "PRODUCER_BOUNDARY_RETIRED_PREFIX"))
+
+    print(f"KAT: {23 - len(failures)}/23 pass"
           + (f"; DEFECTS: {failures}" if failures else ""))
     return not failures
 

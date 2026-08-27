@@ -175,8 +175,27 @@ STAGED_CLASS_SUFFIX = {"record": ".record.json",
                        "transcript": ".transcript.json",
                        "contract": ".contract.json",
                        "artifact": ".artifact.json"}
-STAGED_PREFIX = "docs/f2g_window2_execution/staged_envelopes/"
+# codex 1547Z repair 1: the ADMISSION CONSUMER is the one authority
+# for the staged prefix -- the generator and the execution verifier
+# import THESE constants, so a carrier rename can never close in only
+# two of three layers. The v3 prefix is RETIRED: a staged-class pin
+# under it refuses typed, never parses, never satisfies.
+STAGED_PREFIX = "docs/f2g_window2_execution/staged_envelopes_v4/"
+STAGED_PREFIX_RETIRED = "docs/f2g_window2_execution/staged_envelopes/"
 EXPECTED_KEYS_BASENAME = "staged_expected_contracts_v3.json"
+# codex 1547Z repair 2: the three operation-evidence classes the
+# boundary derives its ADMITTED partition from. Exact registered
+# repo-relative paths; the generator's final-bind contract requires
+# the same three (it imports these).
+TERMINAL_RECEIPT_PATH = ("docs/f2g_window2_execution/"
+                         "capture_terminal_receipt_v4.json")
+VIC_REPAIR_LEDGER_PATH = ("docs/f2g_window2_execution/"
+                          "capture_repair_ledger_v4_vic.jsonl")
+PREDECESSOR_RECORD_PATH = ("docs/f2g_window2_execution/"
+                           "predecessor_bridge_record_v4.json")
+CAPTURE_LEDGER_PATH = ("docs/f2g_window2_execution/"
+                       "capture_run_ledger_v4.jsonl")
+TERMINAL_RECEIPT_SCHEMA = "f2g-w2-capture-terminal-receipt-v1"
 # v4 lane split (codex 0527Z finding 3): MF4_FEED named two
 # carrier spaces at once and is RETIRED with no alias.
 # codex 2119Z closure 4: the three proof kinds. A key's REQUIRED
@@ -263,6 +282,14 @@ def _parse_staged_pin(path):
         if stem.startswith(pre):
             carrier, sep, day = stem[len(pre):].rpartition("_")
             if sep and carrier:
+                # codex 1547Z repair 1: the RETIRED prefix is named
+                # as retired, not misreported as merely misplaced
+                if path.startswith(STAGED_PREFIX_RETIRED):
+                    raise InstrumentRefusal(
+                        "PRESTART_ADMISSION_REFUSED: staged-class "
+                        f"pin under the RETIRED v3 prefix: {path} -- "
+                        "the registered staged space is "
+                        f"{STAGED_PREFIX}")
                 if path != STAGED_PREFIX + base:
                     raise InstrumentRefusal(
                         "PRESTART_ADMISSION_REFUSED: staged-class "
@@ -414,6 +441,172 @@ def authoritative_static_contract(authority, lane, carrier, day):
             f"for {lane}/{carrier} carries unresolved tokens "
             f"{sorted(unresolved)}")
     return contract
+
+
+def _derive_admitted_partition(slot, blob_reader, manifest, groups,
+                                _canon):
+    """codex 1547Z repair 2: the ADMITTED partition, derived from the
+    THREE PINNED OPERATION-EVIDENCE RECORDS -- never from a caller
+    argument on the production path, and never from the authority
+    alone. Every value is RECOMPUTED against sibling pinned bytes;
+    registration by path is membership, this is evidence semantics.
+
+    Sources, each fail-closed:
+      terminal receipt   recomputes the frozen ledger digest, line
+                         count and CAPTURED/REFUSED key partition,
+                         and binds the rebuilt inventory digest
+      VIC repair ledger  exactly the registered VIC key set (derived
+                         from the PINNED disposition capsule), each
+                         entry http_requests=0, uniform transform
+                         identity, JOINED to its staged transcript's
+                         raw_body_sha256
+      predecessor record grassmann's bridge record: bridge_sha256
+                         recomputes, names the capsule's single
+                         predecessor key, and its evidence/artifact
+                         digests equal the staged classes for that key
+
+    Returns the admitted key set as (lane, carrier, day) tuples."""
+    def _pin_bytes(path_suffix):
+        pins = [q for q in slot.get("pins", ())
+                if isinstance(q, dict)
+                and str(q.get("path", "")) == path_suffix]
+        if len(pins) != 1:
+            raise InstrumentRefusal(
+                "PRESTART_ADMISSION_REFUSED: no capture-run archive "
+                "was supplied and the producer boundary lacks exactly "
+                f"one pin at {path_suffix} -- the admitted partition "
+                "derives from pinned operation records")
+        q = pins[0]
+        raw = blob_reader(q["commit"], q["path"])
+        if hashlib.sha256(raw).hexdigest() != q["blob_sha256"]:
+            raise InstrumentRefusal(
+                "PRESTART_ADMISSION_REFUSED: operation-evidence pin "
+                f"bytes diverge: {path_suffix}")
+        return raw
+
+    # ---- terminal receipt vs the pinned frozen ledger -------------
+    receipt = json.loads(_pin_bytes(TERMINAL_RECEIPT_PATH)
+                         .decode("utf-8"))
+    if not isinstance(receipt, dict) or \
+            receipt.get("schema") != TERMINAL_RECEIPT_SCHEMA:
+        raise InstrumentRefusal(
+            "PRESTART_ADMISSION_REFUSED: terminal receipt schema is "
+            f"not {TERMINAL_RECEIPT_SCHEMA}")
+    led_raw = _pin_bytes(CAPTURE_LEDGER_PATH)
+    if hashlib.sha256(led_raw).hexdigest() != \
+            receipt.get("ledger_sha256"):
+        raise InstrumentRefusal(
+            "PRESTART_ADMISSION_REFUSED: terminal receipt "
+            "ledger_sha256 does not recompute from the pinned ledger")
+    rows = [json.loads(x) for x in led_raw.decode("utf-8")
+            .splitlines() if x.strip()]
+    if len(rows) != receipt.get("ledger_lines"):
+        raise InstrumentRefusal(
+            "PRESTART_ADMISSION_REFUSED: terminal receipt line count "
+            f"{receipt.get('ledger_lines')} != ledger {len(rows)}")
+    cap_keys = sorted(r["key"] for r in rows
+                      if r.get("status") == "CAPTURED")
+    ref_keys = sorted(r["key"] for r in rows
+                      if r.get("status") == "REFUSED")
+    if cap_keys != sorted(receipt.get("admitted_keys", ())) or \
+            ref_keys != sorted(receipt.get("refused_keys", ())):
+        raise InstrumentRefusal(
+            "PRESTART_ADMISSION_REFUSED: terminal receipt partition "
+            "does not recompute from the pinned ledger rows")
+    # codex 1705Z repair 1: the inventory resolves at its EXACT
+    # registered path -- a basename-endswith walk let a decoy at
+    # docs/attacker/ be bound by the receipt while the scientific
+    # consumer read the real one (an object-identity split between
+    # receipt verification and consumption).
+    inv_raw = _pin_bytes(STAGED_PREFIX + STAGED_INVENTORY_BASENAME)
+    if hashlib.sha256(inv_raw).hexdigest() != \
+            receipt.get("inventory_sha256"):
+        raise InstrumentRefusal(
+            "PRESTART_ADMISSION_REFUSED: terminal receipt "
+            "inventory_sha256 does not bind the EXACT registered "
+            "inventory pin")
+
+    # ---- VIC repair ledger vs the registered VIC set --------------
+    capsule = _registered_disposition_capsule(manifest, blob_reader)
+    vic_registered = sorted(
+        k for k in capsule.get("http_capture", ())
+        if str(k).split("/")[1:2] == ["vic"])
+    rep_rows = [json.loads(x) for x in
+                _pin_bytes(VIC_REPAIR_LEDGER_PATH).decode("utf-8")
+                .splitlines() if x.strip()]
+    rep_keys = sorted(r.get("key") for r in rep_rows)
+    if rep_keys != vic_registered or \
+            len(set(rep_keys)) != len(rep_keys):
+        raise InstrumentRefusal(
+            "PRESTART_ADMISSION_REFUSED: VIC repair records are not "
+            "exactly the registered VIC key set "
+            f"({len(rep_keys)} vs {len(vic_registered)} registered)")
+    idents = {r.get("transform_identity") for r in rep_rows}
+    if len(idents) != 1 or None in idents:
+        raise InstrumentRefusal(
+            "PRESTART_ADMISSION_REFUSED: VIC repair transform "
+            "identity is absent or non-uniform")
+    for r in rep_rows:
+        if r.get("http_requests") != 0:
+            raise InstrumentRefusal(
+                "PRESTART_ADMISSION_REFUSED: VIC repair entry for "
+                f"{r.get('key')} claims http_requests="
+                f"{r.get('http_requests')}; the replay is zero-HTTP")
+        lane, ck, day = str(r["key"]).split("/")
+        tr = groups.get((lane, ck), {}).get("transcript", {}).get(day)
+        if tr is None or tr.get("raw_body_sha256") != \
+                r.get("raw_body_sha256"):
+            raise InstrumentRefusal(
+                "PRESTART_ADMISSION_REFUSED: VIC repair entry for "
+                f"{r['key']} is not joined to its staged "
+                "transcript's raw_body_sha256")
+
+    # ---- predecessor bridge record vs its staged classes ----------
+    import w2_predecessor_bridge_cayley as PB
+    brec = json.loads(_pin_bytes(PREDECESSOR_RECORD_PATH)
+                      .decode("utf-8"))
+    body = {k: v for k, v in brec.items() if k != "bridge_sha256"}
+    if hashlib.sha256(json.dumps(
+            body, sort_keys=True, separators=(",", ":")).encode()
+            ).hexdigest() != brec.get("bridge_sha256"):
+        raise InstrumentRefusal(
+            "PRESTART_ADMISSION_REFUSED: predecessor bridge record "
+            "bridge_sha256 does not recompute")
+    if brec.get("schema") != PB.BRIDGE_SCHEMA:
+        raise InstrumentRefusal(
+            "PRESTART_ADMISSION_REFUSED: predecessor record schema "
+            f"{brec.get('schema')!r} != registered bridge schema")
+    pred = sorted(capsule.get("predecessor", ()))
+    if len(pred) != 1:
+        raise InstrumentRefusal(
+            "PRESTART_ADMISSION_REFUSED: the capsule registers "
+            f"{len(pred)} predecessor keys; exactly one is expected")
+    pk = (str(brec.get("lane")) + "/" + str(brec.get("carrier"))
+          + "/" + str(brec.get("utc_day")))
+    if pk != pred[0]:
+        raise InstrumentRefusal(
+            "PRESTART_ADMISSION_REFUSED: predecessor record names "
+            f"{pk}, capsule registers {pred[0]}")
+    plane, pck, pday = pred[0].split("/")
+    pcls = groups.get((plane, pck), {})
+    ptr = pcls.get("transcript", {}).get(pday)
+    part = pcls.get("artifact", {}).get(pday)
+    if ptr is None or part is None or \
+            brec.get("evidence", {}).get("raw_body_sha256") != \
+            ptr.get("raw_body_sha256") or \
+            brec.get("evidence", {}).get("transcript_sha256") != \
+            _canon(ptr) or \
+            brec.get("artifact_sha256") != _canon(part):
+        raise InstrumentRefusal(
+            "PRESTART_ADMISSION_REFUSED: predecessor record evidence "
+            "digests do not equal the staged classes for its key")
+
+    admitted = set()
+    for k in cap_keys + rep_keys + [pred[0]]:
+        parts = str(k).split("/")
+        if len(parts) == 3:
+            admitted.add(tuple(parts))
+    return admitted
 
 
 def _boundary_mechanics(repo, manifest, *, blob_reader=None,
@@ -600,29 +793,36 @@ def _boundary_mechanics(repo, manifest, *, blob_reader=None,
     # and a REFUSED key must NEVER silently satisfy a scientific key.
     # Fail closed: an absent archive can never mean "skip the check".
     if capture_archive is None:
-        raise InstrumentRefusal(
-            "PRESTART_ADMISSION_REFUSED: no capture-run archive was "
-            "supplied -- the boundary cannot bind without the "
-            "registered ADMITTED|REFUSED partition")
-    import w2_acquisition_capture_grassmann as CAP
-    # verify the archive OURSELVES; trusting a caller-verified one
-    # would accept a forgery (the content-auth mistake again)
-    try:
-        # the archive verifier takes the AUTHORITY key mapping, so
-        # it re-derives the partition from the same registered source
-        # this boundary uses -- not from a list we flattened
-        CAP.verify_capture_run_archive(capture_archive, descriptor,
-                                       auth_keys)
-    except Exception as e:                                # noqa: BLE001
-        raise InstrumentRefusal(
-            "PRESTART_ADMISSION_REFUSED: the capture-run archive "
-            f"failed its own verifier ({type(e).__name__}: "
-            f"{str(e)[:110]})")
-    admitted = set()
-    for k in CAP.admitted_keys(capture_archive):
-        parts = str(k).split("/")
-        if len(parts) == 3:
-            admitted.add(tuple(parts))
+        # codex 1547Z repair 2: the PRODUCTION path derives the
+        # partition from the three pinned operation-evidence records.
+        # The caller-supplied archive remains ONLY as the structural
+        # KAT's fixture door (BP-1 keeps its signature; the shared
+        # bar's archive doctors keep their semantics). When neither
+        # pinned records nor an archive exist, the refusal inside the
+        # derivation still names the missing partition.
+        import w2_producer_grassmann as _PJ
+        admitted = _derive_admitted_partition(
+            slot, blob_reader, manifest, groups, _PJ._canon_digest)
+    else:
+        import w2_acquisition_capture_grassmann as CAP
+        # verify the archive OURSELVES; trusting a caller-verified
+        # one would accept a forgery (the content-auth mistake again)
+        try:
+            # the archive verifier takes the AUTHORITY key mapping,
+            # so it re-derives the partition from the same registered
+            # source this boundary uses -- not a list we flattened
+            CAP.verify_capture_run_archive(capture_archive,
+                                           descriptor, auth_keys)
+        except Exception as e:                            # noqa: BLE001
+            raise InstrumentRefusal(
+                "PRESTART_ADMISSION_REFUSED: the capture-run archive "
+                f"failed its own verifier ({type(e).__name__}: "
+                f"{str(e)[:110]})")
+        admitted = set()
+        for k in CAP.admitted_keys(capture_archive):
+            parts = str(k).split("/")
+            if len(parts) == 3:
+                admitted.add(tuple(parts))
     unmet = sorted(f"{ln}/{ck}/{d}"
                    for (ln, ck, d) in authorized
                    if (ln, ck, d) not in admitted)
@@ -1356,12 +1556,10 @@ def _selftest():
                                               "no-such-store")}
     inv_raw = json.dumps(inv_fix).encode()
     desc_raw = json.dumps(desc_fix).encode()
-    inv_pin = {"path": "docs/f2g_window2_execution/staged_envelopes/"
-                       "staged_body_inventory.json",
+    inv_pin = {"path": STAGED_PREFIX + STAGED_INVENTORY_BASENAME,
                "commit": "c" * 40,
                "blob_sha256": hashlib.sha256(inv_raw).hexdigest()}
-    desc_pin = {"path": "docs/f2g_window2_execution/staged_envelopes/"
-                        "store_descriptor.json",
+    desc_pin = {"path": STAGED_PREFIX + STORE_DESCRIPTOR_BASENAME,
                 "commit": "c" * 40,
                 "blob_sha256": hashlib.sha256(desc_raw).hexdigest()}
 
@@ -1455,7 +1653,7 @@ def _selftest():
     blobs = {}
     inv_entries = {}
     pins2 = []
-    pre = "docs/f2g_window2_execution/staged_envelopes/"
+    pre = STAGED_PREFIX
 
     def add_pin(path, raw):
         blobs[("f" * 40, path)] = raw
@@ -2087,6 +2285,204 @@ def _selftest():
         raise AssertionError("unregistered template token must refuse")
     except InstrumentRefusal as e:
         assert "unregistered tokens" in str(e)
+
+    # ---- codex 1547Z repair 1: prefix controls ON THE CONSUMER ----
+    ok = _parse_staged_pin(
+        STAGED_PREFIX + "mag_feed_new_2026-01-02.record.json")
+    assert ok == ("MAG_FEED", "new", "2026-01-02", "record"), ok
+    try:
+        _parse_staged_pin(STAGED_PREFIX_RETIRED
+                          + "mag_feed_new_2026-01-02.record.json")
+        raise AssertionError("retired v3 prefix must refuse")
+    except InstrumentRefusal as e:
+        assert "RETIRED v3 prefix" in str(e), str(e)[:120]
+    try:
+        _parse_staged_pin("docs/elsewhere/"
+                          "mag_feed_new_2026-01-02.record.json")
+        raise AssertionError("mixed/foreign prefix must refuse")
+    except InstrumentRefusal as e:
+        assert "outside the exact prefix" in str(e)
+    print("  1547Z r1: consumer parses v4, refuses RETIRED v3 and "
+          "foreign prefixes typed")
+
+    # ---- codex 1547Z repair 2: derivation-unit doctors ------------
+    # Fixture slot/blob/groups drive _derive_admitted_partition
+    # directly. These verify the EVIDENCE SEMANTICS (recompute +
+    # join + typed refusal per doctored record); the full-path
+    # derivation door is exercised by the shared bar's archive-gate
+    # doctor, which now reaches it with the same refusal needle.
+    import w2_predecessor_bridge_cayley as _PB
+
+    def _dig(b):
+        return hashlib.sha256(b).hexdigest()
+
+    def _canon(o):
+        return hashlib.sha256(json.dumps(
+            o, sort_keys=True, separators=(",", ":")).encode()
+            ).hexdigest()
+
+    _led_rows = [
+        {"key": "MAG_FEED/new/2026-01-01", "seq": 0,
+         "status": "CAPTURED"},
+        {"key": "MAG_FEED/vic/2026-01-01", "seq": 1,
+         "status": "REFUSED", "refusal": "frame"},
+    ]
+    _led_raw = ("\n".join(json.dumps(r, sort_keys=True)
+                          for r in _led_rows) + "\n").encode()
+    _inv_raw = b'{"objects": {}}'
+    _vic_tr = {"raw_body_sha256": "ab" * 32}
+    _pred_tr = {"raw_body_sha256": "cd" * 32}
+    _pred_art = {"outcome": "ADMITTED"}
+    _groups = {("MAG_FEED", "vic"): {"transcript":
+                                     {"2026-01-01": _vic_tr}},
+               ("MAG_WEATHER_FEED", "omni"): {
+                   "transcript": {"2026-01-01": _pred_tr},
+                   "artifact": {"2026-01-01": _pred_art}}}
+    _receipt = {"schema": TERMINAL_RECEIPT_SCHEMA,
+                "ledger_sha256": _dig(_led_raw), "ledger_lines": 2,
+                "admitted_keys": ["MAG_FEED/new/2026-01-01"],
+                "refused_keys": ["MAG_FEED/vic/2026-01-01"],
+                "inventory_sha256": _dig(_inv_raw)}
+    _rep_rows = [{"key": "MAG_FEED/vic/2026-01-01",
+                  "raw_body_sha256": "ab" * 32,
+                  "transform_identity": "ident-1",
+                  "http_requests": 0}]
+    _brec = {"schema": _PB.BRIDGE_SCHEMA, "lane": "MAG_WEATHER_FEED",
+             "carrier": "omni", "utc_day": "2026-01-01",
+             "evidence": {"raw_body_sha256": "cd" * 32,
+                          "transcript_sha256": _canon(_pred_tr)},
+             "artifact_sha256": _canon(_pred_art)}
+    _brec["bridge_sha256"] = _canon(
+        {k: v for k, v in _brec.items() if k != "bridge_sha256"})
+    _capsule = {"http_capture": ["MAG_FEED/new/2026-01-01",
+                                 "MAG_FEED/vic/2026-01-01"],
+                "predecessor": ["MAG_WEATHER_FEED/omni/2026-01-01"],
+                "reuse_or_bridge": []}
+
+    def _mk_blobs(receipt=None, rep_rows=None, brec=None,
+                  led=None):
+        receipt = _receipt if receipt is None else receipt
+        rep_rows = _rep_rows if rep_rows is None else rep_rows
+        brec = _brec if brec is None else brec
+        led = _led_raw if led is None else led
+        rep_raw = ("\n".join(json.dumps(r, sort_keys=True)
+                             for r in rep_rows)
+                   + ("\n" if rep_rows else "")).encode()
+        blobs = {TERMINAL_RECEIPT_PATH:
+                 json.dumps(receipt).encode(),
+                 CAPTURE_LEDGER_PATH: led,
+                 VIC_REPAIR_LEDGER_PATH: rep_raw,
+                 PREDECESSOR_RECORD_PATH:
+                 json.dumps(brec).encode(),
+                 STAGED_PREFIX + STAGED_INVENTORY_BASENAME: _inv_raw}
+        slot = {"status": "BOUND", "pins": [
+            {"path": pth, "commit": "kat",
+             "blob_sha256": _dig(raw)}
+            for pth, raw in blobs.items()]}
+
+        def blob(commit, pth):
+            return blobs[pth]
+        return slot, blob
+
+    _real_cap = globals()["_registered_disposition_capsule"]
+    globals()["_registered_disposition_capsule"] =         lambda manifest, blob_reader: _capsule
+    try:
+        slot, blob = _mk_blobs()
+        adm = _derive_admitted_partition(slot, blob, {}, _groups,
+                                         _canon)
+        assert adm == {("MAG_FEED", "new", "2026-01-01"),
+                       ("MAG_FEED", "vic", "2026-01-01"),
+                       ("MAG_WEATHER_FEED", "omni", "2026-01-01")}, adm
+
+        def _must_refuse(needle, **over):
+            slot2, blob2 = _mk_blobs(**over)
+            try:
+                _derive_admitted_partition(slot2, blob2, {}, _groups,
+                                           _canon)
+                raise AssertionError(f"derivation must refuse "
+                                     f"({needle})")
+            except InstrumentRefusal as e:
+                assert needle in str(e), \
+                    f"wanted {needle!r} got {str(e)[:140]!r}"
+        # terminal receipt doctored: partition lie
+        _must_refuse("partition does not recompute",
+                     receipt=dict(_receipt,
+                                  admitted_keys=[
+                                      "MAG_FEED/new/2026-01-01",
+                                      "MAG_FEED/vic/2026-01-01"],
+                                  refused_keys=[]))
+        # ledger bytes swapped: receipt digest no longer recomputes
+        _must_refuse("ledger_sha256 does not recompute",
+                     led=b'{"key": "x"}\n')
+        # vic set short
+        _must_refuse("not exactly the registered VIC key set",
+                     rep_rows=[])
+        # vic entry claims HTTP
+        _must_refuse("the replay is zero-HTTP",
+                     rep_rows=[dict(_rep_rows[0], http_requests=1)])
+        # vic entry not joined to its staged transcript
+        _must_refuse("not joined to its staged",
+                     rep_rows=[dict(_rep_rows[0],
+                                    raw_body_sha256="ee" * 32)])
+        # bridge record forged: self-digest breaks
+        _must_refuse("bridge_sha256 does not recompute",
+                     brec=dict(_brec, artifact_sha256="ff" * 32))
+        # bridge record names the wrong key (re-digested so ONLY the
+        # key binding fails, not the self-digest)
+        _wrong = {k: v for k, v in _brec.items()
+                  if k != "bridge_sha256"}
+        _wrong["utc_day"] = "2026-01-02"
+        _wrong["bridge_sha256"] = _canon(_wrong)
+        _must_refuse("capsule registers", brec=_wrong)
+        # codex 1705Z repair 1 KAT: a same-basename DECOY inventory
+        # ordered before the exact registered pin. A receipt binding
+        # the decoy digest must refuse; the receipt binding the exact
+        # registered inventory must pass (the positive above).
+        _slotD, _blobD = _mk_blobs()
+        _decoy_raw = b'{"objects": {"forged": 1}}'
+        _decoy = {"path": "docs/attacker/"
+                          + STAGED_INVENTORY_BASENAME,
+                  "commit": "kat",
+                  "blob_sha256": _dig(_decoy_raw)}
+        _slotD = {"status": "BOUND",
+                  "pins": [_decoy] + list(_slotD["pins"])}
+        _blobsD = {"docs/attacker/"
+                   + STAGED_INVENTORY_BASENAME: _decoy_raw}
+
+        def _blobD2(commit, pth, _inner=_blobD):
+            return _blobsD.get(pth) or _inner(commit, pth)
+        _rcptD = dict(_receipt, inventory_sha256=_dig(_decoy_raw))
+        _slotD2 = {"status": "BOUND", "pins": [
+            q if q["path"] != TERMINAL_RECEIPT_PATH else
+            {"path": TERMINAL_RECEIPT_PATH, "commit": "kat",
+             "blob_sha256": _dig(json.dumps(_rcptD).encode())}
+            for q in _slotD["pins"]]}
+        _blobsD[TERMINAL_RECEIPT_PATH] = json.dumps(_rcptD).encode()
+        try:
+            _derive_admitted_partition(_slotD2, _blobD2, {}, _groups,
+                                       _canon)
+            raise AssertionError("a receipt binding a same-basename "
+                                 "DECOY inventory must refuse")
+        except InstrumentRefusal as e:
+            assert "EXACT registered" in str(e), str(e)[:140]
+
+        # a missing evidence pin refuses WITH the archive needle the
+        # shared bar's doctor asserts
+        _slot3, _blob3 = _mk_blobs()
+        _slot3 = {"status": "BOUND",
+                  "pins": [q for q in _slot3["pins"]
+                           if q["path"] != TERMINAL_RECEIPT_PATH]}
+        try:
+            _derive_admitted_partition(_slot3, _blob3, {}, _groups,
+                                       _canon)
+            raise AssertionError("missing receipt pin must refuse")
+        except InstrumentRefusal as e:
+            assert "no capture-run archive was supplied" in str(e)
+    finally:
+        globals()["_registered_disposition_capsule"] = _real_cap
+    print("  1547Z r2: admitted partition derives from pinned "
+          "operation records; every doctored record refuses typed; "
+          "missing pins carry the archive needle")
 
     print("w2_accrual_instrument selftest: ALL PASS")
 

@@ -124,13 +124,73 @@ def load_plan(commitish="HEAD"):
         hashlib.sha256(craw).hexdigest()
 
 
-def _capsule_is_pinned(commitish):
-    man = json.loads(_blob(
-        commitish, CAP.EXEC_MANIFEST_PATH).decode("utf-8"))
-    slot = man.get("slots", {}).get(CAP.AUTHORITY_SLOT, {})
-    return any(isinstance(p, dict)
-               and p.get("path") == DISP.CAPSULE_PATH
-               for p in (slot.get("pins") or ()))
+def capsule_pin_status(commitish, candidate_sha=None):
+    """codex 0110Z P0-1: the old `_capsule_is_pinned` returned True
+    merely because a pin with that PATH existed. It never checked the
+    slot status, never resolved the pin's commit, never recomputed the
+    pinned blob, and never compared it to the capsule the runner had
+    just enumerated.
+
+    That is the nominal-vs-actual binding again, and after Step 2 it
+    would have been actively dangerous: `plan` could print a clean 635
+    and `pinned=True` from a NEW candidate capsule while
+    capture_authorized -- which correctly consumes the capsule FROM
+    THE PIN -- still saw the OLD one and refused every key. A path is
+    not an object.
+
+    Returns a typed status; never a bare bool.
+    """
+    out = {"slot": CAP.AUTHORITY_SLOT, "path": DISP.CAPSULE_PATH,
+           "slot_bound": False, "pin_count": 0, "pin_commit": None,
+           "pinned_blob_sha256": None, "pin_recomputes": False,
+           "candidate_sha256": candidate_sha, "current_pin": False,
+           "runnable": False, "reason": None}
+
+    def no(why):
+        out["reason"] = why
+        return out
+    try:
+        man = json.loads(_blob(
+            commitish, CAP.EXEC_MANIFEST_PATH).decode("utf-8"))
+    except Exception as exc:
+        return no(f"the execution manifest is unreadable at "
+                  f"{commitish} ({type(exc).__name__})")
+    slot = man.get("slots", {}).get(CAP.AUTHORITY_SLOT) or {}
+    out["slot_bound"] = slot.get("status") == "BOUND"
+    if not out["slot_bound"]:
+        return no(f"slot {CAP.AUTHORITY_SLOT} is "
+                  f"{slot.get('status')!r}, not BOUND -- an OPEN slot "
+                  "pins nothing that can serve as a ceiling")
+    pins = [p for p in (slot.get("pins") or ())
+            if isinstance(p, dict) and p.get("path") == DISP.CAPSULE_PATH]
+    out["pin_count"] = len(pins)
+    if len(pins) != 1:
+        return no(f"{len(pins)} capsule pins at {DISP.CAPSULE_PATH}; "
+                  "exactly one is required")
+    pin = pins[0]
+    out["pin_commit"] = pin.get("commit")
+    out["pinned_blob_sha256"] = pin.get("blob_sha256")
+    try:
+        raw = _blob(pin["commit"], DISP.CAPSULE_PATH)
+    except Exception as exc:
+        return no(f"the pinned capsule commit "
+                  f"{str(pin.get('commit'))[:12]} does not resolve "
+                  f"({type(exc).__name__})")
+    got = hashlib.sha256(raw).hexdigest()
+    out["pin_recomputes"] = got == pin.get("blob_sha256")
+    if not out["pin_recomputes"]:
+        return no(f"the pinned capsule blob does not recompute: pin "
+                  f"says {str(pin.get('blob_sha256'))[:12]}, "
+                  f"{str(pin.get('commit'))[:12]} gives {got[:12]}")
+    if candidate_sha is not None and candidate_sha != got:
+        out["current_pin"] = False
+        return no(f"the manifest pins capsule {got[:12]} but this "
+                  f"plan enumerated {candidate_sha[:12]} -- the "
+                  "entrypoint would consume the PINNED bytes and "
+                  "refuse every key in this plan")
+    out["current_pin"] = True
+    out["runnable"] = True
+    return out
 
 
 def plan(commitish="HEAD"):
@@ -144,22 +204,39 @@ def plan(commitish="HEAD"):
         print(f"  {lc:32s} {n}")
     print("first:", keys[0])
     print("last :", keys[-1])
-    pinned = _capsule_is_pinned(commitish)
-    print("capsule pinned in the execution manifest:", pinned)
-    if not pinned:
-        print("  -> `run` REFUSES until it is pinned; the production "
-              "entrypoint fails closed without the ceiling")
+    st = capsule_pin_status(commitish, candidate_sha=csha)
+    print(f"CURRENT_PIN={str(st['current_pin']).lower()}  "
+          f"{'RUNNABLE' if st['runnable'] else 'NOT_RUNNABLE'}")
+    print(f"  slot_bound={st['slot_bound']} pins={st['pin_count']} "
+          f"pin_commit={str(st['pin_commit'])[:12]} "
+          f"pin_blob={str(st['pinned_blob_sha256'])[:12]} "
+          f"recomputes={st['pin_recomputes']}")
+    print(f"  candidate={str(st['candidate_sha256'])[:12]}")
+    if not st["runnable"]:
+        print("  -> this plan enumerates a verified CANDIDATE, not a "
+              "runnable ceiling:")
+        print("     " + str(st["reason"]))
     print("no request fired")
     return keys
 
 
 def run(manifest_commit):
-    if not _capsule_is_pinned(manifest_commit):
+    # codex 0110Z P0-1(3): enumerate from the VERIFIED MANIFEST PIN so
+    # this loop and capture_authorized() consume ONE object. Reading
+    # the capsule at the named descendant while the entrypoint reads
+    # it from the pin is two objects wearing one name.
+    _probe = load_plan(manifest_commit)[4]
+    st = capsule_pin_status(manifest_commit, candidate_sha=_probe)
+    if not st["runnable"]:
         raise SystemExit(
-            "REFUSING: the disposition capsule is not pinned in the "
-            f"execution manifest at {manifest_commit} -- there is no "
-            "registered ceiling, so no request may be fired")
-    authority, capsule, keys, counts, csha = load_plan(manifest_commit)
+            "REFUSING: no runnable capsule ceiling at "
+            f"{manifest_commit} -- {st['reason']}")
+    authority, capsule, keys, counts, csha = load_plan(
+        st["pin_commit"])
+    if csha != st["pinned_blob_sha256"]:
+        raise SystemExit(
+            "REFUSING: the capsule reopened from the pin does not "
+            "match the pinned digest")
     print("plan:", len(keys), "keys; capsule", csha[:16])
     os.makedirs(STORE_PHYSICAL, exist_ok=True)
     os.makedirs(STAGED_DIR, exist_ok=True)
@@ -241,6 +318,55 @@ def _selftest():
         raise AssertionError("a REUSE key must never be firable")
     except DISP.DispositionRefusal:
         pass
+    # ---- codex 0110Z P0-1(4): the DESCENDANT-CHANGES-CAPSULE doctor
+    # A descendant changes the capsule at the same path while the
+    # manifest retains the OLD pin. The candidate plan may report its
+    # count; it must NOT report current_pin, and run() must refuse
+    # BEFORE any opener. This is the exact shape that would otherwise
+    # appear after Step 2.
+    real = capsule_pin_status("HEAD", candidate_sha=_s)
+    # (a) a candidate whose bytes are NOT the pinned bytes
+    drift = capsule_pin_status("HEAD", candidate_sha="0" * 64)
+    assert drift["current_pin"] is False, drift
+    assert drift["runnable"] is False, drift
+    assert "refuse every key" in (drift["reason"] or ""), drift
+    # ...while the PIN itself still verifies, so the refusal is about
+    # DIVERGENCE and not about a broken manifest
+    assert drift["slot_bound"] is True, drift
+    assert drift["pin_count"] == 1, drift
+    assert drift["pin_recomputes"] is True, drift
+    # (b) with no candidate supplied the pin still verifies on its own
+    bare = capsule_pin_status("HEAD")
+    assert bare["pin_recomputes"] is True and bare["runnable"] is True
+    # (c) run() must REFUSE on that divergence before an opener. We
+    # prove "before an opener" by making any network use impossible.
+    import w2_no_network_grassmann as _NN
+
+    def _run_would_refuse():
+        try:
+            with _NN.no_network() as net:
+                _real = CAP.http_fetch
+                CAP.http_fetch = lambda *a, **k: (_ for _ in ()).throw(
+                    AssertionError("OPENER REACHED"))
+                try:
+                    run("HEAD")
+                finally:
+                    CAP.http_fetch = _real
+                assert net.attempts == 0
+        except SystemExit as exc:
+            return str(exc)
+        return None
+    # Only meaningful when the live capsule and the pin diverge; when
+    # they agree, run() would proceed to real work, so this doctor
+    # states which case it exercised rather than silently skipping.
+    if not real["runnable"]:
+        msg = _run_would_refuse()
+        assert msg and "REFUSING" in msg, msg
+        print("  P0-1 doctor: pin/candidate DIVERGE -> run() refused "
+              "before any opener")
+    else:
+        print("  P0-1 doctor: pin/candidate AGREE today; divergence "
+              "path proven by (a)+(b) on the typed status")
     print(f"w2_capture_run_v4 selftest: ALL PASS (plan={len(keys)}, "
           "no network)")
 

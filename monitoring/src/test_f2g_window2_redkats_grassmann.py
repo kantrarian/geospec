@@ -1754,6 +1754,34 @@ def w_loco():
         # PASS, 3/40 FAIL); semantically the single-station
         # construction is a pre-LOCO full-Holm positive while LOCO
         # recovery is False -- exactly what anti-rescue preserves
+        # ---- SITE 2: NOT COVERAGE (cayley, per codex 1542Z option 2)
+        # The source-text check below is shallow LINT and is NOT
+        # evidence that the forbidden call is absent at runtime.
+        # inspect.getsource reads only the inspected frame, so an
+        # INDIRECT forbidden call through a helper is invisible to it.
+        # That blindness is mutation-PROVEN, not asserted: at site 1 a
+        # delegated forbidden call left the equivalent text check
+        # still reporting the name absent while the whole bar stayed
+        # green (cayley 1350Z step 1).
+        # WHY NO SPY HERE: a call spy needs a live positive case to
+        # hang on, and none exists. Both run_point_certification
+        # invocations in this bar are refusal doctors, and the
+        # positive path refuses POWER_GEOMETRY_UNBOUND -- the only
+        # geometry artifact in the tree, effect_grids_w2_v1.json,
+        # carries bound = None and no calendar_authority_ref. A spy
+        # on a refusal path reports zero because the path never
+        # approaches the forbidden call: a guaranteed green that
+        # proves nothing.
+        # CLOSURE CONDITION: once an independently required,
+        # OWNER-AUTHORIZED bound geometry capsule exists, add the
+        # positive certification case, executed-call assertions and
+        # the spies, and BOTH mutation controls -- grassmann 1353Z:
+        # insert an indirect forbidden call and require the spy to
+        # FIRE, since a spy reports zero both when the call did not
+        # happen and when THE CASE NEVER GOT THERE, and those are
+        # indistinguishable from the outside.
+        # This label records the gap. It authorizes NO geometry
+        # binding and claims no coverage.
         src_art = inspect.getsource(WPH.run_artifact_class).lower()
         src_spec = inspect.getsource(
             WPH.run_b1b_specificity_certification)
@@ -1876,6 +1904,25 @@ def w_cal():
 
         # (4) the bound replicate path routes ONLY through the pinned
         # NON-cal entrypoints (no _family_cal call survives)
+        # ---- SITE 3: NOT COVERAGE (cayley, per codex 1542Z option 2)
+        # Same class as the site-2 label in w_loco(): these are
+        # shallow source-text LINT checks, not runtime evidence.
+        # "family_cal" not in src cannot see an INDIRECT call through
+        # a helper, and the two positive substring assertions
+        # establish only that the NAMES APPEAR in the source -- not
+        # that b2a_family / b3a_family were ever CALLED. A source
+        # string is not an executed call.
+        # Converting them to positive EXECUTED-CALL assertions needs a
+        # live positive run_point_certification case, which does not
+        # exist: that path refuses POWER_GEOMETRY_UNBOUND against the
+        # only geometry artifact in the tree, which is unbound.
+        # CLOSURE CONDITION, as at site 2: an independently required,
+        # OWNER-AUTHORIZED bound geometry capsule, then executed-call
+        # assertions plus their own mutation control -- remove the
+        # call and require the assertion to FAIL, or the assertion is
+        # decorative no matter how green it looks.
+        # This label records the gap. It authorizes NO geometry
+        # binding and claims no coverage.
         src = inspect.getsource(WPH.replicate_pvalues_bound)
         ok_nc = "family_cal" not in src \
             and "b2a_family" in src and "b3a_family" in src

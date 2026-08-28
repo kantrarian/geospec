@@ -404,23 +404,82 @@ def _selftest():
             return code in str(exc)
         return False
 
-    # F1 both modes run under the no-network sentinel by construction
-    # -- assert the entrypoint refuses cleanly on this host where the
-    # frozen ledger is absent, WITHOUT reaching a socket
-    with NONET.no_network() as net:
-        ok = refuses(lambda: run("plan", "HEAD"),
-                     "FINALIZER_LEDGER_ABSENT") \
-            or refuses(lambda: run("plan", "HEAD"),
-                       "RETRY_MANIFEST_UNRESOLVABLE")
-        check("F1 plan fails CLOSED on a host without the frozen "
-              "ledger, zero socket attempts",
-              ok and net.attempts == 0)
-    # F2 apply demands the exact plan identity
-    check("F2 apply without a matching plan digest refuses",
-          refuses(lambda: run("apply", "HEAD", "0" * 64),
-                  "FINALIZER_LEDGER_ABSENT")
-          or refuses(lambda: run("apply", "HEAD", "0" * 64),
-                     "FINALIZER_PLAN_IDENTITY"))
+    # F1 both modes run under the no-network sentinel -- and the
+    # frozen ledger's ABSENCE is CONSTRUCTED (a fresh temp path that
+    # provably has no file), never borrowed from the host. The prior
+    # form asserted refusal "on this host where the frozen ledger is
+    # absent": true on reviewer worktrees, FALSE on the evidence
+    # host, so the bar failed on the one host that runs apply
+    # (grassmann 0311Z). A doctor constructs its precondition.
+    import tempfile as _tf1
+    with _tf1.TemporaryDirectory() as td1:
+        _sav_led = RUN4.LEDGER
+        try:
+            RUN4.LEDGER = os.path.join(td1, "absent.ledger.jsonl")
+            with NONET.no_network() as net:
+                ok = (refuses(lambda: run("plan", "HEAD"),
+                              "FINALIZER_LEDGER_ABSENT")
+                      or refuses(lambda: run("plan", "HEAD"),
+                                 "RETRY_MANIFEST_UNRESOLVABLE"))
+                check("F1 plan fails CLOSED when the frozen ledger "
+                      "is absent -- absence constructed, not "
+                      "borrowed from the host -- zero sockets",
+                      ok and net.attempts == 0)
+        finally:
+            RUN4.LEDGER = _sav_led
+    # F2 the apply identity gates, probed through the REAL run()
+    # gate code on EVERY host: a fixture-only build_plan stub plus a
+    # constructed REPO (state construction; the yardstick is the
+    # production comparison itself). The prior form accepted
+    # FINALIZER_LEDGER_ABSENT as an alternative needle, making it
+    # ambient to the same host condition as F1.
+    _sav_bp, _sav_repo = build_plan, REPO
+    try:
+        _stub = {"schema": "f2g-w2-zero-http-plan-v2",
+                 "plan_sha256": "a" * 64,
+                 "frozen_ledger_sha256": "b" * 64}
+        globals()["build_plan"] = (
+            lambda mc: (_stub, None, None, [], None, {}))
+        with _tf1.TemporaryDirectory() as td2:
+            globals()["REPO"] = td2
+            with NONET.no_network() as n2:
+                check("F2a first-apply gate refuses a mismatched "
+                      "plan digest (op-record absence "
+                      "constructed), zero sockets",
+                      refuses(lambda: run("apply", "HEAD",
+                                          "0" * 64),
+                              "FINALIZER_PLAN_IDENTITY")
+                      and n2.attempts == 0)
+            opp = os.path.join(td2, *APPLY_OP_PATH.split("/"))
+            os.makedirs(os.path.dirname(opp), exist_ok=True)
+            op = {"schema": "f2g-w2-zero-http-apply-op-v1",
+                  "plan": dict(_stub)}
+            op["op_sha256"] = _canon(
+                {k: v for k, v in op.items() if k != "op_sha256"})
+            with open(opp, "w", encoding="utf-8") as f:
+                json.dump(op, f)
+            check("F2b resume gate refuses a digest that is not "
+                  "the ORIGINAL accepted plan's (op record "
+                  "constructed healthy)",
+                  refuses(lambda: run("apply", "HEAD", "0" * 64),
+                          "FINALIZER_PLAN_IDENTITY"))
+            _stub2 = dict(_stub, frozen_ledger_sha256="c" * 64)
+            globals()["build_plan"] = (
+                lambda mc: (_stub2, None, None, [], None, {}))
+            check("F2c resume refuses when the frozen ledger "
+                  "changed since the accepted plan",
+                  refuses(lambda: run("apply", "HEAD", "a" * 64),
+                          "FINALIZER_INPUT_CHANGED"))
+            op["plan"]["plan_sha256"] = "9" * 64
+            with open(opp, "w", encoding="utf-8") as f:
+                json.dump(op, f)
+            check("F2d a tampered operation record refuses as "
+                  "DEFORMED before any identity comparison",
+                  refuses(lambda: run("apply", "HEAD", "a" * 64),
+                          "FINALIZER_OP_RECORD_DEFORMED"))
+    finally:
+        globals()["build_plan"] = _sav_bp
+        globals()["REPO"] = _sav_repo
     # F3 the presence-bijection counter distinguishes provenance
     import tempfile
     with tempfile.TemporaryDirectory() as td:

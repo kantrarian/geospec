@@ -193,6 +193,23 @@ VIC_REPAIR_LEDGER_PATH = ("docs/f2g_window2_execution/"
                           "capture_repair_ledger_v4_vic.jsonl")
 PREDECESSOR_RECORD_PATH = ("docs/f2g_window2_execution/"
                            "predecessor_bridge_record_v4.json")
+# codex 2240Z P0-1: the CLOSED retry-operation chain -- six exact
+# registered paths, including the mandatory transport receipt. Only a
+# fully verified chain may add the former-404 key to the admitted
+# partition; the frozen main ledger honestly still marks it REFUSED.
+RETRY_STEM = "mag_feed_new_2026-03-23"
+RETRY_DIR_REL = "docs/f2g_window2_execution/retry_404_v4/"
+RETRY_CHAIN_PATHS = {
+    "dispatch": RETRY_DIR_REL + RETRY_STEM + ".dispatch.json",
+    "transport_receipt": (RETRY_DIR_REL + "attempt_local/"
+                          + RETRY_STEM + ".transport_receipt.json"),
+    "prepared": RETRY_DIR_REL + RETRY_STEM + ".prepared.json",
+    "result": RETRY_DIR_REL + RETRY_STEM + ".result.json",
+    "classes_complete": (RETRY_DIR_REL + RETRY_STEM
+                         + ".classes_complete.json"),
+    "index": ("docs/f2g_window2_execution/"
+              "capture_retry_ledger_v4.jsonl"),
+}
 CAPTURE_LEDGER_PATH = ("docs/f2g_window2_execution/"
                        "capture_run_ledger_v4.jsonl")
 TERMINAL_RECEIPT_SCHEMA = "f2g-w2-capture-terminal-receipt-v1"
@@ -443,6 +460,12 @@ def authoritative_static_contract(authority, lane, carrier, day):
     return contract
 
 
+# fixture-only chain-validation context (mirrors the retry module's
+# _kat_allow_unpinned discipline): production leaves this EMPTY; the
+# selftest installs overrides and restores them
+_kat_chain_ctx = {}
+
+
 def _derive_admitted_partition(slot, blob_reader, manifest, groups,
                                 _canon):
     """codex 1547Z repair 2: the ADMITTED partition, derived from the
@@ -606,6 +629,60 @@ def _derive_admitted_partition(slot, blob_reader, manifest, groups,
         parts = str(k).split("/")
         if len(parts) == 3:
             admitted.add(tuple(parts))
+
+    # ---- codex 2240Z P0-1 + 2313Z P0-1: the retry-operation chain
+    # is validated by THE ONE shared semantic authority in the retry
+    # module (validate_admitted_chain) -- the admission boundary and
+    # retry finalization apply identical contracts, so a chain that
+    # finalization would refuse can never be admitted here, and vice
+    # versa. Pinned bytes in, semantics enforced there.
+    import w2_capture_retry_404_v4_cayley as RETRY
+
+    def _chain_json(member):
+        return json.loads(_pin_bytes(RETRY_CHAIN_PATHS[member])
+                          .decode("utf-8"))
+
+    idx_rows = [json.loads(x) for x in
+                _pin_bytes(RETRY_CHAIN_PATHS["index"]).decode("utf-8")
+                .splitlines() if x.strip()]
+    if len(idx_rows) != 1:
+        raise InstrumentRefusal(
+            "PRESTART_ADMISSION_REFUSED: retry chain: index carries "
+            f"{len(idx_rows)} rows; exactly one")
+    rk = RETRY.TARGET_KEY
+    rlane, rck, rday = rk.split("/")
+    rcls = groups.get((rlane, rck), {})
+    inv_obj = json.loads(inv_raw.decode("utf-8"))
+    try:
+        RETRY.validate_admitted_chain(
+            {"dispatch": _chain_json("dispatch"),
+             "transport_receipt": _chain_json("transport_receipt"),
+             "prepared": _chain_json("prepared"),
+             "result": _chain_json("result"),
+             "classes_complete": _chain_json("classes_complete"),
+             "index": idx_rows[0]},
+            {"ledger_raw": led_raw,
+             "expect_entry_sha": _kat_chain_ctx.get(
+                 "expect_entry_sha", RETRY.ORIGINAL_ENTRY_SHA256),
+             "class_objs": {cls: rcls.get(cls, {}).get(rday)
+                            for cls in STAGED_CLASS_SUFFIX},
+             "inventory_entry":
+                 (inv_obj.get("objects") or {}).get(rk),
+             "require_inventory": True,
+             "allow_unpinned": _kat_chain_ctx.get("allow_unpinned",
+                                                  False),
+             "resolve_commit": _kat_chain_ctx.get("resolve_commit"),
+             "reopen_manifest":
+                 _kat_chain_ctx.get("reopen_manifest")})
+    except SystemExit as exc:
+        raise InstrumentRefusal(
+            f"PRESTART_ADMISSION_REFUSED: retry chain: {exc}")
+    if rk not in ref_keys:
+        raise InstrumentRefusal(
+            "PRESTART_ADMISSION_REFUSED: retry chain: the retry key "
+            "is not in the terminal receipt's REFUSED partition")
+
+    admitted.add((rlane, rck, rday))
     return admitted
 
 
@@ -2305,13 +2382,14 @@ def _selftest():
     print("  1547Z r1: consumer parses v4, refuses RETIRED v3 and "
           "foreign prefixes typed")
 
-    # ---- codex 1547Z repair 2: derivation-unit doctors ------------
-    # Fixture slot/blob/groups drive _derive_admitted_partition
-    # directly. These verify the EVIDENCE SEMANTICS (recompute +
-    # join + typed refusal per doctored record); the full-path
-    # derivation door is exercised by the shared bar's archive-gate
-    # doctor, which now reaches it with the same refusal needle.
+    # ---- codex 1547Z repair 2 + 2240Z P0-1: derivation doctors --
+    # ONE consolidated fixture: the three operation-evidence records
+    # AND the six-member retry chain, because the production
+    # derivation requires the chain unconditionally (the retry
+    # happened; the frozen ledger honestly still marks its key
+    # REFUSED, and only the verified chain may admit it).
     import w2_predecessor_bridge_cayley as _PB
+    import w2_capture_retry_404_v4_cayley as _RETRY
 
     def _dig(b):
         return hashlib.sha256(b).hexdigest()
@@ -2321,15 +2399,32 @@ def _selftest():
             o, sort_keys=True, separators=(",", ":")).encode()
             ).hexdigest()
 
+    _rk = _RETRY.TARGET_KEY
+    _rlane, _rck, _rday = _rk.split("/")
+    _r_body_sha = "77" * 32
+    _r_tr = {"raw_body_sha256": _r_body_sha, "lane": _rlane,
+             "carrier": _rck, "utc_day": _rday,
+             "requested_url": _RETRY.REGISTERED_REQUEST_URL,
+             "effective_url": _RETRY.REGISTERED_REQUEST_URL,
+             "http_status": 200, "raw_body_bytes": 5}
+    _r_rec = {"raw_body_sha256": _r_body_sha, "kat": "record"}
+    _r_ct = {"kat": "contract"}
+    _r_art = {"kat": "artifact"}
+    _r_map = {"contract": _canon(_r_ct), "artifact": _canon(_r_art),
+              "record": _canon(_r_rec), "transcript": _canon(_r_tr)}
+
     _led_rows = [
         {"key": "MAG_FEED/new/2026-01-01", "seq": 0,
          "status": "CAPTURED"},
         {"key": "MAG_FEED/vic/2026-01-01", "seq": 1,
          "status": "REFUSED", "refusal": "frame"},
+        {"key": _rk, "seq": 81, "status": "REFUSED",
+         "refusal": "CAPTURE_HTTP_STATUS: 404"},
     ]
     _led_raw = ("\n".join(json.dumps(r, sort_keys=True)
                           for r in _led_rows) + "\n").encode()
-    _inv_raw = b'{"objects": {}}'
+    _inv_raw = json.dumps(
+        {"objects": {_rk: {"path": _r_body_sha + ".body"}}}).encode()
     _vic_tr = {"raw_body_sha256": "ab" * 32}
     _pred_tr = {"raw_body_sha256": "cd" * 32}
     _pred_art = {"outcome": "ADMITTED"}
@@ -2337,11 +2432,17 @@ def _selftest():
                                      {"2026-01-01": _vic_tr}},
                ("MAG_WEATHER_FEED", "omni"): {
                    "transcript": {"2026-01-01": _pred_tr},
-                   "artifact": {"2026-01-01": _pred_art}}}
+                   "artifact": {"2026-01-01": _pred_art}},
+               (_rlane, _rck): {
+                   "contract": {_rday: _r_ct},
+                   "artifact": {_rday: _r_art},
+                   "record": {_rday: _r_rec},
+                   "transcript": {_rday: _r_tr}}}
     _receipt = {"schema": TERMINAL_RECEIPT_SCHEMA,
-                "ledger_sha256": _dig(_led_raw), "ledger_lines": 2,
+                "ledger_sha256": _dig(_led_raw), "ledger_lines": 3,
                 "admitted_keys": ["MAG_FEED/new/2026-01-01"],
-                "refused_keys": ["MAG_FEED/vic/2026-01-01"],
+                "refused_keys": sorted(
+                    ["MAG_FEED/vic/2026-01-01", _rk]),
                 "inventory_sha256": _dig(_inv_raw)}
     _rep_rows = [{"key": "MAG_FEED/vic/2026-01-01",
                   "raw_body_sha256": "ab" * 32,
@@ -2355,26 +2456,109 @@ def _selftest():
     _brec["bridge_sha256"] = _canon(
         {k: v for k, v in _brec.items() if k != "bridge_sha256"})
     _capsule = {"http_capture": ["MAG_FEED/new/2026-01-01",
-                                 "MAG_FEED/vic/2026-01-01"],
+                                 "MAG_FEED/vic/2026-01-01", _rk],
                 "predecessor": ["MAG_WEATHER_FEED/omni/2026-01-01"],
                 "reuse_or_bridge": []}
+    # FULL valid response evidence: the shared chain authority now
+    # applies the retry module's transport value checks, so the
+    # fixture must construct genuine semantics, not a shape token
+    _ev = {"status": 200,
+           "requested_url": _RETRY.REGISTERED_REQUEST_URL,
+           "effective_url": _RETRY.REGISTERED_REQUEST_URL,
+           "request_start_utc": "2026-08-27T21:51:00Z",
+           "response_complete_utc": "2026-08-27T21:51:02Z",
+           "headers": {}, "body_bytes_seen": 5}
 
-    def _mk_blobs(receipt=None, rep_rows=None, brec=None,
-                  led=None):
+    def _sd(obj, field):
+        obj[field] = _canon({k: v for k, v in obj.items()
+                             if k != field})
+        return obj
+
+    def _mk_chain(**over):
+        d = {"schema": "f2g-w2-retry-404-dispatch-v1", "key": _rk,
+             "owner_authorization": "kat", "contract": "kat",
+             "original_ledger": {"path": CAPTURE_LEDGER_PATH,
+                                 "sha256": _dig(_led_raw),
+                                 "seq": 81,
+                                 "entry_sha256":
+                                     _canon(_led_rows[2])},
+             "manifest_commit": "a" * 40,
+             "manifest_blob_sha256": "b" * 64,
+             "capsule_pin_commit": "c" * 40,
+             "capsule_sha256": "d" * 64,
+             "attempt_id": "f" * 32,
+             "executed_code": {"path": "kat",
+                               "disk_sha256": "0" * 64,
+                               "pin_commit": None,
+                               "pin_blob_sha256": None,
+                               "note": "kat"},
+             "store": {"id": "kat", "root": "kat"},
+             "expected_classes": ["kat"],
+             "registered_request_url":
+                 _RETRY.REGISTERED_REQUEST_URL,
+             "max_logical_http_operations": 1,
+             "vic_http_operations": 0,
+             "dispatched_utc": "2026-08-27T21:50:00Z"}
+        _sd(d, "dispatch_sha256")
+        rcpt = {"schema": "f2g-w2-retry-transport-receipt-v1",
+                "kind": "response",
+                "dispatch_sha256": d["dispatch_sha256"],
+                "attempt_id": d["attempt_id"], "evidence": dict(_ev)}
+        _sd(rcpt, "receipt_sha256")
+        pr = {"schema": "f2g-w2-retry-prepared-v1", "key": _rk,
+              "dispatch_sha256": d["dispatch_sha256"],
+              "outcome": "CAPTURED_ADMITTED",
+              "class_canon_sha256": dict(_r_map),
+              "opener_calls": 1, "transport": dict(_ev),
+              "terminal_ledger_sha256_recomputed": _dig(_led_raw),
+              "terminal_ledger_unchanged": True,
+              "completed_utc": "2026-08-27T21:53:00Z"}
+        _sd(pr, "prepared_sha256")
+        # the canonical projection ITSELF, via the retry module's
+        # projector -- the chain authority requires exact equality
+        res = _RETRY._expected_admitted_result(
+            {"expect_url": _RETRY.REGISTERED_REQUEST_URL}, d, pr,
+            _r_rec)
+        mark = {"schema": "f2g-w2-retry-classes-complete-v1",
+                "key": _rk, "class_canon_sha256": dict(_r_map)}
+        idx = {"key": _rk, "outcome": "CAPTURED_ADMITTED",
+               "dispatch_sha256": d["dispatch_sha256"],
+               "result_sha256": res["result_sha256"],
+               "opener_calls": 1,
+               "http_operations_authorized": 1}
+        chain = {"dispatch": d, "transport_receipt": rcpt,
+                 "prepared": pr, "result": res,
+                 "classes_complete": mark, "index": idx}
+        chain.update(over)
+        return chain
+
+    def _mk_blobs(receipt=None, rep_rows=None, brec=None, led=None,
+                  inv=None, chain=None, drop=None):
         receipt = _receipt if receipt is None else receipt
-        rep_rows = _rep_rows if rep_rows is None else rep_rows
-        brec = _brec if brec is None else brec
-        led = _led_raw if led is None else led
+        rep_rows2 = _rep_rows if rep_rows is None else rep_rows
+        brec2 = _brec if brec is None else brec
+        led2 = _led_raw if led is None else led
+        inv2 = _inv_raw if inv is None else inv
+        chain = _mk_chain() if chain is None else chain
         rep_raw = ("\n".join(json.dumps(r, sort_keys=True)
-                             for r in rep_rows)
-                   + ("\n" if rep_rows else "")).encode()
+                             for r in rep_rows2)
+                   + ("\n" if rep_rows2 else "")).encode()
         blobs = {TERMINAL_RECEIPT_PATH:
                  json.dumps(receipt).encode(),
-                 CAPTURE_LEDGER_PATH: led,
+                 CAPTURE_LEDGER_PATH: led2,
                  VIC_REPAIR_LEDGER_PATH: rep_raw,
                  PREDECESSOR_RECORD_PATH:
-                 json.dumps(brec).encode(),
-                 STAGED_PREFIX + STAGED_INVENTORY_BASENAME: _inv_raw}
+                 json.dumps(brec2).encode(),
+                 STAGED_PREFIX + STAGED_INVENTORY_BASENAME: inv2}
+        for m, pth in RETRY_CHAIN_PATHS.items():
+            if m == drop:
+                continue
+            obj = chain[m]
+            if m == "index":
+                blobs[pth] = (json.dumps(obj, sort_keys=True)
+                              + "\n").encode()
+            else:
+                blobs[pth] = json.dumps(obj).encode()
         slot = {"status": "BOUND", "pins": [
             {"path": pth, "commit": "kat",
              "blob_sha256": _dig(raw)}
@@ -2385,14 +2569,21 @@ def _selftest():
         return slot, blob
 
     _real_cap = globals()["_registered_disposition_capsule"]
-    globals()["_registered_disposition_capsule"] =         lambda manifest, blob_reader: _capsule
+    globals()["_registered_disposition_capsule"] = \
+        lambda manifest, blob_reader: _capsule
+    globals()["_kat_chain_ctx"] = {"allow_unpinned": True,
+                                   "resolve_commit": str,
+                                   "reopen_manifest": str,
+                                   "expect_entry_sha":
+                                       _canon(_led_rows[2])}
     try:
         slot, blob = _mk_blobs()
         adm = _derive_admitted_partition(slot, blob, {}, _groups,
                                          _canon)
         assert adm == {("MAG_FEED", "new", "2026-01-01"),
                        ("MAG_FEED", "vic", "2026-01-01"),
-                       ("MAG_WEATHER_FEED", "omni", "2026-01-01")}, adm
+                       ("MAG_WEATHER_FEED", "omni", "2026-01-01"),
+                       (_rlane, _rck, _rday)}, adm
 
         def _must_refuse(needle, **over):
             slot2, blob2 = _mk_blobs(**over)
@@ -2404,70 +2595,53 @@ def _selftest():
             except InstrumentRefusal as e:
                 assert needle in str(e), \
                     f"wanted {needle!r} got {str(e)[:140]!r}"
-        # terminal receipt doctored: partition lie
+        # ---- the 1547Z three-record doctors, over the merged fixture
         _must_refuse("partition does not recompute",
                      receipt=dict(_receipt,
                                   admitted_keys=[
                                       "MAG_FEED/new/2026-01-01",
                                       "MAG_FEED/vic/2026-01-01"],
-                                  refused_keys=[]))
-        # ledger bytes swapped: receipt digest no longer recomputes
+                                  refused_keys=[_rk]))
         _must_refuse("ledger_sha256 does not recompute",
                      led=b'{"key": "x"}\n')
-        # vic set short
         _must_refuse("not exactly the registered VIC key set",
                      rep_rows=[])
-        # vic entry claims HTTP
         _must_refuse("the replay is zero-HTTP",
                      rep_rows=[dict(_rep_rows[0], http_requests=1)])
-        # vic entry not joined to its staged transcript
         _must_refuse("not joined to its staged",
                      rep_rows=[dict(_rep_rows[0],
                                     raw_body_sha256="ee" * 32)])
-        # bridge record forged: self-digest breaks
         _must_refuse("bridge_sha256 does not recompute",
                      brec=dict(_brec, artifact_sha256="ff" * 32))
-        # bridge record names the wrong key (re-digested so ONLY the
-        # key binding fails, not the self-digest)
         _wrong = {k: v for k, v in _brec.items()
                   if k != "bridge_sha256"}
         _wrong["utc_day"] = "2026-01-02"
         _wrong["bridge_sha256"] = _canon(_wrong)
         _must_refuse("capsule registers", brec=_wrong)
-        # codex 1705Z repair 1 KAT: a same-basename DECOY inventory
-        # ordered before the exact registered pin. A receipt binding
-        # the decoy digest must refuse; the receipt binding the exact
-        # registered inventory must pass (the positive above).
-        _slotD, _blobD = _mk_blobs()
+        # decoy inventory at a same-basename unregistered path
         _decoy_raw = b'{"objects": {"forged": 1}}'
-        _decoy = {"path": "docs/attacker/"
-                          + STAGED_INVENTORY_BASENAME,
-                  "commit": "kat",
-                  "blob_sha256": _dig(_decoy_raw)}
+        _slotD, _blobD = _mk_blobs(
+            receipt=dict(_receipt,
+                         inventory_sha256=_dig(_decoy_raw)))
         _slotD = {"status": "BOUND",
-                  "pins": [_decoy] + list(_slotD["pins"])}
-        _blobsD = {"docs/attacker/"
-                   + STAGED_INVENTORY_BASENAME: _decoy_raw}
+                  "pins": [{"path": "docs/attacker/"
+                            + STAGED_INVENTORY_BASENAME,
+                            "commit": "kat",
+                            "blob_sha256": _dig(_decoy_raw)}]
+                  + list(_slotD["pins"])}
+        _bD = _blobD
 
-        def _blobD2(commit, pth, _inner=_blobD):
-            return _blobsD.get(pth) or _inner(commit, pth)
-        _rcptD = dict(_receipt, inventory_sha256=_dig(_decoy_raw))
-        _slotD2 = {"status": "BOUND", "pins": [
-            q if q["path"] != TERMINAL_RECEIPT_PATH else
-            {"path": TERMINAL_RECEIPT_PATH, "commit": "kat",
-             "blob_sha256": _dig(json.dumps(_rcptD).encode())}
-            for q in _slotD["pins"]]}
-        _blobsD[TERMINAL_RECEIPT_PATH] = json.dumps(_rcptD).encode()
+        def _blobD2(commit, pth):
+            if pth == "docs/attacker/" + STAGED_INVENTORY_BASENAME:
+                return _decoy_raw
+            return _bD(commit, pth)
         try:
-            _derive_admitted_partition(_slotD2, _blobD2, {}, _groups,
+            _derive_admitted_partition(_slotD, _blobD2, {}, _groups,
                                        _canon)
-            raise AssertionError("a receipt binding a same-basename "
-                                 "DECOY inventory must refuse")
+            raise AssertionError("decoy inventory must refuse")
         except InstrumentRefusal as e:
             assert "EXACT registered" in str(e), str(e)[:140]
-
-        # a missing evidence pin refuses WITH the archive needle the
-        # shared bar's doctor asserts
+        # a missing evidence pin refuses WITH the archive needle
         _slot3, _blob3 = _mk_blobs()
         _slot3 = {"status": "BOUND",
                   "pins": [q for q in _slot3["pins"]
@@ -2478,11 +2652,110 @@ def _selftest():
             raise AssertionError("missing receipt pin must refuse")
         except InstrumentRefusal as e:
             assert "no capture-run archive was supplied" in str(e)
+        print("  1547Z r2: admitted partition derives from pinned "
+              "operation records; every doctored record refuses "
+              "typed; missing pins carry the archive needle")
+
+        # ---- the 2240Z P0-1 retry-chain doctors -------------------
+        for m in RETRY_CHAIN_PATHS:
+            _must_refuse("lacks exactly one", drop=m)
+        _c = _mk_chain()
+        _c["dispatch"] = dict(_c["dispatch"], contract="doctored")
+        _must_refuse("RETRY_RECORD_SELF_DIGEST", chain=_c)
+        # result-only forgery, in BOTH shapes: an incoherent rewrite
+        # dies at the identity join; a COHERENT result+index rewrite
+        # must still die at the cross-member map divergence
+        _c = _mk_chain()
+        _r2 = dict(_c["result"])
+        _r2["scientific"] = dict(_r2["scientific"],
+                                 classes_published={"x": "y"})
+        _sd(_r2, "result_sha256")
+        _c["result"] = _r2
+        _must_refuse("identities do not join", chain=_c)
+        _c["index"] = dict(_c["index"],
+                           result_sha256=_r2["result_sha256"])
+        # the shared authority catches the COHERENT rewrite at the
+        # canonical-projection equality, upstream of the map check
+        _must_refuse("canonical projection", chain=_c)
+        _c = _mk_chain()
+        _d2 = dict(_c["dispatch"], key="MAG_FEED/vic/2026-01-01")
+        _sd(_d2, "dispatch_sha256")
+        _c["dispatch"] = _d2
+        _must_refuse("RETRY_RECORD_WRONG_KEY", chain=_c)
+        for n in (0, 2):
+            _c = _mk_chain()
+            _p2 = dict(_c["prepared"], opener_calls=n)
+            _sd(_p2, "prepared_sha256")
+            _c["prepared"] = _p2
+            _must_refuse("one-opener", chain=_c)
+        _c = _mk_chain()
+        _p2 = dict(_c["prepared"],
+                   terminal_ledger_sha256_recomputed="9" * 64)
+        _sd(_p2, "prepared_sha256")
+        _c["prepared"] = _p2
+        _must_refuse("unchanged-ledger", chain=_c)
+        _c = _mk_chain()
+        _c["classes_complete"] = {
+            "schema": "f2g-w2-retry-classes-complete-v1",
+            "key": _rk,
+            "class_canon_sha256": dict(_r_map, record="8" * 64)}
+        _must_refuse("diverge across", chain=_c)
+        # published class divergence (groups-side)
+        _g3 = dict(_groups)
+        _g3[(_rlane, _rck)] = dict(
+            _groups[(_rlane, _rck)],
+            artifact={_rday: {"kat": "tampered"}})
+        slotX, blobX = _mk_blobs()
+        try:
+            _derive_admitted_partition(slotX, blobX, {}, _g3, _canon)
+            raise AssertionError("class divergence must refuse")
+        except InstrumentRefusal as e:
+            assert "does not recompute to the chain" in str(e)
+        # codex 2313Z P0-1: the coherent ALL-SIX-member 599 + evil
+        # URL mutation -- every self-digest recomputed, every
+        # cross-member equality preserved; only SEMANTICS can refuse
+        _evil_ev = dict(_ev, status=599,
+                        requested_url="evil://not-the-dispatched-url",
+                        effective_url="evil://not-the-dispatched-url")
+        _c = _mk_chain()
+        _d6 = {k: v for k, v in _c["dispatch"].items()
+               if k != "dispatch_sha256"}
+        _sd(_d6, "dispatch_sha256")
+        _rc6 = {"schema": "f2g-w2-retry-transport-receipt-v1",
+                "kind": "response",
+                "dispatch_sha256": _d6["dispatch_sha256"],
+                "attempt_id": _d6["attempt_id"],
+                "evidence": dict(_evil_ev)}
+        _sd(_rc6, "receipt_sha256")
+        _p6 = {k: v for k, v in _c["prepared"].items()
+               if k != "prepared_sha256"}
+        _p6["transport"] = dict(_evil_ev)
+        _p6["dispatch_sha256"] = _d6["dispatch_sha256"]
+        _sd(_p6, "prepared_sha256")
+        _r6 = _RETRY._expected_admitted_result(
+            {"expect_url": _RETRY.REGISTERED_REQUEST_URL}, _d6,
+            _p6, _r_rec)
+        _i6 = _RETRY._index_entry_of(_d6, _r6)
+        _c6 = {"dispatch": _d6, "transport_receipt": _rc6,
+               "prepared": _p6, "result": _r6,
+               "classes_complete": _c["classes_complete"],
+               "index": _i6}
+        _must_refuse("RETRY_CHAIN_SEMANTICS", chain=_c6)
+
+        # inventory/body divergence
+        _inv_bad = json.dumps({"objects": {
+            _rk: {"path": "0" * 64 + ".body"}}}).encode()
+        _must_refuse("joined through the final inventory",
+                     inv=_inv_bad,
+                     receipt=dict(_receipt,
+                                  inventory_sha256=_dig(_inv_bad)))
     finally:
         globals()["_registered_disposition_capsule"] = _real_cap
-    print("  1547Z r2: admitted partition derives from pinned "
-          "operation records; every doctored record refuses typed; "
-          "missing pins carry the archive needle")
+        globals()["_kat_chain_ctx"] = {}
+    print("  2240Z P0-1: the verified six-member retry chain admits "
+          "the former-404 key; every omitted/mutated member, "
+          "forgery, wrong key, opener 0/2, ledger change, marker "
+          "divergence and inventory divergence refuses typed")
 
     print("w2_accrual_instrument selftest: ALL PASS")
 

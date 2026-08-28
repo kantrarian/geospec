@@ -151,6 +151,11 @@ BOUND_SLOTS = {
                   # executed disk bytes. Operation bytes, same
                   # authority as the capture runner it succeeds.
                   "monitoring/src/w2_capture_retry_404_v4_cayley.py",
+                  # codex 2240Z P0-2: the ONE reviewed zero-network
+                  # production finalizer (plan/apply) for the two
+                  # remaining zero-HTTP class families -- operation
+                  # orchestration, so accrual_impl authority
+                  "monitoring/src/w2_zero_http_finalizer_cayley.py",
                   # codex 0532Z: already-committed production-operation
                   # code that was pinned NOWHERE. It stages the single
                   # non-capture key (MAG_WEATHER_FEED/omni/2026-01-01),
@@ -389,6 +394,17 @@ PRODUCER_BOUNDARY_REQUIRED = {
     "terminal_receipt": _ACCM.TERMINAL_RECEIPT_PATH,
     "vic_repair_records": _ACCM.VIC_REPAIR_LEDGER_PATH,
     "predecessor_bridge_record": _ACCM.PREDECESSOR_RECORD_PATH,
+    # codex 2240Z P0-1: the six-member CLOSED retry-operation chain,
+    # including the mandatory transport receipt -- registered from
+    # the admission consumer's table so the three layers cannot drift
+    "retry_dispatch": _ACCM.RETRY_CHAIN_PATHS["dispatch"],
+    "retry_transport_receipt":
+        _ACCM.RETRY_CHAIN_PATHS["transport_receipt"],
+    "retry_prepared": _ACCM.RETRY_CHAIN_PATHS["prepared"],
+    "retry_result": _ACCM.RETRY_CHAIN_PATHS["result"],
+    "retry_classes_complete":
+        _ACCM.RETRY_CHAIN_PATHS["classes_complete"],
+    "retry_index": _ACCM.RETRY_CHAIN_PATHS["index"],
 }
 
 

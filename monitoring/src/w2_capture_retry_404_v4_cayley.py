@@ -1399,6 +1399,200 @@ def fire(manifest_commit, _kat_io=None):
     return result
 
 
+INDEX_FIELDS = frozenset({
+    "key", "outcome", "dispatch_sha256", "result_sha256",
+    "opener_calls", "http_operations_authorized"})
+MARKER_FIELDS = frozenset({"schema", "key", "class_canon_sha256"})
+RECEIPT_FIELDS = frozenset({
+    "schema", "kind", "dispatch_sha256", "attempt_id", "evidence",
+    "receipt_sha256"})
+
+
+def validate_admitted_chain(chain, ctx):
+    """codex 2313Z P0-1: THE one read-only semantic authority for an
+    ADMITTED retry chain, shared by retry finalization and the
+    admission boundary -- pinned-and-self-digested is integrity, this
+    is semantic validity. `chain` maps the six members
+    (dispatch/transport_receipt/prepared/result/classes_complete/
+    index -- index as the ONE parsed row). `ctx`:
+
+      ledger_raw        the frozen terminal ledger bytes (pinned)
+      expect_entry_sha  the registered original-entry digest
+      class_objs        {cls: obj} -- the four published class objects
+      inventory_entry   the final inventory's entry for the key, or
+                        None with require_inventory False
+      require_inventory bool
+      resolve_commit    fixture-only override of _resolve_commit
+      reopen_manifest   fixture-only override returning manifest raw
+                        bytes for (commit); None skips the reopen
+                        joins ONLY when allow_unpinned is set
+      allow_unpinned    fixture-only (mirrors _kat_allow_unpinned)
+
+    Raises RetryRefusal typed on the first violation."""
+    d = chain["dispatch"]
+    rcpt = chain["transport_receipt"]
+    pr = chain["prepared"]
+    res = chain["result"]
+    mark = chain["classes_complete"]
+    idx = chain["index"]
+
+    def _ref(detail):
+        _refuse("RETRY_CHAIN_SEMANTICS", detail)
+
+    # closed records + self-digests
+    _validate_record(d, DISPATCH_FIELDS, "dispatch_sha256",
+                     "f2g-w2-retry-404-dispatch-v1", "dispatch")
+    _validate_record(pr, PREPARED_FIELDS, "prepared_sha256",
+                     "f2g-w2-retry-prepared-v1", "prepared")
+    _validate_record(res, RESULT_FIELDS, "result_sha256",
+                     "f2g-w2-retry-404-result-v1", "result")
+    if not isinstance(rcpt, dict) or set(rcpt) != RECEIPT_FIELDS or \
+            rcpt.get("schema") != \
+            "f2g-w2-retry-transport-receipt-v1" or \
+            rcpt.get("kind") != "response":
+        _ref("transport receipt is not the closed response record")
+    if _canon_entry_digest({k: v for k, v in rcpt.items()
+                            if k != "receipt_sha256"}) != \
+            rcpt.get("receipt_sha256"):
+        _ref("transport receipt self-digest does not recompute")
+    if not isinstance(mark, dict) or set(mark) != MARKER_FIELDS or \
+            mark.get("schema") != "f2g-w2-retry-classes-complete-v1":
+        _ref("completion marker is not the closed record")
+    if not isinstance(idx, dict) or set(idx) != INDEX_FIELDS:
+        _ref("index row is not the closed keyset")
+
+    # dispatch semantic identity, through the shared validator (the
+    # registered ledger/URL/store/module/ceiling joins + manifest and
+    # capsule reopening, with the fixture-only overrides mirrored)
+    exp_led = _sha(ctx["ledger_raw"])
+    io_ctx = {"expect_ledger_sha": exp_led,
+              "expect_entry_sha": ctx["expect_entry_sha"],
+              "expect_url": REGISTERED_REQUEST_URL,
+              "_kat_allow_unpinned": bool(ctx.get("allow_unpinned")),
+              "stem": CAP._path_tokens(TARGET_LANE, TARGET_CARRIER,
+                                       TARGET_DAY)}
+    if ctx.get("resolve_commit") is None and \
+            ctx.get("reopen_manifest") is None:
+        _validate_dispatch_semantics(d, io_ctx)
+    else:
+        # fixture context: the pure joins minus the git reopen
+        if not ctx.get("allow_unpinned"):
+            _ref("fixture overrides require the explicit unpinned "
+                 "context")
+        if d.get("registered_request_url") != REGISTERED_REQUEST_URL:
+            _ref("dispatch URL is not the registered URL")
+        if d.get("max_logical_http_operations") != 1 or \
+                d.get("vic_http_operations") != 0:
+            _ref("the one-shot ceiling invariants do not hold")
+        ol = d.get("original_ledger") or {}
+        if ol.get("sha256") != exp_led or \
+                ol.get("seq") != ORIGINAL_SEQ or \
+                ol.get("entry_sha256") != ctx["expect_entry_sha"]:
+            _ref("original-ledger binding does not recompute")
+
+    # the one key, everywhere
+    for what, obj in (("dispatch", d), ("prepared", pr),
+                      ("result", res), ("marker", mark),
+                      ("index", idx)):
+        if obj.get("key") != TARGET_KEY:
+            _ref(f"{what} names {obj.get('key')!r}, not the "
+                 "registered former-404 key")
+    # the frozen ledger still marks it REFUSED (never double-admit)
+    rows = [json.loads(x) for x in
+            ctx["ledger_raw"].decode("utf-8").splitlines()
+            if x.strip()]
+    hit = [r for r in rows if r.get("key") == TARGET_KEY]
+    if len(hit) != 1 or hit[0].get("status") != "REFUSED" or \
+            hit[0].get("seq") != ORIGINAL_SEQ:
+        _ref("the frozen ledger does not carry exactly one REFUSED "
+             "seq-81 entry for the key")
+    if _canon_entry_digest(hit[0]) != ctx["expect_entry_sha"]:
+        _ref("the original entry digest does not recompute")
+
+    # identity joins + attempt identity
+    dsha = d["dispatch_sha256"]
+    if rcpt.get("dispatch_sha256") != dsha or \
+            rcpt.get("attempt_id") != d.get("attempt_id") or \
+            pr.get("dispatch_sha256") != dsha or \
+            res.get("dispatch_sha256") != dsha or \
+            idx.get("dispatch_sha256") != dsha or \
+            idx.get("result_sha256") != res.get("result_sha256"):
+        _ref("dispatch/attempt/result identities do not join across "
+             "the chain")
+    # index closure: exact reconstruction + the HTTP authorization
+    if idx != _index_entry_of(d, res):
+        _ref("the index row does not equal its reconstruction from "
+             "dispatch+result")
+    if idx.get("http_operations_authorized") != 1 or \
+            idx.get("opener_calls") != 1:
+        _ref("the index does not bind the one-operation ceiling")
+
+    # response semantics: full transport member value checks + the
+    # receipt equality, against the published transcript
+    tr = ctx["class_objs"].get("transcript")
+    if tr is None:
+        _ref("the published transcript is required for chain "
+             "validation")
+    if pr.get("transport") != rcpt["evidence"] or \
+            res.get("transport") != rcpt["evidence"]:
+        _ref("transport projections do not equal the receipt")
+    _validate_transport_value(rcpt["evidence"], io_ctx, "response",
+                              "RETRY_CHAIN_SEMANTICS")
+    ev = rcpt["evidence"]
+    if ev.get("requested_url") != tr.get("requested_url") or \
+            ev.get("effective_url") != tr.get("effective_url") or \
+            ev.get("status") != tr.get("http_status") or \
+            ev.get("body_bytes_seen") != tr.get("raw_body_bytes"):
+        _ref("transport projection does not equal the published "
+             "transcript")
+    # prepared/result semantics + canonical projection
+    if pr.get("outcome") != "CAPTURED_ADMITTED" or \
+            pr.get("opener_calls") != 1 or \
+            pr.get("terminal_ledger_sha256_recomputed") != exp_led \
+            or pr.get("terminal_ledger_unchanged") is not True:
+        _ref("prepared does not bind the admitted one-opener "
+             "unchanged-ledger projection")
+    _require_phase_order("RETRY_CHAIN_SEMANTICS",
+                        d.get("dispatched_utc"),
+                        ev.get("request_start_utc"),
+                        ev.get("response_complete_utc"),
+                        pr.get("completed_utc"))
+    rec = ctx["class_objs"].get("record")
+    want_res = _expected_admitted_result(io_ctx, d, pr, rec)
+    if res != want_res:
+        diffs = sorted(k for k in set(res) | set(want_res)
+                       if res.get(k) != want_res.get(k))
+        _ref("the admitted result does not equal the canonical "
+             f"projection (fields: {diffs[:4]})")
+    # four class maps, recomputed from the published objects
+    want_map = mark.get("class_canon_sha256")
+    if not isinstance(want_map, dict) or \
+            set(want_map) != set(ACC.STAGED_CLASS_SUFFIX) or \
+            want_map != pr.get("class_canon_sha256") or \
+            want_map != (res.get("scientific") or {}).get(
+                "classes_published"):
+        _ref("class digest maps diverge across "
+             "marker/prepared/result")
+    for cls in ACC.STAGED_CLASS_SUFFIX:
+        obj = ctx["class_objs"].get(cls)
+        if obj is None or PROD._canon_digest(obj) != \
+                want_map.get(cls):
+            _ref(f"published class {cls} does not recompute to the "
+                 "chain's bound digest")
+    # raw body digest + length + inventory/store join
+    if rec.get("raw_body_sha256") != tr.get("raw_body_sha256"):
+        _ref("record/transcript body digests diverge")
+    if tr.get("raw_body_bytes") != ev.get("body_bytes_seen"):
+        _ref("body length does not join transcript and evidence")
+    if ctx.get("require_inventory", True):
+        inv = ctx.get("inventory_entry")
+        if not inv or str(rec.get("raw_body_sha256", "")) not in \
+                str(inv.get("path", "")):
+            _ref("the raw body is not joined through the final "
+                 "inventory")
+    return True
+
+
 def _index_entry_of(dispatch, result):
     """The one-line index, RECONSTRUCTED from dispatch+result bytes --
     the only inputs -- so a crash-lost index is recoverable and a
@@ -1648,6 +1842,32 @@ def finalize(_kat_io=None):
             result, io, dispatch=dispatch, prepared=prepared,
             record=_arec)
         _write_json_create_once(io["result_path"], result)
+    if result.get("outcome") == "CAPTURED_ADMITTED":
+        # codex 2313Z P0-1: the SAME chain authority the admission
+        # boundary applies, run at retry finalization
+        with open(io["ledger_path"], "rb") as f:
+            _lr = f.read()
+        _objs = {cls: _attempt_obj(io, cls)
+                 for cls in ACC.STAGED_CLASS_SUFFIX}
+        _rc = _read_transport_receipt(io, dispatch=dispatch)
+        validate_admitted_chain(
+            {"dispatch": dispatch, "transport_receipt": _rc,
+             "prepared": prepared, "result": result,
+             "classes_complete": json.load(open(os.path.join(
+                 io["retry_dir"],
+                 stem + ".classes_complete.json"),
+                 encoding="utf-8")),
+             "index": _index_entry_of(dispatch, result)},
+            {"ledger_raw": _lr,
+             "expect_entry_sha": io["expect_entry_sha"],
+             "class_objs": _objs,
+             "inventory_entry": None,
+             "require_inventory": False,
+             "allow_unpinned": bool(io.get("_kat_allow_unpinned")),
+             "resolve_commit":
+                 (str if io.get("_kat_allow_unpinned") else None),
+             "reopen_manifest":
+                 (str if io.get("_kat_allow_unpinned") else None)})
     _finalize_index(io, dispatch, result)
     done["index"] = "present"
     print(f"RETRY FINALIZE: outcome={outcome} "

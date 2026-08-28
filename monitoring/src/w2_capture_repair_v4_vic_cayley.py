@@ -73,6 +73,11 @@ LEDGER = RUN4.LEDGER
 # checks derivation plumbing rather than two hand-typed literals
 REPAIR_LEDGER = os.path.join(REPO,
                              *ACC.VIC_REPAIR_LEDGER_PATH.split("/"))
+# codex 2313Z P0-3: per-key CREATE-ONCE repair receipts; the 212-line
+# ledger is generated ATOMICALLY from these objects -- never an
+# appended mutable tail that a crash can truncate mid-line
+RECEIPTS_DIR = os.path.join(REPO, "docs", "f2g_window2_execution",
+                            "vic_repair_receipts")
 
 TARGET_LANE = "MAG_FEED"
 TARGET_CARRIER = "vic"
@@ -212,7 +217,7 @@ def capsule_binding(repo=REPO, rel=EXEC_CAPSULE_REL):
 
 
 def replay_key(key, row, authority, *, staged_dir, store_read,
-               capsule, transform_identity):
+               capsule, transform_identity, dry=False):
     """One key, fully verified before and after the transform."""
     lane, ck, day = key.split("/")
     stem = _stem(lane, ck, day)
@@ -268,6 +273,60 @@ def replay_key(key, row, authority, *, staged_dir, store_read,
         {day: record}, {day: body}, {day: artifact}, {day: s},
         {day: t}, [day], ck, lane)
 
+    if dry:
+        # codex 2240Z P0-2 + 2313Z P0-2 plan mode: every verification
+        # and join has already run above; the preview binds the exact
+        # INPUT identities and every prospective OUTPUT digest,
+        # including the repair receipt -- nothing is written
+        # codex r2 review: dry mode must also perform the APPLY path's
+        # canonical-identity check against every output that already
+        # exists. Otherwise a plan can report verified over a
+        # divergent record that apply will immediately refuse.
+        for cls, path, want in (
+                ("contract", _cls_path(staged_dir, stem, "contract"), s),
+                ("artifact", _cls_path(staged_dir, stem, "artifact"),
+                 artifact),
+                ("record", rp, record)):
+            if not os.path.exists(path):
+                continue
+            try:
+                with open(path, encoding="utf-8") as f:
+                    have = json.load(f)
+            except Exception as exc:
+                _refuse("VIC_DRY_OUTPUT_DIVERGENT",
+                        f"{key}: existing {cls} is not readable JSON "
+                        f"({type(exc).__name__}: {str(exc)[:120]})")
+            if PROD._canon_digest(have) != PROD._canon_digest(want):
+                _refuse("VIC_DRY_OUTPUT_DIVERGENT",
+                        f"{key}: existing {cls} differs from the "
+                        "prospective create-once output")
+        preview_entry = {"key": key,
+                         "repair": REPAIR_ID,
+                         "proof_kind": PROOF_KIND,
+                         "original_seq": row.get("seq"),
+                         "original_refusal":
+                             str(row.get("refusal", ""))[:300],
+                         "raw_body_sha256": t["raw_body_sha256"],
+                         "raw_body_bytes": len(body),
+                         "transcript_sha256": PROD._canon_digest(t),
+                         "output_sha256": record["output_sha256"],
+                         "transform_identity": transform_identity,
+                         "http_requests": 0}
+        preview_entry.update(capsule)
+        entry_preview = {
+            "key": key,
+            "inputs": {"transcript_sha256": PROD._canon_digest(t),
+                       "raw_body_sha256": t["raw_body_sha256"],
+                       "static_contract_sha256":
+                           PROD._canon_digest(s)},
+            "would_write": {
+                "contract": PROD._canon_digest(s),
+                "artifact": PROD._canon_digest(artifact),
+                "record": PROD._canon_digest(record),
+                "repair_receipt": hashlib.sha256(json.dumps(
+                    preview_entry, sort_keys=True,
+                    separators=(",", ":")).encode()).hexdigest()}}
+        return "DRY_VERIFIED", entry_preview
     CAP._write_once_json(_cls_path(staged_dir, stem, "contract"), s,
                          "CAPTURE_RECORD_DIVERGENT")
     CAP._write_once_json(_cls_path(staged_dir, stem, "artifact"),
@@ -291,7 +350,7 @@ def replay_key(key, row, authority, *, staged_dir, store_read,
 
 def replay(authority, *, plan_keys, ledger_rows, staged_dir=None,
            store_read=None, repair_ledger=None, repo=REPO,
-           expect=EXPECTED_TARGET_COUNT):
+           expect=EXPECTED_TARGET_COUNT, dry=False):
     staged_dir = STAGED_DIR if staged_dir is None else staged_dir
     store_read = (default_store_reader(STORE) if store_read is None
                   else store_read)
@@ -303,47 +362,103 @@ def replay(authority, *, plan_keys, ledger_rows, staged_dir=None,
     targets = target_set(plan_keys, ledger_rows, expect=expect)
     by_key = {r["key"]: r for r in ledger_rows}
 
-    # codex 0551Z repair 2: the receipt append is IDEMPOTENT with a
-    # divergence refusal, never a blind append. An identical entry is
-    # recognized and not duplicated (record-without-receipt resume
-    # completes the receipt exactly once); a DIFFERENT entry for the
-    # same key refuses -- two divergent operation records for one key
-    # is an audit contradiction, not a resume.
-    existing = {}
-    if os.path.exists(repair_ledger):
-        with open(repair_ledger, encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if line:
-                    e = json.loads(line)
-                    existing.setdefault(e.get("key"), []).append(
-                        json.dumps(e, sort_keys=True))
+    # codex 1547Z repair 2 + 2313Z P0-3: idempotence now lives in
+    # the per-key CREATE-ONCE receipt objects; the ledger is a pure
+    # ATOMIC projection of them, generated after the loop
+    receipts_dir = os.path.dirname(repair_ledger) \
+        if repair_ledger != REPAIR_LEDGER else RECEIPTS_DIR
+    if repair_ledger != REPAIR_LEDGER:
+        receipts_dir = os.path.join(
+            os.path.dirname(repair_ledger), "vic_repair_receipts")
+    if not dry:
+        os.makedirs(receipts_dir, exist_ok=True)
     repaired = verified = receipts = 0
+    previews = {}
     for key in targets:
         state, entry = replay_key(
             key, by_key[key], authority, staged_dir=staged_dir,
             store_read=store_read, capsule=capsule,
-            transform_identity=ident)
-        canon = json.dumps(entry, sort_keys=True)
-        prev = existing.get(key, [])
-        if canon in prev:
-            receipts += 1          # receipt already present, identical
-        elif prev:
+            transform_identity=ident, dry=dry)
+        if dry:
+            repaired += 1
+            previews[key] = entry
+            continue
+        # codex 2313Z P0-3: per-key CREATE-ONCE receipt object --
+        # identical reuse, divergent refuse; a crash can never leave
+        # a truncated mutable tail
+        lane2, ck2, day2 = key.split("/")
+        rcpt_path = os.path.join(
+            receipts_dir, _stem(lane2, ck2, day2) + ".repair.json")
+        prior = os.path.exists(rcpt_path)
+        try:
+            CAP._write_once_json(rcpt_path, entry,
+                                 "VIC_REPAIR_ENTRY_DIVERGENT")
+        except CAP.CaptureRefusal as exc:
             _refuse("VIC_REPAIR_ENTRY_DIVERGENT",
-                    f"{key}: an existing repair entry differs from "
-                    "the reconstructed one")
-        else:
-            with open(repair_ledger, "a", encoding="utf-8",
-                      newline="\n") as f:
-                f.write(canon + "\n")
+                    f"{key}: {str(exc)[:160]}")
+        if prior:
+            receipts += 1
         if state == "REPAIRED":
             repaired += 1
         else:
             verified += 1
-    return {"targets": len(targets), "repaired": repaired,
+    if not dry:
+        # ---- the ATOMIC ledger projection: 212 lines generated from
+        # the create-once receipt objects, published via exclusive
+        # link; an existing ledger must equal the projection exactly
+        lines = []
+        for key in targets:
+            lane2, ck2, day2 = key.split("/")
+            rp2 = os.path.join(receipts_dir,
+                               _stem(lane2, ck2, day2)
+                               + ".repair.json")
+            with open(rp2, encoding="utf-8") as f:
+                lines.append(json.dumps(json.load(f),
+                                        sort_keys=True))
+        want = "\n".join(lines) + "\n"
+        if os.path.exists(repair_ledger):
+            with open(repair_ledger, encoding="utf-8") as f:
+                have = f.read()
+            if have != want:
+                _refuse("VIC_REPAIR_LEDGER_DIVERGENT",
+                        "the published ledger does not equal the "
+                        "projection of the create-once receipts "
+                        "(truncation or tamper); regenerate is "
+                        "refused, audit the receipts")
+        else:
+            import tempfile as _tf
+            os.makedirs(os.path.dirname(repair_ledger) or ".",
+                        exist_ok=True)
+            fd, tmp = _tf.mkstemp(
+                dir=os.path.dirname(repair_ledger) or ".",
+                suffix=".tmp")
+            try:
+                with os.fdopen(fd, "w", encoding="utf-8",
+                               newline="\n") as f:
+                    f.write(want)
+                    f.flush()
+                    os.fsync(f.fileno())
+                try:
+                    os.link(tmp, repair_ledger)
+                except FileExistsError:
+                    with open(repair_ledger,
+                              encoding="utf-8") as f:
+                        if f.read() != want:
+                            _refuse("VIC_REPAIR_LEDGER_DIVERGENT",
+                                    "a concurrent ledger publication "
+                                    "diverges from the receipt "
+                                    "projection")
+            finally:
+                try:
+                    os.remove(tmp)
+                except OSError:
+                    pass
+    return {"targets": len(targets),
+            ("dry_verified" if dry else "repaired"): repaired,
             "verified_present": verified,
             "receipts_already_present": receipts,
-            "http_requests": 0, "capsule": capsule}
+            "http_requests": 0, "capsule": capsule,
+            "previews": previews if dry else None}
 
 
 # ------------------------------------------------------------------ #
@@ -577,6 +692,13 @@ def _selftest():
                   "canonical identity",
                   _k_refuses(lambda: _rk(td),
                              "CAPTURE_RECORD_DIVERGENT"))
+            check("K1c dry planning also refuses a divergent "
+                  "pre-existing record",
+                  _k_refuses(lambda: replay_key(
+                      _kkey, {"seq": 81, "refusal": "kat"}, {},
+                      staged_dir=td, store_read=_k_store,
+                      capsule=_kcap, transform_identity="kat-ident",
+                      dry=True), "VIC_DRY_OUTPUT_DIVERGENT"))
         # K2 fresh dir -> REPAIRED; rerun -> VERIFIED_PRESENT with the
         # IDENTICAL entry (idempotence at key level)
         with _tf2.TemporaryDirectory() as td:
@@ -629,12 +751,13 @@ def _selftest():
             e["output_sha256"] = "f" * 64
             with open(rl, "w", encoding="utf-8", newline="\n") as f:
                 f.write(json.dumps(e, sort_keys=True) + "\n")
-            check("K5 a divergent existing repair entry refuses",
+            check("K5 a tampered published ledger refuses as a "
+                  "divergent projection of the create-once receipts",
                   _k_refuses(lambda: replay(
                       {}, plan_keys=kplan, ledger_rows=kled,
                       staged_dir=td, store_read=_k_store,
                       repair_ledger=rl, expect=1),
-                      "VIC_REPAIR_ENTRY_DIVERGENT"))
+                      "VIC_REPAIR_LEDGER_DIVERGENT"))
     finally:
         (ACC.authoritative_static_contract, PROD.verify_transcript,
          CAP.admission_transform, PROD.build_envelope_record,

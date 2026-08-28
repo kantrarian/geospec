@@ -104,6 +104,9 @@ REQUIRED_BY_SLOT = {
         # it must be a required surface the closure walks, or an
         # edited copy could fire outside the pin discipline.
         "monitoring/src/w2_capture_retry_404_v4_cayley.py",
+        # codex 2240Z P0-2: the zero-HTTP finalizer joins the
+        # required surfaces and the entrypoint closure
+        "monitoring/src/w2_zero_http_finalizer_cayley.py",
     ),
     # codex 1758Z P0-1: both power engines together in power_harness.
     # They are fixture-only power-estimation engines behind the power
@@ -176,6 +179,7 @@ ADMISSION_ENTRYPOINTS = (
     # publishes ordinary staged classes on success -- so its imports
     # join the dependency closure like the runner's.
     "w2_capture_retry_404_v4_cayley.py",
+    "w2_zero_http_finalizer_cayley.py",
 )
 
 # The linked DESIGN-PIN set. codex's wording is "escape both an

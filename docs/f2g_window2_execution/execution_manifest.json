@@ -2,8 +2,8 @@
  "design_manifest_blob_sha256": "d6decbd6ab5814bc005ce69c538311ff1b11cb1d13c19e2999e03a92bc7cca1f",
  "design_manifest_commit": "5fba5446cd96722fb86021df5065a46b8a1a78f5",
  "design_target_commit": "12161f6cf2000b2d4aa86fe659f834839ac0d27b",
- "execution_target_commit": "39b0a350ecbaf3688e17165d26e0fdb8aa88a95f",
- "generated_utc": "2026-08-28T03:59:23Z",
+ "execution_target_commit": "2b458fd24bf91f10789040e69e603505909a5ca4",
+ "generated_utc": "2026-08-28T04:54:22Z",
  "manifest_state": "OPEN",
  "repository_url": "https://github.com/kantrarian/geospec",
  "schema": "f2g-window2-execution-manifest-v1.2",
@@ -88,6 +88,11 @@
      "path": "monitoring/src/w2_capture_run_v4_grassmann.py"
     },
     {
+     "blob_sha256": "a48baa50530854d966e2a6947af7c9108a1ca1e7068364a59f21e6597f3cee7f",
+     "commit": "a201083934d186f803d2d3ce8ab6046acff2e124",
+     "path": "monitoring/src/w2_acquisition_capture_grassmann.py"
+    },
+    {
      "blob_sha256": "11760157431d76d4978b9c6eb2a19069ae6286d8f1946306ff1261a383d18522",
      "commit": "4361714bb55a51a78d18d0e2127e4d14dfa490a3",
      "path": "monitoring/src/w2_capture_repair_v4_vic_cayley.py"
@@ -103,8 +108,8 @@
      "path": "monitoring/src/w2_zero_http_finalizer_cayley.py"
     },
     {
-     "blob_sha256": "e7a56112b5aad3918d6ae87f3e32a0c68f723f4fc584962406db14bffbfaa7d6",
-     "commit": "ddd5748b942216cc24915b77d84df36f71d0ad82",
+     "blob_sha256": "379d482e019b397cbbab4757bb2851ad0a02863c6e38d40c6581bbf784de88d5",
+     "commit": "2b458fd24bf91f10789040e69e603505909a5ca4",
      "path": "monitoring/src/w2_predecessor_bridge_cayley.py"
     }
    ],
@@ -229,8 +234,8 @@
    "owner": "cayley",
    "pins": [
     {
-     "blob_sha256": "6bd3e8cd2bf5a4dac8fa3e42100e46b3789984c3146a444cd14d197805c81f6c",
-     "commit": "4361714bb55a51a78d18d0e2127e4d14dfa490a3",
+     "blob_sha256": "7da4ec9897dde3437b316b0822f05a2878895acac9fa076fbf1a5b518c7b174e",
+     "commit": "2b458fd24bf91f10789040e69e603505909a5ca4",
      "path": "monitoring/src/f2g_execution_manifest_gen_cayley.py"
     }
    ],
@@ -246,8 +251,8 @@
      "path": "monitoring/src/f2g_execution_manifest_verifier_cayley.py"
     },
     {
-     "blob_sha256": "eaafb96c5dff0c39f400683005f8f77cf9ceecd6c6cb609193948f5f66cac217",
-     "commit": "4361714bb55a51a78d18d0e2127e4d14dfa490a3",
+     "blob_sha256": "dd6044d2783a371079e27fa3e41641b386f2b0c520add19b21d8c1ac0dcb5815",
+     "commit": "2b458fd24bf91f10789040e69e603505909a5ca4",
      "path": "monitoring/src/w2_regeneration_gate_cayley.py"
     },
     {

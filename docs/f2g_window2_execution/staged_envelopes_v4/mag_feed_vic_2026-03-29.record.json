@@ -1,0 +1,53 @@
+{
+ "capture_time_utc": "2026-08-27T04:39:36Z",
+ "carrier": "vic",
+ "cutoff": "2026-07-31",
+ "endpoint": "https://imag-data.bgs.ac.uk/GIN_V1/GINServices",
+ "expected_keys": [
+  "2026-03-29"
+ ],
+ "lane": "MAG_FEED",
+ "operation_params": {
+  "carrier": "vic",
+  "day": "2026-03-29"
+ },
+ "output_sha256": "a36988bc0cffdca80a5661dc470548082923297e89733ff6f114f4568ab5327d",
+ "raw_body_bytes": 96392,
+ "raw_body_sha256": "8f4b609e90ad4ac78111f833835c1d7f7bec5cda6d18ee56afd0fd010c128548",
+ "receipt": {
+  "authority": {
+   "blob_sha256": "3c24182b042de1a14d2717610b8940acd93f44be8dc8fdc344cce771d28d4f66",
+   "commit": "2f91143ec1b36a0b59558bdb0741987ef0fbba10",
+   "keys_sha256": "3e7a4779f95e6feb835331998ec4b270721fd54e5b36520af03b79e68cb920a9",
+   "path": "docs/f2g_window2_execution/staged_expected_contracts_v3.json"
+  },
+  "effective_url": "https://imag-data.bgs.ac.uk/GIN_V1/GINServices?Request=GetData&dataDuration=1&dataStartDate=2026-03-29&format=json&observatoryIagaCode=VIC&publicationState=adj-or-rep&samplesPerDay=minute&testObsys=0",
+  "headers": {
+   "content-length": "96392",
+   "content-type": "application/json",
+   "date": "Thu, 27 Aug 2026 04:39:36 GMT"
+  },
+  "http_status": 200,
+  "request_start_utc": "2026-08-27T04:39:35Z",
+  "requested_url": "https://imag-data.bgs.ac.uk/GIN_V1/GINServices?Request=GetData&dataDuration=1&dataStartDate=2026-03-29&format=json&observatoryIagaCode=VIC&publicationState=adj-or-rep&samplesPerDay=minute&testObsys=0",
+  "response_complete_utc": "2026-08-27T04:39:36Z",
+  "transcript_sha256": "8732adf0816581f1e80e3a6cfdcfa5ea2f3f9dad7e3a0c8f86d2f24a9e09ca19"
+ },
+ "request_params": {
+  "Request": "GetData",
+  "dataDuration": "1",
+  "dataStartDate": "2026-03-29",
+  "format": "json",
+  "observatoryIagaCode": "VIC",
+  "publicationState": "adj-or-rep",
+  "samplesPerDay": "minute",
+  "testObsys": "0"
+ },
+ "schema": "f2g-w2-staged-envelope-v1",
+ "source": {
+  "kind": "intermagnet-gin-minute",
+  "ref": "https://imag-data.bgs.ac.uk/GIN_V1/GINServices",
+  "sha256": "8f4b609e90ad4ac78111f833835c1d7f7bec5cda6d18ee56afd0fd010c128548"
+ },
+ "utc_day": "2026-03-29"
+}

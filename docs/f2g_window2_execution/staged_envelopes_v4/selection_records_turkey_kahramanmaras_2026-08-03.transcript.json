@@ -1,0 +1,25 @@
+{
+ "authority": {
+  "blob_sha256": "b5b0a61a4edcdac2bfcd8a819f2e118a81c492947a0b6167ffd07ef09338967e",
+  "commit": "332a98acd34797163413350dc4989fdb37ec87b2",
+  "keys_sha256": "9a2b5b6c5e0b0f456f4587e7eed63c561440685cae33bad59ac4b3d4ebc7cee9",
+  "path": "docs/f2g_window2_execution/staged_expected_contracts_v3.json"
+ },
+ "carrier": "turkey_kahramanmaras",
+ "effective_url": "http://eida.koeri.boun.edu.tr/fdsnws/station/1/query?cha=HHZ&endtime=2026-08-04&format=text&level=channel&net=KO&nodata=404&sta=AKDG%2CARGN%2CBNN%2CGAZ%2CKARA%2CKBAN%2CKHMN%2CKOZT%2CMLTY%2CNURH%2CTAHT&starttime=2026-08-03",
+ "headers": {
+  "content-type": "text/plain",
+  "date": "Tue, 25 Aug 2026 05:01:07 GMT",
+  "server": "SeisComP-FDSNWS/1.2.4"
+ },
+ "http_status": 200,
+ "lane": "SELECTION_RECORDS",
+ "raw_body_bytes": 1609,
+ "raw_body_sha256": "41dd133c9872a151ffb1d7f754c08ae04bfd1a9d21bc3b356670d04ed39646bb",
+ "request_start_utc": "2026-08-25T05:01:06Z",
+ "requested_url": "http://eida.koeri.boun.edu.tr/fdsnws/station/1/query?cha=HHZ&endtime=2026-08-04&format=text&level=channel&net=KO&nodata=404&sta=AKDG%2CARGN%2CBNN%2CGAZ%2CKARA%2CKBAN%2CKHMN%2CKOZT%2CMLTY%2CNURH%2CTAHT&starttime=2026-08-03",
+ "response_complete_utc": "2026-08-25T05:01:07Z",
+ "schema": "f2g-w2-capture-transcript-v1",
+ "static_contract_sha256": "542b812fab952646826150aa2307d903bd1015a9377e998b77bacedc69b04fc5",
+ "utc_day": "2026-08-03"
+}

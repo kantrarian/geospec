@@ -100,6 +100,21 @@ def _pin_for(manifest, path):
     return None
 
 
+def _pin_for_slot(manifest, slot_name, path):
+    """Return an exact-path pin only from its declared BOUND authority.
+
+    Membership somewhere in the manifest is insufficient: operation
+    code pinned under a verification or later artifact-boundary slot
+    answers to the wrong authority.
+    """
+    slot = (manifest.get("slots") or {}).get(slot_name)
+    if not isinstance(slot, dict) or slot.get("status") != "BOUND":
+        return None
+    pins = [p for p in slot.get("pins") or []
+            if isinstance(p, dict) and p.get("path") == path]
+    return pins[0] if len(pins) == 1 else None
+
+
 def _load_manifest(repo, manifest_commit):
     raw = _git_blob(repo, manifest_commit, EXEC_MANIFEST_PATH)
     return json.loads(raw.decode("utf-8"))
@@ -161,16 +176,18 @@ def _load_probe_authority(repo, v4_authority):
 
 
 def _registered_dispatcher(repo, manifest):
-    """Locate the PINNED transform and invoke THAT. Fail closed when
-    the transform is not pinned (codex 1304Z finding 1)."""
-    pin = _pin_for(manifest, DISPATCHER_PATH)
+    """Locate the accrual-operation PIN and invoke THAT.
+
+    Fail closed when the transform is absent or pinned under the wrong
+    authority (codex 1304Z finding 1; codex 0413Z circular-pin repair).
+    """
+    pin = _pin_for_slot(manifest, "accrual_impl", DISPATCHER_PATH)
     if not pin:
         _refuse("TRANSFORM_NOT_PINNED: the registered lane-transform "
                 f"dispatcher ({DISPATCHER_PATH}) is not a BOUND pin "
-                "of the execution manifest. Scientific admission "
-                "through an unpinned transform is refused; pin the "
-                "dispatcher (producer_boundary is OPEN today) and "
-                "retry.")
+                "of the accrual_impl operation authority. Scientific "
+                "admission through an unpinned or misplaced transform "
+                "is refused.")
     raw = _git_blob(repo, pin["commit"], pin["path"])
     if hashlib.sha256(raw).hexdigest() != pin.get("blob_sha256"):
         _refuse("the on-pin dispatcher bytes diverge from the pin")

@@ -90,6 +90,12 @@ REQUIRED_BY_SLOT = {
         "monitoring/src/w2_producer_grassmann.py",
         # codex 0151Z P0-1: the capture executable itself.
         "monitoring/src/w2_capture_run_v4_grassmann.py",
+        # codex 0413Z circular-pin repair: the predecessor plan uses
+        # the registered transform before producer_boundary can bind.
+        # Its operation role must therefore be placed in the always-
+        # BOUND accrual authority; membership in some other slot is
+        # insufficient.
+        "monitoring/src/w2_acquisition_capture_grassmann.py",
         # codex 0532Z: two PRODUCTION-OPERATION surfaces. The VIC
         # repair module performs a zero-HTTP production operation and
         # emits an operation record, so it is operation bytes and NOT

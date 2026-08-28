@@ -136,6 +136,15 @@ BOUND_SLOTS = {
                   # plan produced by unbound working-tree code
                   # is not a reviewed capture executable.
                   "monitoring/src/w2_capture_run_v4_grassmann.py",
+                  # codex 0413Z circular-pin repair: the registered
+                  # lane transform is PRODUCTION-OPERATION code used
+                  # by the predecessor bridge during plan, before the
+                  # later producer_boundary can truthfully bind. Bind
+                  # its operation role here; final-bind additionally
+                  # binds the same file's boundary-code role, matching
+                  # the existing authority-file dual-role pattern.
+                  "monitoring/src/"
+                  "w2_acquisition_capture_grassmann.py",
                   # codex 0532Z: the zero-HTTP VIC repair driver is
                   # PRODUCTION-OPERATION code -- it reaches the frozen
                   # store, the registered transform and the producer
@@ -634,6 +643,23 @@ def _selftest():
         except Exception:
             return False
         return False
+
+    # codex 0413Z: plan must not depend on a transform whose only pin
+    # can appear after apply. Exactly one DEFAULT slot owns the
+    # operation role; producer_boundary separately owns the same
+    # file's later boundary-code role.
+    _dispatcher = ("monitoring/src/"
+                   "w2_acquisition_capture_grassmann.py")
+    _default_owners = sorted(
+        name for name, slot in BOUND_SLOTS.items()
+        if _dispatcher in slot.get("paths", ()))
+    check("C0 dispatcher operation role is default-bound exactly "
+          "under accrual_impl and remains the registered later "
+          "producer-boundary code role",
+          _default_owners == ["accrual_impl"] and
+          PRODUCER_BOUNDARY_REQUIRED["boundary_code"] == _dispatcher,
+          f"default_owners={_default_owners} boundary_code="
+          f"{PRODUCER_BOUNDARY_REQUIRED.get('boundary_code')}")
 
     def spec_file(obj):
         fd, p = tempfile.mkstemp(suffix=".json")

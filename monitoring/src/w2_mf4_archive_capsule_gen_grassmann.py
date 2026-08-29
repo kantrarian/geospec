@@ -214,6 +214,9 @@ def build():
         census[region] = {"days_total": len(days), "days_supported": sup,
                           "days_unsupported": len(days) - sup}
 
+    missing_cells = sorted(
+        [r["issue_day"], r["region"]] for r in rows
+        if r["support"] == "MISSING_REGION_ROW")
     bboxes, fs_ident = _bboxes()
     maturity_raw = open(os.path.join(REPO, MATURITY_REL), "rb").read()
     maturity = json.loads(maturity_raw.decode("utf-8"))
@@ -247,6 +250,11 @@ def build():
                       "missing_day_files": missing_days,
                       "malformed_day_files": malformed_days},
         "support_census": census,
+        "file_census": {
+            "present_files": len(inventory),
+            "usable_files": len(inventory) - len(malformed_days),
+            "malformed_files": len(malformed_days)},
+        "missing_region_cells": missing_cells,
         "raw_source_store": {
             "store_id": STORE_ID, "store_root": STORE_ROOT,
             "local_physical_root": STORE_DIR.replace("\\", "/"),

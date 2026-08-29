@@ -225,13 +225,17 @@ def kat_b5_bbox_coordinate_mutation():
         ACQ.PINNED_BBOXES = saved
 
 
-def _geojson(events):
-    return json.dumps({"type": "FeatureCollection", "features": [
-        {"type": "Feature", "id": e[0],
-         "properties": {"mag": e[3], "time": e[4]},
-         "geometry": {"type": "Point",
-                      "coordinates": [e[2], e[1], 10.0]}}
-        for e in events]}).encode("utf-8")
+def _geojson(events, count=None, ftype="Feature", gtype="Point",
+             top="FeatureCollection"):
+    feats = [{"type": ftype, "id": e[0],
+              "properties": {"mag": e[3], "time": e[4]},
+              "geometry": {"type": gtype,
+                           "coordinates": [e[2], e[1], 10.0]}}
+             for e in events]
+    return json.dumps({"type": top,
+                       "metadata": {"count": len(feats)
+                                    if count is None else count},
+                       "features": feats}).encode("utf-8")
 
 
 BB = {"min_lat": 30.0, "max_lat": 40.0, "min_lon": 100.0,
@@ -288,7 +292,8 @@ def kat_c3_malformed_fields():
             raise AssertionError(f"{bad[0]} admitted")
         except SystemExit as e:
             assert "MF4_CATALOG_MALFORMED" in str(e), e
-    raw = json.dumps({"type": "FeatureCollection", "features": [
+    raw = json.dumps({"type": "FeatureCollection",
+                      "metadata": {"count": 1}, "features": [
         {"type": "Feature", "id": "nullcoord",
          "properties": {"mag": 4.2, "time": T0},
          "geometry": {"type": "Point", "coordinates": None}}]}
@@ -320,10 +325,152 @@ def kat_c5_duplicate_and_inconsistent_ids():
     b = ACQ.validate_events("r2", BB, _geojson([("x", 35.5, 105.0,
                                                  4.2, T0)]))
     try:
-        ACQ.cross_region_consistency({"r1": a, "r2": b})
+        ACQ.canonical_event_table({"r1": a, "r2": b})
         raise AssertionError("inconsistent shared id admitted")
     except SystemExit as e:
         assert "MF4_CATALOG_INCONSISTENT_ID" in str(e)
+
+
+def kat_d1_fire_requires_authorization():
+    def bomb(url, timeout=None):
+        raise AssertionError("HTTP attempted without authorization")
+    ACQ.fire(None, opener=bomb)
+
+
+def kat_d2_partial_failure_staging():
+    import tempfile, shutil as _sh
+    root = tempfile.mkdtemp(prefix="mf4fire_")
+    saved_final = ACQ.FINAL_DIR
+    saved_verify = ACQ.verify_fire_authorization
+    try:
+        ACQ.FINAL_DIR = os.path.join(root, "snap")
+        ACQ.verify_fire_authorization = lambda p: (
+            {"stub": True}, {"file": "stub", "sha256": "0" * 64,
+                             "bytes": 0})
+        calls = {"n": 0}
+
+        class FakeResp:
+            def __init__(self, raw):
+                self.raw = raw
+                self.status = 200
+                import email.message
+                m = email.message.Message()
+                m["Content-Type"] = "application/json"
+                self.headers = m
+                self._url = None
+            def geturl(self):
+                return self._url
+            def read(self):
+                return self.raw
+            def __enter__(self):
+                return self
+            def __exit__(self, *a):
+                return False
+
+        def fake_open(url, timeout=None):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                raw = _geojson([("ok1", 61.0, -150.0, 4.5, T0)])
+            else:
+                raw = _geojson([("", 61.0, -150.0, 4.5, T0)])  # bad id
+            r = FakeResp(raw)
+            r._url = url
+            return r
+
+        # region 1 bbox admits (61,-150); region 2 (campi) will fail on
+        # the missing id BEFORE its spatial check.
+        try:
+            ACQ.fire("stubauth", opener=fake_open)
+            raise AssertionError("partial failure did not refuse")
+        except SystemExit as e:
+            assert "MF4_CATALOG" in str(e), e
+        staging = ACQ.FINAL_DIR + ".staging"
+        assert os.path.isfile(os.path.join(
+            staging, "REFUSAL_MANIFEST.json")), "no refusal manifest"
+        assert os.path.isfile(os.path.join(
+            staging, "raw_anchorage.geojson")), "region-1 seal missing"
+        assert not os.path.exists(ACQ.FINAL_DIR), "success dir exists"
+        # second fire refuses staging reuse BEFORE any request
+        def bomb(url, timeout=None):
+            raise AssertionError("re-query attempted on continuation")
+        try:
+            ACQ.fire("stubauth", opener=bomb)
+            raise AssertionError("second fire did not refuse")
+        except SystemExit as e:
+            assert "MF4_FIRE_STAGING_EXISTS" in str(e), e
+    finally:
+        ACQ.FINAL_DIR = saved_final
+        ACQ.verify_fire_authorization = saved_verify
+        _sh.rmtree(root, ignore_errors=True)
+
+
+def kat_d3_parser_closures():
+    good = ("g1", 35.0, 105.0, 4.5, T0)
+    # NaN / Infinity constants in the JSON text
+    for const in ("NaN", "Infinity"):
+        raw = _geojson([good]).replace(b"4.5", const.encode())
+        try:
+            ACQ.validate_events("katreg", BB, raw)
+            raise AssertionError(f"{const} admitted")
+        except SystemExit as e:
+            assert "MF4_CATALOG_NONFINITE_JSON" in str(e), e
+    # boolean magnitude
+    raw = _geojson([("b", 35.0, 105.0, True, T0)])
+    try:
+        ACQ.validate_events("katreg", BB, raw)
+        raise AssertionError("bool mag admitted")
+    except SystemExit as e:
+        assert "MF4_CATALOG_MALFORMED" in str(e), e
+    # magnitude below the registered threshold
+    raw = _geojson([("lo", 35.0, 105.0, 3.0, T0)])
+    try:
+        ACQ.validate_events("katreg", BB, raw)
+        raise AssertionError("mag 3.0 admitted")
+    except SystemExit as e:
+        assert "MF4_CATALOG_MAG_BELOW_THRESHOLD" in str(e), e
+    # metadata.count mismatch
+    raw = _geojson([good], count=99)
+    try:
+        ACQ.validate_events("katreg", BB, raw)
+        raise AssertionError("count mismatch admitted")
+    except SystemExit as e:
+        assert "MF4_CATALOG_COUNT_MISMATCH" in str(e), e
+    # reverse time order
+    raw = _geojson([("t2", 35.0, 105.0, 4.5, T0 + 1000),
+                    ("t1", 35.0, 105.0, 4.5, T0)])
+    try:
+        ACQ.validate_events("katreg", BB, raw)
+        raise AssertionError("reverse order admitted")
+    except SystemExit as e:
+        assert "MF4_CATALOG_ORDER_VIOLATION" in str(e), e
+    # non-Point geometry
+    raw = _geojson([good], gtype="LineString")
+    try:
+        ACQ.validate_events("katreg", BB, raw)
+        raise AssertionError("non-Point admitted")
+    except SystemExit as e:
+        assert "MF4_CATALOG_MALFORMED" in str(e), e
+    # non-FeatureCollection top level
+    raw = _geojson([good], top="Whatever")
+    try:
+        ACQ.validate_events("katreg", BB, raw)
+        raise AssertionError("non-FeatureCollection admitted")
+    except SystemExit as e:
+        assert "MF4_CATALOG_MALFORMED" in str(e), e
+
+
+def kat_d4_canonical_table():
+    a = ACQ.validate_events("r1", BB, _geojson([
+        ("x1", 35.0, 105.0, 4.5, T0), ("x2", 36.0, 106.0, 4.6, T0 + 5)]))
+    b = ACQ.validate_events("r2", BB, _geojson([
+        ("x1", 35.0, 105.0, 4.5, T0)]))          # identical duplicate
+    table, membership, dig1 = ACQ.canonical_event_table(
+        {"r1": a, "r2": b})
+    assert [e["id"] for e in table] == ["x1", "x2"], table
+    assert membership["x1"] == ["r1", "r2"], membership
+    # response/order permutation cannot change the digest
+    table2, _, dig2 = ACQ.canonical_event_table({"r2": b, "r1": a})
+    assert dig1 == dig2, "region ordering changed the table digest"
 
 
 def main():
@@ -360,6 +507,13 @@ def main():
           "MF4_CATALOG_TEMPORAL_FILTER")
     check("C5 duplicate + inconsistent ids",
           kat_c5_duplicate_and_inconsistent_ids)
+    check("D1 fire refuses without authorization (pre-HTTP)",
+          kat_d1_fire_requires_authorization, "MF4_FIRE_AUTH_MISSING")
+    check("D2 partial-failure staging + reuse refusal",
+          kat_d2_partial_failure_staging)
+    check("D3 closed-parser mutations", kat_d3_parser_closures)
+    check("D4 canonical table dedup + order invariance",
+          kat_d4_canonical_table)
     print(f"\n{len(PASS)} PASS / {len(FAIL)} FAIL")
     if FAIL:
         raise SystemExit(1)

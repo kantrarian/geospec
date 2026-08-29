@@ -121,6 +121,11 @@ def build_bboxes():
         if carrier not in FS.FAULT_SEGMENTS:
             raise Refusal("MF4_BBOX_UNREGISTERED",
                           f"{region}: carrier {carrier} absent")
+        if region not in PINNED_BBOXES:
+            raise Refusal("MF4_BBOX_UNREGISTERED",
+                          f"{region}: no pinned bbox (a region outside "
+                          "the registered 13 must refuse typed, never "
+                          "resolve through a neighbouring carrier)")
         lats, lons = [], []
         for seg in FS.FAULT_SEGMENTS[carrier]:
             for (lat, lon) in seg.polygon:

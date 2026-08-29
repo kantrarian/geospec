@@ -188,6 +188,33 @@ if (Test-Path $ValidatedFile) {
     Write-Host "  WARNING: Validated events not found at $ValidatedFile (track record not available)" -ForegroundColor Yellow
 }
 
+# 3b. Regenerate the public atlas page (presentation only).
+# FAIL-SOFT (codex atlas fix 1): under $ErrorActionPreference='Stop',
+# a native command writing stderr becomes a terminating
+# NativeCommandError (the same PS 5.1 behavior the git hardening in
+# step 5 documents), so the generator MUST run under 'Continue' with
+# its exit code captured immediately and EAP restored in finally.
+# $AtlasOk gates staging; a failure logs, skips, and the previous
+# atlas.html stands (it displays its own data date honestly).
+Write-Host "[3b/5] Regenerating docs/atlas.html..." -ForegroundColor Yellow
+$AtlasOk = $false
+$AtlasExit = -1
+$PrevEAPAtlas = $ErrorActionPreference
+$ErrorActionPreference = 'Continue'
+try {
+    cmd /c exit 1 | Out-Null   # pin LASTEXITCODE so a launch failure can never inherit a stale 0
+    python (Join-Path $RepoRoot "monitoring\generate_atlas.py") 2>&1 | ForEach-Object { "$_" } | Write-Host
+    $AtlasExit = $LASTEXITCODE
+} finally {
+    $ErrorActionPreference = $PrevEAPAtlas
+}
+if ($AtlasExit -eq 0) {
+    Write-Host "  Atlas regenerated" -ForegroundColor Green
+    $AtlasOk = $true
+} else {
+    Write-Host "  WARNING: atlas generation failed (exit $AtlasExit); keeping previous atlas.html unstaged" -ForegroundColor Yellow
+}
+
 # 4. Update README
 Write-Host "[4/5] Updating README..." -ForegroundColor Yellow
 $TierCounts = $EnsembleData.summary.tier_counts
@@ -254,6 +281,9 @@ try {
         'docs/r4_prospective_record.json', 'docs/r5_daily.json',
         'monitoring/dashboard/data.csv', 'monitoring/receipts', 'README.md'
     )
+    # codex atlas fix 1: atlas stages ONLY on a verified exit-0
+    # generation this run -- never on mere file existence
+    if ($AtlasOk) { $Candidates += 'docs/atlas.html' }
     $ToAdd = @($Candidates | Where-Object { Test-Path (Join-Path $RepoRoot $_) })
     if ($ToAdd.Count -gt 0) { git add -- $ToAdd 2>&1 | Write-Host }
 

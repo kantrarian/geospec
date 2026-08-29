@@ -57,6 +57,7 @@ import datetime as dt
 import hashlib
 import json
 import os
+import subprocess
 import sys
 import urllib.parse
 import urllib.request
@@ -101,7 +102,16 @@ FINAL_DIR = os.path.join(REPO, "docs", "f2g_window2_execution",
 COMPLETENESS_POLICY = ("ComCat as-is at snapshot time; per-region "
                        "completeness caveat disclosed; no post-snapshot "
                        "revision enters this calibration snapshot")
-AUTH_SCHEMA = "geospec-mf4-fire-authorization-v1"
+AUTH_SCHEMA = "geospec-mf4-fire-authorization-v2"
+SCOPE_LITERAL = ("MF4 late-calibration-catalog acquisition: exactly one "
+                 "fire of the 13 registered ComCat queries under "
+                 "amendment_mf4_late_catalog_repair_20260829 and its "
+                 "corrections; nothing else")
+FRAMEWORK_REPO = r"C:\agent-framework"
+MODULE_REL = "monitoring/src/w2_mf4_catalog_acquire_grassmann.py"
+CORRECTION3_REL = ("docs/f2g_window2_execution/"
+                   "amendment_mf4_late_catalog_repair_20260829_"
+                   "correction3.md")
 
 
 class Refusal(SystemExit):
@@ -147,38 +157,143 @@ def query_contract():
     return c, _sha(canon)
 
 
+def _git(repo, *args):
+    r = subprocess.run(["git", "-C", repo] + list(args),
+                       capture_output=True)
+    if r.returncode != 0:
+        raise Refusal("MF4_FIRE_AUTH_GIT",
+                      f"git {' '.join(args)}: "
+                      f"{r.stderr.decode(errors='replace')[:200]}")
+    return r.stdout
+
+
 def verify_fire_authorization(path):
-    """Codex fix 1: the fire authority. Refuses BEFORE any HTTP."""
+    """Codex 1942Z item 1: the authority chain must be EXTERNALLY
+    recomputable -- clean public worktree head/tree, module blob from
+    the COMMITTED tree, correction doc in the same tree pinning the
+    same identities, a codex PASS record reachable from
+    agent-framework main binding base/patch/tree/module/query, and an
+    owner-go record identifying that PASS with a strict UTC and the
+    exact scope literal. Every check refuses MF4_FIRE_AUTH_* BEFORE
+    any HTTP; a self-reported hash is never the pin."""
     if not path or not os.path.isfile(path):
         raise Refusal("MF4_FIRE_AUTH_MISSING", repr(path))
     raw = open(path, "rb").read()
     auth = _strict_loads(raw)
     if auth.get("schema") != AUTH_SCHEMA:
         raise Refusal("MF4_FIRE_AUTH_SCHEMA", str(auth.get("schema")))
-    for k in ("amendment_commit", "module_git_blob_sha256",
-              "module_runtime_sha256", "query_contract_sha256",
-              "codex_pass_inbox_commit", "owner_fire_go",
+    for k in ("public_head_commit", "public_head_tree",
+              "module_git_blob_sha256", "query_contract_sha256",
+              "codex_pass", "owner_fire_go",
               "output_target_must_be_absent"):
         if k not in auth:
             raise Refusal("MF4_FIRE_AUTH_INCOMPLETE", k)
-    go = auth["owner_fire_go"]
-    if not all(isinstance(go.get(k), str) and go.get(k)
-               for k in ("quote", "utc", "scope")):
-        raise Refusal("MF4_FIRE_AUTH_INCOMPLETE", "owner_fire_go fields")
-    ident = module_identities()
-    if auth["module_runtime_sha256"] != ident["runtime_sha256"]:
+
+    # 1. clean public worktree at the exact authorized head/tree,
+    #    and that head must BE the published public master
+    if _git(REPO, "status", "--porcelain").strip():
+        raise Refusal("MF4_FIRE_AUTH_DIRTY_WORKTREE", REPO)
+    head = _git(REPO, "rev-parse", "HEAD").decode().strip()
+    tree = _git(REPO, "rev-parse", "HEAD^{tree}").decode().strip()
+    if head != auth["public_head_commit"]:
+        raise Refusal("MF4_FIRE_AUTH_HEAD_PIN", head[:16])
+    if tree != auth["public_head_tree"]:
+        raise Refusal("MF4_FIRE_AUTH_TREE_PIN", tree[:16])
+    remote = _git(REPO, "rev-parse", "origin/master").decode().strip()
+    if remote != head:
+        raise Refusal("MF4_FIRE_AUTH_NOT_PUBLIC",
+                      f"HEAD {head[:12]} != origin/master {remote[:12]}")
+
+    # 2. module blob from the COMMITTED tree (never a runtime copy);
+    #    runtime bytes must LF-normalize to that exact blob; the
+    #    correction-3 doc in the SAME tree must pin the identities
+    blob = _git(REPO, "show", f"HEAD:{MODULE_REL}")
+    if _sha(blob) != auth["module_git_blob_sha256"]:
+        raise Refusal("MF4_FIRE_AUTH_BLOB_PIN", _sha(blob)[:16])
+    runtime = open(os.path.abspath(__file__), "rb").read()
+    if _sha(runtime.replace(b"\r\n", b"\n")) != _sha(blob):
         raise Refusal("MF4_FIRE_AUTH_RUNTIME_PIN",
-                      f"{ident['runtime_sha256'][:16]} != authorized")
-    if auth["module_git_blob_sha256"] != ident["git_blob_sha256"]:
-        raise Refusal("MF4_FIRE_AUTH_BLOB_PIN",
-                      f"{ident['git_blob_sha256'][:16]} != authorized")
+                      "runtime bytes diverge from the committed blob")
     _, cdig = query_contract()
     if auth["query_contract_sha256"] != cdig:
         raise Refusal("MF4_FIRE_AUTH_CONTRACT_PIN", cdig[:16])
+    corr = _git(REPO, "show", f"HEAD:{CORRECTION3_REL}") \
+        .decode("utf-8", errors="replace")
+    if _sha(blob) not in corr or cdig not in corr:
+        raise Refusal("MF4_FIRE_AUTH_CORRECTION_PIN",
+                      "correction 3 in the authorized tree does not "
+                      "pin the module/query identities")
+
+    # 3. codex PASS: reachable from agent-framework main; its record
+    #    binds base, patch sha, resulting tree, module sha, query sha
+    cp = auth["codex_pass"]
+    for k in ("framework_commit", "file", "patch_sha256",
+              "base_commit", "result_tree"):
+        if not isinstance(cp.get(k), str) or not cp.get(k):
+            raise Refusal("MF4_FIRE_AUTH_INCOMPLETE", f"codex_pass.{k}")
+    mb = _git(FRAMEWORK_REPO, "merge-base", cp["framework_commit"],
+              "main").decode().strip()
+    if mb != _git(FRAMEWORK_REPO, "rev-parse",
+                  cp["framework_commit"]).decode().strip():
+        raise Refusal("MF4_FIRE_AUTH_PASS_UNREACHABLE",
+                      cp["framework_commit"][:12])
+    pass_text = _git(FRAMEWORK_REPO, "show",
+                     f"{cp['framework_commit']}:{cp['file']}") \
+        .decode("utf-8", errors="replace")
+    for token in ("PASS", cp["base_commit"], cp["patch_sha256"],
+                  cp["result_tree"], _sha(blob), cdig):
+        if token not in pass_text:
+            raise Refusal("MF4_FIRE_AUTH_PASS_UNBOUND",
+                          f"pass record lacks {token[:24]}")
+
+    # 4. owner go: identifies the PASS; strict UTC; exact scope
+    #    literal; committed source record whose bytes carry the quote
+    go = auth["owner_fire_go"]
+    for k in ("quote", "utc", "scope", "pass_framework_commit",
+              "source_framework_commit", "source_file"):
+        if not isinstance(go.get(k), str) or not go.get(k):
+            raise Refusal("MF4_FIRE_AUTH_INCOMPLETE",
+                          f"owner_fire_go.{k}")
+    if go["pass_framework_commit"] != cp["framework_commit"]:
+        raise Refusal("MF4_FIRE_AUTH_GO_PASS_MISMATCH",
+                      go["pass_framework_commit"][:12])
+    try:
+        dt.datetime.strptime(go["utc"], "%Y-%m-%dT%H:%M:%SZ")
+    except ValueError:
+        raise Refusal("MF4_FIRE_AUTH_GO_UTC", repr(go["utc"]))
+    if go["scope"] != SCOPE_LITERAL:
+        raise Refusal("MF4_FIRE_AUTH_GO_SCOPE", repr(go["scope"])[:80])
+    mb2 = _git(FRAMEWORK_REPO, "merge-base",
+               go["source_framework_commit"], "main").decode().strip()
+    if mb2 != _git(FRAMEWORK_REPO, "rev-parse",
+                   go["source_framework_commit"]).decode().strip():
+        raise Refusal("MF4_FIRE_AUTH_GO_UNREACHABLE",
+                      go["source_framework_commit"][:12])
+    go_bytes = _git(FRAMEWORK_REPO, "show",
+                    f"{go['source_framework_commit']}:"
+                    f"{go['source_file']}")
+    if go["quote"] not in go_bytes.decode("utf-8", errors="replace"):
+        raise Refusal("MF4_FIRE_AUTH_GO_QUOTE_UNBOUND",
+                      go["quote"][:40])
     if auth["output_target_must_be_absent"] is not True:
         raise Refusal("MF4_FIRE_AUTH_INCOMPLETE",
                       "output_target_must_be_absent must be true")
-    return auth, {"file": path, "sha256": _sha(raw), "bytes": len(raw)}
+    return auth, {"file": path, "sha256": _sha(raw), "bytes": len(raw),
+                  "go_source_sha256": _sha(go_bytes)}
+
+
+def calibration_snapshot_role_guard(snapshot, use):
+    """Codex 1942Z item 4: the late-repair snapshot serves exactly two
+    AMENDED roles -- calibration labels and RECOMPUTED historical
+    calibration features. Any live/post-2026-08-29 prediction use must
+    refuse; live features require a separately receipted issue-time
+    catalog view."""
+    role = (snapshot or {}).get("temporal_role")
+    if role != "CALIBRATION_LATE_REPAIR":
+        raise Refusal("MF4_CATALOG_ROLE_UNBOUND", repr(role))
+    if use not in ("calibration_labels", "calibration_features"):
+        raise Refusal("MF4_CATALOG_ROLE_VIOLATION",
+                      f"late-repair snapshot offered for {use!r}")
 
 
 def build_bboxes():
@@ -429,6 +544,14 @@ def fire(auth_path, opener=urllib.request.urlopen):
         raise
 
     snap = {"schema": "geospec-mf4-calibration-catalog-snapshot-v1",
+            "temporal_role": "CALIBRATION_LATE_REPAIR",
+            "temporal_role_policy": (
+                "historical calibration recent_event is RECOMPUTED "
+                "from this single late-repair snapshot, superseding "
+                "the annex issue-time feature clause as an "
+                "AMENDED_AFTER_FREEZE feature-provenance change "
+                "(correction 3); live predictions must refuse this "
+                "snapshot"),
             "amendment": ("docs/f2g_window2_execution/"
                           "amendment_mf4_late_catalog_repair_20260829.md"),
             "lane_status": "AMENDED_AFTER_FREEZE",
@@ -440,21 +563,51 @@ def fire(auth_path, opener=urllib.request.urlopen):
             "events_by_region_counts":
                 {r: len(v) for r, v in per_region.items()},
             **common}
-    sp = os.path.join(staging, "catalog_snapshot_v1.json")
-    with open(sp, "w", encoding="utf-8", newline="\n") as f:
-        json.dump(snap, f, indent=1, sort_keys=True)
-        f.write("\n")
-    rec = {"schema": "geospec-mf4-catalog-acquisition-receipt-v1",
-           "fired_utc": _utcnow(), "attempts": attempts,
-           "snapshot_file": "catalog_snapshot_v1.json",
-           "snapshot_sha256": _sha(open(sp, "rb").read()),
-           "canonical_event_table_sha256": table_sha, **common}
-    with open(os.path.join(staging, "acquisition_receipt_v1.json"), "w",
-              encoding="utf-8", newline="\n") as f:
-        json.dump(rec, f, indent=1, sort_keys=True)
-        f.write("\n")
-    os.rename(staging, FINAL_DIR)          # atomic directory publish
-    return rec
+    # codex 1942Z item 2: finalization inside ONE terminal guard --
+    # canonical bytes, exclusive seal, reopen/hash/validate, fsync,
+    # atomic publish; any exception preserves staging and emits a
+    # typed refusal manifest where the filesystem still permits.
+    try:
+        snap_bytes = (json.dumps(snap, indent=1, sort_keys=True)
+                      + "\n").encode("utf-8")
+        sp = _seal(staging, "catalog_snapshot_v1.json", snap_bytes)
+        with open(sp, "rb") as f:
+            reread = f.read()
+        if _sha(reread) != _sha(snap_bytes):
+            raise Refusal("MF4_FIRE_FINALIZATION_EXCEPTION",
+                          "snapshot reopen digest mismatch")
+        _strict_loads(reread)
+        rec = {"schema": "geospec-mf4-catalog-acquisition-receipt-v1",
+               "fired_utc": _utcnow(), "attempts": attempts,
+               "snapshot_file": "catalog_snapshot_v1.json",
+               "snapshot_sha256": _sha(snap_bytes),
+               "canonical_event_table_sha256": table_sha, **common}
+        rec_bytes = (json.dumps(rec, indent=1, sort_keys=True)
+                     + "\n").encode("utf-8")
+        rp = _seal(staging, "acquisition_receipt_v1.json", rec_bytes)
+        with open(rp, "rb") as f:
+            if _sha(f.read()) != _sha(rec_bytes):
+                raise Refusal("MF4_FIRE_FINALIZATION_EXCEPTION",
+                              "receipt reopen digest mismatch")
+        for name in ("catalog_snapshot_v1.json",
+                     "acquisition_receipt_v1.json"):
+            fd = os.open(os.path.join(staging, name), os.O_RDONLY)
+            try:
+                os.fsync(fd)
+            finally:
+                os.close(fd)
+        # directory-level fsync is unavailable on Windows; file fsync
+        # + atomic rename is the strongest local guarantee (disclosed)
+        os.rename(staging, FINAL_DIR)      # atomic directory publish
+        return rec
+    except Refusal as r:
+        refusal_manifest(r.code, str(r))
+        raise
+    except Exception as e:                              # noqa: BLE001
+        refusal_manifest("MF4_FIRE_FINALIZATION_EXCEPTION",
+                         f"{type(e).__name__}: {e}")
+        raise Refusal("MF4_FIRE_FINALIZATION_EXCEPTION",
+                      f"{type(e).__name__}: {e}")
 
 
 def main():

@@ -725,9 +725,9 @@
   ]
  ],
  "producer_code_identity": {
-  "bytes": 16716,
+  "bytes": 21272,
   "path": "monitoring/src/w2_mf4_archive_capsule_gen_grassmann.py",
-  "sha256": "41aaaa23d62b48fc2c2d3a960386d284aab0468c7469c82300e415895c4b9f11"
+  "sha256": "939f33f65f9e0c76cf86c839a32ca13aae5a36b3d03c960417bd5240547361c7"
  },
  "projection_loss_disclosure": "components/coverage/summary/earthquake_events are omitted from the training row; their complete source bytes remain reopenable through the store inventory. persistence_informational is NON-INPUT: frozen MF4 persistence is the catalog-derived recent_event.",
  "raw_source_store": {

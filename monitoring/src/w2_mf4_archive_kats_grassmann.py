@@ -122,6 +122,44 @@ class Sandbox:
         return False
 
 
+def _rebind(root):
+    """After a deliberate sandbox mutation, re-pin the capsule's rows
+    identity and the receipt's capsule digest so the DEEPER verifier
+    check under test is the one that fires."""
+    cp = os.path.join(root, GEN.CAPSULE_REL)
+    rp = os.path.join(root, GEN.RECEIPT_REL)
+    rows_raw = open(os.path.join(root, GEN.ROWS_REL), "rb").read()
+    cap = json.loads(open(cp, encoding="utf-8").read())
+    cap["rows_file"]["sha256"] = _sha(rows_raw)
+    cap["rows_file"]["bytes"] = len(rows_raw)
+    cap["rows_file"]["rows"] = rows_raw.decode().count("\n") or \
+        len(rows_raw.decode().splitlines())
+    cap["rows_file"]["rows"] = len(rows_raw.decode().splitlines())
+    cap_bytes = (json.dumps(cap, indent=1, sort_keys=True)
+                 + "\n").encode("utf-8")
+    open(cp, "wb").write(cap_bytes)
+    rec = json.loads(open(rp, encoding="utf-8").read())
+    rec["capsule"]["sha256"] = _sha(cap_bytes)
+    rec["rows_sha256"] = _sha(rows_raw)
+    open(rp, "wb").write((json.dumps(rec, indent=1, sort_keys=True)
+                          + "\n").encode("utf-8"))
+
+
+def _mutate_capsule(root, fn, rebind=True):
+    cp = os.path.join(root, GEN.CAPSULE_REL)
+    cap = json.loads(open(cp, encoding="utf-8").read())
+    fn(cap)
+    cap_bytes = (json.dumps(cap, indent=1, sort_keys=True)
+                 + "\n").encode("utf-8")
+    open(cp, "wb").write(cap_bytes)
+    if rebind:
+        rp = os.path.join(root, GEN.RECEIPT_REL)
+        rec = json.loads(open(rp, encoding="utf-8").read())
+        rec["capsule"]["sha256"] = _sha(cap_bytes)
+        open(rp, "wb").write((json.dumps(rec, indent=1, sort_keys=True)
+                              + "\n").encode("utf-8"))
+
+
 def kat_a1_missing_object():
     with Sandbox() as sb:
         GEN.build()
@@ -141,6 +179,7 @@ def kat_a2_row_mutation():
         r["combined_risk"] = 0.999
         lines[0] = json.dumps(r, sort_keys=True) + "\n"
         open(rp, "w", encoding="utf-8", newline="\n").writelines(lines)
+        _rebind(sb.root)
         GEN.verify_capsule()
 
 
@@ -160,16 +199,15 @@ def kat_a4_duplicate_region_day():
         lines = open(rp, encoding="utf-8").readlines()
         lines.append(lines[0])
         open(rp, "w", encoding="utf-8", newline="\n").writelines(lines)
+        _rebind(sb.root)
         GEN.verify_capsule()
 
 
 def kat_a5_census_drift():
     with Sandbox() as sb:
         GEN.build()
-        cp = os.path.join(sb.root, GEN.CAPSULE_REL)
-        cap = json.load(open(cp, encoding="utf-8"))
-        cap["rows_file"]["sha256"] = "0" * 64
-        json.dump(cap, open(cp, "w", encoding="utf-8"), sort_keys=True)
+        _mutate_capsule(sb.root,
+                        lambda c: c["rows_file"].update(sha256="0" * 64))
         GEN.verify_capsule()
 
 
@@ -473,6 +511,227 @@ def kat_d4_canonical_table():
     assert dig1 == dig2, "region ordering changed the table digest"
 
 
+class _FakeGit:
+    """Deterministic git stand-in for the authority-chain KAT: clean
+    status, matching head/tree, real module blob bytes, then FORGED
+    pass/go records -- proving the chain checks fire on forged records
+    even when every self-hash is correct."""
+
+    def __init__(self):
+        self.module_blob = open(
+            os.path.join(_HERE, "w2_mf4_catalog_acquire_grassmann.py"),
+            "rb").read().replace(b"\r\n", b"\n")
+
+    def __call__(self, repo, *args):
+        a = " ".join(args)
+        if a == "status --porcelain":
+            return b""
+        if a == "rev-parse HEAD":
+            return b"deadbeef" * 5 + b"\n"
+        if a == "rev-parse HEAD^{tree}":
+            return b"treetree" * 5 + b"\n"
+        if a == "rev-parse origin/master":
+            return b"deadbeef" * 5 + b"\n"
+        if a.startswith("show HEAD:monitoring/src/"):
+            return self.module_blob
+        if a.startswith("show HEAD:docs/"):
+            # correction doc pinning the true identities
+            import w2_mf4_catalog_acquire_grassmann as A
+            _, cdig = A.query_contract()
+            return (hashlib.sha256(self.module_blob).hexdigest()
+                    + " " + cdig).encode()
+        if a.startswith("merge-base"):
+            return args[1].encode() + b"\n"
+        if a.startswith("rev-parse") :
+            return args[1].encode() + b"\n"
+        if a.startswith("show "):
+            return b"forged text with no bindings"
+        raise AssertionError(f"unexpected git call: {a}")
+
+
+def kat_d1b_forged_authority_chain():
+    import tempfile
+    fake = _FakeGit()
+    saved = ACQ._git
+    try:
+        ACQ._git = fake
+        _, cdig = ACQ.query_contract()
+        auth = {"schema": ACQ.AUTH_SCHEMA,
+                "public_head_commit": "deadbeef" * 5,
+                "public_head_tree": "treetree" * 5,
+                "module_git_blob_sha256":
+                    hashlib.sha256(fake.module_blob).hexdigest(),
+                "query_contract_sha256": cdig,
+                "codex_pass": {"framework_commit": "feedface" * 5,
+                               "file": "inbox/forged-pass.md",
+                               "patch_sha256": "11" * 32,
+                               "base_commit": "22" * 20,
+                               "result_tree": "33" * 20},
+                "owner_fire_go": {"quote": "forged go",
+                                  "utc": "2026-08-29T00:00:00Z",
+                                  "scope": ACQ.SCOPE_LITERAL,
+                                  "pass_framework_commit":
+                                      "feedface" * 5,
+                                  "source_framework_commit":
+                                      "feedface" * 5,
+                                  "source_file": "inbox/forged-go.md"},
+                "output_target_must_be_absent": True}
+        fd, path = tempfile.mkstemp(suffix=".json")
+        os.write(fd, json.dumps(auth).encode())
+        os.close(fd)
+        try:
+            def bomb(url, timeout=None):
+                raise AssertionError("HTTP attempted on forged chain")
+            ACQ.fire(path, opener=bomb)
+            raise AssertionError("forged chain accepted")
+        except SystemExit as e:
+            assert "MF4_FIRE_AUTH_PASS_UNBOUND" in str(e), e
+        finally:
+            os.remove(path)
+    finally:
+        ACQ._git = saved
+
+
+def _finalization_injection(break_name=None, break_rename=False):
+    import tempfile, shutil as _sh
+    root = tempfile.mkdtemp(prefix="mf4fin_")
+    saved_final = ACQ.FINAL_DIR
+    saved_verify = ACQ.verify_fire_authorization
+    saved_seal = ACQ._seal
+    saved_rename = os.rename
+    try:
+        ACQ.FINAL_DIR = os.path.join(root, "snap")
+        ACQ.verify_fire_authorization = lambda p: (
+            {"stub": True}, {"file": "stub", "sha256": "0" * 64,
+                             "bytes": 0, "go_source_sha256": "0" * 64})
+
+        class FakeResp:
+            def __init__(self, raw, url):
+                self.raw, self._url, self.status = raw, url, 200
+                import email.message
+                m = email.message.Message()
+                m["Content-Type"] = "application/json"
+                self.headers = m
+            def geturl(self):
+                return self._url
+            def read(self):
+                return self.raw
+            def __enter__(self):
+                return self
+            def __exit__(self, *a):
+                return False
+
+        centers = {r: ((b["bbox"]["min_lat"] + b["bbox"]["max_lat"]) / 2,
+                       (b["bbox"]["min_lon"] + b["bbox"]["max_lon"]) / 2)
+                   for r, b in
+                   {reg: {"bbox": ACQ.PINNED_BBOXES[reg]}
+                    for reg in ACQ.ADMITTED}.items()}
+        idx = {"n": 0}
+
+        def fake_open(url, timeout=None):
+            region = ACQ.ADMITTED[idx["n"]]
+            idx["n"] += 1
+            lat, lon = centers[region]
+            return FakeResp(_geojson([(f"ev_{region}", lat, lon,
+                                       4.5, T0)]), url)
+
+        if break_name is not None:
+            def broken_seal(staging, name, data):
+                if name == break_name:
+                    raise OSError(f"injected seal failure: {name}")
+                return saved_seal(staging, name, data)
+            ACQ._seal = broken_seal
+        if break_rename:
+            def broken_rename(a, b):
+                raise OSError("injected publish failure")
+            os.rename = broken_rename
+        try:
+            ACQ.fire("stubauth", opener=fake_open)
+            raise AssertionError("injected failure did not refuse")
+        except SystemExit as e:
+            assert "MF4_FIRE_FINALIZATION_EXCEPTION" in str(e), e
+        finally:
+            if break_rename:
+                os.rename = saved_rename
+        staging = ACQ.FINAL_DIR + ".staging"
+        assert os.path.isfile(os.path.join(
+            staging, "REFUSAL_MANIFEST.json")), "no refusal manifest"
+        assert not os.path.exists(ACQ.FINAL_DIR), "final target created"
+    finally:
+        os.rename = saved_rename
+        ACQ._seal = saved_seal
+        ACQ.FINAL_DIR = saved_final
+        ACQ.verify_fire_authorization = saved_verify
+        _sh.rmtree(root, ignore_errors=True)
+
+
+def kat_d6_finalization_injections():
+    _finalization_injection(break_name="catalog_snapshot_v1.json")
+    _finalization_injection(break_name="acquisition_receipt_v1.json")
+    _finalization_injection(break_rename=True)
+
+
+def kat_d5_role_guard():
+    ACQ.calibration_snapshot_role_guard(
+        {"temporal_role": "CALIBRATION_LATE_REPAIR"},
+        "calibration_labels")
+    ACQ.calibration_snapshot_role_guard(
+        {"temporal_role": "CALIBRATION_LATE_REPAIR"},
+        "calibration_features")
+    try:
+        ACQ.calibration_snapshot_role_guard(
+            {"temporal_role": "CALIBRATION_LATE_REPAIR"},
+            "live_prediction_features")
+        raise AssertionError("live use admitted")
+    except SystemExit as e:
+        assert "MF4_CATALOG_ROLE_VIOLATION" in str(e), e
+    try:
+        ACQ.calibration_snapshot_role_guard(
+            {"temporal_role": None}, "calibration_labels")
+        raise AssertionError("unbound role admitted")
+    except SystemExit as e:
+        assert "MF4_CATALOG_ROLE_UNBOUND" in str(e), e
+
+
+def _e_series():
+    cases = [
+        ("E1 file-census mutation", "MF4_ARCHIVE_FILE_CENSUS_DRIFT",
+         lambda c: c["file_census"].update(usable_files=999), True),
+        ("E2 support-census mutation", "MF4_ARCHIVE_SUPPORT_CENSUS_DRIFT",
+         lambda c: c["support_census"]["regA"].update(days_supported=0),
+         True),
+        ("E3 maturity-bound mutation", "MF4_ARCHIVE_MATURITY_DRIFT",
+         lambda c: c["maturity_bounds"].update(freeze_day="2099-01-01"),
+         True),
+        ("E4 receipt->capsule digest", "MF4_ARCHIVE_CAPSULE_DIGEST",
+         lambda c: c.update(schema=c["schema"]), False),
+        ("E5 missing-cells mutation", "MF4_ARCHIVE_MISSING_CELLS_DRIFT",
+         lambda c: c.update(missing_region_cells=[["2026-01-01",
+                                                   "regA"]]), True),
+        ("E6 region-partition mutation",
+         "MF4_ARCHIVE_REGION_PARTITION_DRIFT",
+         lambda c: c["region_sets"].update(
+             admitted_regions=["regA"]), True),
+        ("E7 day-grid mutation", "MF4_ARCHIVE_DAY_GRID_DRIFT",
+         lambda c: c["day_index"].update(days_total=999), True),
+        ("E8 producer-identity mutation", "MF4_ARCHIVE_PRODUCER_IDENTITY",
+         lambda c: c["producer_code_identity"].update(sha256="0" * 64),
+         True),
+    ]
+    for name, code, fn, rebind in cases:
+        def run(fn=fn, rebind=rebind, name=name, code=code):
+            with Sandbox() as sb:
+                GEN.build()
+                if name.startswith("E4"):
+                    cp = os.path.join(sb.root, GEN.CAPSULE_REL)
+                    raw = open(cp, "rb").read()
+                    open(cp, "wb").write(raw + b"\n")
+                else:
+                    _mutate_capsule(sb.root, fn, rebind=rebind)
+                GEN.verify_capsule()
+        check(name, run, code)
+
+
 def main():
     check("A1 missing raw object w/ present digest",
           kat_a1_missing_object, "MF4_ARCHIVE_OBJECT_MISSING")
@@ -514,6 +773,12 @@ def main():
     check("D3 closed-parser mutations", kat_d3_parser_closures)
     check("D4 canonical table dedup + order invariance",
           kat_d4_canonical_table)
+    check("D1b forged authority chain (self-hashes correct)",
+          kat_d1b_forged_authority_chain)
+    check("D5 temporal role guard", kat_d5_role_guard)
+    check("D6 finalization injections x3",
+          kat_d6_finalization_injections)
+    _e_series()
     print(f"\n{len(PASS)} PASS / {len(FAIL)} FAIL")
     if FAIL:
         raise SystemExit(1)

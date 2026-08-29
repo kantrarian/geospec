@@ -307,13 +307,86 @@ def build():
 
 
 def verify_capsule():
-    """Independent reopen: every store object recomputed, rows replayed
-    from store bytes, censuses/digests re-derived and compared."""
-    capsule = json.loads(open(os.path.join(REPO, CAPSULE_REL),
+    """Codex 1942Z item 3: FULL recompute from the receipt down.
+    Every bound surface of the capsule is independently re-derived
+    from bytes and module constants; any divergence refuses typed."""
+    cap_raw = open(os.path.join(REPO, CAPSULE_REL), "rb").read()
+    receipt = json.loads(open(os.path.join(REPO, RECEIPT_REL),
                               encoding="utf-8").read())
+    if receipt["capsule"]["sha256"] != _sha(cap_raw):
+        raise Refusal("MF4_ARCHIVE_CAPSULE_DIGEST",
+                      "receipt->capsule digest mismatch")
+    capsule = json.loads(cap_raw.decode("utf-8"))
+
+    if capsule["schema"] != SCHEMA:
+        raise Refusal("MF4_ARCHIVE_SCHEMA_DRIFT", capsule["schema"])
+    rs = capsule["region_sets"]
+    if (rs["monitor_region_set_at_freeze"] != MONITOR_REGIONS
+            or rs["typed_exclusions"] != TYPED_EXCLUSIONS
+            or rs["admitted_regions"] != ADMITTED
+            or rs["registered_alias"] != ALIAS):
+        raise Refusal("MF4_ARCHIVE_REGION_PARTITION_DRIFT",
+                      "region sets diverge from module constants")
+
+    mat_raw = open(os.path.join(REPO, MATURITY_REL), "rb").read()
+    mb = capsule["maturity_bounds"]
+    if mb["source_sha256"] != _sha(mat_raw):
+        raise Refusal("MF4_ARCHIVE_MATURITY_DRIFT",
+                      "maturity source bytes")
+    mat = json.loads(mat_raw.decode("utf-8"))
+    g = mat["gate_a_calibration_ledger"]
+    if (mb["calibration_interval"] != g["calibration_interval"]
+            or mb["freeze_day"] != g["freeze_day"]
+            or mb["snapshot_end"] != g["snapshot_end"]):
+        raise Refusal("MF4_ARCHIVE_MATURITY_DRIFT",
+                      "maturity bounds diverge from source")
+    if (mb["calibration_interval"]
+            != [CAL_START.isoformat(), CAL_END.isoformat()]):
+        raise Refusal("MF4_ARCHIVE_MATURITY_DRIFT",
+                      "interval diverges from builder constants")
+
+    if ADMITTED:
+        bboxes, fs_ident = _bboxes()
+        if capsule["bboxes"] != bboxes:
+            raise Refusal("MF4_ARCHIVE_BBOX_DRIFT",
+                          "bbox set diverges from recompute")
+        if capsule["fault_segments_identity"] != fs_ident:
+            raise Refusal("MF4_ARCHIVE_BBOX_DRIFT",
+                          "fault_segments identity diverges")
+
+    days = _days()
+    di = capsule["day_index"]
+    if (di["start"] != CAL_START.isoformat()
+            or di["end"] != CAL_END.isoformat()
+            or di["days_total"] != len(days)):
+        raise Refusal("MF4_ARCHIVE_DAY_GRID_DRIFT", str(di)[:120])
+
     inv = capsule["raw_source_store"]["inventory"]
+    if capsule["raw_source_store"]["object_count"] != len(inv):
+        raise Refusal("MF4_ARCHIVE_INVENTORY_DRIFT", "object_count")
+    malformed = set(di.get("malformed_day_files", []))
+    missing = set(di.get("missing_day_files", []))
+    if set(inv) | missing != set(days) or set(inv) & missing:
+        raise Refusal("MF4_ARCHIVE_INVENTORY_DRIFT",
+                      "inventory+missing does not partition the grid")
+    fc = capsule["file_census"]
+    if (fc["present_files"] != len(inv)
+            or fc["malformed_files"] != len(malformed)
+            or fc["usable_files"] != len(inv) - len(malformed)):
+        raise Refusal("MF4_ARCHIVE_FILE_CENSUS_DRIFT", str(fc))
+
+    # replay every row from store bytes IN BUILD ORDER -- this checks
+    # content, order, uniqueness and count in one comparison
     replay = []
-    for day in sorted(inv):
+    for day in days:
+        if day in missing:
+            for region in MONITOR_REGIONS:
+                replay.append({"issue_day": day, "region": region,
+                               "combined_risk": None,
+                               "support": "MISSING_DAY_FILE",
+                               "persistence_informational": None,
+                               "source_sha256": None})
+            continue
         e = inv[day]
         op = os.path.join(STORE_DIR, e["object"])
         if not os.path.isfile(op):
@@ -321,14 +394,13 @@ def verify_capsule():
         raw = open(op, "rb").read()
         if len(raw) != e["bytes"] or _sha(raw) != e["sha256"]:
             raise Refusal("MF4_ARCHIVE_OBJECT_MISMATCH", e["object"])
-        if e.get("malformed"):
+        if day in malformed:
             try:
                 json.loads(raw.decode("utf-8"))
                 raise Refusal("MF4_ARCHIVE_MALFORMED_FLAG_DRIFT", day)
             except (ValueError, UnicodeDecodeError):
                 pass
-            for region in capsule["region_sets"][
-                    "monitor_region_set_at_freeze"]:
+            for region in MONITOR_REGIONS:
                 replay.append({"issue_day": day, "region": region,
                                "combined_risk": None,
                                "support": "MALFORMED_DAY_FILE",
@@ -336,26 +408,52 @@ def verify_capsule():
                                "source_sha256": e["sha256"]})
             continue
         doc = json.loads(raw.decode("utf-8"))
-        for region in capsule["region_sets"]["monitor_region_set_at_freeze"]:
+        if doc.get("date") != day:
+            raise Refusal("MF4_ARCHIVE_DAY_MISMATCH", day)
+        for region in MONITOR_REGIONS:
             replay.append(extract_row(day, region, doc, e["sha256"]))
-    for day in capsule["day_index"]["missing_day_files"]:
-        for region in capsule["region_sets"]["monitor_region_set_at_freeze"]:
-            replay.append({"issue_day": day, "region": region,
-                           "combined_risk": None,
-                           "support": "MISSING_DAY_FILE",
-                           "persistence_informational": None,
-                           "source_sha256": None})
-    replay.sort(key=lambda r: (r["issue_day"], r["region"]))
-    committed = [json.loads(l) for l in
-                 open(os.path.join(REPO, ROWS_REL), encoding="utf-8")]
-    committed.sort(key=lambda r: (r["issue_day"], r["region"]))
-    if replay != committed:
-        raise Refusal("MF4_ARCHIVE_ROW_DIVERGENCE",
-                      f"{len(replay)} vs {len(committed)} rows")
+
     rows_raw = open(os.path.join(REPO, ROWS_REL), "rb").read()
-    if _sha(rows_raw) != capsule["rows_file"]["sha256"]:
-        raise Refusal("MF4_ARCHIVE_ROWS_DIGEST", "rows file digest")
-    return {"objects_verified": len(inv), "rows_verified": len(committed)}
+    rf = capsule["rows_file"]
+    if (_sha(rows_raw) != rf["sha256"] or len(rows_raw) != rf["bytes"]):
+        raise Refusal("MF4_ARCHIVE_ROWS_DIGEST", "rows file identity")
+    if receipt["rows_sha256"] != rf["sha256"]:
+        raise Refusal("MF4_ARCHIVE_ROWS_DIGEST", "receipt rows digest")
+    lines = rows_raw.decode("utf-8").splitlines()
+    if len(lines) != rf["rows"] or len(lines) != len(replay):
+        raise Refusal("MF4_ARCHIVE_ROW_DIVERGENCE",
+                      f"{len(lines)} lines vs {len(replay)} replayed")
+    keys = {"issue_day", "region", "combined_risk", "support",
+            "persistence_informational", "source_sha256"}
+    for i, line in enumerate(lines):
+        r = json.loads(line)
+        if set(r) != keys:
+            raise Refusal("MF4_ARCHIVE_ROW_SCHEMA", f"line {i}")
+        if r != replay[i]:
+            raise Refusal("MF4_ARCHIVE_ROW_DIVERGENCE",
+                          f"line {i}: {r['issue_day']}/{r['region']}")
+
+    census = {}
+    for region in MONITOR_REGIONS:
+        sup = sum(1 for r in replay
+                  if r["region"] == region and r["support"] == "SUPPORTED")
+        census[region] = {"days_total": len(days), "days_supported": sup,
+                          "days_unsupported": len(days) - sup}
+    if capsule["support_census"] != census:
+        raise Refusal("MF4_ARCHIVE_SUPPORT_CENSUS_DRIFT",
+                      "support census diverges from replay")
+    cells = sorted([r["issue_day"], r["region"]] for r in replay
+                   if r["support"] == "MISSING_REGION_ROW")
+    if capsule["missing_region_cells"] != cells:
+        raise Refusal("MF4_ARCHIVE_MISSING_CELLS_DRIFT",
+                      f"{len(cells)} recomputed cells")
+
+    me = open(os.path.abspath(__file__), "rb").read()
+    pid = capsule["producer_code_identity"]
+    if pid["sha256"] != _sha(me) or pid["bytes"] != len(me):
+        raise Refusal("MF4_ARCHIVE_PRODUCER_IDENTITY",
+                      "builder bytes diverge from capsule pin")
+    return {"objects_verified": len(inv), "rows_verified": len(replay)}
 
 
 if __name__ == "__main__":

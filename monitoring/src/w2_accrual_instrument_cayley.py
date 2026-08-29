@@ -175,6 +175,15 @@ STAGED_CLASS_SUFFIX = {"record": ".record.json",
                        "transcript": ".transcript.json",
                        "contract": ".contract.json",
                        "artifact": ".artifact.json"}
+# codex 0655Z item 3: provenance is a tagged XOR. A restaged key's
+# provenance carrier is `.restage.json` (the pinned lineage record),
+# never a relabelled native envelope; `record` above is the NATIVE
+# provenance form only. STAGED_ALL_SUFFIXES is the one recognition
+# authority for the staged space -- the generator imports it, so a
+# carrier the boundary parses is a carrier the generator pins.
+STAGED_RESTAGE_SUFFIX = ".restage.json"
+STAGED_ALL_SUFFIXES = tuple(STAGED_CLASS_SUFFIX.values()) + (
+    STAGED_RESTAGE_SUFFIX,)
 # codex 1547Z repair 1: the ADMISSION CONSUMER is the one authority
 # for the staged prefix -- the generator and the execution verifier
 # import THESE constants, so a carrier rename can never close in only
@@ -287,7 +296,8 @@ def _parse_staged_pin(path):
     that are not staged-class files anywhere."""
     path = str(path)
     base = os.path.basename(path)
-    for cls, suf in STAGED_CLASS_SUFFIX.items():
+    for cls, suf in list(STAGED_CLASS_SUFFIX.items()) + [
+            ("restage", STAGED_RESTAGE_SUFFIX)]:
         if base.endswith(suf):
             stem = base[: -len(suf)]
             break
@@ -312,6 +322,16 @@ def _parse_staged_pin(path):
                         "PRESTART_ADMISSION_REFUSED: staged-class "
                         f"pin outside the exact prefix: {path}")
                 return lane, carrier, day, cls
+    # codex 0655Z item 3 (v3/v4-key swap): a staged-suffix basename
+    # under the registered prefixes whose stem matches NO registered
+    # lane REFUSES typed -- a v3-lane stem (e.g. mf4_feed_*) must
+    # never vanish from the walk
+    if path.startswith(STAGED_PREFIX) or \
+            path.startswith(STAGED_PREFIX_RETIRED):
+        raise InstrumentRefusal(
+            "PRESTART_ADMISSION_REFUSED: staged-class pin with an "
+            f"unregistered lane stem under the staged prefix: "
+            f"{path}")
     return None
 
 
@@ -564,11 +584,29 @@ def _derive_admitted_partition(slot, blob_reader, manifest, groups,
             "PRESTART_ADMISSION_REFUSED: VIC repair records are not "
             "exactly the registered VIC key set "
             f"({len(rep_keys)} vs {len(vic_registered)} registered)")
-    idents = {r.get("transform_identity") for r in rep_rows}
-    if len(idents) != 1 or None in idents:
+    # codex 0655Z item 4: transform_identity is the CLOSED DICT the
+    # dispatcher emits (transform_identity_from_source) -- a set
+    # comprehension over the real rows raised raw TypeError
+    # (unhashable dict) instead of verifying uniformity. Shape first
+    # (keyset derived from the producer itself, never a duplicated
+    # constant), then exactly one canonical digest across all rows.
+    import w2_acquisition_capture_grassmann as _CAPI
+    _ident_keys = set(_CAPI.transform_identity_from_source(b""))
+    ident_digests = set()
+    for r in rep_rows:
+        ident = r.get("transform_identity")
+        if not isinstance(ident, dict) or set(ident) != _ident_keys:
+            raise InstrumentRefusal(
+                "PRESTART_ADMISSION_REFUSED: VIC repair entry for "
+                f"{r.get('key')} does not carry the closed "
+                "transform-identity object")
+        ident_digests.add(hashlib.sha256(json.dumps(
+            ident, sort_keys=True,
+            separators=(",", ":")).encode()).hexdigest())
+    if len(ident_digests) != 1:
         raise InstrumentRefusal(
             "PRESTART_ADMISSION_REFUSED: VIC repair transform "
-            "identity is absent or non-uniform")
+            "identity is non-uniform across the repair rows")
     for r in rep_rows:
         if r.get("http_requests") != 0:
             raise InstrumentRefusal(
@@ -630,6 +668,27 @@ def _derive_admitted_partition(slot, blob_reader, manifest, groups,
         if len(parts) == 3:
             admitted.add(tuple(parts))
 
+    # ---- codex 0655Z item 3: the REGISTERED lineage set admits the
+    # restaged keys. reuse_or_bridge comes from the capsule resolved
+    # from its accrual_impl pin above (never from a caller); each
+    # registered key must have its staged restage carrier, whose
+    # content the boundary's lineage branch verifies against the
+    # registered entry through the pinned verifier. A registered key
+    # with no carrier refuses -- registration is never presence.
+    for k in (capsule.get("reuse_or_bridge") or {}):
+        parts = str(k).split("/")
+        if len(parts) != 3:
+            raise InstrumentRefusal(
+                "PRESTART_ADMISSION_REFUSED: registered lineage key "
+                f"{k!r} is not lane/carrier/day")
+        lane_r, ck_r, day_r = parts
+        if day_r not in groups.get((lane_r, ck_r), {}).get(
+                "restage", {}):
+            raise InstrumentRefusal(
+                "PRESTART_ADMISSION_REFUSED: registered lineage key "
+                f"{k} has no staged restage carrier")
+        admitted.add((lane_r, ck_r, day_r))
+
     # ---- codex 2240Z P0-1 + 2313Z P0-1: the retry-operation chain
     # is validated by THE ONE shared semantic authority in the retry
     # module (validate_admitted_chain) -- the admission boundary and
@@ -690,7 +749,8 @@ def _boundary_mechanics(repo, manifest, *, blob_reader=None,
                         store_reader=None, day_set_gate=None,
                         transform_dispatcher=None,
                         authority_reproducer=None,
-                        capture_archive=None):
+                        capture_archive=None,
+                        manifest_commit=None, restage_gate=None):
     """codex 2235Z item 1 + 0238Z items 1-2: the admission-owned
     S/T/E consumer. The (lane, carrier, day) key set comes ONLY from
     the REGISTERED expected-keys authority pin (never from the
@@ -759,15 +819,35 @@ def _boundary_mechanics(repo, manifest, *, blob_reader=None,
             "PRESTART_ADMISSION_REFUSED: producer_boundary is BOUND "
             "with no per-day S/T/E pin classes (an inventory plus "
             "descriptor is never a staged boundary)")
+    import w2_restage_lineage_grassmann as _RLIN
     for (lane, carrier, day) in sorted(authorized):
         classes = groups.get((lane, carrier), {})
-        for cls in STAGED_CLASS_SUFFIX:
+        for cls in ("transcript", "contract", "artifact"):
             if day not in classes.get(cls, {}):
                 raise InstrumentRefusal(
                     "PRESTART_ADMISSION_REFUSED: authority key "
                     f"{lane}/{carrier}/{day} lacks staged "
                     f"class {cls} (omission never shrinks the "
                     "expected set)")
+        # codex 0655Z item 3: provenance is a tagged XOR -- exactly
+        # one of the native envelope record or the restage lineage
+        # record, never zero, never both, never one relabelled as
+        # the other
+        has_rec = day in classes.get("record", {})
+        has_rst = day in classes.get("restage", {})
+        if has_rec == has_rst:
+            raise InstrumentRefusal(
+                "PRESTART_ADMISSION_REFUSED: authority key "
+                f"{lane}/{carrier}/{day} carries "
+                + ("both provenance forms" if has_rec
+                   else "no provenance carrier")
+                + " (provenance is record XOR restage)")
+        if has_rec and classes["record"][day].get("schema") == \
+                _RLIN.RESTAGE_SCHEMA:
+            raise InstrumentRefusal(
+                "PRESTART_ADMISSION_REFUSED: authority key "
+                f"{lane}/{carrier}/{day} carries a restage lineage "
+                "record relabelled as the native envelope")
     inv_keys = set(inventory.get("objects", {}))
     want_keys = set()
     for (lane, ck, d) in authorized:
@@ -807,6 +887,10 @@ def _boundary_mechanics(repo, manifest, *, blob_reader=None,
     report = {}
     for (lane, carrier), classes in sorted(groups.items()):
         expected_days = sorted(auth_keys[lane][carrier])
+        native_days = [d for d in expected_days
+                       if d in classes.get("record", {})]
+        restage_days = [d for d in expected_days
+                        if d in classes.get("restage", {})]
         bodies = {}
         auth_contracts = {}
         for day in expected_days:
@@ -828,35 +912,119 @@ def _boundary_mechanics(repo, manifest, *, blob_reader=None,
             auth_contracts[day] = auth_s
             bodies[day] = store_reader(
                 descriptor, inventory["objects"][key]["path"])
-            # 0238Z item 2: RECOMPUTE the produced artifact from the
-            # reopened body through the registered transform -- fed
-            # the AUTHORITATIVE S
-            recomputed = transform_dispatcher(
-                lane, bodies[day], auth_contracts[day])
-            if _PRODC._canon_digest(recomputed) != \
-                    _PRODC._canon_digest(classes["artifact"][day]):
+            if day not in restage_days:
+                # 0238Z item 2: RECOMPUTE the produced artifact from
+                # the reopened body through the registered transform
+                # -- fed the AUTHORITATIVE S. Restaged keys are
+                # recomputed through the PINNED transform inside the
+                # lineage verifier below instead.
+                recomputed = transform_dispatcher(
+                    lane, bodies[day], auth_contracts[day])
+                if _PRODC._canon_digest(recomputed) != \
+                        _PRODC._canon_digest(
+                            classes["artifact"][day]):
+                    raise InstrumentRefusal(
+                        "PRESTART_ADMISSION_REFUSED: produced "
+                        f"artifact for {key} diverges from the "
+                        "registered transform recomputation (digest "
+                        "agreement with E is never derivation)")
+        # codex 0655Z item 3, restage branch: the staged S and E
+        # must equal the digests the REGISTERED lineage entry binds,
+        # the record must name THIS key, and the pinned lineage
+        # verifier (which recomputes through the PINNED transform)
+        # must pass -- fail closed when no commit context exists
+        import w2_producer_grassmann as _PRODR
+        restage_att = {}
+        for day in restage_days:
+            key = f"{lane}/{carrier}/{day}"
+            rst = classes["restage"][day]
+            if rst.get("v4_key") != key:
                 raise InstrumentRefusal(
-                    "PRESTART_ADMISSION_REFUSED: produced artifact "
-                    f"for {key} diverges from the registered "
-                    "transform recomputation (digest agreement with "
-                    "E is never derivation)")
-        try:
-            out = day_set_gate(
-                classes["record"], bodies, classes["artifact"],
-                auth_contracts, classes["transcript"],
-                expected_days, carrier, lane)
-        except InstrumentRefusal:
-            raise
-        except Exception as e:
-            raise InstrumentRefusal(
-                f"PRESTART_ADMISSION_REFUSED: S/T/E join failed for "
-                f"{lane}/{carrier}: {e}")
+                    "PRESTART_ADMISSION_REFUSED: restage record "
+                    f"staged at {key} names v4_key "
+                    f"{rst.get('v4_key')!r} (placement must equal "
+                    "the registered v4 key)")
+            if _PRODR._canon_digest(auth_contracts[day]) != \
+                    rst.get("s_v4_sha256"):
+                raise InstrumentRefusal(
+                    "PRESTART_ADMISSION_REFUSED: staged contract "
+                    f"for {key} does not equal the restage record's "
+                    "registered s_v4_sha256")
+            if _PRODR._canon_digest(classes["artifact"][day]) != \
+                    rst.get("artifact_sha256"):
+                raise InstrumentRefusal(
+                    "PRESTART_ADMISSION_REFUSED: staged artifact "
+                    f"for {key} does not equal the restage record's "
+                    "registered artifact_sha256")
+            gate = restage_gate
+            if gate is None:
+                if manifest_commit is None:
+                    raise InstrumentRefusal(
+                        "PRESTART_ADMISSION_REFUSED: restaged key "
+                        f"{key} requires the pinned manifest commit "
+                        "for lineage resolution and none was "
+                        "supplied (fail closed, never skipped)")
+                import w2_restage_lineage_grassmann as _RLING
+
+                def gate(record, transcript, raw_body):
+                    return _RLING.verify_restage_lineage_pinned(
+                        repo, manifest_commit, record, transcript,
+                        raw_body)
+            try:
+                gate(rst, classes["transcript"][day], bodies[day])
+            except InstrumentRefusal:
+                raise
+            except Exception as e:
+                raise InstrumentRefusal(
+                    "PRESTART_ADMISSION_REFUSED: restage lineage "
+                    f"verification failed for {key}: "
+                    f"{type(e).__name__}: {str(e)[:200]}")
+            # codex 1309Z fix 1: the VALIDATED restage bindings enter
+            # the boundary digest -- two valid lineages with
+            # different verified body/S/E/transcript bindings must
+            # never share a report digest
+            restage_att[day] = {
+                "v4_key": key,
+                "raw_body_sha256": hashlib.sha256(
+                    bodies[day]).hexdigest(),
+                "s_sha256": _PRODR._canon_digest(
+                    auth_contracts[day]),
+                "artifact_sha256": _PRODR._canon_digest(
+                    classes["artifact"][day]),
+                "transcript_sha256": _PRODR._canon_digest(
+                    classes["transcript"][day]),
+                "restage_record_sha256": _PRODR._canon_digest(rst)}
+        if native_days:
+            try:
+                out = day_set_gate(
+                    {d: classes["record"][d] for d in native_days},
+                    {d: bodies[d] for d in native_days},
+                    {d: classes["artifact"][d]
+                     for d in native_days},
+                    {d: auth_contracts[d] for d in native_days},
+                    {d: classes["transcript"][d]
+                     for d in native_days},
+                    native_days, carrier, lane)
+            except InstrumentRefusal:
+                raise
+            except Exception as e:
+                raise InstrumentRefusal(
+                    f"PRESTART_ADMISSION_REFUSED: S/T/E join failed "
+                    f"for {lane}/{carrier}: {e}")
+        else:
+            out = {}
         report[f"{lane}/{carrier}"] = {
             "days": len(expected_days),
+            "native_days": len(native_days),
+            "restaged_days": len(restage_days),
+            # codex 1309Z fix 1: TAGGED canonical structure -- the
+            # native join output and the restage attestations both
+            # bind the per-lane digest
             "day_digests_sha256": hashlib.sha256(json.dumps(
-                out, sort_keys=True, separators=(",", ":"))
+                {"native": out, "restage": restage_att},
+                sort_keys=True, separators=(",", ":"))
                 .encode()).hexdigest()}
-    full = {"schema": "f2g-w2-staged-boundary-report-v2",
+    full = {"schema": "f2g-w2-staged-boundary-report-v3",
             "expected_keys_sha256":
                 authority["prestart_expected_keys_sha256"],
             "store": store_rep, "lanes": report}
@@ -884,22 +1052,73 @@ def _boundary_mechanics(repo, manifest, *, blob_reader=None,
         import w2_acquisition_capture_grassmann as CAP
         # verify the archive OURSELVES; trusting a caller-verified
         # one would accept a forgery (the content-auth mistake again)
-        try:
-            # the archive verifier takes the AUTHORITY key mapping,
-            # so it re-derives the partition from the same registered
-            # source this boundary uses -- not a list we flattened
-            CAP.verify_capture_run_archive(capture_archive,
-                                           descriptor, auth_keys)
-        except Exception as e:                            # noqa: BLE001
-            raise InstrumentRefusal(
-                "PRESTART_ADMISSION_REFUSED: the capture-run archive "
-                f"failed its own verifier ({type(e).__name__}: "
-                f"{str(e)[:110]})")
+        # codex 0655Z item 3: the capture archive partitions the
+        # NATIVE portion of the authority -- restaged keys were
+        # never capture attempts. This caller-archive branch is the
+        # STRUCTURAL door only; production (archive=None) admits
+        # restaged keys from the REGISTERED lineage set instead.
+        _native_auth = {
+            lane: {ck: [d for d in days
+                        if d not in groups.get(
+                            (lane, ck), {}).get("restage", {})]
+                   for ck, days in auth_keys[lane].items()}
+            for lane in auth_keys}
+        _rst_body = set()
+        _nat_body = set()
+        for (ln, ck), cl in groups.items():
+            for d in cl.get("restage", {}):
+                _ent = inventory.get("objects", {}).get(
+                    f"{ln}/{ck}/{d}") or {}
+                if _ent.get("sha256"):
+                    _rst_body.add(str(_ent["sha256"]))
+            for d in cl.get("record", {}):
+                _ent = inventory.get("objects", {}).get(
+                    f"{ln}/{ck}/{d}") or {}
+                if _ent.get("sha256"):
+                    _nat_body.add(str(_ent["sha256"]))
+        # codex 1309Z fix 2: a content-addressed store may hold ONE
+        # body shared by a native and a restaged key -- remove only
+        # the restage-EXCLUSIVE digests, or the native archive would
+        # falsely miss its own required body
+        _rst_body -= _nat_body
+        # STRUCTURAL DOOR ONLY: lineage-restaged bodies are
+        # accounted by the INVENTORY, not by the native-capture
+        # archive, so the archive verifier sweeps a NATIVE store
+        # view with exactly those digests removed. CAP's verifier
+        # stays byte-untouched -- its source identity is bound by
+        # the registered disposition capsule and may not drift in a
+        # cayley packet. Production (archive=None) never copies:
+        # it derives restage admission from the registered capsule.
+        import shutil as _sh
+        import tempfile as _tf
+        _sd = os.path.realpath(str(descriptor["physical_root"]))
+        with _tf.TemporaryDirectory() as _nat_dir:
+            if os.path.isdir(_sd):
+                for _f in os.listdir(_sd):
+                    if _f.endswith(".body") and                             _f[:-len(".body")] not in _rst_body:
+                        _sh.copyfile(os.path.join(_sd, _f),
+                                     os.path.join(_nat_dir, _f))
+            _nat_desc = dict(descriptor, physical_root=_nat_dir)
+            try:
+                # the archive verifier takes the AUTHORITY key
+                # mapping, so it re-derives the partition from the
+                # same registered source this boundary uses
+                CAP.verify_capture_run_archive(capture_archive,
+                                               _nat_desc,
+                                               _native_auth)
+            except Exception as e:                        # noqa: BLE001
+                raise InstrumentRefusal(
+                    "PRESTART_ADMISSION_REFUSED: the capture-run "
+                    f"archive failed its own verifier "
+                    f"({type(e).__name__}: {str(e)[:110]})")
         admitted = set()
         for k in CAP.admitted_keys(capture_archive):
             parts = str(k).split("/")
             if len(parts) == 3:
                 admitted.add(tuple(parts))
+        for (ln, ck), cl in groups.items():
+            for d in cl.get("restage", {}):
+                admitted.add((ln, ck, d))
     unmet = sorted(f"{ln}/{ck}/{d}"
                    for (ln, ck, d) in authorized
                    if (ln, ck, d) not in admitted)
@@ -1011,7 +1230,8 @@ def verify_staged_boundary(repo, manifest, *, blob_reader=None,
                            transform_dispatcher=None,
                            authority_reproducer=None,
                            capture_archive=None,
-                           disposition_capsule=None):
+                           disposition_capsule=None,
+                           manifest_commit=None, restage_gate=None):
     """THE PRODUCTION ADMISSION BOUNDARY -- strict, and the only
     entrypoint whose result may be consumed as an admission fact.
 
@@ -1026,7 +1246,8 @@ def verify_staged_boundary(repo, manifest, *, blob_reader=None,
         store_reader=store_reader, day_set_gate=day_set_gate,
         transform_dispatcher=transform_dispatcher,
         authority_reproducer=authority_reproducer,
-        capture_archive=capture_archive)
+        capture_archive=capture_archive,
+        manifest_commit=manifest_commit, restage_gate=restage_gate)
     if mech is None:
         return None
     full, digest = mech["full"], mech["digest"]
@@ -1075,7 +1296,8 @@ STRUCTURAL_KAT_SCHEMA = ("claim_scope", "admission_eligible",
 def verify_staged_boundary_structure_kat(
         repo, manifest, *, blob_reader=None, store_reader=None,
         day_set_gate=None, transform_dispatcher=None,
-        authority_reproducer=None, capture_archive=None):
+        authority_reproducer=None, capture_archive=None,
+        manifest_commit=None, restage_gate=None):
     """codex 0057Z P0: the PORTABLE STRUCTURAL KERNEL.
 
     Exercises the pin walk, staged store, S/T/E bijection, artifact
@@ -1096,7 +1318,8 @@ def verify_staged_boundary_structure_kat(
         store_reader=store_reader, day_set_gate=day_set_gate,
         transform_dispatcher=transform_dispatcher,
         authority_reproducer=authority_reproducer,
-        capture_archive=capture_archive)
+        capture_archive=capture_archive,
+        manifest_commit=manifest_commit, restage_gate=restage_gate)
     if mech is None:
         return None
     lanes = dict(mech["full"].get("lanes", {}))
@@ -1169,7 +1392,8 @@ def assemble_prestart_admission(repo, manifest_commit, bindings,
     # BOUND (always true at a zero-OPEN prestart PASS); its report
     # digest binds into the admission capsule below
     boundary = verify_staged_boundary(
-        repo, json.loads(raw.decode("utf-8")))
+        repo, json.loads(raw.decode("utf-8")),
+        manifest_commit=verdict["manifest_commit"])
     boundary_sha = (boundary or {}).get("staged_boundary_sha256")
     blob_sha = hashlib.sha256(raw).hexdigest()
     if not isinstance(owner_authorization, dict) or \
@@ -1739,7 +1963,13 @@ def _selftest():
                           hashlib.sha256(raw).hexdigest()})
     b_keys = {"SELECTION_RECORDS": {"kat_sel": ["2026-08-20"]},
               "MAG_FEED": {"izn": list(days)},
-              "MAG_WEATHER_FEED": {"kat_drv": ["2026-08-20"]}}
+              "MAG_WEATHER_FEED": {"kat_drv": ["2026-08-20",
+                                               "2026-08-21"]}}
+    # codex 0655Z item 3: kat_drv/2026-08-21 is RESTAGED -- a mixed
+    # native+restaged fixture; a native-only fixture cannot close
+    # this seam
+    _RST_KEY = ("MAG_WEATHER_FEED", "kat_drv", "2026-08-21")
+    _rst_raws = {}
     arch_admitted = {}
     fixture_keys = [(lane, ck, d)
                     for lane in sorted(b_keys)
@@ -1758,7 +1988,27 @@ def _selftest():
             opener=opener,
             clock=lambda d=day: f"{d}T12:00:01Z")
         stem = f"{lane.lower()}_{ck}_{day}"
-        add_pin(pre + f"{stem}.record.json", open(rp, "rb").read())
+        if (lane, ck, day) == _RST_KEY:
+            # provenance carrier = the lineage record; the native
+            # envelope is deliberately NOT staged, and the key is
+            # ABSENT from the capture archive (it was never a
+            # capture attempt)
+            _rr = {"schema": "f2g-w2-restage-lineage-v1",
+                   "v4_key": f"{lane}/{ck}/{day}",
+                   "s_v4_sha256": PROD._canon_digest(
+                       CAP.static_contract_of(sp)),
+                   "artifact_sha256": PROD._canon_digest(
+                       bbuilder(body))}
+            _rst_raws["restage"] = json.dumps(
+                _rr, sort_keys=True, separators=(",", ":")).encode()
+            _rst_raws["record"] = open(rp, "rb").read()
+            _rst_raws["stem"] = stem
+            _rst_raws["body_sha"] = hashlib.sha256(body).hexdigest()
+            add_pin(pre + f"{stem}.restage.json",
+                    _rst_raws["restage"])
+        else:
+            add_pin(pre + f"{stem}.record.json",
+                    open(rp, "rb").read())
         add_pin(pre + f"{stem}.transcript.json",
                 open(tp, "rb").read())
         add_pin(pre + f"{stem}.contract.json", json.dumps(
@@ -1770,6 +2020,8 @@ def _selftest():
         inv_entries[f"{lane}/{ck}/{day}"] = {
             "sha256": rec["raw_body_sha256"],
             "bytes": rec["raw_body_bytes"]}
+        if (lane, ck, day) == _RST_KEY:
+            continue
         # v4 part 7: the archive entry for this ADMITTED key
         arch_admitted[f"{lane}/{ck}/{day}"] = {
             "lane": lane, "carrier": ck, "utc_day": day,
@@ -1850,11 +2102,24 @@ def _selftest():
     # pin and a six-key fixture manifest carries none. That is the
     # intended property, not a limitation: portable structural
     # testing must be incapable of producing an admission fact.
+    _rst_calls = []
+
+    def brestage_gate(record, transcript, raw_body):
+        # KAT door for the lineage verifier (a six-key fixture
+        # manifest carries no pinned disposition capsule); the
+        # mechanics' own v4_key/s_v4/artifact joins still run REAL
+        _rst_calls.append((record["v4_key"],
+                           hashlib.sha256(raw_body).hexdigest()))
+        return {"ok": True}
     out = verify_staged_boundary_structure_kat(
         ".", bman(pins2), capture_archive=b_archive,
         blob_reader=breader, transform_dispatcher=bdispatch,
-        authority_reproducer=b_repro)
+        authority_reproducer=b_repro, restage_gate=brestage_gate)
     assert out["structure"]["lanes"]["MAG_FEED/izn"]["days"] == 2
+    _mw = out["structure"]["lanes"]["MAG_WEATHER_FEED/kat_drv"]
+    assert _mw["native_days"] == 1 and _mw["restaged_days"] == 1, _mw
+    assert _rst_calls == [("MAG_WEATHER_FEED/kat_drv/2026-08-21",
+                           _rst_raws["body_sha"])], _rst_calls
     assert len(out["structural_kat_sha256"]) == 64
     assert out["claim_scope"] == "STRUCTURAL_KAT_ONLY"
     assert out["admission_eligible"] is False
@@ -1879,7 +2144,9 @@ def _selftest():
                 transform_dispatcher=kw.pop(
                     "transform_dispatcher", bdispatch),
                 authority_reproducer=kw.pop(
-                    "authority_reproducer", b_repro), **kw)
+                    "authority_reproducer", b_repro),
+                restage_gate=kw.pop("restage_gate",
+                                    brestage_gate), **kw)
             return False
         except InstrumentRefusal as e:
             return needle in str(e)
@@ -1953,6 +2220,131 @@ def _selftest():
                                             wrong[0]["path"])
     wrong.append(w0)
     assert brefuses(wrong, "outside the exact prefix")
+    # ---- codex 0655Z item 3: mixed-provenance mutations ----------
+    _rp = pre + _rst_raws["stem"] + ".restage.json"
+    _rec_p = pre + _rst_raws["stem"] + ".record.json"
+    _no_rst = [q for q in pins2 if q["path"] != _rp]
+    assert brefuses(_no_rst, "no provenance carrier")
+    blobs[("e" * 40, _rec_p)] = _rst_raws["record"]
+    _dbl = pins2 + [{"path": _rec_p, "commit": "e" * 40,
+                     "blob_sha256": hashlib.sha256(
+                         _rst_raws["record"]).hexdigest()}]
+    assert brefuses(_dbl, "both provenance forms")
+    blobs[("d" * 40, _rec_p)] = _rst_raws["restage"]
+    _rel = _no_rst + [{"path": _rec_p, "commit": "d" * 40,
+                       "blob_sha256": hashlib.sha256(
+                           _rst_raws["restage"]).hexdigest()}]
+    assert brefuses(_rel, "relabelled as the native envelope")
+    _v3p = pre + "mf4_feed_kat_drv_2026-08-21.restage.json"
+    blobs[("c" * 40, _v3p)] = _rst_raws["restage"]
+    assert brefuses(pins2 + [{"path": _v3p, "commit": "c" * 40,
+                              "blob_sha256": hashlib.sha256(
+                                  _rst_raws["restage"]).hexdigest()}],
+                    "unregistered lane stem")
+
+    def _rst_mut(commit, **field):
+        obj = json.loads(_rst_raws["restage"].decode("utf-8"))
+        obj.update(field)
+        raw = json.dumps(obj, sort_keys=True,
+                         separators=(",", ":")).encode()
+        blobs[(commit, _rp)] = raw
+        return _no_rst + [{"path": _rp, "commit": commit,
+                           "blob_sha256": hashlib.sha256(
+                               raw).hexdigest()}]
+    assert brefuses(_rst_mut("b" * 40,
+                             v4_key="MAG_FEED/izn/2026-08-20"),
+                    "placement must equal")
+    assert brefuses(_rst_mut("9" * 40, s_v4_sha256="9" * 64),
+                    "registered s_v4_sha256")
+    assert brefuses(_rst_mut("8" * 40, artifact_sha256="8" * 64),
+                    "registered artifact_sha256")
+    # fail closed: no gate and no commit context refuses, never skips
+    assert brefuses(pins2, "requires the pinned manifest commit",
+                    restage_gate=None)
+    print("  0655Z item 3: mixed provenance XOR + restage joins -- "
+          "missing/double/relabelled/v3-stem/key-swap/digest "
+          "mutations all refuse typed; no-context fails closed")
+    # ---- codex 1309Z fix 1: the VALIDATED restage value binds the
+    # digests -- variant B differs ONLY in the restaged body, and
+    # both the per-lane digest and the full structural digest move
+    _rk2 = "MAG_WEATHER_FEED/kat_drv/2026-08-21"
+
+    def _variant(tag, rst_entry, staging_v):
+        pins_v = [pn for pn in pins2
+                  if not pn["path"].endswith(
+                      "staged_body_inventory.json")
+                  and not pn["path"].endswith(
+                      "store_descriptor.json")]
+        inv_v = CAP.build_staged_body_inventory(
+            "s4t", "s4t://window2",
+            dict(inv_entries, **{_rk2: rst_entry}))
+        desc_v = dict(b_desc, physical_root=staging_v)
+        for name_v, obj_v in (
+                (tag + "/staged_body_inventory.json", inv_v),
+                (tag + "/store_descriptor.json", desc_v)):
+            raw_v = json.dumps(obj_v, sort_keys=True,
+                               separators=(",", ":")).encode()
+            blobs[("f" * 40, pre + name_v)] = raw_v
+            pins_v.append({"path": pre + name_v, "commit": "f" * 40,
+                           "blob_sha256": hashlib.sha256(
+                               raw_v).hexdigest()})
+        return pins_v
+
+    def _copy_bodies(dst, skip_rst=True):
+        os.makedirs(dst, exist_ok=True)
+        for k_c, e_c in inv_entries.items():
+            if skip_rst and k_c == _rk2:
+                continue
+            with open(os.path.join(staging,
+                                   e_c["sha256"] + ".body"),
+                      "rb") as f:
+                bb_c = f.read()
+            with open(os.path.join(dst, e_c["sha256"] + ".body"),
+                      "wb") as f:
+                f.write(bb_c)
+    staging2 = os.path.join(broot, "staging_att")
+    _copy_bodies(staging2)
+    _body_b = b"body-restaged-variant-B"
+    _sha_b = hashlib.sha256(_body_b).hexdigest()
+    with open(os.path.join(staging2, _sha_b + ".body"), "wb") as f:
+        f.write(_body_b)
+    out_b = verify_staged_boundary_structure_kat(
+        ".", bman(_variant("attb", {"sha256": _sha_b,
+                                    "bytes": len(_body_b)},
+                           staging2)),
+        capture_archive=b_archive, blob_reader=breader,
+        transform_dispatcher=bdispatch,
+        authority_reproducer=b_repro, restage_gate=brestage_gate)
+    _lA = out["structure"]["lanes"]["MAG_WEATHER_FEED/kat_drv"]
+    _lB = out_b["structure"]["lanes"]["MAG_WEATHER_FEED/kat_drv"]
+    assert _lA["day_digests_sha256"] != _lB["day_digests_sha256"], \
+        "restage body change must move the per-lane digest"
+    assert out["structural_kat_sha256"] != \
+        out_b["structural_kat_sha256"], \
+        "restage body change must move the full structural digest"
+    # ---- codex 1309Z fix 2: a native and a restaged key may share
+    # ONE content-addressed body -- the valid shared fixture passes,
+    # and an altered shared body still refuses
+    _shared_key = "MAG_FEED/izn/2026-08-20"
+    _shared = inv_entries[_shared_key]
+    staging3 = os.path.join(broot, "staging_shared")
+    _copy_bodies(staging3)
+    pins_c = _variant("attc", {"sha256": _shared["sha256"],
+                               "bytes": _shared["bytes"]}, staging3)
+    out_c = verify_staged_boundary_structure_kat(
+        ".", bman(pins_c), capture_archive=b_archive,
+        blob_reader=breader, transform_dispatcher=bdispatch,
+        authority_reproducer=b_repro, restage_gate=brestage_gate)
+    assert out_c["claim_scope"] == "STRUCTURAL_KAT_ONLY", \
+        "the deduplicated shared-body fixture must PASS"
+    with open(os.path.join(staging3,
+                           _shared["sha256"] + ".body"),
+              "wb") as f:
+        f.write(b"altered-shared")
+    assert brefuses(pins_c, "CAPTURE_INVENTORY_OBJECT_MISMATCH")
+    print("  1309Z fixes: restage attestations bind the boundary "
+          "digests (variant moves both); a shared native/restage "
+          "body passes and its alteration still refuses")
     # DAY_CAPSULE at PRESTART refuses as unauthorized
     dc = [dict(pn) for pn in pins2]
     dcr = breader("f" * 40, pre + "mag_feed_izn_2026-08-20"
@@ -2413,14 +2805,30 @@ def _selftest():
     _r_map = {"contract": _canon(_r_ct), "artifact": _canon(_r_art),
               "record": _canon(_r_rec), "transcript": _canon(_r_tr)}
 
-    _led_rows = [
-        {"key": "MAG_FEED/new/2026-01-01", "seq": 0,
-         "status": "CAPTURED"},
-        {"key": "MAG_FEED/vic/2026-01-01", "seq": 1,
-         "status": "REFUSED", "refusal": "frame"},
-        {"key": _rk, "seq": 81, "status": "REFUSED",
-         "refusal": "CAPTURE_HTTP_STATUS: 404"},
-    ]
+    # codex 0655Z item 4: the fixture carries the REAL cardinality
+    # (212 VIC rows) and the REAL closed-dict identity shape, derived
+    # from the authoritative producer -- a single string-identity row
+    # could never construct the uniformity property being tested.
+    import datetime as _dt
+    import w2_acquisition_capture_grassmann as _CAPK
+    _vic_days = [(_dt.date(2026, 1, 1) + _dt.timedelta(days=i)
+                  ).isoformat() for i in range(212)]
+    _vic_keys = [f"MAG_FEED/vic/{d}" for d in _vic_days]
+    _ident = _CAPK.transform_identity_from_source(b"kat-vic-source")
+    _led_rows = [{"key": "MAG_FEED/new/2026-01-01", "seq": 0,
+                  "status": "CAPTURED"}]
+    _seq = 1
+    for _vk in _vic_keys:
+        if _seq == 81:
+            _led_rows.append({"key": _rk, "seq": 81,
+                              "status": "REFUSED",
+                              "refusal":
+                                  "CAPTURE_HTTP_STATUS: 404"})
+            _seq += 1
+        _led_rows.append({"key": _vk, "seq": _seq,
+                          "status": "REFUSED", "refusal": "frame"})
+        _seq += 1
+    _rk_row = next(r for r in _led_rows if r["key"] == _rk)
     _led_raw = ("\n".join(json.dumps(r, sort_keys=True)
                           for r in _led_rows) + "\n").encode()
     _inv_raw = json.dumps(
@@ -2429,7 +2837,8 @@ def _selftest():
     _pred_tr = {"raw_body_sha256": "cd" * 32}
     _pred_art = {"outcome": "ADMITTED"}
     _groups = {("MAG_FEED", "vic"): {"transcript":
-                                     {"2026-01-01": _vic_tr}},
+                                     {d: dict(_vic_tr)
+                                      for d in _vic_days}},
                ("MAG_WEATHER_FEED", "omni"): {
                    "transcript": {"2026-01-01": _pred_tr},
                    "artifact": {"2026-01-01": _pred_art}},
@@ -2439,15 +2848,15 @@ def _selftest():
                    "record": {_rday: _r_rec},
                    "transcript": {_rday: _r_tr}}}
     _receipt = {"schema": TERMINAL_RECEIPT_SCHEMA,
-                "ledger_sha256": _dig(_led_raw), "ledger_lines": 3,
+                "ledger_sha256": _dig(_led_raw),
+                "ledger_lines": len(_led_rows),
                 "admitted_keys": ["MAG_FEED/new/2026-01-01"],
-                "refused_keys": sorted(
-                    ["MAG_FEED/vic/2026-01-01", _rk]),
+                "refused_keys": sorted(_vic_keys + [_rk]),
                 "inventory_sha256": _dig(_inv_raw)}
-    _rep_rows = [{"key": "MAG_FEED/vic/2026-01-01",
+    _rep_rows = [{"key": _vk,
                   "raw_body_sha256": "ab" * 32,
-                  "transform_identity": "ident-1",
-                  "http_requests": 0}]
+                  "transform_identity": dict(_ident),
+                  "http_requests": 0} for _vk in _vic_keys]
     _brec = {"schema": _PB.BRIDGE_SCHEMA, "lane": "MAG_WEATHER_FEED",
              "carrier": "omni", "utc_day": "2026-01-01",
              "evidence": {"raw_body_sha256": "cd" * 32,
@@ -2455,8 +2864,8 @@ def _selftest():
              "artifact_sha256": _canon(_pred_art)}
     _brec["bridge_sha256"] = _canon(
         {k: v for k, v in _brec.items() if k != "bridge_sha256"})
-    _capsule = {"http_capture": ["MAG_FEED/new/2026-01-01",
-                                 "MAG_FEED/vic/2026-01-01", _rk],
+    _capsule = {"http_capture": ["MAG_FEED/new/2026-01-01"]
+                + list(_vic_keys) + [_rk],
                 "predecessor": ["MAG_WEATHER_FEED/omni/2026-01-01"],
                 "reuse_or_bridge": []}
     # FULL valid response evidence: the shared chain authority now
@@ -2481,7 +2890,7 @@ def _selftest():
                                  "sha256": _dig(_led_raw),
                                  "seq": 81,
                                  "entry_sha256":
-                                     _canon(_led_rows[2])},
+                                     _canon(_rk_row)},
              "manifest_commit": "a" * 40,
              "manifest_blob_sha256": "b" * 64,
              "capsule_pin_commit": "c" * 40,
@@ -2575,15 +2984,16 @@ def _selftest():
                                    "resolve_commit": str,
                                    "reopen_manifest": str,
                                    "expect_entry_sha":
-                                       _canon(_led_rows[2])}
+                                       _canon(_rk_row)}
     try:
         slot, blob = _mk_blobs()
         adm = _derive_admitted_partition(slot, blob, {}, _groups,
                                          _canon)
-        assert adm == {("MAG_FEED", "new", "2026-01-01"),
-                       ("MAG_FEED", "vic", "2026-01-01"),
-                       ("MAG_WEATHER_FEED", "omni", "2026-01-01"),
-                       (_rlane, _rck, _rday)}, adm
+        _want_adm = {("MAG_FEED", "new", "2026-01-01"),
+                     ("MAG_WEATHER_FEED", "omni", "2026-01-01"),
+                     (_rlane, _rck, _rday)}
+        _want_adm.update(("MAG_FEED", "vic", d) for d in _vic_days)
+        assert adm == _want_adm, (len(adm), len(_want_adm))
 
         def _must_refuse(needle, **over):
             slot2, blob2 = _mk_blobs(**over)
@@ -2606,11 +3016,51 @@ def _selftest():
                      led=b'{"key": "x"}\n')
         _must_refuse("not exactly the registered VIC key set",
                      rep_rows=[])
-        _must_refuse("the replay is zero-HTTP",
-                     rep_rows=[dict(_rep_rows[0], http_requests=1)])
-        _must_refuse("not joined to its staged",
-                     rep_rows=[dict(_rep_rows[0],
-                                    raw_body_sha256="ee" * 32)])
+        def _rr():
+            return [dict(r) for r in _rep_rows]
+        _m = _rr()
+        _m[0]["http_requests"] = 1
+        _must_refuse("the replay is zero-HTTP", rep_rows=_m)
+        _m = _rr()
+        _m[0]["raw_body_sha256"] = "ee" * 32
+        _must_refuse("not joined to its staged", rep_rows=_m)
+        # ---- codex 0655Z item 4: closed-dict identity KATs --------
+        # 212 equal dicts is the happy path above; here: non-dict,
+        # missing, and one-changed-field -- each refuses TYPED
+        _m = _rr()
+        _m[0]["transform_identity"] = "ident-1"
+        _must_refuse("closed transform-identity", rep_rows=_m)
+        _m = _rr()
+        del _m[1]["transform_identity"]
+        _must_refuse("closed transform-identity", rep_rows=_m)
+        _m = _rr()
+        _m[2]["transform_identity"] = dict(_ident,
+                                           source_sha256="9" * 64)
+        _must_refuse("non-uniform", rep_rows=_m)
+        # ---- 0655Z item 3: the REGISTERED lineage set admits ------
+        _caps_rst = dict(_capsule)
+        _caps_rst["reuse_or_bridge"] = {
+            "MAG_FEED/rlin/2026-01-01": {"kat": 1}}
+        globals()["_registered_disposition_capsule"] = (
+            lambda manifest, blob_reader: _caps_rst)
+        _groups_rst = dict(_groups)
+        _groups_rst[("MAG_FEED", "rlin")] = {
+            "restage": {"2026-01-01": {
+                "schema": "f2g-w2-restage-lineage-v1"}}}
+        _slotR, _blobR = _mk_blobs()
+        _admR = _derive_admitted_partition(_slotR, _blobR, {},
+                                           _groups_rst, _canon)
+        assert ("MAG_FEED", "rlin", "2026-01-01") in _admR
+        try:
+            _derive_admitted_partition(_slotR, _blobR, {}, _groups,
+                                       _canon)
+            raise AssertionError("registered lineage key with no "
+                                 "staged carrier must refuse")
+        except InstrumentRefusal as e:
+            assert "no staged restage carrier" in str(e), \
+                str(e)[:140]
+        globals()["_registered_disposition_capsule"] = (
+            lambda manifest, blob_reader: _capsule)
         _must_refuse("bridge_sha256 does not recompute",
                      brec=dict(_brec, artifact_sha256="ff" * 32))
         _wrong = {k: v for k, v in _brec.items()

@@ -43,12 +43,22 @@ slot.
 
 CLAIM CEILING
 -------------
-Completing these 212 keys does NOT close the 2,056-key boundary. Even
-after this replay and the predecessor bridge the maximum is 2,055
-complete four-class keys, because the one USGS 404 has no body and no
-transcript and therefore cannot satisfy a body-backed scientific key.
-That is an owner decision (codex 0510Z P0-3), not something this driver
-may paper over, and nothing here emits BOUND or claims 635 native keys.
+Completing these 212 keys does NOT close the 2,056-key boundary by
+itself, this driver grants no admission, and it performs zero HTTP.
+
+Time-scoped accounting (codex 0520Z fix 3): AS OF THIS DRIVER'S
+AUTHORING on 2026-08-27, the maximum was 2,055 complete four-class
+keys, because the one USGS 404 key then had no body and no transcript
+and could not satisfy a body-backed scientific key -- an owner
+decision (codex 0510Z P0-3) this driver may not paper over. That gap
+was LATER closed by a SEPARATE authority this driver neither performs
+nor depends on: the owner-authorized exact-key retry one-shot
+(`w2_capture_retry_404_v4_cayley.py`, codex 1345Z contract), fired
+2026-08-27 21:53Z and terminally CAPTURED_ADMITTED through its
+verified six-member chain. With that retry key closed the presence
+maximum is 2,056; nothing about THIS driver changed -- it still
+repairs exactly the 212 VIC keys from held bytes, emits no BOUND, and
+claims no native-635.
 """
 import hashlib
 import json

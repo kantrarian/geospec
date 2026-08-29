@@ -363,8 +363,10 @@ FINAL_BIND_SLOTS = ("producer_boundary", "calibration_ledgers")
 # startswith ".../staged_envelopes/" -- so no path satisfies both.
 STAGED_PREFIX_V4 = _ACCM.STAGED_PREFIX
 STAGED_PREFIX_LEGACY_RETIRED = _ACCM.STAGED_PREFIX_RETIRED
-STAGED_CLASS_SUFFIXES = (".record.json", ".transcript.json",
-                         ".contract.json", ".artifact.json")
+# codex 0655Z item 3: recognition comes from the ONE authority in
+# the admission consumer, so the `.restage.json` provenance carrier
+# the boundary parses is a carrier this generator pins.
+STAGED_CLASS_SUFFIXES = tuple(_ACCM.STAGED_ALL_SUFFIXES)
 # 2,056 authorized keys x 4 staged classes. Recomputed from the
 # authority/class bijection by the boundary verifier -- this constant
 # is the DECLARED expectation, never the proof.
@@ -792,10 +794,21 @@ def _selftest():
     # spec that FULLY satisfies its own contract (exactly 8,224 staged
     # classes + every required class), and require the calibration
     # refusal to be the one that fires.
-    _full_staged = sorted(
-        f"{STAGED_PREFIX_V4}k{n:05d}{s}"
-        for n in range(FINAL_BIND_EXPECTED_CLASSES // 4)
-        for s in STAGED_CLASS_SUFFIXES)
+    # codex 0655Z item 3: the satisfying spec carries the REAL
+    # mixed provenance -- 636 native records + 1,420 restage lineage
+    # carriers, each stem with exactly ONE provenance form plus the
+    # three scientific classes (8,224 total; a 4-uniform fixture no
+    # longer describes the staged space)
+    _full_staged = []
+    for n in range(FINAL_BIND_EXPECTED_CLASSES // 4):
+        _stem = f"{STAGED_PREFIX_V4}k{n:05d}"
+        _full_staged.append(
+            _stem + (".record.json" if n < 636
+                     else ".restage.json"))
+        for _sfx in (".transcript.json", ".contract.json",
+                     ".artifact.json"):
+            _full_staged.append(_stem + _sfx)
+    _full_staged = sorted(_full_staged)
     _full_pb = sorted(_full_staged + others)
     _pb_ok = True
     try:

@@ -653,10 +653,21 @@ def _attempt_obj(io, cls):
         return json.load(f)
 
 
-def _validate_dispatch_semantics(d, io):
+def _validate_dispatch_semantics(d, io, execution=False):
     """codex 1845Z residual 3: every nested dispatch value JOINS to
     the registered operation identity -- a self-digest seals content,
-    it never chooses it."""
+    it never chooses it.
+
+    codex 0655Z item 5: EXECUTION-TIME authority and later READ-ONLY
+    ADMISSION are different questions. execution=True (the finalize/
+    production path) requires the CURRENT module source to equal the
+    recorded digest and the registered pin -- code about to act must
+    be the reviewed code. execution=False (historical admission, the
+    chain authority) reopens the HISTORICAL executed source at its
+    OWN pin commit and binds it to disk_sha256/pin_blob_sha256 and
+    the dispatch manifest; today's validator source never enters the
+    comparison, so a validator-only later commit still admits a
+    valid historical receipt."""
     if d.get("owner_authorization") != OWNER_AUTH_REF or \
             d.get("contract") != CONTRACT_REF:
         _refuse("RETRY_DISPATCH_SEMANTICS",
@@ -738,12 +749,13 @@ def _validate_dispatch_semantics(d, io):
         _refuse("RETRY_DISPATCH_SEMANTICS",
                 "manifest_blob_sha256 does not recompute from the "
                 "reopened manifest bytes")
-    with open(os.path.abspath(__file__), "rb") as f:
-        cur_norm = _norm_source_sha256(f.read())
-    if ec.get("disk_sha256") != cur_norm:
-        _refuse("RETRY_DISPATCH_SEMANTICS",
-                "executed-code digest does not equal the current "
-                "normalized module source")
+    if execution:
+        with open(os.path.abspath(__file__), "rb") as f:
+            cur_norm = _norm_source_sha256(f.read())
+        if ec.get("disk_sha256") != cur_norm:
+            _refuse("RETRY_DISPATCH_SEMANTICS",
+                    "executed-code digest does not equal the "
+                    "current normalized module source")
     pin = _module_pin_binding(d.get("manifest_commit"))
     if pin.get("pin_commit") is not None:
         if not _is_hex40(str(ec.get("pin_commit") or "")) or \
@@ -752,10 +764,32 @@ def _validate_dispatch_semantics(d, io):
             _refuse("RETRY_DISPATCH_SEMANTICS",
                     "executed-code pin binding does not equal the "
                     "reopened manifest pin in exact hex form")
-        if cur_norm != pin["pin_blob_sha256"]:
+        if execution and cur_norm != pin["pin_blob_sha256"]:
             _refuse("RETRY_DISPATCH_SEMANTICS",
                     "current normalized module source diverges from "
                     "the reopened manifest pin")
+        if not execution:
+            # READ-ONLY ADMISSION: reopen the HISTORICAL executed
+            # source at the pin commit the dispatch recorded (equal
+            # to the manifest's registered pin by the join above --
+            # an unregistered execution commit already refused)
+            try:
+                hist_raw = RUN4._blob(ec["pin_commit"], ec["path"])
+            except SystemExit:
+                _refuse("RETRY_DISPATCH_SEMANTICS",
+                        "the executed-code pin commit does not "
+                        "resolve -- historical admission reopens "
+                        "the registered execution, it never guesses")
+            if _norm_source_sha256(hist_raw) != \
+                    ec.get("disk_sha256"):
+                _refuse("RETRY_DISPATCH_SEMANTICS",
+                        "the reopened historical executed source "
+                        "does not recompute to the recorded "
+                        "executed-code digest")
+            if _sha(hist_raw) != ec.get("pin_blob_sha256"):
+                _refuse("RETRY_DISPATCH_SEMANTICS",
+                        "the reopened historical blob bytes do not "
+                        "recompute to the recorded pin blob digest")
     else:
         # fixtures ONLY: the unpinned form is permitted solely under
         # an explicit internal KAT context supplied out-of-band --
@@ -1758,7 +1792,7 @@ def finalize(_kat_io=None):
     # prepared or result record.
     _validate_record(dispatch, DISPATCH_FIELDS, "dispatch_sha256",
                      "f2g-w2-retry-404-dispatch-v1", "dispatch")
-    _validate_dispatch_semantics(dispatch, io)
+    _validate_dispatch_semantics(dispatch, io, execution=True)
     prepared = None
     if os.path.exists(prepared_path):
         with open(prepared_path, encoding="utf-8") as f:
@@ -3325,6 +3359,101 @@ def _selftest():
               refuses(lambda: main(["fire", "HEAD",
                                     "MAG_FEED/vic/2026-01-01"]),
                       "RETRY_USAGE"))
+    # ---- codex 0655Z item 5: EXECUTION vs ADMISSION authority ---
+    # A validator-only later commit must still ADMIT a valid
+    # historical receipt. The dispatch here is derived live from the
+    # repo HEAD (manifest, module pin, capsule status all real), so
+    # the admission path exercises the real reopen joins on every
+    # host with the repo -- including one whose WORKING module source
+    # differs from the pinned historical producer.
+    _e_mc = _resolve_commit("HEAD")
+    _e_pin = _module_pin_binding(_e_mc)
+    if _e_pin.get("pin_commit") is None:
+        check("H1 admission bars require a pinned module at HEAD",
+              False, "module unpinned at the HEAD manifest")
+    else:
+        _e_hist = RUN4._blob(_e_pin["pin_commit"], MODULE_PATH)
+        _e_man = RUN4._blob(_e_mc, CAP.EXEC_MANIFEST_PATH)
+        _e_cap = RUN4.capsule_pin_status(_e_mc)
+        _e_led = b'{"kat": "led"}\n'
+        _e_stem = CAP._path_tokens(TARGET_LANE, TARGET_CARRIER,
+                                   TARGET_DAY)
+        _e_io = {"expect_ledger_sha": _sha(_e_led),
+                 "expect_entry_sha": "ee" * 32,
+                 "expect_url": REGISTERED_REQUEST_URL,
+                 "stem": _e_stem}
+
+        def _e_d():
+            return {"schema": "f2g-w2-retry-404-dispatch-v1",
+                    "key": TARGET_KEY,
+                    "owner_authorization": OWNER_AUTH_REF,
+                    "contract": CONTRACT_REF,
+                    "original_ledger": {
+                        "path": ACC.CAPTURE_LEDGER_PATH,
+                        "sha256": _sha(_e_led),
+                        "seq": ORIGINAL_SEQ,
+                        "entry_sha256": "ee" * 32},
+                    "manifest_commit": _e_mc,
+                    "manifest_blob_sha256": _sha(_e_man),
+                    "capsule_pin_commit": _e_cap["pin_commit"],
+                    "capsule_sha256":
+                        _e_cap["pinned_blob_sha256"],
+                    "attempt_id": "f" * 32,
+                    "executed_code": {
+                        "path": MODULE_PATH,
+                        "disk_sha256":
+                            _norm_source_sha256(_e_hist),
+                        "pin_commit": _e_pin["pin_commit"],
+                        "pin_blob_sha256":
+                            _e_pin["pin_blob_sha256"],
+                        "note": "kat"},
+                    "store": {"id": RUN4.STORE_ID,
+                              "root": RUN4.STORE_ROOT},
+                    "expected_classes": sorted(
+                        _e_stem + suf for suf in
+                        ACC.STAGED_CLASS_SUFFIX.values()),
+                    "registered_request_url":
+                        REGISTERED_REQUEST_URL,
+                    "max_logical_http_operations": 1,
+                    "vic_http_operations": 0,
+                    "dispatched_utc": "2026-08-27T21:50:00Z"}
+
+        def _e_mut(**ecover):
+            d = _e_d()
+            d["executed_code"] = dict(d["executed_code"], **ecover)
+            return d
+        try:
+            _validate_dispatch_semantics(_e_d(), _e_io)
+            _e_ok, _e_why = True, ""
+        except BaseException as exc:
+            _e_ok, _e_why = False, str(exc)[:140]
+        check("H1 ADMISSION accepts the pin-bound historical "
+              "dispatch without consulting today's module source",
+              _e_ok, _e_why)
+        check("H2 a wrong historical pin blob digest refuses",
+              refuses(lambda: _validate_dispatch_semantics(
+                  _e_mut(pin_blob_sha256="9" * 64), _e_io),
+                  "RETRY_DISPATCH_SEMANTICS"))
+        _e_parent = _resolve_commit(_e_pin["pin_commit"] + "~1")
+        check("H3 an unregistered execution commit refuses",
+              refuses(lambda: _validate_dispatch_semantics(
+                  _e_mut(pin_commit=_e_parent), _e_io),
+                  "RETRY_DISPATCH_SEMANTICS"))
+        check("H4 a wrong recorded executed-code digest refuses "
+              "against the reopened historical source",
+              refuses(lambda: _validate_dispatch_semantics(
+                  _e_mut(disk_sha256="8" * 64), _e_io),
+                  "RETRY_DISPATCH_SEMANTICS"))
+        check("H5 a wrong executed-code path refuses",
+              refuses(lambda: _validate_dispatch_semantics(
+                  _e_mut(path="monitoring/src/evil.py"), _e_io),
+                  "RETRY_DISPATCH_SEMANTICS"))
+        check("H6 EXECUTION mode refuses a recorded digest that is "
+              "not the current module source, on every host",
+              refuses(lambda: _validate_dispatch_semantics(
+                  _e_mut(disk_sha256="9" * 64), _e_io,
+                  execution=True),
+                  "RETRY_DISPATCH_SEMANTICS"))
     print()
     if fails:
         print(f"RETRY-404 BAR FAILURES ({len(fails)}): {fails}")

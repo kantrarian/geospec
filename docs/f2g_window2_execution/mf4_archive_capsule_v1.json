@@ -134,9 +134,9 @@
   "start": "2025-10-18"
  },
  "fault_segments_identity": {
-  "bytes": 35467,
+  "bytes": 34410,
   "path": "monitoring/src/fault_segments.py",
-  "sha256": "13834b75f396ca3c03705ef759587c9040a5c1c88a9e8081071b476d24b19ff0"
+  "sha256": "90acfd35fc05bd9b4f178837ebbd2ff7e44b6211a422e47bfbcfa230c1b8f913"
  },
  "file_census": {
   "malformed_files": 1,
@@ -152,7 +152,7 @@
   "freeze_day": "2026-08-28",
   "snapshot_end": "2026-08-27",
   "source": "docs/f2g_window2_execution/mf4_maturity_record_v4.json",
-  "source_sha256": "abfd24ade50e396f1171a4373eb51fd20c7187ee15606fc2e6222fb5fe5e384f"
+  "source_sha256": "74507258849d314255836e3552809ea116bb61b2357487ca627822e04a104507"
  },
  "missing_region_cells": [
   [
@@ -725,9 +725,9 @@
   ]
  ],
  "producer_code_identity": {
-  "bytes": 21272,
+  "bytes": 24920,
   "path": "monitoring/src/w2_mf4_archive_capsule_gen_grassmann.py",
-  "sha256": "939f33f65f9e0c76cf86c839a32ca13aae5a36b3d03c960417bd5240547361c7"
+  "sha256": "c4c9a84fc76748b4a359a5c063c5964bc820a91922d2cf06aaba56782a3b22e3"
  },
  "projection_loss_disclosure": "components/coverage/summary/earthquake_events are omitted from the training row; their complete source bytes remain reopenable through the store inventory. persistence_informational is NON-INPUT: frozen MF4 persistence is the catalog-derived recent_event.",
  "raw_source_store": {

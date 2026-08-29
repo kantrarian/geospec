@@ -542,11 +542,16 @@ class _FakeGit:
                     + " " + cdig).encode()
         if a.startswith("merge-base"):
             return args[1].encode() + b"\n"
-        if a.startswith("rev-parse") :
+        if a.startswith("rev-parse"):
             return args[1].encode() + b"\n"
+        if "forged-pass" in a:
+            return self.pass_record
         if a.startswith("show "):
-            return b"forged text with no bindings"
+            return self.go_record
         raise AssertionError(f"unexpected git call: {a}")
+
+    pass_record = b"forged text with no bindings"
+    go_record = b"forged text with no bindings"
 
 
 def kat_d1b_forged_authority_chain():
@@ -671,6 +676,295 @@ def kat_d6_finalization_injections():
     _finalization_injection(break_rename=True)
 
 
+def _auth_file(tmpdir=None):
+    import tempfile
+    fake = _FakeGit()
+    _, cdig = ACQ.query_contract()
+    auth = {"schema": ACQ.AUTH_SCHEMA,
+            "public_head_commit": "deadbeef" * 5,
+            "public_head_tree": "treetree" * 5,
+            "module_git_blob_sha256":
+                hashlib.sha256(fake.module_blob).hexdigest(),
+            "query_contract_sha256": cdig,
+            "codex_pass": {"framework_commit": "feedface" * 5,
+                           "file": "inbox/forged-pass.md"},
+            "owner_fire_go": {"quote": "forged go",
+                              "utc": "2026-08-29T00:00:00Z",
+                              "scope": ACQ.SCOPE_LITERAL,
+                              "pass_framework_commit": "feedface" * 5,
+                              "source_framework_commit": "feedface" * 5,
+                              "source_file": "inbox/forged-go.md"},
+            "output_target_must_be_absent": True}
+    fd, path = tempfile.mkstemp(suffix=".json")
+    os.write(fd, json.dumps(auth).encode())
+    os.close(fd)
+    return fake, path
+
+
+def kat_d1c_negative_hold_verdict():
+    """Codex probe: a reachable record whose text contains PASS but
+    whose structured verdict is HOLD must refuse pre-opener."""
+    fake, path = _auth_file()
+    _, cdig = ACQ.query_contract()
+    fake.pass_record = json.dumps({
+        "verdict": "HOLD",
+        "note": "PRE-HTTP PASS is not issued despite the word PASS",
+        "base_commit": "22" * 20, "bundle_sha256": "11" * 32,
+        "result_tree": "treetree" * 5,
+        "module_git_blob_sha256":
+            hashlib.sha256(fake.module_blob).hexdigest(),
+        "query_contract_sha256": cdig}).encode()
+    saved_git, saved_anc = ACQ._git, ACQ._is_ancestor
+    try:
+        ACQ._git = fake
+        ACQ._is_ancestor = lambda repo, a, b: True
+        def bomb(url, timeout=None):
+            raise AssertionError("HTTP attempted on HOLD verdict")
+        try:
+            ACQ.fire(path, opener=bomb)
+            raise AssertionError("HOLD verdict accepted")
+        except SystemExit as e:
+            assert "MF4_FIRE_AUTH_PASS_VERDICT" in str(e), e
+    finally:
+        ACQ._git, ACQ._is_ancestor = saved_git, saved_anc
+        os.remove(path)
+
+
+def kat_d1d_old_go_unbound():
+    """Codex probe: a VALID structured pass + an unrelated old go
+    record lacking the required bindings must refuse pre-opener."""
+    fake, path = _auth_file()
+    _, cdig = ACQ.query_contract()
+    fake.pass_record = json.dumps({
+        "verdict": "PRE_HTTP_PASS",
+        "base_commit": "22" * 20, "bundle_sha256": "11" * 32,
+        "result_tree": "treetree" * 5,
+        "module_git_blob_sha256":
+            hashlib.sha256(fake.module_blob).hexdigest(),
+        "query_contract_sha256": cdig}).encode()
+    fake.go_record = b"an old unrelated note containing forged go only"
+    saved_git, saved_anc = ACQ._git, ACQ._is_ancestor
+    try:
+        ACQ._git = fake
+        ACQ._is_ancestor = lambda repo, a, b: True
+        def bomb(url, timeout=None):
+            raise AssertionError("HTTP attempted on unbound go")
+        try:
+            ACQ.fire(path, opener=bomb)
+            raise AssertionError("unbound old go accepted")
+        except SystemExit as e:
+            assert "MF4_FIRE_AUTH_GO_UNBOUND" in str(e), e
+    finally:
+        ACQ._git, ACQ._is_ancestor = saved_git, saved_anc
+        os.remove(path)
+
+
+def kat_d7_durability():
+    """Positive transaction lock: a full 13-region fake acquisition
+    publishes exactly 28 files, every one fsynced; then a raw-seal
+    fsync injection refuses typed with no final target."""
+    import tempfile, shutil as _sh
+    root = tempfile.mkdtemp(prefix="mf4dur_")
+    saved_final = ACQ.FINAL_DIR
+    saved_verify = ACQ.verify_fire_authorization
+    saved_fsync = os.fsync
+    counted = {"n": 0}
+
+    def counting_fsync(fd):
+        counted["n"] += 1
+        return saved_fsync(fd)
+
+    class FakeResp:
+        def __init__(self, raw, url):
+            self.raw, self._url, self.status = raw, url, 200
+            import email.message
+            m = email.message.Message()
+            m["Content-Type"] = "application/json"
+            self.headers = m
+        def geturl(self):
+            return self._url
+        def read(self):
+            return self.raw
+        def __enter__(self):
+            return self
+        def __exit__(self, *a):
+            return False
+
+    idx = {"n": 0}
+
+    def fake_open(url, timeout=None):
+        region = ACQ.ADMITTED[idx["n"]]
+        idx["n"] += 1
+        b = ACQ.PINNED_BBOXES[region]
+        lat = (b["min_lat"] + b["max_lat"]) / 2
+        lon = (b["min_lon"] + b["max_lon"]) / 2
+        return FakeResp(_geojson([(f"ev_{region}", lat, lon, 4.5, T0)]),
+                        url)
+
+    try:
+        ACQ.FINAL_DIR = os.path.join(root, "snap")
+        ACQ.verify_fire_authorization = lambda p: (
+            {"stub": True}, {"file": "stub", "sha256": "0" * 64,
+                             "bytes": 0, "go_source_sha256": "0" * 64})
+        os.fsync = counting_fsync
+        ACQ.fire("stubauth", opener=fake_open)
+        files = sorted(os.listdir(ACQ.FINAL_DIR))
+        assert len(files) == 28, f"{len(files)} files: {files}"
+        assert counted["n"] >= 28, f"only {counted['n']} fsync calls"
+        # injection: fsync fails on the FIRST raw seal
+        _sh.rmtree(ACQ.FINAL_DIR)
+        idx["n"] = 0
+
+        def failing_fsync(fd):
+            raise OSError("injected raw fsync failure")
+
+        os.fsync = failing_fsync
+        try:
+            ACQ.fire("stubauth", opener=fake_open)
+            raise AssertionError("raw fsync failure did not refuse")
+        except SystemExit as e:
+            assert "MF4_CATALOG" in str(e) or "MF4_FIRE" in str(e), e
+        assert not os.path.exists(ACQ.FINAL_DIR), "final target created"
+    finally:
+        os.fsync = saved_fsync
+        ACQ.FINAL_DIR = saved_final
+        ACQ.verify_fire_authorization = saved_verify
+        _sh.rmtree(root, ignore_errors=True)
+
+
+def kat_d8_real_adapter_path():
+    """Codex item 5: the guard on the REAL consumer path -- the frozen
+    w2_mf4.calibrate runs through the adapter; the amended training
+    digest binds policy + snapshot identity; live use refuses."""
+    import w2_mf4_catalog_adapter_grassmann as ADP
+    import datetime as _dt
+    bbox = {"min_lat": 30.0, "max_lat": 40.0,
+            "min_lon": 100.0, "max_lon": 110.0}
+    days = [( _dt.date(2025, 10, 18) + _dt.timedelta(n)).isoformat()
+            for n in range(24)]
+    risk = {"regA": {d: 0.3 + 0.01 * i for i, d in enumerate(days)}}
+    ev_ms = int(_dt.datetime(2025, 10, 28, 12,
+                             tzinfo=_dt.timezone.utc).timestamp() * 1000)
+    table = [{"id": "evA", "time_ms": ev_ms,
+              "time_utc": "2025-10-28T12:00:00.000Z",
+              "lat": 35.0, "lon": 105.0, "mag": 4.6}]
+    snap = {"temporal_role": "CALIBRATION_LATE_REPAIR",
+            "temporal_role_policy":
+                "AMENDED_AFTER_FREEZE recompute policy (correction 3)",
+            "canonical_event_table": table}
+    ledger = ADP.calibrate_with_snapshot(
+        risk, snap, {"regA": bbox}, ["regA"],
+        freeze_day="2025-11-17", snapshot_end="2025-11-16")
+    assert "amended_training_digest" in ledger
+    b = ledger["amended_training_binding"]
+    assert b["engine_training_digest"] == ledger["training_digest"]
+    # policy change moves the amended digest, engine digest unchanged
+    snap2 = dict(snap, temporal_role_policy=snap["temporal_role_policy"]
+                 + " CHANGED")
+    ledger2 = ADP.calibrate_with_snapshot(
+        risk, snap2, {"regA": bbox}, ["regA"],
+        freeze_day="2025-11-17", snapshot_end="2025-11-16")
+    assert ledger2["training_digest"] == ledger["training_digest"]
+    assert (ledger2["amended_training_digest"]
+            != ledger["amended_training_digest"])
+    # snapshot table change moves it too
+    snap3 = dict(snap, canonical_event_table=table + [
+        {"id": "evB", "time_ms": ev_ms + 60000,
+         "time_utc": "2025-10-28T12:01:00.000Z",
+         "lat": 35.0, "lon": 105.0, "mag": 3.9}])
+    ledger3 = ADP.calibrate_with_snapshot(
+        risk, snap3, {"regA": bbox}, ["regA"],
+        freeze_day="2025-11-17", snapshot_end="2025-11-16")
+    assert (ledger3["amended_training_digest"]
+            != ledger["amended_training_digest"])
+    # live path refuses the calibration snapshot
+    try:
+        ADP.live_prediction_events(snap)
+        raise AssertionError("live path accepted late snapshot")
+    except SystemExit as e:
+        assert "MF4_CATALOG_ROLE_VIOLATION" in str(e), e
+    # issue-time view without receipt refuses; with receipt passes
+    try:
+        ADP.live_prediction_events({"temporal_role": "ISSUE_TIME_VIEW",
+                                    "events": []})
+        raise AssertionError("receipt-less issue view accepted")
+    except SystemExit as e:
+        assert "MF4_CATALOG_ROLE_UNBOUND" in str(e), e
+    out = ADP.live_prediction_events(
+        {"temporal_role": "ISSUE_TIME_VIEW", "events": [1],
+         "issue_time_receipt": "receipts/2026-08-30.json"})
+    assert out == [1]
+
+
+def _e_series_c4():
+    cases = [
+        ("E9 amendment field forgery",
+         "MF4_ARCHIVE_CAPSULE_RECONSTRUCTION",
+         lambda c: c.update(amendment="docs/forged.md")),
+        ("E10 lane_status forgery",
+         "MF4_ARCHIVE_CAPSULE_RECONSTRUCTION",
+         lambda c: c.update(lane_status="ORIGINAL_PREREGISTRATION")),
+        ("E11 catalog-binding forgery",
+         "MF4_ARCHIVE_CAPSULE_RECONSTRUCTION",
+         lambda c: c["catalog_binding"].update(status="CLOSED")),
+        ("E12 training-digest forgery",
+         "MF4_ARCHIVE_CAPSULE_RECONSTRUCTION",
+         lambda c: c.update(training_row_digest="0" * 64)),
+        ("E13 store locator forgery",
+         "MF4_ARCHIVE_CAPSULE_RECONSTRUCTION",
+         lambda c: c["raw_source_store"].update(
+             store_root="s4t://forged")),
+        ("E14 inventory provenance-path forgery",
+         "MF4_ARCHIVE_CAPSULE_RECONSTRUCTION",
+         lambda c: next(iter(
+             c["raw_source_store"]["inventory"].values())).update(
+                 host_provenance_path="C:/forged.json")),
+        ("E15 top-level key injection",
+         "MF4_ARCHIVE_CAPSULE_RECONSTRUCTION",
+         lambda c: c.update(extra_claim="skill demonstrated")),
+    ]
+    for name, code, fn in cases:
+        def run(fn=fn):
+            with Sandbox() as sb:
+                GEN.build()
+                _mutate_capsule(sb.root, fn, rebind=True)
+                GEN.verify_capsule()
+        check(name, run, code)
+
+    def run_receipt_schema():
+        with Sandbox() as sb:
+            GEN.build()
+            rp = os.path.join(sb.root, GEN.RECEIPT_REL)
+            rec = json.loads(open(rp, encoding="utf-8").read())
+            rec["schema"] = "forged-schema"
+            open(rp, "wb").write((json.dumps(rec, indent=1,
+                                             sort_keys=True)
+                                  + "\n").encode())
+            GEN.verify_capsule()
+    check("E16 receipt schema forgery", run_receipt_schema,
+          "MF4_ARCHIVE_RECEIPT_INVALID")
+
+    def run_receipt_refusals():
+        with Sandbox() as sb:
+            GEN.build()
+            rp = os.path.join(sb.root, GEN.RECEIPT_REL)
+            rec = json.loads(open(rp, encoding="utf-8").read())
+            rec["refusals"] = ["hidden refusal"]
+            open(rp, "wb").write((json.dumps(rec, indent=1,
+                                             sort_keys=True)
+                                  + "\n").encode())
+            GEN.verify_capsule()
+    check("E17 receipt hidden-refusal", run_receipt_refusals,
+          "MF4_ARCHIVE_RECEIPT_INVALID")
+
+    for name, val in (("E18 risk above range", 1.5),
+                      ("E19 risk below range", -0.1)):
+        def run(val=val):
+            with Sandbox(_risk_mutator(val)) as _:
+                GEN.build()
+        check(name, run, "MF4_ARCHIVE_RISK_RANGE")
+
+
 def kat_d5_role_guard():
     ACQ.calibration_snapshot_role_guard(
         {"temporal_role": "CALIBRATION_LATE_REPAIR"},
@@ -778,7 +1072,15 @@ def main():
     check("D5 temporal role guard", kat_d5_role_guard)
     check("D6 finalization injections x3",
           kat_d6_finalization_injections)
+    check("D1c negative-HOLD verdict refused",
+          kat_d1c_negative_hold_verdict)
+    check("D1d old unbound go refused", kat_d1d_old_go_unbound)
+    check("D7 28-file durability + raw-fsync injection",
+          kat_d7_durability)
+    check("D8 real adapter path (frozen calibrate)",
+          kat_d8_real_adapter_path)
     _e_series()
+    _e_series_c4()
     print(f"\n{len(PASS)} PASS / {len(FAIL)} FAIL")
     if FAIL:
         raise SystemExit(1)

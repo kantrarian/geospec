@@ -52,7 +52,13 @@ if _HERE not in sys.path:
 REPO = os.path.dirname(os.path.dirname(_HERE))
 
 SRC_DIR = os.path.join(REPO, "monitoring", "data", "ensemble_results")
-STORE_DIR = r"E:\GeoSpec\mf4_risk_store"
+# store location: --store-dir argv or GEOSPEC_MF4_STORE env override the
+# default local store, so the routed UNC/S4T store is selectable by the
+# ordinary command without monkeypatching (codex 2014Z item 1)
+STORE_DIR = os.environ.get("GEOSPEC_MF4_STORE",
+                           r"E:\GeoSpec\mf4_risk_store")
+if "--store-dir" in sys.argv:
+    STORE_DIR = sys.argv[sys.argv.index("--store-dir") + 1]
 STORE_ID = "mf4-risk-archive-v1"
 STORE_ROOT = "s4t://geospec/mf4/risk_archive_v1"
 OUT_DIR = os.path.join(REPO, "docs", "f2g_window2_execution")
@@ -136,6 +142,11 @@ def extract_row(day, region, doc, src_sha):
     elif risk != risk or risk in (float("inf"), float("-inf")):
         raise Refusal("MF4_ARCHIVE_RISK_MALFORMED",
                       f"{day}/{region}: non-finite")
+    elif not (0.0 <= float(risk) <= 1.0):
+        # combined risk is defined on [0,1] by the committed method
+        # docs; out-of-range refuses in BOTH build and replay
+        raise Refusal("MF4_ARCHIVE_RISK_RANGE",
+                      f"{day}/{region}: {risk!r}")
     else:
         risk, support = float(risk), "SUPPORTED"
     pers = entry.get("persistence")
@@ -214,15 +225,48 @@ def build():
         census[region] = {"days_total": len(days), "days_supported": sup,
                           "days_unsupported": len(days) - sup}
 
+    capsule = _construct_capsule(inventory, rows, rows_raw,
+                                 missing_days, malformed_days, days,
+                                 census)
+    cp = os.path.join(REPO, CAPSULE_REL)
+    with open(cp, "w", encoding="utf-8", newline="\n") as f:
+        json.dump(capsule, f, indent=1, sort_keys=True)
+        f.write("\n")
+    receipt = {
+        "schema": "geospec-mf4-archive-receipt-v1",
+        "built_utc": _utcnow(),
+        "capsule": {"path": CAPSULE_REL,
+                    "sha256": _sha(open(cp, "rb").read())},
+        "rows_sha256": _sha(rows_raw),
+        "store_objects": len(inventory),
+        "days_present": len(days) - len(missing_days) - len(malformed_days),
+        "days_missing": len(missing_days),
+        "days_malformed": len(malformed_days),
+        "refusals": []}
+    rp = os.path.join(REPO, RECEIPT_REL)
+    with open(rp, "w", encoding="utf-8", newline="\n") as f:
+        json.dump(receipt, f, indent=1, sort_keys=True)
+        f.write("\n")
+    return capsule, receipt
+
+
+def _construct_capsule(inventory, rows, rows_raw, missing_days,
+                       malformed_days, days, census):
+    """The ONE deterministic capsule constructor -- build() writes its
+    output; verify_capsule() reconstructs through this same code from
+    replayed bytes and requires exact equality (codex 2014Z item 3)."""
     missing_cells = sorted(
         [r["issue_day"], r["region"]] for r in rows
         if r["support"] == "MISSING_REGION_ROW")
-    bboxes, fs_ident = _bboxes()
+    bboxes, fs_ident = ({}, {"path": "monitoring/src/fault_segments.py",
+                             "sha256": None, "bytes": None})
+    if ADMITTED:
+        bboxes, fs_ident = _bboxes()
     maturity_raw = open(os.path.join(REPO, MATURITY_REL), "rb").read()
     maturity = json.loads(maturity_raw.decode("utf-8"))
     me = open(os.path.abspath(__file__), "rb").read()
 
-    capsule = {
+    return {
         "schema": SCHEMA,
         "amendment": ("docs/f2g_window2_execution/"
                       "amendment_mf4_late_catalog_repair_20260829.md"),
@@ -284,26 +328,6 @@ def build():
                      "w2_mf4_archive_capsule_gen_grassmann.py"),
             "sha256": _sha(me), "bytes": len(me)},
     }
-    cp = os.path.join(REPO, CAPSULE_REL)
-    with open(cp, "w", encoding="utf-8", newline="\n") as f:
-        json.dump(capsule, f, indent=1, sort_keys=True)
-        f.write("\n")
-    receipt = {
-        "schema": "geospec-mf4-archive-receipt-v1",
-        "built_utc": _utcnow(),
-        "capsule": {"path": CAPSULE_REL,
-                    "sha256": _sha(open(cp, "rb").read())},
-        "rows_sha256": _sha(rows_raw),
-        "store_objects": len(inventory),
-        "days_present": len(days) - len(missing_days) - len(malformed_days),
-        "days_missing": len(missing_days),
-        "days_malformed": len(malformed_days),
-        "refusals": []}
-    rp = os.path.join(REPO, RECEIPT_REL)
-    with open(rp, "w", encoding="utf-8", newline="\n") as f:
-        json.dump(receipt, f, indent=1, sort_keys=True)
-        f.write("\n")
-    return capsule, receipt
 
 
 def verify_capsule():
@@ -316,6 +340,18 @@ def verify_capsule():
     if receipt["capsule"]["sha256"] != _sha(cap_raw):
         raise Refusal("MF4_ARCHIVE_CAPSULE_DIGEST",
                       "receipt->capsule digest mismatch")
+    # receipt static surfaces (codex 2014Z item 3)
+    if receipt.get("schema") != "geospec-mf4-archive-receipt-v1":
+        raise Refusal("MF4_ARCHIVE_RECEIPT_INVALID", "schema")
+    try:
+        dt.datetime.strptime(receipt["built_utc"],
+                             "%Y-%m-%dT%H:%M:%S.%fZ")
+    except (KeyError, ValueError):
+        raise Refusal("MF4_ARCHIVE_RECEIPT_INVALID", "built_utc")
+    if receipt["capsule"].get("path") != CAPSULE_REL:
+        raise Refusal("MF4_ARCHIVE_RECEIPT_INVALID", "capsule path")
+    if receipt.get("refusals") != []:
+        raise Refusal("MF4_ARCHIVE_RECEIPT_INVALID", "refusals nonempty")
     capsule = json.loads(cap_raw.decode("utf-8"))
 
     if capsule["schema"] != SCHEMA:
@@ -453,6 +489,44 @@ def verify_capsule():
     if pid["sha256"] != _sha(me) or pid["bytes"] != len(me):
         raise Refusal("MF4_ARCHIVE_PRODUCER_IDENTITY",
                       "builder bytes diverge from capsule pin")
+
+    # codex 2014Z item 3: reconstruct the COMPLETE deterministic
+    # capsule through the one constructor and require exact equality
+    # -- claim/provenance/locator/status fields included, top-level
+    # keyset included. Inventory object names + host provenance paths
+    # are re-derived here, so a forged name/path also mismatches.
+    rec_inventory = {}
+    for day in days:
+        if day in missing:
+            continue
+        e = inv[day]
+        entry = {"object": e["sha256"] + ".body",
+                 "sha256": e["sha256"], "bytes": e["bytes"],
+                 "host_provenance_path":
+                     ("monitoring/data/ensemble_results/"
+                      f"ensemble_{day}.json")}
+        if day in malformed:
+            entry["malformed"] = True
+        rec_inventory[day] = entry
+    reconstructed = _construct_capsule(
+        rec_inventory, replay, rows_raw,
+        sorted(missing), sorted(malformed), days, census)
+    if reconstructed != capsule:
+        diverging = [k for k in
+                     set(reconstructed) | set(capsule)
+                     if reconstructed.get(k) != capsule.get(k)]
+        raise Refusal("MF4_ARCHIVE_CAPSULE_RECONSTRUCTION",
+                      f"fields diverge: {sorted(diverging)[:6]}")
+
+    # receipt recomputed-count surfaces
+    if (receipt.get("rows_sha256") != _sha(rows_raw)
+            or receipt.get("store_objects") != len(inv)
+            or receipt.get("days_present")
+            != len(inv) - len(malformed)
+            or receipt.get("days_missing") != len(missing)
+            or receipt.get("days_malformed") != len(malformed)):
+        raise Refusal("MF4_ARCHIVE_RECEIPT_INVALID",
+                      "recomputed counts/digests diverge")
     return {"objects_verified": len(inv), "rows_verified": len(replay)}
 
 

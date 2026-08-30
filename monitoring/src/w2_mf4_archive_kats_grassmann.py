@@ -307,17 +307,18 @@ BB = {"min_lat": 30.0, "max_lat": 40.0, "min_lon": 100.0,
       "max_lon": 110.0}
 T0 = int(dt.datetime(2026, 1, 15,
                      tzinfo=dt.timezone.utc).timestamp() * 1000)
+KURL = "kat://expected-url"
 
 
 def kat_b4_boundary_event():
     # exactly on the bbox edge: admitted (inclusive)
     raw = _geojson([("edge", 40.0, 110.0, 4.5, T0)])
-    evs = ACQ.validate_events("katreg", BB, raw)
+    evs = ACQ.validate_events("katreg", BB, raw, KURL)
     assert len(evs) == 1
     # just outside: refused
     raw2 = _geojson([("out", 40.0001, 110.0, 4.5, T0)])
     try:
-        ACQ.validate_events("katreg", BB, raw2)
+        ACQ.validate_events("katreg", BB, raw2, KURL)
         raise AssertionError("outside-bbox event admitted")
     except SystemExit as e:
         assert "MF4_CATALOG_SPATIAL_FILTER" in str(e)
@@ -329,9 +330,9 @@ def kat_c1_lossy_view():
     detected as a count mismatch, refused as a lossy view."""
     full = [(f"ev{i}", 35.0 + i * 0.1, 105.0, 4.0 + i * 0.1, T0 + i)
             for i in range(8)]
-    evs = ACQ.validate_events("katreg", BB, _geojson(full))
+    evs = ACQ.validate_events("katreg", BB, _geojson(full), KURL)
     assert len(evs) == 8, "full view must retain all 8"
-    top5 = ACQ.validate_events("katreg", BB, _geojson(full[:5]))
+    top5 = ACQ.validate_events("katreg", BB, _geojson(full[:5]), KURL)
     if len(top5) != len(full):
         raise SystemExit("REFUSED MF4_CATALOG_LOSSY_VIEW: top-five "
                          f"projection kept {len(top5)}/{len(full)}")
@@ -343,7 +344,7 @@ def kat_c2_query_limit():
         ACQ.LIMIT = 3
         raw = _geojson([(f"e{i}", 35.0, 105.0, 4.1, T0 + i)
                         for i in range(3)])
-        ACQ.validate_events("katreg", BB, raw)
+        ACQ.validate_events("katreg", BB, raw, KURL)
     finally:
         ACQ.LIMIT = saved
 
@@ -353,7 +354,7 @@ def kat_c3_malformed_fields():
                 ("nulltime", 35.0, 105.0, 4.2, None),
                 ("strmag", 35.0, 105.0, "4.2", T0)]:
         try:
-            ACQ.validate_events("katreg", BB, _geojson([bad]))
+            ACQ.validate_events("katreg", BB, _geojson([bad]), KURL)
             raise AssertionError(f"{bad[0]} admitted")
         except SystemExit as e:
             assert "MF4_CATALOG_MALFORMED" in str(e), e
@@ -364,7 +365,7 @@ def kat_c3_malformed_fields():
          "geometry": {"type": "Point", "coordinates": None}}]}
         ).encode("utf-8")
     try:
-        ACQ.validate_events("katreg", BB, raw)
+        ACQ.validate_events("katreg", BB, raw, KURL)
         raise AssertionError("null coords admitted")
     except SystemExit as e:
         assert "MF4_CATALOG_MALFORMED" in str(e)
@@ -374,26 +375,157 @@ def kat_c4_temporal_filter():
     late = int(dt.datetime(2026, 8, 28, 0, 0, 1,
                            tzinfo=dt.timezone.utc).timestamp() * 1000)
     ACQ.validate_events("katreg", BB,
-                        _geojson([("late", 35.0, 105.0, 4.2, late)]))
+                        _geojson([("late", 35.0, 105.0, 4.2, late)]),
+                        KURL)
 
 
 def kat_c5_duplicate_and_inconsistent_ids():
     dup = _geojson([("same", 35.0, 105.0, 4.2, T0),
                     ("same", 35.1, 105.1, 4.3, T0 + 1)])
     try:
-        ACQ.validate_events("katreg", BB, dup)
+        ACQ.validate_events("katreg", BB, dup, KURL)
         raise AssertionError("duplicate id admitted")
     except SystemExit as e:
         assert "MF4_CATALOG_DUPLICATE_ID" in str(e)
     a = ACQ.validate_events("r1", BB, _geojson([("x", 35.0, 105.0,
-                                                 4.2, T0)]))
+                                                 4.2, T0)]), KURL)
     b = ACQ.validate_events("r2", BB, _geojson([("x", 35.5, 105.0,
-                                                 4.2, T0)]))
+                                                 4.2, T0)]), KURL)
     try:
         ACQ.canonical_event_table({"r1": a, "r2": b})
         raise AssertionError("inconsistent shared id admitted")
     except SystemExit as e:
         assert "MF4_CATALOG_INCONSISTENT_ID" in str(e)
+
+
+def _geojson27(events, url=None, api="2.7.0", status=200,
+               limit=None, offset=1, generated=1788055936000,
+               drop=()):
+    """Fixture in the OBSERVED count-absent ComCat API-2.7.0 metadata
+    frame (codex 0219Z item 1 variant 2)."""
+    feats = [{"type": "Feature", "id": e[0],
+              "properties": {"mag": e[3], "time": e[4]},
+              "geometry": {"type": "Point",
+                           "coordinates": [e[2], e[1], 10.0]}}
+             for e in events]
+    meta = {"generated": generated, "url": url or KURL,
+            "title": "USGS Earthquakes", "status": status,
+            "api": api, "limit": limit if limit is not None
+            else ACQ.LIMIT, "offset": offset}
+    for k in drop:
+        meta.pop(k, None)
+    return json.dumps({"type": "FeatureCollection", "metadata": meta,
+                       "features": feats}).encode("utf-8")
+
+
+def _c6_series():
+    """Codex 0219Z item-1 lock battery: exactly two registered
+    metadata variants; every field of the count-absent 2.7.0 frame
+    refuses typed on absence or mutation."""
+    good = ("g1", 35.0, 105.0, 4.5, T0)
+
+    def ok():
+        evs = ACQ.validate_events("katreg", BB, _geojson27([good]),
+                                  KURL)
+        assert len(evs) == 1
+    check("C6a observed count-absent 2.7.0 frame passes", ok)
+    check("C6b wrong api version",
+          lambda: ACQ.validate_events(
+              "katreg", BB, _geojson27([good], api="3.0.0"), KURL),
+          "MF4_CATALOG_METADATA_FRAME")
+    check("C6c missing api field",
+          lambda: ACQ.validate_events(
+              "katreg", BB, _geojson27([good], drop=("api",)), KURL),
+          "MF4_CATALOG_METADATA_FRAME")
+    check("C6d wrong status",
+          lambda: ACQ.validate_events(
+              "katreg", BB, _geojson27([good], status=204), KURL),
+          "MF4_CATALOG_METADATA_FRAME")
+    check("C6e missing status",
+          lambda: ACQ.validate_events(
+              "katreg", BB, _geojson27([good], drop=("status",)),
+              KURL), "MF4_CATALOG_METADATA_FRAME")
+    check("C6f url mismatch",
+          lambda: ACQ.validate_events(
+              "katreg", BB, _geojson27([good], url="kat://other"),
+              KURL), "MF4_CATALOG_METADATA_FRAME")
+    check("C6g missing url",
+          lambda: ACQ.validate_events(
+              "katreg", BB, _geojson27([good], drop=("url",)), KURL),
+          "MF4_CATALOG_METADATA_FRAME")
+    check("C6h wrong limit",
+          lambda: ACQ.validate_events(
+              "katreg", BB, _geojson27([good], limit=100), KURL),
+          "MF4_CATALOG_METADATA_FRAME")
+    check("C6i bool limit",
+          lambda: ACQ.validate_events(
+              "katreg", BB, _geojson27([good], limit=True), KURL),
+          "MF4_CATALOG_METADATA_FRAME")
+    check("C6j wrong offset",
+          lambda: ACQ.validate_events(
+              "katreg", BB, _geojson27([good], offset=2), KURL),
+          "MF4_CATALOG_METADATA_FRAME")
+    check("C6k missing generated",
+          lambda: ACQ.validate_events(
+              "katreg", BB, _geojson27([good], drop=("generated",)),
+              KURL), "MF4_CATALOG_METADATA_FRAME")
+    check("C6l non-int generated",
+          lambda: ACQ.validate_events(
+              "katreg", BB, _geojson27([good], generated="now"),
+              KURL), "MF4_CATALOG_METADATA_FRAME")
+
+    def limit_hit():
+        saved = ACQ.LIMIT
+        try:
+            ACQ.LIMIT = 2
+            evs = [(f"e{i}", 35.0, 105.0, 4.1, T0 + i)
+                   for i in range(2)]
+            ACQ.validate_events("katreg", BB, _geojson27(evs), KURL)
+        finally:
+            ACQ.LIMIT = saved
+    check("C6m count-absent truncation guard", limit_hit,
+          "MF4_CATALOG_QUERY_LIMIT")
+
+    def count_mismatch_still():
+        ACQ.validate_events("katreg", BB, _geojson([good], count=99),
+                            KURL)
+    check("C6n count-present mismatch still refuses",
+          count_mismatch_still, "MF4_CATALOG_COUNT_MISMATCH")
+
+
+ATTEMPT1_DIR = os.path.join(os.path.dirname(os.path.dirname(_HERE)),
+                            "docs", "f2g_window2_execution",
+                            "mf4_catalog_attempt1_refusal")
+
+
+def kat_a8_attempt1_capsule_integrity():
+    """Codex 0219Z item 2: the attempt-1 refusal evidence is
+    byte-identical to the identities bound in its capsule manifest,
+    and no snapshot was published."""
+    man = json.loads(open(os.path.join(
+        ATTEMPT1_DIR, "ATTEMPT1_REFUSAL_CAPSULE.json"),
+        encoding="utf-8").read())
+    assert man["schema"] == \
+        "geospec-mf4-catalog-attempt1-refusal-capsule-v1"
+    assert man["queries_fired"] == 1
+    assert man["queries_not_fired"] == 12
+    assert man["snapshot_published"] is False
+    assert man["owner_go_status"] == "SPENT"
+    for name, ident in man["sealed_files"].items():
+        raw = open(os.path.join(ATTEMPT1_DIR, name), "rb").read()
+        assert len(raw) == ident["bytes"], name
+        assert _sha(raw) == ident["sha256"], name
+    raw_resp = open(os.path.join(ATTEMPT1_DIR,
+                                 "raw_anchorage.geojson"),
+                    "rb").read()
+    doc = json.loads(raw_resp.decode("utf-8"))
+    assert "count" not in doc["metadata"], \
+        "sealed evidence contradicts the count-absent finding"
+    assert doc["metadata"]["api"] == "2.7.0"
+    assert len(doc["features"]) == man["fired_query"]["features"]
+    assert not os.path.exists(os.path.join(
+        os.path.dirname(ATTEMPT1_DIR), "mf4_catalog_snapshot")), \
+        "a snapshot exists despite snapshot_published=false"
 
 
 def kat_d1_fire_requires_authorization():
@@ -475,28 +607,28 @@ def kat_d3_parser_closures():
     for const in ("NaN", "Infinity"):
         raw = _geojson([good]).replace(b"4.5", const.encode())
         try:
-            ACQ.validate_events("katreg", BB, raw)
+            ACQ.validate_events("katreg", BB, raw, KURL)
             raise AssertionError(f"{const} admitted")
         except SystemExit as e:
             assert "MF4_CATALOG_NONFINITE_JSON" in str(e), e
     # boolean magnitude
     raw = _geojson([("b", 35.0, 105.0, True, T0)])
     try:
-        ACQ.validate_events("katreg", BB, raw)
+        ACQ.validate_events("katreg", BB, raw, KURL)
         raise AssertionError("bool mag admitted")
     except SystemExit as e:
         assert "MF4_CATALOG_MALFORMED" in str(e), e
     # magnitude below the registered threshold
     raw = _geojson([("lo", 35.0, 105.0, 3.0, T0)])
     try:
-        ACQ.validate_events("katreg", BB, raw)
+        ACQ.validate_events("katreg", BB, raw, KURL)
         raise AssertionError("mag 3.0 admitted")
     except SystemExit as e:
         assert "MF4_CATALOG_MAG_BELOW_THRESHOLD" in str(e), e
     # metadata.count mismatch
     raw = _geojson([good], count=99)
     try:
-        ACQ.validate_events("katreg", BB, raw)
+        ACQ.validate_events("katreg", BB, raw, KURL)
         raise AssertionError("count mismatch admitted")
     except SystemExit as e:
         assert "MF4_CATALOG_COUNT_MISMATCH" in str(e), e
@@ -504,21 +636,21 @@ def kat_d3_parser_closures():
     raw = _geojson([("t2", 35.0, 105.0, 4.5, T0 + 1000),
                     ("t1", 35.0, 105.0, 4.5, T0)])
     try:
-        ACQ.validate_events("katreg", BB, raw)
+        ACQ.validate_events("katreg", BB, raw, KURL)
         raise AssertionError("reverse order admitted")
     except SystemExit as e:
         assert "MF4_CATALOG_ORDER_VIOLATION" in str(e), e
     # non-Point geometry
     raw = _geojson([good], gtype="LineString")
     try:
-        ACQ.validate_events("katreg", BB, raw)
+        ACQ.validate_events("katreg", BB, raw, KURL)
         raise AssertionError("non-Point admitted")
     except SystemExit as e:
         assert "MF4_CATALOG_MALFORMED" in str(e), e
     # non-FeatureCollection top level
     raw = _geojson([good], top="Whatever")
     try:
-        ACQ.validate_events("katreg", BB, raw)
+        ACQ.validate_events("katreg", BB, raw, KURL)
         raise AssertionError("non-FeatureCollection admitted")
     except SystemExit as e:
         assert "MF4_CATALOG_MALFORMED" in str(e), e
@@ -526,9 +658,10 @@ def kat_d3_parser_closures():
 
 def kat_d4_canonical_table():
     a = ACQ.validate_events("r1", BB, _geojson([
-        ("x1", 35.0, 105.0, 4.5, T0), ("x2", 36.0, 106.0, 4.6, T0 + 5)]))
+        ("x1", 35.0, 105.0, 4.5, T0),
+        ("x2", 36.0, 106.0, 4.6, T0 + 5)]), KURL)
     b = ACQ.validate_events("r2", BB, _geojson([
-        ("x1", 35.0, 105.0, 4.5, T0)]))          # identical duplicate
+        ("x1", 35.0, 105.0, 4.5, T0)]), KURL)    # identical duplicate
     table, membership, dig1 = ACQ.canonical_event_table(
         {"r1": a, "r2": b})
     assert [e["id"] for e in table] == ["x1", "x2"], table
@@ -1285,6 +1418,8 @@ def main():
           kat_a6_golden_real_capsule)
     check("A7 store portability (two physical aliases)",
           kat_a7_store_portability)
+    check("A8 attempt-1 refusal capsule integrity",
+          kat_a8_attempt1_capsule_integrity)
     check("B1 alias-direction reversal", kat_b1_alias_reversal,
           "MF4_BBOX")
     check("B2 tokyo->tohoku mapping", kat_b2_tokyo_tohoku, "MF4_BBOX")
@@ -1302,6 +1437,7 @@ def main():
           "MF4_CATALOG_TEMPORAL_FILTER")
     check("C5 duplicate + inconsistent ids",
           kat_c5_duplicate_and_inconsistent_ids)
+    _c6_series()
     check("D1 fire refuses without authorization (pre-HTTP)",
           kat_d1_fire_requires_authorization, "MF4_FIRE_AUTH_MISSING")
     check("D2 partial-failure staging + reuse refusal",

@@ -102,16 +102,16 @@ FINAL_DIR = os.path.join(REPO, "docs", "f2g_window2_execution",
 COMPLETENESS_POLICY = ("ComCat as-is at snapshot time; per-region "
                        "completeness caveat disclosed; no post-snapshot "
                        "revision enters this calibration snapshot")
-AUTH_SCHEMA = "geospec-mf4-fire-authorization-v4"
-SCOPE_LITERAL = ("MF4 late-calibration-catalog acquisition: exactly one "
-                 "fire of the 13 registered ComCat queries under "
-                 "amendment_mf4_late_catalog_repair_20260829 and its "
-                 "corrections; nothing else")
+AUTH_SCHEMA = "geospec-mf4-fire-authorization-v5"
+SCOPE_LITERAL = ("MF4 correction-6 acquisition attempt 2: exactly one "
+                 "clean re-fire of all 13 registered ComCat queries "
+                 "after the typed count-seam refusal; attempt-1 "
+                 "authority is spent; nothing else")
 FRAMEWORK_REPO = r"C:\agent-framework"
 MODULE_REL = "monitoring/src/w2_mf4_catalog_acquire_grassmann.py"
 CORRECTION3_REL = ("docs/f2g_window2_execution/"
                    "amendment_mf4_late_catalog_repair_20260829_"
-                   "correction5.md")
+                   "correction6.md")
 TEMPORAL_ROLE_POLICY = (
     "historical calibration recent_event is RECOMPUTED "
     "from this single late-repair snapshot, superseding "
@@ -406,8 +406,17 @@ def _num(v):
             and v == v and v not in (float("inf"), float("-inf")))
 
 
-def validate_events(region, bbox, raw):
-    """Codex fix 3: the closed parser."""
+def _int_nonbool(v):
+    return isinstance(v, int) and not isinstance(v, bool)
+
+
+def validate_events(region, bbox, raw, expected_url):
+    """Codex fix 3: the closed parser. Correction 6 (codex 0219Z item
+    1): the metadata frame admits exactly TWO registered variants --
+    count-present (the original exact check) and the OBSERVED
+    count-absent API-2.7.0 frame, every field of which must match
+    typed (api/status/url/limit/offset/generated). No generic
+    missing-count fallback; no extra count HTTP request."""
     doc = _strict_loads(raw)
     if not isinstance(doc, dict) or doc.get("type") != "FeatureCollection":
         raise Refusal("MF4_CATALOG_MALFORMED",
@@ -416,12 +425,42 @@ def validate_events(region, bbox, raw):
     if not isinstance(feats, list):
         raise Refusal("MF4_CATALOG_MALFORMED", f"{region}: no features")
     meta = doc.get("metadata") or {}
-    count = meta.get("count")
-    if (not isinstance(count, int) or isinstance(count, bool)
-            or count != len(feats)):
-        raise Refusal("MF4_CATALOG_COUNT_MISMATCH",
-                      f"{region}: metadata.count {count!r} != "
-                      f"{len(feats)} features")
+    if "count" in meta:
+        # variant 1: count-present -- the original exact check
+        count = meta.get("count")
+        if (not _int_nonbool(count) or count != len(feats)):
+            raise Refusal("MF4_CATALOG_COUNT_MISMATCH",
+                          f"{region}: metadata.count {count!r} != "
+                          f"{len(feats)} features")
+    else:
+        # variant 2: the observed count-absent API-2.7.0 frame
+        if meta.get("api") != "2.7.0":
+            raise Refusal("MF4_CATALOG_METADATA_FRAME",
+                          f"{region}: count absent and api "
+                          f"{meta.get('api')!r} is not the registered "
+                          "2.7.0 variant")
+        if not _int_nonbool(meta.get("status")) \
+                or meta.get("status") != 200:
+            raise Refusal("MF4_CATALOG_METADATA_FRAME",
+                          f"{region}: metadata.status "
+                          f"{meta.get('status')!r}")
+        if meta.get("url") != expected_url:
+            raise Refusal("MF4_CATALOG_METADATA_FRAME",
+                          f"{region}: metadata.url != requested URL")
+        if not _int_nonbool(meta.get("limit")) \
+                or meta.get("limit") != LIMIT:
+            raise Refusal("MF4_CATALOG_METADATA_FRAME",
+                          f"{region}: metadata.limit "
+                          f"{meta.get('limit')!r} != {LIMIT}")
+        if not _int_nonbool(meta.get("offset")) \
+                or meta.get("offset") != 1:
+            raise Refusal("MF4_CATALOG_METADATA_FRAME",
+                          f"{region}: metadata.offset "
+                          f"{meta.get('offset')!r} != 1")
+        if not _int_nonbool(meta.get("generated")):
+            raise Refusal("MF4_CATALOG_METADATA_FRAME",
+                          f"{region}: metadata.generated "
+                          f"{meta.get('generated')!r}")
     if len(feats) >= LIMIT:
         raise Refusal("MF4_CATALOG_QUERY_LIMIT",
                       f"{region}: count {len(feats)} hit limit {LIMIT}")
@@ -594,7 +633,8 @@ def fire(auth_path, opener=urllib.request.urlopen):
             if att["effective_url"] != url:
                 raise Refusal("MF4_CATALOG_REDIRECT",
                               f"{region}: {att['effective_url']}")
-            events = validate_events(region, bboxes[region]["bbox"], raw)
+            events = validate_events(region, bboxes[region]["bbox"],
+                                     raw, url)
             att["event_count"] = len(events)
             att["parse_result"] = "OK"
             per_region[region] = events

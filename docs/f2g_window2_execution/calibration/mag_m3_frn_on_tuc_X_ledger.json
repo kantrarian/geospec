@@ -1,0 +1,23 @@
+{
+ "coef": [
+  -0.0022834061337433016,
+  0.8797817362069161,
+  0.003954637111556776,
+  -4.5356159217302405e-07,
+  0.00017093907966953502
+ ],
+ "columns": [
+  "intercept",
+  "reference_residual",
+  "weather:kp",
+  "weather:newell",
+  "weather:sym_h"
+ ],
+ "digest": "94c4e05f95a90c7f1e4474fc6910031f7964fcfaa1a83ec71afd3b02ede2f79c",
+ "meta": {
+  "component": "X",
+  "cutoff": "2026-07-31",
+  "local": "FRN",
+  "reference": "TUC"
+ }
+}

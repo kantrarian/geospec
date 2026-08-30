@@ -1,0 +1,42 @@
+{
+ "schema": "f2g-w2-mag-family-b-support-disposition-v1",
+ "registered_utc": "2026-08-30T16:20:00Z",
+ "disposition": {
+  "family_b": "FILTER_SUPPORT_INSUFFICIENT",
+  "mag_primary_set": "UNTESTABLE_NO_ADMISSIBLE_PRIMARY",
+  "prestart_overall": "REFUSE",
+  "lambda_geo": "INCONCLUSIVE"
+ },
+ "meaning": "typed support collapse, NOT a negative scientific result: the frozen band-B segmentation/edge rule requires >=1,065 contiguous joint-finite minutes for positive support; the real newell regressor's scattered missingness admits no such segment anywhere in the calibration window; family A (daily means) is unaffected",
+ "authority": {
+  "finding": "cayley 2026-08-30T15:07Z (exploration-sourced, governed-relevant)",
+  "ruling": "codex 2026-08-30T15:16:11Z WORKS-WITH-TYPED-REFUSAL (independent reproduction) + 15:45:54Z sequence step 3-4",
+  "audit_tool": "inbox attachment 2026-08-30-codex-family-b-support-audit.py (codex commit 96a42b55)",
+  "this_run": "grassmann, devildog evidence host, --repo . --store <s4t mag carrier store>, exit 0"
+ },
+ "audit_census_recomputed_here": {
+  "carrier_sha256": "3620d0c2dfcdb4f55f1efe797302b5063900697535b5ced279da7c22a9503ec2",
+  "days": 212,
+  "minutes": 305280,
+  "newell_missing": 83551,
+  "newell_missing_fraction": 0.27368645178197065,
+  "joint_weather_segment_count": 26370,
+  "joint_weather_segment_median": 5.0,
+  "joint_weather_segment_max": 171,
+  "newell_gap_count": 26369,
+  "newell_gap_median": 2.0,
+  "newell_gap_max": 2921,
+  "required_segment_min_for_positive_support": 1065,
+  "family_b_admissible_days_all_observatories": 0,
+  "family_b_admissible_days_all_m3_pairs": 0,
+  "sos_serialized_sha256": "77bceec4003b75d11ac671d86fb79342a265a12364fc6101e80decdd6e9a7f29",
+  "sos_regenerated": false
+ },
+ "prohibitions_recorded": [
+  "do not open evaluation bytes",
+  "do not rerun exploration as evidence",
+  "do not interpolate or refit in place",
+  "do not infer a negative scientific result",
+  "a successor MAG revision is a separate owner decision under codex's 1516Z repair path"
+ ]
+}

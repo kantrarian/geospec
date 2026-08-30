@@ -725,9 +725,9 @@
   ]
  ],
  "producer_code_identity": {
-  "bytes": 24920,
+  "bytes": 25530,
   "path": "monitoring/src/w2_mf4_archive_capsule_gen_grassmann.py",
-  "sha256": "c4c9a84fc76748b4a359a5c063c5964bc820a91922d2cf06aaba56782a3b22e3"
+  "sha256": "2a22fea1d22d4c32746e3ae0ffae7636690b0a94dc67436b0d55f2db5407fd0b"
  },
  "projection_loss_disclosure": "components/coverage/summary/earthquake_events are omitted from the training row; their complete source bytes remain reopenable through the store inventory. persistence_informational is NON-INPUT: frozen MF4 persistence is the catalog-derived recent_event.",
  "raw_source_store": {
@@ -2576,8 +2576,7 @@
     "sha256": "6d4cc38b0fd045d0738ae3edeb3609020b03805fbe6ff2a9586ae7616a42d99f"
    }
   },
-  "local_physical_root": "E:/GeoSpec/mf4_risk_store",
-  "note": "host provenance paths recorded above are NOT the recovery route; recovery = store objects by content address, capsuled to s4t with the packet",
+  "note": "host provenance paths recorded above are NOT the recovery route; recovery = store objects by content address, capsuled to s4t with the packet. The physical store path is an environment-specific observation recorded in the build receipt, NEVER part of capsule identity (codex 2359Z blocker 3: one committed capsule must verify through any physical alias of the same content-addressed store)",
   "object_count": 307,
   "store_id": "mf4-risk-archive-v1",
   "store_root": "s4t://geospec/mf4/risk_archive_v1"

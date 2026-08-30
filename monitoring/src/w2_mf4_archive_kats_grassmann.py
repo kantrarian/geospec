@@ -217,6 +217,33 @@ def kat_a6_golden_real_capsule():
     assert res["rows_verified"] == 4298, res
 
 
+def kat_a7_store_portability():
+    """Codex 2359Z blocker 3: ONE committed capsule must verify
+    through two physical aliases of the same content-addressed store
+    without any identity change. Builds in a sandbox, copies the
+    store to a second physical root, and verifies the byte-identical
+    capsule from both."""
+    with Sandbox() as sb:
+        GEN.build()
+        cap_bytes = open(os.path.join(sb.root, GEN.CAPSULE_REL),
+                         "rb").read()
+        alias = os.path.join(sb.root, "store_alias_2")
+        shutil.copytree(GEN.STORE_DIR, alias)
+        r1 = GEN.verify_capsule()
+        saved_store = GEN.STORE_DIR
+        try:
+            GEN.STORE_DIR = alias
+            r2 = GEN.verify_capsule()
+        finally:
+            GEN.STORE_DIR = saved_store
+        assert r1 == r2, (r1, r2)
+        after = open(os.path.join(sb.root, GEN.CAPSULE_REL),
+                     "rb").read()
+        assert after == cap_bytes, "capsule identity moved with the store path"
+        assert b"local_physical_root" not in cap_bytes, \
+            "environment-specific path leaked into capsule identity"
+
+
 def kat_b1_alias_reversal():
     bad = dict(ACQ.ALIAS)
     bad.pop("socal_saf_coachella")
@@ -676,7 +703,10 @@ def kat_d6_finalization_injections():
     _finalization_injection(break_rename=True)
 
 
-def _auth_file(tmpdir=None):
+def _auth_file(source_commit=None):
+    """Correction 5: the wrapper's owner_fire_go carries ONLY the
+    untrusted source pointer; every semantic go field must come from
+    the committed record itself."""
     import tempfile
     fake = _FakeGit()
     _, cdig = ACQ.query_contract()
@@ -688,17 +718,35 @@ def _auth_file(tmpdir=None):
             "query_contract_sha256": cdig,
             "codex_pass": {"framework_commit": "feedface" * 5,
                            "file": "inbox/forged-pass.md"},
-            "owner_fire_go": {"quote": "forged go",
-                              "utc": "2026-08-29T00:00:00Z",
-                              "scope": ACQ.SCOPE_LITERAL,
-                              "pass_framework_commit": "feedface" * 5,
-                              "source_framework_commit": "feedface" * 5,
+            "owner_fire_go": {"source_framework_commit":
+                                  source_commit or "beefcafe" * 5,
                               "source_file": "inbox/forged-go.md"},
             "output_target_must_be_absent": True}
     fd, path = tempfile.mkstemp(suffix=".json")
     os.write(fd, json.dumps(auth).encode())
     os.close(fd)
     return fake, path
+
+
+def _valid_pass_record(fake):
+    _, cdig = ACQ.query_contract()
+    return json.dumps({
+        "verdict": "PRE_HTTP_PASS",
+        "base_commit": "22" * 20, "bundle_sha256": "11" * 32,
+        "result_tree": "treetree" * 5,
+        "module_git_blob_sha256":
+            hashlib.sha256(fake.module_blob).hexdigest(),
+        "query_contract_sha256": cdig}).encode()
+
+
+def _valid_go_record():
+    return {"verdict": "OWNER_FIRE_GO",
+            "quote": "go ahead, fire the 13 queries",
+            "utc": "2026-08-30T00:00:00Z",
+            "scope": ACQ.SCOPE_LITERAL,
+            "pass_framework_commit": "feedface" * 5,
+            "public_head_commit": "deadbeef" * 5,
+            "public_head_tree": "treetree" * 5}
 
 
 def kat_d1c_negative_hold_verdict():
@@ -731,17 +779,11 @@ def kat_d1c_negative_hold_verdict():
 
 
 def kat_d1d_old_go_unbound():
-    """Codex probe: a VALID structured pass + an unrelated old go
-    record lacking the required bindings must refuse pre-opener."""
+    """Codex probe: a VALID structured pass + an unrelated old TEXT go
+    record must refuse pre-opener (correction 5: any non-JSON go
+    source is unparseable authority, regardless of its tokens)."""
     fake, path = _auth_file()
-    _, cdig = ACQ.query_contract()
-    fake.pass_record = json.dumps({
-        "verdict": "PRE_HTTP_PASS",
-        "base_commit": "22" * 20, "bundle_sha256": "11" * 32,
-        "result_tree": "treetree" * 5,
-        "module_git_blob_sha256":
-            hashlib.sha256(fake.module_blob).hexdigest(),
-        "query_contract_sha256": cdig}).encode()
+    fake.pass_record = _valid_pass_record(fake)
     fake.go_record = b"an old unrelated note containing forged go only"
     saved_git, saved_anc = ACQ._git, ACQ._is_ancestor
     try:
@@ -753,10 +795,86 @@ def kat_d1d_old_go_unbound():
             ACQ.fire(path, opener=bomb)
             raise AssertionError("unbound old go accepted")
         except SystemExit as e:
-            assert "MF4_FIRE_AUTH_GO_UNBOUND" in str(e), e
+            assert "MF4_FIRE_AUTH_GO_UNPARSEABLE" in str(e), e
     finally:
         ACQ._git, ACQ._is_ancestor = saved_git, saved_anc
         os.remove(path)
+
+
+def kat_d1e_hold_go_refused():
+    """Codex 2359Z blocker-1 probe: a committed go source carrying
+    EVERY required token/field but a HOLD (non-go) verdict must refuse
+    pre-opener -- textual and structured variants."""
+    fake, path = _auth_file()
+    fake.pass_record = _valid_pass_record(fake)
+    saved_git, saved_anc = ACQ._git, ACQ._is_ancestor
+    try:
+        ACQ._git = fake
+        ACQ._is_ancestor = lambda repo, a, b: True
+        def bomb(url, timeout=None):
+            raise AssertionError("HTTP attempted on HOLD go source")
+        # (a) textual HOLD containing every token: not strict JSON
+        gr = _valid_go_record()
+        fake.go_record = ("HOLD: do not fire\n" + " ".join(
+            [gr["pass_framework_commit"], gr["public_head_commit"],
+             gr["public_head_tree"], gr["scope"], gr["utc"],
+             gr["quote"]])).encode()
+        try:
+            ACQ.fire(path, opener=bomb)
+            raise AssertionError("textual HOLD go accepted")
+        except SystemExit as e:
+            assert "MF4_FIRE_AUTH_GO_UNPARSEABLE" in str(e), e
+        # (b) structured HOLD: strict JSON, every required field
+        #     present and exact, verdict != OWNER_FIRE_GO
+        hold = dict(_valid_go_record(),
+                    verdict="HOLD: do not fire",
+                    note="contains the words OWNER_FIRE_GO and PASS")
+        fake.go_record = json.dumps(hold).encode()
+        try:
+            ACQ.fire(path, opener=bomb)
+            raise AssertionError("structured HOLD go accepted")
+        except SystemExit as e:
+            assert "MF4_FIRE_AUTH_GO_VERDICT" in str(e), e
+    finally:
+        ACQ._git, ACQ._is_ancestor = saved_git, saved_anc
+        os.remove(path)
+
+
+def kat_d1f_same_commit_go_refused():
+    """Codex 2359Z blocker-1 probe: a nominally VALID go record
+    committed AT the pass commit must refuse (the owner go must be a
+    strictly later record); the same record at a later commit
+    verifies."""
+    saved_git, saved_anc = ACQ._git, ACQ._is_ancestor
+    # positive control first: valid pass + valid later go verifies
+    fake, path = _auth_file()
+    fake.pass_record = _valid_pass_record(fake)
+    fake.go_record = json.dumps(_valid_go_record()).encode()
+    try:
+        ACQ._git = fake
+        ACQ._is_ancestor = lambda repo, a, b: True
+        auth, ident = ACQ.verify_fire_authorization(path)
+        assert ident["go_source_sha256"] == _sha(fake.go_record)
+    finally:
+        ACQ._git, ACQ._is_ancestor = saved_git, saved_anc
+        os.remove(path)
+    # same record, but the go source commit IS the pass commit
+    fake2, path2 = _auth_file(source_commit="feedface" * 5)
+    fake2.pass_record = _valid_pass_record(fake2)
+    fake2.go_record = json.dumps(_valid_go_record()).encode()
+    try:
+        ACQ._git = fake2
+        ACQ._is_ancestor = lambda repo, a, b: True
+        def bomb(url, timeout=None):
+            raise AssertionError("HTTP attempted on same-commit go")
+        try:
+            ACQ.fire(path2, opener=bomb)
+            raise AssertionError("same-commit go accepted")
+        except SystemExit as e:
+            assert "MF4_FIRE_AUTH_GO_SAME_COMMIT" in str(e), e
+    finally:
+        ACQ._git, ACQ._is_ancestor = saved_git, saved_anc
+        os.remove(path2)
 
 
 def kat_d7_durability():
@@ -832,15 +950,53 @@ def kat_d7_durability():
         _sh.rmtree(root, ignore_errors=True)
 
 
-def kat_d8_real_adapter_path():
-    """Codex item 5: the guard on the REAL consumer path -- the frozen
-    w2_mf4.calibrate runs through the adapter; the amended training
-    digest binds policy + snapshot identity; live use refuses."""
+def _adp():
     import w2_mf4_catalog_adapter_grassmann as ADP
+    return ADP
+
+
+def _snap_receipt_pair(table, policy=None, mutate_snap=None,
+                       mutate_rec=None):
+    """Fixture pair in the fire's EXACT output format: snapshot bytes
+    + acquisition-receipt bytes, mutually bound (digests, contract,
+    authorization identity)."""
+    ADP = _adp()
+    _, contract_sha = ACQ.query_contract()
+    auth_ident = {"file": "fire_authorization.json", "sha256": "a1" * 32,
+                  "bytes": 512, "go_source_sha256": "b2" * 32}
+    snap = {"schema": ADP.SNAPSHOT_SCHEMA,
+            "temporal_role": "CALIBRATION_LATE_REPAIR",
+            "temporal_role_policy": policy if policy is not None
+                else ACQ.TEMPORAL_ROLE_POLICY,
+            "canonical_event_table": table,
+            "canonical_event_table_sha256":
+                _sha(json.dumps(table, sort_keys=True).encode("utf-8")),
+            "query_contract_sha256": contract_sha,
+            "authorization": auth_ident}
+    if mutate_snap:
+        mutate_snap(snap)
+    snap_bytes = (json.dumps(snap, indent=1, sort_keys=True)
+                  + "\n").encode("utf-8")
+    rec = {"schema": ADP.RECEIPT_SCHEMA,
+           "fired_utc": "2026-08-30T00:00:00.000000Z",
+           "snapshot_file": "catalog_snapshot_v1.json",
+           "snapshot_sha256": _sha(snap_bytes),
+           "canonical_event_table_sha256":
+               snap.get("canonical_event_table_sha256"),
+           "query_contract_sha256": contract_sha,
+           "authorization": auth_ident}
+    if mutate_rec:
+        mutate_rec(rec)
+    rec_bytes = (json.dumps(rec, indent=1, sort_keys=True)
+                 + "\n").encode("utf-8")
+    return snap_bytes, rec_bytes
+
+
+def _d8_fixture():
     import datetime as _dt
     bbox = {"min_lat": 30.0, "max_lat": 40.0,
             "min_lon": 100.0, "max_lon": 110.0}
-    days = [( _dt.date(2025, 10, 18) + _dt.timedelta(n)).isoformat()
+    days = [(_dt.date(2025, 10, 18) + _dt.timedelta(n)).isoformat()
             for n in range(24)]
     risk = {"regA": {d: 0.3 + 0.01 * i for i, d in enumerate(days)}}
     ev_ms = int(_dt.datetime(2025, 10, 28, 12,
@@ -848,52 +1004,136 @@ def kat_d8_real_adapter_path():
     table = [{"id": "evA", "time_ms": ev_ms,
               "time_utc": "2025-10-28T12:00:00.000Z",
               "lat": 35.0, "lon": 105.0, "mag": 4.6}]
-    snap = {"temporal_role": "CALIBRATION_LATE_REPAIR",
-            "temporal_role_policy":
-                "AMENDED_AFTER_FREEZE recompute policy (correction 3)",
-            "canonical_event_table": table}
+    return risk, bbox, table, ev_ms
+
+
+def kat_d8_real_adapter_path():
+    """Codex 2359Z blocker 2: the REAL consumer path now consumes only
+    receipt-bound bytes -- the frozen w2_mf4.calibrate runs through
+    the verified loader; the amended training digest binds policy +
+    table + snapshot identity; every live view refuses."""
+    ADP = _adp()
+    risk, bbox, table, ev_ms = _d8_fixture()
+    snap_bytes, rec_bytes = _snap_receipt_pair(table)
     ledger = ADP.calibrate_with_snapshot(
-        risk, snap, {"regA": bbox}, ["regA"],
+        risk, snap_bytes, rec_bytes, {"regA": bbox}, ["regA"],
         freeze_day="2025-11-17", snapshot_end="2025-11-16")
     assert "amended_training_digest" in ledger
     b = ledger["amended_training_binding"]
     assert b["engine_training_digest"] == ledger["training_digest"]
-    # policy change moves the amended digest, engine digest unchanged
-    snap2 = dict(snap, temporal_role_policy=snap["temporal_role_policy"]
-                 + " CHANGED")
+    assert b["snapshot_sha256"] == _sha(snap_bytes)
+    assert b["authorization_sha256"] == "a1" * 32
+    # a table change (valid bound pair) moves the amended digest
+    table2 = table + [{"id": "evB", "time_ms": ev_ms + 60000,
+                       "time_utc": "2025-10-28T12:01:00.000Z",
+                       "lat": 35.0, "lon": 105.0, "mag": 3.9}]
+    s2, r2 = _snap_receipt_pair(table2)
     ledger2 = ADP.calibrate_with_snapshot(
-        risk, snap2, {"regA": bbox}, ["regA"],
+        risk, s2, r2, {"regA": bbox}, ["regA"],
         freeze_day="2025-11-17", snapshot_end="2025-11-16")
-    assert ledger2["training_digest"] == ledger["training_digest"]
     assert (ledger2["amended_training_digest"]
             != ledger["amended_training_digest"])
-    # snapshot table change moves it too
-    snap3 = dict(snap, canonical_event_table=table + [
-        {"id": "evB", "time_ms": ev_ms + 60000,
-         "time_utc": "2025-10-28T12:01:00.000Z",
-         "lat": 35.0, "lon": 105.0, "mag": 3.9}])
-    ledger3 = ADP.calibrate_with_snapshot(
-        risk, snap3, {"regA": bbox}, ["regA"],
-        freeze_day="2025-11-17", snapshot_end="2025-11-16")
-    assert (ledger3["amended_training_digest"]
-            != ledger["amended_training_digest"])
-    # live path refuses the calibration snapshot
+    # live path: the calibration snapshot refuses as a role violation
+    snap_obj, _ = ADP.load_verified_snapshot(snap_bytes, rec_bytes)
     try:
-        ADP.live_prediction_events(snap)
+        ADP.live_prediction_events(snap_obj)
         raise AssertionError("live path accepted late snapshot")
     except SystemExit as e:
         assert "MF4_CATALOG_ROLE_VIOLATION" in str(e), e
-    # issue-time view without receipt refuses; with receipt passes
+    # live path: EVERY issue-time view refuses (no registered
+    # verifier exists) -- a truthy receipt string is not a receipt
+    try:
+        ADP.live_prediction_events(
+            {"temporal_role": "ISSUE_TIME_VIEW",
+             "issue_time_receipt": "not-a-receipt",
+             "events": [{"forged": True}]})
+        raise AssertionError("forged live view accepted")
+    except SystemExit as e:
+        assert "MF4_CATALOG_LIVE_UNVERIFIED" in str(e), e
     try:
         ADP.live_prediction_events({"temporal_role": "ISSUE_TIME_VIEW",
                                     "events": []})
         raise AssertionError("receipt-less issue view accepted")
     except SystemExit as e:
+        assert "MF4_CATALOG_LIVE_UNVERIFIED" in str(e), e
+    try:
+        ADP.live_prediction_events({"temporal_role": None})
+        raise AssertionError("unbound role accepted")
+    except SystemExit as e:
         assert "MF4_CATALOG_ROLE_UNBOUND" in str(e), e
-    out = ADP.live_prediction_events(
-        {"temporal_role": "ISSUE_TIME_VIEW", "events": [1],
-         "issue_time_receipt": "receipts/2026-08-30.json"})
-    assert out == [1]
+
+
+def _d9_series():
+    """Codex 2359Z blocker-2 lock battery: unverified calibration
+    material must never reach the frozen engine."""
+    ADP = _adp()
+    risk, bbox, table, _ = _d8_fixture()
+
+    def cal(sb, rb):
+        return ADP.calibrate_with_snapshot(
+            risk, sb, rb, {"regA": bbox}, ["regA"],
+            freeze_day="2025-11-17", snapshot_end="2025-11-16")
+
+    snap_bytes, rec_bytes = _snap_receipt_pair(table)
+
+    check("D9a fake receipt bytes",
+          lambda: cal(snap_bytes, b"not-a-receipt"),
+          "MF4_CATALOG_RECEIPT_UNPARSEABLE")
+    _, rb = _snap_receipt_pair(
+        table, mutate_rec=lambda r: r.update(schema="forged-schema"))
+    check("D9b wrong receipt schema", lambda: cal(snap_bytes, rb),
+          "MF4_CATALOG_RECEIPT_SCHEMA")
+    tampered = snap_bytes.replace(b'"mag": 4.6', b'"mag": 9.9')
+    assert tampered != snap_bytes
+    check("D9c snapshot bytes tampered post-receipt",
+          lambda: cal(tampered, rec_bytes),
+          "MF4_CATALOG_RECEIPT_BINDING")
+
+    def _absent_digest(s):
+        del s["canonical_event_table_sha256"]
+    sb4, rb4 = _snap_receipt_pair(table, mutate_snap=_absent_digest,
+                                  mutate_rec=lambda r: r.update(
+                                      canonical_event_table_sha256=None))
+    check("D9d absent bound table digest", lambda: cal(sb4, rb4),
+          "MF4_CATALOG_TABLE_DIGEST")
+    sb5, rb5 = _snap_receipt_pair(
+        table, mutate_snap=lambda s: s.update(
+            canonical_event_table_sha256="0" * 64))
+    check("D9e forged snapshot table digest", lambda: cal(sb5, rb5),
+          "MF4_CATALOG_TABLE_DIGEST")
+    sb6, rb6 = _snap_receipt_pair(
+        table, mutate_rec=lambda r: r.update(
+            canonical_event_table_sha256="0" * 64))
+    check("D9f receipt table-digest mismatch", lambda: cal(sb6, rb6),
+          "MF4_CATALOG_TABLE_DIGEST")
+    sb7, rb7 = _snap_receipt_pair(
+        table, policy="a forged permissive policy AMENDED_AFTER_FREEZE")
+    check("D9g forged temporal-role policy", lambda: cal(sb7, rb7),
+          "MF4_CATALOG_POLICY_UNBOUND")
+    sb8, rb8 = _snap_receipt_pair(
+        table, mutate_snap=lambda s: s.update(
+            query_contract_sha256="0" * 64))
+    check("D9h unbound query contract", lambda: cal(sb8, rb8),
+          "MF4_CATALOG_CONTRACT_UNBOUND")
+    sb9, rb9 = _snap_receipt_pair(
+        table, mutate_rec=lambda r: r.update(
+            authorization={"file": "other.json", "sha256": "c3" * 32,
+                           "bytes": 1, "go_source_sha256": "d4" * 32}))
+    check("D9i authorization identity divergence",
+          lambda: cal(sb9, rb9), "MF4_CATALOG_AUTH_UNBOUND")
+    check("D9j bare-dict consumption refused",
+          lambda: ADP.calibrate_with_snapshot(
+              risk, {"temporal_role": "CALIBRATION_LATE_REPAIR",
+                     "canonical_event_table": table},
+              {"schema": ADP.RECEIPT_SCHEMA},
+              {"regA": bbox}, ["regA"],
+              freeze_day="2025-11-17", snapshot_end="2025-11-16"),
+          "MF4_CATALOG_RECEIPT_UNBOUND")
+    sb10, rb10 = _snap_receipt_pair(
+        table, mutate_snap=lambda s: s.update(
+            temporal_role="ISSUE_TIME_VIEW"))
+    check("D9k role forgery through the loader",
+          lambda: cal(sb10, rb10), "MF4_CATALOG_ROLE_UNBOUND")
 
 
 def _e_series_c4():
@@ -1043,6 +1283,8 @@ def main():
           "MF4_ARCHIVE_ROWS_DIGEST")
     check("A6 golden replay of committed capsule",
           kat_a6_golden_real_capsule)
+    check("A7 store portability (two physical aliases)",
+          kat_a7_store_portability)
     check("B1 alias-direction reversal", kat_b1_alias_reversal,
           "MF4_BBOX")
     check("B2 tokyo->tohoku mapping", kat_b2_tokyo_tohoku, "MF4_BBOX")
@@ -1075,10 +1317,15 @@ def main():
     check("D1c negative-HOLD verdict refused",
           kat_d1c_negative_hold_verdict)
     check("D1d old unbound go refused", kat_d1d_old_go_unbound)
+    check("D1e HOLD go source with every token refused",
+          kat_d1e_hold_go_refused)
+    check("D1f same-commit go refused (valid go verifies)",
+          kat_d1f_same_commit_go_refused)
     check("D7 28-file durability + raw-fsync injection",
           kat_d7_durability)
-    check("D8 real adapter path (frozen calibrate)",
+    check("D8 real adapter path (receipt-bound, frozen calibrate)",
           kat_d8_real_adapter_path)
+    _d9_series()
     _e_series()
     _e_series_c4()
     print(f"\n{len(PASS)} PASS / {len(FAIL)} FAIL")

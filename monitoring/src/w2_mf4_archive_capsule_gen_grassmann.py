@@ -242,6 +242,11 @@ def build():
         "days_present": len(days) - len(missing_days) - len(malformed_days),
         "days_missing": len(missing_days),
         "days_malformed": len(malformed_days),
+        "store_observation": {
+            "local_physical_root_at_build": STORE_DIR.replace("\\", "/"),
+            "note": ("non-authoritative environment observation; the "
+                     "capsule identity binds only the logical store "
+                     "root + content-addressed inventory")},
         "refusals": []}
     rp = os.path.join(REPO, RECEIPT_REL)
     with open(rp, "w", encoding="utf-8", newline="\n") as f:
@@ -301,12 +306,16 @@ def _construct_capsule(inventory, rows, rows_raw, missing_days,
         "missing_region_cells": missing_cells,
         "raw_source_store": {
             "store_id": STORE_ID, "store_root": STORE_ROOT,
-            "local_physical_root": STORE_DIR.replace("\\", "/"),
             "object_count": len(inventory), "inventory": inventory,
             "note": ("host provenance paths recorded above are NOT the "
                      "recovery route; recovery = store objects by "
                      "content address, capsuled to s4t with the "
-                     "packet")},
+                     "packet. The physical store path is an "
+                     "environment-specific observation recorded in the "
+                     "build receipt, NEVER part of capsule identity "
+                     "(codex 2359Z blocker 3: one committed capsule "
+                     "must verify through any physical alias of the "
+                     "same content-addressed store)")},
         "rows_file": {"path": ROWS_REL, "rows": len(rows),
                       "sha256": _sha(rows_raw), "bytes": len(rows_raw)},
         "projection_loss_disclosure": (

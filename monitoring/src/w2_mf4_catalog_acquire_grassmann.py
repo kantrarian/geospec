@@ -102,7 +102,7 @@ FINAL_DIR = os.path.join(REPO, "docs", "f2g_window2_execution",
 COMPLETENESS_POLICY = ("ComCat as-is at snapshot time; per-region "
                        "completeness caveat disclosed; no post-snapshot "
                        "revision enters this calibration snapshot")
-AUTH_SCHEMA = "geospec-mf4-fire-authorization-v3"
+AUTH_SCHEMA = "geospec-mf4-fire-authorization-v4"
 SCOPE_LITERAL = ("MF4 late-calibration-catalog acquisition: exactly one "
                  "fire of the 13 registered ComCat queries under "
                  "amendment_mf4_late_catalog_repair_20260829 and its "
@@ -111,7 +111,14 @@ FRAMEWORK_REPO = r"C:\agent-framework"
 MODULE_REL = "monitoring/src/w2_mf4_catalog_acquire_grassmann.py"
 CORRECTION3_REL = ("docs/f2g_window2_execution/"
                    "amendment_mf4_late_catalog_repair_20260829_"
-                   "correction4.md")
+                   "correction5.md")
+TEMPORAL_ROLE_POLICY = (
+    "historical calibration recent_event is RECOMPUTED "
+    "from this single late-repair snapshot, superseding "
+    "the annex issue-time feature clause as an "
+    "AMENDED_AFTER_FREEZE feature-provenance change "
+    "(correction 3); live predictions must refuse this "
+    "snapshot")
 
 
 class Refusal(SystemExit):
@@ -275,24 +282,22 @@ def verify_fire_authorization(path):
                       f"reviewed base {pr['base_commit'][:12]} is not "
                       "an ancestor of HEAD")
 
-    # 4. owner go: a LATER record descending from the PASS commit,
-    #    binding the pass commit, current public HEAD/tree, exact
-    #    scope literal, strict UTC, and the quote
+    # 4. owner go (correction 5, codex 2359Z blocker 1): the wrapper
+    #    supplies ONLY the untrusted source pointer; every semantic
+    #    field comes from the COMMITTED go record itself, which must
+    #    be strict JSON with the exact enum verdict "OWNER_FIRE_GO".
+    #    Substring/token matching is banned. The go source must be a
+    #    STRICTLY LATER commit than the pass (never the same commit)
+    #    that descends from it.
     go = auth["owner_fire_go"]
-    for k in ("quote", "utc", "scope", "pass_framework_commit",
-              "source_framework_commit", "source_file"):
+    for k in ("source_framework_commit", "source_file"):
         if not isinstance(go.get(k), str) or not go.get(k):
             raise Refusal("MF4_FIRE_AUTH_INCOMPLETE",
                           f"owner_fire_go.{k}")
-    if go["pass_framework_commit"] != cp["framework_commit"]:
-        raise Refusal("MF4_FIRE_AUTH_GO_PASS_MISMATCH",
-                      go["pass_framework_commit"][:12])
-    try:
-        dt.datetime.strptime(go["utc"], "%Y-%m-%dT%H:%M:%SZ")
-    except ValueError:
-        raise Refusal("MF4_FIRE_AUTH_GO_UTC", repr(go["utc"]))
-    if go["scope"] != SCOPE_LITERAL:
-        raise Refusal("MF4_FIRE_AUTH_GO_SCOPE", repr(go["scope"])[:80])
+    if go["source_framework_commit"] == cp["framework_commit"]:
+        raise Refusal("MF4_FIRE_AUTH_GO_SAME_COMMIT",
+                      "go source commit equals the pass commit; the "
+                      "owner go must be a strictly later record")
     if not _reachable_from_origin_main(go["source_framework_commit"]):
         raise Refusal("MF4_FIRE_AUTH_GO_UNREACHABLE",
                       go["source_framework_commit"][:12])
@@ -303,12 +308,37 @@ def verify_fire_authorization(path):
     go_bytes = _git(FRAMEWORK_REPO, "show",
                     f"{go['source_framework_commit']}:"
                     f"{go['source_file']}")
-    go_text = go_bytes.decode("utf-8", errors="replace")
-    for token in (cp["framework_commit"], head, tree, SCOPE_LITERAL,
-                  go["utc"], go["quote"]):
-        if token not in go_text:
+    try:
+        gr = _strict_loads(go_bytes)
+    except Exception:                                   # noqa: BLE001
+        raise Refusal("MF4_FIRE_AUTH_GO_UNPARSEABLE",
+                      "committed go source is not strict JSON")
+    if not isinstance(gr, dict) or gr.get("verdict") != "OWNER_FIRE_GO":
+        raise Refusal("MF4_FIRE_AUTH_GO_VERDICT",
+                      repr((gr or {}).get("verdict")
+                           if isinstance(gr, dict) else type(gr))[:60])
+    for k in ("quote", "utc", "scope", "pass_framework_commit",
+              "public_head_commit", "public_head_tree"):
+        if not isinstance(gr.get(k), str) or not gr.get(k):
             raise Refusal("MF4_FIRE_AUTH_GO_UNBOUND",
-                          f"go source lacks {token[:24]}")
+                          f"committed go record lacks {k}")
+    if gr["pass_framework_commit"] != cp["framework_commit"]:
+        raise Refusal("MF4_FIRE_AUTH_GO_PASS_MISMATCH",
+                      gr["pass_framework_commit"][:12])
+    if gr["public_head_commit"] != head:
+        raise Refusal("MF4_FIRE_AUTH_GO_UNBOUND",
+                      f"go head {gr['public_head_commit'][:12]} != "
+                      f"current {head[:12]}")
+    if gr["public_head_tree"] != tree:
+        raise Refusal("MF4_FIRE_AUTH_GO_UNBOUND",
+                      f"go tree {gr['public_head_tree'][:12]} != "
+                      f"current {tree[:12]}")
+    if gr["scope"] != SCOPE_LITERAL:
+        raise Refusal("MF4_FIRE_AUTH_GO_SCOPE", repr(gr["scope"])[:80])
+    try:
+        dt.datetime.strptime(gr["utc"], "%Y-%m-%dT%H:%M:%SZ")
+    except ValueError:
+        raise Refusal("MF4_FIRE_AUTH_GO_UTC", repr(gr["utc"]))
     if auth["output_target_must_be_absent"] is not True:
         raise Refusal("MF4_FIRE_AUTH_INCOMPLETE",
                       "output_target_must_be_absent must be true")
@@ -587,13 +617,7 @@ def fire(auth_path, opener=urllib.request.urlopen):
 
     snap = {"schema": "geospec-mf4-calibration-catalog-snapshot-v1",
             "temporal_role": "CALIBRATION_LATE_REPAIR",
-            "temporal_role_policy": (
-                "historical calibration recent_event is RECOMPUTED "
-                "from this single late-repair snapshot, superseding "
-                "the annex issue-time feature clause as an "
-                "AMENDED_AFTER_FREEZE feature-provenance change "
-                "(correction 3); live predictions must refuse this "
-                "snapshot"),
+            "temporal_role_policy": TEMPORAL_ROLE_POLICY,
             "amendment": ("docs/f2g_window2_execution/"
                           "amendment_mf4_late_catalog_repair_20260829.md"),
             "lane_status": "AMENDED_AFTER_FREEZE",

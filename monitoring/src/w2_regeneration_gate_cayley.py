@@ -148,6 +148,19 @@ REQUIRED_BY_SLOT = {
         "docs/f2g_window2_execution/mag_capsules/mag_capsule_tuc.json",
         "docs/f2g_window2_execution/mag_capsules/mag_capsule_vic.json",
     ),
+    "calibration_runner": (
+        "monitoring/src/w2_calibration_runner_cayley.py",
+        "monitoring/src/w2_calibration_feed_producer_cayley.py",
+        "monitoring/src/w2_mf4_catalog_adapter_grassmann.py",
+        "monitoring/src/w2_mf4_archive_capsule_gen_grassmann.py",
+        "docs/f2g_window2_execution/mf4_archive_capsule_v1.json",
+        "docs/f2g_window2_execution/mf4_archive/"
+        "daily_risk_rows_v1.jsonl",
+        "docs/f2g_window2_execution/mf4_catalog_snapshot/"
+        "catalog_snapshot_v1.json",
+        "docs/f2g_window2_execution/mf4_catalog_snapshot/"
+        "acquisition_receipt_v1.json",
+    ),
     # only once the slot is BOUND -- it is honestly OPEN until the
     # post-capture bind, and requiring it earlier would demand a pin
     # the design says must not exist yet
@@ -174,6 +187,13 @@ ADMISSION_ENTRYPOINTS = (
     # codex 0151Z P0-1: the runner is an admission-path root,
     # so its own imports join the dependency closure too.
     "w2_capture_run_v4_grassmann.py",
+    # P0-4: the calibration lane's admission-path roots -- their
+    # transitive local imports must arrive bound, and the ComCat
+    # acquisition is a network-spending root like the retry
+    "w2_calibration_runner_cayley.py",
+    "w2_calibration_feed_producer_cayley.py",
+    "w2_mf4_catalog_adapter_grassmann.py",
+    "w2_mf4_catalog_acquire_grassmann.py",
     # codex 0532Z: both production-operation roots join the closure.
     # The VIC repair driver reaches the store, the transform and the
     # producer gate; the predecessor bridge stages the one key capture

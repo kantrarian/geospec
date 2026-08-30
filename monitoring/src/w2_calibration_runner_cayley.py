@@ -62,6 +62,12 @@ RECEIPT_FIELDS_MF4 = {"schema", "lane", "cutoff", "input_feed_sha256",
 RECEIPT_FIELDS_MAG = {"schema", "lane", "cutoff", "input_feed_sha256",
                       "input_feed_path", "producer_identity",
                       "runner_source_sha256_normalized", "results"}
+RECEIPT_FIELDS_MF4_AMENDED = {
+    "schema", "lane", "cutoff", "input_feed_sha256",
+    "input_feed_path", "producer_identity",
+    "runner_source_sha256_normalized", "ledger_path",
+    "ledger_sha256", "training_digest", "amended_training_digest",
+    "catalog_binding", "n_rows"}
 
 
 def _validate_mag_times(obs, times, cutoff):
@@ -175,6 +181,220 @@ def run_mf4_calibration(repo, feed, cutoff, producer_identity):
             "ledger_sha256": receipt["ledger_sha256"]}
 
 
+AMENDED_LEDGER_FIELDS = {
+    "calibration_start", "calibration_issue_end", "training_digest",
+    "n_rows", "regions", "scaler_mean", "scaler_std", "coef",
+    "intercept", "baseline_coef", "baseline_intercept",
+    "amended_training_digest", "amended_training_binding"}
+AMENDED_PROVENANCE_FIELDS = {
+    "capsule_sha256", "rows_sha256", "snapshot_sha256",
+    "acquisition_receipt_sha256", "result_commit",
+    "supported_cells", "producer_source_sha256_normalized"}
+ADAPTER_MODULE_PATH = ("monitoring/src/"
+                       "w2_mf4_catalog_adapter_grassmann.py")
+PRODUCER_MODULE_PATH = ("monitoring/src/"
+                        "w2_calibration_feed_producer_cayley.py")
+
+
+def _manifest_pin_norm_sha(repo, rel):
+    """The module's normalized-source pin from the committed
+    execution manifest at `repo` -- the same blob a clean checkout
+    materializes; absence refuses (a claim-bearing lane never runs
+    against unpinned machinery)."""
+    mp = os.path.join(repo, "docs", "f2g_window2_execution",
+                      "execution_manifest.json")
+    if not os.path.isfile(mp):
+        raise CalibrationRunnerError(
+            "MF4_AMENDED_MANIFEST_ABSENT: the amended lane runs "
+            "only inside a checkout carrying the execution manifest")
+    man = json.load(open(mp, encoding="utf-8"))
+    for slot in (man.get("slots") or {}).values():
+        if not isinstance(slot, dict) or                 slot.get("status") != "BOUND":
+            continue
+        for pin in slot.get("pins") or ():
+            if pin.get("path") == rel:
+                return pin.get("blob_sha256")
+    raise CalibrationRunnerError(
+        f"MF4_AMENDED_MODULE_UNPINNED: {rel} is not a BOUND pin of "
+        "the execution manifest")
+
+
+def _norm_file_sha(path):
+    with open(path, "rb") as f:
+        return hashlib.sha256(
+            f.read().replace(b"\r\n", b"\n")).hexdigest()
+
+
+def run_mf4_calibration_amended(repo):
+    """THE registered amended-lane entry (codex 0439Z E1): repo
+    only. The manifest-pinned producer EXECUTES here -- inputs are
+    derived, never accepted -- so caller-constructed data can never
+    wear the producer's identity. Fit + receipts continue in the
+    private checked seam below (unregistered; fixtures only)."""
+    import w2_calibration_feed_producer_cayley as FPM
+    fp_sha = _norm_file_sha(os.path.abspath(FPM.__file__))
+    if fp_sha != _manifest_pin_norm_sha(repo, PRODUCER_MODULE_PATH):
+        raise CalibrationRunnerError(
+            "MF4_AMENDED_PRODUCER_UNPINNED: the executing feed "
+            "producer source diverges from its manifest pin")
+    inputs = FPM.build_mf4_calibration_inputs(repo)
+    ident = {"module": os.path.basename(PRODUCER_MODULE_PATH),
+             "source_sha256_normalized": fp_sha}
+    return _run_mf4_calibration_amended_with_inputs(repo, inputs,
+                                                    ident)
+
+
+def _amended_carrier(inputs, snap_sha, rcpt_sha):
+    """THE one canonical carrier constructor (codex 0439Z F1) --
+    the runner persists it and the verifier independently rebuilds
+    it from committed bytes."""
+    prov = inputs["provenance"]
+    return {"risk_by_region": inputs["risk_by_region"],
+            "regions": inputs["regions"],
+            "bboxes": inputs["bboxes"],
+            "freeze_day": inputs["freeze_day"],
+            "snapshot_end": inputs["snapshot_end"],
+            "requested_issue_end": inputs["requested_issue_end"],
+            "catalog": {"snapshot_sha256": snap_sha,
+                        "acquisition_receipt_sha256": rcpt_sha},
+            "provenance": {k: prov[k] for k in sorted(prov)}}
+
+
+def _run_mf4_calibration_amended_with_inputs(repo, inputs,
+                                             producer_identity):
+    """The AMENDED MF4 lane (codex 1758Z option 1; 0411Z P04-A): the
+    fit runs ONLY through the registered authenticated adapter --
+    resolved UNCONDITIONALLY inside this entry, never injectable (a
+    caller-supplied fit path could mint a verifiable fake receipt).
+    The executing adapter and the claimed feed producer must both
+    equal their manifest pins; the returned ledger must satisfy the
+    CLOSED amended schema and every cross-binding BEFORE anything is
+    written. The runner never parses the snapshot and never calls
+    the frozen engine directly for this lane."""
+    import w2_mf4_catalog_adapter_grassmann as ADAPT
+    adapter = ADAPT.calibrate_with_snapshot
+    adapter_sha = _norm_file_sha(os.path.abspath(ADAPT.__file__))
+    if adapter_sha != _manifest_pin_norm_sha(repo,
+                                             ADAPTER_MODULE_PATH):
+        raise CalibrationRunnerError(
+            "MF4_AMENDED_ADAPTER_UNPINNED: the executing adapter "
+            "source diverges from its manifest pin")
+    for k in ("risk_by_region", "snapshot_bytes", "receipt_bytes",
+              "bboxes", "regions", "freeze_day", "snapshot_end",
+              "requested_issue_end", "provenance"):
+        if k not in inputs:
+            raise CalibrationRunnerError(
+                f"MF4_AMENDED_INPUTS_INCOMPLETE: {k}")
+    if not isinstance(inputs["snapshot_bytes"],
+                      (bytes, bytearray)) or             not isinstance(inputs["receipt_bytes"],
+                           (bytes, bytearray)):
+        raise CalibrationRunnerError(
+            "MF4_AMENDED_INPUTS_INCOMPLETE: snapshot/receipt must "
+            "be the ORIGINAL bytes, never parsed objects")
+    prov = inputs["provenance"]
+    if not isinstance(prov, dict) or \
+            set(prov) != AMENDED_PROVENANCE_FIELDS:
+        raise CalibrationRunnerError(
+            "MF4_AMENDED_PROVENANCE_NOT_CLOSED: "
+            f"{sorted(prov) if isinstance(prov, dict) else prov!r}")
+    snap_sha = hashlib.sha256(inputs["snapshot_bytes"]).hexdigest()
+    rcpt_sha = hashlib.sha256(inputs["receipt_bytes"]).hexdigest()
+    if prov["snapshot_sha256"] != snap_sha or \
+            prov["acquisition_receipt_sha256"] != rcpt_sha:
+        raise CalibrationRunnerError(
+            "MF4_AMENDED_PROVENANCE_DIVERGENT: producer provenance "
+            "does not bind the supplied snapshot/receipt bytes")
+    if prov["producer_source_sha256_normalized"] != \
+            dict(producer_identity).get("source_sha256_normalized"):
+        raise CalibrationRunnerError(
+            "MF4_AMENDED_PROVENANCE_DIVERGENT: provenance producer "
+            "identity != claimed producer identity")
+    if prov["producer_source_sha256_normalized"] != \
+            _manifest_pin_norm_sha(repo, PRODUCER_MODULE_PATH):
+        raise CalibrationRunnerError(
+            "MF4_AMENDED_PRODUCER_UNPINNED: the claimed feed "
+            "producer identity diverges from its manifest pin")
+    cutoff = str(inputs["requested_issue_end"])
+    for region, series in inputs["risk_by_region"].items():
+        for d in series:
+            if str(d) > cutoff:
+                raise CalibrationRunnerError(
+                    f"CALIBRATION_AFTER_CUTOFF: {region} risk row "
+                    f"{d} > issue end {cutoff}")
+    carrier = _amended_carrier(inputs, snap_sha, rcpt_sha)
+    feed_digest = _canon_digest(carrier)
+    # digest FIRST; the carrier PERSISTS only after every pre-write
+    # validation below -- a refused fit leaves ZERO artifacts
+    ledger = adapter(inputs["risk_by_region"],
+                     inputs["snapshot_bytes"],
+                     inputs["receipt_bytes"], inputs["bboxes"],
+                     inputs["regions"], inputs["freeze_day"],
+                     inputs["snapshot_end"],
+                     requested_issue_end=
+                     inputs["requested_issue_end"])
+    if not isinstance(ledger, dict) or \
+            set(ledger) != AMENDED_LEDGER_FIELDS:
+        raise CalibrationRunnerError(
+            "MF4_AMENDED_LEDGER_SCHEMA: the returned ledger is not "
+            "the CLOSED amended shape "
+            f"({sorted(ledger) if isinstance(ledger, dict) else ledger!r})")
+    if sorted(ledger["regions"]) != sorted(inputs["regions"]):
+        raise CalibrationRunnerError(
+            "MF4_AMENDED_LEDGER_UNBOUND: ledger regions diverge "
+            "from the carrier regions")
+    if str(ledger["calibration_issue_end"]) != cutoff:
+        raise CalibrationRunnerError(
+            "MF4_AMENDED_LEDGER_UNBOUND: ledger "
+            "calibration_issue_end diverges from the accepted "
+            "issue end")
+    bind = ledger["amended_training_binding"]
+    if not isinstance(bind, dict) or \
+            bind.get("snapshot_sha256") != snap_sha or \
+            bind.get("engine_training_digest") != \
+            ledger["training_digest"]:
+        raise CalibrationRunnerError(
+            "MF4_AMENDED_LEDGER_UNBOUND: the amended binding does "
+            "not bind the carrier snapshot/engine digest")
+    ra = bind.get("result_authentication")
+    if not isinstance(ra, dict) or \
+            ra.get("catalog_commit") != prov["result_commit"]:
+        raise CalibrationRunnerError(
+            "MF4_AMENDED_LEDGER_UNBOUND: result authentication "
+            "does not bind the provenance result commit")
+    for k_ra, k_pv in (("snapshot_sha256", "snapshot_sha256"),
+                       ("receipt_sha256",
+                        "acquisition_receipt_sha256")):
+        if k_ra in ra and ra[k_ra] != prov[k_pv]:
+            raise CalibrationRunnerError(
+                "MF4_AMENDED_LEDGER_UNBOUND: result "
+                f"authentication {k_ra} diverges from provenance")
+    feed_path = _write(repo,
+                       f"{OUT_DIR}/mf4_input_feed_amended.json",
+                       carrier)
+    led_path = _write(repo, f"{OUT_DIR}/mf4_ledger_amended.json",
+                      ledger)
+    receipt = {"schema": "f2g-w2-calibration-receipt-v1",
+               "lane": "MF4_AMENDED", "cutoff": cutoff,
+               "input_feed_sha256": feed_digest,
+               "input_feed_path": feed_path,
+               "producer_identity": dict(producer_identity),
+               "runner_source_sha256_normalized": _self_sha(),
+               "ledger_path": led_path,
+               "ledger_sha256": _canon_digest(ledger),
+               "training_digest": ledger["training_digest"],
+               "amended_training_digest":
+                   ledger["amended_training_digest"],
+               "catalog_binding": dict(carrier["catalog"]),
+               "n_rows": ledger.get("n_rows")}
+    rec_path = _write(repo,
+                      f"{OUT_DIR}/mf4_ledger_amended.receipt.json",
+                      receipt)
+    return {"ledger": led_path, "receipt": rec_path,
+            "ledger_sha256": receipt["ledger_sha256"],
+            "amended_training_digest":
+                receipt["amended_training_digest"]}
+
+
 def run_mag_calibration(repo, feeds, cutoff, producer_identity):
     """MAG subtraction ledgers per observatory per horizontal
     component, plus M3 reference regressions per the frozen
@@ -265,7 +485,9 @@ def run_mag_calibration(repo, feeds, cutoff, producer_identity):
 
 
 def verify_receipt(repo, receipt_rel, *, expected_cutoff,
-                   expected_producer, expected_runner_sha=None):
+                   expected_producer, expected_runner_sha=None,
+                   expected_input_sha256=None,
+                   expected_ledger_sha256=None):
     """codex 1358Z item 4 + 1815Z item 3: NO claim-bearing defaults.
     Expected cutoff and pinned producer identity are REQUIRED on every
     call; the executing runner is ALWAYS compared (to
@@ -283,9 +505,11 @@ def verify_receipt(repo, receipt_rel, *, expected_cutoff,
         raise CalibrationRunnerError(
             f"CALIBRATION_RECEIPT_MISMATCH: {detail}")
 
-    if rec.get("lane") not in ("MF4", "MAG"):
+    if rec.get("lane") not in ("MF4", "MAG", "MF4_AMENDED"):
         refuse(f"lane not in the closed enum: {rec.get('lane')!r}")
     want_fields = (RECEIPT_FIELDS_MF4 if rec["lane"] == "MF4"
+                   else RECEIPT_FIELDS_MF4_AMENDED
+                   if rec["lane"] == "MF4_AMENDED"
                    else RECEIPT_FIELDS_MAG)
     if set(rec) != want_fields:
         refuse(f"receipt schema not closed: "
@@ -321,6 +545,94 @@ def verify_receipt(repo, receipt_rel, *, expected_cutoff,
     if rec["lane"] == "MF4":
         check(rec["ledger_path"], rec["ledger_sha256"], "output")
         n = 1
+    elif rec["lane"] == "MF4_AMENDED":
+        check(rec["ledger_path"], rec["ledger_sha256"], "output")
+        with open(os.path.join(repo, rec["ledger_path"]
+                               .replace("/", os.sep)),
+                  encoding="utf-8") as f:
+            led = json.load(f)
+        if led.get("amended_training_digest") != \
+                rec["amended_training_digest"] or \
+                led.get("training_digest") != \
+                rec["training_digest"]:
+            refuse("amended/engine training digests do not "
+                   "recompute from the persisted ledger")
+        if rec["n_rows"] != led.get("n_rows"):
+            refuse("receipt n_rows does not equal the persisted "
+                   "ledger's n_rows")
+        if feed.get("catalog") != rec.get("catalog_binding"):
+            refuse("receipt catalog_binding does not equal the "
+                   "persisted carrier's catalog block")
+        prov2 = feed.get("provenance")
+        if not isinstance(prov2, dict) or \
+                set(prov2) != AMENDED_PROVENANCE_FIELDS:
+            refuse("carrier provenance absent or not the closed "
+                   "shape")
+        if prov2["snapshot_sha256"] != \
+                feed["catalog"]["snapshot_sha256"] or \
+                prov2["acquisition_receipt_sha256"] != \
+                feed["catalog"]["acquisition_receipt_sha256"]:
+            refuse("carrier provenance does not bind the carrier "
+                   "catalog digests")
+        if str(led.get("calibration_issue_end")) != rec["cutoff"] \
+                or sorted(led.get("regions") or ()) != \
+                sorted(feed.get("regions") or ()):
+            refuse("ledger issue-end/regions diverge from the "
+                   "receipt cutoff / persisted carrier")
+        bind2 = led.get("amended_training_binding") or {}
+        if bind2.get("snapshot_sha256") != \
+                prov2["snapshot_sha256"]:
+            refuse("ledger amended binding does not bind the "
+                   "carrier provenance snapshot")
+        ra2 = bind2.get("result_authentication") or {}
+        if ra2.get("catalog_commit") != prov2["result_commit"]:
+            refuse("ledger result authentication does not bind the "
+                   "provenance result commit")
+        n = 1
+        # codex 0439Z F1: self-consistency is never provenance. The
+        # carrier is REBUILT read-only through the manifest-pinned
+        # producer and the ONE canonical constructor; exact
+        # canonical equality or refusal. Where the raw store is
+        # unreachable the result is TYPED consistency-only -- a
+        # coordinated carrier+receipt mutation can therefore never
+        # masquerade as provenance-checked on any host.
+        amended_provenance = "INTERNAL_CONSISTENCY_ONLY"
+        try:
+            import w2_calibration_feed_producer_cayley as _FPMV
+            _re_in = _FPMV.build_mf4_calibration_inputs(repo)
+            _re_carrier = _amended_carrier(
+                _re_in,
+                hashlib.sha256(_re_in["snapshot_bytes"]).hexdigest(),
+                hashlib.sha256(_re_in["receipt_bytes"]).hexdigest())
+            if _canon_digest(_re_carrier) != _canon_digest(feed):
+                refuse("persisted carrier does not equal the "
+                       "independently rebuilt producer carrier")
+            amended_provenance = "REBUILT_FROM_COMMITTED_BYTES"
+        except CalibrationRunnerError:
+            raise
+        except BaseException as _exc:
+            _passthru = ("MF4_ARCHIVE_OBJECT_MISSING",
+                         "MF4_AMENDED_MANIFEST_ABSENT",
+                         "FEED_STAGED_ABSENT",
+                         "MF4_INPUTS_REPO_MISMATCH")
+            if not any(t in str(_exc) for t in _passthru):
+                refuse(f"carrier rebuild failed: "
+                       f"{type(_exc).__name__}: {str(_exc)[:140]}")
+        # codex 0439Z F2: the ledger's independent bind arrives only
+        # with the separately committed post-run final-bind record;
+        # until its hashes are supplied as MANDATORY expected values
+        # the ledger claim stays typed consistency-only.
+        if expected_input_sha256 is not None or \
+                expected_ledger_sha256 is not None:
+            if rec["input_feed_sha256"] != expected_input_sha256:
+                refuse("receipt input digest does not equal the "
+                       "final-bind record's expected value")
+            if rec["ledger_sha256"] != expected_ledger_sha256:
+                refuse("receipt ledger digest does not equal the "
+                       "final-bind record's expected value")
+            amended_ledger_binding = "FINAL_BIND_EXPECTED_VERIFIED"
+        else:
+            amended_ledger_binding = "INTERNAL_CONSISTENCY_ONLY"
     else:
         res = rec["results"]
         if set(res) != {"observatories", "m3"}:
@@ -354,6 +666,10 @@ def verify_receipt(repo, receipt_rel, *, expected_cutoff,
             n += 1
     if n == 0:
         refuse("zero-ledger receipt")
+    if rec["lane"] == "MF4_AMENDED":
+        return {"verified_ledgers": n, "lane": rec["lane"],
+                "provenance_checked": amended_provenance,
+                "ledger_binding": amended_ledger_binding}
     return {"verified_ledgers": n, "lane": rec["lane"],
             "provenance_checked": True}
 

@@ -145,6 +145,12 @@ BOUND_SLOTS = {
                   # the existing authority-file dual-role pattern.
                   "monitoring/src/"
                   "w2_acquisition_capture_grassmann.py",
+                  # P0-4 amended lane (the retry precedent): the
+                  # ComCat acquisition is a NETWORK-SPENDING
+                  # executable and may not exist unpinned; its own
+                  # authority chain gates any fire
+                  "monitoring/src/"
+                  "w2_mf4_catalog_acquire_grassmann.py",
                   # codex 0532Z: the zero-HTTP VIC repair driver is
                   # PRODUCTION-OPERATION code -- it reaches the frozen
                   # store, the registered transform and the producer
@@ -208,7 +214,36 @@ BOUND_SLOTS = {
                 "boundary + M3 index equality + provenance-verifying "
                 "receipts; codex items 3+4 repaired + canonical-UTC "
                 "frame)",
-        "paths": ["monitoring/src/w2_calibration_runner_cayley.py"]},
+        "paths": ["monitoring/src/w2_calibration_runner_cayley.py",
+                  # P0-4 (codex 1733Z sequence): the feed producer
+                  # derives the runner's inputs from committed
+                  # staged/capsule bytes -- production machinery on
+                  # the calibration lane, plus its lock suite
+                  "monitoring/src/"
+                  "w2_calibration_feed_producer_cayley.py",
+                  "monitoring/src/"
+                  "w2_calibration_feed_producer_kats_cayley.py",
+                  # the amended MF4 catalog lane (codex 1758Z opt 1
+                  # + 0317Z bytes-only boundary): adapter, archive
+                  # capsule machinery, and their lock suite
+                  "monitoring/src/"
+                  "w2_mf4_catalog_adapter_grassmann.py",
+                  "monitoring/src/"
+                  "w2_mf4_archive_capsule_gen_grassmann.py",
+                  "monitoring/src/"
+                  "w2_mf4_archive_kats_grassmann.py",
+                  # the REGISTERED calibration input surfaces --
+                  # data pins, reopened by the producer/adapter
+                  "docs/f2g_window2_execution/"
+                  "mf4_archive_capsule_v1.json",
+                  "docs/f2g_window2_execution/"
+                  "mf4_archive_receipt_v1.json",
+                  "docs/f2g_window2_execution/mf4_archive/"
+                  "daily_risk_rows_v1.jsonl",
+                  "docs/f2g_window2_execution/mf4_catalog_snapshot/"
+                  "catalog_snapshot_v1.json",
+                  "docs/f2g_window2_execution/mf4_catalog_snapshot/"
+                  "acquisition_receipt_v1.json"]},
     # RE-BOUND ATOMICALLY at bar REV 9 green (codex 1335Z/1358Z
     # disposition; grassmann 1745Z, 14/14, dual-verified by cayley on
     # py3.14+py3.11)

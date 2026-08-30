@@ -28,13 +28,11 @@ The single moving constant is PRESTART_DAY. Everything derives:
   (five baseline blocks, eleven evaluation blocks -- structure
    identical to v3; only the dates move)
 
-PRESTART_DAY = 2026-09-03 is the cayley-PROPOSED date (successor
-packet w2r1). The owner words the actual date at landing; a
-different owner-worded date regenerates this artifact by changing
-the one constant and rerunning. The provenance owner_decision field
-is PENDING until that word exists; the landing regeneration binds
-the verbatim quote + sha there and changes nothing else at a
-same-date landing.
+PRESTART_DAY = 2026-09-03 is OWNER-WORDED: asylum in-session
+2026-08-30, verbatim "proceed eval starting on 9/04" (quote
+sha256 56a08a16...), which fixes evaluation_start 2026-09-04
+and hence PRESTART 2026-09-03 -- the proposed constant,
+unchanged.
 
 Claim ceiling: calendar registration only; no power value, no
 scientific claim, no evaluation open; Lambda_geo INCONCLUSIVE.
@@ -119,13 +117,13 @@ def build():
                       "successor calendar; evaluation_start = first "
                       "UTC day after a future completed PASS "
                       "prestart; no silent v3 carry-forward)",
-            "owner_decision": "PENDING_OWNER_WORD: PRESTART "
-                              "2026-09-03 is the cayley-proposed "
-                              "date (successor packet w2r1); the "
-                              "landing regeneration binds asylum's "
-                              "verbatim quote + sha256 here and "
-                              "changes nothing else at a same-date "
-                              "landing",
+            "owner_decision": "asylum in-session 2026-08-30 "
+                              "'proceed eval starting on 9/04' "
+                              "(quote sha 56a08a16, SUCCESSOR "
+                              "schedule artifact prestart_schedule_"
+                              "2026-09-03.md; supersedes the 08-28 "
+                              "schedule per its no-silent-absorption "
+                              "clause and codex Gate-2 repair 2)",
             "producer": "monitoring/src/"
                         "w2_calendar_authority_gen_v4_cayley.py",
             "claim_ceiling": "calendar registration only; no power "

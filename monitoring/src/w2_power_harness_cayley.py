@@ -366,8 +366,9 @@ BOUND_GEOMETRY_SCHEMA = "f2g-w2-bound-geometry-v2"
 CERT_N_DRAWS = 9999
 
 # window-2 calendar authority v4 (codex 1400Z ruling 1 rule carried to
-# the successor; owner PRESTART word pending, proposed 2026-09-03,
-# successor schedule prestart_schedule_2026-09-03.md). AUTHORITY
+# the successor; owner PRESTART = 2026-09-03, worded 2026-08-30
+# 'proceed eval starting on 9/04', successor schedule
+# prestart_schedule_2026-09-03.md). AUTHORITY
 # constants: the committed authority artifact
 # and every capsule must match these byte-for-byte -- they are never
 # fallbacks and never derived from Phase-B geometry.

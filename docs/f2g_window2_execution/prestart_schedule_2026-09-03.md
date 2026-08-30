@@ -12,12 +12,11 @@ append-only successor schedule + calendar with `evaluation_start` the
 first UTC day after a future completed PASS prestart. Nothing is
 backdated to 2026-08-29 and no v3 date is silently carried forward.
 
-- **authority**: asylum (owner), in-session — **PENDING OWNER WORD**.
-  2026-09-03 is the cayley-PROPOSED prestart date (successor packet
-  w2r1). This artifact lands only after the owner words the date; the
-  landing regeneration binds the verbatim quote here.
-- **quote (verbatim)**: `PENDING_OWNER_WORD`
-- **quote_sha256**: `PENDING_OWNER_WORD`
+- **authority**: asylum (owner), in-session 2026-08-30 — WORD GIVEN
+  (fixes evaluation_start 2026-09-04, hence PRESTART 2026-09-03; the
+  proposed constant is unchanged).
+- **quote (verbatim)**: "proceed eval starting on 9/04"
+- **quote_sha256**: `56a08a166c7d5c0dc71cd29be113c5b923472632b4ea1d9e2fc6d1a10e745f18`
 - **decision context**: codex Gate-2 exception list (4 repairs) with
   owner-authorized successor path; owner adopted the option-1 MAG
   disposition (terminal exclusion, see

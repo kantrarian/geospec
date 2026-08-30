@@ -6,7 +6,7 @@ its REGISTERED inputs, so 08-25 capsule production is mechanical.
 
 Inputs (every one a registered artifact or an explicit argument --
 nothing is synthesized here):
-- the COMMITTED calendar authority (calendar_authority_w2_v3.json)
+- the COMMITTED calendar authority (calendar_authority_w2_v4.json)
   supplies `calendar_frame` verbatim;
 - the COMMITTED effect grids (effect_grids_w2_v1.json) supply
   `effect_grids` verbatim;
@@ -25,6 +25,9 @@ The built capsule is validated through the REAL harness validator
 registered family/point -- never a private re-implementation -- and
 the whole-capsule digest is computed by the harness's own function.
 Opens no window-2 value; building a capsule authorizes nothing.
+
+REV v4-cal: rebound to calendar_authority_w2_v4.json (codex Gate-2
+2026-08-30T1844Z repair 2); no other behavior change.
 """
 import json
 import os
@@ -51,7 +54,7 @@ def build_capsule(*, calendar_authority, effect_grids_artifact,
     byte-for-byte (the non-compression contract); availability is the
     separate mask argument."""
     if calendar_authority.get("schema") != \
-            "f2g-w2-calendar-authority-v3":
+            "f2g-w2-calendar-authority-v4":
         raise CapsuleBuildRefusal(
             "CAPSULE_INPUT_INVALID: calendar authority schema")
     if effect_grids_artifact.get("schema") != \
@@ -112,7 +115,7 @@ def main():
      seed_sha, out_p) = sys.argv[1:10]
     auth = json.load(open(os.path.join(
         repo, "docs", "f2g_window2_execution",
-        "calendar_authority_w2_v3.json"), encoding="utf-8"))
+        "calendar_authority_w2_v4.json"), encoding="utf-8"))
     grids = json.load(open(os.path.join(
         repo, "docs", "f2g_window2_execution",
         "effect_grids_w2_v1.json"), encoding="utf-8"))
@@ -137,7 +140,7 @@ def _selftest():
     repo = os.path.abspath(os.path.join(_HERE, "..", ".."))
     auth = json.load(open(os.path.join(
         repo, "docs", "f2g_window2_execution",
-        "calendar_authority_w2_v3.json"), encoding="utf-8"))
+        "calendar_authority_w2_v4.json"), encoding="utf-8"))
     grids_art = json.load(open(os.path.join(
         repo, "docs", "f2g_window2_execution",
         "effect_grids_w2_v1.json"), encoding="utf-8"))
@@ -193,7 +196,7 @@ def _selftest():
         pass
     bad2 = copy.deepcopy(kw)
     bad2["available_days_by_carrier"]["cascadia"] = \
-        auth["frame"]["baseline_days"] + ["2026-08-28"] \
+        auth["frame"]["baseline_days"] + ["2026-09-03"] \
         + auth["frame"]["evaluation_days"]
     try:
         build_capsule(**bad2)

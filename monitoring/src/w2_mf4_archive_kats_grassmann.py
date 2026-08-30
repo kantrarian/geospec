@@ -523,9 +523,21 @@ def kat_a8_attempt1_capsule_integrity():
         "sealed evidence contradicts the count-absent finding"
     assert doc["metadata"]["api"] == "2.7.0"
     assert len(doc["features"]) == man["fired_query"]["features"]
-    assert not os.path.exists(os.path.join(
-        os.path.dirname(ATTEMPT1_DIR), "mf4_catalog_snapshot")), \
-        "a snapshot exists despite snapshot_published=false"
+    # attempt 1 published nothing; a snapshot may exist ONLY from a
+    # LATER authority -- it must not reuse attempt-1's spent go or
+    # its sealed response identity
+    snap_rec = os.path.join(os.path.dirname(ATTEMPT1_DIR),
+                            "mf4_catalog_snapshot",
+                            "acquisition_receipt_v1.json")
+    if os.path.exists(snap_rec):
+        rec2 = json.loads(open(snap_rec, encoding="utf-8").read())
+        go2 = rec2["authorization_content"]["owner_fire_go"][
+            "source_framework_commit"]
+        assert go2 != man["authority_chain"][
+            "owner_go_framework_commit"], \
+            "published snapshot reuses attempt-1's SPENT owner go"
+        assert rec2["snapshot_sha256"] != _sha(raw_resp), \
+            "published snapshot is the attempt-1 sealed response"
 
 
 def kat_d1_fire_requires_authorization():
@@ -692,7 +704,9 @@ class _FakeGit:
             return b"treetree" * 5 + b"\n"
         if a == "rev-parse origin/master":
             return b"deadbeef" * 5 + b"\n"
-        if a.startswith("show HEAD:monitoring/src/"):
+        if a.startswith("rev-parse") and a.endswith("^{tree}"):
+            return b"treetree" * 5 + b"\n"
+        if a.startswith("show") and ":monitoring/src/" in a:
             return self.module_blob
         if a.startswith("show HEAD:docs/"):
             # correction doc pinning the true identities
@@ -1088,36 +1102,95 @@ def _adp():
     return ADP
 
 
+class _patched_chain:
+    """Context manager: repoint the adapter/acquire git helpers at a
+    _FakeGit chain whose pass/go records are VALID, so receipt-bound
+    fixtures exercise the post-anchor seams."""
+
+    def __enter__(self):
+        self.fake = _FakeGit()
+        self.fake.pass_record = _valid_pass_record(self.fake)
+        self.fake.go_record = json.dumps(_valid_go_record()).encode()
+        self.saved = (ACQ._git, ACQ._is_ancestor)
+        ACQ._git = self.fake
+        ACQ._is_ancestor = lambda repo, a, b: True
+        return self.fake
+
+    def __exit__(self, *exc):
+        ACQ._git, ACQ._is_ancestor = self.saved
+        return False
+
+
 def _snap_receipt_pair(table, policy=None, mutate_snap=None,
-                       mutate_rec=None):
-    """Fixture pair in the fire's EXACT output format: snapshot bytes
-    + acquisition-receipt bytes, mutually bound (digests, contract,
-    authorization identity)."""
+                       mutate_rec=None, mutate_auth=None):
+    """Fixture pair in the fire's EXACT output format (full closed
+    keysets): snapshot bytes + acquisition-receipt bytes, mutually
+    bound (digests, contract, authorization identity + content)."""
     ADP = _adp()
     _, contract_sha = ACQ.query_contract()
+    module_blob = open(
+        os.path.join(_HERE, "w2_mf4_catalog_acquire_grassmann.py"),
+        "rb").read().replace(b"\r\n", b"\n")
     auth_ident = {"file": "fire_authorization.json", "sha256": "a1" * 32,
                   "bytes": 512, "go_source_sha256": "b2" * 32}
+    auth_content = {"schema": ACQ.AUTH_SCHEMA,
+                    "public_head_commit": "deadbeef" * 5,
+                    "public_head_tree": "treetree" * 5,
+                    "module_git_blob_sha256": _sha(module_blob),
+                    "query_contract_sha256": contract_sha,
+                    "codex_pass": {"framework_commit": "feedface" * 5,
+                                   "file": "inbox/forged-pass.md"},
+                    "owner_fire_go": {"source_framework_commit":
+                                          "beefcafe" * 5,
+                                      "source_file":
+                                          "inbox/forged-go.md"},
+                    "output_target_must_be_absent": True}
+    if mutate_auth:
+        mutate_auth(auth_content)
+    aci = {"path": ACQ.MODULE_REL,
+           "git_blob_sha256": auth_content["module_git_blob_sha256"],
+           "git_blob_bytes": len(module_blob),
+           "runtime_sha256": auth_content["module_git_blob_sha256"],
+           "runtime_bytes": len(module_blob)}
+    fsi = {"path": "monitoring/src/fault_segments.py",
+           "sha256": "f0" * 32, "bytes": 34410}
     snap = {"schema": ADP.SNAPSHOT_SCHEMA,
             "temporal_role": "CALIBRATION_LATE_REPAIR",
             "temporal_role_policy": policy if policy is not None
                 else ACQ.TEMPORAL_ROLE_POLICY,
+            "amendment": ("docs/f2g_window2_execution/"
+                          "amendment_mf4_late_catalog_repair_"
+                          "20260829.md"),
+            "lane_status": "AMENDED_AFTER_FREEZE",
+            "query_contract": {"provider": ACQ.PROVIDER_URL},
             "canonical_event_table": table,
             "canonical_event_table_sha256":
                 _sha(json.dumps(table, sort_keys=True).encode("utf-8")),
+            "region_membership": {e["id"]: ["regA"] for e in table
+                                  if isinstance(e, dict)
+                                  and isinstance(e.get("id"), str)},
+            "events_by_region_counts": {"regA": len(table)},
             "query_contract_sha256": contract_sha,
-            "authorization": auth_ident}
+            "authorization": auth_ident,
+            "authorization_content": auth_content,
+            "acquisition_code_identity": aci,
+            "fault_segments_identity": fsi}
     if mutate_snap:
         mutate_snap(snap)
     snap_bytes = (json.dumps(snap, indent=1, sort_keys=True)
                   + "\n").encode("utf-8")
     rec = {"schema": ADP.RECEIPT_SCHEMA,
            "fired_utc": "2026-08-30T00:00:00.000000Z",
+           "attempts": {"regA": {"parse_result": "OK"}},
            "snapshot_file": "catalog_snapshot_v1.json",
            "snapshot_sha256": _sha(snap_bytes),
            "canonical_event_table_sha256":
                snap.get("canonical_event_table_sha256"),
            "query_contract_sha256": contract_sha,
-           "authorization": auth_ident}
+           "authorization": auth_ident,
+           "authorization_content": snap.get("authorization_content"),
+           "acquisition_code_identity": aci,
+           "fault_segments_identity": fsi}
     if mutate_rec:
         mutate_rec(rec)
     rec_bytes = (json.dumps(rec, indent=1, sort_keys=True)
@@ -1148,9 +1221,10 @@ def kat_d8_real_adapter_path():
     ADP = _adp()
     risk, bbox, table, ev_ms = _d8_fixture()
     snap_bytes, rec_bytes = _snap_receipt_pair(table)
-    ledger = ADP.calibrate_with_snapshot(
-        risk, snap_bytes, rec_bytes, {"regA": bbox}, ["regA"],
-        freeze_day="2025-11-17", snapshot_end="2025-11-16")
+    with _patched_chain():
+        ledger = ADP.calibrate_with_snapshot(
+            risk, snap_bytes, rec_bytes, {"regA": bbox}, ["regA"],
+            freeze_day="2025-11-17", snapshot_end="2025-11-16")
     assert "amended_training_digest" in ledger
     b = ledger["amended_training_binding"]
     assert b["engine_training_digest"] == ledger["training_digest"]
@@ -1161,13 +1235,16 @@ def kat_d8_real_adapter_path():
                        "time_utc": "2025-10-28T12:01:00.000Z",
                        "lat": 35.0, "lon": 105.0, "mag": 3.9}]
     s2, r2 = _snap_receipt_pair(table2)
-    ledger2 = ADP.calibrate_with_snapshot(
-        risk, s2, r2, {"regA": bbox}, ["regA"],
-        freeze_day="2025-11-17", snapshot_end="2025-11-16")
+    with _patched_chain():
+        ledger2 = ADP.calibrate_with_snapshot(
+            risk, s2, r2, {"regA": bbox}, ["regA"],
+            freeze_day="2025-11-17", snapshot_end="2025-11-16")
     assert (ledger2["amended_training_digest"]
             != ledger["amended_training_digest"])
     # live path: the calibration snapshot refuses as a role violation
-    snap_obj, _ = ADP.load_verified_snapshot(snap_bytes, rec_bytes)
+    with _patched_chain():
+        snap_obj, _ = ADP.load_verified_snapshot(snap_bytes,
+                                                 rec_bytes)
     try:
         ADP.live_prediction_events(snap_obj)
         raise AssertionError("live path accepted late snapshot")
@@ -1203,9 +1280,10 @@ def _d9_series():
     risk, bbox, table, _ = _d8_fixture()
 
     def cal(sb, rb):
-        return ADP.calibrate_with_snapshot(
-            risk, sb, rb, {"regA": bbox}, ["regA"],
-            freeze_day="2025-11-17", snapshot_end="2025-11-16")
+        with _patched_chain():
+            return ADP.calibrate_with_snapshot(
+                risk, sb, rb, {"regA": bbox}, ["regA"],
+                freeze_day="2025-11-17", snapshot_end="2025-11-16")
 
     snap_bytes, rec_bytes = _snap_receipt_pair(table)
 
@@ -1267,6 +1345,78 @@ def _d9_series():
             temporal_role="ISSUE_TIME_VIEW"))
     check("D9k role forgery through the loader",
           lambda: cal(sb10, rb10), "MF4_CATALOG_ROLE_UNBOUND")
+
+
+def _d10_series():
+    """Codex 0024Z Gate-2 quarantine repair lock battery: a mutually
+    self-issued snapshot/receipt pair must refuse; the committed
+    chain is the only trust anchor; keysets/paths/UTC/row schema are
+    closed."""
+    ADP = _adp()
+    risk, bbox, table, _ = _d8_fixture()
+
+    def load(sb, rb, patched=True):
+        if patched:
+            with _patched_chain():
+                return ADP.load_verified_snapshot(sb, rb)
+        return ADP.load_verified_snapshot(sb, rb)
+
+    sb, rb = _snap_receipt_pair(table)
+    check("D10a self-issued pair refuses (no committed chain)",
+          lambda: load(sb, rb, patched=False),
+          "MF4_CATALOG_TRUST_ANCHOR")
+    sb2, rb2 = _snap_receipt_pair(
+        table, mutate_rec=lambda r: r.update(extra_claim="x"))
+    check("D10b receipt keyset injection", lambda: load(sb2, rb2),
+          "MF4_CATALOG_RECEIPT_KEYSET")
+    sb3, rb3 = _snap_receipt_pair(
+        table, mutate_snap=lambda s: s.update(extra_claim="y"))
+    check("D10c snapshot keyset injection", lambda: load(sb3, rb3),
+          "MF4_CATALOG_SNAPSHOT_KEYSET")
+    sb4, rb4 = _snap_receipt_pair(
+        table, mutate_rec=lambda r: r.update(
+            snapshot_file="other.json"))
+    check("D10d wrong named snapshot file", lambda: load(sb4, rb4),
+          "MF4_CATALOG_RECEIPT_BINDING")
+    sb5, rb5 = _snap_receipt_pair(
+        table, mutate_rec=lambda r: r.update(fired_utc="yesterday"))
+    check("D10e non-strict fired UTC", lambda: load(sb5, rb5),
+          "MF4_CATALOG_RECEIPT_BINDING")
+    sb6, rb6 = _snap_receipt_pair([dict(table[0], injected=1)])
+    check("D10f row keyset injection", lambda: load(sb6, rb6),
+          "MF4_CATALOG_ROW_SCHEMA")
+    sb7, rb7 = _snap_receipt_pair([dict(table[0], mag=True)])
+    check("D10g bool row magnitude", lambda: load(sb7, rb7),
+          "MF4_CATALOG_ROW_SCHEMA")
+    sb8, rb8 = _snap_receipt_pair(
+        table, mutate_auth=lambda a: a.update(
+            module_git_blob_sha256="0" * 64))
+    check("D10h forged authorization module pin",
+          lambda: load(sb8, rb8), "MF4_CATALOG_TRUST_ANCHOR")
+    sb9, rb9 = _snap_receipt_pair(
+        table, mutate_rec=lambda r: r.update(
+            authorization_content=dict(r["authorization_content"],
+                                       public_head_commit="ab" * 20)))
+    check("D10i authorization_content divergence",
+          lambda: load(sb9, rb9), "MF4_CATALOG_TRUST_ANCHOR")
+
+    def real_positive():
+        base = os.path.join(os.path.dirname(os.path.dirname(_HERE)),
+                            "docs", "f2g_window2_execution",
+                            "mf4_catalog_snapshot")
+        sreal = open(os.path.join(base, "catalog_snapshot_v1.json"),
+                     "rb").read()
+        rreal = open(os.path.join(base,
+                                  "acquisition_receipt_v1.json"),
+                     "rb").read()
+        snap, ident = ADP.load_verified_snapshot(sreal, rreal)
+        a = ident["trust_anchor"]
+        assert a["pass_framework_commit"].startswith("7601d385"), a
+        assert a["go_framework_commit"].startswith("561cfdf4"), a
+        assert a["public_head_commit"].startswith("f636c234"), a
+        assert len(snap["canonical_event_table"]) == 200
+    check("D10j REAL pair verifies through the committed chain",
+          real_positive)
 
 
 def _e_series_c4():
@@ -1336,6 +1486,33 @@ def _e_series_c4():
             with Sandbox(_risk_mutator(val)) as _:
                 GEN.build()
         check(name, run, "MF4_ARCHIVE_RISK_RANGE")
+
+    def run_e20():
+        with Sandbox() as sb:
+            snapdir = os.path.join(sb.root, "docs",
+                                   "f2g_window2_execution",
+                                   "mf4_catalog_snapshot")
+            os.makedirs(snapdir)
+            open(os.path.join(snapdir, "catalog_snapshot_v1.json"),
+                 "wb").write(
+                b'{"canonical_event_table_sha256": "ab12",'
+                b' "temporal_role": "CALIBRATION_LATE_REPAIR"}\n')
+            open(os.path.join(snapdir,
+                              "acquisition_receipt_v1.json"),
+                 "wb").write(b'{"fixture": true}\n')
+            GEN.build()
+            cap = json.load(open(os.path.join(sb.root,
+                                              GEN.CAPSULE_REL),
+                                 encoding="utf-8"))
+            assert cap["catalog_binding"]["status"] == "BOUND_V2", \
+                cap["catalog_binding"]["status"]
+            with open(os.path.join(snapdir,
+                                   "catalog_snapshot_v1.json"),
+                      "ab") as f:
+                f.write(b"\n")
+            GEN.verify_capsule()
+    check("E20 v2 catalog-binding snapshot tamper", run_e20,
+          "MF4_ARCHIVE_CAPSULE_RECONSTRUCTION")
 
 
 def kat_d5_role_guard():
@@ -1462,6 +1639,7 @@ def main():
     check("D8 real adapter path (receipt-bound, frozen calibrate)",
           kat_d8_real_adapter_path)
     _d9_series()
+    _d10_series()
     _e_series()
     _e_series_c4()
     print(f"\n{len(PASS)} PASS / {len(FAIL)} FAIL")

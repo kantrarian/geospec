@@ -45,12 +45,36 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 if _HERE not in sys.path:
     sys.path.insert(0, _HERE)
 import w2_mf4 as MF4
+import w2_mf4_catalog_acquire_grassmann as ACQ
 from w2_mf4_catalog_acquire_grassmann import (
     Refusal, TEMPORAL_ROLE_POLICY, _strict_loads,
     calibration_snapshot_role_guard, query_contract)
 
 SNAPSHOT_SCHEMA = "geospec-mf4-calibration-catalog-snapshot-v1"
 RECEIPT_SCHEMA = "geospec-mf4-catalog-acquisition-receipt-v1"
+
+# Closed keysets (codex 0024Z Gate-2 quarantine repair): the receipt
+# and snapshot admit EXACTLY the fire's registered fields -- any
+# missing or injected key refuses.
+RECEIPT_KEYSET = frozenset((
+    "schema", "fired_utc", "attempts", "snapshot_file",
+    "snapshot_sha256", "canonical_event_table_sha256",
+    "authorization", "authorization_content",
+    "acquisition_code_identity", "fault_segments_identity",
+    "query_contract_sha256"))
+SNAPSHOT_KEYSET = frozenset((
+    "schema", "temporal_role", "temporal_role_policy", "amendment",
+    "lane_status", "query_contract", "query_contract_sha256",
+    "canonical_event_table", "canonical_event_table_sha256",
+    "region_membership", "events_by_region_counts", "authorization",
+    "authorization_content", "acquisition_code_identity",
+    "fault_segments_identity"))
+AUTH_CONTENT_KEYSET = frozenset((
+    "schema", "public_head_commit", "public_head_tree",
+    "module_git_blob_sha256", "query_contract_sha256", "codex_pass",
+    "owner_fire_go", "output_target_must_be_absent"))
+ROW_KEYSET = frozenset(("id", "lat", "lon", "mag", "time_ms",
+                        "time_utc"))
 
 
 def _sha(b):
@@ -77,6 +101,173 @@ def snapshot_table_sha(snapshot):
         raise Refusal("MF4_CATALOG_TABLE_DIGEST",
                       f"{dig[:16]} != bound {bound[:16]}")
     return dig
+
+
+def _num_finite(v):
+    return (isinstance(v, (int, float)) and not isinstance(v, bool)
+            and v == v and v not in (float("inf"), float("-inf")))
+
+
+def _row_schema(table):
+    """Codex 0024Z quarantine repair: every canonical row carries
+    EXACTLY the registered fields with the registered types."""
+    for i, ev in enumerate(table):
+        if not isinstance(ev, dict) or set(ev) != ROW_KEYSET:
+            raise Refusal("MF4_CATALOG_ROW_SCHEMA",
+                          f"row {i}: keyset diverges from registered")
+        if not isinstance(ev["id"], str) or not ev["id"]:
+            raise Refusal("MF4_CATALOG_ROW_SCHEMA", f"row {i}: id")
+        for k in ("lat", "lon", "mag"):
+            if not _num_finite(ev[k]):
+                raise Refusal("MF4_CATALOG_ROW_SCHEMA",
+                              f"row {i}: {k} {ev[k]!r}")
+        if not isinstance(ev["time_ms"], int) \
+                or isinstance(ev["time_ms"], bool):
+            raise Refusal("MF4_CATALOG_ROW_SCHEMA",
+                          f"row {i}: time_ms {ev['time_ms']!r}")
+        if not isinstance(ev["time_utc"], str) or not ev["time_utc"]:
+            raise Refusal("MF4_CATALOG_ROW_SCHEMA",
+                          f"row {i}: time_utc")
+
+
+def verify_acquisition_trust_anchor(snap, rec):
+    """Codex 0024Z Gate-2 quarantine repair, option 2: reopen and
+    fully re-verify the committed fire-authorization chain and bind
+    the RECOMPUTED identity to both snapshot and receipt. A mutually
+    self-issued pair -- internally digest-consistent but with no
+    committed pass/go chain -- refuses here. Committed records (the
+    codex pass, the owner go, the public geospec tip) are the trust
+    anchor; the embedded authorization_content is only the claim
+    being re-verified."""
+    ac, ac2 = snap.get("authorization_content"), \
+        rec.get("authorization_content")
+    if not isinstance(ac, dict) or ac != ac2:
+        raise Refusal("MF4_CATALOG_TRUST_ANCHOR",
+                      "authorization_content absent or diverges "
+                      "between snapshot and receipt")
+    if set(ac) != AUTH_CONTENT_KEYSET:
+        raise Refusal("MF4_CATALOG_TRUST_ANCHOR",
+                      "authorization_content keyset diverges")
+    if ac.get("schema") != ACQ.AUTH_SCHEMA:
+        raise Refusal("MF4_CATALOG_TRUST_ANCHOR",
+                      f"authorization schema {ac.get('schema')!r}")
+    _, contract_sha = query_contract()
+    if ac.get("query_contract_sha256") != contract_sha:
+        raise Refusal("MF4_CATALOG_TRUST_ANCHOR",
+                      "authorization contract pin diverges from "
+                      "recompute")
+
+    def _reachable(commit):
+        try:
+            got = ACQ._git(ACQ.FRAMEWORK_REPO, "merge-base", commit,
+                           "origin/main").decode().strip()
+            return got == ACQ._git(ACQ.FRAMEWORK_REPO, "rev-parse",
+                                   commit).decode().strip()
+        except (Refusal, Exception):                    # noqa: BLE001
+            return False
+    cp = ac.get("codex_pass") or {}
+    go = ac.get("owner_fire_go") or {}
+    for src, k in ((cp, "framework_commit"), (cp, "file"),
+                   (go, "source_framework_commit"),
+                   (go, "source_file")):
+        if not isinstance(src.get(k), str) or not src.get(k):
+            raise Refusal("MF4_CATALOG_TRUST_ANCHOR",
+                          f"authorization chain pointer missing {k}")
+    if not _reachable(cp["framework_commit"]):
+        raise Refusal("MF4_CATALOG_TRUST_ANCHOR",
+                      "pass commit unreachable from origin/main")
+    try:
+        pass_bytes = ACQ._git(ACQ.FRAMEWORK_REPO, "show",
+                              f"{cp['framework_commit']}:{cp['file']}")
+    except (Refusal, Exception):                        # noqa: BLE001
+        raise Refusal("MF4_CATALOG_TRUST_ANCHOR",
+                      "pass record unreadable from committed history")
+    try:
+        pr = _strict_loads(pass_bytes)
+    except Exception:                                   # noqa: BLE001
+        raise Refusal("MF4_CATALOG_TRUST_ANCHOR",
+                      "committed pass record is not strict JSON")
+    if not isinstance(pr, dict) or pr.get("verdict") != "PRE_HTTP_PASS":
+        raise Refusal("MF4_CATALOG_TRUST_ANCHOR",
+                      "committed pass verdict is not PRE_HTTP_PASS")
+    if pr.get("module_git_blob_sha256") \
+            != ac.get("module_git_blob_sha256") \
+            or pr.get("query_contract_sha256") != contract_sha \
+            or pr.get("result_tree") != ac.get("public_head_tree"):
+        raise Refusal("MF4_CATALOG_TRUST_ANCHOR",
+                      "committed pass identities diverge from the "
+                      "authorization claim")
+    if go["source_framework_commit"] == cp["framework_commit"]:
+        raise Refusal("MF4_CATALOG_TRUST_ANCHOR",
+                      "go commit equals pass commit")
+    if not _reachable(go["source_framework_commit"]) \
+            or not ACQ._is_ancestor(ACQ.FRAMEWORK_REPO,
+                                    cp["framework_commit"],
+                                    go["source_framework_commit"]):
+        raise Refusal("MF4_CATALOG_TRUST_ANCHOR",
+                      "go commit unreachable or does not descend "
+                      "from the pass commit")
+    try:
+        go_bytes = ACQ._git(ACQ.FRAMEWORK_REPO, "show",
+                            f"{go['source_framework_commit']}:"
+                            f"{go['source_file']}")
+        gr = _strict_loads(go_bytes)
+    except (Refusal, Exception):                        # noqa: BLE001
+        raise Refusal("MF4_CATALOG_TRUST_ANCHOR",
+                      "committed go record unreadable or not strict "
+                      "JSON")
+    if not isinstance(gr, dict) or gr.get("verdict") != "OWNER_FIRE_GO":
+        raise Refusal("MF4_CATALOG_TRUST_ANCHOR",
+                      "committed go verdict is not OWNER_FIRE_GO")
+    if gr.get("pass_framework_commit") != cp["framework_commit"] \
+            or gr.get("public_head_commit") \
+            != ac.get("public_head_commit") \
+            or gr.get("public_head_tree") \
+            != ac.get("public_head_tree") \
+            or gr.get("scope") != ACQ.SCOPE_LITERAL:
+        raise Refusal("MF4_CATALOG_TRUST_ANCHOR",
+                      "committed go bindings diverge from the "
+                      "authorization claim")
+    # geospec side: the authorized head must be committed public
+    # history with the exact claimed tree, and the module blob AT
+    # that commit must be the pinned acquisition code
+    head = ac["public_head_commit"]
+    if not ACQ._is_ancestor(ACQ.REPO, head, "origin/master"):
+        raise Refusal("MF4_CATALOG_TRUST_ANCHOR",
+                      "authorized head is not public geospec "
+                      "history")
+    try:
+        tree = ACQ._git(ACQ.REPO, "rev-parse",
+                        head + "^{tree}").decode().strip()
+        blob = ACQ._git(ACQ.REPO, "show",
+                        f"{head}:{ACQ.MODULE_REL}")
+    except (Refusal, Exception):                        # noqa: BLE001
+        raise Refusal("MF4_CATALOG_TRUST_ANCHOR",
+                      "authorized head/tree/blob unreadable from "
+                      "public geospec history")
+    if tree != ac["public_head_tree"]:
+        raise Refusal("MF4_CATALOG_TRUST_ANCHOR",
+                      "authorized tree diverges from committed head")
+    if _sha(blob) != ac["module_git_blob_sha256"]:
+        raise Refusal("MF4_CATALOG_TRUST_ANCHOR",
+                      "module blob at the authorized head diverges "
+                      "from the pinned identity")
+    aci = rec.get("acquisition_code_identity") or {}
+    if aci.get("git_blob_sha256") != ac["module_git_blob_sha256"]:
+        raise Refusal("MF4_CATALOG_TRUST_ANCHOR",
+                      "receipt code identity diverges from the "
+                      "anchored module blob")
+    if snap.get("fault_segments_identity") \
+            != rec.get("fault_segments_identity") \
+            or not isinstance(rec.get("fault_segments_identity"),
+                              dict):
+        raise Refusal("MF4_CATALOG_TRUST_ANCHOR",
+                      "fault_segments identity absent or diverges")
+    return {"pass_framework_commit": cp["framework_commit"],
+            "go_framework_commit": go["source_framework_commit"],
+            "public_head_commit": head,
+            "public_head_tree": ac["public_head_tree"],
+            "module_git_blob_sha256": ac["module_git_blob_sha256"]}
 
 
 def load_verified_snapshot(snapshot_bytes, receipt_bytes):
@@ -139,10 +330,35 @@ def load_verified_snapshot(snapshot_bytes, receipt_bytes):
         raise Refusal("MF4_CATALOG_AUTH_UNBOUND",
                       "snapshot/receipt authorization identities are "
                       "absent or diverge")
+    # codex 0024Z quarantine repair: closed keysets, named snapshot
+    # path, strict fired UTC, registered row schema, and the
+    # committed-chain trust anchor
+    if set(rec) != RECEIPT_KEYSET:
+        raise Refusal("MF4_CATALOG_RECEIPT_KEYSET",
+                      f"receipt keyset diverges: "
+                      f"{sorted(set(rec) ^ RECEIPT_KEYSET)[:4]}")
+    if set(snap) != SNAPSHOT_KEYSET:
+        raise Refusal("MF4_CATALOG_SNAPSHOT_KEYSET",
+                      f"snapshot keyset diverges: "
+                      f"{sorted(set(snap) ^ SNAPSHOT_KEYSET)[:4]}")
+    if rec.get("snapshot_file") != "catalog_snapshot_v1.json":
+        raise Refusal("MF4_CATALOG_RECEIPT_BINDING",
+                      f"receipt names snapshot file "
+                      f"{rec.get('snapshot_file')!r}")
+    try:
+        dt.datetime.strptime(rec.get("fired_utc", ""),
+                             "%Y-%m-%dT%H:%M:%S.%fZ")
+    except ValueError:
+        raise Refusal("MF4_CATALOG_RECEIPT_BINDING",
+                      f"fired_utc {rec.get('fired_utc')!r} is not "
+                      "strict UTC")
+    _row_schema(snap["canonical_event_table"])
+    anchor = verify_acquisition_trust_anchor(snap, rec)
     return snap, {"snapshot_sha256": snap_sha,
                   "canonical_event_table_sha256": dig,
                   "receipt_schema": rec["schema"],
-                  "authorization": sa}
+                  "authorization": sa,
+                  "trust_anchor": anchor}
 
 
 def events_from_snapshot(snapshot, use):

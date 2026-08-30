@@ -120,9 +120,17 @@
   }
  },
  "catalog_binding": {
+  "acquisition_receipt_sha256": "054002dd617b174e859645fce5c34a9adbc5b5c8024a0eed54f55757ae29c9ff",
+  "amended_training_digest_formula": "sha256(engine_training_digest || temporal_role_policy || canonical_event_table_sha256)",
+  "canonical_event_table_sha256": "1e4839cf062ad63c8b8bb8b835b829925a80f3d38c2552962fbd94c047092ad2",
   "contract": "monitoring/src/w2_mf4_catalog_acquire_grassmann.py",
-  "note": "catalog snapshot + training-row digest bind in the v2 finalization after the ONE authorized acquisition; two-stage build, disclosed",
-  "status": "OPEN_PENDING_AMENDED_ACQUISITION"
+  "note": "adapter QUARANTINED_PENDING_GATE2_TRUST_ANCHOR until the trust-anchor repair passes review; the amended training digest binds at the gated ONE real calibration run, disclosed",
+  "receipt_path": "docs/f2g_window2_execution/mf4_catalog_snapshot/acquisition_receipt_v1.json",
+  "snapshot_path": "docs/f2g_window2_execution/mf4_catalog_snapshot/catalog_snapshot_v1.json",
+  "snapshot_sha256": "490c407796209a513995a9012911a1e3764825622d4e33d355c983a13dbbb7f3",
+  "status": "BOUND_V2",
+  "temporal_role": "CALIBRATION_LATE_REPAIR",
+  "training_digest_status": "PENDING_ONE_AUTHORIZED_CALIBRATION_RUN"
  },
  "day_index": {
   "days_total": 307,
@@ -725,9 +733,9 @@
   ]
  ],
  "producer_code_identity": {
-  "bytes": 25530,
+  "bytes": 27611,
   "path": "monitoring/src/w2_mf4_archive_capsule_gen_grassmann.py",
-  "sha256": "2a22fea1d22d4c32746e3ae0ffae7636690b0a94dc67436b0d55f2db5407fd0b"
+  "sha256": "5541e89dbeafec91b93ccce31626d93279526d49088f951a900ccfb302dbf1b8"
  },
  "projection_loss_disclosure": "components/coverage/summary/earthquake_events are omitted from the training row; their complete source bytes remain reopenable through the store inventory. persistence_informational is NON-INPUT: frozen MF4 persistence is the catalog-derived recent_event.",
  "raw_source_store": {

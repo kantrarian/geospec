@@ -255,6 +255,57 @@ def build():
     return capsule, receipt
 
 
+def _catalog_binding():
+    """v2 finalization (post the ONE authorized acquisition,
+    2026-08-30T02:39:54Z): bind the committed catalog snapshot +
+    receipt identities into the capsule. Deterministic -- recomputed
+    from the committed bytes at build AND at reconstruction, so a
+    tampered snapshot file diverges the capsule equality. In
+    sandboxes without the snapshot the binding remains OPEN (the
+    two-stage build, disclosed)."""
+    snap_rel = ("docs/f2g_window2_execution/mf4_catalog_snapshot/"
+                "catalog_snapshot_v1.json")
+    rec_rel = ("docs/f2g_window2_execution/mf4_catalog_snapshot/"
+               "acquisition_receipt_v1.json")
+    sp = os.path.join(REPO, snap_rel)
+    rp = os.path.join(REPO, rec_rel)
+    if not (os.path.isfile(sp) and os.path.isfile(rp)):
+        return {
+            "status": "OPEN_PENDING_AMENDED_ACQUISITION",
+            "contract": ("monitoring/src/"
+                         "w2_mf4_catalog_acquire_grassmann.py"),
+            "note": ("catalog snapshot + training-row digest bind in "
+                     "the v2 finalization after the ONE authorized "
+                     "acquisition; two-stage build, disclosed")}
+    sraw = open(sp, "rb").read()
+    rraw = open(rp, "rb").read()
+    try:
+        sdoc = json.loads(sraw.decode("utf-8"))
+    except (ValueError, UnicodeDecodeError):
+        raise Refusal("MF4_ARCHIVE_CATALOG_BINDING",
+                      "committed catalog snapshot is unparseable")
+    return {
+        "status": "BOUND_V2",
+        "contract": ("monitoring/src/"
+                     "w2_mf4_catalog_acquire_grassmann.py"),
+        "snapshot_path": snap_rel,
+        "snapshot_sha256": _sha(sraw),
+        "receipt_path": rec_rel,
+        "acquisition_receipt_sha256": _sha(rraw),
+        "canonical_event_table_sha256":
+            sdoc.get("canonical_event_table_sha256"),
+        "temporal_role": sdoc.get("temporal_role"),
+        "amended_training_digest_formula": (
+            "sha256(engine_training_digest || temporal_role_policy "
+            "|| canonical_event_table_sha256)"),
+        "training_digest_status": (
+            "PENDING_ONE_AUTHORIZED_CALIBRATION_RUN"),
+        "note": ("adapter QUARANTINED_PENDING_GATE2_TRUST_ANCHOR "
+                 "until the trust-anchor repair passes review; the "
+                 "amended training digest binds at the gated ONE "
+                 "real calibration run, disclosed")}
+
+
 def _construct_capsule(inventory, rows, rows_raw, missing_days,
                        malformed_days, days, census):
     """The ONE deterministic capsule constructor -- build() writes its
@@ -324,13 +375,7 @@ def _construct_capsule(inventory, rows, rows_raw, missing_days,
             "reopenable through the store inventory. "
             "persistence_informational is NON-INPUT: frozen MF4 "
             "persistence is the catalog-derived recent_event."),
-        "catalog_binding": {
-            "status": "OPEN_PENDING_AMENDED_ACQUISITION",
-            "contract": ("monitoring/src/"
-                         "w2_mf4_catalog_acquire_grassmann.py"),
-            "note": ("catalog snapshot + training-row digest bind in "
-                     "the v2 finalization after the ONE authorized "
-                     "acquisition; two-stage build, disclosed")},
+        "catalog_binding": _catalog_binding(),
         "training_row_digest": None,
         "producer_code_identity": {
             "path": ("monitoring/src/"

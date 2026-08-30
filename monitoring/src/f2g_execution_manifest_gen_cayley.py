@@ -388,6 +388,8 @@ PRODUCER_BOUNDARY_MODE = "staged_envelope"
 # PATH_NOT_AT_TARGET for anything uncommitted.
 FINAL_BIND_SCHEMA = "f2g-window2-final-bind-spec-v1"
 FINAL_BIND_SLOTS = ("producer_boundary", "calibration_ledgers")
+FINAL_BIND_SPEC_PATH = ("docs/f2g_window2_execution/"
+                        "final_bind_spec_v1.json")
 
 # the REGISTERED v4 staged prefix. The reviewed v4 producers
 # (w2_capture_run_v4_grassmann.py, w2_restage_v4_grassmann.py) both
@@ -454,6 +456,32 @@ PRODUCER_BOUNDARY_REQUIRED = {
 }
 
 
+# THE registered calibration production path set (P0-4 closure).
+# MF4 amended lane: landed run d8324818 + final-bind ec9245ee under
+# codex MF4_POST_RUN_LEDGER_PASS. MAG lane: landed fit c8089a13
+# under codex MAG_POST_RUN_LEDGER_PASS (carrier bytes live in the
+# content-addressed S4T store; the committed record binds them).
+# Exact committed paths, literal by design -- the registration IS
+# this list, cross-checked against the runner's constants in the
+# selftest (a runtime import here would be circular: runner ->
+# producer -> generator).
+_CAL_DIR = "docs/f2g_window2_execution/calibration/"
+REGISTERED_CALIBRATION_PATHS = tuple(sorted(
+    [_CAL_DIR + "mf4_input_feed_amended.json",
+     _CAL_DIR + "mf4_ledger_amended.json",
+     _CAL_DIR + "mf4_ledger_amended.receipt.json",
+     _CAL_DIR + "mf4_final_bind_record_v1.json",
+     _CAL_DIR + "mag_carrier_record_v1.json",
+     _CAL_DIR + "mag_ledgers.receipt.json",
+     _CAL_DIR + "mag_final_bind_record_v1.json"]
+    + [_CAL_DIR + f"mag_{o}_{c}_ledger.json"
+       for o in ("frn", "izn", "new", "tuc", "vic")
+       for c in ("X", "Y")]
+    + [_CAL_DIR + f"mag_m3_{pair}_{c}_ledger.json"
+       for pair in ("frn_on_tuc", "vic_on_new")
+       for c in ("X", "Y")]))
+
+
 class FinalBindRefusal(SystemExit):
     """Typed and fail-closed. The code leads the message."""
 
@@ -462,15 +490,23 @@ def _fb_refuse(code, detail):
     raise FinalBindRefusal(f"{code}: {detail}")
 
 
-def load_final_bind_spec(path):
-    """Parse a CLOSED spec object. Shape errors refuse before any path
-    is resolved, so a malformed spec can never partially bind."""
-    with open(path, "rb") as f:
-        raw = f.read()
+def _decode_final_bind_spec(raw, source):
+    """Strict JSON decode: duplicate object keys are ambiguous
+    authorities and therefore refuse before shape validation."""
+    def no_dupes(pairs):
+        obj = {}
+        for key, value in pairs:
+            if key in obj:
+                _fb_refuse("FINAL_BIND_SPEC_DUPLICATE_KEY",
+                           f"{source}: {key!r}")
+            obj[key] = value
+        return obj
     try:
-        spec = json.loads(raw.decode("utf-8"))
+        spec = json.loads(raw.decode("utf-8"),
+                          object_pairs_hook=no_dupes)
     except Exception as exc:
-        _fb_refuse("FINAL_BIND_SPEC_UNPARSEABLE", f"{path}: {exc}")
+        _fb_refuse("FINAL_BIND_SPEC_UNPARSEABLE",
+                   f"{source}: {exc}")
     if not isinstance(spec, dict):
         _fb_refuse("FINAL_BIND_SPEC_NOT_CLOSED", "spec is not an object")
     want = {"schema"} | set(FINAL_BIND_SLOTS)
@@ -505,6 +541,13 @@ def load_final_bind_spec(path):
         _fb_refuse("FINAL_BIND_PATH_IN_BOTH_SLOTS",
                    f"{sorted(both)[:3]}")
     return spec
+
+
+def load_final_bind_spec(path):
+    """Parse a CLOSED spec object. Shape errors refuse before any path
+    is resolved, so a malformed spec can never partially bind."""
+    with open(path, "rb") as f:
+        return _decode_final_bind_spec(f.read(), path)
 
 
 def _check_prefixes(name, paths):
@@ -561,26 +604,55 @@ def final_bind_slots(spec, repo, target_full):
     _check_prefixes("calibration_ledgers",
                     spec["calibration_ledgers"]["paths"])
 
-    # codex 0532Z: the production calibration path set is a genuinely
-    # missing P0-4 prerequisite -- no registered production
-    # orchestration and no exact output names exist yet. The parser and
-    # its refusal controls are authored here; PRODUCTION final bind
-    # must keep refusing until P0-4 routes an exact committed
-    # feed/ledger/receipt set derived from the registered staged
-    # carrier and cutoff. Inventing that list here is precisely what I
-    # was told not to do.
-    _fb_refuse("FINAL_BIND_CALIBRATION_UNREGISTERED",
-               "calibration_ledgers has no registered production path "
-               "set; P0-4 must route the exact committed "
-               "feed/ledger/receipt set before final bind can close. "
-               "The spec parsed and validated structurally -- this "
-               "refusal is the missing PRODUCTION prerequisite, not a "
-               "malformed spec")
+    # P0-4 CLOSED (codex 0532Z hold retired): the production
+    # calibration set is now REGISTERED above -- both lanes fit
+    # once, receipted, final-bound, and codex-passed. The spec must
+    # equal that set EXACTLY; anything else refuses typed. The
+    # original refusal shape survives as the divergence gate: a
+    # final bind can still never invent a calibration list.
+    got = sorted(spec["calibration_ledgers"]["paths"])
+    want = sorted(REGISTERED_CALIBRATION_PATHS)
+    if got != want:
+        missing = [p for p in want if p not in set(got)]
+        extra = [p for p in got if p not in set(want)]
+        _fb_refuse("FINAL_BIND_CALIBRATION_SET_DIVERGENT",
+                   "calibration_ledgers must equal the REGISTERED "
+                   f"production set exactly (missing={missing[:3]}, "
+                   f"extra={extra[:3]})")
+    return {name: list(spec[name]["paths"])
+            for name in FINAL_BIND_SLOTS}
 
 
 def _git(repo, args, binary=False):
     out = subprocess.check_output(["git", "-C", repo] + args)
     return out if binary else out.decode().strip()
+
+
+def load_final_bind_spec_at_target(repo, target_full, supplied_path,
+                                   blob_reader=None):
+    """The owner-gated spec is an object at the named target, never an
+    unattested worktree/temporary-file authority. The supplied path is
+    accepted only as the exact registered repo path; membership bytes
+    are read ONLY from the target's Git object, so checkout newline
+    conversion or a dirty disk copy can never steer the operation."""
+    registered = os.path.realpath(os.path.join(
+        repo, FINAL_BIND_SPEC_PATH.replace("/", os.sep)))
+    supplied = os.path.realpath(
+        supplied_path if os.path.isabs(supplied_path)
+        else os.path.join(repo, supplied_path))
+    if os.path.normcase(supplied) != os.path.normcase(registered):
+        _fb_refuse("FINAL_BIND_SPEC_PATH_UNREGISTERED",
+                   f"{supplied_path!r} != {FINAL_BIND_SPEC_PATH!r}")
+    try:
+        target_raw = (blob_reader(target_full, FINAL_BIND_SPEC_PATH)
+                      if blob_reader is not None else
+                      _git(repo, ["cat-file", "blob",
+                                  f"{target_full}:{FINAL_BIND_SPEC_PATH}"],
+                           binary=True))
+    except Exception as exc:
+        _fb_refuse("FINAL_BIND_SPEC_NOT_AT_TARGET", str(exc))
+    return _decode_final_bind_spec(
+        target_raw, f"{target_full}:{FINAL_BIND_SPEC_PATH}")
 
 
 def pin(repo, target_full, path):
@@ -623,7 +695,8 @@ def main(repo, target, design_manifest_commit, final_bind_spec=None):
     # resolved through the ordinary pin(), so an uncommitted path
     # refuses PATH_NOT_AT_TARGET rather than binding a promise.
     if final_bind_spec is not None:
-        spec = load_final_bind_spec(final_bind_spec)
+        spec = load_final_bind_spec_at_target(
+            repo, target_full, final_bind_spec)
         for name, paths in final_bind_slots(spec, repo,
                                             target_full).items():
             owner, note = OPEN_SLOTS[name]
@@ -730,6 +803,12 @@ def _selftest():
                          "producer_boundary": {"paths": ["a"]},
                          "calibration_ledgers": {"paths": ["b"]}})),
               "FINAL_BIND_SPEC_NOT_CLOSED"))
+    check("C2a duplicate JSON object keys refuse before shape use",
+          refuses(lambda: _decode_final_bind_spec(
+              (b'{"schema":"f2g-window2-final-bind-spec-v1",'
+               b'"schema":"f2g-window2-final-bind-spec-v1"}'),
+              "duplicate-fixture"),
+              "FINAL_BIND_SPEC_DUPLICATE_KEY"))
     check("C3 schema mismatch refuses",
           refuses(lambda: load_final_bind_spec(
               spec_file(mk(schema="wrong"))),
@@ -748,6 +827,39 @@ def _selftest():
     check("C7 a well-formed spec parses",
           load_final_bind_spec(spec_file(mk()))["schema"]
           == FINAL_BIND_SCHEMA)
+    # The executing authority is the exact registered blob at the
+    # named target; an arbitrary spec path or dirty worktree copy can
+    # never steer membership after review.
+    _target_repo = tempfile.mkdtemp(prefix="f2g-final-bind-target-")
+    _target_path = os.path.join(
+        _target_repo, FINAL_BIND_SPEC_PATH.replace("/", os.sep))
+    os.makedirs(os.path.dirname(_target_path), exist_ok=True)
+    _target_raw = json.dumps(mk()).encode("utf-8")
+    with open(_target_path, "wb") as _tf:
+        _tf.write(_target_raw)
+    _reader = lambda _commit, _path: _target_raw
+    check("C7a registered-path target blob parses",
+          load_final_bind_spec_at_target(
+              _target_repo, "target", FINAL_BIND_SPEC_PATH,
+              blob_reader=_reader)["schema"] == FINAL_BIND_SCHEMA)
+    check("C7b arbitrary spec path refuses",
+          refuses(lambda: load_final_bind_spec_at_target(
+              _target_repo, "target", spec_file(mk()),
+              blob_reader=_reader),
+              "FINAL_BIND_SPEC_PATH_UNREGISTERED"))
+    with open(_target_path, "ab") as _tf:
+        _tf.write(b" ")
+    check("C7c dirty worktree spec cannot steer target blob parsing",
+          load_final_bind_spec_at_target(
+              _target_repo, "target", FINAL_BIND_SPEC_PATH,
+              blob_reader=_reader)["schema"] == FINAL_BIND_SCHEMA)
+    def _missing_reader(_commit, _path):
+        raise FileNotFoundError("target blob absent")
+    check("C7d missing registered spec at target refuses",
+          refuses(lambda: load_final_bind_spec_at_target(
+              _target_repo, "target", FINAL_BIND_SPEC_PATH,
+              blob_reader=_missing_reader),
+              "FINAL_BIND_SPEC_NOT_AT_TARGET"))
 
     # ---- prefix contract
     check("C8 a RETIRED legacy-prefix path refuses",
@@ -855,10 +967,49 @@ def _selftest():
           f"own contract ({FINAL_BIND_EXPECTED_CLASSES} classes + all "
           "required classes) -- so the mode is not merely always-refuse",
           _pb_ok, "" if _pb_ok else _pb_why)
-    check("C13b with producer_boundary fully satisfied, the refusal "
-          "that fires is the P0-4 calibration hold specifically",
-          refuses(lambda: final_bind_slots(mk(pb=_full_pb), ".", "HEAD"),
-                  "FINAL_BIND_CALIBRATION_UNREGISTERED"))
+    # P0-4 hold RETIRED: with producer_boundary fully satisfied and
+    # the REGISTERED calibration set supplied, final_bind_slots
+    # RETURNS both slots' exact path lists (pin-free validation;
+    # main() performs the pinning)
+    _cal_ok = list(REGISTERED_CALIBRATION_PATHS)
+    _fb_out = final_bind_slots(
+        mk(pb=_full_pb, cal=_cal_ok), ".", "HEAD")
+    check("C13b with both contracts satisfied final_bind_slots "
+          "returns the exact two slot path lists",
+          sorted(_fb_out) == ["calibration_ledgers",
+                              "producer_boundary"]
+          and _fb_out["calibration_ledgers"] == _cal_ok
+          and _fb_out["producer_boundary"] == _full_pb)
+    check("C14a a MISSING registered calibration path refuses "
+          "typed",
+          refuses(lambda: final_bind_slots(
+              mk(pb=_full_pb, cal=_cal_ok[:-1]), ".", "HEAD"),
+              "FINAL_BIND_CALIBRATION_SET_DIVERGENT"))
+    check("C14b an EXTRA calibration path refuses typed",
+          refuses(lambda: final_bind_slots(
+              mk(pb=_full_pb,
+                 cal=sorted(_cal_ok + ["docs/x/evil.json"])),
+              ".", "HEAD"),
+              "FINAL_BIND_CALIBRATION_SET_DIVERGENT"))
+    check("C14c a RENAMED calibration path refuses typed",
+          refuses(lambda: final_bind_slots(
+              mk(pb=_full_pb,
+                 cal=sorted(_cal_ok[:-1]
+                            + [_cal_ok[-1] + ".evil"])),
+              ".", "HEAD"),
+              "FINAL_BIND_CALIBRATION_SET_DIVERGENT"))
+    # cross-check the literal registration against the runner's own
+    # constants (function-scoped import; module-level would be
+    # circular through the feed producer)
+    import w2_calibration_runner_cayley as _RUNX
+    check("C14d the registered set carries the runner's own carrier "
+          "record and receipt paths",
+          _RUNX.MAG_CARRIER_RECORD_REL
+          in REGISTERED_CALIBRATION_PATHS
+          and (_CAL_DIR + "mag_ledgers.receipt.json")
+          in REGISTERED_CALIBRATION_PATHS
+          and (_CAL_DIR + "mf4_ledger_amended.receipt.json")
+          in REGISTERED_CALIBRATION_PATHS)
     print()
     if fails:
         print(f"FINAL-BIND CONTRACT FAILURES ({len(fails)}): {fails}")

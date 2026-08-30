@@ -1213,38 +1213,42 @@ def _d8_fixture():
     return risk, bbox, table, ev_ms
 
 
+def _real_pair():
+    base = os.path.join(os.path.dirname(os.path.dirname(_HERE)),
+                        "docs", "f2g_window2_execution",
+                        "mf4_catalog_snapshot")
+    return (open(os.path.join(base, "catalog_snapshot_v1.json"),
+                 "rb").read(),
+            open(os.path.join(base, "acquisition_receipt_v1.json"),
+                 "rb").read())
+
+
 def kat_d8_real_adapter_path():
     """Codex 2359Z blocker 2: the REAL consumer path now consumes only
     receipt-bound bytes -- the frozen w2_mf4.calibrate runs through
     the verified loader; the amended training digest binds policy +
     table + snapshot identity; every live view refuses."""
     ADP = _adp()
-    risk, bbox, table, ev_ms = _d8_fixture()
-    snap_bytes, rec_bytes = _snap_receipt_pair(table)
-    with _patched_chain():
-        ledger = ADP.calibrate_with_snapshot(
-            risk, snap_bytes, rec_bytes, {"regA": bbox}, ["regA"],
-            freeze_day="2025-11-17", snapshot_end="2025-11-16")
+    sreal, rreal = _real_pair()
+    # the REAL committed pair through the FULL sanctioned loader
+    # (byte authentication + chain + semantics) into the REAL frozen
+    # calibrate -- synthetic risk over the real regions
+    import datetime as _dt
+    bboxes = {r: b["bbox"] for r, b in ACQ.build_bboxes()[0].items()}
+    days = [(_dt.date(2025, 10, 18) + _dt.timedelta(n)).isoformat()
+            for n in range(24)]
+    risk = {r: {d: 0.3 + 0.01 * i for i, d in enumerate(days)}
+            for r in ACQ.ADMITTED}
+    ledger = ADP.calibrate_with_snapshot(
+        risk, sreal, rreal, bboxes, list(ACQ.ADMITTED),
+        freeze_day="2025-11-17", snapshot_end="2025-11-16")
     assert "amended_training_digest" in ledger
     b = ledger["amended_training_binding"]
     assert b["engine_training_digest"] == ledger["training_digest"]
-    assert b["snapshot_sha256"] == _sha(snap_bytes)
-    assert b["authorization_sha256"] == "a1" * 32
-    # a table change (valid bound pair) moves the amended digest
-    table2 = table + [{"id": "evB", "time_ms": ev_ms + 60000,
-                       "time_utc": "2025-10-28T12:01:00.000Z",
-                       "lat": 35.0, "lon": 105.0, "mag": 3.9}]
-    s2, r2 = _snap_receipt_pair(table2)
-    with _patched_chain():
-        ledger2 = ADP.calibrate_with_snapshot(
-            risk, s2, r2, {"regA": bbox}, ["regA"],
-            freeze_day="2025-11-17", snapshot_end="2025-11-16")
-    assert (ledger2["amended_training_digest"]
-            != ledger["amended_training_digest"])
-    # live path: the calibration snapshot refuses as a role violation
-    with _patched_chain():
-        snap_obj, _ = ADP.load_verified_snapshot(snap_bytes,
-                                                 rec_bytes)
+    assert b["snapshot_sha256"] == _sha(sreal)
+    assert b["trust_anchor"]["public_head_commit"].startswith(
+        "f636c234"), b["trust_anchor"]
+    snap_obj, _ = ADP.load_verified_snapshot(sreal, rreal)
     try:
         ADP.live_prediction_events(snap_obj)
         raise AssertionError("live path accepted late snapshot")
@@ -1280,10 +1284,12 @@ def _d9_series():
     risk, bbox, table, _ = _d8_fixture()
 
     def cal(sb, rb):
+        # fixture pairs can never pass result-byte authentication;
+        # these locks exercise the post-authentication seams via the
+        # documented _validate_pair stage (the sanctioned loader
+        # authenticates first -- locked by D10k/D10j)
         with _patched_chain():
-            return ADP.calibrate_with_snapshot(
-                risk, sb, rb, {"regA": bbox}, ["regA"],
-                freeze_day="2025-11-17", snapshot_end="2025-11-16")
+            return ADP._validate_pair(sb, rb)
 
     snap_bytes, rec_bytes = _snap_receipt_pair(table)
 
@@ -1358,8 +1364,8 @@ def _d10_series():
     def load(sb, rb, patched=True):
         if patched:
             with _patched_chain():
-                return ADP.load_verified_snapshot(sb, rb)
-        return ADP.load_verified_snapshot(sb, rb)
+                return ADP._validate_pair(sb, rb)
+        return ADP._validate_pair(sb, rb)
 
     sb, rb = _snap_receipt_pair(table)
     check("D10a self-issued pair refuses (no committed chain)",
@@ -1417,6 +1423,60 @@ def _d10_series():
         assert len(snap["canonical_event_table"]) == 200
     check("D10j REAL pair verifies through the committed chain",
           real_positive)
+
+    def forged_from_genuine():
+        """Codex 0257Z reproduction: keep EVERY genuine
+        authorization/identity field from the real committed pair,
+        replace the table with [], recompute all in-band digests --
+        the sanctioned loader must refuse before any deeper check."""
+        sreal, rreal = _real_pair()
+        snap = json.loads(sreal.decode("utf-8"))
+        rec = json.loads(rreal.decode("utf-8"))
+        snap["canonical_event_table"] = []
+        snap["canonical_event_table_sha256"] = _sha(
+            json.dumps([], sort_keys=True).encode("utf-8"))
+        sb = (json.dumps(snap, indent=1, sort_keys=True)
+              + "\n").encode("utf-8")
+        rec["snapshot_sha256"] = _sha(sb)
+        rec["canonical_event_table_sha256"] = \
+            snap["canonical_event_table_sha256"]
+        rb = (json.dumps(rec, indent=1, sort_keys=True)
+              + "\n").encode("utf-8")
+        ADP.load_verified_snapshot(sb, rb)
+    check("D10k genuine-chain replay into forged result bytes",
+          forged_from_genuine, "MF4_CATALOG_RESULT_UNAUTHENTICATED")
+
+    sreal, rreal = _real_pair()
+    snap_real = json.loads(sreal.decode("utf-8"))
+    rec_real = json.loads(rreal.decode("utf-8"))
+    check("D10l empty attempts refuse semantics",
+          lambda: ADP.verify_snapshot_semantics(
+              snap_real, dict(rec_real, attempts={})),
+          "MF4_CATALOG_SEMANTICS")
+    check("D10m empty membership refuses semantics",
+          lambda: ADP.verify_snapshot_semantics(
+              dict(snap_real, region_membership={}), rec_real),
+          "MF4_CATALOG_SEMANTICS")
+
+    def impossible_row():
+        bad = json.loads(json.dumps(snap_real))
+        bad["canonical_event_table"][0].update(
+            lat=999, lon=999, mag=-100, time_ms=-1,
+            time_utc="NOT_A_TIME")
+        ADP.verify_snapshot_semantics(bad, rec_real)
+    check("D10n impossible row refuses semantics", impossible_row,
+          "MF4_CATALOG_SEMANTICS")
+
+    def semantic_positive():
+        ADP.verify_snapshot_semantics(snap_real, rec_real)
+        total = sum(snap_real["events_by_region_counts"].values())
+        uniq = len(snap_real["canonical_event_table"])
+        card = sum(len(v) for v in
+                   snap_real["region_membership"].values())
+        assert (total, uniq, card) == (203, 200, 203), \
+            (total, uniq, card)
+    check("D10o semantic recompute positive (200/203)",
+          semantic_positive)
 
 
 def _e_series_c4():

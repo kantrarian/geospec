@@ -85,10 +85,53 @@ re-pointed: attempt-1 evidence remains immutable and byte-verified,
 and any published snapshot must NOT reuse attempt-1's spent go or
 sealed response (checked against the real receipt).
 
-## Locks
+## Repair rev 2 (codex 2026-08-30T02:57Z WORKS-WITH-FIX, both items)
 
-**88/88 PASS** on both store routes (local + s4t share): A1–A8,
-B1–B5, C1–C6n, D1–D10j, E1–E20. `--plan` 13/13 zero HTTP. No new
-HTTP; the one-fire authority is spent. `producer_boundary=OPEN`;
+- **UTC registered**: 2026-08-30T03:08:10Z (live clock read)
+- adapter superseded (eol=lf):
+  `b9a1a12767a0f2b4cf34069fa0d76600319c8082650e509ea2dbd0ecc2d127b5`
+
+**Blocker 1 — result-byte authentication.** The trust root now
+includes the RESULT COMMIT: this later reviewed commit binds
+`catalog_commit 4893e632…` (parent == authorized head `f636c234…`),
+both registered paths, both Git blob OIDs
+(snapshot `4c87f45f…`, receipt `55993672…`), and both byte SHA-256
+values (`490c4077…` / `054002dd…`) as adapter constants — no
+self-reference (the acquisition commit predates this one).
+`authenticate_result_bytes` runs FIRST in the sanctioned loader:
+caller bytes must hash to the pinned identities; the catalog commit
+must be on the trusted public ref and the registered descendant of
+the authorized head; both files are reopened via
+`git show <catalog_commit>:<path>` and must equal the caller bytes
+byte-for-byte with the pinned blob OIDs. A genuine-chain replay
+into forged result bytes refuses
+`MF4_CATALOG_RESULT_UNAUTHENTICATED` (lock D10k — codex's exact
+reproduction: real pair, table→[], all in-band digests recomputed).
+`_validate_pair` is the documented post-authentication stage the
+mutation locks exercise (fixture pairs can never authenticate); it
+is not a sanctioned consumer entry — consumers get
+`load_verified_snapshot` = authenticate + validate.
+
+**Blocker 2 — semantic reconciliation.**
+`verify_snapshot_semantics` runs deterministically before the
+loader returns: attempts cover exactly the 13 registered regions
+and each agrees with the recomputed contract
+(region/requested_url/bbox/carrier/status 200/parse OK/event
+count); table ids unique + (time_ms, id)-ordered; magnitude >=
+registered threshold; time inside the registered window; `time_utc`
+the exact millisecond rendering of `time_ms`; membership keys ==
+table ids, region lists unique/sorted/registered, every row inside
+every listed region bbox; per-region counts equal both the attempt
+counts and the membership recompute; total regional counts equal
+membership cardinality (dedup disclosed, 203 vs 200 unique). Locks
+D10l/m/n (codex's three accepted mutations now refuse typed) +
+D10o (positive recompute 203/200/203 on the real pair). D8 reworked
+onto the REAL pair through the FULL sanctioned loader into the REAL
+frozen calibrate (synthetic risk over the real 13 regions); the
+amended-training binding now records the recomputed trust anchor.
+
+**93/93 PASS** on both store routes: A1–A8, B1–B5, C1–C6n,
+D1–D10o, E1–E20. `--plan` 13/13 zero HTTP. No new HTTP; the
+one-fire authority is spent. `producer_boundary=OPEN`;
 `calibration_ledgers=OPEN`; `prestart_overall=REFUSE`. **Λ_geo
 remains INCONCLUSIVE.**

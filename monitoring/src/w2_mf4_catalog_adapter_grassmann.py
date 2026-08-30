@@ -76,6 +76,75 @@ AUTH_CONTENT_KEYSET = frozenset((
 ROW_KEYSET = frozenset(("id", "lat", "lon", "mag", "time_ms",
                         "time_utc"))
 
+# Codex 0257Z blocker 1: the RESULT COMMIT is part of the trust root.
+# This later reviewed commit binds the earlier acquisition commit --
+# no self-reference. The loader authenticates caller-supplied bytes
+# against the bytes reopened from this committed public history
+# before ANY other check.
+CATALOG_COMMIT = "4893e63281e52d5a8e9d5047fe2aa2f445cd0dc4"
+CATALOG_COMMIT_PARENT = "f636c234e0957ea7719091072bc91591f3fe9570"
+CATALOG_SNAPSHOT_REL = ("docs/f2g_window2_execution/"
+                        "mf4_catalog_snapshot/catalog_snapshot_v1.json")
+CATALOG_RECEIPT_REL = ("docs/f2g_window2_execution/"
+                       "mf4_catalog_snapshot/acquisition_receipt_v1.json")
+CATALOG_SNAPSHOT_SHA256 = ("490c407796209a513995a9012911a1e37648256"
+                           "22d4e33d355c983a13dbbb7f3")
+CATALOG_RECEIPT_SHA256 = ("054002dd617b174e859645fce5c34a9adbc5b5c8"
+                          "024a0eed54f55757ae29c9ff")
+CATALOG_SNAPSHOT_BLOB_OID = "4c87f45f49662143a3189ea5eefc698f7c67e0d8"
+CATALOG_RECEIPT_BLOB_OID = "55993672fa7f4a69215c2822c448496e2a415363"
+
+
+def authenticate_result_bytes(snapshot_bytes, receipt_bytes):
+    """Codex 0257Z blocker 1: a genuine authorization chain must not
+    be replayable into forged result bytes. The caller-supplied pair
+    must be BYTE-IDENTICAL to the pair reopened from the registered
+    acquisition commit on the trusted public ref; that commit must be
+    the registered descendant of the authorized head. Refuses typed
+    BEFORE any other loader check."""
+    if not isinstance(snapshot_bytes, (bytes, bytearray)) \
+            or not isinstance(receipt_bytes, (bytes, bytearray)):
+        raise Refusal("MF4_CATALOG_RECEIPT_UNBOUND",
+                      "loader requires snapshot BYTES and receipt "
+                      "BYTES, not objects")
+    if _sha(bytes(snapshot_bytes)) != CATALOG_SNAPSHOT_SHA256 \
+            or _sha(bytes(receipt_bytes)) != CATALOG_RECEIPT_SHA256:
+        raise Refusal("MF4_CATALOG_RESULT_UNAUTHENTICATED",
+                      "caller bytes are not the registered committed "
+                      "acquisition pair")
+    if not ACQ._is_ancestor(ACQ.REPO, CATALOG_COMMIT, "origin/master"):
+        raise Refusal("MF4_CATALOG_RESULT_UNAUTHENTICATED",
+                      "registered acquisition commit is not on the "
+                      "trusted public ref")
+    try:
+        parent = ACQ._git(ACQ.REPO, "rev-parse",
+                          CATALOG_COMMIT + "^").decode().strip()
+    except (Refusal, Exception):                        # noqa: BLE001
+        raise Refusal("MF4_CATALOG_RESULT_UNAUTHENTICATED",
+                      "acquisition commit parent unreadable")
+    if parent != CATALOG_COMMIT_PARENT:
+        raise Refusal("MF4_CATALOG_RESULT_UNAUTHENTICATED",
+                      "acquisition commit does not descend from the "
+                      "authorized head")
+    for rel, oid, sha, caller in (
+            (CATALOG_SNAPSHOT_REL, CATALOG_SNAPSHOT_BLOB_OID,
+             CATALOG_SNAPSHOT_SHA256, snapshot_bytes),
+            (CATALOG_RECEIPT_REL, CATALOG_RECEIPT_BLOB_OID,
+             CATALOG_RECEIPT_SHA256, receipt_bytes)):
+        try:
+            got_oid = ACQ._git(ACQ.REPO, "rev-parse",
+                               f"{CATALOG_COMMIT}:{rel}") \
+                .decode().strip()
+            blob = ACQ._git(ACQ.REPO, "show",
+                            f"{CATALOG_COMMIT}:{rel}")
+        except (Refusal, Exception):                    # noqa: BLE001
+            raise Refusal("MF4_CATALOG_RESULT_UNAUTHENTICATED",
+                          f"committed result bytes unreadable: {rel}")
+        if got_oid != oid or _sha(blob) != sha \
+                or blob != bytes(caller):
+            raise Refusal("MF4_CATALOG_RESULT_UNAUTHENTICATED",
+                          f"reopened committed bytes diverge: {rel}")
+
 
 def _sha(b):
     return hashlib.sha256(b).hexdigest()
@@ -270,10 +339,120 @@ def verify_acquisition_trust_anchor(snap, rec):
             "module_git_blob_sha256": ac["module_git_blob_sha256"]}
 
 
+def verify_snapshot_semantics(snap, rec):
+    """Codex 0257Z blocker 2: deterministic reconciliation of the
+    acquisition RESULT against the registered contract -- commit
+    authentication proves the bytes are the committed pair; this
+    stage proves a committed pair is semantically well-formed before
+    it becomes calibration material."""
+    bboxes, _ = ACQ.build_bboxes()
+    attempts = rec.get("attempts")
+    counts = snap.get("events_by_region_counts")
+    membership = snap.get("region_membership")
+    table = snap.get("canonical_event_table")
+    if not isinstance(attempts, dict) \
+            or set(attempts) != set(ACQ.ADMITTED):
+        raise Refusal("MF4_CATALOG_SEMANTICS",
+                      "attempts do not cover exactly the 13 "
+                      "registered regions")
+    if not isinstance(counts, dict) \
+            or set(counts) != set(ACQ.ADMITTED):
+        raise Refusal("MF4_CATALOG_SEMANTICS",
+                      "region counts do not cover exactly the 13 "
+                      "registered regions")
+    if not isinstance(membership, dict):
+        raise Refusal("MF4_CATALOG_SEMANTICS",
+                      "region membership absent")
+    for region in ACQ.ADMITTED:
+        att = attempts[region]
+        url, _params = ACQ.query_url(bboxes[region]["bbox"])
+        if not isinstance(att, dict) \
+                or att.get("region") != region \
+                or att.get("requested_url") != url \
+                or att.get("bbox") != bboxes[region]["bbox"] \
+                or att.get("carrier") != bboxes[region]["carrier"] \
+                or att.get("http_status") != 200 \
+                or att.get("parse_result") != "OK" \
+                or att.get("event_count") != counts.get(region):
+            raise Refusal("MF4_CATALOG_SEMANTICS",
+                          f"attempt record for {region} diverges "
+                          "from the registered contract/result")
+    ids = [ev["id"] for ev in table]
+    if len(set(ids)) != len(ids):
+        raise Refusal("MF4_CATALOG_SEMANTICS",
+                      "canonical table ids are not unique")
+    t_lo = int(dt.datetime(2025, 10, 11,
+                           tzinfo=dt.timezone.utc).timestamp() * 1000)
+    t_hi = int(dt.datetime(2026, 8, 28,
+                           tzinfo=dt.timezone.utc).timestamp() * 1000)
+    prev = None
+    for ev in table:
+        key = (ev["time_ms"], ev["id"])
+        if prev is not None and key < prev:
+            raise Refusal("MF4_CATALOG_SEMANTICS",
+                          f"table order violation at {ev['id']}")
+        prev = key
+        if not (ACQ.MINMAG <= ev["mag"]):
+            raise Refusal("MF4_CATALOG_SEMANTICS",
+                          f"{ev['id']}: magnitude below registered "
+                          "threshold")
+        if not (t_lo <= ev["time_ms"] < t_hi):
+            raise Refusal("MF4_CATALOG_SEMANTICS",
+                          f"{ev['id']}: time outside registered "
+                          "window")
+        t = dt.datetime.fromtimestamp(ev["time_ms"] / 1000.0,
+                                      dt.timezone.utc)
+        rendered = t.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+        if ev["time_utc"] != rendered:
+            raise Refusal("MF4_CATALOG_SEMANTICS",
+                          f"{ev['id']}: time_utc is not the exact "
+                          "millisecond rendering of time_ms")
+        regions = membership.get(ev["id"])
+        if not isinstance(regions, list) or not regions \
+                or regions != sorted(set(regions)) \
+                or any(r not in bboxes for r in regions):
+            raise Refusal("MF4_CATALOG_SEMANTICS",
+                          f"{ev['id']}: membership regions invalid")
+        for r in regions:
+            bb = bboxes[r]["bbox"]
+            if not (bb["min_lat"] <= ev["lat"] <= bb["max_lat"]
+                    and bb["min_lon"] <= ev["lon"] <= bb["max_lon"]):
+                raise Refusal("MF4_CATALOG_SEMANTICS",
+                              f"{ev['id']}: outside listed region "
+                              f"bbox {r}")
+    if set(membership) != set(ids):
+        raise Refusal("MF4_CATALOG_SEMANTICS",
+                      "membership keys diverge from table ids")
+    for region in ACQ.ADMITTED:
+        recount = sum(1 for regs in membership.values()
+                      if region in regs)
+        if recount != counts[region]:
+            raise Refusal("MF4_CATALOG_SEMANTICS",
+                          f"{region}: count {counts[region]} != "
+                          f"membership recompute {recount}")
+    if sum(counts.values()) != sum(len(v)
+                                   for v in membership.values()):
+        raise Refusal("MF4_CATALOG_SEMANTICS",
+                      "regional count total diverges from membership "
+                      "cardinality (undisclosed dedup drift)")
+
+
 def load_verified_snapshot(snapshot_bytes, receipt_bytes):
     """The ONLY sanctioned loader for calibration catalog material:
-    receipt-bound bytes in, verified snapshot object out. Every check
+    the caller bytes are first AUTHENTICATED against the registered
+    committed acquisition pair (codex 0257Z blocker 1), then the full
+    receipt/table/role/chain/semantics validation runs. Every check
     refuses typed BEFORE any conversion or calibration."""
+    authenticate_result_bytes(snapshot_bytes, receipt_bytes)
+    return _validate_pair(snapshot_bytes, receipt_bytes)
+
+
+def _validate_pair(snapshot_bytes, receipt_bytes):
+    """Post-authentication validation stage. NOT a sanctioned entry
+    point -- consumers go through load_verified_snapshot (which
+    authenticates first); this seam exists so the mutation locks can
+    exercise every deeper check with fixture pairs that could never
+    pass byte authentication."""
     if not isinstance(snapshot_bytes, (bytes, bytearray)) \
             or not isinstance(receipt_bytes, (bytes, bytearray)):
         raise Refusal("MF4_CATALOG_RECEIPT_UNBOUND",
@@ -354,6 +533,7 @@ def load_verified_snapshot(snapshot_bytes, receipt_bytes):
                       "strict UTC")
     _row_schema(snap["canonical_event_table"])
     anchor = verify_acquisition_trust_anchor(snap, rec)
+    verify_snapshot_semantics(snap, rec)
     return snap, {"snapshot_sha256": snap_sha,
                   "canonical_event_table_sha256": dig,
                   "receipt_schema": rec["schema"],
@@ -411,6 +591,7 @@ def calibrate_with_snapshot(risk_by_region, snapshot_bytes,
         "snapshot_sha256": ident["snapshot_sha256"],
         "receipt_schema": ident["receipt_schema"],
         "authorization_sha256": ident["authorization"]["sha256"],
+        "trust_anchor": ident["trust_anchor"],
         "policy_source": ("docs/f2g_window2_execution/amendment_mf4_"
                           "late_catalog_repair_20260829_correction3.md")}
     return ledger

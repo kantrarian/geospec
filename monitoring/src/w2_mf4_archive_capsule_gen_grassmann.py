@@ -284,10 +284,20 @@ def _catalog_binding():
     except (ValueError, UnicodeDecodeError):
         raise Refusal("MF4_ARCHIVE_CATALOG_BINDING",
                       "committed catalog snapshot is unparseable")
+    # codex 0317Z item 2: the capsule binds the RESULT-COMMIT
+    # identity (imported from the adapter's reviewed pins, recomputed
+    # -- never copied from claimed fields at verification: the
+    # reconstruction path re-imports these same constants)
+    import w2_mf4_catalog_adapter_grassmann as _ADP
     return {
         "status": "BOUND_V2",
         "contract": ("monitoring/src/"
                      "w2_mf4_catalog_acquire_grassmann.py"),
+        "result_commit": _ADP.CATALOG_COMMIT,
+        "result_commit_parent": _ADP.CATALOG_COMMIT_PARENT,
+        "trusted_ref": "origin/master",
+        "snapshot_git_blob_oid": _ADP.CATALOG_SNAPSHOT_BLOB_OID,
+        "receipt_git_blob_oid": _ADP.CATALOG_RECEIPT_BLOB_OID,
         "snapshot_path": snap_rel,
         "snapshot_sha256": _sha(sraw),
         "receipt_path": rec_rel,

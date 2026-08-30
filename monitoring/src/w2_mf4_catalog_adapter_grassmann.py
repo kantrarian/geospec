@@ -144,6 +144,17 @@ def authenticate_result_bytes(snapshot_bytes, receipt_bytes):
                 or blob != bytes(caller):
             raise Refusal("MF4_CATALOG_RESULT_UNAUTHENTICATED",
                           f"reopened committed bytes diverge: {rel}")
+    # codex 0317Z item 2: return the RECOMPUTED closed
+    # result-authentication record -- never claimed fields
+    return {"catalog_commit": CATALOG_COMMIT,
+            "catalog_commit_parent": parent,
+            "trusted_ref": "origin/master",
+            "snapshot_path": CATALOG_SNAPSHOT_REL,
+            "receipt_path": CATALOG_RECEIPT_REL,
+            "snapshot_git_blob_oid": CATALOG_SNAPSHOT_BLOB_OID,
+            "receipt_git_blob_oid": CATALOG_RECEIPT_BLOB_OID,
+            "snapshot_sha256": _sha(bytes(snapshot_bytes)),
+            "receipt_sha256": _sha(bytes(receipt_bytes))}
 
 
 def _sha(b):
@@ -363,17 +374,39 @@ def verify_snapshot_semantics(snap, rec):
     if not isinstance(membership, dict):
         raise Refusal("MF4_CATALOG_SEMANTICS",
                       "region membership absent")
+    att_keyset = frozenset((
+        "region", "requested_url", "params", "bbox", "carrier",
+        "request_utc", "effective_url", "http_status",
+        "response_headers", "response_utc", "raw_bytes",
+        "raw_sha256", "raw_file", "event_count", "parse_result"))
     for region in ACQ.ADMITTED:
         att = attempts[region]
-        url, _params = ACQ.query_url(bboxes[region]["bbox"])
-        if not isinstance(att, dict) \
-                or att.get("region") != region \
-                or att.get("requested_url") != url \
-                or att.get("bbox") != bboxes[region]["bbox"] \
-                or att.get("carrier") != bboxes[region]["carrier"] \
-                or att.get("http_status") != 200 \
-                or att.get("parse_result") != "OK" \
-                or att.get("event_count") != counts.get(region):
+        url, params = ACQ.query_url(bboxes[region]["bbox"])
+        if not isinstance(att, dict) or set(att) != att_keyset:
+            raise Refusal("MF4_CATALOG_SEMANTICS",
+                          f"attempt record keyset for {region} "
+                          "diverges from registered")
+        if not isinstance(att["raw_sha256"], str) \
+                or len(att["raw_sha256"]) != 64 \
+                or not isinstance(att["raw_bytes"], int) \
+                or isinstance(att["raw_bytes"], bool) \
+                or not isinstance(att["raw_file"], str) \
+                or not isinstance(att["request_utc"], str) \
+                or not isinstance(att["response_utc"], str) \
+                or not isinstance(att["response_headers"], dict):
+            raise Refusal("MF4_CATALOG_SEMANTICS",
+                          f"attempt record types for {region} "
+                          "diverge from registered")
+        if att["region"] != region \
+                or att["requested_url"] != url \
+                or att["params"] != params \
+                or att["effective_url"] != url \
+                or att["bbox"] != bboxes[region]["bbox"] \
+                or att["carrier"] != bboxes[region]["carrier"] \
+                or att["http_status"] != 200 \
+                or att["parse_result"] != "OK" \
+                or att["raw_file"] != f"raw_{region}.geojson" \
+                or att["event_count"] != counts.get(region):
             raise Refusal("MF4_CATALOG_SEMANTICS",
                           f"attempt record for {region} diverges "
                           "from the registered contract/result")
@@ -438,21 +471,39 @@ def verify_snapshot_semantics(snap, rec):
 
 
 def load_verified_snapshot(snapshot_bytes, receipt_bytes):
-    """The ONLY sanctioned loader for calibration catalog material:
-    the caller bytes are first AUTHENTICATED against the registered
-    committed acquisition pair (codex 0257Z blocker 1), then the full
-    receipt/table/role/chain/semantics validation runs. Every check
-    refuses typed BEFORE any conversion or calibration."""
-    authenticate_result_bytes(snapshot_bytes, receipt_bytes)
-    return _validate_pair(snapshot_bytes, receipt_bytes)
+    """The ONLY sanctioned loader for calibration catalog material
+    (codex 0317Z item 1: the operational boundary is BYTES-ONLY).
+    Caller bytes are AUTHENTICATED against the registered committed
+    acquisition pair, the full receipt/table/role/chain/semantics
+    validation runs, the raw->snapshot composition is replayed from
+    committed history, and the return is the attestation identity
+    ONLY -- never a caller-mutable snapshot object. Event conversion
+    happens inside the authenticated stack via
+    `events_from_snapshot(bytes, bytes, use)` /
+    `calibrate_with_snapshot(...)`."""
+    result_auth = authenticate_result_bytes(snapshot_bytes,
+                                            receipt_bytes)
+    snap, rec, ident = _checked_pair(snapshot_bytes, receipt_bytes)
+    verify_raw_composition(snap, rec)
+    ident["result_authentication"] = result_auth
+    return ident
 
 
 def _validate_pair(snapshot_bytes, receipt_bytes):
-    """Post-authentication validation stage. NOT a sanctioned entry
-    point -- consumers go through load_verified_snapshot (which
-    authenticates first); this seam exists so the mutation locks can
-    exercise every deeper check with fixture pairs that could never
-    pass byte authentication."""
+    """Lock seam: run the full post-authentication validation and
+    return PASS/REFUSAL DIAGNOSTICS ONLY (the attestation identity
+    dict -- no snapshot object, nothing any event or calibration
+    operation accepts). NOT a sanctioned consumer entry; consumers go
+    through load_verified_snapshot/calibrate_with_snapshot, which
+    authenticate first (codex 0317Z item 1)."""
+    _snap, _rec, ident = _checked_pair(snapshot_bytes, receipt_bytes)
+    return ident
+
+
+def _checked_pair(snapshot_bytes, receipt_bytes):
+    """Internal to the authenticated call stack: parse + every
+    validation stage; returns the parsed objects for INTERNAL
+    conversion only."""
     if not isinstance(snapshot_bytes, (bytes, bytearray)) \
             or not isinstance(receipt_bytes, (bytes, bytearray)):
         raise Refusal("MF4_CATALOG_RECEIPT_UNBOUND",
@@ -534,29 +585,84 @@ def _validate_pair(snapshot_bytes, receipt_bytes):
     _row_schema(snap["canonical_event_table"])
     anchor = verify_acquisition_trust_anchor(snap, rec)
     verify_snapshot_semantics(snap, rec)
-    return snap, {"snapshot_sha256": snap_sha,
-                  "canonical_event_table_sha256": dig,
-                  "receipt_schema": rec["schema"],
-                  "authorization": sa,
-                  "trust_anchor": anchor}
+    return snap, rec, {"snapshot_sha256": snap_sha,
+                       "canonical_event_table_sha256": dig,
+                       "receipt_schema": rec["schema"],
+                       "authorization": sa,
+                       "trust_anchor": anchor}
 
 
-def events_from_snapshot(snapshot, use):
-    """Role-guarded conversion: canonical table -> the frozen engine's
-    event shape. `day` derives from the EXACT time_ms (UTC date).
-    Callers must supply a snapshot that came through
-    `load_verified_snapshot` -- calibrate_with_snapshot enforces
-    that; direct callers still hit the role guard + bound digest."""
-    calibration_snapshot_role_guard(snapshot, use)
-    dig = snapshot_table_sha(snapshot)
+def verify_raw_composition(snap, rec):
+    """Codex 0317Z item 3: permanent raw->snapshot composition
+    verifier. Reopens all 13 committed raw response blobs from the
+    registered catalog commit, checks each attempt's
+    raw_file/raw_sha256/raw_bytes, reparses through the REGISTERED
+    acquisition parser, canonicalizes, and requires exact equality
+    with the snapshot's table, membership, counts, and digest."""
+    raw_dir = CATALOG_SNAPSHOT_REL.rsplit("/", 1)[0]
+    bboxes, _ = ACQ.build_bboxes()
+    per_region = {}
+    for region in ACQ.ADMITTED:
+        att = (rec.get("attempts") or {}).get(region) or {}
+        name = f"raw_{region}.geojson"
+        if att.get("raw_file") != name:
+            raise Refusal("MF4_CATALOG_COMPOSITION",
+                          f"{region}: raw_file diverges")
+        try:
+            blob = ACQ._git(ACQ.REPO, "show",
+                            f"{CATALOG_COMMIT}:{raw_dir}/{name}")
+        except (Refusal, Exception):                    # noqa: BLE001
+            raise Refusal("MF4_CATALOG_COMPOSITION",
+                          f"{region}: committed raw blob unreadable")
+        if _sha(blob) != att.get("raw_sha256") \
+                or len(blob) != att.get("raw_bytes"):
+            raise Refusal("MF4_CATALOG_COMPOSITION",
+                          f"{region}: committed raw bytes diverge "
+                          "from the attempt record")
+        url, _params = ACQ.query_url(bboxes[region]["bbox"])
+        per_region[region] = ACQ.validate_events(
+            region, bboxes[region]["bbox"], blob, url)
+    table, membership, tsha = ACQ.canonical_event_table(per_region)
+    if (table != snap.get("canonical_event_table")
+            or membership != snap.get("region_membership")
+            or tsha != snap.get("canonical_event_table_sha256")
+            or {r: len(v) for r, v in per_region.items()}
+            != snap.get("events_by_region_counts")):
+        raise Refusal("MF4_CATALOG_COMPOSITION",
+                      "recomposed table/membership/counts/digest "
+                      "diverge from the snapshot")
+
+
+def _convert_events(snap, use):
+    """INTERNAL conversion inside the authenticated stack: canonical
+    table -> the frozen engine's event shape ({day, lat, lon, mag};
+    day = UTC date of the exact time_ms)."""
+    calibration_snapshot_role_guard(snap, use)
+    dig = snapshot_table_sha(snap)
     events = []
-    for ev in snapshot["canonical_event_table"]:
+    for ev in snap["canonical_event_table"]:
         t = dt.datetime.fromtimestamp(ev["time_ms"] / 1000.0,
                                       dt.timezone.utc)
         events.append({"day": t.date().isoformat(),
                        "lat": ev["lat"], "lon": ev["lon"],
                        "mag": ev["mag"]})
-    return events, dig
+    return tuple(events), dig
+
+
+def events_from_snapshot(snapshot_bytes, receipt_bytes, use):
+    """BYTES-ONLY event conversion (codex 0317Z item 1): full result
+    authentication + validation runs first; a snapshot dict is never
+    accepted, so post-load mutations cannot reach conversion. Returns
+    an immutable tuple of engine events + the bound table digest."""
+    if not isinstance(snapshot_bytes, (bytes, bytearray)) \
+            or not isinstance(receipt_bytes, (bytes, bytearray)):
+        raise Refusal("MF4_CATALOG_RECEIPT_UNBOUND",
+                      "event conversion requires the ORIGINAL "
+                      "snapshot/receipt BYTES, never an object")
+    authenticate_result_bytes(snapshot_bytes, receipt_bytes)
+    snap, rec, _ident = _checked_pair(snapshot_bytes, receipt_bytes)
+    verify_raw_composition(snap, rec)
+    return _convert_events(snap, use)
 
 
 def calibrate_with_snapshot(risk_by_region, snapshot_bytes,
@@ -564,20 +670,21 @@ def calibrate_with_snapshot(risk_by_region, snapshot_bytes,
                             freeze_day, snapshot_end,
                             requested_issue_end=None):
     """The real calibration entrypoint for the amended lane: verified
-    receipt-bound bytes in, frozen engine unchanged, amended training
-    digest out (policy + snapshot identity bound)."""
-    snapshot, ident = load_verified_snapshot(snapshot_bytes,
-                                             receipt_bytes)
-    feat_events, dig = events_from_snapshot(snapshot,
-                                            "calibration_features")
-    label_events, dig2 = events_from_snapshot(snapshot,
-                                              "calibration_labels")
+    receipt-bound AUTHENTICATED bytes in, frozen engine unchanged,
+    amended training digest out (policy + snapshot + result-commit
+    identity bound). The parsed snapshot never leaves this stack."""
+    result_auth = authenticate_result_bytes(snapshot_bytes,
+                                            receipt_bytes)
+    snap, rec, ident = _checked_pair(snapshot_bytes, receipt_bytes)
+    verify_raw_composition(snap, rec)
+    feat_events, dig = _convert_events(snap, "calibration_features")
+    label_events, dig2 = _convert_events(snap, "calibration_labels")
     if dig != dig2 or feat_events != label_events:
         raise Refusal("MF4_CATALOG_ROLE_UNBOUND",
                       "feature/label event views diverged")
-    policy = snapshot["temporal_role_policy"]
-    ledger = MF4.calibrate(risk_by_region, feat_events, bboxes, regions,
-                           freeze_day, snapshot_end,
+    policy = snap["temporal_role_policy"]
+    ledger = MF4.calibrate(risk_by_region, list(feat_events), bboxes,
+                           regions, freeze_day, snapshot_end,
                            requested_issue_end=requested_issue_end)
     engine_digest = ledger["training_digest"]
     amended = _sha(engine_digest.encode("utf-8")
@@ -592,6 +699,7 @@ def calibrate_with_snapshot(risk_by_region, snapshot_bytes,
         "receipt_schema": ident["receipt_schema"],
         "authorization_sha256": ident["authorization"]["sha256"],
         "trust_anchor": ident["trust_anchor"],
+        "result_authentication": result_auth,
         "policy_source": ("docs/f2g_window2_execution/amendment_mf4_"
                           "late_catalog_repair_20260829_correction3.md")}
     return ledger

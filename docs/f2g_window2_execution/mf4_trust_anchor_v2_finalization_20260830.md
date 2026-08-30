@@ -130,8 +130,57 @@ onto the REAL pair through the FULL sanctioned loader into the REAL
 frozen calibrate (synthetic risk over the real 13 regions); the
 amended-training binding now records the recomputed trust anchor.
 
-**93/93 PASS** on both store routes: A1–A8, B1–B5, C1–C6n,
-D1–D10o, E1–E20. `--plan` 13/13 zero HTTP. No new HTTP; the
+**93/93 PASS** on both store routes at rev 2.
+
+## Repair rev 3 (codex 2026-08-30T03:17Z WORKS-WITH-FIX, D10p–t)
+
+- adapter superseded (eol=lf):
+  `4a25b8d441a22e351222a489c8509dec2310d3b1e387a914c85c12e846b9784d`
+- builder superseded:
+  `84a4245b10324de843164facc541558009a8729ee6a710552a2bc8202e708bc4`
+- capsule rebuilt (result-commit identity bound):
+  `4fe32158b3028a807f7903862a0d1d788ae49de7ca59f63b94ce8d47ca1e5cb3`
+
+**Item 1 — bytes-only operational boundary.**
+`load_verified_snapshot` now returns the attestation identity ONLY
+(no snapshot object leaves the authenticated stack);
+`events_from_snapshot(snapshot_bytes, receipt_bytes, use)` is
+bytes-only — it re-runs full result authentication + validation +
+raw composition before conversion and returns an immutable tuple; a
+dict input refuses typed. `calibrate_with_snapshot` performs the
+whole flow inside one stack. `_validate_pair` (the lock seam)
+returns pass/refusal diagnostics only — nothing any event or
+calibration operation accepts. Locks: D10p (codex probe 1: the
+post-load 199-row mutated object cannot reach conversion), D10q
+(codex probe 2: the self-consistent 199-row pair refuses at every
+event-emitting/calibration entry and the seam returns no
+event-bearing object).
+
+**Item 2 — result-commit identity in the attestation.**
+`authenticate_result_bytes` returns the RECOMPUTED closed
+`result_authentication` record (catalog commit + parent + trusted
+ref + both paths + both blob OIDs + both byte shas); it binds into
+the loader identity, `amended_training_binding`, and the capsule's
+`catalog_binding` (constants re-imported at reconstruction — never
+copied from claimed fields). Locks: D8 asserts the exact recomputed
+`4893e632` identity in the real calibration ledger; D10r mutates
+the capsule's bound result commit and refuses reconstruction.
+
+**Item 3 — exact attempt semantics + raw composition.**
+`verify_snapshot_semantics` now enforces the CLOSED attempt keyset
+(15 registered fields, typed), exact `params == recomputed`, exact
+`effective_url == requested_url`, and `raw_file` naming.
+`verify_raw_composition` (permanent, runs on the sanctioned load
+path) reopens all 13 committed raw blobs from the catalog commit,
+checks raw_file/raw_sha256/raw_bytes per attempt, reparses through
+the REGISTERED `validate_events`, canonicalizes, and requires exact
+equality with the snapshot table/membership/counts/digest. Locks:
+D10s-a/b/c (forged params, forged effective URL, keyset injection
+refuse), D10t-a (positive 13-raw → 200-unique/203-regional replay),
+D10t-b (raw/receipt divergence refuses).
+
+**101/101 PASS** on both store routes: A1–A8, B1–B5, C1–C6n,
+D1–D10t, E1–E20. `--plan` 13/13 zero HTTP. No new HTTP; the
 one-fire authority is spent. `producer_boundary=OPEN`;
 `calibration_ledgers=OPEN`; `prestart_overall=REFUSE`. **Λ_geo
 remains INCONCLUSIVE.**

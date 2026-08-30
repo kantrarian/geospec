@@ -1248,7 +1248,10 @@ def kat_d8_real_adapter_path():
     assert b["snapshot_sha256"] == _sha(sreal)
     assert b["trust_anchor"]["public_head_commit"].startswith(
         "f636c234"), b["trust_anchor"]
-    snap_obj, _ = ADP.load_verified_snapshot(sreal, rreal)
+    ra = b["result_authentication"]
+    assert ra["catalog_commit"].startswith("4893e632"), ra
+    assert ra["snapshot_sha256"] == _sha(sreal), ra
+    snap_obj = json.loads(sreal.decode("utf-8"))
     try:
         ADP.live_prediction_events(snap_obj)
         raise AssertionError("live path accepted late snapshot")
@@ -1407,20 +1410,21 @@ def _d10_series():
           lambda: load(sb9, rb9), "MF4_CATALOG_TRUST_ANCHOR")
 
     def real_positive():
-        base = os.path.join(os.path.dirname(os.path.dirname(_HERE)),
-                            "docs", "f2g_window2_execution",
-                            "mf4_catalog_snapshot")
-        sreal = open(os.path.join(base, "catalog_snapshot_v1.json"),
-                     "rb").read()
-        rreal = open(os.path.join(base,
-                                  "acquisition_receipt_v1.json"),
-                     "rb").read()
-        snap, ident = ADP.load_verified_snapshot(sreal, rreal)
+        sreal, rreal = _real_pair()
+        ident = ADP.load_verified_snapshot(sreal, rreal)
         a = ident["trust_anchor"]
         assert a["pass_framework_commit"].startswith("7601d385"), a
         assert a["go_framework_commit"].startswith("561cfdf4"), a
         assert a["public_head_commit"].startswith("f636c234"), a
-        assert len(snap["canonical_event_table"]) == 200
+        ra = ident["result_authentication"]
+        assert ra["catalog_commit"].startswith("4893e632"), ra
+        # the loader returns attestation identity only -- no
+        # event-bearing object escapes the authenticated stack
+        assert "canonical_event_table" not in ident
+        assert "time_ms" not in json.dumps(ident)
+        events, dig = ADP.events_from_snapshot(
+            sreal, rreal, "calibration_features")
+        assert len(events) == 200 and isinstance(events, tuple)
     check("D10j REAL pair verifies through the committed chain",
           real_positive)
 
@@ -1477,6 +1481,136 @@ def _d10_series():
             (total, uniq, card)
     check("D10o semantic recompute positive (200/203)",
           semantic_positive)
+
+    def post_load_mutation():
+        """Codex 0317Z probe 1: a post-load mutated object must not
+        reach event conversion -- conversion is bytes-only."""
+        sreal2, rreal2 = _real_pair()
+        mutated = json.loads(sreal2.decode("utf-8"))
+        mutated["canonical_event_table"] = \
+            mutated["canonical_event_table"][:199]
+        mutated["canonical_event_table_sha256"] = _sha(json.dumps(
+            mutated["canonical_event_table"],
+            sort_keys=True).encode("utf-8"))
+        ADP.events_from_snapshot(mutated, rreal2,
+                                 "calibration_features")
+    check("D10p post-load mutated object cannot reach conversion",
+          post_load_mutation, "MF4_CATALOG_RECEIPT_UNBOUND")
+
+    def make_199_pair():
+        """Codex 0317Z probe 2 fixture: remove one anchorage event
+        from the REAL pair, reconcile membership/counts/attempt
+        count and every in-band digest -- genuine chain retained."""
+        sreal2, rreal2 = _real_pair()
+        snap = json.loads(sreal2.decode("utf-8"))
+        rec = json.loads(rreal2.decode("utf-8"))
+        victim = next(ev["id"] for ev in
+                      snap["canonical_event_table"]
+                      if snap["region_membership"][ev["id"]]
+                      == ["anchorage"])
+        snap["canonical_event_table"] = [
+            ev for ev in snap["canonical_event_table"]
+            if ev["id"] != victim]
+        del snap["region_membership"][victim]
+        snap["events_by_region_counts"]["anchorage"] -= 1
+        snap["canonical_event_table_sha256"] = _sha(json.dumps(
+            snap["canonical_event_table"],
+            sort_keys=True).encode("utf-8"))
+        rec["attempts"]["anchorage"]["event_count"] -= 1
+        sb = (json.dumps(snap, indent=1, sort_keys=True)
+              + "\n").encode("utf-8")
+        rec["snapshot_sha256"] = _sha(sb)
+        rec["canonical_event_table_sha256"] = \
+            snap["canonical_event_table_sha256"]
+        rb = (json.dumps(rec, indent=1, sort_keys=True)
+              + "\n").encode("utf-8")
+        return sb, rb
+
+    def seam_cannot_emit():
+        sb199, rb199 = make_199_pair()
+        # every event-emitting/calibration function refuses the pair
+        try:
+            ADP.events_from_snapshot(sb199, rb199,
+                                     "calibration_features")
+            raise AssertionError("199-pair reached conversion")
+        except SystemExit as e:
+            assert "MF4_CATALOG_RESULT_UNAUTHENTICATED" in str(e), e
+        try:
+            ADP.calibrate_with_snapshot(
+                {}, sb199, rb199, {}, [],
+                freeze_day="2025-11-17", snapshot_end="2025-11-16")
+            raise AssertionError("199-pair reached calibration")
+        except SystemExit as e:
+            assert "MF4_CATALOG_RESULT_UNAUTHENTICATED" in str(e), e
+        # the lock seam returns diagnostics only -- nothing any
+        # event or calibration operation accepts
+        ident = ADP._validate_pair(sb199, rb199)
+        assert isinstance(ident, dict)
+        assert "canonical_event_table" not in ident
+        assert "time_ms" not in json.dumps(ident)
+    check("D10q self-consistent 199-pair cannot emit events",
+          seam_cannot_emit)
+
+    def capsule_result_identity():
+        with Sandbox() as sb:
+            snapdir = os.path.join(sb.root, "docs",
+                                   "f2g_window2_execution",
+                                   "mf4_catalog_snapshot")
+            os.makedirs(snapdir)
+            open(os.path.join(snapdir, "catalog_snapshot_v1.json"),
+                 "wb").write(
+                b'{"canonical_event_table_sha256": "ab12",'
+                b' "temporal_role": "CALIBRATION_LATE_REPAIR"}\n')
+            open(os.path.join(snapdir,
+                              "acquisition_receipt_v1.json"),
+                 "wb").write(b'{"fixture": true}\n')
+            GEN.build()
+            cap = json.load(open(os.path.join(sb.root,
+                                              GEN.CAPSULE_REL),
+                                 encoding="utf-8"))
+            cb = cap["catalog_binding"]
+            assert cb["result_commit"].startswith("4893e632"), cb
+            assert cb["result_commit_parent"].startswith("f636c234")
+            _mutate_capsule(sb.root, lambda c: c["catalog_binding"]
+                            .update(result_commit="0" * 40))
+            GEN.verify_capsule()
+    check("D10r capsule result-commit identity mutation",
+          capsule_result_identity,
+          "MF4_ARCHIVE_CAPSULE_RECONSTRUCTION")
+
+    def forged_params():
+        bad = json.loads(json.dumps(rec_real))
+        bad["attempts"]["anchorage"]["params"]["minmagnitude"] = "0.0"
+        ADP.verify_snapshot_semantics(snap_real, bad)
+    check("D10s-a forged attempt params refuse", forged_params,
+          "MF4_CATALOG_SEMANTICS")
+
+    def forged_effective_url():
+        bad = json.loads(json.dumps(rec_real))
+        bad["attempts"]["anchorage"]["effective_url"] = \
+            "https://example.invalid/forged"
+        ADP.verify_snapshot_semantics(snap_real, bad)
+    check("D10s-b forged effective URL refuses", forged_effective_url,
+          "MF4_CATALOG_SEMANTICS")
+
+    def attempt_key_injection():
+        bad = json.loads(json.dumps(rec_real))
+        bad["attempts"]["anchorage"]["extra"] = 1
+        ADP.verify_snapshot_semantics(snap_real, bad)
+    check("D10s-c attempt keyset injection refuses",
+          attempt_key_injection, "MF4_CATALOG_SEMANTICS")
+
+    def composition_positive():
+        ADP.verify_raw_composition(snap_real, rec_real)
+    check("D10t-a raw composition replay positive (13 raws -> "
+          "200/203)", composition_positive)
+
+    def composition_divergence():
+        bad = json.loads(json.dumps(rec_real))
+        bad["attempts"]["anchorage"]["raw_sha256"] = "0" * 64
+        ADP.verify_raw_composition(snap_real, bad)
+    check("D10t-b raw/receipt divergence refuses",
+          composition_divergence, "MF4_CATALOG_COMPOSITION")
 
 
 def _e_series_c4():

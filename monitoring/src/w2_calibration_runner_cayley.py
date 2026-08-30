@@ -59,9 +59,22 @@ RECEIPT_FIELDS_MF4 = {"schema", "lane", "cutoff", "input_feed_sha256",
                       "input_feed_path", "producer_identity",
                       "runner_source_sha256_normalized", "ledger_path",
                       "ledger_sha256", "training_digest", "n_rows"}
-RECEIPT_FIELDS_MAG = {"schema", "lane", "cutoff", "input_feed_sha256",
-                      "input_feed_path", "producer_identity",
-                      "runner_source_sha256_normalized", "results"}
+RECEIPT_FIELDS_MAG = {"schema", "lane", "cutoff",
+                      "carrier_record_path", "carrier_object_sha256",
+                      "producer_identity",
+                      "runner_source_sha256_normalized", "results",
+                      "provenance"}
+MAG_PROVENANCE_FIELDS = {
+    "authority_sha256", "inventory_sha256", "descriptor_sha256",
+    "cutoff", "days", "minutes", "staged_rolling_sha256",
+    "producer_source_sha256_normalized"}
+MAG_CARRIER_SCHEMA = "f2g-w2-mag-calibration-carrier-v1"
+MAG_CARRIER_RECORD_REL = (OUT_DIR + "/mag_carrier_record_v1.json")
+MAG_STORE_LOGICAL_ROOT = "s4t://geospec/w2/mag_calibration_input_v1"
+MAG_STORE_ENV = "GEOSPEC_MAG_CALIBRATION_STORE"
+MAG_CARRIER_RECORD_FIELDS = {
+    "schema", "logical_root", "object_sha256", "byte_length",
+    "serialization", "cutoff", "provenance"}
 RECEIPT_FIELDS_MF4_AMENDED = {
     "schema", "lane", "cutoff", "input_feed_sha256",
     "input_feed_path", "producer_identity",
@@ -138,6 +151,95 @@ def _self_sha():
     with open(os.path.abspath(__file__), "rb") as f:
         return hashlib.sha256(
             f.read().replace(b"\r\n", b"\n")).hexdigest()
+
+
+def _canonical_bytes(obj):
+    return json.dumps(obj, sort_keys=True, separators=(",", ":"),
+                      allow_nan=False).encode("utf-8")
+
+
+def _publish_json(repo, rel, obj):
+    """Transactional publish (codex 0614Z item 5): temp +
+    os.replace -- a refused run never leaves a partial file."""
+    p = os.path.join(repo, rel.replace("/", os.sep))
+    os.makedirs(os.path.dirname(p), exist_ok=True)
+    tmp = p + ".tmp"
+    with open(tmp, "w", encoding="utf-8", newline="\n") as f:
+        json.dump(obj, f, indent=1, sort_keys=True)
+        f.write("\n")
+    os.replace(tmp, p)
+    return rel
+
+
+def _mag_store_dir(require=True):
+    alias = os.environ.get(MAG_STORE_ENV)
+    if not alias and require:
+        raise CalibrationRunnerError(
+            f"MAG_CARRIER_STORE_UNSET: {MAG_STORE_ENV} must name "
+            f"the physical alias of {MAG_STORE_LOGICAL_ROOT}")
+    return alias
+
+
+def compact_mag_carrier(feeds, provenance, cutoff):
+    """The SHARED-AXIS compact carrier (codex 0614Z item 3): one
+    times axis, one weather block, per-observatory X/Y/lon/
+    reference. Refuses if any observatory diverges from the shared
+    axes -- compaction is exact, never lossy."""
+    if not feeds:
+        raise CalibrationRunnerError("MAG_CARRIER_EMPTY")
+    obs0 = sorted(feeds)[0]
+    times = feeds[obs0]["times"]
+    weather = feeds[obs0]["weather"]
+    obs_blocks = {}
+    for obs in sorted(feeds):
+        f = feeds[obs]
+        if f["times"] != times or f["weather"] != weather:
+            raise CalibrationRunnerError(
+                f"MAG_CARRIER_AXIS_DIVERGENT: {obs} does not share "
+                "the canonical times/weather axes")
+        obs_blocks[obs] = {"lon_east": f["lon_east"],
+                           "X": f["components"]["X"],
+                           "Y": f["components"]["Y"],
+                           "m3_reference": f.get("m3_reference")}
+    return {"schema": MAG_CARRIER_SCHEMA, "cutoff": str(cutoff),
+            "times": list(times),
+            "weather": {k: list(v) for k, v in weather.items()},
+            "observatories": obs_blocks,
+            "provenance": {k: provenance[k]
+                           for k in sorted(provenance)}}
+
+
+def expand_mag_carrier(compact):
+    """Deterministic reconstruction of the runner feed shape."""
+    feeds = {}
+    for obs, blk in compact["observatories"].items():
+        feeds[obs] = {"observatory": obs,
+                      "lon_east": blk["lon_east"],
+                      "times": compact["times"],
+                      "components": {"X": blk["X"], "Y": blk["Y"]},
+                      "weather": compact["weather"],
+                      "m3_reference": blk.get("m3_reference")}
+    return feeds
+
+
+def _strict_canonical_load(raw):
+    """Reject duplicate keys and any non-canonical serialization:
+    the reopened object must re-serialize to the exact bytes."""
+    def no_dupes(pairs):
+        d = {}
+        for k, v in pairs:
+            if k in d:
+                raise CalibrationRunnerError(
+                    f"MAG_CARRIER_OBJECT_INVALID: duplicate key "
+                    f"{k!r}")
+            d[k] = v
+        return d
+    obj = json.loads(raw.decode("utf-8"), object_pairs_hook=no_dupes)
+    if _canonical_bytes(obj) != raw:
+        raise CalibrationRunnerError(
+            "MAG_CARRIER_OBJECT_INVALID: bytes are not "
+            "canonical-json-v1")
+    return obj
 
 
 def _write(repo, rel, obj):
@@ -395,12 +497,44 @@ def _run_mf4_calibration_amended_with_inputs(repo, inputs,
                 receipt["amended_training_digest"]}
 
 
-def run_mag_calibration(repo, feeds, cutoff, producer_identity):
-    """MAG subtraction ledgers per observatory per horizontal
-    component, plus M3 reference regressions per the frozen
-    instantiation. Input digests FIRST, then fits."""
-    out = {"observatories": {}, "m3": {}}
-    residuals = {}
+def run_mag_calibration(repo):
+    """THE registered MAG production entry (codex 0614Z item 2 --
+    the E1 shape): repo ONLY. The manifest-pinned producer EXECUTES
+    here; feeds, cutoff and identity are derived, never accepted."""
+    import w2_calibration_feed_producer_cayley as FPM
+    fp_sha = _norm_file_sha(os.path.abspath(FPM.__file__))
+    if fp_sha != _manifest_pin_norm_sha(repo, PRODUCER_MODULE_PATH):
+        raise CalibrationRunnerError(
+            "MAG_PRODUCER_UNPINNED: the executing feed producer "
+            "source diverges from its manifest pin")
+    feeds, prov = FPM.build_mag_feeds(repo)
+    if prov.get("producer_source_sha256_normalized") != fp_sha:
+        raise CalibrationRunnerError(
+            "MAG_PRODUCER_UNPINNED: producer provenance identity "
+            "diverges from the executing source")
+    ident = {"module": os.path.basename(PRODUCER_MODULE_PATH),
+             "source_sha256_normalized": fp_sha}
+    return _run_mag_calibration_with_inputs(
+        repo, feeds, prov["cutoff"], ident, prov)
+
+
+def _run_mag_calibration_with_inputs(repo, feeds, cutoff,
+                                     producer_identity, provenance):
+    """PRIVATE checked seam (fixtures only; the registered entry
+    above is the one production path). Three phases (codex 0614Z
+    item 5): (A) validate EVERYTHING, (B) compute EVERY ledger in
+    memory, (C) publish transactionally with the receipt last -- a
+    refusal at any point leaves zero artifacts."""
+    # ---- (A) validation ----------------------------------------
+    if not isinstance(provenance, dict) or \
+            set(provenance) != MAG_PROVENANCE_FIELDS:
+        raise CalibrationRunnerError(
+            "MAG_PROVENANCE_NOT_CLOSED: "
+            f"{sorted(provenance) if isinstance(provenance, dict) else provenance!r}")
+    if str(provenance["cutoff"]) != str(cutoff):
+        raise CalibrationRunnerError(
+            "MAG_PROVENANCE_DIVERGENT: provenance cutoff != run "
+            "cutoff")
     for obs in sorted(feeds):
         feed = feeds[obs]
         for k in ("observatory", "lon_east", "times", "components",
@@ -408,6 +542,10 @@ def run_mag_calibration(repo, feeds, cutoff, producer_identity):
             if k not in feed:
                 raise CalibrationRunnerError(
                     f"MAG_FEED_INCOMPLETE: {obs}:{k}")
+        for comp in ("X", "Y"):
+            if comp not in feed["components"]:
+                raise CalibrationRunnerError(
+                    f"MAG_FEED_INCOMPLETE: {obs}:components:{comp}")
         _validate_mag_times(obs, feed["times"], cutoff)
         n_t = len(feed["times"])
         for cname, series in list(feed["components"].items()) + \
@@ -416,72 +554,101 @@ def run_mag_calibration(repo, feeds, cutoff, producer_identity):
                 raise CalibrationRunnerError(
                     f"CALIBRATION_TIME_INDEX_INVALID: {obs} series "
                     f"{cname!r} length {len(series)} != times {n_t}")
-        feed_digest = _canon_digest(
-            {k: v for k, v in feed.items() if k != "m3_reference"})
-        obs_rec = {"input_feed_sha256": feed_digest, "components": {}}
-        residuals[obs] = {}
-        for comp in ("X", "Y"):
-            if comp not in feed["components"]:
-                raise CalibrationRunnerError(
-                    f"MAG_FEED_INCOMPLETE: {obs}:components:{comp}")
-            led = MAG.fit_subtraction(
-                feed["times"], feed["components"][comp],
-                feed["lon_east"], feed["weather"],
-                meta={"observatory": obs, "component": comp,
-                      "cutoff": str(cutoff)})
-            rel = _write(repo,
-                         f"{OUT_DIR}/mag_{obs.lower()}_{comp}"
-                         f"_ledger.json", led)
-            obs_rec["components"][comp] = {
-                "ledger_path": rel, "ledger_sha256": _canon_digest(led),
-                "ledger_digest_field": led["digest"]}
-            residuals[obs][comp] = MAG.apply_subtraction(
-                led, feed["times"], feed["components"][comp],
-                feed["weather"])
-        out["observatories"][obs] = obs_rec
-    # M3 references: local residual ~ reference residual + weather.
-    # codex item 3: BYTE-EQUAL time indices required between local and
-    # reference -- positional pairing of shifted clocks refuses.
     for obs in sorted(feeds):
         ref = feeds[obs].get("m3_reference")
         if not ref:
             continue
-        if ref not in residuals:
+        if ref not in feeds:
             raise CalibrationRunnerError(
                 f"MAG_M3_REFERENCE_ABSENT: {obs} -> {ref}")
         if list(map(str, feeds[obs]["times"])) != \
                 list(map(str, feeds[ref]["times"])):
             raise CalibrationRunnerError(
-                f"M3_TIME_INDEX_MISMATCH: {obs} vs {ref} time indices "
-                "are not byte-equal")
+                f"M3_TIME_INDEX_MISMATCH: {obs} vs {ref} time "
+                "indices are not byte-equal")
+    compact = compact_mag_carrier(feeds, provenance, cutoff)
+    carrier_raw = _canonical_bytes(compact)
+    carrier_sha = hashlib.sha256(carrier_raw).hexdigest()
+    store_dir = _mag_store_dir()
+
+    # ---- (B) compute every ledger in memory ----------------------
+    out = {"observatories": {}, "m3": {}}
+    pending = []
+    residuals = {}
+    for obs in sorted(feeds):
+        feed = feeds[obs]
+        feed_digest = _canon_digest(
+            {k: v for k, v in feed.items() if k != "m3_reference"})
+        obs_rec = {"input_feed_sha256": feed_digest,
+                   "components": {}}
+        residuals[obs] = {}
+        for comp in ("X", "Y"):
+            led = MAG.fit_subtraction(
+                feed["times"], feed["components"][comp],
+                feed["lon_east"], feed["weather"],
+                meta={"observatory": obs, "component": comp,
+                      "cutoff": str(cutoff)})
+            rel = (f"{OUT_DIR}/mag_{obs.lower()}_{comp}"
+                   f"_ledger.json")
+            pending.append((rel, led))
+            obs_rec["components"][comp] = {
+                "ledger_path": rel,
+                "ledger_sha256": _canon_digest(led),
+                "ledger_digest_field": led["digest"]}
+            residuals[obs][comp] = MAG.apply_subtraction(
+                led, feed["times"], feed["components"][comp],
+                feed["weather"])
+        out["observatories"][obs] = obs_rec
+    for obs in sorted(feeds):
+        ref = feeds[obs].get("m3_reference")
+        if not ref:
+            continue
         for comp in ("X", "Y"):
             led = MAG.fit_m3_reference(
                 residuals[obs][comp], residuals[ref][comp],
-                {n: feeds[obs]["weather"][n]
-                 for n in sorted(feeds[obs]["weather"])},
+                {n2: feeds[obs]["weather"][n2]
+                 for n2 in sorted(feeds[obs]["weather"])},
                 meta={"local": obs, "reference": ref,
                       "component": comp, "cutoff": str(cutoff)})
-            rel = _write(repo,
-                         f"{OUT_DIR}/mag_m3_{obs.lower()}_on_"
-                         f"{ref.lower()}_{comp}_ledger.json", led)
+            rel = (f"{OUT_DIR}/mag_m3_{obs.lower()}_on_"
+                   f"{ref.lower()}_{comp}_ledger.json")
+            pending.append((rel, led))
             out["m3"][f"{obs}:{ref}:{comp}"] = {
                 "ledger_path": rel,
                 "ledger_sha256": _canon_digest(led)}
-    # persist the canonical input carrier (codex item 4)
-    feed_carrier = {obs: {k: v for k, v in feeds[obs].items()}
-                    for obs in sorted(feeds)}
-    feed_path = _write(repo, f"{OUT_DIR}/mag_input_feeds.json",
-                       feed_carrier)
+
+    # ---- (C) publish: store object, record, ledgers, receipt ----
+    os.makedirs(store_dir, exist_ok=True)
+    obj_path = os.path.join(store_dir, carrier_sha + ".body")
+    tmp = obj_path + ".tmp"
+    with open(tmp, "wb") as f:
+        f.write(carrier_raw)
+    os.replace(tmp, obj_path)
+    record = {"schema": "f2g-w2-mag-carrier-record-v1",
+              "logical_root": MAG_STORE_LOGICAL_ROOT,
+              "object_sha256": carrier_sha,
+              "byte_length": len(carrier_raw),
+              "serialization": "canonical-json-v1",
+              "cutoff": str(cutoff),
+              "provenance": {k: provenance[k]
+                             for k in sorted(provenance)}}
+    rec_rel = _publish_json(repo, MAG_CARRIER_RECORD_REL, record)
+    for rel, led in pending:
+        _publish_json(repo, rel, led)
     receipt = {"schema": "f2g-w2-calibration-receipt-v1",
                "lane": "MAG", "cutoff": str(cutoff),
-               "input_feed_sha256": _canon_digest(feed_carrier),
-               "input_feed_path": feed_path,
+               "carrier_record_path": rec_rel,
+               "carrier_object_sha256": carrier_sha,
                "producer_identity": dict(producer_identity),
                "runner_source_sha256_normalized": _self_sha(),
-               "results": out}
-    rec_path = _write(repo, f"{OUT_DIR}/mag_ledgers.receipt.json",
-                      receipt)
-    return {"receipt": rec_path, "results": out}
+               "results": out,
+               "provenance": {k: provenance[k]
+                              for k in sorted(provenance)}}
+    rec_path = _publish_json(repo,
+                             f"{OUT_DIR}/mag_ledgers.receipt.json",
+                             receipt)
+    return {"receipt": rec_path, "results": out,
+            "carrier_object_sha256": carrier_sha}
 
 
 def verify_receipt(repo, receipt_rel, *, expected_cutoff,
@@ -535,12 +702,16 @@ def verify_receipt(repo, receipt_rel, *, expected_cutoff,
             refuse(f"{what} {path_rel} {got[:12]} != {want[:12]}")
 
     # input carrier recomputation (independently reopenable) + the
-    # REQUIRED keyset derived from it
-    check(rec["input_feed_path"], rec["input_feed_sha256"], "input")
-    with open(os.path.join(repo, rec["input_feed_path"]
-                           .replace("/", os.sep)),
-              encoding="utf-8") as f:
-        feed = json.load(f)
+    # REQUIRED keyset derived from it; the MAG lane instead carries
+    # a content-addressed carrier record (codex 0614Z item 3)
+    feed = None
+    if rec["lane"] != "MAG":
+        check(rec["input_feed_path"], rec["input_feed_sha256"],
+              "input")
+        with open(os.path.join(repo, rec["input_feed_path"]
+                               .replace("/", os.sep)),
+                  encoding="utf-8") as f:
+            feed = json.load(f)
     n = 0
     if rec["lane"] == "MF4":
         check(rec["ledger_path"], rec["ledger_sha256"], "output")
@@ -634,6 +805,44 @@ def verify_receipt(repo, receipt_rel, *, expected_cutoff,
         else:
             amended_ledger_binding = "INTERNAL_CONSISTENCY_ONLY"
     else:
+        # ---- MAG: carrier record + content-addressed object ------
+        crec_rel = rec["carrier_record_path"]
+        with open(os.path.join(repo, crec_rel.replace("/", os.sep)),
+                  encoding="utf-8") as f:
+            crec = json.load(f)
+        if set(crec) != MAG_CARRIER_RECORD_FIELDS or \
+                crec.get("schema") != "f2g-w2-mag-carrier-record-v1":
+            refuse("carrier record is not the closed shape")
+        if crec["object_sha256"] != rec["carrier_object_sha256"] \
+                or crec["cutoff"] != rec["cutoff"] \
+                or crec["serialization"] != "canonical-json-v1" \
+                or crec["logical_root"] != MAG_STORE_LOGICAL_ROOT:
+            refuse("carrier record does not bind the receipt's "
+                   "object/cutoff/serialization identities")
+        if not isinstance(rec.get("provenance"), dict) or \
+                set(rec["provenance"]) != MAG_PROVENANCE_FIELDS or \
+                crec["provenance"] != rec["provenance"]:
+            refuse("closed producer provenance absent or divergent "
+                   "between receipt and carrier record")
+        alias = _mag_store_dir()   # verification REQUIRES the store
+        objp = os.path.join(alias, crec["object_sha256"] + ".body")
+        if not os.path.isfile(objp):
+            refuse("carrier object absent from the supplied store "
+                   "alias")
+        with open(objp, "rb") as f:
+            raw_obj = f.read()
+        if len(raw_obj) != crec["byte_length"] or \
+                hashlib.sha256(raw_obj).hexdigest() != \
+                crec["object_sha256"]:
+            refuse("carrier object bytes diverge from the record's "
+                   "length/digest")
+        compact = _strict_canonical_load(raw_obj)
+        if compact.get("schema") != MAG_CARRIER_SCHEMA or \
+                compact.get("cutoff") != crec["cutoff"] or \
+                compact.get("provenance") != rec["provenance"]:
+            refuse("carrier object does not bind the record's "
+                   "schema/cutoff/provenance")
+        feed = expand_mag_carrier(compact)
         res = rec["results"]
         if set(res) != {"observatories", "m3"}:
             refuse(f"results schema not closed: {sorted(res)}")
@@ -670,6 +879,49 @@ def verify_receipt(repo, receipt_rel, *, expected_cutoff,
         return {"verified_ledgers": n, "lane": rec["lane"],
                 "provenance_checked": amended_provenance,
                 "ledger_binding": amended_ledger_binding}
+    if rec["lane"] == "MAG":
+        # codex 0614Z item 4: mirror the amended discipline -- the
+        # carrier is REBUILT through the manifest-pinned producer
+        # where the STAGED store allows; typed consistency-only
+        # everywhere else; independent ledger standing arrives only
+        # with the final-bind expected values.
+        mag_provenance = "INTERNAL_CONSISTENCY_ONLY"
+        try:
+            import w2_calibration_feed_producer_cayley as _FPMM
+            _re_feeds, _re_prov = _FPMM.build_mag_feeds(repo)
+            _re_raw = _canonical_bytes(compact_mag_carrier(
+                _re_feeds, _re_prov, _re_prov["cutoff"]))
+            if hashlib.sha256(_re_raw).hexdigest() != \
+                    rec["carrier_object_sha256"]:
+                refuse("carrier object does not equal the "
+                       "independently rebuilt producer carrier")
+            mag_provenance = "REBUILT_FROM_COMMITTED_BYTES"
+        except CalibrationRunnerError:
+            raise
+        except BaseException as _exc:
+            _passthru = ("FEED_STAGED_ABSENT",
+                         "FEED_STORE_BODY_ABSENT",
+                         "MF4_INPUTS_REPO_MISMATCH",
+                         "MF4_AMENDED_MANIFEST_ABSENT")
+            if not any(t in str(_exc) for t in _passthru):
+                refuse(f"carrier rebuild failed: "
+                       f"{type(_exc).__name__}: {str(_exc)[:140]}")
+        if expected_input_sha256 is not None or \
+                expected_ledger_sha256 is not None:
+            if rec["carrier_object_sha256"] != \
+                    expected_input_sha256:
+                refuse("carrier object digest does not equal the "
+                       "final-bind record's expected value")
+            if _canon_digest(rec["results"]) != \
+                    expected_ledger_sha256:
+                refuse("results digest does not equal the "
+                       "final-bind record's expected value")
+            mag_ledger = "FINAL_BIND_EXPECTED_VERIFIED"
+        else:
+            mag_ledger = "INTERNAL_CONSISTENCY_ONLY"
+        return {"verified_ledgers": n, "lane": "MAG",
+                "provenance_checked": mag_provenance,
+                "ledger_binding": mag_ledger}
     return {"verified_ledgers": n, "lane": rec["lane"],
             "provenance_checked": True}
 
@@ -735,6 +987,15 @@ def _selftest():
         assert "MF4_FEED_INCOMPLETE" in str(e)
 
     # MAG: two observatories, one M3 pair, per-component ledgers
+    os.environ[MAG_STORE_ENV] = os.path.join(repo, "magstore_kat")
+
+    def kat_prov(cutoff):
+        return {"authority_sha256": "1" * 64,
+                "inventory_sha256": "2" * 64,
+                "descriptor_sha256": "3" * 64,
+                "cutoff": str(cutoff), "days": 2, "minutes": 3000,
+                "staged_rolling_sha256": "4" * 64,
+                "producer_source_sha256_normalized": "5" * 64}
     n = 3000
     times = [(datetime(2026, 1, 1) + timedelta(minutes=i)).isoformat()
              for i in range(n)]
@@ -749,16 +1010,39 @@ def _selftest():
                 "weather": weather, "m3_reference": ref}
     feeds = {"FRN": obs_feed("FRN", "TUC"),
              "TUC": obs_feed("TUC", None)}
-    res = run_mag_calibration(repo, feeds, "2026-08-24", producer)
+    res = _run_mag_calibration_with_inputs(
+        repo, feeds, "2026-08-24", producer, kat_prov("2026-08-24"))
     v = verify_receipt(repo, res["receipt"],
                        expected_cutoff="2026-08-24",
                        expected_producer=producer)
     assert v["verified_ledgers"] == 6      # 2 obs x2 comps + 2 M3
+    # store-backed reopen ran (env alias set); the REBUILD path is
+    # producer-bound and stays typed consistency-only in fixtures
+    assert v["provenance_checked"] == "INTERNAL_CONSISTENCY_ONLY"
+    assert v["ledger_binding"] == "INTERNAL_CONSISTENCY_ONLY"
+    # final-bind expected values verify and refuse on mismatch
+    rec_now = json.load(open(os.path.join(
+        repo, res["receipt"].replace("/", os.sep))))
+    v_fb = verify_receipt(
+        repo, res["receipt"], expected_cutoff="2026-08-24",
+        expected_producer=producer,
+        expected_input_sha256=res["carrier_object_sha256"],
+        expected_ledger_sha256=_canon_digest(rec_now["results"]))
+    assert v_fb["ledger_binding"] == "FINAL_BIND_EXPECTED_VERIFIED"
+    try:
+        verify_receipt(
+            repo, res["receipt"], expected_cutoff="2026-08-24",
+            expected_producer=producer,
+            expected_input_sha256="0" * 64,
+            expected_ledger_sha256="0" * 64)
+        raise AssertionError("wrong expected values must refuse")
+    except CalibrationRunnerError as e:
+        assert "final-bind record" in str(e)
     assert "FRN:TUC:X" in res["results"]["m3"]
     try:
-        run_mag_calibration(
+        _run_mag_calibration_with_inputs(
             repo, {"FRN": obs_feed("FRN", "NEW")}, "2026-08-24",
-            producer)
+            producer, kat_prov("2026-08-24"))
         raise AssertionError("absent M3 reference must refuse")
     except CalibrationRunnerError as e:
         assert "MAG_M3_REFERENCE_ABSENT" in str(e)
@@ -803,27 +1087,83 @@ def _selftest():
     doctor(lambda r: r.__setitem__(
         "results", {"observatories": {}, "m3": {}}),
         "zero-ledger receipt")
-    # doctored INPUT CARRIER file -> input digest recomputation catches
-    fp = os.path.join(repo, "docs/f2g_window2_execution/calibration/"
-                      "mag_input_feeds.json".replace("/", os.sep))
-    saved_feed = open(fp, encoding="utf-8").read()
-    fdoc = json.loads(saved_feed)
-    fdoc["TUC"]["lon_east"] = -119.0
-    json.dump(fdoc, open(fp, "w"))
+    # doctored carrier RECORD -> binding checks catch
+    fp = os.path.join(repo, MAG_CARRIER_RECORD_REL
+                      .replace("/", os.sep))
+    saved_rec = open(fp, encoding="utf-8").read()
+    rdoc = json.loads(saved_rec)
+    rdoc["object_sha256"] = "9" * 64
+    json.dump(rdoc, open(fp, "w"))
     try:
         verify_receipt(repo, res["receipt"],
                        expected_cutoff="2026-08-24",
                        expected_producer=producer)
-        raise AssertionError("doctored input carrier must refuse")
+        raise AssertionError("doctored carrier record must refuse")
     except CalibrationRunnerError as e:
         assert "CALIBRATION_RECEIPT_MISMATCH" in str(e)
     finally:
-        open(fp, "w").write(saved_feed)
+        open(fp, "w").write(saved_rec)
+    # doctored STORE OBJECT bytes -> length/digest/canonical catch
+    objp = os.path.join(os.environ[MAG_STORE_ENV],
+                        res["carrier_object_sha256"] + ".body")
+    saved_obj = open(objp, "rb").read()
+    open(objp, "wb").write(saved_obj + b" ")
+    try:
+        verify_receipt(repo, res["receipt"],
+                       expected_cutoff="2026-08-24",
+                       expected_producer=producer)
+        raise AssertionError("doctored carrier object must refuse")
+    except CalibrationRunnerError as e:
+        assert "CALIBRATION_RECEIPT_MISMATCH" in str(e)
+    finally:
+        open(objp, "wb").write(saved_obj)
+    # transactional publish (codex 0614Z item 5): a late validation
+    # refusal and a second-fit failure each leave ZERO new artifacts
+    import glob as _glob
+
+    def _artifact_census():
+        pats = ["docs/f2g_window2_execution/calibration/mag_*"]
+        outp = []
+        for pt in pats:
+            outp += _glob.glob(os.path.join(
+                repo, pt.replace("/", os.sep)))
+        return sorted(outp)
+    _before = _artifact_census()
+    f_txn = {"AAA": obs_feed("AAA", None),
+             "ZZZ": obs_feed("ZZZ", None)}
+    del f_txn["ZZZ"]["components"]["X"]
+    try:
+        _run_mag_calibration_with_inputs(
+            repo, f_txn, "2026-08-24", producer,
+            kat_prov("2026-08-24"))
+        raise AssertionError("missing component must refuse")
+    except CalibrationRunnerError as e:
+        assert "MAG_FEED_INCOMPLETE: ZZZ:components:X" in str(e)
+    assert _artifact_census() == _before, \
+        "a validation refusal left partial artifacts"
+    _real_m3 = MAG.fit_m3_reference
+
+    def _boom(*a2, **k2):
+        raise RuntimeError("second-fit sentinel failure")
+    MAG.fit_m3_reference = _boom
+    try:
+        _run_mag_calibration_with_inputs(
+            repo, {"FRN": obs_feed("FRN", "TUC"),
+                   "TUC": obs_feed("TUC", None)}, "2026-08-24",
+            producer, kat_prov("2026-08-24"))
+        raise AssertionError("second-fit failure must propagate")
+    except RuntimeError:
+        pass
+    finally:
+        MAG.fit_m3_reference = _real_m3
+    assert _artifact_census() == _before, \
+        "a mid-compute failure left partial artifacts"
 
     # codex item 3 doctors (the exact KAT list)
     def expect_refuse(feeds_d, cutoff, code, label):
         try:
-            run_mag_calibration(repo, feeds_d, cutoff, producer)
+            _run_mag_calibration_with_inputs(
+                repo, feeds_d, cutoff, producer, kat_prov(cutoff))
             raise AssertionError(f"{label} must refuse")
         except CalibrationRunnerError as e:
             assert code in str(e), (label, str(e))
@@ -873,7 +1213,9 @@ def _selftest():
                   "CALIBRATION_TIME_INDEX_INVALID", "non-utc-offset")
     f_z = {"TUC": obs_feed("TUC", None)}
     f_z["TUC"]["times"] = [t + "Z" for t in times]
-    run_mag_calibration(repo, f_z, "2026-08-24", producer)  # Z ok
+    _run_mag_calibration_with_inputs(
+        repo, f_z, "2026-08-24", producer,
+        kat_prov("2026-08-24"))  # Z ok
 
     # misaligned series/times (the new alignment guard)
     f_al = {"TUC": obs_feed("TUC", None)}

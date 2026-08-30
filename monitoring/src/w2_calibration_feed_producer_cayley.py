@@ -106,13 +106,27 @@ def canonical_grid(day):
             for m in range(MINUTES_PER_DAY)]
 
 
+def _registered_authority_path():
+    """THE registered authority path -- the generator's
+    PRODUCER_BOUNDARY_REQUIRED registration (parent level, the
+    capture-campaign history), never a prefix guess. grassmann's
+    0555Z dry pass caught the divergence on first real-tree
+    contact: my fixtures had minted their own layout (the
+    anti-vacuity class) while the registration lives one level up
+    from the v4 staged prefix."""
+    import f2g_execution_manifest_gen_cayley as GEN
+    return GEN.PRODUCER_BOUNDARY_REQUIRED["authority"]
+
+
 def _load_registry(repo):
     """Authority + inventory + store descriptor, from their
-    registered staged paths; per-carrier day lists and cutoffs come
-    ONLY from the authority."""
+    REGISTERED committed paths; per-carrier day lists and cutoffs
+    come ONLY from the authority."""
     base = os.path.join(repo, *ACC.STAGED_PREFIX.split("/"))
     auth, auth_sha = _read_json(
-        os.path.join(base, ACC.EXPECTED_KEYS_BASENAME), "authority")
+        os.path.join(repo,
+                     *_registered_authority_path().split("/")),
+        "authority")
     inv, inv_sha = _read_json(
         os.path.join(base, ACC.STAGED_INVENTORY_BASENAME),
         "inventory")

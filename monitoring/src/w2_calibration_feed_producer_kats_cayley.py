@@ -190,7 +190,11 @@ def build_fixture(root):
               omni_body(day, ["17", "18", "21"]))
         stage("MAG_WEATHER_FEED", "sym_h", day,
               omni_body(day, ["41"]))
-    wjson(os.path.join(staged, ACC.EXPECTED_KEYS_BASENAME), auth)
+    # the fixture mirrors the REAL registered layout: the authority
+    # lives at the PARENT level (the generator registration), never
+    # inside the v4 staged dir (grassmann 0555Z)
+    wjson(os.path.join(
+        root, *FP._registered_authority_path().split("/")), auth)
     inv = CAP.build_staged_body_inventory("kat-store", "kat://x",
                                           inv_entries)
     wjson(os.path.join(staged, ACC.STAGED_INVENTORY_BASENAME), inv)
@@ -374,8 +378,8 @@ def main():
                   doctor_body)), "FEED_BODY_DIGEST_DIVERGENT"))
 
     def beyond_cutoff(d):
-        p = os.path.join(d, *ACC.STAGED_PREFIX.split("/"),
-                         ACC.EXPECTED_KEYS_BASENAME)
+        p = os.path.join(
+            d, *FP._registered_authority_path().split("/"))
         a = json.load(open(p))
         a["prestart_expected_keys"]["MAG_FEED"]["frn"].append(
             "2026-07-01")
@@ -403,12 +407,70 @@ def main():
 
     # ---- E2E: the produced feeds drive the REAL runner --------
     runroot = tempfile.mkdtemp(prefix="fpkat_run_")
+    os.environ[RUN.MAG_STORE_ENV] = os.path.join(runroot,
+                                                 "magstore")
+    check("MAG-E1 the registered MAG entry accepts REPO ONLY",
+          list(__import__("inspect").signature(
+              RUN.run_mag_calibration).parameters) == ["repo"])
     try:
-        res = RUN.run_mag_calibration(
+        RUN.run_mag_calibration(runroot, feeds, CUTOFF, {})
+        me1 = False
+    except TypeError:
+        me1 = True
+    except BaseException:
+        me1 = False
+    check("MAG-E1b caller-supplied feeds are impossible at the "
+          "production entry (TypeError)", me1)
+    # sentinel: the public entry must reach the PRODUCER path first
+    _real_bmf = FP.build_mag_feeds
+
+    class _MagSent(Exception):
+        pass
+
+    def _bmf_sent(r):
+        raise _MagSent("REACHED_PRODUCER")
+    ck = tempfile.mkdtemp(prefix="fpkat_magck_")
+    repo_here = os.path.dirname(os.path.dirname(_HERE))
+    os.makedirs(os.path.join(ck, "docs", "f2g_window2_execution"))
+    shutil.copyfile(
+        os.path.join(repo_here, "docs", "f2g_window2_execution",
+                     "execution_manifest.json"),
+        os.path.join(ck, "docs", "f2g_window2_execution",
+                     "execution_manifest.json"))
+    try:
+        FP.build_mag_feeds = _bmf_sent
+        try:
+            RUN.run_mag_calibration(ck)
+            me2, why2 = False, "no refusal"
+        except _MagSent:
+            me2, why2 = True, ""
+        except BaseException as exc:
+            me2, why2 = False, str(exc)[:90]
+    finally:
+        FP.build_mag_feeds = _real_bmf
+    check("MAG-E1c the public entry executes the pinned producer "
+          "BEFORE any fit (sentinel reached)", me2, why2)
+    # pin divergence refuses before the producer runs
+    mp = os.path.join(ck, "docs", "f2g_window2_execution",
+                      "execution_manifest.json")
+    mand = json.load(open(mp, encoding="utf-8"))
+    for slot in mand["slots"].values():
+        for pin in slot.get("pins", ()):
+            if pin["path"].endswith(
+                    "w2_calibration_feed_producer_cayley.py"):
+                pin["blob_sha256"] = "9" * 64
+    json.dump(mand, open(mp, "w", encoding="utf-8"))
+    check("MAG-E1d a producer/pin divergence refuses before the "
+          "producer executes",
+          refuses(lambda: RUN.run_mag_calibration(ck),
+                  "MAG_PRODUCER_UNPINNED"))
+    try:
+        res = RUN._run_mag_calibration_with_inputs(
             runroot, feeds, CUTOFF,
             {"module": "w2_calibration_feed_producer_cayley.py",
              "source_sha256_normalized":
-                 prov["producer_source_sha256_normalized"]})
+                 prov["producer_source_sha256_normalized"]},
+            prov)
         out = res["results"]
         m3_keys = sorted(out.get("m3", ()))
         e1_ok = (m3_keys == ["FRN:TUC:X", "FRN:TUC:Y"]
@@ -502,6 +564,17 @@ def main():
               days_all[0] >= "2025-10-18"
               and days_all[-1] <= inputs["requested_issue_end"]
               and "tokyo_kanto" not in rbr)
+
+    import f2g_execution_manifest_gen_cayley as GENK
+    check("R1 the authority path is THE generator registration "
+          "(parent level), never a staged-prefix guess",
+          FP._registered_authority_path()
+          == GENK.PRODUCER_BOUNDARY_REQUIRED["authority"]
+          and not FP._registered_authority_path().startswith(
+              ACC.STAGED_PREFIX)
+          and os.path.isfile(os.path.join(
+              repo_real,
+              *FP._registered_authority_path().split("/"))))
 
     # ---- P04 locks (codex 0411Z), every host --------------------
     # a fixture CHECKOUT: temp root carrying the real committed

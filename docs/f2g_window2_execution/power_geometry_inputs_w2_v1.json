@@ -15,7 +15,7 @@
   "seed_authority": {
    "path": "docs/f2g_window2_execution/power_seed_authority_w2_v1.json",
    "seed_authority_sha256": "58b513b6c30b70c8014510788da9d7d819ce8971ca59b7dfdc11c57a1664586f",
-   "sha256": "c4f0633dcf15b5978928e652a20403ed8fe9257cfbd4821a848ec4bba22e65d2"
+   "sha256": "05330b9b426f7f2516de0bae0ccd3e4ec22dc3840e577fa302a60c6a5aaa3f3d"
   }
  },
  "carrier_masks": {
@@ -817,7 +817,7 @@
   },
   "observation_source": {
    "artifact_claim_kind": "STATION_PRESENCE",
-   "commit": "9f763bba158ce9b721c36bcfa749f0f9a1f65d8a",
+   "commit": "30229a5ede81e31410cf8486248d6e99755ce403",
    "directory": "docs/f2g_window2_execution/staged_envelopes_v4",
    "rule": "a day is OBSERVED-available when its committed presence artifact records at least one present station"
   },
@@ -1162,6 +1162,7 @@
    "monitoring/src/fault_segments.py": "90acfd35fc05bd9b4f178837ebbd2ff7e44b6211a422e47bfbcfa230c1b8f913",
    "monitoring/src/w2_selection.py": "7d1b89d3e3f3a98eb73edd1258bee80adb5dab1ee51bf95a15584657d6170718"
   },
+  "execution": "ISOLATED_TARGET_WORKER",
   "rule": "every consumed implementation's source must equal its bytes AT THE NAMED TARGET, and every registered steering constant re-derived from the target source by AST must equal the live runtime value; otherwise the build REFUSES rather than producing target-labelled output built from other code",
   "steering_constants_verified": {
    "monitoring/src/w2_selection.py:CAPS": {

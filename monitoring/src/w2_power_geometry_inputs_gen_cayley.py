@@ -557,6 +557,16 @@ def build(repo, *, commit="HEAD", loaders=None):
     item 4). Everything reopens from ONE resolved carrier commit."""
     carrier = _resolve_commit(repo, commit)
 
+    # cycle-6 review item 3B: prove the consumed implementations ARE
+    # the target's before executing them. `w2_selection` supplies the
+    # cascadia registry and `fault_segments` the polygons, so a live
+    # CAPS or polygon mutation would otherwise ride a fixed target.
+    import w2_selection as _wsel
+    import w2_target_identity_cayley as TID
+    target_identity = TID.verify_consumed_implementations(
+        repo, carrier, modules=[_wsel, FS],
+        constants=[(_wsel, "CAPS", dict)])
+
     def raw(rel):
         if loaders is not None and rel in loaders:
             return loaders[rel]
@@ -636,6 +646,7 @@ def build(repo, *, commit="HEAD", loaders=None):
                         "exact-equality bind, overlap tie amendment, "
                         "carrier-scoped station identity",
         "carriers": sorted(registries),
+        "target_identity": target_identity,
         "registries": {ck: list(registries[ck])
                        for ck in sorted(registries)},
         "segments": {ck: dict(sorted(segments[ck].items()))

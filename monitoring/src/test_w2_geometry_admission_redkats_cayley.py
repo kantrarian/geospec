@@ -122,6 +122,40 @@ def _selftest():
     print("  GA-2b PASS  an input reference whose digest disagrees "
           "with the admitted pin refuses")
 
+    # ---- GA-2c SAME BLOB, DIFFERENT COMMIT (codex item 3A) -------
+    # codex's exact reproduction: point a reference at a commit where
+    # the SAME path carries IDENTICAL bytes. Path and blob both match;
+    # only the commit differs. That is not the admitted provenance.
+    head_full = subprocess.run(
+        ["git", "-C", REPO, "rev-parse", "HEAD"],
+        capture_output=True, text=True).stdout.strip()
+    seed_rel = live["input_refs"]["seed_authority"]["path"]
+    pin_commit = live["input_refs"]["seed_authority"]["commit"]
+    if head_full == pin_commit:
+        raise GeometryAdmissionRefusal(
+            "GA-2c CONTROL_INERT: HEAD is the pin commit, so this "
+            "control cannot distinguish commit from bytes")
+    if _blob(head_full, seed_rel) != _blob(pin_commit, seed_rel):
+        raise GeometryAdmissionRefusal(
+            "GA-2c CONTROL_INERT: the two commits do not carry "
+            "identical bytes, so a refusal would not isolate the "
+            "commit field")
+    same_bytes = copy.deepcopy(live)
+    same_bytes["input_refs"]["seed_authority"]["commit"] = head_full
+    same_bytes["capsule_digest"] = PH._geometry_capsule_digest(
+        same_bytes)
+    try:
+        PH._resolve_capsule_input_refs(REPO, "HEAD", man, same_bytes)
+        raise GeometryAdmissionRefusal(
+            "GA-2c SAME_BLOB_OTHER_COMMIT_ADMITTED: a reference "
+            "naming a different commit with identical bytes resolved")
+    except PH.PowerHarnessError as e:
+        assert "POWER_GEOMETRY_INPUT_COMMIT_DIVERGENT" in str(e), \
+            str(e)
+    print("  GA-2c PASS  a reference with the RIGHT path and the "
+          "RIGHT bytes but a DIFFERENT commit refuses (exact "
+          "three-field provenance, not two)")
+
     # ---- GA-3 ALTERED REGISTRY / SEGMENT / MASK ------------------
     refuses(lambda c: c["registries"]["cascadia"].append("CC.EVIL"),
             "POWER_LOCO_GEOMETRY_INVALID",

@@ -658,6 +658,92 @@ def _load_bound_geometry(repo, geometry_ref):
     return capsule
 
 
+SEED_RECORD_SCHEMA = "f2g-w2-power-seed-authority-v1"
+SEED_RECORD_FIELDS = {
+    "schema", "state", "ruling_basis", "seed_authority_sha256",
+    "root_source", "grammar", "families", "grammar_evidence",
+    "target_identity", "prohibitions", "claim_ceiling"}
+
+
+def _verify_seed_authority_record(repo, man, idx, rec):
+    """cycle-6 review item 1 (CRITICAL): the seed record's BOUND
+    identities must hold against the ADMITTED code at admission time,
+    not merely at the moment it was generated.
+
+    The packet's stale record bound the harness at `23038aa5...`
+    while the manifest admitted `85077d14...`. The root happened to be
+    unchanged, so nothing refused -- but the record's stronger claim
+    (seed grammar bound by current admitted code identity) was false.
+    That is frame drift inside the CRITICAL seed authority, and it is
+    exactly what this check now catches BEFORE any replicate.
+    """
+    import subprocess as _sp
+
+    def refuse(detail):
+        raise PowerHarnessError(
+            f"POWER_SEED_RECORD_STALE: {detail}")
+
+    if not isinstance(rec, dict) or set(rec) != SEED_RECORD_FIELDS:
+        refuse("the pinned record is not the closed registered set "
+               f"(extra={sorted(set(rec) - SEED_RECORD_FIELDS)}, "
+               f"missing={sorted(SEED_RECORD_FIELDS - set(rec))})")
+    if rec.get("schema") != SEED_RECORD_SCHEMA:
+        refuse(f"schema {rec.get('schema')!r}")
+    gram = rec["grammar"]
+
+    def _lf(b):
+        return hashlib.sha256(b.replace(b"\r\n", b"\n")).hexdigest()
+
+    def _blob_at(commit, path):
+        p = _sp.run(["git", "-C", repo, "cat-file", "blob",
+                     f"{commit}:{path}"], capture_output=True)
+        if p.returncode != 0 or not p.stdout:
+            refuse(f"{path} unreadable at {str(commit)[:12]}")
+        return p.stdout
+
+    # (a) registered ENTRYPOINT == the manifest's exact harness pin
+    ep = gram["registered_entrypoint"]
+    pin = idx.get(ep["path"])
+    if pin is None:
+        refuse(f"the record's registered entrypoint {ep['path']} is "
+               "not a BOUND pin of this manifest")
+    admitted_lf = _lf(_blob_at(pin["commit"], pin["path"]))
+    if ep.get("blob_sha256_lf") != admitted_lf:
+        refuse("the record binds entrypoint "
+               f"{str(ep.get('blob_sha256_lf'))[:12]} but the manifest "
+               f"admits {admitted_lf[:12]} -- regenerate and re-pin "
+               "the seed record after every change to the harness it "
+               "claims to bind")
+    # (b) ENGINE identity == the design pin the record names
+    eng = gram["engine_module"]
+    dmc = eng.get("design_manifest_commit")
+    design = json.loads(_blob_at(
+        dmc, "docs/f2g_window2_freeze/byte_pin_manifest.json"
+    ).decode("utf-8"))
+    entry = (design.get("pins") or {}).get(eng.get("design_pin"))
+    if not isinstance(entry, dict) or \
+            entry.get("path") != eng.get("path") or \
+            entry.get("blob_sha256") != eng.get("blob_sha256_lf"):
+        refuse("the record's engine identity does not match its "
+               f"named design pin {eng.get('design_pin')!r} at "
+               f"{str(dmc)[:12]}")
+    # (c) the registered seed EVIDENCE recomputes
+    fams = list(rec["families"])
+    if tuple(fams) != tuple(GRAPH):
+        refuse(f"the record's families {fams} are not the registered "
+               f"{list(GRAPH)}")
+    ev = rec["grammar_evidence"]["by_family"]
+    for fam in fams:
+        want = ev.get(fam) or {}
+        reps = [int(rep_seed_registered(rec["seed_authority_sha256"],
+                                        fam, r))
+                for r in range(len(want.get("replicate_seeds") or []))]
+        if reps != list(want.get("replicate_seeds") or []):
+            refuse(f"the bound replicate evidence for {fam} does not "
+                   "recompute under the admitted grammar")
+    return True
+
+
 def _manifest_pin_index(man):
     """{path: pin} over BOUND slots only."""
     idx = {}
@@ -698,6 +784,20 @@ def _resolve_capsule_input_refs(repo, manifest_commit, man, capsule):
                 f"POWER_GEOMETRY_INPUT_NOT_PINNED: {name} references "
                 f"{ref['path']}, which is not a BOUND pin at "
                 f"{str(manifest_commit)[:12]}")
+        # cycle-6 review item 3A: the reference must equal the
+        # admitted pin in ALL THREE fields. Comparing only path and
+        # blob let a reference name a DIFFERENT commit that happens
+        # to carry identical bytes at that path -- which is not the
+        # exact {commit, path, blob_sha256} provenance the capsule
+        # claims, and would let a later commit stand in for the
+        # admitted one.
+        if ref["commit"] != pin["commit"]:
+            raise PowerHarnessError(
+                f"POWER_GEOMETRY_INPUT_COMMIT_DIVERGENT: {name} "
+                f"references commit {str(ref['commit'])[:12]} but the "
+                f"admitted pin is {str(pin['commit'])[:12]} -- "
+                "identical bytes at another commit are not the "
+                "admitted provenance")
         rp = _sp.run(["git", "-C", repo, "cat-file", "blob",
                       f"{ref['commit']}:{ref['path']}"],
                      capture_output=True)
@@ -727,6 +827,7 @@ def _resolve_capsule_input_refs(repo, manifest_commit, man, capsule):
         raise PowerHarnessError(
             "POWER_SEED_AUTHORITY_INVALID: the pinned record carries "
             "no well-formed root")
+    _verify_seed_authority_record(repo, man, idx, seed_rec)
     if capsule.get("seed_authority_sha256") != root:
         raise PowerHarnessError(
             "POWER_SEED_AUTHORITY_UNREGISTERED: the capsule's seed "

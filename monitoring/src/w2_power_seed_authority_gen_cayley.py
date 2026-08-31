@@ -132,6 +132,16 @@ def build(repo, *, commit="HEAD", loaders=None):
     passes None and reads committed bytes only."""
     carrier = _resolve_commit(repo, commit)
 
+    # cycle-6 review item 3B: this build EXECUTES imported modules, so
+    # it must first prove they ARE the target's. Without this a fixed
+    # target silently produced different output from a drifted
+    # worktree or an in-process mutation.
+    import d2_f2g_phase_b_stats as _pb_mod
+    import w2_target_identity_cayley as TID
+    target_identity = TID.verify_consumed_implementations(
+        repo, carrier, modules=[PH, _pb_mod],
+        constants=[(PH, "GRAPH", tuple)])
+
     def raw(rel, at=None):
         if loaders is not None and rel in loaders:
             return loaders[rel]
@@ -243,6 +253,7 @@ def build(repo, *, commit="HEAD", loaders=None):
                 "blob_sha256_lf": _lf_sha(harness_b),
                 "function": "rep_seed_registered"}},
         "families": families,
+        "target_identity": target_identity,
         "grammar_evidence": {
             "method": "master + first "
                       f"{KAT_REPLICATES} replicate seeds per family, "

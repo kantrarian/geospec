@@ -38,6 +38,7 @@ carrier the authority fails to register trips FC-1 again.
 This module opens no window-2 value, makes no network call, and
 admits nothing.
 """
+import hashlib
 import json
 import os
 import re
@@ -59,7 +60,13 @@ class CarrierSetRefusal(AssertionError):
     """Typed refusal; the code leads the message."""
 
 
+# KAT-ONLY seam for the alias control below; production reads bytes
+_READ_OVERRIDE = {}
+
+
 def _read(rel):
+    if rel in _READ_OVERRIDE:
+        return _READ_OVERRIDE[rel]
     with open(os.path.join(REPO, rel.replace("/", os.sep)),
               encoding="utf-8") as f:
         return json.load(f)
@@ -101,18 +108,32 @@ def admitted_observatories(repo=REPO):
         raise CarrierSetRefusal(
             "CARRIER_SET_UNDERIVABLE: no mag capsule is pinned by "
             "either manifest -- the derivation has no authority")
-    admitted = {}
+    admitted, bodies = {}, {}
     for p in sorted(paths):
         cap = _read(p)
         iaga = cap.get("iaga_code")
         if not isinstance(iaga, str) or not iaga:
             raise CarrierSetRefusal(
                 f"CARRIER_CAPSULE_UNTYPED: {p} carries no iaga_code")
+        # cycle-6 (codex combined review item 5.1): the same IAGA
+        # legitimately appears at BOTH the design-freeze path and the
+        # execution path -- VIC does, and the two blobs are
+        # byte-identical. An ALIAS is not a duplicate. Collapse it
+        # only when the committed bytes are identical; the same IAGA
+        # carrying DIVERGENT bytes is a real duplicate and still
+        # refuses, because then the two paths disagree about what the
+        # observatory IS.
+        canon = json.dumps(cap, sort_keys=True,
+                           separators=(",", ":")).encode("utf-8")
         if iaga in admitted:
+            if hashlib.sha256(canon).hexdigest() == bodies[iaga]:
+                continue
             raise CarrierSetRefusal(
-                f"CARRIER_CAPSULE_DUPLICATE: {iaga} pinned twice "
-                f"({admitted[iaga]}, {p})")
+                f"CARRIER_CAPSULE_DUPLICATE: {iaga} pinned twice with "
+                f"DIVERGENT bytes ({admitted[iaga]}, {p}) -- an alias "
+                "may share an IAGA only when the capsules agree")
         admitted[iaga] = p
+        bodies[iaga] = hashlib.sha256(canon).hexdigest()
     return admitted
 
 
@@ -164,6 +185,45 @@ def _selftest():
             f"({sorted(derived)}). codex 0527Z finding 1.")
     print(f"  FC-1 PASS  authority == frozen admitted set "
           f"{sorted(derived)}")
+    # ---- FC-alias (codex item 5.1): the alias collapse is not a
+    # blanket dedup. Same IAGA + IDENTICAL bytes collapses (the live
+    # VIC case, proven above by this function returning at all);
+    # same IAGA + DIVERGENT bytes must still refuse.
+    import copy as _copy
+    _vic_paths = [p for p in
+                  (_design_capsule_paths(_read(DESIGN_MANIFEST))
+                   | _exec_capsule_paths(_read(EXEC_MANIFEST)))
+                  if p.endswith("mag_capsule_vic.json")]
+    if len(_vic_paths) < 2:
+        raise CarrierSetRefusal(
+            "FC-alias CONTROL_INERT: VIC is no longer pinned at two "
+            "paths, so the alias case cannot be constructed")
+    _a, _b = sorted(_vic_paths)[:2]
+    _orig = _read(_a)
+    if json.dumps(_orig, sort_keys=True) != \
+            json.dumps(_read(_b), sort_keys=True):
+        raise CarrierSetRefusal(
+            "FC-alias CONTROL_INERT: the two VIC capsules already "
+            "diverge, so the identical-bytes collapse is untested")
+    _saved = _READ_OVERRIDE.copy()
+    try:
+        _divergent = _copy.deepcopy(_orig)
+        _divergent["_alias_divergence_probe"] = True
+        _READ_OVERRIDE[_b] = _divergent
+        try:
+            admitted_observatories()
+            raise CarrierSetRefusal(
+                "FC-alias DIVERGENT_ALIAS_ADMITTED: the same IAGA "
+                "with divergent bytes was collapsed as an alias")
+        except CarrierSetRefusal as e:
+            if "DIVERGENT bytes" not in str(e):
+                raise
+    finally:
+        _READ_OVERRIDE.clear()
+        _READ_OVERRIDE.update(_saved)
+    print("  FC-alias PASS  same IAGA + IDENTICAL bytes collapses "
+          "(the live VIC alias); same IAGA + DIVERGENT bytes still "
+          "REFUSES as a real duplicate")
     print("w2 frozen-carrier-set red-KATs: ALL PASS")
 
 

@@ -40,11 +40,31 @@ certifies nothing. Lambda_geo INCONCLUSIVE.
 """
 import hashlib
 import json
+import os
+import subprocess
 import sys
 
 SCHEMA = "f2g-w2-geometry-bind-comparison-v1"
 MASK_RELATIONS = ("EXACT", "REALIZED_SUPERSET", "REALIZED_SUBSET",
                   "DIVERGENT")
+
+# cycle-6 review item 2 (CRITICAL): codex ruled EXACT-ONLY, because
+# the bundle declares the anticipated mask to be the MAXIMAL full
+# engine grid. A REALIZED_SUBSET is an outage this full-mask artifact
+# never power-certified; a REALIZED_SUPERSET is impossible on a
+# maximal anticipation and would mean an out-of-grid, excluded or
+# duplicate day rather than "more data"; DIVERGENT is outside the
+# frame. The policy is an ARTIFACT resolved from its manifest pin --
+# a caller dict carrying the same words is not authority.
+POLICY_SCHEMA = "f2g-w2-mask-envelope-policy-v1"
+POLICY_REL = ("docs/f2g_window2_execution/"
+              "mask_envelope_policy_w2_v1.json")
+INPUTS_BUNDLE_REL = ("docs/f2g_window2_execution/"
+                     "power_geometry_inputs_w2_v1.json")
+CALENDAR_V4_REL = ("docs/f2g_window2_execution/"
+                   "calendar_authority_w2_v4.json")
+MANIFEST_REL = "docs/f2g_window2_execution/execution_manifest.json"
+ADMITTED_RELATIONS = ("EXACT",)
 
 
 class BindComparatorRefusal(ValueError):
@@ -155,7 +175,126 @@ def compare_masks(anticipated, realized):
     return out
 
 
-def compare(anticipated, realized, *, mask_envelope_policy=None):
+def _git_blob(repo, commit, rel):
+    p = subprocess.run(["git", "-C", repo, "cat-file", "blob",
+                        f"{commit}:{rel}"], capture_output=True)
+    if p.returncode != 0 or not p.stdout:
+        return None
+    return p.stdout
+
+
+def build_policy(repo, commit):
+    """Emit the closed EXACT-ONLY policy, bound to the calendar frame,
+    the anticipated-mask digests, the carrier set and this
+    comparator's own identity (codex cycle-6 item 2)."""
+    cal_b = _git_blob(repo, commit, CALENDAR_V4_REL)
+    bun_b = _git_blob(repo, commit, INPUTS_BUNDLE_REL)
+    if cal_b is None or bun_b is None:
+        raise BindComparatorRefusal(
+            "MASK_POLICY_INPUTS_ABSENT: calendar authority or "
+            f"geometry inputs bundle unreadable at {str(commit)[:12]}")
+    with open(os.path.abspath(__file__), "rb") as f:
+        me = f.read().replace(b"\r\n", b"\n")
+    cal = json.loads(cal_b.decode("utf-8"))
+    bundle = json.loads(bun_b.decode("utf-8"))
+    frame = cal["frame"]
+    masks = bundle["carrier_masks"]
+    return {
+        "schema": POLICY_SCHEMA,
+        "admitted_relations": list(ADMITTED_RELATIONS),
+        "ruling_basis": "codex cycle-6 combined review "
+                        "2026-08-31T18:07Z item 2 (CRITICAL): the "
+                        "anticipated mask is the MAXIMAL full engine "
+                        "grid, so EXACT is the only relation this "
+                        "power work supports. REALIZED_SUBSET is an "
+                        "uncertified outage; REALIZED_SUPERSET is "
+                        "impossible on a maximal anticipation and "
+                        "would signal an out-of-grid, excluded or "
+                        "duplicate day, not more data; DIVERGENT is "
+                        "outside the frame",
+        "calendar_frame": {
+            "path": CALENDAR_V4_REL,
+            "sha256": hashlib.sha256(cal_b).hexdigest(),
+            "frame_id": frame["frame_id"],
+            "engine_days": len(frame["engine_days"]),
+            "excluded_days": list(frame["excluded_days"])},
+        "anticipated_masks": {
+            "path": INPUTS_BUNDLE_REL,
+            "sha256": hashlib.sha256(bun_b).hexdigest(),
+            "carriers": sorted(masks),
+            "per_carrier_sha256": {
+                ck: _ordered_digest(masks[ck])
+                for ck in sorted(masks)},
+            "per_carrier_count": {ck: len(masks[ck])
+                                  for ck in sorted(masks)}},
+        "comparator_identity": {
+            "path": "monitoring/src/"
+                    "w2_geometry_bind_comparator_cayley.py",
+            "sha256_lf": hashlib.sha256(me).hexdigest()},
+        "well_formedness": [
+            "a realized mask with DUPLICATE days refuses",
+            "a realized mask with days OUTSIDE the engine grid "
+            "refuses",
+            "a realized mask carrying an EXCLUDED (PRESTART) day "
+            "refuses"],
+        "claim_ceiling": "mask-envelope policy only. It authorizes no "
+                         "post-window recertification and relaxes no "
+                         "Stage-3 rule; prestart consumes the "
+                         "comparator verdict. Lambda_geo INCONCLUSIVE"}
+
+
+def load_policy(repo, manifest_commit):
+    """Resolve the policy from its MANIFEST PIN. A caller-supplied
+    dict with the same words is not authority (codex item 2)."""
+    man_b = _git_blob(repo, manifest_commit, MANIFEST_REL)
+    if man_b is None:
+        raise BindComparatorRefusal(
+            "MASK_POLICY_UNRESOLVED: manifest unreadable at "
+            f"{str(manifest_commit)[:12]}")
+    man = json.loads(man_b.decode("utf-8"))
+    pin = None
+    for slot in man["slots"].values():
+        if slot["status"] != "BOUND":
+            continue
+        for cand in slot["pins"]:
+            if cand["path"] == POLICY_REL:
+                pin = cand
+    if pin is None:
+        raise BindComparatorRefusal(
+            f"MASK_POLICY_NOT_PINNED: {POLICY_REL} is not a BOUND pin "
+            f"at {str(manifest_commit)[:12]} -- the bind path takes "
+            "its envelope from an admitted artifact, never a caller")
+    body = _git_blob(repo, pin["commit"], pin["path"])
+    if body is None or \
+            hashlib.sha256(body).hexdigest() != pin["blob_sha256"]:
+        raise BindComparatorRefusal(
+            "MASK_POLICY_DIVERGENT: pinned policy bytes unreadable or "
+            "divergent from the pin")
+    policy = json.loads(body.decode("utf-8"))
+    if policy.get("schema") != POLICY_SCHEMA:
+        raise BindComparatorRefusal(
+            f"MASK_POLICY_SCHEMA: {policy.get('schema')!r}")
+    return policy
+
+
+def check_mask_wellformed(days, frame):
+    """Registered well-formedness, independent of the relation: the
+    cases codex named as impossible-on-a-maximal-anticipation."""
+    out = []
+    seq = [str(d) for d in days]
+    if len(set(seq)) != len(seq):
+        out.append("duplicate days")
+    grid = set(frame["engine_days"])
+    if [d for d in seq if d not in grid]:
+        out.append("days outside the engine grid")
+    exc = set(frame["excluded_days"])
+    if [d for d in seq if d in exc]:
+        out.append("an excluded PRESTART day")
+    return out
+
+
+def compare(anticipated, realized, *, mask_envelope_policy=None,
+            calendar_frame=None):
     """THE bind comparator. `anticipated` and `realized` are each
     {"registries": {...}, "segments": {...}, "masks": {...}}.
 
@@ -232,6 +371,18 @@ def compare(anticipated, realized, *, mask_envelope_policy=None):
                               f"{sorted(admitted)}; +"
                               f"{len(d['days_gained'])} / -"
                               f"{len(d['days_lost'])} days"})
+        # well-formedness is checked whenever the frame is supplied,
+        # independent of the relation: on a MAXIMAL anticipation these
+        # are the only ways a mask can look like a "superset"
+        if calendar_frame is not None:
+            for ck in sorted(realized["masks"]):
+                bad = check_mask_wellformed(realized["masks"][ck],
+                                            calendar_frame)
+                if bad:
+                    reasons.append({
+                        "code": "GEOMETRY_BIND_MASK_MALFORMED",
+                        "carrier": ck,
+                        "detail": "; ".join(bad)})
     return {
         "schema": SCHEMA,
         "verdict": "MATCH" if not reasons else "REFUSE",
@@ -364,14 +515,98 @@ def _selftest():
         assert "POLICY_INVALID" in str(ex), str(ex)
     print("  C7 PASS  a malformed envelope policy raises rather than "
           "reporting a finding")
+
+    # ---- C8..C11: the EXACT-ONLY policy, resolved from its PIN ----
+    _here = os.path.dirname(os.path.abspath(__file__))
+    repo = os.path.abspath(os.path.join(_here, "..", ".."))
+    try:
+        pol = load_policy(repo, "HEAD")
+        pinned = True
+    except BindComparatorRefusal as e:
+        if "NOT_PINNED" not in str(e):
+            raise
+        pol, pinned = build_policy(repo, "HEAD"), False
+    if list(pol["admitted_relations"]) != list(ADMITTED_RELATIONS):
+        raise SystemExit(
+            f"C8 POLICY_NOT_EXACT_ONLY: {pol['admitted_relations']}")
+    print(f"  C8 PASS  the registered policy admits EXACTLY "
+          f"{list(ADMITTED_RELATIONS)} "
+          f"({'resolved from its manifest pin' if pinned else 'built; pin lands with this packet'})")
+
+    r = compare(base, copy.deepcopy(base), mask_envelope_policy=pol)
+    if r["verdict"] != "MATCH":
+        raise SystemExit(f"C9 EXACT_REFUSED: {r['typed_reasons']}")
+    for mut, why in (
+            (lambda a: a["masks"]["cascadia"].append("2026-09-06"),
+             "superset"),
+            (lambda a: a["masks"]["cascadia"].pop(), "subset"),
+            (lambda a: a["masks"].__setitem__(
+                "cascadia", ["2026-09-04", "2026-09-07"]),
+             "divergent")):
+        alt = copy.deepcopy(base)
+        mut(alt)
+        res = compare(base, alt, mask_envelope_policy=pol)
+        if res["verdict"] != "REFUSE":
+            raise SystemExit(f"C9 {why.upper()}_ADMITTED under the "
+                             "exact-only policy")
+    print("  C9 PASS  under the registered policy EXACT passes and "
+          "superset / subset / divergent all refuse")
+
+    # well-formedness: duplicate, out-of-grid and excluded days
+    frame = {"engine_days": ["2026-09-04", "2026-09-05"],
+             "excluded_days": ["2026-09-03"]}
+    for days, why in ((["2026-09-04", "2026-09-04"], "duplicate"),
+                      (["2026-09-04", "2027-06-01"], "out-of-grid"),
+                      (["2026-09-04", "2026-09-03"], "excluded")):
+        alt = copy.deepcopy(base)
+        alt["masks"]["cascadia"] = days
+        res = compare(base, alt, mask_envelope_policy=pol,
+                      calendar_frame=frame)
+        codes = [x["code"] for x in res["typed_reasons"]]
+        if "GEOMETRY_BIND_MASK_MALFORMED" not in codes:
+            raise SystemExit(
+                f"C10 {why.upper()}_NOT_REFUSED: {codes}")
+    ok = compare(base, copy.deepcopy(base), mask_envelope_policy=pol,
+                 calendar_frame={"engine_days": base["masks"][
+                     "cascadia"] + base["masks"]["istanbul_marmara"],
+                     "excluded_days": ["2026-09-03"]})
+    if ok["verdict"] != "MATCH":
+        raise SystemExit(
+            f"C10 WELLFORMED_CONTROL_INERT: a well-formed mask "
+            f"refused: {ok['typed_reasons']}")
+    print("  C10 PASS  duplicate / out-of-grid / excluded-day masks "
+          "refuse typed, and a well-formed mask still passes (the "
+          "check is not an always-refuse)")
+
+    res = compare(base, copy.deepcopy(base))
+    assert res["verdict"] == "REFUSE"
+    print("  C11 PASS  the no-policy refusal is RETAINED as the "
+          "negative control (an unbound envelope never admits)")
     print("w2_geometry_bind_comparator selftest: ALL PASS")
+
+
+def main():
+    _here = os.path.dirname(os.path.abspath(__file__))
+    repo = os.path.abspath(os.path.join(_here, "..", ".."))
+    args = [a for a in sys.argv[1:] if not a.startswith("--")]
+    commit = args[0] if args else "HEAD"
+    body = json.dumps(build_policy(repo, commit),
+                      indent=1, sort_keys=True) + "\n"
+    out = os.path.join(repo, POLICY_REL.replace("/", os.sep))
+    with open(out, "w", encoding="utf-8", newline="\n") as f:
+        f.write(body)
+    print(f"wrote {POLICY_REL}")
+    print("policy sha256:", hashlib.sha256(body.encode()).hexdigest())
 
 
 if __name__ == "__main__":
     if "--selftest" in sys.argv:
         _selftest()
+    elif "--emit-policy" in sys.argv:
+        main()
     else:
         raise SystemExit(
-            "GEOMETRY_BIND_COMPARATOR: library + --selftest only; the "
-            "2026-09-02 bind invokes compare() with the bound capsule "
-            "and the realized geometry")
+            "GEOMETRY_BIND_COMPARATOR: library, --selftest, or "
+            "--emit-policy; the 2026-09-02 bind invokes compare() "
+            "with the bound capsule, the realized geometry, and the "
+            "policy resolved from its manifest pin")

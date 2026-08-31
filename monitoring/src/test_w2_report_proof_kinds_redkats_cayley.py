@@ -56,9 +56,18 @@ if _HERE not in sys.path:
     sys.path.insert(0, _HERE)
 
 REPO = os.path.abspath(os.path.join(_HERE, "..", ".."))
-REQUIRED_KINDS = {"NATIVE_V4_CAPTURE": 635,
-                  "RESTAGED_LINEAGE": 1420,
+# cycle-6 (codex combined review item 4, MAJOR): this bar must cover
+# the CURRENT report consumer, not go green on history. The live
+# production path resolves the v5 capsule against the v4 authority, so
+# the real partition through compute_proof_kind_partitions is
+# 659/1396/1. The superseded v3 authority + v4 capsule (635/1420/1) is
+# retained below as an explicit HISTORICAL / NEGATIVE control.
+REQUIRED_KINDS = {"NATIVE_V4_CAPTURE": 659,
+                  "RESTAGED_LINEAGE": 1396,
                   "PREDECESSOR_BRIDGE": 1}
+SUPERSEDED_KINDS = {"NATIVE_V4_CAPTURE": 635,
+                    "RESTAGED_LINEAGE": 1420,
+                    "PREDECESSOR_BRIDGE": 1}
 CENSUS = 2056
 
 
@@ -68,7 +77,7 @@ class ProofKindRefusal(AssertionError):
 
 def _selftest():
     import w2_accrual_instrument_cayley as AI
-    import w2_expected_contracts_gen_cayley as GEN
+    import w2_expected_contracts_gen_v4_cayley as GEN
 
     # ---- PK-0: the partition arithmetic is the authority's own -----
     auth = GEN.build(REPO)
@@ -89,7 +98,7 @@ def _selftest():
     import json as _json
     cap = _json.load(open(os.path.join(
         REPO, "docs", "f2g_window2_execution",
-        "key_disposition_capsule_v4.json"), encoding="utf-8"))
+        AI.DISPOSITION_CAPSULE_BASENAME), encoding="utf-8"))
     akeys = {f"{ln}/{ck}/{d}"
              for ln, cs in keys.items()
              for ck, ds in cs.items() for d in ds}
@@ -146,12 +155,49 @@ def _selftest():
     moved["http_capture"] = list(moved["http_capture"]) + [pk]
     p2 = AI.compute_proof_kind_partitions(akeys, moved)
     assert p2["PREDECESSOR_BRIDGE"]["count"] == 0
-    assert p2["NATIVE_V4_CAPTURE"]["count"] == 636
+    # derived from the live frame, not a literal: moving the one
+    # bridge key into native must add exactly one native key
+    assert p2["NATIVE_V4_CAPTURE"]["count"] == \
+        REQUIRED_KINDS["NATIVE_V4_CAPTURE"] + 1
     assert (p2["NATIVE_V4_CAPTURE"]["keys_sha256"]
             != parts["NATIVE_V4_CAPTURE"]["keys_sha256"])
     print("  PK-4 PASS  anti-vacuity: moving the bridge key changes "
           "both the counts AND the key digest (kinds are real, not "
           "labels)")
+
+    # ---- PK-5 (codex item 4): the SUPERSEDED frame is retained as
+    # an explicit historical control. The v3 authority + v4 capsule
+    # still partition to 635/1420/1 -- that combination is history,
+    # and asserting it here proves this bar now tracks the CURRENT
+    # consumer rather than quietly having been left on the old one.
+    import w2_expected_contracts_gen_cayley as GEN_V3
+    auth_v3 = GEN_V3.build(REPO)
+    keys_v3 = auth_v3["prestart_expected_keys"]
+    akeys_v3 = {f"{ln}/{ck}/{d}"
+                for ln, cs in keys_v3.items()
+                for ck, ds in cs.items() for d in ds}
+    cap_v4 = _json.load(open(os.path.join(
+        REPO, "docs", "f2g_window2_execution",
+        "key_disposition_capsule_v4.json"), encoding="utf-8"))
+    hist = AI.compute_proof_kind_partitions(akeys_v3, cap_v4)
+    got_hist = {k: v["count"] for k, v in hist.items()}
+    if got_hist != SUPERSEDED_KINDS:
+        raise ProofKindRefusal(
+            f"PK-5 HISTORICAL_CONTROL_DRIFT: the superseded v3+v4 "
+            f"frame no longer partitions to {SUPERSEDED_KINDS}; got "
+            f"{got_hist}")
+    if got_hist == REQUIRED_KINDS:
+        raise ProofKindRefusal(
+            "PK-5 CONTROL_INERT: the superseded and current frames "
+            "are indistinguishable, so this bar cannot prove it "
+            "tracks the current consumer")
+    print(f"  PK-5 PASS  the SUPERSEDED v3-authority + v4-capsule "
+          f"frame still partitions to {SUPERSEDED_KINDS['NATIVE_V4_CAPTURE']}"
+          f"/{SUPERSEDED_KINDS['RESTAGED_LINEAGE']}/1 and is "
+          "distinguishable from the live "
+          f"{REQUIRED_KINDS['NATIVE_V4_CAPTURE']}/"
+          f"{REQUIRED_KINDS['RESTAGED_LINEAGE']}/1 -- history is a "
+          "control here, never the assertion")
     print("w2 report proof-kind red-KATs: ALL PASS")
 
 

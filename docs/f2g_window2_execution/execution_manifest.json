@@ -2,8 +2,8 @@
  "design_manifest_blob_sha256": "d6decbd6ab5814bc005ce69c538311ff1b11cb1d13c19e2999e03a92bc7cca1f",
  "design_manifest_commit": "5fba5446cd96722fb86021df5065a46b8a1a78f5",
  "design_target_commit": "12161f6cf2000b2d4aa86fe659f834839ac0d27b",
- "execution_target_commit": "60ead552cf9e019699fd10fdd1e2028298e063db",
- "generated_utc": "2026-08-31T00:29:47Z",
+ "execution_target_commit": "77c531edcdaa684ba49c1f8444b48a1145964efe",
+ "generated_utc": "2026-08-31T00:33:51Z",
  "manifest_state": "OPEN",
  "repository_url": "https://github.com/kantrarian/geospec",
  "schema": "f2g-window2-execution-manifest-v1.2",
@@ -301,8 +301,8 @@
    "owner": "cayley",
    "pins": [
     {
-     "blob_sha256": "fa11b159a0475994540bea935777ee0efe468f1595c0a00dc3f9905b5dd93545",
-     "commit": "bd0410d7908678b26bb1385c669cb6a21107da73",
+     "blob_sha256": "3f88a032b0e5ffa010c75292556d45686f32bdeaf24505d9da76fc0db34162fd",
+     "commit": "77c531edcdaa684ba49c1f8444b48a1145964efe",
      "path": "monitoring/src/f2g_execution_manifest_verifier_cayley.py"
     },
     {

@@ -15,7 +15,7 @@
   "seed_authority": {
    "path": "docs/f2g_window2_execution/power_seed_authority_w2_v1.json",
    "seed_authority_sha256": "58b513b6c30b70c8014510788da9d7d819ce8971ca59b7dfdc11c57a1664586f",
-   "sha256": "05330b9b426f7f2516de0bae0ccd3e4ec22dc3840e577fa302a60c6a5aaa3f3d"
+   "sha256": "81b384ce380e1de6bc3f3dddb058a7408cc51863afb31f469c1b5ce9f414d6e3"
   }
  },
  "carrier_masks": {
@@ -817,7 +817,7 @@
   },
   "observation_source": {
    "artifact_claim_kind": "STATION_PRESENCE",
-   "commit": "30229a5ede81e31410cf8486248d6e99755ce403",
+   "commit": "e9800f3e8153b54f04a89dde66080cf018682015",
    "directory": "docs/f2g_window2_execution/staged_envelopes_v4",
    "rule": "a day is OBSERVED-available when its committed presence artifact records at least one present station"
   },

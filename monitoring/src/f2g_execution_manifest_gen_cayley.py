@@ -240,6 +240,20 @@ BOUND_SLOTS = {
                   "monitoring/src/"
                   "w2_power_seed_authority_gen_cayley.py",
                   "monitoring/src/w2_geometry_capsule_gen_cayley.py",
+                  # cycle-6 (codex 1507Z item 4 + 1554Z items 1-2):
+                  # the registered geometry INPUTS bundle and its
+                  # producer, the append-only cascadia overlap tie
+                  # amendment the derivation implements, and the
+                  # bind-time comparator prestart consumes at the
+                  # 2026-09-02 realized bind
+                  "docs/f2g_window2_execution/"
+                  "power_geometry_inputs_w2_v1.json",
+                  "monitoring/src/"
+                  "w2_power_geometry_inputs_gen_cayley.py",
+                  "docs/f2g_window2_execution/"
+                  "cascadia_overlap_tie_amendment_v1.md",
+                  "monitoring/src/"
+                  "w2_geometry_bind_comparator_cayley.py",
                   # the production Tier-S writer codex mandated as
                   # BLOCKER item 1 (0432Z) -- it was writing results
                   # from outside the admitted set

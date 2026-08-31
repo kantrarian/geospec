@@ -446,6 +446,286 @@ def legacy_registries_and_segments(repo, commit, *, loaders=None):
                                               "committed form"}}}
 
 
+PRESENCE_DIR_REL = "docs/f2g_window2_execution/staged_envelopes_v4"
+PRESENCE_RE = re.compile(
+    r"selection_records_(.+)_(\d{4}-\d{2}-\d{2})\.artifact\.json$")
+CALENDAR_V4_REL = ("docs/f2g_window2_execution/"
+                   "calendar_authority_w2_v4.json")
+EFFECT_GRIDS_REL = ("docs/f2g_window2_execution/"
+                    "effect_grids_w2_v1.json")
+SEED_AUTHORITY_REL = ("docs/f2g_window2_execution/"
+                      "power_seed_authority_w2_v1.json")
+
+
+def anticipated_cascadia_registry(repo, commit, *, loaders=None):
+    """Cascadia is the bbox carrier: it has no registered station
+    filter, so its registry is the REGISTERED SELECTOR's output over
+    the committed per-day presence artifacts.
+
+    This runs `w2_selection.select` -- the production seam, pinned in
+    selection_impl -- never a re-implementation, and never the raw
+    ~200-station presence pool (which is a pool, not a registry).
+
+    The observation cutoff is the LAST COMMITTED presence day, which
+    is 2026-08-27 and NOT the registered v4 selection cutoff of
+    2026-09-02: no presence bytes exist for 08-28..09-02 at this
+    commit. The result is therefore an ANTICIPATED registry, and the
+    record says so in those words. Codex's 1554Z item-1 ruling
+    requires the realized registry to match it EXACTLY at the bind.
+    """
+    import w2_selection as WSEL
+    listing = subprocess.run(
+        ["git", "-C", repo, "ls-tree", "-r", "--name-only", commit,
+         PRESENCE_DIR_REL + "/"], capture_output=True, text=True)
+    day_records, paths = {}, {}
+    for path in listing.stdout.split():
+        m = PRESENCE_RE.search(os.path.basename(path))
+        if not m or m.group(1) != "cascadia":
+            continue
+        art = json.loads(_blob(repo, path, commit).decode("utf-8"))
+        day_records[m.group(2)] = list(art.get("present_stations")
+                                       or [])
+        paths[m.group(2)] = path
+    if not day_records:
+        _refuse("no committed cascadia presence artifacts")
+    cutoff = max(day_records)
+    frame_days = sorted(day_records)
+    sel = WSEL.select("cascadia", day_records, cutoff)
+    registry = sorted(sel["selected"])
+    if not registry:
+        _refuse("the registered selector returned no cascadia "
+                "registry")
+    return {
+        "registry": registry,
+        "provenance": {
+            "method": "the REGISTERED production selector "
+                      "w2_selection.select (pinned in selection_impl) "
+                      "over committed per-day STATION_PRESENCE "
+                      "artifacts -- never a re-implementation and "
+                      "never the raw presence pool",
+            "observation_cutoff": cutoff,
+            "observation_span": [frame_days[0], frame_days[-1]],
+            "observation_days": len(frame_days),
+            "frozen_cap": WSEL.CAPS["cascadia"],
+            "selected_count": len(registry),
+            "churn": sel.get("churn"),
+            "typing": sel.get("typing"),
+            "canonical_order": "sorted() ascending, the selector's "
+                               "own canonical order; registry ORDER "
+                               "is load-bearing because the replicate "
+                               "RNG indexes station rows by it",
+            "ANTICIPATED_NOT_REALIZED": (
+                "the registered v4 selection cutoff is 2026-09-02; no "
+                "presence bytes exist for 2026-08-28..2026-09-02 at "
+                f"this commit, so this registry is derived at the "
+                f"observed cutoff {cutoff} and is an ANTICIPATION. "
+                "The realized selection at the registered cutoff must "
+                "equal it EXACTLY at the bind (codex 1554Z item 1); "
+                "any difference refuses prestart")}}
+
+
+
+
+def observed_availability(repo, commit, engine_days):
+    """Per-carrier OBSERVED availability over the engine grid, from
+    the committed per-day presence artifacts. A day is available when
+    the artifact records at least one present station. Only days that
+    are BOTH committed and inside the grid are observed; everything
+    else is unobserved and must be labelled anticipation, never
+    reported as observation."""
+    listing = subprocess.run(
+        ["git", "-C", repo, "ls-tree", "-r", "--name-only", commit,
+         PRESENCE_DIR_REL + "/"], capture_output=True, text=True)
+    grid = set(engine_days)
+    obs = {}
+    for path in listing.stdout.split():
+        m = PRESENCE_RE.search(os.path.basename(path))
+        if not m or m.group(2) not in grid:
+            continue
+        art = json.loads(_blob(repo, path, commit).decode("utf-8"))
+        present = art.get("present_stations") or []
+        obs.setdefault(m.group(1), {})[m.group(2)] = len(present)
+    if not obs:
+        _refuse("no committed presence artifacts intersect the "
+                "engine grid -- an anticipated mask may not be built "
+                "with zero observation")
+    return obs
+
+
+def build(repo, *, commit="HEAD", loaders=None):
+    """Assemble the registered geometry-inputs bundle (codex 1507Z
+    item 4). Everything reopens from ONE resolved carrier commit."""
+    carrier = _resolve_commit(repo, commit)
+
+    def raw(rel):
+        if loaders is not None and rel in loaders:
+            return loaders[rel]
+        return _blob(repo, rel, carrier)
+
+    cal_b = raw(CALENDAR_V4_REL)
+    cal = json.loads(cal_b.decode("utf-8"))
+    if cal.get("schema") != "f2g-w2-calendar-authority-v4":
+        _refuse(f"calendar schema {cal.get('schema')!r} is not the v4 "
+                "successor authority")
+    frame = cal["frame"]
+    engine_days = list(frame["engine_days"])
+    excluded = set(frame["excluded_days"])
+
+    grids_b = raw(EFFECT_GRIDS_REL)
+    seed_b = raw(SEED_AUTHORITY_REL)
+    seed = json.loads(seed_b.decode("utf-8"))
+    if seed.get("schema") != "f2g-w2-power-seed-authority-v1":
+        _refuse("the seed-authority record is not the registered "
+                "schema")
+
+    legacy = legacy_registries_and_segments(repo, carrier,
+                                            loaders=loaders)
+    registries = dict(legacy["registries"])
+    segments = {ck: dict(v) for ck, v in legacy["segments"].items()}
+
+    # cascadia: the anticipated registry is the selector's output over
+    # committed presence at the OBSERVED cutoff, and its segment map
+    # is derived under the registered overlap amendment.
+    cas_reg = anticipated_cascadia_registry(repo, carrier)
+    registries["cascadia"] = list(cas_reg["registry"])
+    cas_map = cascadia_segment_assignment(
+        repo, carrier, station_ids=registries["cascadia"],
+        loaders=loaders)
+    segments["cascadia"] = dict(cas_map["assignment"])
+
+    # global station identity: (carrier, station_id), and the ids must
+    # be globally unique because the harness enforces that
+    owner = {}
+    for ck, reg in registries.items():
+        for s in reg:
+            if s in owner:
+                _refuse(f"station {s!r} occurs in both {owner[s]!r} "
+                        f"and {ck!r}; the harness requires globally "
+                        "unique station ids")
+            owner[s] = ck
+
+    # anticipated masks over the engine grid
+    obs = observed_availability(repo, carrier, engine_days)
+    masks, mask_prov = {}, {}
+    for ck in sorted(registries):
+        seen = obs.get(ck, {})
+        observed_days = sorted(seen)
+        outages = sorted(d for d, n in seen.items() if n == 0)
+        if outages:
+            _refuse(f"{ck} has observed outage days {outages[:4]}; the "
+                    "full-availability anticipation below is only "
+                    "defensible over an outage-free observation and "
+                    "must be re-derived explicitly")
+        available = [d for d in engine_days if d not in excluded]
+        masks[ck] = available
+        mask_prov[ck] = {
+            "observed_days": len(observed_days),
+            "observed_span": ([observed_days[0], observed_days[-1]]
+                              if observed_days else []),
+            "observed_available_days": len(observed_days),
+            "observed_outage_days": 0,
+            "anticipated_days": len(available) - len(observed_days),
+            "total_available_days": len(available)}
+
+    return {
+        "schema": SCHEMA,
+        "state": "REGISTERED_CANDIDATE",
+        "ruling_basis": "codex 2026-08-31T15:07Z item 4: every "
+                        "geometry input committed, pinned and "
+                        "reopenable; 2026-08-31T15:54Z items 1-3: "
+                        "exact-equality bind, overlap tie amendment, "
+                        "carrier-scoped station identity",
+        "carriers": sorted(registries),
+        "registries": {ck: list(registries[ck])
+                       for ck in sorted(registries)},
+        "segments": {ck: dict(sorted(segments[ck].items()))
+                     for ck in sorted(segments)},
+        "carrier_masks": {ck: list(masks[ck]) for ck in sorted(masks)},
+        "station_identity": {
+            "conceptual_identity": "(carrier, station_id)",
+            "namespaces": {
+                "istanbul_marmara": "bare station code",
+                "socal_coachella": "bare station code",
+                "turkey_kahramanmaras": "bare station code",
+                "cascadia": "NET.STA"},
+            "rule": "every id is preserved BYTE-FOR-BYTE as committed "
+                    "by its own source; display-time normalization is "
+                    "prohibited from feeding seeds or joins (codex "
+                    "1554Z item 3), and ids are verified globally "
+                    "unique because the harness requires it",
+            "globally_unique": True},
+        "registry_provenance": {
+            "legacy": legacy["sources"],
+            "cascadia": cas_reg["provenance"]},
+        "segment_provenance": {
+            "legacy": legacy["sources"]["segments"],
+            "cascadia": cas_map["derivation_rule"]},
+        "mask_provenance": {
+            "grid": {"path": CALENDAR_V4_REL,
+                     "sha256": _sha(cal_b),
+                     "frame_id": frame["frame_id"],
+                     "engine_days": len(engine_days),
+                     "excluded_days": sorted(excluded)},
+            "observation_source": {
+                "directory": PRESENCE_DIR_REL,
+                "artifact_claim_kind": "STATION_PRESENCE",
+                "commit": carrier,
+                "rule": "a day is OBSERVED-available when its "
+                        "committed presence artifact records at least "
+                        "one present station"},
+            "derivation_rule": "the anticipated mask is FULL "
+                               "availability over every engine day "
+                               "except the registered excluded day. "
+                               "It is the MAXIMAL anticipation, and "
+                               "it is grounded on an outage-free "
+                               "observation: every carrier is "
+                               "available on 54 of 54 observed "
+                               "in-grid days. It is NOT an "
+                               "observation of the remaining days",
+            "observed_vs_anticipated": mask_prov,
+            "disclosure": "138 of the 192 engine days lie past the "
+                          "observation span and carry NO committed "
+                          "presence bytes; their availability is "
+                          "anticipated, never observed. Any realized "
+                          "outage puts that carrier's mask in "
+                          "REALIZED_SUBSET at the bind comparator, "
+                          "which the registered mask-envelope policy "
+                          "must then rule on"},
+        "bound_references": {
+            "calendar_authority": {"path": CALENDAR_V4_REL,
+                                   "sha256": _sha(cal_b)},
+            "effect_grids": {"path": EFFECT_GRIDS_REL,
+                             "sha256": _sha(grids_b)},
+            "seed_authority": {
+                "path": SEED_AUTHORITY_REL,
+                "sha256": _sha(seed_b),
+                "seed_authority_sha256":
+                    seed["seed_authority_sha256"]},
+            "overlap_amendment": {
+                "path": OVERLAP_AMENDMENT_REL,
+                "sha256": _sha(raw(OVERLAP_AMENDMENT_REL))}},
+        "claim_ceiling": "registered geometry INPUTS only. This "
+                         "bundle certifies nothing, admits nothing, "
+                         "draws no replicate and opens no window-2 "
+                         "value; the registries and masks are "
+                         "ANTICIPATED and must match the realized "
+                         "geometry exactly at the 2026-09-02 bind "
+                         "(mask envelope excepted); Lambda_geo "
+                         "INCONCLUSIVE"}
+
+
+def main():
+    repo = os.path.abspath(os.path.join(_HERE, "..", ".."))
+    args = [a for a in sys.argv[1:] if not a.startswith("--")]
+    body = json.dumps(build(repo, commit=args[0] if args else "HEAD"),
+                      indent=1, sort_keys=True) + "\n"
+    out = os.path.join(repo, OUT_REL.replace("/", os.sep))
+    with open(out, "w", encoding="utf-8", newline="\n") as f:
+        f.write(body)
+    print(f"wrote {OUT_REL}")
+    print("bundle sha256:", _sha(body.encode()))
+
+
 def _selftest():
     repo = os.path.abspath(os.path.join(_HERE, "..", ".."))
     head = _resolve_commit(repo, "HEAD")
@@ -656,17 +936,86 @@ def _selftest():
         assert "absent from the frozen receipt" in str(ex), str(ex)
     print("  doctor: a registry station absent from the frozen "
           "receipt REFUSES")
-    print("w2_power_geometry_inputs derivations: ALL PASS "
-          "(legacy lane + cascadia OVERLAP TIE AMENDMENT v1, "
-          "D1-D7 + byte doctors)")
+    # ---- the assembled BUNDLE ------------------------------------
+    b = build(repo)
+    if json.dumps(build(repo), sort_keys=True) != \
+            json.dumps(b, sort_keys=True):
+        raise SystemExit("bundle is not deterministic")
+    for ck in b["carriers"]:
+        if set(b["segments"][ck]) != set(b["registries"][ck]):
+            raise SystemExit(
+                f"B1 segment/registry station-set mismatch for {ck}")
+        if len(set(b["registries"][ck])) != len(b["registries"][ck]):
+            raise SystemExit(f"B1 duplicate station in {ck}")
+    owner = {}
+    for ck in b["carriers"]:
+        for s in b["registries"][ck]:
+            if s in owner:
+                raise SystemExit(
+                    f"B2 station {s} in both {owner[s]} and {ck}")
+            owner[s] = ck
+    print(f"  B1/B2 PASS  bundle deterministic; "
+          f"{sum(len(b['registries'][c]) for c in b['carriers'])} "
+          "stations across 4 carriers, segment map covers each "
+          "registry exactly, ids globally unique across the mixed "
+          "bare/NET.STA namespaces")
+
+    # the mask must never carry the registered excluded PRESTART day,
+    # and must be a subset of the engine grid in canonical order
+    cal = json.loads(_blob(repo, CALENDAR_V4_REL, head).decode("utf-8"))
+    eng, exc = cal["frame"]["engine_days"], set(
+        cal["frame"]["excluded_days"])
+    for ck, mask in b["carrier_masks"].items():
+        if [d for d in mask if d in exc]:
+            raise SystemExit(f"B3 {ck} mask carries an excluded day")
+        if mask != [d for d in eng if d in set(mask)]:
+            raise SystemExit(f"B3 {ck} mask is not in grid order")
+        if not set(mask) <= set(eng):
+            raise SystemExit(f"B3 {ck} mask leaves the engine grid")
+    print(f"  B3 PASS  every mask is an in-order subset of the "
+          f"{len(eng)}-day engine grid and carries no excluded "
+          f"PRESTART day {sorted(exc)}")
+
+    # the observed/anticipated split must be DISCLOSED and honest
+    prov = b["mask_provenance"]["observed_vs_anticipated"]
+    for ck, p in prov.items():
+        if p["observed_days"] + p["anticipated_days"] != \
+                p["total_available_days"]:
+            raise SystemExit(f"B4 {ck} observed+anticipated census")
+        if p["observed_outage_days"] != 0:
+            raise SystemExit(f"B4 {ck} claims an outage-free "
+                             "observation it does not have")
+    any_p = next(iter(prov.values()))
+    if any_p["anticipated_days"] <= 0:
+        raise SystemExit(
+            "B4 ANTI_VACUITY: the record claims no anticipated days, "
+            "so the observed/anticipated distinction is untested")
+    print(f"  B4 PASS  observed/anticipated split disclosed and "
+          f"consistent ({any_p['observed_days']} observed / "
+          f"{any_p['anticipated_days']} anticipated of "
+          f"{any_p['total_available_days']})")
+
+    # cascadia's registry comes from the REGISTERED selector at the
+    # observed cutoff, and says so
+    cp = b["registry_provenance"]["cascadia"]
+    if cp["observation_cutoff"] >= "2026-09-02":
+        raise SystemExit(
+            "B5 the cascadia registry claims an observation cutoff at "
+            "or past the registered v4 cutoff, which no committed "
+            "presence bytes support")
+    if "ANTICIPATED_NOT_REALIZED" not in cp:
+        raise SystemExit("B5 the anticipation is not disclosed")
+    print(f"  B5 PASS  cascadia registry = the REGISTERED selector at "
+          f"observed cutoff {cp['observation_cutoff']} "
+          f"({cp['selected_count']}/{cp['frozen_cap']} cap, churn "
+          f"{cp['churn']}), disclosed as ANTICIPATED not realized")
+    print("w2_power_geometry_inputs: ALL PASS (legacy lane + cascadia "
+          "OVERLAP TIE AMENDMENT v1 D1-D7 + byte doctors + bundle "
+          "B1-B5)")
 
 
 if __name__ == "__main__":
     if "--selftest" in sys.argv:
         _selftest()
     else:
-        raise SystemExit(
-            "POWER_GEOMETRY_INPUTS_NOT_ASSEMBLABLE: bundle assembly "
-            "is authored in the next cycle-6 unit; run --selftest to "
-            "exercise the settled derivations and the registered "
-            "overlap tie amendment")
+        main()

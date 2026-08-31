@@ -2,8 +2,8 @@
  "design_manifest_blob_sha256": "d6decbd6ab5814bc005ce69c538311ff1b11cb1d13c19e2999e03a92bc7cca1f",
  "design_manifest_commit": "5fba5446cd96722fb86021df5065a46b8a1a78f5",
  "design_target_commit": "12161f6cf2000b2d4aa86fe659f834839ac0d27b",
- "execution_target_commit": "e04e89e65c0ae44d0e4352bb5701ee36814821be",
- "generated_utc": "2026-08-31T06:11:20Z",
+ "execution_target_commit": "8f4f83912a2c396e65a30d3aa8fbb3a0ac9ca34f",
+ "generated_utc": "2026-08-31T07:14:54Z",
  "manifest_state": "OPEN",
  "repository_url": "https://github.com/kantrarian/geospec",
  "schema": "f2g-window2-execution-manifest-v1.2",
@@ -18,8 +18,8 @@
      "path": "monitoring/src/w2_barrier.py"
     },
     {
-     "blob_sha256": "a532e1e9565e01cd5a7fbf4b289d7de3743a7d7a73dafdf088f91a94f53c9127",
-     "commit": "e04e89e65c0ae44d0e4352bb5701ee36814821be",
+     "blob_sha256": "18a7ecea91d61aa404d319478a3ff70ed3644a68ae30bbe317c9ec12e33ac1d8",
+     "commit": "8f4f83912a2c396e65a30d3aa8fbb3a0ac9ca34f",
      "path": "monitoring/src/w2_accrual_instrument_cayley.py"
     },
     {
@@ -225,18 +225,18 @@
      "path": "monitoring/src/w2_calibration_runner_cayley.py"
     },
     {
-     "blob_sha256": "2a0a9c33d39389bd64b7c9150ac0ac26cf4ee021e18a80d033d4e59f2a3fe902",
-     "commit": "e04e89e65c0ae44d0e4352bb5701ee36814821be",
+     "blob_sha256": "e62e4c3e7e76ce0b988492f9273f66506851e151bf90798dc4d3f16a03213977",
+     "commit": "8f4f83912a2c396e65a30d3aa8fbb3a0ac9ca34f",
      "path": "monitoring/src/w2_mf4_successor_readiness_gen_cayley.py"
     },
     {
-     "blob_sha256": "e94421fcf65cafa8fe5702a4e3b6862ec58cb62bcb345ed031e45431f9fe4286",
-     "commit": "e04e89e65c0ae44d0e4352bb5701ee36814821be",
+     "blob_sha256": "896d99629f4a3d6a8dc61d349598fe3235e0ea192ebaab3a0287a23134943f5a",
+     "commit": "8f4f83912a2c396e65a30d3aa8fbb3a0ac9ca34f",
      "path": "docs/f2g_window2_execution/mf4_successor_readiness_record_v1.json"
     },
     {
-     "blob_sha256": "0115a40ab97aabada883e3b1f987d3146c67a8413d742e5125dc0234ab146432",
-     "commit": "e04e89e65c0ae44d0e4352bb5701ee36814821be",
+     "blob_sha256": "f68e9c3e336fa6803269f9cc91691436766bc7dad75fafc1b62e83b6937770a4",
+     "commit": "8f4f83912a2c396e65a30d3aa8fbb3a0ac9ca34f",
      "path": "docs/f2g_window2_execution/mf4_reuse_attestation_v1.json"
     },
     {

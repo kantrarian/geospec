@@ -2,8 +2,8 @@
  "design_manifest_blob_sha256": "d6decbd6ab5814bc005ce69c538311ff1b11cb1d13c19e2999e03a92bc7cca1f",
  "design_manifest_commit": "5fba5446cd96722fb86021df5065a46b8a1a78f5",
  "design_target_commit": "12161f6cf2000b2d4aa86fe659f834839ac0d27b",
- "execution_target_commit": "3921407b5a2638e6f13538f16ddd1a78746799e1",
- "generated_utc": "2026-08-31T14:02:45Z",
+ "execution_target_commit": "9fb0d3590b31a598b1c62a3fb9f04f8a93a011c4",
+ "generated_utc": "2026-08-31T15:19:17Z",
  "manifest_state": "OPEN",
  "repository_url": "https://github.com/kantrarian/geospec",
  "schema": "f2g-window2-execution-manifest-v1.2",
@@ -36,6 +36,16 @@
      "blob_sha256": "9729103686afce58498a5cc706a2b5f62098e686688d1225e8d9587577ebfef3",
      "commit": "67a2dd7d6ec8598a7fe45d2b2f096e2f43a88add",
      "path": "monitoring/src/w2_expected_contracts_gen_v4_cayley.py"
+    },
+    {
+     "blob_sha256": "c4a156974845422048508ba9bca5f366bfb86f0e76dc7cd6db872adc8d70829d",
+     "commit": "f4e27f979083ee86c487344af4f251c02a30f3f9",
+     "path": "docs/f2g_window2_execution/calendar_authority_w2_v4.json"
+    },
+    {
+     "blob_sha256": "dc3917743270cb15ccaf0a30c95cd70a6a92f96c6c9ca755273b11a9190f119b",
+     "commit": "f4e27f979083ee86c487344af4f251c02a30f3f9",
+     "path": "monitoring/src/w2_calendar_authority_gen_v4_cayley.py"
     },
     {
      "blob_sha256": "20e1bacc76d9fe71363cde9c737986859ae40f352b19271e48139e9dc09b511a",
@@ -309,8 +319,8 @@
    "owner": "cayley",
    "pins": [
     {
-     "blob_sha256": "e87e49fb5ff3f9500b7c0fa805cf03688cafa9e5f987d30987f5cdeb69a54c96",
-     "commit": "b0a4312a8339a158d93f2e43d5e05eb955c00d56",
+     "blob_sha256": "a7ad0dd0a78051ff43d6781d6f90521bee89520fe3caca71a1d283720f42035d",
+     "commit": "9fb0d3590b31a598b1c62a3fb9f04f8a93a011c4",
      "path": "monitoring/src/f2g_execution_manifest_gen_cayley.py"
     }
    ],
@@ -414,6 +424,26 @@
      "blob_sha256": "23038aa5100b7323e96902460ed93baf30809052972b5c38c2ed5a7aff94e19a",
      "commit": "f4e27f979083ee86c487344af4f251c02a30f3f9",
      "path": "monitoring/src/w2_power_harness_cayley.py"
+    },
+    {
+     "blob_sha256": "c4f0633dcf15b5978928e652a20403ed8fe9257cfbd4821a848ec4bba22e65d2",
+     "commit": "7c5d82fe3afbd7838bbd82bcd7c69035bf48b422",
+     "path": "docs/f2g_window2_execution/power_seed_authority_w2_v1.json"
+    },
+    {
+     "blob_sha256": "875b081b8ae3d05dfe9aae79f1b90773d2899333d9776d60e3eaf35076a68edc",
+     "commit": "7c5d82fe3afbd7838bbd82bcd7c69035bf48b422",
+     "path": "monitoring/src/w2_power_seed_authority_gen_cayley.py"
+    },
+    {
+     "blob_sha256": "93975fe43f726830a250da55d7cfcbdb77f2b8a3a5bc156ed4a7cfd57df94b1f",
+     "commit": "4aca278599fb14d912cb55ca2a94a1e3b19f2152",
+     "path": "monitoring/src/w2_geometry_capsule_gen_cayley.py"
+    },
+    {
+     "blob_sha256": "a3367b45deb01ea268116093527689c4af63c24d5b2f147def55af168131bed7",
+     "commit": "fd691b958bfbfa86e77d6ddabe778a1772f22238",
+     "path": "monitoring/src/w2_tier_s_runner_cayley.py"
     },
     {
      "blob_sha256": "39ceb931c10939b4992b19cd11053779ec5cb5de398d07f0cac062017d5308d5",

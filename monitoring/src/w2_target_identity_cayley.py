@@ -139,6 +139,71 @@ def verify_consumed_implementations(repo, commit, *, modules,
                     "other code"}
 
 
+def regenerate_in_isolated_worker(repo, commit, module, entry,
+                                  *, timeout=1800):
+    """PRODUCTION target-labelled generation (codex cycle-6b item 2).
+
+    `verify_consumed_implementations` closed the file and
+    module-global surfaces, but not the CALLABLE graph: codex
+    replaced only the live in-memory `w2_selection.select` callable,
+    left every file and both registered constants untouched, and a
+    fixed-target build went 16 -> 15 stations while the emitted
+    `target_identity` stayed byte-identical. A hand-maintained list
+    of function fingerprints would still leave transitive helpers
+    mutable, so the durable answer is process isolation.
+
+    This materializes a clean detached worktree AT THE NAMED TARGET
+    and runs `entry` there in a fresh interpreter, so every module,
+    helper and callable comes from the target's own bytes. Only
+    serialized JSON crosses back. Nothing in the caller's process can
+    steer it.
+    """
+    import json
+    import shutil
+    import sys
+    import tempfile
+
+    commit = subprocess.run(
+        ["git", "-C", repo, "rev-parse", f"{commit}^{{commit}}"],
+        capture_output=True, text=True).stdout.strip()
+    if not commit:
+        _refuse("unresolvable target for isolated regeneration")
+    td = tempfile.mkdtemp(prefix="w2-isolated-target-")
+    wt = os.path.join(td, "t")
+    try:
+        add = subprocess.run(
+            ["git", "-C", repo, "worktree", "add", "--detach",
+             "--no-checkout", wt, commit], capture_output=True)
+        if add.returncode:
+            _refuse("could not materialize an isolated target "
+                    f"worktree: {add.stderr.decode(errors='replace')[:160]}")
+        co = subprocess.run(["git", "-C", wt, "checkout", "--", "."],
+                            capture_output=True)
+        if co.returncode:
+            _refuse("isolated target worktree would not check out")
+        src = os.path.join(wt, "monitoring", "src")
+        code = (
+            "import json,sys\n"
+            f"sys.path.insert(0, {src!r})\n"
+            f"import {module} as M\n"
+            f"print('<<<BEGIN>>>' + json.dumps(M.{entry}("
+            f"{wt!r}, commit={commit!r}), sort_keys=True))\n")
+        run = subprocess.run([sys.executable, "-c", code],
+                             capture_output=True, cwd=src,
+                             timeout=timeout)
+        out = run.stdout.decode("utf-8", errors="replace")
+        if run.returncode != 0 or "<<<BEGIN>>>" not in out:
+            _refuse(
+                "isolated target regeneration failed: "
+                + (run.stderr.decode("utf-8", errors="replace")[-300:]
+                   or out[-300:]))
+        return json.loads(out.split("<<<BEGIN>>>", 1)[1].strip())
+    finally:
+        subprocess.run(["git", "-C", repo, "worktree", "remove",
+                        "--force", wt], capture_output=True)
+        shutil.rmtree(td, ignore_errors=True)
+
+
 def _selftest():
     import sys
     _here = os.path.dirname(os.path.abspath(__file__))

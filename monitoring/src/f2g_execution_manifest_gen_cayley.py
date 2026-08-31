@@ -95,6 +95,17 @@ BOUND_SLOTS = {
                   "monitoring/src/w2_mf4.py",
                   "monitoring/src/w2_mag1.py",
                   "monitoring/src/w2_expected_contracts_gen_v4_cayley.py",
+                  # cycle-6 (codex 1507Z item 5): the v4 CALENDAR
+                  # AUTHORITY and its producer. The authority is the
+                  # frame every contract, tick and geometry derives
+                  # from, and it was live-but-unpinned at the landed
+                  # tip (grassmann's Tier-S refusal, finding 2); the
+                  # GENERATOR rides with it because binding an
+                  # artifact without its producer authenticates
+                  # content, never derivation.
+                  "docs/f2g_window2_execution/"
+                  "calendar_authority_w2_v4.json",
+                  "monitoring/src/w2_calendar_authority_gen_v4_cayley.py",
                   # the v3 generator stands as HISTORY but
                   # remains import-reachable from
                   # w2_capture_run_v4_grassmann, so the
@@ -201,6 +212,23 @@ BOUND_SLOTS = {
                 "selector with their registered amendments (codex "
                 "1909Z items 1-4)",
         "paths": ["monitoring/src/w2_power_harness_cayley.py",
+                  # cycle-6 (codex 1507Z items 3+4+5): the geometry
+                  # lane's registered inputs and producers, all
+                  # live-but-unpinned at the landed tip and each one
+                  # a blocker of grassmann's Tier-S pre-fire gate.
+                  # The seed authority is pinned HERE by explicit
+                  # ruling ("Pin it in power_harness"), so the
+                  # validator can resolve the frozen root from a pin
+                  # instead of trusting a caller's 64-hex value.
+                  "docs/f2g_window2_execution/"
+                  "power_seed_authority_w2_v1.json",
+                  "monitoring/src/"
+                  "w2_power_seed_authority_gen_cayley.py",
+                  "monitoring/src/w2_geometry_capsule_gen_cayley.py",
+                  # the production Tier-S writer codex mandated as
+                  # BLOCKER item 1 (0432Z) -- it was writing results
+                  # from outside the admitted set
+                  "monitoring/src/w2_tier_s_runner_cayley.py",
                   # cycle-4 R2: the result ASSEMBLER is production
                   # machinery of the certification path (builds the
                   # result package from the fired campaign); its

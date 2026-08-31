@@ -135,8 +135,12 @@ def _production_operation_exercise(repo, cal, led, feed,
     durable-barrier crash boundaries: first-region and
     middle-region after_barrier_before_marker,
     after_store_write_before_STORED, partial-trailing-row recovery
-    + alien-fragment refusal, and a divergent pre-existing barrier
-    event. Asserts no half-committed barrier/row state anywhere,
+    + alien-fragment refusal, a divergent pre-existing barrier
+    event, and (cycle-5 R1b, codex cycle-5 finding) the JOURNAL
+    crash-tail contract: partial trailing PREPARED/STORED/ACCRUED
+    records truncated + repaired then resumed, and malformed or
+    contradictory journal records refusing typed. Asserts no
+    half-committed barrier/row state anywhere,
     including exactly one barrier event per region after every
     fault + resume. cycle-5 R2 (codex cycle-4 item 2): the tick's
     calendar/ledger/feed fixtures are MATERIALIZED from the
@@ -614,6 +618,147 @@ def _production_operation_exercise(repo, cal, led, feed,
             lambda: tick(pl_r, "probe-lease-jdiv", first_day,
                          probe_feeds(first_day), st, jd),
             "MF4_TICK_JOURNAL_DIVERGENT", "journal_divergent")
+
+        # ---- cycle-5 R1b (codex cycle-5 single finding): the
+        # JOURNAL crash-tail recovery contract. Codex's exact
+        # reproduction (a partial trailing journal record) at
+        # every phase boundary, plus the typed-corruption
+        # controls. Each doctor CONSTRUCTS its precondition.
+        def crash(name, lease_, fault):
+            st_, jd_, lp_ = scenario(name)
+            clk = [first_day]
+            pl_ = mk_pl(lp_, clk, lease_)
+            try:
+                tick(pl_, lease_, first_day,
+                     probe_feeds(first_day), st_, jd_,
+                     _fault=fault)
+                _refuse(f"{name}: fault {fault} did not fire")
+            except RuntimeError:
+                pass
+            return st_, jd_, lp_, clk
+
+        def chop_tail(jd_, nbytes):
+            jp_ = jpath_of(jd_, first_day)
+            with open(jp_, "rb") as f:
+                d_ = f.read()
+            with open(jp_, "r+b") as f:
+                f.truncate(len(d_) - nbytes)
+            with open(jp_, "rb") as f:
+                if f.read().endswith(b"\n"):
+                    _refuse("journal doctor did not construct a "
+                            "partial trailing record")
+
+        def append_raw(jd_, b_):
+            with open(jpath_of(jd_, first_day), "ab") as f:
+                f.write(b_)
+
+        # 19: partial PREPARED, zero side effects -> truncate,
+        # then a clean full run
+        st, jd, lp, clock = crash("journal_partial_prepared",
+                                  "probe-lease-jpp", "store")
+        chop_tail(jd, 9)
+        if os.path.exists(st):
+            _refuse("journal_partial_prepared: side effects exist")
+        pl_r = ACC.PersistentLedger(lp, clock=lambda: clock[0])
+        if pl_r.ledger._predictions:
+            _refuse("journal_partial_prepared: barrier accruals "
+                    "exist")
+        tick(pl_r, "probe-lease-jpp", first_day,
+             probe_feeds(first_day), st, jd)
+        consistent(st, jd, first_day, regions, pl=pl_r)
+        if "JOURNAL_TAIL_REPAIRED" not in phases_of(jd, first_day):
+            _refuse("journal_partial_prepared: recovery not "
+                    "journaled")
+        out["scenarios"]["journal_partial_prepared"] = \
+            "PARTIAL_PREPARED_TRUNCATED_THEN_CLEAN_RUN"
+        # 20: partial STORED after durable rows -> resume without
+        # duplicate rows
+        st, jd, lp, clock = crash(
+            "journal_partial_stored", "probe-lease-jps",
+            "after_store_write_before_STORED")
+        append_raw(jd, b'{"appended":')
+        pl_r = ACC.PersistentLedger(lp, clock=lambda: clock[0])
+        tick(pl_r, "probe-lease-jps", first_day,
+             probe_feeds(first_day), st, jd)
+        consistent(st, jd, first_day, regions, pl=pl_r)
+        if "JOURNAL_TAIL_REPAIRED" not in phases_of(jd, first_day):
+            _refuse("journal_partial_stored: recovery not "
+                    "journaled")
+        out["scenarios"]["journal_partial_stored"] = \
+            "PARTIAL_STORED_TRUNCATED_RESUMED_NO_DUPLICATE_ROW"
+        # 21: partial ACCRUED after a durable barrier mutation
+        # (codex's exact bytes) -> reconcile/backfill, exactly one
+        # event/row/marker per region
+        st, jd, lp, clock = crash(
+            "journal_partial_accrued", "probe-lease-jpa",
+            "after_barrier_before_marker_first")
+        append_raw(jd, b'{"phase":"ACCRU')
+        pl_r = ACC.PersistentLedger(lp, clock=lambda: clock[0])
+        n_ev = sum(1 for e in pl_r.ledger.events
+                   if e["kind"] == "PREDICTION")
+        if n_ev != 1:
+            _refuse("journal_partial_accrued: precondition not "
+                    f"constructed (events={n_ev})")
+        tick(pl_r, "probe-lease-jpa", first_day,
+             probe_feeds(first_day), st, jd)
+        consistent(st, jd, first_day, regions, pl=pl_r)
+        ph_ = phases_of(jd, first_day)
+        if "JOURNAL_TAIL_REPAIRED" not in ph_ or not any(
+                json.loads(l).get("backfilled")
+                for l in open(jpath_of(jd, first_day),
+                              encoding="utf-8") if l.strip()):
+            _refuse("journal_partial_accrued: recovery/backfill "
+                    "not journaled")
+        out["scenarios"]["journal_partial_accrued"] = \
+            "PARTIAL_ACCRUED_TRUNCATED_BACKFILLED_EXACTLY_ONCE"
+        # 22: malformed complete/mid-file or contradictory records
+        # refuse MF4_TICK_JOURNAL_CORRUPT (typed -- a raw
+        # JSONDecodeError would crash this exercise, not refuse)
+        st, jd, lp, clock = crash("journal_corrupt_midfile",
+                                  "probe-lease-jcm", "store")
+        append_raw(jd, b"not-json\n")
+        pl_r = ACC.PersistentLedger(lp, clock=lambda: clock[0])
+        expect_refusal(
+            lambda: tick(pl_r, "probe-lease-jcm", first_day,
+                         probe_feeds(first_day), st, jd),
+            "MF4_TICK_JOURNAL_CORRUPT", "journal_corrupt_midfile")
+        st, jd, lp, clock = crash("journal_corrupt_dup_prepared",
+                                  "probe-lease-jcp", "store")
+        with open(jpath_of(jd, first_day), "rb") as f:
+            _first_line = f.read().split(b"\n")[0] + b"\n"
+        append_raw(jd, _first_line)
+        pl_r = ACC.PersistentLedger(lp, clock=lambda: clock[0])
+        expect_refusal(
+            lambda: tick(pl_r, "probe-lease-jcp", first_day,
+                         probe_feeds(first_day), st, jd),
+            "MF4_TICK_JOURNAL_CORRUPT",
+            "journal_corrupt_dup_prepared")
+        st, jd, lp, clock = crash("journal_corrupt_dup_accrued",
+                                  "probe-lease-jca", "store")
+        _acc_line = json.dumps(
+            {"phase": "ACCRUED", "region": regions[0],
+             "row_digest": "f" * 64},
+            sort_keys=True, separators=(",", ":")).encode() + b"\n"
+        append_raw(jd, _acc_line + _acc_line)
+        pl_r = ACC.PersistentLedger(lp, clock=lambda: clock[0])
+        expect_refusal(
+            lambda: tick(pl_r, "probe-lease-jca", first_day,
+                         probe_feeds(first_day), st, jd),
+            "MF4_TICK_JOURNAL_CORRUPT",
+            "journal_corrupt_dup_accrued")
+        st, jd, lp, clock = crash("journal_corrupt_open_shape",
+                                  "probe-lease-jcs", "store")
+        append_raw(jd, json.dumps(
+            {"phase": "ACCRUED", "region": regions[0],
+             "row_digest": "f" * 64, "evil": 1},
+            sort_keys=True, separators=(",", ":")).encode()
+            + b"\n")
+        pl_r = ACC.PersistentLedger(lp, clock=lambda: clock[0])
+        expect_refusal(
+            lambda: tick(pl_r, "probe-lease-jcs", first_day,
+                         probe_feeds(first_day), st, jd),
+            "MF4_TICK_JOURNAL_CORRUPT",
+            "journal_corrupt_open_shape")
     finally:
         shutil.rmtree(_EX_TD[0], ignore_errors=True)
     out["no_split_assertion"] = (
@@ -622,8 +767,13 @@ def _production_operation_exercise(repo, cal, led, feed,
         "(exactly one per region) asserted after every committed/"
         "resumed scenario, including the cycle-5 crash boundaries: "
         "after_barrier_before_marker (first + middle region), "
-        "after_store_write_before_STORED, and partial-trailing-row "
-        "recovery; every divergent-bytes control refuses typed")
+        "after_store_write_before_STORED, partial-trailing-row "
+        "recovery, and (R1b) partial trailing JOURNAL records at "
+        "the PREPARED/STORED/ACCRUED boundaries (truncated + "
+        "JOURNAL_TAIL_REPAIRED, then resumed to exactly one event/"
+        "row/marker per region); every divergent-bytes or "
+        "malformed/contradictory-journal control refuses typed, "
+        "never a raw parse error")
     return out
 
 

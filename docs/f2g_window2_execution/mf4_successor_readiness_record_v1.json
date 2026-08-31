@@ -108,7 +108,7 @@
    }
   },
   "entrypoint": "w2_accrual_instrument_cayley.run_mf4_daily_tick",
-  "no_split_assertion": "receipt digests == stored rows (one line per region) == journal ACCRUED lines == barrier PREDICTION events (exactly one per region) asserted after every committed/resumed scenario, including the cycle-5 crash boundaries: after_barrier_before_marker (first + middle region), after_store_write_before_STORED, and partial-trailing-row recovery; every divergent-bytes control refuses typed",
+  "no_split_assertion": "receipt digests == stored rows (one line per region) == journal ACCRUED lines == barrier PREDICTION events (exactly one per region) asserted after every committed/resumed scenario, including the cycle-5 crash boundaries: after_barrier_before_marker (first + middle region), after_store_write_before_STORED, partial-trailing-row recovery, and (R1b) partial trailing JOURNAL records at the PREPARED/STORED/ACCRUED boundaries (truncated + JOURNAL_TAIL_REPAIRED, then resumed to exactly one event/row/marker per region); every divergent-bytes or malformed/contradictory-journal control refuses typed, never a raw parse error",
   "scenarios": {
    "barrier_divergent": "REFUSES_TYPED(MF4_TICK_BARRIER_DIVERGENT)",
    "barrier_fault_resume": "PARTIAL_ACCRUAL_RESUMED_EXACTLY_ONCE",
@@ -116,7 +116,14 @@
    "barrier_marker_mid_resume": "POST_BARRIER_PRE_MARKER_MID_RESUMED_EXACTLY_ONCE",
    "duplicate_tick": "REFUSES_TYPED(MF4_TICK_DUPLICATE)",
    "first_accrual_day": "COMMITTED_CONSISTENT",
+   "journal_corrupt_dup_accrued": "REFUSES_TYPED(MF4_TICK_JOURNAL_CORRUPT)",
+   "journal_corrupt_dup_prepared": "REFUSES_TYPED(MF4_TICK_JOURNAL_CORRUPT)",
+   "journal_corrupt_midfile": "REFUSES_TYPED(MF4_TICK_JOURNAL_CORRUPT)",
+   "journal_corrupt_open_shape": "REFUSES_TYPED(MF4_TICK_JOURNAL_CORRUPT)",
    "journal_divergent": "REFUSES_TYPED(MF4_TICK_JOURNAL_DIVERGENT)",
+   "journal_partial_accrued": "PARTIAL_ACCRUED_TRUNCATED_BACKFILLED_EXACTLY_ONCE",
+   "journal_partial_prepared": "PARTIAL_PREPARED_TRUNCATED_THEN_CLEAN_RUN",
+   "journal_partial_stored": "PARTIAL_STORED_TRUNCATED_RESUMED_NO_DUPLICATE_ROW",
    "journal_split": "REFUSES_TYPED(MF4_TICK_BARRIER_SPLIT)",
    "last_accrual_day": "COMMITTED_CONSISTENT",
    "missing_feed": "REFUSES_TYPED(MF4_TICK_FEED_MISSING)",

@@ -282,7 +282,15 @@ def _verify_obj(repo, manifest_commit, obj, prestart=False):
             # registered produced-output classes and nothing
             # outside the registered power_cert/ prefix
             if name == "power_certification_result":
-                paths = [p.get("path") for p in slot["pins"]
+                # cycle-4 R1: the pin path set must equal
+                # EXACTLY the five registered classes plus a
+                # contiguous zero-based point_000..point_{K-1}
+                # -- no missing points, gaps, duplicates, or
+                # extras -- and when the committed campaign
+                # summary is readable at the target, K must
+                # equal its declared n_points.
+                paths = [str(p.get("path"))
+                         for p in slot["pins"]
                          if isinstance(p, dict)]
                 pcd = ("docs/f2g_window2_execution/"
                        "power_cert/")
@@ -292,17 +300,34 @@ def _verify_obj(repo, manifest_commit, obj, prestart=False):
                     pcd + "power_cert_verifier_receipt_v1.json",
                     pcd + "invocation_record.json",
                     pcd + "campaign_summary.json")
-                missing = [c for c in classes
-                           if c not in paths]
-                off = [str(p) for p in paths
-                       if not str(p).startswith(pcd)]
-                if missing or off:
+                pts = [p for p in paths if p not in classes]
+                k = len(pts)
+                want_pts = [pcd + f"point_{i:03d}.json"
+                            for i in range(k)]
+                exact = (sorted(paths)
+                         == sorted(list(classes) + want_pts)
+                         and len(paths) == len(set(paths))
+                         and k >= 1)
+                n_decl = None
+                rc_, sraw = _run(
+                    repo, ["cat-file", "blob",
+                           f"{target_full}:" + pcd
+                           + "campaign_summary.json"],
+                    binary=True)
+                if rc_ == 0:
+                    try:
+                        n_decl = int(json.loads(
+                            sraw.decode("utf-8"))["n_points"])
+                    except (ValueError, KeyError,
+                            TypeError):
+                        n_decl = -1
+                if not exact or \
+                        (n_decl is not None and n_decl != k):
                     _refuse(res,
                             "POWER_CERT_RESULT_SLOT_INVALID",
                             name,
-                            f"missing={len(missing)} "
-                            f"off_prefix={len(off)} e.g. "
-                            f"{(missing + off)[:1]}")
+                            f"exact={exact} k={k} "
+                            f"declared_n_points={n_decl}")
             for p in slot["pins"]:
                 res["pins_checked"] += 1
                 if not isinstance(p, dict) or set(p) != PIN_FIELDS:
@@ -406,8 +431,10 @@ def kat(repo, manifest_commit):
     assert rc == 0, "real execution manifest missing at commit"
     base = json.loads(raw.decode("utf-8"))
     failures = []
+    n_cases = [0]
 
     def case(name, ok, detail=""):
+        n_cases[0] += 1
         print(f"  [{'PASS' if ok else 'DEFECT'}] {name}"
               + (f" -- {detail}" if detail and not ok else ""))
         if not ok:
@@ -466,6 +493,42 @@ def kat(repo, manifest_commit):
     del d["slots"]["bars"]
     case("slot-set-not-closed",
          _has(_verify_obj(repo, full, d), "SLOT_SET_NOT_CLOSED"))
+
+    # 8a. cycle-4 R1: BOUND result slot with a gapped /
+    # extra / classless pin set refuses typed
+    pcd = "docs/f2g_window2_execution/power_cert/"
+    classes5 = [pcd + x for x in (
+        "power_cert_result_package_v1.json",
+        "power_cert_result_receipt_v1.json",
+        "power_cert_verifier_receipt_v1.json",
+        "invocation_record.json",
+        "campaign_summary.json")]
+
+    def pcr_slot(paths):
+        d_ = copy.deepcopy(base)
+        d_["slots"]["power_certification_result"] = {
+            "status": "BOUND", "owner": "cayley",
+            "note": "kat",
+            "pins": [{"path": p_, "commit": "0" * 40,
+                      "blob_sha256": "0" * 64}
+                     for p_ in paths]}
+        return d_
+    for label, paths in (
+            ("missing-class", classes5[1:]
+             + [pcd + "point_000.json"]),
+            ("gapped-points", classes5
+             + [pcd + "point_000.json",
+                pcd + "point_002.json"]),
+            ("extra-off-prefix", classes5
+             + [pcd + "point_000.json",
+                "docs/attacker/point_001.json"]),
+            ("zero-points", list(classes5)),
+            ("duplicate-path", classes5
+             + [pcd + "point_000.json",
+                pcd + "point_000.json"])):
+        case(f"result-slot-{label}-refuses",
+             _has(_verify_obj(repo, full, pcr_slot(paths)),
+                  "POWER_CERT_RESULT_SLOT_INVALID"))
 
     # 9. bound without pins
     d = copy.deepcopy(base)
@@ -635,7 +698,7 @@ def kat(repo, manifest_commit):
     case("producer-mixed-prefix-refuses",
          _has(r23, "PRODUCER_BOUNDARY_RETIRED_PREFIX"))
 
-    print(f"KAT: {23 - len(failures)}/23 pass"
+    print(f"KAT: {n_cases[0] - len(failures)}/{n_cases[0]} pass"
           + (f"; DEFECTS: {failures}" if failures else ""))
     return not failures
 

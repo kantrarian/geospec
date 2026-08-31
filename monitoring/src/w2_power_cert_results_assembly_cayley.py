@@ -52,6 +52,7 @@ import hashlib
 import json
 import os
 import platform
+import subprocess
 import sys
 import time
 
@@ -139,6 +140,44 @@ def build_package_content(*, invocation, summary, point_files,
     if summary["invocation_sha256"] != invocation["invocation_sha256"]:
         _refuse("POWER_RESULT_INVOCATION_MISMATCH",
                 "summary does not cite the authenticated invocation")
+    # --- cycle-4 R2 (codex cycle-3 finding 2): the AUTHENTICATED
+    # FIRED INVOCATION is the point/core authority. Every consumed
+    # surface must equal it EXACTLY; a coherently rewritten
+    # summary/point/selector set that retains the authentic digest
+    # refuses typed.
+    inv_pts = invocation["ordered_points"]
+    if RUN._digest(inv_pts) != invocation["ordered_points_sha256"]:
+        _refuse("POWER_RESULT_INVOCATION_CORE_DIVERGENT",
+                "invocation points diverge from their own digest")
+    for f_, want in (("manifest_commit", None),
+                     ("selector_commit", None),
+                     ("selector_path", None),
+                     ("geometry_path", None),
+                     ("ordered_points_sha256", None)):
+        if summary.get(f_) != invocation.get(f_):
+            _refuse("POWER_RESULT_INVOCATION_CORE_DIVERGENT",
+                    f"summary.{f_} diverges from the fired "
+                    "invocation")
+    if invocation.get("selector_sha256") is not None and \
+            summary.get("selector_sha256") != \
+            invocation.get("selector_sha256"):
+        _refuse("POWER_RESULT_INVOCATION_CORE_DIVERGENT",
+                "summary.selector_sha256 diverges from the fired "
+                "invocation")
+    if int(summary["n_points"]) != len(inv_pts):
+        _refuse("POWER_RESULT_INVOCATION_CORE_DIVERGENT",
+                "summary.n_points diverges from the fired "
+                "invocation point list")
+    sel_pts = selector["ordered_points"]
+    if len(sel_pts) != len(inv_pts):
+        _refuse("POWER_RESULT_INVOCATION_CORE_DIVERGENT",
+                "committed selector point count diverges from the "
+                "fired invocation")
+    for i_, ip in enumerate(inv_pts):
+        if sel_pts[i_] != ip:
+            _refuse("POWER_RESULT_INVOCATION_CORE_DIVERGENT",
+                    f"selector point {i_} diverges from the fired "
+                    "invocation")
     if calendar.get("schema") != "f2g-w2-calendar-authority-v4":
         _refuse("POWER_RESULT_CALENDAR_WRONG",
                 f"{calendar.get('schema')!r} is not the v4 successor "
@@ -161,6 +200,10 @@ def build_package_content(*, invocation, summary, point_files,
                 invocation["invocation_sha256"]:
             _refuse("POWER_RESULT_POINT_IDENTITY",
                     f"point {i} file identity diverges")
+        if pf.get("spec") != inv_pts[i]:
+            _refuse("POWER_RESULT_INVOCATION_CORE_DIVERGENT",
+                    f"point {i} file spec diverges from the fired "
+                    "invocation point")
         if pf.get("refusal") is not None or pf.get("record") is None:
             _refuse("POWER_RESULT_POINT_REFUSED",
                     f"point {i}: a refused/absent record can never "
@@ -169,11 +212,12 @@ def build_package_content(*, invocation, summary, point_files,
         rec = pf["record"]
         srow = summary["per_point"][i]
         if srow["index"] != i or srow["family"] != \
-                pf["spec"]["family"] or srow["point"] != \
-                pf["spec"]["point"] or srow["entry"] != \
-                pf["spec"]["entry"]:
-            _refuse("POWER_RESULT_SUMMARY_ROW",
-                    f"point {i} summary row diverges from the file")
+                inv_pts[i]["family"] or srow["point"] != \
+                inv_pts[i]["point"] or srow["entry"] != \
+                inv_pts[i]["entry"]:
+            _refuse("POWER_RESULT_INVOCATION_CORE_DIVERGENT",
+                    f"point {i} summary row diverges from the fired "
+                    "invocation point")
         if srow["record_sha256"] != _canon(rec):
             _refuse("POWER_RESULT_RECORD_DIGEST",
                     f"point {i} record digest diverges from the "
@@ -245,15 +289,20 @@ def build_package_content(*, invocation, summary, point_files,
     # certified S: the selector identity + per-point outcomes
     s_failed = [k for k, m in by_member.items()
                 if m["record"]["status"] != "CERTIFIED"]
+    s_certified = not s_failed
     certified_s = {
         "selector": dict(selector_identity),
         "n_points": len(sel_keys),
-        "all_points_certified": not s_failed,
-        "status": ("CERTIFIED_S" if not s_failed else
+        "all_points_certified": s_certified,
+        "status": ("CERTIFIED_S" if s_certified else
                    "TYPED_NON_CERTIFICATION_S"),
         "non_certified_members": sorted(s_failed)}
 
-    # admission table: every registered grid member exactly once
+    # admission table: every registered grid member exactly once.
+    # cycle-4 R3: admission requires the WHOLE certified S -- a
+    # typed non-certified S admits NOTHING (S5: a well-formed
+    # refusal never becomes a power pass), so a CERTIFIED point
+    # inside a failed S types, never admits.
     threshold = PH.CP_FLOOR
     table = []
     for fam, entry, point in _grid_members(grids):
@@ -266,7 +315,7 @@ def build_package_content(*, invocation, summary, point_files,
                 "state": "CANNOT_DETERMINE_NO_POWER",
                 "excluded_from_holm": True,
                 "reason": "registered member outside certified S"})
-        elif m["record"]["status"] == "CERTIFIED":
+        elif m["record"]["status"] == "CERTIFIED" and                 s_certified:
             rec = m["record"]
             env = ({"R": rec["R"], "positives": rec["positives"],
                     "rate": rec["rate"], "max_rate": rec["max_rate"]}
@@ -281,12 +330,16 @@ def build_package_content(*, invocation, summary, point_files,
                 "threshold_cp_floor": threshold,
                 "record_sha256": m["record_sha256"]})
         else:
+            why = (f"campaign status {m['record']['status']}"
+                   if m["record"]["status"] != "CERTIFIED" else
+                   "CERTIFIED point inside a non-certified S "
+                   "(S5: never admitted)")
             table.append({
                 "member": {"family": fam, "entry": entry,
                            "point": point},
                 "state": "TYPED_NON_CERTIFICATION",
                 "excluded_from_holm": True,
-                "reason": f"campaign status {m['record']['status']}",
+                "reason": why,
                 "record_sha256": m["record_sha256"]})
     table.append({
         "member": {"lane": "mag_primary_set"},
@@ -342,15 +395,29 @@ def build_package_content(*, invocation, summary, point_files,
                          "INCONCLUSIVE"}
 
 
-def _harness_slot_pins(repo):
-    mp = os.path.join(repo, MANIFEST_REL.replace("/", os.sep))
-    man = json.loads(_read(mp, "execution manifest").decode("utf-8"))
+def harness_pins_from_manifest_bytes(man_b):
+    """Shared: the power_harness pin identities from exact manifest
+    BYTES (the invocation's named commit -- both the assembler and
+    the independent verifier resolve through this one function)."""
+    man = json.loads(man_b.decode("utf-8"))
     slot = (man.get("slots") or {}).get("power_harness")
     if not isinstance(slot, dict) or slot.get("status") != "BOUND":
         _refuse("POWER_RESULT_HARNESS_SLOT",
-                "power_harness slot absent or not BOUND")
+                "power_harness slot absent or not BOUND at the "
+                "invocation manifest commit")
     return [{"path": p["path"], "blob_sha256": p["blob_sha256"]}
             for p in slot["pins"]]
+
+
+def _harness_pins_at(repo, commit):
+    r = subprocess.run(["git", "-C", repo, "cat-file", "blob",
+                        f"{commit}:{MANIFEST_REL}"],
+                       capture_output=True)
+    if r.returncode != 0 or not r.stdout:
+        _refuse("POWER_RESULT_HARNESS_SLOT",
+                f"manifest unreadable at invocation commit "
+                f"{commit[:12]}")
+    return harness_pins_from_manifest_bytes(r.stdout)
 
 
 def gather_inputs(repo, outdir):
@@ -361,6 +428,9 @@ def gather_inputs(repo, outdir):
     inv_obj = json.loads(inv_raw.decode("utf-8"))
     invocation, points = RUN._load_invocation(
         outdir, inv_obj.get("invocation_sha256"))
+    # cycle-4 R2: `points` IS the authority; it flows into the pure
+    # constructor via invocation["ordered_points"] (same object,
+    # digest-authenticated above) -- never discarded.
     summary = json.loads(_read(
         os.path.join(outdir, "campaign_summary.json"),
         "campaign summary").decode("utf-8"))
@@ -389,6 +459,18 @@ def gather_inputs(repo, outdir):
         "/", os.sep)), "terminal-exclusion disposition")
     ready_b = _read(os.path.join(repo, READINESS_REL.replace(
         "/", os.sep)), "successor-readiness record")
+    # cycle-4 R2: harness pins + geometry authority resolve at
+    # the INVOCATION's named manifest commit from Git objects (never
+    # the later working/result manifest), and that commit must be an
+    # ancestor of the current tree state.
+    inv_mc = invocation["manifest_commit"]
+    anc = subprocess.run(
+        ["git", "-C", repo, "merge-base", "--is-ancestor",
+         inv_mc, "HEAD"], capture_output=True)
+    if anc.returncode != 0:
+        _refuse("POWER_RESULT_INVOCATION_CORE_DIVERGENT",
+                f"invocation manifest_commit {inv_mc[:12]} is not "
+                "an ancestor of the assembling tree")
     return {
         "invocation": invocation, "summary": summary,
         "point_files": point_files, "selector": selector,
@@ -400,7 +482,18 @@ def gather_inputs(repo, outdir):
         "disposition_sha": _sha(disp_b),
         "readiness": json.loads(ready_b.decode("utf-8")),
         "readiness_sha": _sha(ready_b),
-        "harness_pins": _harness_slot_pins(repo)}
+        "harness_pins": _harness_pins_at(repo, inv_mc)}
+
+
+def _receipt_outputs(repo, outdir, inputs, pkg_sha):
+    rel = os.path.relpath(outdir, repo).replace(os.sep, "/")
+    out = {PACKAGE_REL: pkg_sha}
+    for nm in (["invocation_record.json", "campaign_summary.json"]
+               + [f"point_{i:03d}.json"
+                  for i in range(len(inputs["point_files"]))]):
+        with open(os.path.join(outdir, nm), "rb") as f:
+            out[rel + "/" + nm] = _sha(f.read())
+    return out
 
 
 def assemble(repo, outdir, argv=None):
@@ -429,9 +522,12 @@ def assemble(repo, outdir, argv=None):
         "ended_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ",
                                    time.gmtime()),
         "exit_code": 0,
-        "outputs": {
-            PACKAGE_REL: _sha(pkg_body.encode()),
-        },
+        # cycle-4 R2: the output map is CLOSED and EXACT over
+        # every byte artifact of the operation -- invocation,
+        # summary, every declared point file, and the package. The
+        # independent verifier recomputes each raw sha.
+        "outputs": _receipt_outputs(repo, outdir, inputs,
+                                    _sha(pkg_body.encode())),
         "campaign": {
             "outdir": os.path.relpath(outdir, repo).replace(
                 os.sep, "/"),
@@ -446,15 +542,13 @@ def assemble(repo, outdir, argv=None):
 
 
 def _selftest():
-    """Binding + semantics KATs (codex cycle-2 finding 2): control
-    passes, then missing / swapped / extra / duplicate / wrong-hash /
-    wrong-calendar / refused-point / coordinated package+receipt
-    mutations refuse typed, the S5 split holds (a valid package with
-    a typed non-certified S NEVER passes the power gate), and every
-    admission-semantics gate refuses on a doctored table. Fixtures
-    use the REAL committed grids/calendar/disposition/readiness/
-    manifest bytes of this tree; campaign objects mirror the pinned
-    runner's published shapes exactly."""
+    """cycle-4 binding + semantics KATs (codex cycle-3 findings
+    2+3 folded onto the cycle-3 matrix): the fired invocation is
+    the authority (coherent rewrites refuse INVOCATION_CORE_
+    DIVERGENT); the strict oracle refuses malformed power semantics
+    (codex's exact malformed control locked); receipt output maps,
+    timestamps, and invocation ancestry are enforced; the S5 split
+    holds."""
     import copy
     import w2_power_cert_result_verifier_cayley as VER
     repo = os.path.abspath(os.path.join(_HERE, "..", ".."))
@@ -473,29 +567,29 @@ def _selftest():
     grids = json.loads(grids_b.decode("utf-8"))
     cal4 = json.loads(cal4_b.decode("utf-8"))
     ready = json.loads(ready_b.decode("utf-8"))
-    man = json.loads(man_b.decode("utf-8"))
-    harness_pins = [{"path": pn["path"],
-                     "blob_sha256": pn["blob_sha256"]}
-                    for pn in man["slots"]["power_harness"]["pins"]]
-
-    # --- fixture campaign: 12 detection + gains 3 then 10 ---------
-    specs = []
-    for fam, take in (("B1B", 4), ("B2A", 3), ("B2B", 2),
-                      ("B3A", 3)):
-        for pt in grids["grids"][fam][:take]:
-            specs.append({"family": fam, "entry": "detection",
-                          "point": dict(pt)})
-    for g in (3, 10):
-        specs.append({"family": "B1B", "entry": "specificity",
-                      "point": {"gain": g}})
     cal4_sha = _sha(cal4_b)
+    harness_pins = harness_pins_from_manifest_bytes(man_b)
+    INV_MC = "c" * 40
+
+    def mk_specs():
+        out = []
+        for fam, take in (("B1B", 4), ("B2A", 3), ("B2B", 2),
+                          ("B3A", 3)):
+            for pt in grids["grids"][fam][:take]:
+                out.append({"family": fam, "entry": "detection",
+                            "point": dict(pt)})
+        for g in (3, 10):
+            out.append({"family": "B1B", "entry": "specificity",
+                        "point": {"gain": g}})
+        return out
+    specs = mk_specs()
 
     def mk_rec(spec, status="CERTIFIED"):
         base = {"family": spec["family"], "point": spec["point"],
                 "tier": "CERTIFICATION", "n_draws": 9999,
                 "certifiable": True,
                 "geometry_capsule_digest": "a" * 64,
-                "geometry_ref": {"manifest_commit": "c" * 40,
+                "geometry_ref": {"manifest_commit": INV_MC,
                                  "path": "docs/kat/geom.json"},
                 "seed_authority_sha256": "d" * 64,
                 "calendar_authority_sha256": cal4_sha,
@@ -515,44 +609,47 @@ def _selftest():
                                     "ub": 0.99}]})
         return base
 
-    def mk_campaign(recs):
+    def mk_campaign(recs, specs_=None, sel_specs=None):
+        sp = specs if specs_ is None else specs_
+        sel_art = {"ordered_points":
+                   sp if sel_specs is None else sel_specs}
+        sel_raw = json.dumps(sel_art, indent=1,
+                             sort_keys=True).encode()
         inv = {"schema": "f2g-w2-cert-invocation-v3",
-               "ordered_points": specs,
-               "ordered_points_sha256": RUN._digest(specs),
-               "manifest_commit": "c" * 40,
+               "ordered_points": sp,
+               "ordered_points_sha256": RUN._digest(sp),
+               "manifest_commit": INV_MC,
                "geometry_path": "docs/kat/geom.json",
                "selector_commit": "5" * 40,
                "selector_path": "docs/kat/selector.json",
+               "selector_sha256": _sha(sel_raw),
                "n_procs": 7, "argv": ["kat"]}
         inv["invocation_sha256"] = RUN._invocation_digest(inv)
-        sel_art = {"ordered_points": specs}
-        sel_raw = json.dumps(sel_art, indent=1,
-                             sort_keys=True).encode()
         summary = {"schema": "f2g-w2-cert-campaign-summary-v3",
-                   "completed_utc": "KAT", "n_points": len(specs),
-                   "order_started": list(range(len(specs))),
+                   "completed_utc": "KAT", "n_points": len(sp),
+                   "order_started": list(range(len(sp))),
                    "invocation_sha256": inv["invocation_sha256"],
-                   "manifest_commit": "c" * 40,
+                   "manifest_commit": INV_MC,
                    "selector_commit": "5" * 40,
                    "selector_path": "docs/kat/selector.json",
                    "selector_sha256": _sha(sel_raw),
                    "geometry_path": "docs/kat/geom.json",
                    "per_point": [
-                       {"index": i, "family": specs[i]["family"],
-                        "entry": specs[i]["entry"],
-                        "point": specs[i]["point"],
+                       {"index": i, "family": sp[i]["family"],
+                        "entry": sp[i]["entry"],
+                        "point": sp[i]["point"],
                         "status": recs[i]["status"],
                         "record_sha256": _canon(recs[i])}
-                       for i in range(len(specs))],
+                       for i in range(len(sp))],
                    "ordered_points_sha256":
                        inv["ordered_points_sha256"]}
-        pfs = [{"index": i, "spec": specs[i],
+        pfs = [{"index": i, "spec": sp[i],
                 "invocation_sha256": inv["invocation_sha256"],
                 "record": recs[i], "refusal": None}
-               for i in range(len(specs))]
+               for i in range(len(sp))]
         return inv, summary, pfs, sel_art, sel_raw
 
-    recs = [mk_rec(sp) for sp in specs]
+    recs = [mk_rec(sp_) for sp_ in specs]
     inv, summary, pfs, sel_art, sel_raw = mk_campaign(recs)
     ident = {"commit": "5" * 40, "path": "docs/kat/selector.json",
              "sha256": _sha(sel_raw)}
@@ -568,14 +665,24 @@ def _selftest():
         kw.update(over)
         return build_package_content(**kw)
 
+    def rbm_for(pfs_):
+        return {_member_key(pf["spec"]["family"],
+                            pf["spec"]["entry"],
+                            pf["spec"]["point"]):
+                {"record": pf["record"],
+                 "record_sha256": _canon(pf["record"])}
+                for pf in pfs_}
+
     pkg = build()
     admitted = [r for r in pkg["admission_table"]
                 if r["state"] == "ADMITTED_WITH_POWER"]
     assert pkg["certified_s"]["status"] == "CERTIFIED_S"
     assert len(admitted) == len(specs)
-    n_members = len(_grid_members(grids))
-    assert len(pkg["admission_table"]) == n_members + 2
-    assert VER.check_admission_semantics(pkg, grids) == []
+    assert len(pkg["admission_table"]) == \
+        len(_grid_members(grids)) + 2
+    assert VER.check_admission_semantics(
+        pkg, grids, readiness_sha=_sha(ready_b),
+        records_by_member=rbm_for(pfs)) == []
 
     def refuse(code, **over):
         try:
@@ -584,11 +691,11 @@ def _selftest():
         except AssemblyRefusal as ex:
             assert code in str(ex), (code, str(ex))
 
-    # missing / extra point files
+    # census (missing / extra point files)
     refuse("POWER_RESULT_POINT_CENSUS", point_files=pfs[:-1])
     refuse("POWER_RESULT_POINT_CENSUS",
            point_files=pfs + [copy.deepcopy(pfs[-1])])
-    # swapped records (summary digests updated coherently)
+    # swapped records under coherent summary digests
     r2 = [copy.deepcopy(r) for r in recs]
     r2[0], r2[1] = r2[1], r2[0]
     inv2, sum2, pfs2, _, _ = mk_campaign(r2)
@@ -597,23 +704,26 @@ def _selftest():
         raise SystemExit("swapped records must refuse")
     except AssemblyRefusal as ex:
         assert "POWER_RESULT_RECORD_IDENTITY" in str(ex), str(ex)
-    # duplicate member (file+summary coherently duplicated)
-    pfs3 = [copy.deepcopy(x) for x in pfs]
-    sum3 = copy.deepcopy(summary)
-    pfs3[1]["spec"] = copy.deepcopy(pfs3[0]["spec"])
-    pfs3[1]["record"] = copy.deepcopy(pfs3[0]["record"])
-    sum3["per_point"][1] = dict(sum3["per_point"][0], index=1)
-    refuse("POWER_RESULT_DUPLICATE_MEMBER", summary=sum3,
-           point_files=pfs3)
+    # duplicate member IN THE INVOCATION (digest-coherent)
+    specs_dup = [copy.deepcopy(x) for x in specs]
+    specs_dup[1] = copy.deepcopy(specs_dup[0])
+    recs_dup = [mk_rec(sp_) for sp_ in specs_dup]
+    invd, sumd, pfsd, seld, selrd = mk_campaign(recs_dup, specs_dup)
+    try:
+        build(invocation=invd, summary=sumd, point_files=pfsd,
+              selector=seld,
+              selector_identity=dict(ident, sha256=_sha(selrd)))
+        raise SystemExit("duplicate member must refuse")
+    except AssemblyRefusal as ex:
+        assert "POWER_RESULT_DUPLICATE_MEMBER" in str(ex), str(ex)
     # wrong-hash: record tampered under a stale summary digest
     pfs4 = [copy.deepcopy(x) for x in pfs]
     pfs4[2]["record"]["lb"] = 0.99
     refuse("POWER_RESULT_RECORD_DIGEST", point_files=pfs4)
-    # wrong-calendar: the v3 authority at the v4 seat
+    # wrong-calendar (both directions)
     refuse("POWER_RESULT_CALENDAR_WRONG",
            calendar=json.loads(cal3_b.decode("utf-8")),
            calendar_sha=_sha(cal3_b))
-    # wrong-calendar: v4 seat, records citing another authority
     r5 = [copy.deepcopy(r) for r in recs]
     for r_ in r5:
         r_["calendar_authority_sha256"] = "b" * 64
@@ -626,6 +736,31 @@ def _selftest():
     pfs6[3]["refusal"] = "POWER_GEOMETRY_UNBOUND: kat"
     refuse("POWER_RESULT_POINT_REFUSED", point_files=pfs6)
 
+    # --- cycle-4 R2 KAT (codex item 4): coherent rewrite of
+    # summary + point files + selector retaining the AUTHENTIC
+    # invocation digest -> INVOCATION_CORE_DIVERGENT
+    alt = {"family": "B3A", "entry": "detection",
+           "point": dict(grids["grids"]["B3A"][10])}
+    specs_rw = [copy.deepcopy(x) for x in specs]
+    specs_rw[2] = alt
+    recs_rw = [mk_rec(sp_) for sp_ in specs_rw]
+    _invx, sum_rw, pfs_rw, sel_rw, selr_rw = mk_campaign(
+        recs_rw, specs_rw)
+    sum_rw = copy.deepcopy(sum_rw)
+    sum_rw["invocation_sha256"] = inv["invocation_sha256"]
+    sum_rw["ordered_points_sha256"] = inv["ordered_points_sha256"]
+    sum_rw["selector_sha256"] = inv["selector_sha256"]
+    for pf in pfs_rw:
+        pf["invocation_sha256"] = inv["invocation_sha256"]
+    try:
+        build(summary=sum_rw, point_files=pfs_rw, selector=sel_rw,
+              selector_identity=dict(
+                  ident, sha256=inv["selector_sha256"]))
+        raise SystemExit("coherent rewrite must refuse")
+    except AssemblyRefusal as ex:
+        assert "POWER_RESULT_INVOCATION_CORE_DIVERGENT" in str(ex), \
+            str(ex)
+
     # S5 split: FAILED point -> valid package, typed S, gate REFUSE
     r7 = [copy.deepcopy(r) for r in recs]
     r7[5]["status"] = "FAILED"
@@ -633,79 +768,145 @@ def _selftest():
     pkg7 = build(invocation=inv7, summary=sum7, point_files=pfs7)
     assert pkg7["certified_s"]["status"] == \
         "TYPED_NON_CERTIFICATION_S"
-    assert VER.check_admission_semantics(pkg7, grids) == []
+    assert VER.check_admission_semantics(
+        pkg7, grids, readiness_sha=_sha(ready_b),
+        records_by_member=rbm_for(pfs7)) == []
 
-    # --- semantic doctors (each on a doctored COPY) ---------------
-    def sem(mutate, code):
-        d = copy.deepcopy(pkg)
-        mutate(d["admission_table"])
-        got = [r_["code"] for r_ in
-               VER.check_admission_semantics(d, grids)]
+    # --- cycle-4 R3: strict-oracle doctors (each a doctored COPY)
+    def sem(mutate, code, pkg_=None, pfs_=None):
+        d = copy.deepcopy(pkg_ or pkg)
+        mutate(d)
+        got = [r_["code"] for r_ in VER.check_admission_semantics(
+            d, grids, readiness_sha=_sha(ready_b),
+            records_by_member=rbm_for(pfs_ or pfs))]
         assert code in got, (code, got)
-    sem(lambda t: t[0].update(anticipated_mask_envelope=None),
+
+    def adm(d):
+        return [r_ for r_ in d["admission_table"]
+                if r_.get("state") == "ADMITTED_WITH_POWER"]
+
+    def mag(d):
+        return [r_ for r_ in d["admission_table"]
+                if r_.get("member", {}).get("lane")
+                == "mag_primary_set"][0]
+
+    def mf4(d):
+        return [r_ for r_ in d["admission_table"]
+                if r_.get("member", {}).get("lane")
+                == "mf4_daily_risk"][0]
+
+    # codex's exact malformed control: wrong_key envelope, -999
+    # threshold, M-F4 relabeled admitted w/ readiness REFUSE
+    def malformed(d):
+        row = adm(d)[0]
+        row["anticipated_mask_envelope"] = {"wrong_key": 0.0}
+        row["threshold_cp_floor"] = -999
+        m = mf4(d)
+        m["state"] = "ADMITTED_WITH_POWER"
+        m["readiness_state"] = "REFUSE"
+    dm = copy.deepcopy(pkg)
+    malformed(dm)
+    got = [r_["code"] for r_ in VER.check_admission_semantics(
+        dm, grids, readiness_sha=_sha(ready_b),
+        records_by_member=rbm_for(pfs))]
+    assert "POWER_VERIFY_ADMITTED_WITHOUT_ENVELOPE" in got \
+        and "POWER_VERIFY_THRESHOLD_UNREGISTERED" in got \
+        and "POWER_VERIFY_MF4_SEMANTICS" in got, got
+    # wrong-value (right keys, wrong number vs authenticated record)
+    sem(lambda d: adm(d)[0].__setitem__(
+        "anticipated_mask_envelope",
+        dict(adm(d)[0]["anticipated_mask_envelope"], cp_lb=0.999)),
         "POWER_VERIFY_ADMITTED_WITHOUT_ENVELOPE")
-    sem(lambda t: [r_ for r_ in t
-        if r_.get("member", {}).get("lane") == "mag_primary_set"
-        ][0].update(non_blocking=False),
+    # bool / NaN / inf
+    sem(lambda d: adm(d)[0].__setitem__("threshold_cp_floor", True),
+        "POWER_VERIFY_THRESHOLD_UNREGISTERED")
+    sem(lambda d: adm(d)[0]["anticipated_mask_envelope"].
+        __setitem__("cp_lb", float("nan")),
+        "POWER_VERIFY_ADMITTED_WITHOUT_ENVELOPE")
+    sem(lambda d: adm(d)[0]["anticipated_mask_envelope"].
+        __setitem__("cp_lb", float("inf")),
+        "POWER_VERIFY_ADMITTED_WITHOUT_ENVELOPE")
+    # extra field on a closed row
+    sem(lambda d: adm(d)[0].__setitem__("bonus", 1),
+        "POWER_VERIFY_ROW_SCHEMA")
+    # MAG tampers
+    sem(lambda d: mag(d).__setitem__("non_blocking", False),
         "POWER_VERIFY_MAG_SEMANTICS")
-    sem(lambda t: t.pop(len(specs)),
+    sem(lambda d: mag(d).__setitem__("source_sha256", "zz"),
+        "POWER_VERIFY_MAG_SEMANTICS")
+    # M-F4 readiness sha divergence
+    sem(lambda d: mf4(d).__setitem__("source_sha256", "0" * 64),
+        "POWER_VERIFY_MF4_SEMANTICS")
+    # completeness / Holm-exclusion / lane set
+    sem(lambda d: d["admission_table"].pop(len(specs)),
         "POWER_VERIFY_TABLE_INCOMPLETE")
-    sem(lambda t: [r_ for r_ in t
+    sem(lambda d: [r_ for r_ in d["admission_table"]
         if r_.get("state") == "CANNOT_DETERMINE_NO_POWER"
-        ][0].update(excluded_from_holm=False),
+        ][0].__setitem__("excluded_from_holm", False),
         "POWER_VERIFY_HOLM_EXCLUSION_MISSING")
-    sem(lambda t: t.remove([r_ for r_ in t
-        if r_.get("member", {}).get("lane") == "mf4_daily_risk"][0]),
+    sem(lambda d: d["admission_table"].remove(mf4(d)),
         "POWER_VERIFY_LANE_SET")
 
     # --- full verifier drive through the KAT seams ----------------
     T = "7" * 40
     outdir_rel = POWER_CERT_DIR
+    TS = "2026-08-31T00:00:00Z"
 
-    def store_for(pkg_obj, inv_o, sum_o, pfs_o):
+    def store_for(pkg_obj, inv_o, sum_o, pfs_o, *, ts=(TS, TS),
+                  outputs_mutate=None):
         pkg_body = (json.dumps(pkg_obj, indent=1, sort_keys=True)
                     + "\n").encode()
+        files = {
+            outdir_rel + "/invocation_record.json":
+                (json.dumps(inv_o, indent=1, sort_keys=True)
+                 + "\n").encode(),
+            outdir_rel + "/campaign_summary.json":
+                (json.dumps(sum_o, indent=1, sort_keys=True)
+                 + "\n").encode()}
+        for i, pf in enumerate(pfs_o):
+            files[outdir_rel + f"/point_{i:03d}.json"] = (
+                json.dumps(pf, indent=1, sort_keys=True)
+                + "\n").encode()
+        outputs = {PACKAGE_REL: _sha(pkg_body)}
+        for rel_, b_ in files.items():
+            outputs[rel_] = _sha(b_)
+        if outputs_mutate:
+            outputs_mutate(outputs)
         rcpt = {"schema": RECEIPT_SCHEMA, "invocation_argv": ["kat"],
                 "host": "kat", "interpreter": "kat",
-                "started_utc": "KAT", "ended_utc": "KAT",
-                "exit_code": 0,
-                "outputs": {PACKAGE_REL: _sha(pkg_body)},
+                "started_utc": ts[0], "ended_utc": ts[1],
+                "exit_code": 0, "outputs": outputs,
                 "campaign": {"outdir": outdir_rel,
                              "invocation_sha256":
                                  inv_o["invocation_sha256"],
-                             "n_points": len(specs)},
+                             "n_points": len(pfs_o)},
                 "claim_ceiling": "kat"}
         st = {(T, PACKAGE_REL): pkg_body,
               (T, RECEIPT_REL): (json.dumps(
                   rcpt, indent=1, sort_keys=True) + "\n").encode(),
-              (T, outdir_rel + "/invocation_record.json"):
-                  (json.dumps(inv_o, indent=1, sort_keys=True)
-                   + "\n").encode(),
-              (T, outdir_rel + "/campaign_summary.json"):
-                  (json.dumps(sum_o, indent=1, sort_keys=True)
-                   + "\n").encode(),
               (T, GRIDS_REL): grids_b, (T, CALENDAR_REL): cal4_b,
               (T, DISPOSITION_REL): disp_b,
               (T, READINESS_REL): ready_b,
-              (T, MANIFEST_REL): man_b}
-        for i, pf in enumerate(pfs_o):
-            st[(T, outdir_rel + f"/point_{i:03d}.json")] = (
-                json.dumps(pf, indent=1, sort_keys=True)
-                + "\n").encode()
+              (T, MANIFEST_REL): man_b,
+              (INV_MC, MANIFEST_REL): man_b}
+        for rel_, b_ in files.items():
+            st[(T, rel_)] = b_
         return st
 
-    def drive(st):
+    def drive(st, *, sel=None, anc=None, ct="2099-01-01T00:00:00"
+              "+00:00"):
         return VER.verify(
             repo, T,
             blob_reader=lambda c, rel: st.get((c, rel)),
-            selector_loader=lambda *_a, **_k: (
-                sel_art, specs, _sha(sel_raw)))
+            selector_loader=(sel or (lambda *_a, **_k: (
+                sel_art, specs, _sha(sel_raw)))),
+            ancestor_check=(anc or (lambda a, b: True)),
+            commit_time_utc=ct)
 
     res = drive(store_for(pkg, inv, summary, pfs))
     assert res["package_valid"] is True and \
         res["power_gate"] == "PASS", res["typed_reasons"]
-    # coordinated package+receipt mutation: both rewritten
-    # coherently -- the shared-constructor rebuild still refuses
+    # coordinated package+receipt mutation still refuses
     pkgX = copy.deepcopy(pkg)
     pkgX["admission_table"][0]["anticipated_mask_envelope"][
         "cp_lb"] = 0.999
@@ -713,19 +914,38 @@ def _selftest():
     codes = [r_["code"] for r_ in resX["typed_reasons"]]
     assert "POWER_VERIFY_PACKAGE_DIVERGENT" in codes and \
         resX["power_gate"] == "REFUSE", codes
-    # S5 at the full drive: valid bytes, typed S, gate REFUSE
+    # S5 at the full drive
     res7 = drive(store_for(pkg7, inv7, sum7, pfs7))
     assert res7["package_valid"] is True and \
         res7["power_gate"] == "REFUSE" and \
         res7["certified_s_status"] == "TYPED_NON_CERTIFICATION_S"
+    # cycle-4: receipt outputs not closed-exact
+    resO = drive(store_for(pkg, inv, summary, pfs,
+                           outputs_mutate=lambda o: o.pop(
+                               outdir_rel + "/point_000.json")))
+    assert "POWER_VERIFY_RECEIPT_OUTPUTS" in [
+        r_["code"] for r_ in resO["typed_reasons"]]
+    # cycle-4: non-canonical + late timestamps
+    resT = drive(store_for(pkg, inv, summary, pfs,
+                           ts=("KAT", "KAT")))
+    assert "POWER_VERIFY_RECEIPT_TIMESTAMPS" in [
+        r_["code"] for r_ in resT["typed_reasons"]]
+    resL = drive(store_for(pkg, inv, summary, pfs),
+                 ct="2026-08-30T00:00:00+00:00")
+    assert "POWER_VERIFY_RECEIPT_TIMESTAMPS" in [
+        r_["code"] for r_ in resL["typed_reasons"]]
+    # cycle-4: invocation ancestry refused
+    resA = drive(store_for(pkg, inv, summary, pfs),
+                 anc=lambda a, b: False)
+    assert "POWER_VERIFY_INVOCATION_ANCESTRY" in [
+        r_["code"] for r_ in resA["typed_reasons"]]
 
     print("w2_power_cert_results_assembly selftest: ALL PASS "
-          "(control + census/swap/duplicate/wrong-hash/"
-          "wrong-calendar/refused doctors; semantic gates S1-S4 "
-          "refuse doctored tables; full verifier drive: control "
-          "PASS, coordinated package+receipt mutation refuses "
-          "PACKAGE_DIVERGENT, S5 split holds -- a valid package "
-          "with typed non-certified S never passes the power gate)")
+          "(cycle-4: fired-invocation authority incl. the coherent-"
+          "rewrite doctor; strict oracle locks codex's malformed "
+          "control + wrong-key/value/bool/NaN/inf/extra-field/"
+          "wrong-state; receipt output-map, timestamp, and ancestry "
+          "doctors; coordinated mutation + S5 split retained)")
 
 
 if __name__ == "__main__":

@@ -534,7 +534,8 @@ def require_manifest_verifier_pass(commit="HEAD"):
 
 
 def dual_result_gate(manifest, *, manifest_commit="HEAD",
-                     blob=_blob_at_head):
+                     blob=_blob_at_head, power_verifier=None,
+                     readiness_check=None):
     """THE THREE-RESULT INSTRUMENT (codex 1758Z, adopting my 0458Z
     option 2).
 
@@ -613,11 +614,76 @@ def dual_result_gate(manifest, *, manifest_commit="HEAD",
     pre = EMV.verify(REPO, manifest_commit, prestart=True)
     zero_open = (pre.get("verdict") == "PASS"
                  and pre.get("slots_open", -1) == 0)
-    out["prestart_overall"] = "PASS" if zero_open else "REFUSE"
+    out["structural_prestart"] = ("PASS" if zero_open
+                                  else "REFUSE")
+
+    # cycle-4 R1 (codex cycle-3 finding 1): the SEMANTIC
+    # gates. Structural zero-OPEN alone NEVER passes prestart:
+    # the power verdict is RECOMPUTED from committed bytes (a
+    # pinned receipt is never trusted -- a forged PASS receipt
+    # is refuted by the recomputation), and the M-F4 readiness
+    # record must REBUILD from committed bytes with state
+    # READY_FOR_ACCRUAL. power_verifier/readiness_check are
+    # KAT-ONLY seams; production gets the real verifiers
+    # unconditionally.
+    if power_verifier is None:
+        def power_verifier(commit):
+            import w2_power_cert_result_verifier_cayley as PCV
+            return PCV.verify(REPO, commit)
+    try:
+        pres_ = power_verifier(manifest_commit)
+        out["power_cert_result_gate"] = (
+            "PASS" if pres_.get("power_gate") == "PASS"
+            else "REFUSE")
+        out["power_cert_result_detail"] = (
+            f"power_gate={pres_.get('power_gate')} "
+            f"package_valid={pres_.get('package_valid')} "
+            f"typed_reasons="
+            f"{len(pres_.get('typed_reasons') or [])}")
+    except Exception as e_:
+        out["power_cert_result_gate"] = "REFUSE"
+        out["power_cert_result_detail"] = str(e_)[:200]
+    if readiness_check is None:
+        def readiness_check(commit):
+            import w2_mf4_successor_readiness_gen_cayley as RDY
+            rec_b = _blob(commit, RDY.OUT_REL)
+            if rec_b is None:
+                return ("REFUSE", "readiness record absent "
+                        "at the target")
+            committed = json.loads(rec_b.decode("utf-8"))
+            rebuilt = RDY.build(REPO)
+            if json.dumps(rebuilt, sort_keys=True) != \
+                    json.dumps(committed, sort_keys=True):
+                return ("REFUSE", "readiness record does not "
+                        "REBUILD from committed bytes")
+            if committed.get("state") != "READY_FOR_ACCRUAL":
+                return ("REFUSE",
+                        f"state={committed.get('state')!r}")
+            return ("PASS", "rebuilt from committed bytes; "
+                    "READY_FOR_ACCRUAL")
+    try:
+        st_, why_ = readiness_check(manifest_commit)
+    except Exception as e_:
+        st_, why_ = "REFUSE", str(e_)[:200]
+    out["mf4_readiness_gate"] = st_
+    out["mf4_readiness_detail"] = why_
+
+    sem_ok = (out["power_cert_result_gate"] == "PASS"
+              and out["mf4_readiness_gate"] == "PASS")
+    out["prestart_overall"] = (
+        "PASS" if zero_open and sem_ok
+        and out.get("pin_currency") == "PASS" else "REFUSE")
     out["prestart_detail"] = (
         f"verdict={pre.get('verdict')}, "
-        f"slots_open={pre.get('slots_open')}")
-    if out["prestart_overall"] == "PASS" and             out["pin_currency"] != "PASS":
+        f"slots_open={pre.get('slots_open')}, "
+        f"power={out['power_cert_result_gate']}, "
+        f"mf4={out['mf4_readiness_gate']}, "
+        f"pins={out.get('pin_currency')}")
+    # the collapse guard, rekeyed: a structurally+semantically
+    # green gate may NEVER report while the pin audit beneath
+    # it refuses
+    if zero_open and sem_ok and \
+            out.get("pin_currency") != "PASS":
         raise RegenerationGateRefusal(
             "REGENERATION_GATE_REFUSED: prestart_overall PASS with "
             f"pin_currency {out['pin_currency']} -- an overall pass "
@@ -1042,16 +1108,63 @@ def _selftest():
             raise RegenerationGateRefusal(
                 "RG-9 POSITIVE_NO_PINS: no pin was refreshed, so the "
                 "positive control would be vacuous")
-        _pos = dual_result_gate(_posdoc, manifest_commit="HEAD")
+        _sem_pass = dict(
+            power_verifier=lambda c: {"power_gate": "PASS",
+                                      "package_valid": True,
+                                      "typed_reasons": []},
+            readiness_check=lambda c: ("PASS", "kat-seam"))
+        _pos = dual_result_gate(_posdoc, manifest_commit="HEAD",
+                                **_sem_pass)
         if not all(_pos[k] == "PASS" for k in
                    ("manifest_default_contract", "pin_currency",
-                    "prestart_overall")):
+                    "prestart_overall",
+                    "power_cert_result_gate",
+                    "mf4_readiness_gate")):
             raise RegenerationGateRefusal(
                 "RG-9 POSITIVE_CONTROL_FAILED: a CONSTRUCTED "
                 f"all-current manifest ({_refreshed} pins refreshed) "
                 "was not accepted as all-PASS "
                 f"({_pos.get('pin_currency')}/"
                 f"{_pos.get('prestart_overall')})")
+        # cycle-4 R1 KATs (codex finding-1 item 4): a
+        # zero-OPEN, pin-current manifest with a REFUSING
+        # recomputed power verdict (which is also what a
+        # forged PASS receipt recomputes to) or a refusing
+        # M-F4 readiness NEVER passes prestart_overall.
+        _r1a = dual_result_gate(
+            _posdoc, manifest_commit="HEAD",
+            power_verifier=lambda c: {"power_gate": "REFUSE",
+                                      "package_valid": True,
+                                      "typed_reasons": []},
+            readiness_check=lambda c: ("PASS", "kat-seam"))
+        if _r1a["prestart_overall"] != "REFUSE" or \
+                _r1a["power_cert_result_gate"] != "REFUSE":
+            raise RegenerationGateRefusal(
+                "RG-11 POWER_REFUSE_IGNORED: a refusing "
+                "recomputed power verdict did not refuse "
+                "prestart_overall")
+        _r1b = dual_result_gate(
+            _posdoc, manifest_commit="HEAD",
+            power_verifier=lambda c: {"power_gate": "PASS",
+                                      "package_valid": True,
+                                      "typed_reasons": []},
+            readiness_check=lambda c: ("REFUSE",
+                                       "kat-seam-refuse"))
+        if _r1b["prestart_overall"] != "REFUSE" or \
+                _r1b["mf4_readiness_gate"] != "REFUSE":
+            raise RegenerationGateRefusal(
+                "RG-11 MF4_REFUSE_IGNORED: a refusing M-F4 "
+                "readiness did not refuse prestart_overall")
+        _r1c = dual_result_gate(
+            _posdoc, manifest_commit="HEAD",
+            power_verifier=lambda c: (_ for _ in ()).throw(
+                RuntimeError("kat: verifier crash")),
+            readiness_check=lambda c: ("PASS", "kat-seam"))
+        if _r1c["prestart_overall"] != "REFUSE" or \
+                _r1c["power_cert_result_gate"] != "REFUSE":
+            raise RegenerationGateRefusal(
+                "RG-11 POWER_CRASH_IGNORED: a crashing power "
+                "verifier did not refuse typed")
         # (-) doctor ONE real pin so pin_currency must REFUSE while
         #     the mock still forces a zero-OPEN prestart PASS
         _doc9 = copy.deepcopy(_posdoc)
@@ -1065,7 +1178,8 @@ def _selftest():
                 "RG-9 NO_PIN_TO_DOCTOR: cannot construct the negative "
                 "control")
         try:
-            _bad = dual_result_gate(_doc9, manifest_commit="HEAD")
+            _bad = dual_result_gate(_doc9, manifest_commit="HEAD",
+                                    **_sem_pass)
             raise RegenerationGateRefusal(
                 "RG-9 COLLAPSE_ADMITTED: prestart_overall="
                 f"{_bad.get('prestart_overall')} was returned with "

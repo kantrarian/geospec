@@ -1771,6 +1771,233 @@ def append_rows_store(store_path, rows):
     return len(rows)
 
 
+# ------------------------------------------------------------------
+# cycle-4 R4 (codex cycle-3 finding 4): THE production M-F4 tick.
+# emit_mf4_predictions + append_rows_store remain as the composed
+# internals, but no production caller may compose them by hand any
+# more -- the barrier mutation and the row-store append MUST travel
+# through this one journaled entrypoint, or a store refusal could
+# leave a PREDICTION digest accrued with no corresponding row bytes.
+MF4_TICK_STORE_REL = "monitoring/data/mf4_prediction_rows.jsonl"
+MF4_TICK_JOURNAL_DIR_REL = "monitoring/data/mf4_tick_journal"
+MF4_TICK_RECEIPT_SCHEMA = "f2g-w2-mf4-tick-receipt-v1"
+MF4_TICK_CALENDAR_REL = ("docs/f2g_window2_execution/"
+                         "calendar_authority_w2_v4.json")
+MF4_TICK_LEDGER_REL = ("docs/f2g_window2_execution/calibration/"
+                       "mf4_ledger_amended.json")
+MF4_TICK_FEED_REL = ("docs/f2g_window2_execution/calibration/"
+                     "mf4_input_feed_amended.json")
+
+
+def _tick_json_line(fh, obj):
+    fh.write(json.dumps(obj, sort_keys=True,
+                        separators=(",", ":")) + "\n")
+    fh.flush()
+    os.fsync(fh.fileno())
+
+
+def _tick_create_once(path, body_text):
+    """Atomic create-once (same-directory temp + os.link, which
+    never replaces); a pre-existing destination refuses typed."""
+    d = os.path.dirname(path)
+    os.makedirs(d, exist_ok=True)
+    import tempfile as _tf
+    fd, tmp = _tf.mkstemp(dir=d, prefix=".tick-")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8",
+                       newline="\n") as f:
+            f.write(body_text)
+        try:
+            os.link(tmp, path)
+        except FileExistsError:
+            raise InstrumentRefusal(
+                f"MF4_TICK_RECEIPT_EXISTS: {path}")
+    finally:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+
+
+def run_mf4_daily_tick(repo, pl, lease, issue_day, feeds, *,
+                       store_path=None, journal_dir=None,
+                       _paths=None, _fault=None,
+                       issued_utc=None):
+    """THE registered M-F4 production tick (cycle-4 R4). One
+    invocation = one issue day, all admitted regions, prepare ->
+    store -> barrier -> receipt, journaled so a crash at any point
+    deterministically RESUMES or refuses typed -- never a silent
+    barrier/row-store split.
+
+    Authority rules:
+      - regions come from the PINNED fit ledger; bboxes from the
+        PINNED input feed; the model is the pinned fit
+        (apply-never-refit) -- never from `feeds`;
+      - issue_day must be an evaluation day of the committed
+        calendar-v4 authority (off-calendar and post-tail days
+        refuse typed);
+      - `feeds` carries only the RUNTIME per-region daily inputs
+        {region: {"risk_series": {...}, "events_view": [...]}};
+      - resume reuses the journaled issuance instant, so the row
+        digests are stable across restarts; any divergence between
+        a resumed recomputation and the journal refuses typed.
+    _paths/_fault/issued_utc are KAT-ONLY seams (readiness-doctor
+    fault injection + deterministic probes); production passes none
+    of them."""
+    P = dict(_paths or {})
+    cal_p = P.get("calendar") or os.path.join(
+        repo, MF4_TICK_CALENDAR_REL.replace("/", os.sep))
+    led_p = P.get("ledger") or os.path.join(
+        repo, MF4_TICK_LEDGER_REL.replace("/", os.sep))
+    feed_p = P.get("feed") or os.path.join(
+        repo, MF4_TICK_FEED_REL.replace("/", os.sep))
+    store_path = store_path or os.path.join(
+        repo, MF4_TICK_STORE_REL.replace("/", os.sep))
+    journal_dir = journal_dir or os.path.join(
+        repo, MF4_TICK_JOURNAL_DIR_REL.replace("/", os.sep))
+    with open(cal_p, encoding="utf-8") as f:
+        cal = json.load(f)
+    if cal.get("schema") != "f2g-w2-calendar-authority-v4" or \
+            (cal.get("frame") or {}).get("frame_id") != \
+            "w2-calendar-v4-noncal":
+        raise InstrumentRefusal(
+            "MF4_TICK_CALENDAR_WRONG: the committed v4 successor "
+            "authority is required")
+    issue_day = str(issue_day)
+    if issue_day not in cal["frame"]["evaluation_days"]:
+        raise InstrumentRefusal(
+            f"MF4_TICK_DAY_OFF_CALENDAR: {issue_day} is not an "
+            "evaluation day of the v4 authority (off-calendar and "
+            "post-tail days never emit)")
+    with open(led_p, encoding="utf-8") as f:
+        led = json.load(f)
+    with open(feed_p, encoding="utf-8") as f:
+        pinned_feed = json.load(f)
+    regions = sorted(led["regions"])
+    bboxes = pinned_feed["bboxes"]
+    for region in regions:
+        fd_ = feeds.get(region) if isinstance(feeds, dict) else None
+        if not isinstance(fd_, dict) or \
+                "risk_series" not in fd_ or \
+                "events_view" not in fd_:
+            raise InstrumentRefusal(
+                f"MF4_TICK_FEED_MISSING: {region}")
+
+    os.makedirs(journal_dir, exist_ok=True)
+    jpath = os.path.join(journal_dir,
+                         f"mf4_tick_{issue_day}.journal.jsonl")
+    rpath = os.path.join(journal_dir,
+                         f"mf4_tick_{issue_day}.receipt.json")
+    if os.path.exists(rpath):
+        raise InstrumentRefusal(
+            f"MF4_TICK_DUPLICATE: {issue_day} already committed "
+            "(receipt exists); a tick never re-issues")
+
+    journal = []
+    if os.path.exists(jpath):
+        with open(jpath, encoding="utf-8") as f:
+            journal = [json.loads(l) for l in f if l.strip()]
+    prepared = next((j for j in journal
+                     if j.get("phase") == "PREPARED"), None)
+    accrued_done = {j["region"] for j in journal
+                    if j.get("phase") == "ACCRUED"}
+
+    if prepared is not None:
+        tick_issued = prepared["issued_utc"]
+    else:
+        tick_issued = issued_utc or now_utc()
+
+    # PREPARE: pure row construction (no side effects)
+    rows = []
+    for region in regions:
+        risk = {d: v for d, v in
+                feeds[region]["risk_series"].items()
+                if str(d) <= issue_day}
+        row = MF4.predict_row(led, risk,
+                              feeds[region]["events_view"],
+                              bboxes[region], region, issue_day,
+                              tick_issued)
+        MF4.verify_row(row)
+        rows.append(row)
+    digests = {r["region"]: r["row_digest"] for r in rows}
+    if prepared is not None:
+        if prepared["digests"] != digests:
+            raise InstrumentRefusal(
+                "MF4_TICK_RESUME_DIVERGENT: recomputed rows do not "
+                "match the journaled preparation (the feed changed "
+                "between attempts; resolve explicitly, never "
+                "silently re-issue)")
+    with open(jpath, "a", encoding="utf-8", newline="\n") as jf:
+        if prepared is None:
+            _tick_json_line(jf, {"phase": "PREPARED",
+                                 "issue_day": issue_day,
+                                 "issued_utc": tick_issued,
+                                 "digests": digests})
+        if _fault == "store":
+            raise RuntimeError("KAT_FAULT_STORE: injected before "
+                               "the row-store append")
+        # STORE: idempotent against the journal
+        stored = {}
+        if os.path.exists(store_path):
+            with open(store_path, encoding="utf-8") as f:
+                for line in f:
+                    r_ = json.loads(line)
+                    stored[(r_["region"], r_["issue_day"])] = \
+                        r_["row_digest"]
+        to_store = []
+        for row in rows:
+            k_ = (row["region"], row["issue_day"])
+            if k_ in stored:
+                if stored[k_] != row["row_digest"]:
+                    raise InstrumentRefusal(
+                        "MF4_TICK_STORE_DIVERGENT: stored row "
+                        f"digest for {k_} diverges from the "
+                        "journaled preparation")
+            else:
+                to_store.append(row)
+        if to_store:
+            append_rows_store(store_path, to_store)
+        _tick_json_line(jf, {"phase": "STORED",
+                             "issue_day": issue_day,
+                             "appended": len(to_store)})
+        # BARRIER: accrue each region once, journaled per region
+        for row in rows:
+            if row["region"] in accrued_done:
+                continue
+            if _fault == "barrier_mid" and accrued_done:
+                raise RuntimeError("KAT_FAULT_BARRIER: injected "
+                                   "mid-accrual")
+            pl.accrue_prediction(lease, row["region"], issue_day,
+                                 row["row_digest"])
+            accrued_done.add(row["region"])
+            _tick_json_line(jf, {"phase": "ACCRUED",
+                                 "region": row["region"],
+                                 "row_digest": row["row_digest"]})
+    # COMMIT: create-once operation receipt, journal sealed last
+    typed = sorted(r["region"] for r in rows if "typing" in r)
+    receipt = {
+        "schema": MF4_TICK_RECEIPT_SCHEMA,
+        "issue_day": issue_day,
+        "issued_utc": tick_issued,
+        "regions": regions,
+        "row_digests": digests,
+        "census": {"typed_no_prediction": typed,
+                   "predictions": sorted(
+                       set(regions) - set(typed))},
+        "ledger_amended_training_digest":
+            led["amended_training_digest"],
+        "calendar_frame_id": cal["frame"]["frame_id"],
+        "claim_ceiling": "one issuance tick; no scoring, no value "
+                         "access, no claim; Lambda_geo INCONCLUSIVE"}
+    _tick_create_once(rpath, json.dumps(receipt, indent=1,
+                                        sort_keys=True) + "\n")
+    with open(jpath, "a", encoding="utf-8", newline="\n") as jf:
+        _tick_json_line(jf, {"phase": "COMMITTED",
+                             "issue_day": issue_day})
+    return receipt
+
+
+
 # ---------------------------------------------------------------- selftest
 def _selftest():
     import tempfile

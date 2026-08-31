@@ -703,6 +703,48 @@ POWER_CERT_RESULT_CLASSES = (
     POWER_CERT_DIR + "/campaign_summary.json")
 
 
+POWER_CERT_RECEIPT_CORE = ("package_valid", "power_gate",
+                           "typed_reasons", "commit",
+                           "certified_s_status",
+                           "admitted_members")
+
+
+def _power_cert_semantic_gate(repo, target_full,
+                              verify_fn=None):
+    """cycle-4 R1 (codex cycle-3 finding 1): BOUND is emitted
+    only on a RECOMPUTED semantic PASS. The committed verifier
+    receipt's core verdict fields must equal the live
+    recomputation (a forged PASS receipt refuses), and the
+    recomputed power_gate must be PASS. verify_fn is a
+    KAT-only seam."""
+    if verify_fn is None:
+        import w2_power_cert_result_verifier_cayley as PCV
+        def verify_fn(c):
+            return PCV.verify(repo, c)
+    res = verify_fn(target_full)
+    if res.get("package_valid") is not True or \
+            res.get("power_gate") != "PASS":
+        raise SystemExit(
+            "POWER_CERT_RESULT_SEMANTIC_REFUSE: recomputed "
+            f"package_valid={res.get('package_valid')} "
+            f"power_gate={res.get('power_gate')} -- BOUND "
+            "is never emitted over a refusing or absent "
+            "semantic verdict")
+    rcpt_rel = (POWER_CERT_DIR
+                + "/power_cert_verifier_receipt_v1.json")
+    raw = _git(repo, ["cat-file", "blob",
+                      f"{target_full}:{rcpt_rel}"],
+               binary=True)
+    committed = json.loads(raw.decode("utf-8"))
+    for f_ in POWER_CERT_RECEIPT_CORE:
+        if committed.get(f_) != res.get(f_):
+            raise SystemExit(
+                "POWER_CERT_RESULT_RECEIPT_DIVERGENT: "
+                f"committed receipt {f_}="
+                f"{committed.get(f_)!r} != recomputed "
+                f"{res.get(f_)!r}")
+
+
 def power_cert_result_pins(repo, target_full):
     """The 13th slot's pin set: the five registered result
     classes + every point_NNN.json the COMMITTED campaign
@@ -746,6 +788,7 @@ def main(repo, target, design_manifest_commit, final_bind_spec=None,
         slots[name] = {"status": "OPEN", "owner": owner, "note": note,
                        "pins": []}
     if power_cert_result:
+        _power_cert_semantic_gate(repo, target_full)
         slots["power_certification_result"] = {
             "status": "BOUND", "owner": "cayley",
             "note": "anticipated-mask power certification RESULT: "
@@ -857,6 +900,29 @@ def _selftest():
                                         else ["docs/x/cal.json"]}}
 
     # ---- DEFAULT SHAPE is the thing that must not regress
+    def _sg(res_):
+        return lambda c: res_
+    try:
+        _power_cert_semantic_gate(".", "kat" * 10,
+                                  verify_fn=_sg(
+                                      {"package_valid": True,
+                                       "power_gate": "REFUSE"}))
+        raise AssertionError("refusing semantic verdict must "
+                             "refuse the bind")
+    except SystemExit as e_:
+        assert "POWER_CERT_RESULT_SEMANTIC_REFUSE" in str(e_)
+    try:
+        _power_cert_semantic_gate(".", "kat" * 10,
+                                  verify_fn=_sg(
+                                      {"package_valid": False,
+                                       "power_gate": "PASS"}))
+        raise AssertionError("invalid package must refuse "
+                             "the bind")
+    except SystemExit as e_:
+        assert "POWER_CERT_RESULT_SEMANTIC_REFUSE" in str(e_)
+    check("C0-pcr bind refuses on refusing/invalid recomputed "
+          "semantic verdicts (forged PASS receipts recompute "
+          "to these)", True)
     check("C1 default mode still emits both slots OPEN with no pins",
           all(OPEN_SLOTS[n] for n in FINAL_BIND_SLOTS)
           and set(FINAL_BIND_SLOTS) <= set(OPEN_SLOTS)

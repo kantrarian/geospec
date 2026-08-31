@@ -254,6 +254,14 @@ BOUND_SLOTS = {
                   "cascadia_overlap_tie_amendment_v1.md",
                   "monitoring/src/"
                   "w2_geometry_bind_comparator_cayley.py",
+                  # THE bound geometry capsule. It had never been
+                  # committed anywhere in this repository's history
+                  # (grassmann's Tier-S pre-fire refusal, finding 1);
+                  # it is now built by the production builder from
+                  # the admitted pins above and carries their exact
+                  # {commit, path, blob_sha256} references
+                  "docs/f2g_window2_execution/"
+                  "bound_geometry_capsule_v2.json",
                   # the production Tier-S writer codex mandated as
                   # BLOCKER item 1 (0432Z) -- it was writing results
                   # from outside the admitted set

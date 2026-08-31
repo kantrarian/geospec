@@ -576,11 +576,17 @@ def verify(capsule, authority=None, commitish="HEAD",
 
 def _verify(capsule, authority=None, commitish="HEAD",
             store_root=None, lineage=False,
-            expected_schema=None):
+            expected_schema=None, _portable_archive=False):
     """The capsule verifier: closed schema, EXACT and DISJOINT
     partition of the registered authority key set, recomputed
     per-partition digests, and a recomputed counts block. Nothing
-    submitted is trusted."""
+    submitted is trusted.
+
+    `_portable_archive` is the explicit NON-PRODUCTION mode codex
+    1949Z item 4 permits: it resolves the archive from disk and
+    therefore makes NO historical-commit provenance claim. It is
+    private and no production entrypoint passes it -- `verify_ceiling`
+    and `verify_lineage_registry` cannot reach it."""
     c = capsule
     want_schema = expected_schema or CAPSULE_SCHEMA
     if not isinstance(c, dict) or c.get("schema") != want_schema:
@@ -632,7 +638,8 @@ def _verify(capsule, authority=None, commitish="HEAD",
     if c["partitions"] != recomputed:
         _d("the partitions block is DERIVED, never submitted -- it "
            "does not recompute from the capsule's own key lists")
-    _verify_nested(c, authority, store_root, lineage)
+    _verify_nested(c, authority, store_root, lineage, commitish,
+                   _portable_archive)
     out = {"census": len(keys),
            "REUSE_OR_BRIDGE": len(reuse),
            "PREDECESSOR": len(pred),
@@ -719,7 +726,8 @@ def _closed(obj, want, what):
            f"extra={sorted(set(obj or {}) - want)})")
 
 
-def _verify_nested(c, authority, store_root=None, lineage=False):
+def _verify_nested(c, authority, store_root=None, lineage=False,
+                   commitish="HEAD", portable_archive=False):
     """codex 2119Z closure 2: EVERY nested field consumed as
     authority is closed and INDEPENDENTLY re-derived. A verifier that
     closes the top level and the key sets but leaves the interior
@@ -757,9 +765,11 @@ def _verify_nested(c, authority, store_root=None, lineage=False):
     # intended outcomes. Presence of one artifact never authorises a
     # lookup of a different one.
     _araw = None
-    if c["schema"] == FIXTURE_CAPSULE_SCHEMA:
+    if c["schema"] == FIXTURE_CAPSULE_SCHEMA or portable_archive:
         # a FIXTURE names its own real archive, which lives outside
         # the repo by construction: DISK only, never a Git object.
+        # The explicit portable mode joins it here and makes no
+        # production provenance claim.
         _p = c["v3_archive"]["path"]
         _ap = _p if os.path.isabs(_p) else \
             os.path.join(REPO, *_p.split("/"))
@@ -767,24 +777,24 @@ def _verify_nested(c, authority, store_root=None, lineage=False):
             with open(_ap, "rb") as f:
                 _araw = f.read()
     else:
-        # a PRODUCTION capsule may name ONLY the registered archive,
-        # and it resolves from the committed object first -- never
-        # from a worktree file an operator could edit while the
-        # registered bytes say otherwise.
+        # codex 1949Z item 4: a PRODUCTION capsule resolves the
+        # registered archive ONLY at the REQUESTED commit. The old
+        # code hard-coded HEAD while the authority was read at
+        # `commitish`, so one verification mixed two provenance frames
+        # the moment HEAD moved. There is deliberately NO disk
+        # fallback here: a mutable worktree file cannot prove
+        # historical commit provenance, so absence REFUSES.
         if c["v3_archive"]["path"] != V3_ARCHIVE_PATH:
             _d("a production capsule's v3_archive must be the "
                f"REGISTERED {V3_ARCHIVE_PATH!r} (got "
                f"{c['v3_archive']['path']!r}) -- only a FIXTURE may "
                "name its own archive")
-        if _archive_committed("HEAD"):
-            _araw = _blob(f"HEAD:{V3_ARCHIVE_PATH}")
-        else:
-            # portable hosts where the archive is not committed keep
-            # the repo-relative fallback (P1 portable doctors)
-            _ap = os.path.join(REPO, *V3_ARCHIVE_PATH.split("/"))
-            if os.path.isfile(_ap):
-                with open(_ap, "rb") as f:
-                    _araw = f.read()
+        if not _archive_committed(commitish):
+            _d("PRODUCTION archive provenance requires the registered "
+               f"archive at the REQUESTED commit {commitish!r}; it is "
+               "not present there -- a disk fallback cannot prove "
+               "historical commit provenance, so this REFUSES")
+        _araw = _blob(f"{commitish}:{V3_ARCHIVE_PATH}")
     if _araw is None and lineage:
         _d("LINEAGE registry verification requires the registered "
            "archive; it could not be resolved -- fail CLOSED. A "
@@ -1042,13 +1052,15 @@ def _selftest():
         _real_committed = _archive_committed
         td = tempfile.mkdtemp(prefix="w2_portable_doctors_")
         try:
-            # _archive_committed() consults the module CONSTANT
-            # V3_ARCHIVE_PATH, not the capsule, so where the archive
-            # is committed the git-blob branch would silently win and
-            # these doctors would measure bytes they did not write.
-            # Pin the selector to the path branch. No COMPARISON is
-            # touched.
-            _g["_archive_committed"] = lambda commitish: False
+            # These doctors measure the archive COMPARISONS (digest,
+            # store identity, authority cross-check) over archives
+            # they write themselves, so they run in the explicit
+            # NON-PRODUCTION portable mode (codex 1949Z item 4). That
+            # mode reads the capsule's own named archive from disk and
+            # makes no commit-provenance claim -- which is exactly
+            # what a constructed archive can honestly support. No
+            # COMPARISON is touched, and no production entrypoint can
+            # reach this mode.
             n = [0]
 
             def fixture_archive(authority_block):
@@ -1068,25 +1080,19 @@ def _selftest():
                         hashlib.sha256(raw).hexdigest())
 
             def outcome(c):
-                # codex 1807Z repair 5.2 made the PRODUCTION branch
-                # require the capsule's archive to BE the registered
-                # constant. These portable doctors legitimately drive a
-                # production-shaped capsule at a CONSTRUCTED archive,
-                # so the constant is repointed at whatever the capsule
-                # names for the duration of the call -- otherwise every
-                # doctor below would refuse on the path rule and stop
-                # measuring the comparison it was written to measure.
-                # The path rule itself is exercised separately (bar
-                # REV 24, production-only-registered-archive control).
-                _prev = _g["V3_ARCHIVE_PATH"]
-                _g["V3_ARCHIVE_PATH"] = c["v3_archive"]["path"]
+                # explicit portable mode: the capsule's OWN named
+                # archive, from disk, no provenance claim. This
+                # replaces the cycle-6b constant-repointing hack --
+                # the mode is now a declared parameter rather than a
+                # global the doctor mutates. The production path rule
+                # and the commit-provenance rule are exercised
+                # separately (bar REV 24).
                 try:
-                    verify(c, authority)
+                    _verify(c, authority, "HEAD", None, False,
+                            _portable_archive=True)
                     return "accepted"
                 except DispositionRefusal as e:
                     return str(e)
-                finally:
-                    _g["V3_ARCHIVE_PATH"] = _prev
 
             def at(ap, sha, mutate=None):
                 c = json.loads(json.dumps(caps))
@@ -1215,7 +1221,6 @@ def _selftest():
                 {"raw_body_sha256": "0" * 64, "raw_body_bytes": 1}), \
                 "an ABSENT body was accepted"
         finally:
-            _g["_archive_committed"] = _real_committed
             shutil.rmtree(td, ignore_errors=True)
         print("  P1/P1-a/P1-b portable doctors: archive digest, "
               "archive-authority cross-check, pinned-digest fallback "

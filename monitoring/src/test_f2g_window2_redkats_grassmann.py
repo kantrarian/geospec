@@ -2393,6 +2393,81 @@ def w_dispo_v5():
             "not_the_registered_archive.json").replace("\\", "/")
         ok_arch = refuses(lambda: DISP.verify_ceiling(c_arch))
 
+        # (9) codex 1949Z item 4: production archive provenance is
+        # resolved at the REQUESTED commit, never at HEAD. Build a
+        # synthetic commit A carrying DIFFERENT archive bytes with
+        # pure plumbing -- HEAD never moves, the worktree is never
+        # written -- then verify the real capsule AT A. If the
+        # verifier still read HEAD it would pass; it must refuse.
+        import subprocess as _sp
+        import tempfile as _tf
+
+        def _git(*args, **kw):
+            return _sp.run(("git", "-C", _REPO) + args,
+                           capture_output=True, **kw)
+
+        def _synth_commit(archive_bytes):
+            """A real commit whose only difference from HEAD is the
+            registered archive blob (or its absence when None)."""
+            env = dict(os.environ)
+            fd, idx = _tf.mkstemp(prefix="w2_dispo_idx_")
+            os.close(fd)
+            os.remove(idx)
+            env["GIT_INDEX_FILE"] = idx
+            try:
+                _sp.run(("git", "-C", _REPO, "read-tree", "HEAD"),
+                        capture_output=True, env=env, check=True)
+                if archive_bytes is None:
+                    _sp.run(("git", "-C", _REPO, "update-index",
+                             "--force-remove", DISP.V3_ARCHIVE_PATH),
+                            capture_output=True, env=env, check=True)
+                else:
+                    blob = _sp.run(
+                        ("git", "-C", _REPO, "hash-object", "-w",
+                         "--stdin"), input=archive_bytes,
+                        capture_output=True, check=True
+                    ).stdout.decode().strip()
+                    _sp.run(("git", "-C", _REPO, "update-index",
+                             "--add", "--cacheinfo",
+                             f"100644,{blob},{DISP.V3_ARCHIVE_PATH}"),
+                            capture_output=True, env=env, check=True)
+                tree = _sp.run(("git", "-C", _REPO, "write-tree"),
+                               capture_output=True, env=env,
+                               check=True).stdout.decode().strip()
+            finally:
+                if os.path.exists(idx):
+                    os.remove(idx)
+            cenv = dict(os.environ,
+                        GIT_AUTHOR_NAME="kat", GIT_AUTHOR_EMAIL="k@l",
+                        GIT_COMMITTER_NAME="kat",
+                        GIT_COMMITTER_EMAIL="k@l",
+                        GIT_AUTHOR_DATE="2026-01-01T00:00:00Z",
+                        GIT_COMMITTER_DATE="2026-01-01T00:00:00Z")
+            return _sp.run(
+                ("git", "-C", _REPO, "commit-tree", tree, "-p", "HEAD",
+                 "-m", "dispo-v5 provenance KAT"),
+                capture_output=True, env=cenv,
+                check=True).stdout.decode().strip()
+
+        head_arch = _git("cat-file", "blob",
+                         f"HEAD:{DISP.V3_ARCHIVE_PATH}").stdout
+        doctored = head_arch.replace(
+            b'"store_id"', b'"store_ID_"', 1)
+        ok_prov = False
+        if doctored != head_arch and len(head_arch) > 0:
+            ca = _synth_commit(doctored)
+            cabs = _synth_commit(None)
+            # at A the archive bytes differ -> MUST refuse (reading
+            # HEAD would have passed); with the archive absent at A,
+            # the typed provenance refusal fires instead of a silent
+            # disk fallback; and HEAD itself still passes (inverse).
+            ok_prov = (
+                refuses(lambda: DISP.verify_ceiling(cap, commitish=ca))
+                and refuses(lambda: DISP.verify_ceiling(
+                    cap, commitish=cabs))
+                and DISP.verify_ceiling(cap)["supersession_verified"]
+                == "REBUILT_FROM_COMMITTED_BYTES")
+
         check("DISPO-V5 append-only disposition successor + bound "
               "delta (published capsule rebuilds from committed "
               "bytes, admitted-pin/superseded-unpinned shape, "
@@ -2400,12 +2475,16 @@ def w_dispo_v5():
               "partitions, doctored delta binding AND doctored "
               "published delta bytes, doctored supersedes, in-bar "
               "movement arithmetic vs the two committed authorities, "
-              "production-only registered archive)",
+              "production-only registered archive, and archive "
+              "provenance resolved at the REQUESTED commit vs a "
+              "synthetic commit carrying different archive bytes)",
               ok_pos and ok_pinned and ok_v3 and ok_copy and ok_bind
-              and ok_bytes and ok_sup and ok_move and ok_arch,
+              and ok_bytes and ok_sup and ok_move and ok_arch
+              and ok_prov,
               f"pos={ok_pos} pinned={ok_pinned} v3={ok_v3} "
               f"copy={ok_copy} bind={ok_bind} bytes={ok_bytes} "
-              f"sup={ok_sup} move={ok_move} arch={ok_arch}")
+              f"sup={ok_sup} move={ok_move} arch={ok_arch} "
+              f"prov={ok_prov}")
     except ImportError:
         check("DISPO-V5 disposition successor locks", False,
               "W2_ENGINE_ABSENT")

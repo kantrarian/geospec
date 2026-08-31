@@ -676,8 +676,12 @@ SEED_ENGINE_FIELDS = {"path", "blob_sha256_lf", "design_pin",
 SEED_ENTRY_FIELDS = {"path", "blob_sha256_lf", "function"}
 SEED_EVIDENCE_FIELDS = {"method", "replicates_bound", "by_family"}
 SEED_FAMILY_FIELDS = {"master_substream_seed", "replicate_seeds"}
-SEED_TARGET_FIELDS = {"consumed_implementations",
+SEED_TARGET_FIELDS = {"execution", "consumed_implementations",
                       "steering_constants_verified", "rule"}
+# a REGISTERED artifact must have been produced by the isolated
+# target worker; an in-process build labels itself fixture-only and
+# may not present a registrable target identity (cycle-6b item 2)
+SEED_REQUIRED_EXECUTION = "ISOLATED_TARGET_WORKER"
 
 
 def _verify_seed_authority_record(repo, man, idx, rec):
@@ -811,6 +815,12 @@ def _verify_seed_authority_record(repo, man, idx, rec):
         refuse("master substream seeds are not distinct per family -- "
                "the family token is not entering the derivation")
     # (d) the record's target identity must bind the ADMITTED pins
+    if rec["target_identity"].get("execution") != \
+            SEED_REQUIRED_EXECUTION:
+        refuse("the record was produced by "
+               f"{rec['target_identity'].get('execution')!r}, not the "
+               f"{SEED_REQUIRED_EXECUTION} -- an in-process build "
+               "cannot present a registrable target identity")
     ti = rec["target_identity"].get("consumed_implementations")
     if not isinstance(ti, dict) or not ti:
         refuse("the record binds no consumed implementations")

@@ -451,18 +451,26 @@ def build_fixture_capsule(authority, http_keys, store_root,
     # a FIXTURE may never be minted over the REAL registered census
     # (cayley 0110Z): that is the exact shape that claimed 2056
     # native keys against a truth of 635/1420/1
-    try:
-        real, _sha = _authority("HEAD")
+    # the guard must cover EVERY registered census, live and
+    # superseded. Moving the live authority to v4 silently narrowed
+    # this to v4 alone, which let a fixture be minted over the real v3
+    # census again -- a real anti-forgery regression, caught by the
+    # capsule-pin bar's PB-5 outside my own suite. Registering a
+    # successor may never un-register the predecessor's protection.
+    for _reg in (AUTHORITY_PATH, PRIOR_AUTHORITY_PATH):
+        try:
+            real, _sha = _authority_at(_reg, "HEAD")
+        except DispositionRefusal:
+            continue
+        except Exception:
+            continue
         if authority.get("prestart_expected_keys_sha256") == \
                 real.get("prestart_expected_keys_sha256"):
             _d("build_fixture_capsule REFUSES the REAL registered "
-               "authority -- a fixture over the production census "
-               "is exactly the internally-true / externally-false "
-               "capsule this constructor must never be able to mint")
-    except DispositionRefusal:
-        raise
-    except Exception:
-        pass
+               f"authority ({_reg}) -- a fixture over a production "
+               "census is exactly the internally-true / "
+               "externally-false capsule this constructor must never "
+               "be able to mint")
     arch = {"schema": "f2g-w2-capture-run-archive-v1",
             "store_id": "fixture-store",
             "authority": dict(old_authority or {
@@ -739,20 +747,44 @@ def _verify_nested(c, authority, store_root=None, lineage=False):
     # nobody re-derives is exactly the forgeable field codex
     # demonstrated. Git first, then disk; if it resolves at all, the
     # match is REQUIRED.
+    # codex 1807Z repair 5.2: resolution is BY SCHEMA. The old code
+    # asked whether the GLOBAL registered archive was committed and
+    # then read the CAPSULE'S OWN path from Git -- so in production
+    # (where the global archive is committed) a fixture capsule naming
+    # an absolute temp archive was handed to `git cat-file`, which
+    # cannot resolve it, and the fixture's VACUOUS and positive
+    # controls both died on a Git error instead of reaching their
+    # intended outcomes. Presence of one artifact never authorises a
+    # lookup of a different one.
     _araw = None
-    if _archive_committed("HEAD"):
-        _araw = _blob(f"HEAD:{c['v3_archive']['path']}")
-    else:
-        # repo-relative by default; an ABSOLUTE path is honoured so a
-        # FIXTURE capsule can name a real fixture archive outside the
-        # repo. This weakens nothing: the bytes it resolves to are
-        # still digest-checked below, and the store must still exist.
+    if c["schema"] == FIXTURE_CAPSULE_SCHEMA:
+        # a FIXTURE names its own real archive, which lives outside
+        # the repo by construction: DISK only, never a Git object.
         _p = c["v3_archive"]["path"]
         _ap = _p if os.path.isabs(_p) else \
             os.path.join(REPO, *_p.split("/"))
         if os.path.isfile(_ap):
             with open(_ap, "rb") as f:
                 _araw = f.read()
+    else:
+        # a PRODUCTION capsule may name ONLY the registered archive,
+        # and it resolves from the committed object first -- never
+        # from a worktree file an operator could edit while the
+        # registered bytes say otherwise.
+        if c["v3_archive"]["path"] != V3_ARCHIVE_PATH:
+            _d("a production capsule's v3_archive must be the "
+               f"REGISTERED {V3_ARCHIVE_PATH!r} (got "
+               f"{c['v3_archive']['path']!r}) -- only a FIXTURE may "
+               "name its own archive")
+        if _archive_committed("HEAD"):
+            _araw = _blob(f"HEAD:{V3_ARCHIVE_PATH}")
+        else:
+            # portable hosts where the archive is not committed keep
+            # the repo-relative fallback (P1 portable doctors)
+            _ap = os.path.join(REPO, *V3_ARCHIVE_PATH.split("/"))
+            if os.path.isfile(_ap):
+                with open(_ap, "rb") as f:
+                    _araw = f.read()
     if _araw is None and lineage:
         _d("LINEAGE registry verification requires the registered "
            "archive; it could not be resolved -- fail CLOSED. A "
@@ -1036,11 +1068,25 @@ def _selftest():
                         hashlib.sha256(raw).hexdigest())
 
             def outcome(c):
+                # codex 1807Z repair 5.2 made the PRODUCTION branch
+                # require the capsule's archive to BE the registered
+                # constant. These portable doctors legitimately drive a
+                # production-shaped capsule at a CONSTRUCTED archive,
+                # so the constant is repointed at whatever the capsule
+                # names for the duration of the call -- otherwise every
+                # doctor below would refuse on the path rule and stop
+                # measuring the comparison it was written to measure.
+                # The path rule itself is exercised separately (bar
+                # REV 24, production-only-registered-archive control).
+                _prev = _g["V3_ARCHIVE_PATH"]
+                _g["V3_ARCHIVE_PATH"] = c["v3_archive"]["path"]
                 try:
                     verify(c, authority)
                     return "accepted"
                 except DispositionRefusal as e:
                     return str(e)
+                finally:
+                    _g["V3_ARCHIVE_PATH"] = _prev
 
             def at(ap, sha, mutate=None):
                 c = json.loads(json.dumps(caps))

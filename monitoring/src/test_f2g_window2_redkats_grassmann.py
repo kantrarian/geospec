@@ -2381,18 +2381,31 @@ def w_dispo_v5():
                    and sum(sd["movement_matrix"].values()) == len(rows)
                    and sd["moved_rows"] == len(rows))
 
+        # (8) codex 1807Z repair 5.2: resolution is BY SCHEMA, and the
+        # production branch got STRICTER -- a production capsule may
+        # name only the REGISTERED archive. A capsule pointing at some
+        # other archive (the shape a fixture legitimately uses) must
+        # refuse, so the fixture's disk escape can never be borrowed
+        # by production.
+        c_arch = json.loads(json.dumps(cap))
+        c_arch["v3_archive"]["path"] = os.path.join(
+            _REPO, "docs", "f2g_window2_execution",
+            "not_the_registered_archive.json").replace("\\", "/")
+        ok_arch = refuses(lambda: DISP.verify_ceiling(c_arch))
+
         check("DISPO-V5 append-only disposition successor + bound "
               "delta (published capsule rebuilds from committed "
               "bytes, admitted-pin/superseded-unpinned shape, "
               "v3-as-live refusal both ways, copied-forward "
               "partitions, doctored delta binding AND doctored "
               "published delta bytes, doctored supersedes, in-bar "
-              "movement arithmetic vs the two committed authorities)",
+              "movement arithmetic vs the two committed authorities, "
+              "production-only registered archive)",
               ok_pos and ok_pinned and ok_v3 and ok_copy and ok_bind
-              and ok_bytes and ok_sup and ok_move,
+              and ok_bytes and ok_sup and ok_move and ok_arch,
               f"pos={ok_pos} pinned={ok_pinned} v3={ok_v3} "
               f"copy={ok_copy} bind={ok_bind} bytes={ok_bytes} "
-              f"sup={ok_sup} move={ok_move}")
+              f"sup={ok_sup} move={ok_move} arch={ok_arch}")
     except ImportError:
         check("DISPO-V5 disposition successor locks", False,
               "W2_ENGINE_ABSENT")

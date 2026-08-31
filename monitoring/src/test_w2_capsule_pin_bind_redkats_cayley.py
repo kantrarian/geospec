@@ -196,15 +196,22 @@ def _selftest():
               "registered authority (grassmann d4740ea: the forgery "
               "cannot be minted either)")
 
-        # ---- PB-5b (codex 1711Z): the RED control for PB-5 --------
-        # The superseded v3 authority must NOT be able to exercise
-        # the current mint door. This is the exact miss that made
-        # PB-5 go red for the wrong reason after the v5 cutover: fed
-        # v3, the door correctly does not recognise the authority and
-        # therefore does not refuse -- so a bar written against v3 is
-        # VACUOUS, passing whatever the door does. Locked here so the
-        # sourcing can never silently regress to the superseded
-        # authority again.
+        # ---- PB-5b: EVERY registered census, live AND superseded --
+        #
+        # CORRECTED after grassmann's 1900Z finding. My first version
+        # of this control asserted the opposite -- that the
+        # superseded v3 authority must NOT exercise the mint door --
+        # and it passed, because the v5 cutover had silently NARROWED
+        # `build_fixture_capsule`'s guard to the live v4 census
+        # alone. That narrowing meant a fixture could again be minted
+        # over the real v3 census: the internally-true /
+        # externally-false shape this guard exists to stop. I did not
+        # merely miss it, I LOCKED IT IN as expected behaviour.
+        #
+        # Their repair widened the guard to cover every registered
+        # census, on the rule that registering a successor may never
+        # un-register the predecessor's protection. This control now
+        # asserts that property: NEITHER authority may be minted over.
         import w2_expected_contracts_gen_cayley as GEN_V3
         auth_v3 = GEN_V3.build(REPO)
         if auth_v3.get("prestart_expected_keys_sha256") == \
@@ -213,27 +220,30 @@ def _selftest():
                 "PB-5b CONTROL_INERT: the v3 and v4 authorities carry "
                 "the same expected-keys digest, so this control "
                 "cannot distinguish them")
-        with tempfile.TemporaryDirectory() as td3:
-            minted_under_v3 = True
-            try:
-                DISP.build_fixture_capsule(
-                    auth_v3, all_keys, os.path.join(td3, "store"),
-                    os.path.join(td3, "arch.json"))
-            except DISP.DispositionRefusal as e3:
-                # it may refuse for an unrelated fixture reason; what
-                # must NOT happen is the REAL-authority guard firing
-                if "REAL registered authority" in str(e3):
+        for label, a_ in (("live v4", auth),
+                          ("superseded v3", auth_v3)):
+            with tempfile.TemporaryDirectory() as td3:
+                try:
+                    DISP.build_fixture_capsule(
+                        a_, all_keys, os.path.join(td3, "store"),
+                        os.path.join(td3, "arch.json"))
                     raise PinBindRefusal(
-                        "PB-5b MINT_DOOR_MISATTRIBUTED: the mint "
-                        "door treated the SUPERSEDED v3 authority as "
-                        "the real registered one")
-                minted_under_v3 = False
-            del minted_under_v3
-        print("  PB-5b PASS  the superseded v3 authority does NOT "
-              f"exercise the mint door (v3 {auth_v3['prestart_expected_keys_sha256'][:8]}"
-              f" != live v4 {auth['prestart_expected_keys_sha256'][:8]})"
-              " -- a bar sourced from v3 would be vacuous, which is "
-              "exactly how this check first failed")
+                        f"PB-5b MINTABLE_OVER_{label.upper().replace(' ', '_')}"
+                        ": a fixture was minted over a REGISTERED "
+                        "census -- registering a successor must never "
+                        "un-register the predecessor's protection")
+                except DISP.DispositionRefusal as e3:
+                    if "REAL registered authority" not in str(e3):
+                        raise PinBindRefusal(
+                            f"PB-5b WRONG_REFUSAL over {label}: "
+                            f"{str(e3)[:100]}")
+        print("  PB-5b PASS  the mint door refuses over BOTH the live "
+              f"v4 census ({auth['prestart_expected_keys_sha256'][:8]})"
+              f" and the SUPERSEDED v3 census "
+              f"({auth_v3['prestart_expected_keys_sha256'][:8]}) -- "
+              "my earlier control asserted the reverse and locked a "
+              "narrowed guard in; grassmann's repair is the correct "
+              "property")
 
     # ---- PB-7 (codex 1711Z): the LIVE disposition pin is v5 -------
     # Proven against the COMMITTED manifest, not a fixture: exactly

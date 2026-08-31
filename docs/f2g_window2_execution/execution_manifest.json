@@ -2,8 +2,8 @@
  "design_manifest_blob_sha256": "d6decbd6ab5814bc005ce69c538311ff1b11cb1d13c19e2999e03a92bc7cca1f",
  "design_manifest_commit": "5fba5446cd96722fb86021df5065a46b8a1a78f5",
  "design_target_commit": "12161f6cf2000b2d4aa86fe659f834839ac0d27b",
- "execution_target_commit": "77c531edcdaa684ba49c1f8444b48a1145964efe",
- "generated_utc": "2026-08-31T00:33:51Z",
+ "execution_target_commit": "da42766b900adc671e2cc5446af6597a9e3bb5d5",
+ "generated_utc": "2026-08-31T01:06:25Z",
  "manifest_state": "OPEN",
  "repository_url": "https://github.com/kantrarian/geospec",
  "schema": "f2g-window2-execution-manifest-v1.2",
@@ -220,6 +220,21 @@
      "path": "monitoring/src/w2_calibration_runner_cayley.py"
     },
     {
+     "blob_sha256": "59436272d37e7c70f73da994cba94d37651cf87e2ffbe136f0c9171435757eb1",
+     "commit": "dca495a69e13a9393419b800dbcbaad3b7e21a3e",
+     "path": "monitoring/src/w2_mf4_successor_readiness_gen_cayley.py"
+    },
+    {
+     "blob_sha256": "ce5d27c6cf60bcd4c13cdfe56572b806a78122a1e483299a0a607fb43550685e",
+     "commit": "dca495a69e13a9393419b800dbcbaad3b7e21a3e",
+     "path": "docs/f2g_window2_execution/mf4_successor_readiness_record_v1.json"
+    },
+    {
+     "blob_sha256": "10eb7fa49caf3bb00a4f7ee3f6035d7c31148991f0a7cddff450286ec0f64090",
+     "commit": "dca495a69e13a9393419b800dbcbaad3b7e21a3e",
+     "path": "docs/f2g_window2_execution/mf4_reuse_attestation_v1.json"
+    },
+    {
      "blob_sha256": "01887a593ddb11de57342da4ea666789952b30f0451ddadef560f106136c3b51",
      "commit": "47bb2a38d031280f67fab1a90891b4cf36d8d091",
      "path": "monitoring/src/w2_calibration_feed_producer_cayley.py"
@@ -289,8 +304,8 @@
    "owner": "cayley",
    "pins": [
     {
-     "blob_sha256": "4f90fce20b87490acaf7a6519a2b31c7a24405293f1132685d583c3e3f04ffce",
-     "commit": "60ead552cf9e019699fd10fdd1e2028298e063db",
+     "blob_sha256": "bb1c0537c82c624eef96c4c80ea9bc301431d585e77da2ff49cec0140345391d",
+     "commit": "da42766b900adc671e2cc5446af6597a9e3bb5d5",
      "path": "monitoring/src/f2g_execution_manifest_gen_cayley.py"
     }
    ],
@@ -301,13 +316,13 @@
    "owner": "cayley",
    "pins": [
     {
-     "blob_sha256": "3f88a032b0e5ffa010c75292556d45686f32bdeaf24505d9da76fc0db34162fd",
-     "commit": "77c531edcdaa684ba49c1f8444b48a1145964efe",
+     "blob_sha256": "35fcb74a2d38f6579b21331e4e675f977e7fb5d2fb43708d01e444516fd9fa7f",
+     "commit": "da42766b900adc671e2cc5446af6597a9e3bb5d5",
      "path": "monitoring/src/f2g_execution_manifest_verifier_cayley.py"
     },
     {
-     "blob_sha256": "d63e6fecb921fe4ca47449d97f103214b89fe4bc31fd5ffb28d9c9062b4101e1",
-     "commit": "e79560622ef48e0c0a559f4d6161ba6b94a31da0",
+     "blob_sha256": "746dfac4b676f6ea6998a37a0da67c866c02fa60b9555297710dc07c5b775102",
+     "commit": "da42766b900adc671e2cc5446af6597a9e3bb5d5",
      "path": "monitoring/src/w2_regeneration_gate_cayley.py"
     },
     {
@@ -374,6 +389,12 @@
     }
    ],
    "status": "BOUND"
+  },
+  "power_certification_result": {
+   "note": "anticipated-mask power certification RESULT package + receipts + committed campaign bytes; OPEN until produced under the successor calendar and bound to exact output bytes",
+   "owner": "cayley",
+   "pins": [],
+   "status": "OPEN"
   },
   "power_harness": {
    "note": "sec-6 power machinery (certification path constructs its own config; bound-geometry gate; codex items 1+2 repaired) + the campaign runner REV 2 and Tier-C selector with their registered amendments (codex 1909Z items 1-4)",

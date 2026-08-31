@@ -1896,21 +1896,44 @@ _TICK_JOURNAL_SHAPES = {
 }
 
 
-def _tick_journal_scan_repair(jpath):
-    """cycle-5 R1b (codex cycle-5 single finding): the operation
+def _tick_journal_scan_repair(jpath, *, issue_day, regions,
+                              receipt_exists):
+    """cycle-5 R1b + R1c (codex cycle-5/5b findings): the operation
     journal gets the SAME crash-tail recovery contract as the row
-    store, BEFORE any phase interpretation. Every newline-terminated
-    record must parse and match its closed phase-specific shape --
-    typed MF4_TICK_JOURNAL_CORRUPT with line identity otherwise,
-    never a raw JSONDecodeError. A final record without its newline
-    is an incomplete `_tick_json_line` append: no later side effect
-    can have executed (the write+flush+fsync had not returned), so
-    it is truncated durably and a JOURNAL_TAIL_REPAIRED marker is
-    appended; the durable store and barrier ledger remain the
-    authorities the existing reconciliation rebuilds markers from.
-    Duplicate/contradictory PREPARED/ACCRUED/COMMITTED records
-    refuse typed rather than silently taking a first/last value.
-    Returns the validated record list."""
+    store, BEFORE any phase interpretation -- and (R1c) validation
+    is of the OPERATION PROTOCOL, not only record shapes: a
+    shape-closed record must also agree with THIS tick's frame
+    (issue_day, admitted-region index, PREPARED digest map, receipt
+    finality).
+
+    Order: (1) an unterminated final record is an incomplete
+    `_tick_json_line` append -- no later side effect can have
+    executed (the write+flush+fsync had not returned) -- so it is
+    truncated durably and a JOURNAL_TAIL_REPAIRED marker appended;
+    (2) every complete record must parse, match its closed
+    phase-specific shape AND its local + relational contracts, or
+    refuse one typed MF4_TICK_JOURNAL_CORRUPT with phase/line
+    identity -- never a raw JSONDecodeError, never a silent
+    first/last-value pick.
+
+    Relational contracts (codex cycle-5b table): PREPARED is
+    unique, carries THIS issue_day, a digest map with exactly the
+    admitted-region keys (string digests) and a nonempty string
+    issuance, and precedes every side-effect record; STORED /
+    STORE_TAIL_REPAIRED carry THIS issue_day, require PREPARED,
+    and their counts are non-bool integers in range;
+    JOURNAL_TAIL_REPAIRED may precede PREPARED (the interrupted
+    record may BE the PREPARED); ACCRUED regions are unique,
+    members of the PREPARED digest map, and carry exactly its
+    digest; COMMITTED requires the create-once receipt to already
+    exist (the tick only scans while the receipt is absent, so any
+    observed COMMITTED is contradictory and refuses) and is
+    terminal. Deliberately NOT a naive monotonic phase order:
+    STORED legitimately repeats after an earlier ACCRUED marker
+    when a mid-barrier resume re-enters the idempotent store
+    phase. Durable store and barrier state remain the authorities
+    the reconciliation rebuilds markers from. Returns the
+    validated record list."""
     if not os.path.exists(jpath):
         return []
     with open(jpath, "rb") as f:
@@ -1922,6 +1945,26 @@ def _tick_journal_scan_repair(jpath):
     if not data.endswith(b"\n"):
         cut = data.rfind(b"\n") + 1
         body, frag = data[:cut], data[cut:]
+    if frag:
+        with open(jpath, "r+b") as f:
+            f.truncate(len(data) - len(frag))
+            f.flush()
+            os.fsync(f.fileno())
+        with open(jpath, "a", encoding="utf-8", newline="\n") as f:
+            _tick_json_line(f, {"phase": "JOURNAL_TAIL_REPAIRED",
+                                "truncated_bytes": len(frag)})
+        with open(jpath, "rb") as f:
+            body = f.read()
+
+    def corrupt(ln, phase, why):
+        raise InstrumentRefusal(
+            f"MF4_TICK_JOURNAL_CORRUPT: line {ln} "
+            f"({phase}): {why} -- resolve explicitly, never "
+            "silently")
+
+    def _count(v):
+        return isinstance(v, int) and not isinstance(v, bool)
+
     records = []
     for ln, line in enumerate(body.split(b"\n")):
         if not line.strip():
@@ -1929,58 +1972,102 @@ def _tick_journal_scan_repair(jpath):
         try:
             rec = json.loads(line.decode("utf-8"))
         except (ValueError, UnicodeDecodeError):
-            raise InstrumentRefusal(
-                f"MF4_TICK_JOURNAL_CORRUPT: journal line {ln} does "
-                "not parse -- not a trailing append fault; resolve "
-                "explicitly, never silently")
+            corrupt(ln, "?", "record does not parse -- not a "
+                    "trailing append fault")
         shapes = (_TICK_JOURNAL_SHAPES.get(rec.get("phase"))
                   if isinstance(rec, dict) else None)
         if shapes is None or \
                 set(rec) not in [set(s) for s in shapes]:
-            raise InstrumentRefusal(
-                f"MF4_TICK_JOURNAL_CORRUPT: journal line {ln} is "
-                "not a closed phase record")
-        if rec["phase"] == "PREPARED" and \
-                not isinstance(rec["digests"], dict):
-            raise InstrumentRefusal(
-                f"MF4_TICK_JOURNAL_CORRUPT: journal line {ln} "
-                "PREPARED digests is not a mapping")
-        if rec["phase"] == "ACCRUED" and not (
-                isinstance(rec["region"], str)
-                and isinstance(rec["row_digest"], str)
-                and rec.get("backfilled", True) is True):
-            raise InstrumentRefusal(
-                f"MF4_TICK_JOURNAL_CORRUPT: journal line {ln} "
-                "ACCRUED record is not well typed")
-        records.append(rec)
-    if sum(1 for r in records if r["phase"] == "PREPARED") > 1:
-        raise InstrumentRefusal(
-            "MF4_TICK_JOURNAL_CORRUPT: multiple PREPARED records "
-            "-- contradictory preparation never resolves silently")
-    if sum(1 for r in records if r["phase"] == "COMMITTED") > 1:
-        raise InstrumentRefusal(
-            "MF4_TICK_JOURNAL_CORRUPT: multiple COMMITTED records")
+            corrupt(ln, rec.get("phase")
+                    if isinstance(rec, dict) else type(rec).__name__,
+                    "not a closed phase record")
+        records.append((ln, rec))
+
+    want_regions = sorted(str(r) for r in regions)
+    prepared_at = None
+    committed_at = None
     seen_acc = set()
-    for r in records:
-        if r["phase"] != "ACCRUED":
-            continue
-        if r["region"] in seen_acc:
-            raise InstrumentRefusal(
-                "MF4_TICK_JOURNAL_CORRUPT: duplicate ACCRUED "
-                f"marker for {r['region']} -- contradictory "
-                "markers never resolve silently")
-        seen_acc.add(r["region"])
-    if frag:
-        with open(jpath, "r+b") as f:
-            f.truncate(len(data) - len(frag))
-            f.flush()
-            os.fsync(f.fileno())
-        repaired = {"phase": "JOURNAL_TAIL_REPAIRED",
-                    "truncated_bytes": len(frag)}
-        with open(jpath, "a", encoding="utf-8", newline="\n") as f:
-            _tick_json_line(f, repaired)
-        records.append(repaired)
-    return records
+    prep_digests = None
+    for i, (ln, rec) in enumerate(records):
+        ph = rec["phase"]
+        if ph == "PREPARED":
+            if prepared_at is not None:
+                corrupt(ln, ph, "multiple PREPARED records -- "
+                        "contradictory preparation")
+            prepared_at = i
+            if rec["issue_day"] != issue_day:
+                corrupt(ln, ph, f"issue_day {rec['issue_day']!r} "
+                        "is not this operation's day")
+            if not (isinstance(rec["issued_utc"], str)
+                    and rec["issued_utc"]):
+                corrupt(ln, ph, "issued_utc is not a nonempty "
+                        "string")
+            d_ = rec["digests"]
+            if not (isinstance(d_, dict)
+                    and sorted(d_) == want_regions
+                    and all(isinstance(v, str)
+                            for v in d_.values())):
+                corrupt(ln, ph, "digest map is not exactly the "
+                        "admitted-region keys with string digests")
+            prep_digests = d_
+        elif ph in ("STORED", "STORE_TAIL_REPAIRED"):
+            if rec["issue_day"] != issue_day:
+                corrupt(ln, ph, f"issue_day {rec['issue_day']!r} "
+                        "is not this operation's day")
+            if prepared_at is None:
+                corrupt(ln, ph, "side-effect record precedes "
+                        "PREPARED")
+            if ph == "STORED":
+                if not (_count(rec["appended"])
+                        and 0 <= rec["appended"] <= len(regions)):
+                    corrupt(ln, ph, f"appended count "
+                            f"{rec['appended']!r} out of range")
+            elif not (_count(rec["truncated_bytes"])
+                      and rec["truncated_bytes"] > 0):
+                corrupt(ln, ph, "truncated_bytes is not a "
+                        "positive integer")
+        elif ph == "JOURNAL_TAIL_REPAIRED":
+            # may precede PREPARED: the interrupted record may
+            # have BEEN the PREPARED append
+            if not (_count(rec["truncated_bytes"])
+                    and rec["truncated_bytes"] > 0):
+                corrupt(ln, ph, "truncated_bytes is not a "
+                        "positive integer")
+        elif ph == "ACCRUED":
+            if prepared_at is None:
+                corrupt(ln, ph, "ACCRUED marker precedes PREPARED")
+            if not (isinstance(rec["region"], str)
+                    and isinstance(rec["row_digest"], str)
+                    and rec.get("backfilled", True) is True):
+                corrupt(ln, ph, "record is not well typed")
+            if rec["region"] in seen_acc:
+                corrupt(ln, ph, "duplicate ACCRUED marker for "
+                        f"{rec['region']} -- contradictory markers")
+            seen_acc.add(rec["region"])
+            if rec["region"] not in prep_digests:
+                corrupt(ln, ph, f"region {rec['region']!r} is not "
+                        "in the PREPARED digest map")
+            if rec["row_digest"] != prep_digests[rec["region"]]:
+                corrupt(ln, ph, "digest diverges from the "
+                        "PREPARED digest for that region")
+        elif ph == "COMMITTED":
+            if committed_at is not None:
+                corrupt(ln, ph, "multiple COMMITTED records")
+            committed_at = i
+            if rec["issue_day"] != issue_day:
+                corrupt(ln, ph, f"issue_day {rec['issue_day']!r} "
+                        "is not this operation's day")
+            if prepared_at is None:
+                corrupt(ln, ph, "COMMITTED precedes PREPARED")
+            if not receipt_exists:
+                corrupt(ln, ph, "COMMITTED marker with NO "
+                        "create-once receipt -- the registered "
+                        "order links the receipt first; "
+                        "quarantined, never silently repaired")
+    if committed_at is not None and committed_at != len(records) - 1:
+        corrupt(records[committed_at][0], "COMMITTED",
+                "not the terminal record")
+    return [rec for _, rec in records]
 
 
 def run_mf4_daily_tick(repo, pl, lease, issue_day, feeds, *,
@@ -2076,10 +2163,13 @@ def run_mf4_daily_tick(repo, pl, lease, issue_day, feeds, *,
             f"MF4_TICK_DUPLICATE: {issue_day} already committed "
             "(receipt exists); a tick never re-issues")
 
-    # cycle-5 R1b: journal read under the recovery contract --
-    # closed phase shapes, typed corruption refusals, durable
-    # truncation of an incomplete trailing append
-    journal = _tick_journal_scan_repair(jpath)
+    # cycle-5 R1b+R1c: journal read under the recovery contract --
+    # tail repair first, then closed phase shapes AND the
+    # relational protocol (this tick's day, admitted-region index,
+    # PREPARED digest map, receipt finality), all typed
+    journal = _tick_journal_scan_repair(
+        jpath, issue_day=issue_day, regions=regions,
+        receipt_exists=os.path.exists(rpath))
     prepared = next((j for j in journal
                      if j.get("phase") == "PREPARED"), None)
     journal_accrued = {j["region"]: j["row_digest"]
@@ -2161,6 +2251,11 @@ def run_mf4_daily_tick(repo, pl, lease, issue_day, feeds, *,
             want = digests[region]
             jd_ = journal_accrued.get(region)
             ld_ = pl.accrued_row_digest(region, issue_day)
+            # defense-in-depth: the R1c protocol scanner already
+            # refuses an ACCRUED digest diverging from PREPARED,
+            # and MF4_TICK_RESUME_DIVERGENT pins PREPARED ==
+            # recomputation, so this cannot fire today; it stays
+            # so no future rearrangement can reopen the seam
             if jd_ is not None and jd_ != want:
                 raise InstrumentRefusal(
                     "MF4_TICK_JOURNAL_DIVERGENT: journaled ACCRUED "

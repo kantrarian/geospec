@@ -136,10 +136,17 @@ def _production_operation_exercise(repo, cal, led, feed,
     middle-region after_barrier_before_marker,
     after_store_write_before_STORED, partial-trailing-row recovery
     + alien-fragment refusal, a divergent pre-existing barrier
-    event, and (cycle-5 R1b, codex cycle-5 finding) the JOURNAL
+    event, (cycle-5 R1b, codex cycle-5 finding) the JOURNAL
     crash-tail contract: partial trailing PREPARED/STORED/ACCRUED
-    records truncated + repaired then resumed, and malformed or
-    contradictory journal records refusing typed. Asserts no
+    records truncated + repaired then resumed, malformed or
+    contradictory journal records refusing typed, and (cycle-5b
+    R1c, codex cycle-5b finding) the relational PROTOCOL matrix:
+    shape-closed complete records contradicting this tick's
+    operation frame -- wrong day on every day-bearing phase,
+    region-index/digest/issuance violations, count violations,
+    side effects without PREPARED, receipt-less or nonterminal
+    COMMITTED -- all refuse typed, while the legitimate
+    STORED-after-ACCRUED resume repeat stays accepted. Asserts no
     half-committed barrier/row state anywhere,
     including exactly one barrier event per region after every
     fault + resume. cycle-5 R2 (codex cycle-4 item 2): the tick's
@@ -413,8 +420,19 @@ def _production_operation_exercise(repo, cal, led, feed,
         tick(pl3, "probe-lease-barfault", first_day,
              probe_feeds(first_day), st, jd)
         consistent(st, jd, first_day, regions, pl=pl3)
+        # R1c overconstraint guard (codex cycle-5b): this resume
+        # legitimately re-enters the idempotent store phase, so
+        # the journal MUST show a STORED record AFTER an earlier
+        # ACCRUED marker and the protocol validator MUST accept
+        # it -- the invariant is PREPARED-before-side-effects,
+        # never a naive monotonic phase order
+        _ph9 = phases_of(jd, first_day)
+        if not ("ACCRUED" in _ph9 and "STORED" in
+                _ph9[_ph9.index("ACCRUED"):]):
+            _refuse("mid-barrier resume did not construct the "
+                    "legitimate STORED-after-ACCRUED sequence")
         out["scenarios"]["barrier_fault_resume"] = \
-            "PARTIAL_ACCRUAL_RESUMED_EXACTLY_ONCE"
+            "PARTIAL_ACCRUAL_RESUMED_EXACTLY_ONCE_STORED_REPEAT_OK"
         # 10: resume divergence (feed changed between attempts)
         st, jd, lp = scenario("resume_divergent")
         clock = [first_day]
@@ -598,7 +616,11 @@ def _production_operation_exercise(repo, cal, led, feed,
                          probe_feeds(first_day), st, jd),
             "MF4_TICK_BARRIER_SPLIT", "journal_split")
         # 18: a journal ACCRUED marker whose digest diverges from
-        # the journaled preparation refuses typed
+        # the journaled preparation refuses typed -- since R1c the
+        # PROTOCOL SCANNER front-runs the reconcile's
+        # MF4_TICK_JOURNAL_DIVERGENT (which stays as
+        # defense-in-depth), so the typed refusal is the
+        # scanner's
         st, jd, lp = scenario("journal_divergent")
         clock = [first_day]
         pl = mk_pl(lp, clock, "probe-lease-jdiv")
@@ -617,7 +639,7 @@ def _production_operation_exercise(repo, cal, led, feed,
         expect_refusal(
             lambda: tick(pl_r, "probe-lease-jdiv", first_day,
                          probe_feeds(first_day), st, jd),
-            "MF4_TICK_JOURNAL_DIVERGENT", "journal_divergent")
+            "MF4_TICK_JOURNAL_CORRUPT", "journal_divergent")
 
         # ---- cycle-5 R1b (codex cycle-5 single finding): the
         # JOURNAL crash-tail recovery contract. Codex's exact
@@ -759,6 +781,157 @@ def _production_operation_exercise(repo, cal, led, feed,
                          probe_feeds(first_day), st, jd),
             "MF4_TICK_JOURNAL_CORRUPT",
             "journal_corrupt_open_shape")
+
+        # ---- cycle-5b R1c (codex cycle-5b single finding): the
+        # relational PROTOCOL matrix. Shape-closed COMPLETE
+        # records that contradict this tick's operation frame
+        # (day / region index / digest map / receipt finality)
+        # must refuse typed. One crashed base journal (a complete
+        # authentic PREPARED, zero side effects); each case
+        # rewrites the journal and must refuse; the base is
+        # restored between cases (a refusing scan mutates
+        # nothing); the authentic base then COMPLETES, so the
+        # validator is neither fail-open nor overconstrained.
+        st, jd, lp, clock = crash("journal_protocol_matrix",
+                                  "probe-lease-proto", "store")
+        jp_m = jpath_of(jd, first_day)
+        with open(jp_m, "rb") as f:
+            base_j = f.read()
+        P = json.loads(base_j.split(b"\n")[0].decode("utf-8"))
+
+        def canon_line(obj):
+            return json.dumps(obj, sort_keys=True,
+                              separators=(",", ":")
+                              ).encode("utf-8") + b"\n"
+
+        def proto_case(name, chunks):
+            with open(jp_m, "wb") as f:
+                f.write(b"".join(chunks))
+            pl_c = ACC.PersistentLedger(lp,
+                                        clock=lambda: clock[0])
+            expect_refusal(
+                lambda: tick(pl_c, "probe-lease-proto",
+                             first_day, probe_feeds(first_day),
+                             st, jd),
+                "MF4_TICK_JOURNAL_CORRUPT", name)
+            with open(jp_m, "wb") as f:
+                f.write(base_j)
+
+        # codex's three exact controls
+        proto_case("proto_prepared_wrong_day",
+                   [canon_line(dict(P, issue_day="2099-01-01"))])
+        proto_case("proto_accrued_unknown_region",
+                   [base_j, canon_line(
+                       {"phase": "ACCRUED",
+                        "region": "UNKNOWN_REGION",
+                        "row_digest": "a" * 64})])
+        proto_case("proto_committed_without_receipt",
+                   [base_j, canon_line(
+                       {"phase": "COMMITTED",
+                        "issue_day": first_day})])
+        # wrong day on every remaining day-bearing phase
+        proto_case("proto_stored_wrong_day",
+                   [base_j, canon_line(
+                       {"phase": "STORED",
+                        "issue_day": "2099-01-01",
+                        "appended": 0})])
+        proto_case("proto_strp_wrong_day",
+                   [base_j, canon_line(
+                       {"phase": "STORE_TAIL_REPAIRED",
+                        "issue_day": "2099-01-01",
+                        "truncated_bytes": 5})])
+        proto_case("proto_committed_wrong_day",
+                   [base_j, canon_line(
+                       {"phase": "COMMITTED",
+                        "issue_day": "2099-01-01"})])
+        # region-index / typing violations in PREPARED
+        d_ = dict(P["digests"])
+        d_.pop(regions[0])
+        proto_case("proto_prepared_missing_region",
+                   [canon_line(dict(P, digests=d_))])
+        proto_case("proto_prepared_extra_region",
+                   [canon_line(dict(P, digests=dict(
+                       P["digests"], EXTRA_REGION="b" * 64)))])
+        d_ = dict(P["digests"])
+        d_[regions[0]] = 123
+        proto_case("proto_prepared_nonstring_digest",
+                   [canon_line(dict(P, digests=d_))])
+        proto_case("proto_prepared_untyped_issuance",
+                   [canon_line(dict(P, issued_utc=""))])
+        # count violations (bool / negative / out of range / zero)
+        proto_case("proto_stored_bool_count",
+                   [base_j, canon_line(
+                       {"phase": "STORED", "issue_day": first_day,
+                        "appended": True})])
+        proto_case("proto_stored_negative_count",
+                   [base_j, canon_line(
+                       {"phase": "STORED", "issue_day": first_day,
+                        "appended": -1})])
+        proto_case("proto_stored_overrange_count",
+                   [base_j, canon_line(
+                       {"phase": "STORED", "issue_day": first_day,
+                        "appended": len(regions) + 1})])
+        proto_case("proto_strp_zero_bytes",
+                   [base_j, canon_line(
+                       {"phase": "STORE_TAIL_REPAIRED",
+                        "issue_day": first_day,
+                        "truncated_bytes": 0})])
+        proto_case("proto_jtr_bool_bytes",
+                   [base_j, canon_line(
+                       {"phase": "JOURNAL_TAIL_REPAIRED",
+                        "truncated_bytes": True})])
+        # side-effect phases without / before PREPARED
+        proto_case("proto_stored_without_prepared",
+                   [canon_line({"phase": "STORED",
+                                "issue_day": first_day,
+                                "appended": 0})])
+        proto_case("proto_accrued_without_prepared",
+                   [canon_line({"phase": "ACCRUED",
+                                "region": regions[0],
+                                "row_digest":
+                                    P["digests"][regions[0]]})])
+        proto_case("proto_prepared_after_sideeffect",
+                   [canon_line({"phase": "STORED",
+                                "issue_day": first_day,
+                                "appended": 0}), base_j])
+        # COMMITTED terminality under receipt_exists=True (no
+        # tick caller reaches this branch today -- the create-once
+        # duplicate gate fires first -- but the contract is
+        # complete and locked both ways by direct scan calls)
+        _dj = os.path.join(_EX_TD[0], "proto_direct.journal.jsonl")
+        with open(_dj, "wb") as f:
+            f.write(base_j
+                    + canon_line({"phase": "COMMITTED",
+                                  "issue_day": first_day})
+                    + canon_line({"phase": "STORED",
+                                  "issue_day": first_day,
+                                  "appended": 0}))
+        try:
+            ACC._tick_journal_scan_repair(
+                _dj, issue_day=first_day, regions=regions,
+                receipt_exists=True)
+            _refuse("nonterminal COMMITTED did not refuse")
+        except ACC.InstrumentRefusal as ex:
+            if "MF4_TICK_JOURNAL_CORRUPT" not in str(ex):
+                _refuse(f"nonterminal COMMITTED: wrong refusal "
+                        f"{ex}")
+        with open(_dj, "wb") as f:
+            f.write(base_j
+                    + canon_line({"phase": "COMMITTED",
+                                  "issue_day": first_day}))
+        ACC._tick_journal_scan_repair(
+            _dj, issue_day=first_day, regions=regions,
+            receipt_exists=True)
+        out["scenarios"]["journal_committed_terminality"] = \
+            "RECEIPT_BACKED_TERMINAL_COMMITTED_LOCKED_BOTH_WAYS"
+        # positive close: the authentic base journal COMPLETES
+        pl_c = ACC.PersistentLedger(lp, clock=lambda: clock[0])
+        tick(pl_c, "probe-lease-proto", first_day,
+             probe_feeds(first_day), st, jd)
+        consistent(st, jd, first_day, regions, pl=pl_c)
+        out["scenarios"]["journal_protocol_matrix"] = \
+            "18_RELATIONAL_CONTROLS_REFUSE_TYPED_THEN_AUTHENTIC" \
+            "_BASE_COMPLETES"
     finally:
         shutil.rmtree(_EX_TD[0], ignore_errors=True)
     out["no_split_assertion"] = (
@@ -773,7 +946,12 @@ def _production_operation_exercise(repo, cal, led, feed,
         "JOURNAL_TAIL_REPAIRED, then resumed to exactly one event/"
         "row/marker per region); every divergent-bytes or "
         "malformed/contradictory-journal control refuses typed, "
-        "never a raw parse error")
+        "never a raw parse error; (R1c) journal records are "
+        "validated against the OPERATION PROTOCOL, not only their "
+        "shapes -- day identity, region/digest membership vs the "
+        "PREPARED map, count ranges, PREPARED-before-side-effects, "
+        "receipt-backed terminal COMMITTED -- with the legitimate "
+        "mid-barrier STORED repeat explicitly accepted")
     return out
 
 

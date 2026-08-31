@@ -415,6 +415,8 @@ BOUND_SLOTS = {
         # closure 4 and the capsule pin-bind rest solely on the locks
         # below, and unbound evidence cannot support a packet claim.
         "paths": ["monitoring/src/"
+                  "test_w2_geometry_admission_redkats_cayley.py",
+                  "monitoring/src/"
                   "test_f2g_window2_redkats_grassmann.py",
                   # closure 4 (635/1420/1) and the P0 pin-bind: the
                   # two claims the shared bar no longer makes

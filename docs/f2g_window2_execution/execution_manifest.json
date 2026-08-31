@@ -2,8 +2,8 @@
  "design_manifest_blob_sha256": "d6decbd6ab5814bc005ce69c538311ff1b11cb1d13c19e2999e03a92bc7cca1f",
  "design_manifest_commit": "5fba5446cd96722fb86021df5065a46b8a1a78f5",
  "design_target_commit": "12161f6cf2000b2d4aa86fe659f834839ac0d27b",
- "execution_target_commit": "57c5b1c542afd54965784e20fb9b177d3ea5dfab",
- "generated_utc": "2026-08-31T19:03:27Z",
+ "execution_target_commit": "bfcdb26776fb45ad4a5cb7a576786b940df32688",
+ "generated_utc": "2026-08-31T20:01:32Z",
  "manifest_state": "OPEN",
  "repository_url": "https://github.com/kantrarian/geospec",
  "schema": "f2g-window2-execution-manifest-v1.2",
@@ -212,8 +212,8 @@
      "path": "monitoring/src/test_w2_authority_serves_every_key_redkats_cayley.py"
     },
     {
-     "blob_sha256": "08fc6f42871ab5c4ebcf822ed33f2e898deec273f9ca1166c7efa2706fce2049",
-     "commit": "9f763bba158ce9b721c36bcfa749f0f9a1f65d8a",
+     "blob_sha256": "8291f4e510202789da66b5d409336ebfd49ec67c57f8102a38603fd586228759",
+     "commit": "9d6eb860818229dd9e2ca1e61f5397c9ad6e045b",
      "path": "monitoring/src/test_w2_frozen_carrier_set_redkats_cayley.py"
     },
     {
@@ -431,8 +431,8 @@
    "owner": "cayley",
    "pins": [
     {
-     "blob_sha256": "80d452fe8240e1929239b857979ed68644d9ca0b47093f7af9719c45d363c124",
-     "commit": "9f763bba158ce9b721c36bcfa749f0f9a1f65d8a",
+     "blob_sha256": "c8c26d9501f304f7084a3a1f079bae55a73a027545e9e5ecaf0d6afa9fd73e41",
+     "commit": "9d6eb860818229dd9e2ca1e61f5397c9ad6e045b",
      "path": "monitoring/src/w2_power_harness_cayley.py"
     },
     {
@@ -466,13 +466,13 @@
      "path": "docs/f2g_window2_execution/cascadia_overlap_tie_amendment_v1.md"
     },
     {
-     "blob_sha256": "ad01cd0e4a2a0c47a412e66144093973ee3d46a7788d32247ade4608c20d0b4f",
-     "commit": "9f763bba158ce9b721c36bcfa749f0f9a1f65d8a",
+     "blob_sha256": "064e0f44bf90780f93f7301d453347df51364f7f676b4502e00ed64462f3aea7",
+     "commit": "9d6eb860818229dd9e2ca1e61f5397c9ad6e045b",
      "path": "monitoring/src/w2_geometry_bind_comparator_cayley.py"
     },
     {
-     "blob_sha256": "78c261d1b4c5ae3d9af1db350264b0fdf6c5f9ebe9e218ed06bf3d7f7ee02aa1",
-     "commit": "54280eabd9983fcefbf06b8975fa9305c2d9c1dc",
+     "blob_sha256": "8bda7933de0ffd106d113bd993aa238eda0ec7ff5f448655bb56b4c376bb3eb9",
+     "commit": "bfcdb26776fb45ad4a5cb7a576786b940df32688",
      "path": "docs/f2g_window2_execution/mask_envelope_policy_w2_v1.json"
     },
     {

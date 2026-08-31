@@ -284,6 +284,85 @@ def _selftest():
     else:
         raise SystemExit(
             "T3 NO_PRIOR_REVISION: cannot construct the drift control")
+
+    # ---- T4 (codex cycle-6b item 2): the CALLABLE graph ----------
+    # File digests and module-global constants do not reach live
+    # callables. Each monkeypatch below leaves every file and every
+    # registered constant untouched; only the isolated worker is
+    # immune, because it executes the target's own bytes in a fresh
+    # interpreter.
+    import hashlib as _h
+    import json as _j
+    import w2_power_harness_cayley as _PH
+
+    def _sha(o):
+        return _h.sha256(_j.dumps(o, sort_keys=True).encode()
+                         ).hexdigest()
+
+    clean_geo = regenerate_in_isolated_worker(
+        repo, head, "w2_power_geometry_inputs_gen_cayley", "build")
+    clean_seed = regenerate_in_isolated_worker(
+        repo, head, "w2_power_seed_authority_gen_cayley", "build")
+    if clean_geo["target_identity"]["execution"] != \
+            "ISOLATED_TARGET_WORKER":
+        raise SystemExit(
+            "T4 MARKER_WRONG: the isolated worker did not label its "
+            "own execution")
+
+    patches = [
+        ("w2_selection.select", WSEL, "select",
+         lambda o: (lambda ck, dr, c, **kw: (
+             lambda r: dict(r, selected=sorted(r["selected"])[:-1])
+         )(o(ck, dr, c, **kw)))),
+        ("w2_power_harness.rep_seed_registered", _PH,
+         "rep_seed_registered",
+         lambda o: (lambda auth, fam, r: int(o(auth, fam, r)) ^ 1)),
+    ]
+    try:
+        import fault_segments as _FS
+        patches.append(
+            ("fault_segments.FaultSegment.contains_point",
+             _FS.FaultSegment, "contains_point",
+             lambda o: (lambda self, lat, lon: False)))
+    except Exception:                                     # noqa: BLE001
+        raise SystemExit("T4 NO_FAULT_SEGMENT_HELPER")
+
+    for label, holder, attr, wrap in patches:
+        orig = getattr(holder, attr)
+        try:
+            setattr(holder, attr, wrap(orig))
+            geo = regenerate_in_isolated_worker(
+                repo, head, "w2_power_geometry_inputs_gen_cayley",
+                "build")
+            seed = regenerate_in_isolated_worker(
+                repo, head, "w2_power_seed_authority_gen_cayley",
+                "build")
+        finally:
+            setattr(holder, attr, orig)
+        if _sha(geo) != _sha(clean_geo) or \
+                _sha(seed) != _sha(clean_seed):
+            raise SystemExit(
+                f"T4 CALLABLE_STEERED_ISOLATED_BUILD ({label}): a "
+                "live monkeypatch changed a target-labelled build "
+                "that runs in the isolated worker")
+    print(f"  T4 PASS  {len(patches)} live CALLABLE monkeypatches "
+          "(w2_selection.select, rep_seed_registered, a fault-segment "
+          "helper) leave the isolated target-labelled builds "
+          "BYTE-IDENTICAL -- files and constants cannot reach the "
+          "callable graph, so production generation runs in a worker "
+          "loaded from the target")
+
+    # T5: an in-process build is labelled fixture-only and may never
+    # present itself as a registrable target identity
+    import w2_power_geometry_inputs_gen_cayley as _G
+    if _G.build(repo, commit=head)["target_identity"]["execution"] \
+            != "IN_PROCESS_FIXTURE_ONLY":
+        raise SystemExit(
+            "T5 IN_PROCESS_CLAIMS_ISOLATION: an in-process build "
+            "labelled itself as isolated")
+    print("  T5 PASS  an in-process build labels itself "
+          "IN_PROCESS_FIXTURE_ONLY; only the worker may claim "
+          "ISOLATED_TARGET_WORKER")
     print("w2_target_identity selftest: ALL PASS")
 
 

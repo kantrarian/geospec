@@ -18,7 +18,7 @@
   "master_rule": "one master numpy PCG64 Generator per (authority, family), seeded with that substream seed",
   "purpose_token": "power",
   "registered_entrypoint": {
-   "blob_sha256_lf": "80d452fe8240e1929239b857979ed68644d9ca0b47093f7af9719c45d363c124",
+   "blob_sha256_lf": "c8c26d9501f304f7084a3a1f079bae55a73a027545e9e5ecaf0d6afa9fd73e41",
    "function": "rep_seed_registered",
    "path": "monitoring/src/w2_power_harness_cayley.py"
   },
@@ -85,8 +85,9 @@
  "target_identity": {
   "consumed_implementations": {
    "monitoring/src/d2_f2g_phase_b_stats.py": "4a39d3fbdc543e8c64e7b8a068bcb384d320361973bce68fc0b2b219c27968f1",
-   "monitoring/src/w2_power_harness_cayley.py": "80d452fe8240e1929239b857979ed68644d9ca0b47093f7af9719c45d363c124"
+   "monitoring/src/w2_power_harness_cayley.py": "c8c26d9501f304f7084a3a1f079bae55a73a027545e9e5ecaf0d6afa9fd73e41"
   },
+  "execution": "ISOLATED_TARGET_WORKER",
   "rule": "every consumed implementation's source must equal its bytes AT THE NAMED TARGET, and every registered steering constant re-derived from the target source by AST must equal the live runtime value; otherwise the build REFUSES rather than producing target-labelled output built from other code",
   "steering_constants_verified": {
    "monitoring/src/w2_power_harness_cayley.py:GRAPH": [

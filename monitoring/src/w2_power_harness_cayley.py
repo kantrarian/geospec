@@ -663,6 +663,21 @@ SEED_RECORD_FIELDS = {
     "schema", "state", "ruling_basis", "seed_authority_sha256",
     "root_source", "grammar", "families", "grammar_evidence",
     "target_identity", "prohibitions", "claim_ceiling"}
+# the REGISTERED replicate count. It lives here, not in the submitted
+# record, because codex cycle-6b item 3 found that a bound derived
+# from submitted evidence performs zero checks when that evidence is
+# empty.
+SEED_REPLICATES_REGISTERED = 3
+SEED_GRAMMAR_FIELDS = {
+    "purpose_token", "fold_token", "substream_rule", "master_rule",
+    "replicate_rule", "engine_module", "registered_entrypoint"}
+SEED_ENGINE_FIELDS = {"path", "blob_sha256_lf", "design_pin",
+                      "design_manifest_commit", "function"}
+SEED_ENTRY_FIELDS = {"path", "blob_sha256_lf", "function"}
+SEED_EVIDENCE_FIELDS = {"method", "replicates_bound", "by_family"}
+SEED_FAMILY_FIELDS = {"master_substream_seed", "replicate_seeds"}
+SEED_TARGET_FIELDS = {"consumed_implementations",
+                      "steering_constants_verified", "rule"}
 
 
 def _verify_seed_authority_record(repo, man, idx, rec):
@@ -727,20 +742,103 @@ def _verify_seed_authority_record(repo, man, idx, rec):
         refuse("the record's engine identity does not match its "
                f"named design pin {eng.get('design_pin')!r} at "
                f"{str(dmc)[:12]}")
-    # (c) the registered seed EVIDENCE recomputes
+    # (b2) the record's named function fields are the registered ones
+    if eng.get("function") != "derive_substream_seed" or \
+            ep.get("function") != "rep_seed_registered":
+        refuse("the record names functions "
+               f"{eng.get('function')!r}/{ep.get('function')!r}, not "
+               "the registered derive_substream_seed / "
+               "rep_seed_registered")
+    # (b3) nested shapes are CLOSED
+    for name, obj, want in (
+            ("grammar", gram, SEED_GRAMMAR_FIELDS),
+            ("grammar.engine_module", eng, SEED_ENGINE_FIELDS),
+            ("grammar.registered_entrypoint", ep, SEED_ENTRY_FIELDS),
+            ("grammar_evidence", rec["grammar_evidence"],
+             SEED_EVIDENCE_FIELDS),
+            ("target_identity", rec["target_identity"],
+             SEED_TARGET_FIELDS)):
+        if not isinstance(obj, dict) or set(obj) != want:
+            refuse(f"{name} is not the closed registered set "
+                   f"(extra={sorted(set(obj) - want) if isinstance(obj, dict) else '?'}, "
+                   f"missing={sorted(want - set(obj)) if isinstance(obj, dict) else sorted(want)})")
+
+    # (c) the registered seed EVIDENCE recomputes INDEPENDENTLY.
+    # codex cycle-6b item 3: the loop bound used to come from the
+    # SUBMITTED list, so a record with empty `replicate_seeds`
+    # performed zero checks and returned True. No bound may come from
+    # submitted evidence: the family set and the replicate count are
+    # both REGISTERED here.
     fams = list(rec["families"])
     if tuple(fams) != tuple(GRAPH):
         refuse(f"the record's families {fams} are not the registered "
                f"{list(GRAPH)}")
     ev = rec["grammar_evidence"]["by_family"]
-    for fam in fams:
-        want = ev.get(fam) or {}
-        reps = [int(rep_seed_registered(rec["seed_authority_sha256"],
-                                        fam, r))
-                for r in range(len(want.get("replicate_seeds") or []))]
-        if reps != list(want.get("replicate_seeds") or []):
+    if not isinstance(ev, dict) or sorted(ev) != sorted(GRAPH):
+        refuse(f"the bound evidence covers {sorted(ev) if isinstance(ev, dict) else '?'}, "
+               f"not exactly the registered families {sorted(GRAPH)}")
+    if rec["grammar_evidence"].get("replicates_bound") != \
+            SEED_REPLICATES_REGISTERED:
+        refuse("the record declares "
+               f"{rec['grammar_evidence'].get('replicates_bound')!r} "
+               f"bound replicates, not the registered "
+               f"{SEED_REPLICATES_REGISTERED}")
+    root = rec["seed_authority_sha256"]
+    seen_masters = set()
+    for fam in GRAPH:
+        want = ev[fam]
+        if not isinstance(want, dict) or \
+                set(want) != SEED_FAMILY_FIELDS:
+            refuse(f"the evidence entry for {fam} is not the closed "
+                   "registered set")
+        master = int(_pb.derive_substream_seed(root, fam, "full",
+                                               "power"))
+        if want.get("master_substream_seed") != master:
+            refuse(f"the bound master substream seed for {fam} does "
+                   "not recompute under the admitted grammar")
+        seen_masters.add(master)
+        reps = [int(rep_seed_registered(root, fam, r))
+                for r in range(SEED_REPLICATES_REGISTERED)]
+        if list(want.get("replicate_seeds") or []) != reps:
             refuse(f"the bound replicate evidence for {fam} does not "
-                   "recompute under the admitted grammar")
+                   f"recompute under the admitted grammar (expected "
+                   f"{SEED_REPLICATES_REGISTERED} seeds, got "
+                   f"{len(want.get('replicate_seeds') or [])})")
+        if len(set(reps)) != len(reps):
+            refuse(f"the registered replicate seeds for {fam} are not "
+                   "distinct")
+    if len(seen_masters) != len(GRAPH):
+        refuse("master substream seeds are not distinct per family -- "
+               "the family token is not entering the derivation")
+    # (d) the record's target identity must bind the ADMITTED pins
+    ti = rec["target_identity"].get("consumed_implementations")
+    if not isinstance(ti, dict) or not ti:
+        refuse("the record binds no consumed implementations")
+    # a consumed implementation may be admitted by EITHER registry:
+    # the execution manifest, or the design byte-pin manifest (the
+    # engine module is design-pinned, not execution-pinned). It must
+    # be admitted by one of them, and its bytes must match there.
+    design_pins = {}
+    for e in (design.get("pins") or {}).values():
+        if isinstance(e, dict) and e.get("path"):
+            design_pins[e["path"]] = e
+    for rel, dig in sorted(ti.items()):
+        tpin = idx.get(rel)
+        if tpin is not None:
+            if _lf(_blob_at(tpin["commit"], rel)) != dig:
+                refuse(f"the record binds {rel} at {str(dig)[:12]} "
+                       "but the execution manifest admits different "
+                       "bytes")
+            continue
+        dpin = design_pins.get(rel)
+        if dpin is None:
+            refuse(f"the record's consumed implementation {rel} is "
+                   "admitted by NEITHER the execution manifest nor "
+                   "the design byte-pin manifest")
+        if dpin.get("blob_sha256") != dig:
+            refuse(f"the record binds {rel} at {str(dig)[:12]} but "
+                   f"its design pin admits "
+                   f"{str(dpin.get('blob_sha256'))[:12]}")
     return True
 
 

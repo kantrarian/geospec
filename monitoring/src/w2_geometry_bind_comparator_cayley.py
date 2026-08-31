@@ -183,18 +183,30 @@ def _git_blob(repo, commit, rel):
     return p.stdout
 
 
-def build_policy(repo, commit):
+def build_policy(repo, commit, *, comparator_bytes=None,
+                 calendar_bytes=None, bundle_bytes=None):
     """Emit the closed EXACT-ONLY policy, bound to the calendar frame,
     the anticipated-mask digests, the carrier set and this
-    comparator's own identity (codex cycle-6 item 2)."""
-    cal_b = _git_blob(repo, commit, CALENDAR_V4_REL)
-    bun_b = _git_blob(repo, commit, INPUTS_BUNDLE_REL)
+    comparator's own identity (codex cycle-6 item 2).
+
+    `comparator_bytes` supplies this module's identity. codex
+    cycle-6b item 1: a worktree `__file__` read must NOT be the
+    comparison authority, so the LOAD path passes the
+    manifest-pinned comparator blob and only artifact EMISSION falls
+    back to the local file.
+    """
+    cal_b = (calendar_bytes if calendar_bytes is not None
+             else _git_blob(repo, commit, CALENDAR_V4_REL))
+    bun_b = (bundle_bytes if bundle_bytes is not None
+             else _git_blob(repo, commit, INPUTS_BUNDLE_REL))
     if cal_b is None or bun_b is None:
         raise BindComparatorRefusal(
             "MASK_POLICY_INPUTS_ABSENT: calendar authority or "
             f"geometry inputs bundle unreadable at {str(commit)[:12]}")
-    with open(os.path.abspath(__file__), "rb") as f:
-        me = f.read().replace(b"\r\n", b"\n")
+    if comparator_bytes is None:
+        with open(os.path.abspath(__file__), "rb") as f:
+            comparator_bytes = f.read()
+    me = comparator_bytes.replace(b"\r\n", b"\n")
     cal = json.loads(cal_b.decode("utf-8"))
     bundle = json.loads(bun_b.decode("utf-8"))
     frame = cal["frame"]
@@ -271,9 +283,65 @@ def load_policy(repo, manifest_commit):
             "MASK_POLICY_DIVERGENT: pinned policy bytes unreadable or "
             "divergent from the pin")
     policy = json.loads(body.decode("utf-8"))
-    if policy.get("schema") != POLICY_SCHEMA:
+
+    # codex cycle-6b item 1 (CRITICAL): checking only the outer
+    # schema after the pin meant a self-consistently pinned body
+    # carrying just {"schema": ..., "admitted_relations":
+    # ["REALIZED_SUPERSET"]} was ACCEPTED, and a realized superset
+    # then produced MATCH. A pin proves who wrote the bytes, never
+    # that they say the registered thing. The one admissible policy
+    # is therefore RECONSTRUCTED from the manifest-pinned calendar,
+    # inputs bundle and comparator blob, and the pinned body must
+    # equal it canonically.
+    def _pinned(rel, what):
+        p = None
+        for slot in man["slots"].values():
+            if slot["status"] != "BOUND":
+                continue
+            for cand in slot["pins"]:
+                if cand["path"] == rel:
+                    p = cand
+        if p is None:
+            raise BindComparatorRefusal(
+                f"MASK_POLICY_UNRECONSTRUCTABLE: {what} ({rel}) is "
+                "not a BOUND pin, so the admissible policy cannot be "
+                "independently rebuilt")
+        b = _git_blob(repo, p["commit"], p["path"])
+        if b is None or \
+                hashlib.sha256(b).hexdigest() != p["blob_sha256"]:
+            raise BindComparatorRefusal(
+                f"MASK_POLICY_UNRECONSTRUCTABLE: {what} bytes "
+                "unreadable or divergent from their pin")
+        return p, b
+
+    cal_pin, _cal_b = _pinned(CALENDAR_V4_REL, "calendar authority")
+    bun_pin, _bun_b = _pinned(INPUTS_BUNDLE_REL, "inputs bundle")
+    cmp_pin, cmp_b = _pinned(
+        "monitoring/src/w2_geometry_bind_comparator_cayley.py",
+        "comparator")
+    # rebuild from the SAME commits the pins name -- never HEAD, and
+    # never this worktree's copy of the comparator
+    want = build_policy(repo, manifest_commit,
+                        comparator_bytes=cmp_b,
+                        calendar_bytes=_cal_b,
+                        bundle_bytes=_bun_b)
+    if json.dumps(policy, sort_keys=True, separators=(",", ":")) != \
+            json.dumps(want, sort_keys=True, separators=(",", ":")):
+        diff = sorted(set(policy) ^ set(want)) or [
+            k for k in sorted(set(policy) & set(want))
+            if policy[k] != want[k]]
         raise BindComparatorRefusal(
-            f"MASK_POLICY_SCHEMA: {policy.get('schema')!r}")
+            "MASK_POLICY_NOT_THE_REGISTERED_POLICY: the pinned body "
+            "does not equal the policy independently reconstructed "
+            f"from the admitted pins (diverging keys: {diff}) -- a "
+            "newly pinned permissive body may not elect a different "
+            "rule")
+    if list(policy.get("admitted_relations") or []) != \
+            list(ADMITTED_RELATIONS):
+        raise BindComparatorRefusal(
+            "MASK_POLICY_NOT_EXACT_ONLY: admitted_relations "
+            f"{policy.get('admitted_relations')!r} is not the ruled "
+            f"{list(ADMITTED_RELATIONS)}")
     return policy
 
 
@@ -582,6 +650,119 @@ def _selftest():
     assert res["verdict"] == "REFUSE"
     print("  C11 PASS  the no-policy refusal is RETAINED as the "
           "negative control (an unbound envelope never admits)")
+
+    # ---- C12 (codex cycle-6b item 1): a SELF-CONSISTENTLY PINNED
+    # permissive body must refuse in load_policy(), before compare()
+    # is ever reached. This is codex's exact probe: the pin digest
+    # matches the bytes, so the pin is honest -- what is dishonest is
+    # the CONTENT, and only reconstruction from the admitted inputs
+    # can tell the difference.
+    if pinned:
+        import subprocess as _sp
+        import tempfile as _tf
+
+        def _pin_body(obj):
+            """Write a body into the object store, pin it in a
+            synthesized manifest, and try to load it."""
+            raw = json.dumps(obj, indent=1,
+                             sort_keys=True).encode() + b"\n"
+            oid = _sp.run(["git", "-C", repo, "hash-object", "-w",
+                           "--stdin"], input=raw,
+                          capture_output=True).stdout.decode().strip()
+            man_b = _git_blob(repo, "HEAD", MANIFEST_REL)
+            man_o = json.loads(man_b.decode("utf-8"))
+            fd, idxf = _tf.mkstemp(prefix="c12-index-")
+            os.close(fd)
+            os.unlink(idxf)
+            env = dict(os.environ, GIT_INDEX_FILE=idxf)
+
+            def g(args, data=None):
+                return _sp.run(["git", "-C", repo] + args, input=data,
+                               capture_output=True,
+                               env=env).stdout.decode().strip()
+            try:
+                g(["read-tree", "HEAD"])
+                g(["update-index", "--cacheinfo",
+                   f"100644,{oid},{POLICY_REL}"])
+                tree = g(["write-tree"])
+                cmt = g(["-c", "user.name=c12", "-c",
+                         "user.email=c12@local", "commit-tree", tree,
+                         "-p", "HEAD", "-m", "C12 probe"])
+            finally:
+                try:
+                    os.unlink(idxf)
+                except OSError:
+                    pass
+            for slot in man_o["slots"].values():
+                if slot["status"] != "BOUND":
+                    continue
+                for cand in slot["pins"]:
+                    if cand["path"] == POLICY_REL:
+                        cand["commit"] = cmt
+                        cand["blob_sha256"] = hashlib.sha256(
+                            raw).hexdigest()
+            # the probe's manifest must itself be reachable, so pin
+            # it into a second synthesized commit
+            man_raw = json.dumps(man_o, indent=1,
+                                 sort_keys=True).encode() + b"\n"
+            moid = _sp.run(["git", "-C", repo, "hash-object", "-w",
+                            "--stdin"], input=man_raw,
+                           capture_output=True).stdout.decode().strip()
+            fd, idxf = _tf.mkstemp(prefix="c12-index2-")
+            os.close(fd)
+            os.unlink(idxf)
+            env = dict(os.environ, GIT_INDEX_FILE=idxf)
+            try:
+                g(["read-tree", cmt])
+                g(["update-index", "--cacheinfo",
+                   f"100644,{moid},{MANIFEST_REL}"])
+                tree2 = g(["write-tree"])
+                cmt2 = g(["-c", "user.name=c12", "-c",
+                          "user.email=c12@local", "commit-tree",
+                          tree2, "-p", cmt, "-m", "C12 probe man"])
+            finally:
+                try:
+                    os.unlink(idxf)
+                except OSError:
+                    pass
+            return cmt2
+
+        for rel_ in ("REALIZED_SUPERSET", "REALIZED_SUBSET",
+                     "DIVERGENT"):
+            c_ = _pin_body({"schema": POLICY_SCHEMA,
+                            "admitted_relations": [rel_]})
+            try:
+                load_policy(repo, c_)
+                raise SystemExit(
+                    f"C12 PERMISSIVE_POLICY_ADMITTED ({rel_}): a "
+                    "self-consistently pinned permissive body loaded")
+            except BindComparatorRefusal as e:
+                if "NOT_THE_REGISTERED_POLICY" not in str(e) and \
+                        "NOT_EXACT_ONLY" not in str(e):
+                    raise
+        # a doctored BINDING field (right relations, wrong digests)
+        doctored = json.loads(json.dumps(pol))
+        doctored["anticipated_masks"]["per_carrier_sha256"] = {
+            k: "0" * 64 for k in
+            doctored["anticipated_masks"]["per_carrier_sha256"]}
+        c_ = _pin_body(doctored)
+        try:
+            load_policy(repo, c_)
+            raise SystemExit(
+                "C12 DOCTORED_BINDING_ADMITTED: a policy with the "
+                "right relations but wrong mask digests loaded")
+        except BindComparatorRefusal as e:
+            assert "NOT_THE_REGISTERED_POLICY" in str(e), str(e)
+        print("  C12 PASS  a SELF-CONSISTENTLY PINNED permissive body "
+              "(superset / subset / divergent) and a doctored-binding "
+              "policy all REFUSE in load_policy() before compare() is "
+              "reached -- the policy is reconstructed from the "
+              "admitted pins, not trusted because it is pinned")
+    else:
+        raise SystemExit(
+            "C12 NOT_EXERCISED: the policy is not yet pinned, so the "
+            "reconstruction path is untested; pin it before claiming "
+            "item 1 is repaired")
     print("w2_geometry_bind_comparator selftest: ALL PASS")
 
 

@@ -53,9 +53,17 @@ if _HERE not in sys.path:
     sys.path.insert(0, _HERE)
 
 REPO = os.path.abspath(os.path.join(_HERE, "..", ".."))
+# cycle-6 (codex 1507Z items 1-2): the LIVE capsule is the append-only
+# v5 successor; v4 remains committed history but is no longer pinned,
+# so a fixture pinning it would no longer resolve through the
+# production boundary at all.
 CAPSULE_REL = ("docs/f2g_window2_execution/"
-               "key_disposition_capsule_v4.json")
-TRUTH = {"NATIVE_V4_CAPTURE": 635, "RESTAGED_LINEAGE": 1420,
+               "key_disposition_capsule_v5.json")
+# the v5-frame truth: 24 SELECTION_RECORDS keys for 2026-08-28..09-02
+# enter as HTTP_CAPTURE (no captured bytes cover them) and 24
+# 05-30..06-04 keys leave, so the native/restaged split moves
+# 635/1420 -> 659/1396 while the census and the bridge hold.
+TRUTH = {"NATIVE_V4_CAPTURE": 659, "RESTAGED_LINEAGE": 1396,
          "PREDECESSOR_BRIDGE": 1}
 
 
@@ -80,12 +88,38 @@ def _manifest_pinning(raw_bytes, path=CAPSULE_REL, commit="ab" * 20):
 def _selftest():
     import w2_accrual_instrument_cayley as AI
     import w2_disposition_capsule_grassmann as DISP
-    import w2_expected_contracts_gen_cayley as GEN
+    # cycle-6: the REAL registered authority is the v4 artifact (the
+    # v5 capsule's live AUTHORITY_PATH). PB-5 must feed the mint door
+    # the authority it actually guards against -- fed the superseded
+    # v3 generator's output, the door correctly does not recognise it
+    # and PB-5 goes red for the wrong reason, narrating a regression
+    # in grassmann's lane that is really staleness in mine.
+    import w2_expected_contracts_gen_v4_cayley as GEN
 
     real_raw = open(os.path.join(REPO, *CAPSULE_REL.split("/")),
                     "rb").read()
     real = json.loads(real_raw.decode("utf-8"))
     man, reader = _manifest_pinning(real_raw)
+
+    # ---- PB-truth: the declared frame truth must equal the LIVE
+    # capsule's actual partition sizes. TRUTH is written out rather
+    # than derived (a constant derived from the artifact it checks
+    # proves nothing), so this guard exists to make the two fail
+    # LOUDLY together instead of drifting apart silently -- exactly
+    # what happened when the authority moved from v4 to v5.
+    _live = {"NATIVE_V4_CAPTURE": len(real["http_capture"]),
+             "RESTAGED_LINEAGE": len(real["reuse_or_bridge"]),
+             "PREDECESSOR_BRIDGE": len(real["predecessor"])}
+    if _live != TRUTH:
+        raise PinBindRefusal(
+            f"PB-truth FRAME_DRIFT: the pinned capsule carries {_live} "
+            f"but this bar declares {TRUTH} -- one of them is stale; "
+            "resolve explicitly, never let the bar narrate a frame "
+            "the artifact does not have")
+    print(f"  PB-truth PASS  the live capsule's partitions equal the "
+          f"declared frame truth {TRUTH['NATIVE_V4_CAPTURE']}/"
+          f"{TRUTH['RESTAGED_LINEAGE']}/"
+          f"{TRUTH['PREDECESSOR_BRIDGE']}")
 
     # ---- PB-0: anti-vacuity -- the pin path actually resolves -----
     got = AI.bind_registered_capsule(man, reader)

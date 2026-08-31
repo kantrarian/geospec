@@ -526,6 +526,19 @@ def anticipated_cascadia_registry(repo, commit, *, loaders=None):
 
 
 
+def _last_touch(repo, commit, rel):
+    """The commit at which `rel` last changed, as of `commit`. Stable
+    while those bytes are, so an artifact binding it stays
+    reproducible across later targets (codex cycle-6c)."""
+    r = subprocess.run(["git", "-C", repo, "log", "-1", "--format=%H",
+                        commit, "--", rel],
+                       capture_output=True, text=True)
+    out = r.stdout.strip()
+    if not out:
+        _refuse(f"no landing commit for {rel}")
+    return out
+
+
 def observed_availability(repo, commit, engine_days):
     """Per-carrier OBSERVED availability over the engine grid, from
     the committed per-day presence artifacts. A day is available when
@@ -680,7 +693,15 @@ def build(repo, *, commit="HEAD", loaders=None):
             "observation_source": {
                 "directory": PRESENCE_DIR_REL,
                 "artifact_claim_kind": "STATION_PRESENCE",
-                "commit": carrier,
+                # codex cycle-6c: this used to record the CARRIER
+                # commit, which made the artifact a function of WHEN
+                # it was built rather than of its registered inputs
+                # -- so it could never reproduce at a later target,
+                # and the regeneration proof was impossible. It now
+                # records the presence directory's own last-touch
+                # commit, which is stable while those bytes are.
+                "commit": _last_touch(repo, carrier,
+                                      PRESENCE_DIR_REL),
                 "rule": "a day is OBSERVED-available when its "
                         "committed presence artifact records at least "
                         "one present station"},

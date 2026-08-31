@@ -264,7 +264,7 @@ def _verify_obj(repo, manifest_commit, obj, prestart=False):
                 # codex 0238Z item 1: the REGISTERED expected-keys
                 # authority is a required pin class
                 have_auth = any(str(p).endswith(
-                    "staged_expected_contracts_v3.json")
+                    "staged_expected_contracts_v4.json")
                     for p in paths)
                 if not (have_amend and have_code and have_env
                         and have_auth):
@@ -580,7 +580,7 @@ def kat(repo, manifest_commit):
     common = [PRODUCER_AMENDMENT_PATH,
               "monitoring/src/w2_acquisition_capture_grassmann.py",
               "docs/f2g_window2_execution/"
-              "staged_expected_contracts_v3.json"]
+              "staged_expected_contracts_v4.json"]
     # positive: a v4 .record.json satisfies the envelope class
     r21 = _verify_obj(repo, full, _pb_slot(
         common + [PRODUCER_ENVELOPE_PREFIX

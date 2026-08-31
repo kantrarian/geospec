@@ -88,6 +88,13 @@ BOUND_SLOTS = {
                   "monitoring/src/w2_mf4.py",
                   "monitoring/src/w2_mag1.py",
                   "monitoring/src/w2_expected_contracts_gen_v4_cayley.py",
+                  # the v3 generator stands as HISTORY but
+                  # remains import-reachable from
+                  # w2_capture_run_v4_grassmann, so the
+                  # closure keeps it pinned until their
+                  # successor cutover retires the edge
+                  # (grassmann lane, flagged in cycle-3)
+                  "monitoring/src/w2_expected_contracts_gen_cayley.py",
                   "docs/f2g_window2_execution/"
                   "staged_expected_contracts_v4.json",
                   # the 2056-key three-way disposition capsule +

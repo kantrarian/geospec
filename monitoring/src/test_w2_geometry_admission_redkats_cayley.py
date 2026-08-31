@@ -29,6 +29,12 @@ REPO = os.path.abspath(os.path.join(_HERE, "..", ".."))
 CAPSULE_REL = ("docs/f2g_window2_execution/"
                "bound_geometry_capsule_v2.json")
 MANIFEST_REL = "docs/f2g_window2_execution/execution_manifest.json"
+# codex 2328Z: the inverse control must show the bypass was OPEN.
+# This is the cycle-6d candidate -- the last commit before the
+# capsule-content binding existed -- and it is named, not derived, so
+# the control cannot drift onto a commit that already carries the
+# repair.
+PRE_REPAIR_COMMIT = "bd4caf42f84b8d2189754b9217ecc51d35e62ecb"
 
 
 class GeometryAdmissionRefusal(AssertionError):
@@ -526,14 +532,72 @@ def _selftest():
         f0 = sorted(c["effect_grids"])[0]
         c["effect_grids"][f0] = list(c["effect_grids"][f0]) + [999.0]
 
+    def _mut_drop_carrier(c):
+        victim = sorted(k for k in c["registries"]
+                        if k != c["loco_registry_carrier"])[0]
+        for k in ("registries", "segments", "carrier_masks"):
+            del c[k][victim]
+
+    def _mut_add_carrier(c):
+        src = c["loco_registry_carrier"]
+        c["registries"]["ghost"] = ["GH.0001"]
+        c["segments"]["ghost"] = {"GH.0001": "sA"}
+        c["carrier_masks"]["ghost"] = \
+            copy.deepcopy(c["carrier_masks"][src])
+
+    def _mut_registered_days(c):
+        rd = c["carrier_masks"]["cascadia"]["registered_days"]
+        c["carrier_masks"]["cascadia"]["registered_days"] = list(rd[:-1])
+
     _content_refuses("added station", _mut_add)
     _content_refuses("moved segment", _mut_move)
     _content_refuses("changed availability mask", _mut_mask)
+    _content_refuses("dropped whole carrier", _mut_drop_carrier)
+    _content_refuses("added whole carrier", _mut_add_carrier)
+    _content_refuses("truncated registered days", _mut_registered_days)
     _content_refuses("changed calendar frame", _mut_frame)
     _content_refuses("changed effect grids", _mut_grids)
-    print("  GA-8c PASS  added station, moved segment, changed mask, "
-          "changed frame and changed effect grids EACH refuse "
-          "POWER_GEOMETRY_CONTENT_UNBOUND with no worker in the loop")
+    print("  GA-8c PASS  added station, moved segment, changed "
+          "availability day, dropped carrier, added carrier, "
+          "truncated registered days, changed frame and changed "
+          "effect grids EACH refuse POWER_GEOMETRY_CONTENT_UNBOUND "
+          "with no worker in the loop")
+
+    # canonical capsule divergence on a field the CONTENT cross-check
+    # does not compare: only the regeneration proof can catch this,
+    # so it separates the two new bindings rather than letting one
+    # stand in for the other.
+    off_ref = copy.deepcopy(live)
+    off_ref["calendar_authority_ref"] = dict(
+        off_ref["calendar_authority_ref"],
+        path="docs/f2g_window2_execution/not_the_authority.json")
+    off_ref["capsule_digest"] = PH._geometry_capsule_digest(off_ref)
+    PH._validate_geometry_capsule(off_ref, fam, point)      # accepted
+    if PH._verify_capsule_matches_inputs(
+            off_ref, resolved_inputs) is not True:
+        raise GeometryAdmissionRefusal(
+            "GA-8 CONTROL_INERT: the divergence probe was supposed to "
+            "leave the content cross-check satisfied")
+    try:
+        PH._verify_regenerates(
+            REPO, head_c,
+            {"geometry_capsule": (json.dumps(
+                off_ref, sort_keys=True,
+                separators=(",", ":")).encode(),
+                "w2_geometry_capsule_gen_cayley", False)})
+    except PH.PowerHarnessError as e:
+        if "POWER_TARGET_ARTIFACT_UNREPRODUCIBLE" not in str(e):
+            raise GeometryAdmissionRefusal(
+                f"GA-8 wrong refusal for canonical divergence: "
+                f"{str(e)[:100]}")
+    else:
+        raise GeometryAdmissionRefusal(
+            "GA-8 CANONICAL_DIVERGENCE_ADMITTED: a capsule that does "
+            "not reproduce at its own manifest target must refuse")
+    print("  GA-8d PASS  a capsule diverging on a field the content "
+          "cross-check does NOT compare passes the schema validator "
+          "AND the cross-check, and is caught only by the "
+          "regeneration proof -- the two bindings are independent")
 
     # an artifact registered as UNLABELLED may not smuggle a label
     smuggled = dict(json.loads(cap_raw.decode()),
@@ -555,9 +619,82 @@ def _selftest():
         raise GeometryAdmissionRefusal(
             "GA-8 OPEN_SPEC_ACCEPTED: the regeneration contract must "
             "be a closed (bytes, module, label_required) triple")
-    print("  GA-8d PASS  an artifact registered as carrying no target "
+    print("  GA-8e PASS  an artifact registered as carrying no target "
           "identity may not smuggle one in, and the regeneration "
           "contract itself refuses a non-closed spec")
+
+    # ---- GA-8f (codex 2328Z): the PRE-REPAIR inverse control ----
+    # A lock is only worth its refusal if the thing it refuses was
+    # once accepted. This runs the ACTUAL pre-repair code -- the
+    # named commit, materialized detached, in a fresh interpreter, so
+    # no module in this process can stand in for it -- and requires
+    # that it ADMITS the same forged capsule this bar refuses. If the
+    # named commit cannot be resolved the control REFUSES; it never
+    # degrades to a silent pass.
+    pre = _sp.run(["git", "-C", REPO, "rev-parse",
+                   PRE_REPAIR_COMMIT + "^{commit}"],
+                  capture_output=True, text=True).stdout.strip()
+    if not pre:
+        raise GeometryAdmissionRefusal(
+            "GA-8f UNRESOLVABLE_PRE_REPAIR: the pre-repair commit "
+            f"{PRE_REPAIR_COMMIT[:12]} is not in this repository, so "
+            "the inverse control cannot run. It is not skippable -- "
+            "a clone without that object cannot second-source this "
+            "particular lock")
+    _td = _tf.mkdtemp(prefix="ga8f-pre-repair-")
+    _wt = _os.path.join(_td, "t")
+    try:
+        add = _sp.run(["git", "-C", REPO, "worktree", "add",
+                       "--detach", _wt, pre], capture_output=True)
+        if add.returncode:
+            raise GeometryAdmissionRefusal(
+                "GA-8f could not materialize the pre-repair worktree: "
+                + add.stderr.decode(errors="replace")[:160])
+        child = (
+            "import json,subprocess,sys\n"
+            f"sys.path.insert(0, {_os.path.join(_wt, 'monitoring', 'src')!r})\n"
+            "import w2_power_harness_cayley as OLD\n"
+            f"REPO={REPO!r}\n"
+            f"HEAD={head_c!r}\n"
+            "def blob(c,r):\n"
+            "    return subprocess.run(['git','-C',REPO,'cat-file',"
+            "'blob',c+':'+r],capture_output=True).stdout\n"
+            f"man=json.loads(blob(HEAD,{MANIFEST_REL!r}).decode())\n"
+            f"cap=json.loads(blob(HEAD,{CAPSULE_REL!r}).decode())\n"
+            "v=cap['registries']['cascadia'][-1]\n"
+            "cap['registries']['cascadia']=[s for s in "
+            "cap['registries']['cascadia'] if s!=v]\n"
+            "del cap['segments']['cascadia'][v]\n"
+            "cap['capsule_digest']=OLD._geometry_capsule_digest(cap)\n"
+            "try:\n"
+            "    OLD._resolve_capsule_input_refs(REPO,HEAD,man,cap)\n"
+            "    print('<<<PRE>>>ACCEPTED')\n"
+            "except Exception as e:\n"
+            "    print('<<<PRE>>>REFUSED '+str(e)[:160])\n")
+        run = _sp.run([sys.executable, "-I", "-E", "-s", "-c", child],
+                      capture_output=True,
+                      cwd=_os.path.join(_wt, "monitoring", "src"),
+                      timeout=1800)
+        out = run.stdout.decode("utf-8", errors="replace")
+        if "<<<PRE>>>" not in out:
+            raise GeometryAdmissionRefusal(
+                "GA-8f the pre-repair control did not run: "
+                + (run.stderr.decode(errors="replace")[-300:]
+                   or out[-300:]))
+        verdict = out.split("<<<PRE>>>", 1)[1].strip()
+        if not verdict.startswith("ACCEPTED"):
+            raise GeometryAdmissionRefusal(
+                "GA-8f CONTROL_INERT: the pre-repair code did NOT "
+                "admit the forged capsule, so the repair's refusal "
+                f"proves nothing here -- {verdict[:140]}")
+    finally:
+        _sp.run(["git", "-C", REPO, "worktree", "remove", "--force",
+                 _wt], capture_output=True)
+        import shutil as _sh2
+        _sh2.rmtree(_td, ignore_errors=True)
+    print(f"  GA-8f PASS  the PRE-REPAIR code at {pre[:12]} ADMITS "
+          "the same forged capsule this bar refuses -- the lock "
+          "closes a bypass that was demonstrably open")
 
     # ---- GA-5 the loader takes no capsule dict -------------------
     try:

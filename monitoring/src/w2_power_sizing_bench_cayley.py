@@ -69,7 +69,14 @@ def build_capsule():
             "segments": {ck: {s: ("sA" if i < len(regs[ck]) // 2
                                   else "sB")
                               for i, s in enumerate(regs[ck])}
-                         for ck in CAPS}}
+                         for ck in CAPS},
+            # cycle-6: the advanced schema's closed input_refs set.
+            # TIMING-ONLY, like every other field here: these resolve
+            # to no admitted pin, so this capsule cannot certify.
+            "input_refs": {n: {"commit": "0" * 40,
+                               "path": f"docs/bench/{n}.json",
+                               "blob_sha256": "0" * 64}
+                           for n in PH.GEOMETRY_INPUT_REFS}}
 
 
 def timed(fn):

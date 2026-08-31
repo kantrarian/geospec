@@ -48,11 +48,21 @@ def build_capsule(*, calendar_authority, effect_grids_artifact,
                   registries, segments, available_days_by_carrier,
                   calendar_authority_sha256, calendar_authority_ref,
                   seed_authority_sha256, loco_registry_carrier,
-                  mode="bound"):
-    """Assemble + validate the closed v2 capsule. Every carrier's
-    engine-facing registered_days = the authority engine grid
-    byte-for-byte (the non-compression contract); availability is the
-    separate mask argument."""
+                  input_refs, mode="bound"):
+    """FIXTURE-ONLY assembler (codex 1507Z item 4: "keep any
+    raw-file/caller-dict builder fixture-only").
+
+    It takes caller dicts, so nothing it produces is admissible on
+    its own: PRODUCTION capsules are built by
+    `build_capsule_from_manifest`, which reopens every input from the
+    admitted pins of a resolved manifest commit. This entry remains
+    for KATs and doctors, and the loader still refuses any capsule
+    whose input_refs are not admitted pins, so a capsule minted here
+    cannot certify even if it is committed.
+
+    Every carrier's engine-facing registered_days = the authority
+    engine grid byte-for-byte (the non-compression contract);
+    availability is the separate mask argument."""
     if calendar_authority.get("schema") != \
             "f2g-w2-calendar-authority-v4":
         raise CapsuleBuildRefusal(
@@ -87,7 +97,9 @@ def build_capsule(*, calendar_authority, effect_grids_artifact,
            "segments": {ck: dict(segments[ck])
                         for ck in sorted(segments)},
            "effect_grids": grids,
-           "loco_registry_carrier": str(loco_registry_carrier)}
+           "loco_registry_carrier": str(loco_registry_carrier),
+           "input_refs": {k: dict(v)
+                          for k, v in sorted(input_refs.items())}}
     cap["capsule_digest"] = PH._geometry_capsule_digest(cap)
     # validate through the REAL harness validator at EVERY registered
     # family/point (the closed schema, calendar frame, masks, LOCO
@@ -104,38 +116,124 @@ def build_capsule(*, calendar_authority, effect_grids_artifact,
     return cap
 
 
+# ------------------------------------------------------------------
+# PRODUCTION path (codex 1507Z item 4)
+# ------------------------------------------------------------------
+INPUTS_BUNDLE_REL = ("docs/f2g_window2_execution/"
+                     "power_geometry_inputs_w2_v1.json")
+SEED_AUTHORITY_REL = ("docs/f2g_window2_execution/"
+                      "power_seed_authority_w2_v1.json")
+CALENDAR_AUTHORITY_REL = ("docs/f2g_window2_execution/"
+                          "calendar_authority_w2_v4.json")
+EFFECT_GRIDS_REL = ("docs/f2g_window2_execution/"
+                    "effect_grids_w2_v1.json")
+MANIFEST_REL = "docs/f2g_window2_execution/execution_manifest.json"
+REF_PATHS = {"inputs_bundle": INPUTS_BUNDLE_REL,
+             "seed_authority": SEED_AUTHORITY_REL,
+             "calendar_authority": CALENDAR_AUTHORITY_REL,
+             "effect_grids": EFFECT_GRIDS_REL}
+
+
+def _git_blob(repo, commit, rel):
+    import subprocess
+    p = subprocess.run(["git", "-C", repo, "cat-file", "blob",
+                        f"{commit}:{rel}"], capture_output=True)
+    if p.returncode != 0 or not p.stdout:
+        raise CapsuleBuildRefusal(
+            f"CAPSULE_INPUT_UNREADABLE: {rel} at {str(commit)[:12]}")
+    return p.stdout
+
+
+def build_capsule_from_manifest(repo, manifest_commit):
+    """THE production builder. Takes ONE resolved manifest commit and
+    reopens every registered input from that manifest's ADMITTED pins
+    -- no caller paths, no caller seed string, no free-form CLI.
+
+    Each input's {commit, path, blob_sha256} is taken from the pin
+    itself and carried in the capsule, so a named-target rebuild
+    reproduces the committed capsule byte-for-byte and the loader can
+    re-resolve every reference independently.
+    """
+    import hashlib as _h
+    man = json.loads(
+        _git_blob(repo, manifest_commit, MANIFEST_REL).decode("utf-8"))
+    idx = {}
+    for slot in man["slots"].values():
+        if slot["status"] != "BOUND":
+            continue
+        for pin in slot["pins"]:
+            idx[pin["path"]] = pin
+    refs, raw = {}, {}
+    for name, rel in sorted(REF_PATHS.items()):
+        pin = idx.get(rel)
+        if pin is None:
+            raise CapsuleBuildRefusal(
+                f"CAPSULE_INPUT_NOT_PINNED: {name} ({rel}) is not a "
+                f"BOUND pin at {str(manifest_commit)[:12]} -- the "
+                "production builder never reads an unadmitted input")
+        body = _git_blob(repo, pin["commit"], pin["path"])
+        got = _h.sha256(body).hexdigest()
+        if got != pin["blob_sha256"]:
+            raise CapsuleBuildRefusal(
+                f"CAPSULE_INPUT_DIVERGENT: {name} bytes {got[:12]} "
+                f"!= pin {pin['blob_sha256'][:12]}")
+        refs[name] = {"commit": pin["commit"], "path": pin["path"],
+                      "blob_sha256": got}
+        raw[name] = body
+
+    bundle = json.loads(raw["inputs_bundle"].decode("utf-8"))
+    if bundle.get("schema") != "f2g-w2-power-geometry-inputs-v1":
+        raise CapsuleBuildRefusal(
+            "CAPSULE_INPUT_INVALID: geometry-inputs bundle schema")
+    seed = json.loads(raw["seed_authority"].decode("utf-8"))
+    if seed.get("schema") != "f2g-w2-power-seed-authority-v1":
+        raise CapsuleBuildRefusal(
+            "CAPSULE_INPUT_INVALID: seed-authority record schema")
+    cal = json.loads(raw["calendar_authority"].decode("utf-8"))
+    grids = json.loads(raw["effect_grids"].decode("utf-8"))
+    return build_capsule(
+        calendar_authority=cal,
+        effect_grids_artifact=grids,
+        registries=bundle["registries"],
+        segments=bundle["segments"],
+        available_days_by_carrier=bundle["carrier_masks"],
+        calendar_authority_sha256=refs["calendar_authority"][
+            "blob_sha256"],
+        calendar_authority_ref={
+            "commit": refs["calendar_authority"]["commit"],
+            "path": refs["calendar_authority"]["path"]},
+        seed_authority_sha256=seed["seed_authority_sha256"],
+        loco_registry_carrier="cascadia",
+        input_refs=refs,
+        mode="bound")
+
+
 def main():
-    """CLI for 08-25 production: paths + the routed seed authority.
-    Usage: gen.py <repo> <masks.json> <registries.json>
-                  <segments.json> <authority_pin_commit>
-                  <authority_pin_path> <authority_blob_sha256>
-                  <seed_authority_sha256> <out_path>
-    masks.json = {carrier: [available ISO days]}."""
-    (repo, masks_p, regs_p, segs_p, pin_commit, pin_path, pin_sha,
-     seed_sha, out_p) = sys.argv[1:10]
-    auth = json.load(open(os.path.join(
-        repo, "docs", "f2g_window2_execution",
-        "calendar_authority_w2_v4.json"), encoding="utf-8"))
-    grids = json.load(open(os.path.join(
-        repo, "docs", "f2g_window2_execution",
-        "effect_grids_w2_v1.json"), encoding="utf-8"))
-    cap = build_capsule(
-        calendar_authority=auth, effect_grids_artifact=grids,
-        registries=json.load(open(regs_p, encoding="utf-8")),
-        segments=json.load(open(segs_p, encoding="utf-8")),
-        available_days_by_carrier=json.load(open(masks_p,
-                                                 encoding="utf-8")),
-        calendar_authority_sha256=pin_sha,
-        calendar_authority_ref={"commit": pin_commit,
-                                "path": pin_path},
-        seed_authority_sha256=seed_sha,
-        loco_registry_carrier="cascadia")
+    """PRODUCTION entry (codex 1507Z item 4): ONE resolved manifest
+    commit. The former free-form CLI -- caller mask/registry/segment
+    paths plus a caller seed string -- is REMOVED: it was exactly the
+    unadmitted production entry the ruling closes.
+
+    Usage: gen.py <repo> <manifest_commit> <out_path>
+    """
+    if len(sys.argv) != 4:
+        raise SystemExit(
+            "CAPSULE_PRODUCTION_USAGE: gen.py <repo> "
+            "<manifest_commit> <out_path> -- geometry inputs are "
+            "reopened from the admitted pins of that manifest, never "
+            "supplied by the caller")
+    repo, manifest_commit, out_p = sys.argv[1:4]
+    cap = build_capsule_from_manifest(os.path.abspath(repo),
+                                      manifest_commit)
+    body = json.dumps(cap, indent=1, sort_keys=True) + "\n"
     with open(out_p, "w", encoding="utf-8", newline="\n") as f:
-        f.write(json.dumps(cap, indent=1, sort_keys=True) + "\n")
-    print(f"wrote {out_p}; capsule_digest={cap['capsule_digest']}")
+        f.write(body)
+    import hashlib as _h
+    print(f"wrote {out_p}")
+    print("capsule sha256:", _h.sha256(body.encode()).hexdigest())
+    print("capsule_digest:", cap["capsule_digest"])
 
 
-# ---------------------------------------------------------------- selftest
 def _selftest():
     repo = os.path.abspath(os.path.join(_HERE, "..", ".."))
     auth = json.load(open(os.path.join(
@@ -163,6 +261,13 @@ def _selftest():
                                       "path": "docs/x.json"},
               seed_authority_sha256="b" * 64,
               loco_registry_carrier="cascadia",
+              # fixture input_refs: shape-valid so the closed schema
+              # is exercised, but they resolve to no admitted pin, so
+              # the loader refuses this capsule for certification
+              input_refs={n: {"commit": "f" * 40,
+                              "path": f"docs/fixture/{n}.json",
+                              "blob_sha256": "c" * 64}
+                          for n in PH.GEOMETRY_INPUT_REFS},
               mode="fixture")
     cap = build_capsule(**kw)
     # the REAL validator accepted every registered family/point

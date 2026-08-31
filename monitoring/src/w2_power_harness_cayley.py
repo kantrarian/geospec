@@ -53,6 +53,7 @@ import hashlib
 import json
 import math
 import os
+import re
 import sys
 
 _HERE = os.path.dirname(os.path.abspath(__file__))
@@ -503,7 +504,18 @@ GEOMETRY_CAPSULE_FIELDS = {
     "calendar_authority_sha256", "calendar_authority_ref",
     "seed_authority_sha256", "calendar_frame", "carrier_masks",
     "registries", "segments", "effect_grids",
-    "loco_registry_carrier", "capsule_digest"}
+    "loco_registry_carrier", "capsule_digest",
+    # cycle-6 (codex 1507Z item 4): the capsule must CARRY exact
+    # {commit, path, blob_sha256} references for every registered
+    # input, so a named-target rebuild can reopen them instead of
+    # trusting caller-supplied paths.
+    "input_refs"}
+
+# every input reference the advanced schema requires, and the exact
+# closed shape of each one
+GEOMETRY_INPUT_REFS = ("inputs_bundle", "seed_authority",
+                       "calendar_authority", "effect_grids")
+GEOMETRY_REF_FIELDS = {"commit", "path", "blob_sha256"}
 
 
 def _geometry_capsule_digest(capsule):
@@ -535,6 +547,29 @@ def _validate_geometry_capsule(capsule, family, point):
                "'bound' (fixture mode never certifies)")
     if _geometry_capsule_digest(capsule) != capsule["capsule_digest"]:
         refuse("POWER_GEOMETRY_UNBOUND", "capsule digest mismatch")
+    # cycle-6 (codex 1507Z item 4): the input references are part of
+    # the closed schema and are shape-validated for EVERY capsule.
+    # Whether they RESOLVE to admitted pins is checked by the loader,
+    # which is the only layer holding a repo and a manifest commit.
+    refs = capsule["input_refs"]
+    if not isinstance(refs, dict) or \
+            set(refs) != set(GEOMETRY_INPUT_REFS):
+        refuse("POWER_GEOMETRY_UNBOUND",
+               "input_refs is not the closed registered set "
+               f"{sorted(GEOMETRY_INPUT_REFS)}")
+    for _n, _r in sorted(refs.items()):
+        if not isinstance(_r, dict) or \
+                set(_r) != GEOMETRY_REF_FIELDS:
+            refuse("POWER_GEOMETRY_UNBOUND",
+                   f"input_refs[{_n}] is not a closed "
+                   f"{sorted(GEOMETRY_REF_FIELDS)} reference")
+        if not (isinstance(_r["path"], str) and _r["path"]
+                and re.fullmatch(r"[0-9a-f]{40}", str(_r["commit"]))
+                and re.fullmatch(r"[0-9a-f]{64}",
+                                 str(_r["blob_sha256"]))):
+            refuse("POWER_GEOMETRY_UNBOUND",
+                   f"input_refs[{_n}] carries a malformed commit, "
+                   "path or blob digest")
     _validate_calendar_frame(capsule["calendar_frame"])
     for ck in sorted(capsule["carrier_masks"]):
         _validate_carrier_mask(ck, capsule["carrier_masks"][ck],
@@ -615,10 +650,90 @@ def _load_bound_geometry(repo, geometry_ref):
             "POWER_GEOMETRY_UNBOUND: pinned capsule bytes unreadable "
             "or divergent")
     try:
-        return json.loads(p.stdout.decode("utf-8"))
+        capsule = json.loads(p.stdout.decode("utf-8"))
     except ValueError:
         raise PowerHarnessError(
             "POWER_GEOMETRY_UNBOUND: pinned bytes are not a capsule")
+    _resolve_capsule_input_refs(repo, mc, man, capsule)
+    return capsule
+
+
+def _manifest_pin_index(man):
+    """{path: pin} over BOUND slots only."""
+    idx = {}
+    for slot in man["slots"].values():
+        if slot["status"] != "BOUND":
+            continue
+        for pin in slot["pins"]:
+            idx[pin["path"]] = pin
+    return idx
+
+
+def _resolve_capsule_input_refs(repo, manifest_commit, man, capsule):
+    """cycle-6 (codex 1507Z item 4 + item 3): every input reference
+    the capsule carries must be an ADMITTED pin of the same manifest,
+    reopen to the referenced bytes, and match the capsule's recorded
+    digest. Then (item 3) the capsule's `seed_authority_sha256` must
+    equal the root of the MANIFEST-PINNED seed-authority record --
+    never an arbitrary 64-hex caller value.
+
+    A capsule whose references are well formed but not admitted is
+    exactly the shape this closes: it looks complete and rests on
+    bytes the manifest never bound.
+    """
+    import subprocess as _sp
+    refs = capsule.get("input_refs")
+    if not isinstance(refs, dict) or \
+            set(refs) != set(GEOMETRY_INPUT_REFS):
+        raise PowerHarnessError(
+            "POWER_GEOMETRY_UNBOUND: capsule carries no closed "
+            "input_refs set")
+    idx = _manifest_pin_index(man)
+    resolved = {}
+    for name in sorted(GEOMETRY_INPUT_REFS):
+        ref = refs[name]
+        pin = idx.get(ref["path"])
+        if pin is None:
+            raise PowerHarnessError(
+                f"POWER_GEOMETRY_INPUT_NOT_PINNED: {name} references "
+                f"{ref['path']}, which is not a BOUND pin at "
+                f"{str(manifest_commit)[:12]}")
+        rp = _sp.run(["git", "-C", repo, "cat-file", "blob",
+                      f"{ref['commit']}:{ref['path']}"],
+                     capture_output=True)
+        if rp.returncode != 0 or not rp.stdout:
+            raise PowerHarnessError(
+                f"POWER_GEOMETRY_INPUT_UNREADABLE: {name} at "
+                f"{str(ref['commit'])[:12]}:{ref['path']}")
+        got = hashlib.sha256(rp.stdout).hexdigest()
+        if got != ref["blob_sha256"] or got != pin["blob_sha256"]:
+            raise PowerHarnessError(
+                f"POWER_GEOMETRY_INPUT_DIVERGENT: {name} bytes "
+                f"{got[:12]} do not match the capsule reference "
+                f"{str(ref['blob_sha256'])[:12]} and/or the manifest "
+                f"pin {str(pin['blob_sha256'])[:12]}")
+        resolved[name] = rp.stdout
+    # item 3: the seed authority is resolved from its PINNED record
+    try:
+        seed_rec = json.loads(
+            resolved["seed_authority"].decode("utf-8"))
+    except ValueError:
+        raise PowerHarnessError(
+            "POWER_SEED_AUTHORITY_INVALID: the pinned seed-authority "
+            "record is not JSON")
+    root = seed_rec.get("seed_authority_sha256")
+    if not (isinstance(root, str)
+            and re.fullmatch(r"[0-9a-f]{64}", root)):
+        raise PowerHarnessError(
+            "POWER_SEED_AUTHORITY_INVALID: the pinned record carries "
+            "no well-formed root")
+    if capsule.get("seed_authority_sha256") != root:
+        raise PowerHarnessError(
+            "POWER_SEED_AUTHORITY_UNREGISTERED: the capsule's seed "
+            f"authority {str(capsule.get('seed_authority_sha256'))[:12]}"
+            f" is not the manifest-pinned registered root {root[:12]} "
+            "-- an arbitrary 64-hex value is never accepted")
+    return resolved
 
 
 def rep_seed_registered(seed_authority_sha, family, r):

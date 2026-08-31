@@ -651,7 +651,14 @@ def dual_result_gate(manifest, *, manifest_commit="HEAD",
                 return ("REFUSE", "readiness record absent "
                         "at the target")
             committed = json.loads(rec_b.decode("utf-8"))
-            rebuilt = RDY.build(REPO)
+            # cycle-5 R2 (codex cycle-4 item 2): the rebuild is
+            # carried by the NAMED target commit -- every blob,
+            # landing-commit lookup and operation-exercise fixture
+            # resolves at `commit`, never at HEAD or the working
+            # tree, so a target with altered dependencies can no
+            # longer inherit a later HEAD repair (nor a good
+            # target inherit a doctored worktree refusal).
+            rebuilt = RDY.build(REPO, commit=commit)
             if json.dumps(rebuilt, sort_keys=True) != \
                     json.dumps(committed, sort_keys=True):
                 return ("REFUSE", "readiness record does not "
@@ -1241,6 +1248,108 @@ def _selftest():
           "the production-resolved path is REFUSED, and the same bytes "
           "placed at that exact path are ACCEPTED (a capsule elsewhere "
           "never satisfies)")
+
+    # ---- RG-12 (codex cycle-4 item 2): the M-F4 readiness rebuild
+    # is carried by the NAMED target commit -- never HEAD, never the
+    # working tree. BOTH controls CONSTRUCTED:
+    #   (T) a synthesized target whose tree alters ONE readiness
+    #       dependency while carrying the unchanged readiness record
+    #       must REFUSE the mf4 gate REGARDLESS of HEAD's good bytes
+    #       (pre-repair, the rebuild read HEAD and the copied record
+    #       verified -- the false inherit);
+    #   (H) the good HEAD target must PASS the mf4 gate while the
+    #       WORKING TREE carries a doctored tick fixture
+    #       (pre-repair, the operation exercise read the live
+    #       calendar path and refused falsely).
+    # The target is synthesized with pure plumbing (hash-object +
+    # read-tree into a TEMPORARY index + commit-tree): HEAD never
+    # moves, the worktree is never written, no ref is created.
+    import tempfile as _tf
+    import w2_mf4_successor_readiness_gen_cayley as _RDY
+    _led_rel = _RDY.LEDGER_REL
+    _led_good = _blob("HEAD", _led_rel)
+    if not _led_good:
+        raise RegenerationGateRefusal(
+            "RG-12 FIXTURE_ABSENT: pinned ledger unreadable at HEAD")
+    _led_bad = _led_good.replace(b'"n_rows"', b'"n_rowz"', 1)
+    if _led_bad == _led_good:
+        raise RegenerationGateRefusal(
+            "RG-12 DOCTOR_INERT: the ledger mutation changed nothing")
+    _fd12, _idx12 = _tf.mkstemp(prefix="rg12-index-")
+    os.close(_fd12)
+    os.unlink(_idx12)  # git wants to create it fresh
+
+    def _plumb(args, data=None):
+        env = dict(os.environ)
+        env["GIT_INDEX_FILE"] = _idx12
+        p = subprocess.run(
+            ["git", "-c", "user.name=rg12-kat",
+             "-c", "user.email=rg12-kat@local", "-C", REPO] + args,
+            input=data, capture_output=True, env=env)
+        if p.returncode:
+            raise RegenerationGateRefusal(
+                "RG-12 PLUMBING_FAILED: git " + " ".join(args) +
+                ": " + p.stderr.decode(errors="replace")[:200])
+        return p.stdout.decode().strip()
+
+    try:
+        _oid = _plumb(["hash-object", "-w", "--stdin"], _led_bad)
+        _plumb(["read-tree", "HEAD"])
+        _plumb(["update-index", "--cacheinfo",
+                f"100644,{_oid},{_led_rel}"])
+        _tree12 = _plumb(["write-tree"])
+        _T12 = _plumb(["commit-tree", _tree12, "-p", "HEAD", "-m",
+                       "RG-12 KAT synthesized target (unreferenced)"])
+    finally:
+        try:
+            os.unlink(_idx12)
+        except OSError:
+            pass
+    _sem_power = {"power_verifier":
+                  lambda c: {"power_gate": "PASS",
+                             "package_valid": True,
+                             "typed_reasons": []}}
+    _r12a = dual_result_gate(load_manifest(_T12),
+                             manifest_commit=_T12, **_sem_power)
+    if _r12a["mf4_readiness_gate"] != "REFUSE" or \
+            "diverges" not in _r12a["mf4_readiness_detail"]:
+        raise RegenerationGateRefusal(
+            "RG-12 TARGET_INHERITED_HEAD: a target with an altered "
+            "readiness dependency and a copied record did not "
+            "refuse the mf4 gate (gate="
+            f"{_r12a['mf4_readiness_gate']}, detail="
+            f"{_r12a['mf4_readiness_detail'][:120]})")
+    _cal_p = os.path.join(REPO, "docs", "f2g_window2_execution",
+                          "calendar_authority_w2_v4.json")
+    _v3_b = _blob("HEAD", "docs/f2g_window2_execution/"
+                          "calendar_authority_w2_v3.json")
+    with open(_cal_p, "rb") as _f:
+        _cal_orig = _f.read()
+    try:
+        with open(_cal_p, "wb") as _f:
+            _f.write(_v3_b)
+        _r12b = dual_result_gate(load_manifest("HEAD"),
+                                 manifest_commit="HEAD",
+                                 **_sem_power)
+    finally:
+        with open(_cal_p, "wb") as _f:
+            _f.write(_cal_orig)
+    with open(_cal_p, "rb") as _f:
+        if _f.read() != _cal_orig:
+            raise RegenerationGateRefusal(
+                "RG-12 RESTORE_FAILED: worktree calendar not "
+                "restored -- repair by hand before trusting the "
+                "tree")
+    if _r12b["mf4_readiness_gate"] != "PASS":
+        raise RegenerationGateRefusal(
+            "RG-12 WORKTREE_STEERED_TARGET: the good HEAD target "
+            "did not PASS the mf4 gate under a doctored worktree "
+            f"fixture (detail={_r12b['mf4_readiness_detail'][:160]})")
+    print("  RG-12 PASS  readiness rebuild carried by the NAMED "
+          "commit, BOTH controls CONSTRUCTED: an altered-dependency "
+          "target with a copied record REFUSES regardless of HEAD; "
+          "the good HEAD target PASSES regardless of a doctored "
+          "worktree fixture")
 
     # Now the live state, reported honestly whatever it is.
     print(f"\n  live: {rep['match']} match / {len(rep['stale'])} "

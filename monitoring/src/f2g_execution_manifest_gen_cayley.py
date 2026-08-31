@@ -14,6 +14,7 @@ Usage: gen.py <repo> <execution-target-commit> <design-manifest-commit>
 import hashlib
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -722,15 +723,31 @@ POWER_CERT_RECEIPT_CORE = ("package_valid", "power_gate",
 
 
 def _power_cert_semantic_gate(repo, target_full,
-                              verify_fn=None):
+                              verify_fn=None,
+                              _kat_receipt_env=None):
     """cycle-4 R1 (codex cycle-3 finding 1): BOUND is emitted
     only on a RECOMPUTED semantic PASS. The committed verifier
     receipt's core verdict fields must equal the live
     recomputation (a forged PASS receipt refuses), and the
-    recomputed power_gate must be PASS. verify_fn is a
-    KAT-only seam."""
+    recomputed power_gate must be PASS.
+
+    cycle-5 R3 (codex cycle-4 item 3): core equality alone left
+    the receipt an OPEN contract -- a forged schema, source
+    digest, timestamp, host, authority text, or extra field rode
+    through. The receipt is now CLOSED: exact receipt schema and
+    verdict schema, exact field set (imported from the verifier
+    module -- one authority), verifier_source_sha256 bound to the
+    verifier blob AT THE SAME TARGET, canonical-UTC verified_utc
+    no later than the receipt's landing commit at the target,
+    nonempty host, and the exact no-authority text. Core fields
+    stay equality-vs-recomputation because host/clock make full
+    byte equality impossible; everything else is exact.
+
+    verify_fn and _kat_receipt_env ({receipt_bytes,
+    verifier_source_bytes, landing_time_utc}) are KAT-only seams;
+    production reads git objects unconditionally."""
+    import w2_power_cert_result_verifier_cayley as PCV
     if verify_fn is None:
-        import w2_power_cert_result_verifier_cayley as PCV
         def verify_fn(c):
             return PCV.verify(repo, c)
     res = verify_fn(target_full)
@@ -744,9 +761,20 @@ def _power_cert_semantic_gate(repo, target_full,
             "semantic verdict")
     rcpt_rel = (POWER_CERT_DIR
                 + "/power_cert_verifier_receipt_v1.json")
-    raw = _git(repo, ["cat-file", "blob",
-                      f"{target_full}:{rcpt_rel}"],
-               binary=True)
+    if _kat_receipt_env is None:
+        raw = _git(repo, ["cat-file", "blob",
+                          f"{target_full}:{rcpt_rel}"],
+                   binary=True)
+        src_b = _git(repo, ["cat-file", "blob",
+                            f"{target_full}:"
+                            f"{PCV.VERIFIER_SOURCE_REL}"],
+                     binary=True)
+        landing = _git(repo, ["log", "-1", "--format=%cI",
+                              target_full, "--", rcpt_rel])
+    else:
+        raw = _kat_receipt_env["receipt_bytes"]
+        src_b = _kat_receipt_env["verifier_source_bytes"]
+        landing = _kat_receipt_env["landing_time_utc"]
     committed = json.loads(raw.decode("utf-8"))
     for f_ in POWER_CERT_RECEIPT_CORE:
         if committed.get(f_) != res.get(f_):
@@ -755,6 +783,64 @@ def _power_cert_semantic_gate(repo, target_full,
                 f"committed receipt {f_}="
                 f"{committed.get(f_)!r} != recomputed "
                 f"{res.get(f_)!r}")
+
+    def contract(field, detail):
+        raise SystemExit(
+            "POWER_CERT_RESULT_RECEIPT_CONTRACT: "
+            f"{field}: {detail}")
+
+    if committed.get("schema") != PCV.RECEIPT_SCHEMA:
+        contract("schema", f"{committed.get('schema')!r} != the "
+                 f"registered receipt schema {PCV.RECEIPT_SCHEMA!r}")
+    if committed.get("verdict_schema") != PCV.VERDICT_SCHEMA:
+        contract("verdict_schema",
+                 f"{committed.get('verdict_schema')!r} != "
+                 f"{PCV.VERDICT_SCHEMA!r}")
+    if set(committed) != set(PCV.RECEIPT_FIELDS):
+        contract("field_set",
+                 "not the closed receipt field set (extra="
+                 f"{sorted(set(committed) - set(PCV.RECEIPT_FIELDS))}"
+                 " missing="
+                 f"{sorted(set(PCV.RECEIPT_FIELDS) - set(committed))}"
+                 ")")
+    if not src_b:
+        contract("verifier_source",
+                 f"{PCV.VERIFIER_SOURCE_REL} unreadable at the "
+                 "target -- the receipt cannot bind an absent "
+                 "verifier")
+    want_src = hashlib.sha256(src_b).hexdigest()
+    if committed.get("verifier_source_sha256") != want_src:
+        contract("verifier_source_sha256",
+                 "receipt does not bind the verifier blob at the "
+                 "same target (committed "
+                 f"{str(committed.get('verifier_source_sha256'))[:12]}"
+                 f"... != target blob {want_src[:12]}...)")
+    vu = committed.get("verified_utc")
+    if not (isinstance(vu, str) and re.fullmatch(
+            r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z", vu)):
+        contract("verified_utc", f"non-canonical UTC: {vu!r}")
+    if not landing:
+        contract("verified_utc", "receipt landing commit "
+                 "unresolvable at the target")
+    import datetime as _dt
+    try:
+        land_utc = _dt.datetime.fromisoformat(
+            landing.strip()).astimezone(
+            _dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    except ValueError:
+        contract("verified_utc",
+                 f"landing time unparsable: {landing!r}")
+    if vu > land_utc:
+        contract("verified_utc",
+                 f"{vu} is later than the receipt's landing "
+                 f"commit {land_utc}")
+    host = committed.get("verifier_host")
+    if not (isinstance(host, str) and host.strip()):
+        contract("verifier_host", f"empty/untyped: {host!r}")
+    if committed.get("authorizes") != PCV.AUTHORIZES_TEXT:
+        contract("authorizes",
+                 "receipt does not carry the exact registered "
+                 "no-authority/claim-ceiling text")
 
 
 def power_cert_result_pins(repo, target_full):
@@ -935,6 +1021,106 @@ def _selftest():
     check("C0-pcr bind refuses on refusing/invalid recomputed "
           "semantic verdicts (forged PASS receipts recompute "
           "to these)", True)
+
+    # ---- cycle-5 R3 (codex cycle-4 item 3): receipt CONTRACT
+    # doctors. All six core fields kept CORRECT in every control,
+    # so each refusal isolates exactly one forged contract
+    # surface -- codex's FORGED_VERIFIER_RECEIPT probe, locked.
+    import w2_power_cert_result_verifier_cayley as _PCV
+    _src_b = b"kat-verifier-source-bytes\n"
+    _tgt = "kat" * 10
+    _core = {"package_valid": True, "power_gate": "PASS",
+             "typed_reasons": [], "commit": _tgt,
+             "certified_s_status": "CERTIFIED_S",
+             "admitted_members": 12}
+    _good_rcpt = {**_core, "schema": _PCV.RECEIPT_SCHEMA,
+                  "verdict_schema": _PCV.VERDICT_SCHEMA,
+                  "verifier_source_sha256":
+                      hashlib.sha256(_src_b).hexdigest(),
+                  "verified_utc": "2026-08-31T00:00:00Z",
+                  "verifier_host": "kat-host",
+                  "authorizes": _PCV.AUTHORIZES_TEXT}
+    check("C0-rc0 the KAT fixture mirrors the closed field set "
+          "(anti-vacuity: a drifted fixture proves nothing)",
+          set(_good_rcpt) == set(_PCV.RECEIPT_FIELDS))
+
+    def _rc_gate(rc, landing="2026-08-31T00:00:00+00:00"):
+        _power_cert_semantic_gate(
+            ".", _tgt, verify_fn=_sg(dict(_core)),
+            _kat_receipt_env={
+                "receipt_bytes": json.dumps(rc).encode("utf-8"),
+                "verifier_source_bytes": _src_b,
+                "landing_time_utc": landing})
+
+    def _rc_refuses(rc, needle, landing="2026-08-31T00:00:00+00:00"):
+        try:
+            _rc_gate(rc, landing)
+            return False
+        except SystemExit as e_:
+            return needle in str(e_)
+
+    _rc_gate(dict(_good_rcpt))
+    check("C0-rc1 a closed, target-bound receipt with matching "
+          "core fields PASSES the bind gate", True)
+    _CONTRACT = "POWER_CERT_RESULT_RECEIPT_CONTRACT"
+    check("C0-rc2 forged receipt schema refuses",
+          _rc_refuses(dict(_good_rcpt, schema="forged"),
+                      _CONTRACT + ": schema"))
+    check("C0-rc3 forged verdict schema refuses",
+          _rc_refuses(dict(_good_rcpt, verdict_schema="forged"),
+                      _CONTRACT + ": verdict_schema"))
+    check("C0-rc4 forged verifier-source digest refuses (receipt "
+          "must bind the verifier blob at the SAME target)",
+          _rc_refuses(dict(_good_rcpt,
+                           verifier_source_sha256="0" * 64),
+                      _CONTRACT + ": verifier_source_sha256"))
+    check("C0-rc5 non-canonical verified_utc refuses",
+          _rc_refuses(dict(_good_rcpt,
+                           verified_utc="08/31/2026 00:00"),
+                      _CONTRACT + ": verified_utc"))
+    check("C0-rc6 verified_utc later than the receipt's landing "
+          "commit refuses",
+          _rc_refuses(dict(_good_rcpt,
+                           verified_utc="2026-08-31T00:00:01Z"),
+                      _CONTRACT + ": verified_utc"))
+    check("C0-rc7 empty verifier host refuses",
+          _rc_refuses(dict(_good_rcpt, verifier_host=""),
+                      _CONTRACT + ": verifier_host"))
+    check("C0-rc8 altered no-authority text refuses",
+          _rc_refuses(dict(_good_rcpt, authorizes="NOTHING much"),
+                      _CONTRACT + ": authorizes"))
+    check("C0-rc9 an extra receipt field refuses (closed set)",
+          _rc_refuses(dict(_good_rcpt, extra_field=1),
+                      _CONTRACT + ": field_set"))
+    _drop = dict(_good_rcpt)
+    del _drop["verifier_host"]
+    check("C0-rc10 a missing receipt field refuses (closed set)",
+          _rc_refuses(_drop, _CONTRACT))
+    _div = dict(_good_rcpt, admitted_members=11)
+    check("C0-rc11 a core-field divergence from the recomputation "
+          "still refuses on the existing DIVERGENT path",
+          _rc_refuses(_div, "POWER_CERT_RESULT_RECEIPT_DIVERGENT"))
+    check("C0-rc12 emit-side closed-set guard: build_receipt on a "
+          "refusing early verdict emits the exact field set with "
+          "the RECEIPT schema outermost",
+          set(_PCV.build_receipt({
+              "schema": _PCV.VERDICT_SCHEMA, "commit": _tgt,
+              "typed_reasons": [{"code": "X", "detail": "kat"}],
+              "package_valid": False, "power_gate": "REFUSE",
+              "verifier_source_sha256": "0" * 64,
+              "verified_utc": "2026-08-31T00:00:00Z",
+              "verifier_host": "kat-host",
+              "authorizes": _PCV.AUTHORIZES_TEXT}))
+          == set(_PCV.RECEIPT_FIELDS)
+          and _PCV.build_receipt({
+              "schema": _PCV.VERDICT_SCHEMA, "commit": _tgt,
+              "typed_reasons": [], "package_valid": False,
+              "power_gate": "REFUSE",
+              "verifier_source_sha256": "0" * 64,
+              "verified_utc": "2026-08-31T00:00:00Z",
+              "verifier_host": "kat-host",
+              "authorizes": _PCV.AUTHORIZES_TEXT})["schema"]
+          == _PCV.RECEIPT_SCHEMA)
     check("C1 default mode still emits both slots OPEN with no pins",
           all(OPEN_SLOTS[n] for n in FINAL_BIND_SLOTS)
           and set(FINAL_BIND_SLOTS) <= set(OPEN_SLOTS)

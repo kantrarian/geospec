@@ -36,6 +36,7 @@ import datetime
 import hashlib
 import json
 import os
+import re
 import subprocess
 import sys
 
@@ -84,28 +85,44 @@ def _sha(b):
     return hashlib.sha256(b).hexdigest()
 
 
-def _blob(repo, rel):
-    """Committed bytes at HEAD -- never the working tree, so checkout
-    newline conversion can never steer an identity."""
+def _resolve_commit(repo, commit):
+    """cycle-5 R2 (codex cycle-4 item 2): ONE fully resolved commit
+    carrier for the whole build. Every blob, landing-commit lookup,
+    source digest and operation-exercise fixture routes through the
+    resolved sha -- never HEAD implicitly, never the working tree."""
+    r = subprocess.run(["git", "-C", repo, "rev-parse",
+                        f"{commit}^{{commit}}"],
+                       capture_output=True, text=True)
+    c = r.stdout.strip()
+    if r.returncode != 0 or not re.fullmatch(r"[0-9a-f]{40}", c):
+        _refuse(f"unresolvable readiness commit {commit!r}")
+    return c
+
+
+def _blob(repo, rel, commit):
+    """Committed bytes at the RESOLVED carrier commit -- never the
+    working tree, so checkout newline conversion can never steer an
+    identity, and never a different commit than the one the caller
+    named (cycle-5 R2)."""
     r = subprocess.run(["git", "-C", repo, "cat-file", "blob",
-                        f"HEAD:{rel}"], capture_output=True)
+                        f"{commit}:{rel}"], capture_output=True)
     if r.returncode != 0 or not r.stdout:
-        _refuse(f"blob unreadable at HEAD: {rel}")
+        _refuse(f"blob unreadable at {commit[:12]}: {rel}")
     return r.stdout
 
 
-def _landing_commit(repo, rel):
+def _landing_commit(repo, rel, commit):
     r = subprocess.run(["git", "-C", repo, "log", "-1",
-                        "--format=%H", "HEAD", "--", rel],
+                        "--format=%H", commit, "--", rel],
                        capture_output=True, text=True)
     c = r.stdout.strip()
     if not c:
-        _refuse(f"no landing commit for {rel}")
+        _refuse(f"no landing commit for {rel} at {commit[:12]}")
     return c
 
 
 def _production_operation_exercise(repo, cal, led, feed,
-                                   events):
+                                   events, *, commit, raw):
     """cycle-4 R4 (codex cycle-3 finding 4): exercise the ONE
     registered production entrypoint `run_mf4_daily_tick` -- feed
     load, calendar bounds, predict_row, row verification, barrier
@@ -114,9 +131,19 @@ def _production_operation_exercise(repo, cal, led, feed,
     matrix: first/last accrual day, typed no-prediction, missing
     feed, off-calendar (post-tail), wrong frame, duplicate,
     injected store failure + resume, mid-barrier failure + resume,
-    and resume divergence. Asserts no half-committed barrier/row
-    state anywhere. DETERMINISTIC: fixed probe clocks + issuance
-    strings, probe feeds derived from the pinned bytes -- rows are
+    resume divergence, and (cycle-5 R1, codex cycle-4 item 1) the
+    durable-barrier crash boundaries: first-region and
+    middle-region after_barrier_before_marker,
+    after_store_write_before_STORED, partial-trailing-row recovery
+    + alien-fragment refusal, and a divergent pre-existing barrier
+    event. Asserts no half-committed barrier/row state anywhere,
+    including exactly one barrier event per region after every
+    fault + resume. cycle-5 R2 (codex cycle-4 item 2): the tick's
+    calendar/ledger/feed fixtures are MATERIALIZED from the
+    resolved carrier commit's bytes (via `raw`, so the KAT loader
+    seam stays authoritative) -- never read from live working-tree
+    paths. DETERMINISTIC: fixed probe clocks + issuance strings,
+    probe feeds derived from the pinned bytes -- rows are
     MECHANISM PROBES, never production rows, never persisted
     outside the temp stores."""
     import shutil
@@ -184,17 +211,26 @@ def _production_operation_exercise(repo, cal, led, feed,
                     f"{pl.ledger.evaluation_end})")
         return pl
 
-    def consistent(store, journal_dir, receipt_day, want_regions):
+    def consistent(store, journal_dir, receipt_day, want_regions,
+                   pl=None):
         """No-split assertion: receipt digests == stored rows ==
-        journal ACCRUED lines, exactly."""
+        journal ACCRUED lines, exactly -- one stored LINE per
+        region (a duplicate append cannot hide behind a dict), and
+        when a live ledger is handed in (cycle-5 R1), exactly one
+        barrier PREDICTION event per region matching the receipt
+        digests."""
         rp = os.path.join(journal_dir,
                           f"mf4_tick_{receipt_day}.receipt.json")
         jp = os.path.join(journal_dir,
                           f"mf4_tick_{receipt_day}.journal.jsonl")
         rec = json.loads(open(rp, encoding="utf-8").read())
         stored = {}
+        n_lines = 0
         with open(store, encoding="utf-8") as f:
             for line in f:
+                if not line.strip():
+                    continue
+                n_lines += 1
                 r_ = json.loads(line)
                 stored[r_["region"]] = r_["row_digest"]
         accrued = {}
@@ -203,10 +239,30 @@ def _production_operation_exercise(repo, cal, led, feed,
             if j_.get("phase") == "ACCRUED":
                 accrued[j_["region"]] = j_["row_digest"]
         if not (rec["row_digests"] == stored == accrued
-                and sorted(stored) == list(want_regions)):
+                and sorted(stored) == list(want_regions)
+                and n_lines == len(want_regions)):
             _refuse("production-operation exercise: barrier/store/"
                     f"receipt split at {receipt_day} "
-                    f"(store={len(stored)} accrued={len(accrued)})")
+                    f"(store={len(stored)}/{n_lines} lines "
+                    f"accrued={len(accrued)})")
+        if pl is not None:
+            per = {}
+            for ev in pl.ledger.events:
+                if ev["kind"] != "PREDICTION":
+                    continue
+                p_ = ev["payload"]
+                if p_["issue_day"] != receipt_day:
+                    continue
+                per.setdefault(p_["region"], []).append(
+                    p_["row_digest"])
+            if sorted(per) != list(want_regions) or \
+                    any(len(v) != 1 for v in per.values()) or \
+                    {r_: v[0] for r_, v in per.items()} != \
+                    rec["row_digests"]:
+                _refuse("production-operation exercise: barrier "
+                        f"event census at {receipt_day} is not "
+                        "exactly one event per region matching "
+                        "the receipt digests")
         return rec
 
     def expect_refusal(fn, needle, name):
@@ -220,6 +276,43 @@ def _production_operation_exercise(repo, cal, led, feed,
         out["scenarios"][name] = f"REFUSES_TYPED({needle})"
 
     _EX_TD = [tempfile.mkdtemp(prefix="mf4_tick_probe_")]
+    # cycle-5 R2: materialize the tick's calendar/ledger/feed
+    # fixtures from the CARRIER COMMIT's bytes (through `raw`, so
+    # the KAT loader seam stays the single authority) -- the tick
+    # never reads a live working-tree path while this build
+    # verifies a named commit.
+    _fxd = os.path.join(_EX_TD[0], "committed_fixtures")
+    os.makedirs(_fxd)
+
+    def _materialize(name, body):
+        p = os.path.join(_fxd, name)
+        with open(p, "wb") as f:
+            f.write(body)
+        return p
+
+    FIX = {"calendar": _materialize("calendar_v4.json",
+                                    raw(CALENDAR_REL)),
+           "ledger": _materialize("ledger.json", raw(LEDGER_REL)),
+           "feed": _materialize("feed.json", raw(FEED_REL))}
+    v3_fix = _materialize(
+        "calendar_v3.json",
+        raw("docs/f2g_window2_execution/"
+            "calendar_authority_w2_v3.json"))
+
+    def tick(pl_, lease_, day_, feeds_, st_, jd_, **kw):
+        kw.setdefault("_paths", dict(FIX))
+        return ACC.run_mf4_daily_tick(
+            repo, pl_, lease_, day_, feeds_, store_path=st_,
+            journal_dir=jd_, issued_utc=PROBE_ISSUED_UTC, **kw)
+
+    def jpath_of(jd_, day_):
+        return os.path.join(jd_,
+                            f"mf4_tick_{day_}.journal.jsonl")
+
+    def phases_of(jd_, day_):
+        return [json.loads(l)["phase"]
+                for l in open(jpath_of(jd_, day_),
+                              encoding="utf-8") if l.strip()]
     try:
         # 1+2: first and last accrual day, live-shaped probe feed
         for name, day in (("first_accrual_day", first_day),
@@ -227,11 +320,9 @@ def _production_operation_exercise(repo, cal, led, feed,
             st, jd, lp = scenario(name)
             clock = [day]
             pl = mk_pl(lp, clock, f"probe-lease-{name}")
-            rec = ACC.run_mf4_daily_tick(
-                repo, pl, f"probe-lease-{name}", day,
-                probe_feeds(day), store_path=st, journal_dir=jd,
-                issued_utc=PROBE_ISSUED_UTC)
-            consistent(st, jd, day, regions)
+            rec = tick(pl, f"probe-lease-{name}", day,
+                       probe_feeds(day), st, jd)
+            consistent(st, jd, day, regions, pl=pl)
             out["scenarios"][name] = "COMMITTED_CONSISTENT"
             out["census"][name] = rec["census"]
             if name == "first_accrual_day":
@@ -240,11 +331,9 @@ def _production_operation_exercise(repo, cal, led, feed,
         st, jd, lp = scenario("typed_no_prediction")
         clock = [first_day]
         pl = mk_pl(lp, clock, "probe-lease-typed")
-        rec = ACC.run_mf4_daily_tick(
-            repo, pl, "probe-lease-typed", first_day,
-            probe_feeds(first_day, stale=True), store_path=st,
-            journal_dir=jd, issued_utc=PROBE_ISSUED_UTC)
-        consistent(st, jd, first_day, regions)
+        rec = tick(pl, "probe-lease-typed", first_day,
+                   probe_feeds(first_day, stale=True), st, jd)
+        consistent(st, jd, first_day, regions, pl=pl)
         if sorted(rec["census"]["typed_no_prediction"]) != regions:
             _refuse("typed no-prediction probe did not type every "
                     "stale region")
@@ -257,10 +346,8 @@ def _production_operation_exercise(repo, cal, led, feed,
         fds = probe_feeds(first_day)
         fds.pop(regions[0])
         expect_refusal(
-            lambda: ACC.run_mf4_daily_tick(
-                repo, pl, "probe-lease-missing", first_day, fds,
-                store_path=st, journal_dir=jd,
-                issued_utc=PROBE_ISSUED_UTC),
+            lambda: tick(pl, "probe-lease-missing", first_day,
+                         fds, st, jd),
             "MF4_TICK_FEED_MISSING", "missing_feed")
         # 5: off-calendar / post-tail
         st, jd, lp = scenario("post_tail")
@@ -268,41 +355,31 @@ def _production_operation_exercise(repo, cal, led, feed,
         post = (datetime.date.fromisoformat(last_day)
                 + datetime.timedelta(days=1)).isoformat()
         expect_refusal(
-            lambda: ACC.run_mf4_daily_tick(
-                repo, pl, "probe-lease-tail", post,
-                probe_feeds(post), store_path=st, journal_dir=jd,
-                issued_utc=PROBE_ISSUED_UTC),
+            lambda: tick(pl, "probe-lease-tail", post,
+                         probe_feeds(post), st, jd),
             "MF4_TICK_DAY_OFF_CALENDAR", "post_tail")
-        # 6: wrong frame (the committed v3 authority)
+        # 6: wrong frame (the committed v3 authority, materialized
+        # from the carrier commit -- never a working-tree path)
         st, jd, lp = scenario("wrong_frame")
         pl = mk_pl(lp, [first_day], "probe-lease-frame")
-        v3p = os.path.join(repo, "docs", "f2g_window2_execution",
-                           "calendar_authority_w2_v3.json")
         expect_refusal(
-            lambda: ACC.run_mf4_daily_tick(
-                repo, pl, "probe-lease-frame", first_day,
-                probe_feeds(first_day), store_path=st,
-                journal_dir=jd, _paths={"calendar": v3p},
-                issued_utc=PROBE_ISSUED_UTC),
+            lambda: tick(pl, "probe-lease-frame", first_day,
+                         probe_feeds(first_day), st, jd,
+                         _paths={**FIX, "calendar": v3_fix}),
             "MF4_TICK_CALENDAR_WRONG", "wrong_frame")
         # 7: duplicate tick refuses after commit
         st, jd, lp, clock, pl, day = dup_ctx
         expect_refusal(
-            lambda: ACC.run_mf4_daily_tick(
-                repo, pl, "probe-lease-first_accrual_day", day,
-                probe_feeds(day), store_path=st, journal_dir=jd,
-                issued_utc=PROBE_ISSUED_UTC),
+            lambda: tick(pl, "probe-lease-first_accrual_day", day,
+                         probe_feeds(day), st, jd),
             "MF4_TICK_DUPLICATE", "duplicate_tick")
         # 8: injected store failure -> clean crash, then resume
         st, jd, lp = scenario("store_fault_resume")
         clock = [first_day]
         pl = mk_pl(lp, clock, "probe-lease-storefault")
         try:
-            ACC.run_mf4_daily_tick(
-                repo, pl, "probe-lease-storefault", first_day,
-                probe_feeds(first_day), store_path=st,
-                journal_dir=jd, _fault="store",
-                issued_utc=PROBE_ISSUED_UTC)
+            tick(pl, "probe-lease-storefault", first_day,
+                 probe_feeds(first_day), st, jd, _fault="store")
             _refuse("store fault did not fire")
         except RuntimeError:
             pass
@@ -312,11 +389,9 @@ def _production_operation_exercise(repo, cal, led, feed,
         if pl2.ledger._predictions:
             _refuse("store fault left barrier accruals behind "
                     "(half-committed state)")
-        ACC.run_mf4_daily_tick(
-            repo, pl2, "probe-lease-storefault", first_day,
-            probe_feeds(first_day), store_path=st, journal_dir=jd,
-            issued_utc=PROBE_ISSUED_UTC)
-        consistent(st, jd, first_day, regions)
+        tick(pl2, "probe-lease-storefault", first_day,
+             probe_feeds(first_day), st, jd)
+        consistent(st, jd, first_day, regions, pl=pl2)
         out["scenarios"]["store_fault_resume"] = \
             "CRASH_CLEAN_THEN_RESUMED_CONSISTENT"
         # 9: mid-barrier failure -> resume completes exactly once
@@ -324,20 +399,16 @@ def _production_operation_exercise(repo, cal, led, feed,
         clock = [first_day]
         pl = mk_pl(lp, clock, "probe-lease-barfault")
         try:
-            ACC.run_mf4_daily_tick(
-                repo, pl, "probe-lease-barfault", first_day,
-                probe_feeds(first_day), store_path=st,
-                journal_dir=jd, _fault="barrier_mid",
-                issued_utc=PROBE_ISSUED_UTC)
+            tick(pl, "probe-lease-barfault", first_day,
+                 probe_feeds(first_day), st, jd,
+                 _fault="barrier_mid")
             _refuse("barrier fault did not fire")
         except RuntimeError:
             pass
         pl3 = ACC.PersistentLedger(lp, clock=lambda: clock[0])
-        ACC.run_mf4_daily_tick(
-            repo, pl3, "probe-lease-barfault", first_day,
-            probe_feeds(first_day), store_path=st, journal_dir=jd,
-            issued_utc=PROBE_ISSUED_UTC)
-        consistent(st, jd, first_day, regions)
+        tick(pl3, "probe-lease-barfault", first_day,
+             probe_feeds(first_day), st, jd)
+        consistent(st, jd, first_day, regions, pl=pl3)
         out["scenarios"]["barrier_fault_resume"] = \
             "PARTIAL_ACCRUAL_RESUMED_EXACTLY_ONCE"
         # 10: resume divergence (feed changed between attempts)
@@ -345,38 +416,231 @@ def _production_operation_exercise(repo, cal, led, feed,
         clock = [first_day]
         pl = mk_pl(lp, clock, "probe-lease-diverge")
         try:
-            ACC.run_mf4_daily_tick(
-                repo, pl, "probe-lease-diverge", first_day,
-                probe_feeds(first_day), store_path=st,
-                journal_dir=jd, _fault="store",
-                issued_utc=PROBE_ISSUED_UTC)
+            tick(pl, "probe-lease-diverge", first_day,
+                 probe_feeds(first_day), st, jd, _fault="store")
         except RuntimeError:
             pass
         pl4 = ACC.PersistentLedger(lp, clock=lambda: clock[0])
         expect_refusal(
-            lambda: ACC.run_mf4_daily_tick(
-                repo, pl4, "probe-lease-diverge", first_day,
-                probe_feeds(first_day, jitter=0.25),
-                store_path=st, journal_dir=jd,
-                issued_utc=PROBE_ISSUED_UTC),
+            lambda: tick(pl4, "probe-lease-diverge", first_day,
+                         probe_feeds(first_day, jitter=0.25),
+                         st, jd),
             "MF4_TICK_RESUME_DIVERGENT", "resume_divergent")
+
+        # ---- cycle-5 R1 (codex cycle-4 item 1): the durable-
+        # barrier crash boundaries. Every fault doctor CONSTRUCTS
+        # and ASSERTS its precondition before the resume proves
+        # anything.
+        # 11: crash after the FIRST region's barrier mutation,
+        # before its journal marker
+        st, jd, lp = scenario("barrier_marker_first_resume")
+        clock = [first_day]
+        pl = mk_pl(lp, clock, "probe-lease-bmf")
+        try:
+            tick(pl, "probe-lease-bmf", first_day,
+                 probe_feeds(first_day), st, jd,
+                 _fault="after_barrier_before_marker_first")
+            _refuse("first-marker fault did not fire")
+        except RuntimeError:
+            pass
+        pl_r = ACC.PersistentLedger(lp, clock=lambda: clock[0])
+        n_ev = sum(1 for e in pl_r.ledger.events
+                   if e["kind"] == "PREDICTION")
+        n_mark = phases_of(jd, first_day).count("ACCRUED")
+        if n_ev != 1 or n_mark != 0:
+            _refuse("first-marker fault did not construct the "
+                    f"boundary (events={n_ev} markers={n_mark})")
+        tick(pl_r, "probe-lease-bmf", first_day,
+             probe_feeds(first_day), st, jd)
+        consistent(st, jd, first_day, regions, pl=pl_r)
+        if not any(json.loads(l).get("backfilled")
+                   for l in open(jpath_of(jd, first_day),
+                                 encoding="utf-8") if l.strip()):
+            _refuse("first-marker resume did not backfill the "
+                    "lost journal marker")
+        out["scenarios"]["barrier_marker_first_resume"] = \
+            "POST_BARRIER_PRE_MARKER_FIRST_RESUMED_EXACTLY_ONCE"
+        # 12: crash after a MIDDLE region's barrier mutation,
+        # before its journal marker
+        st, jd, lp = scenario("barrier_marker_mid_resume")
+        clock = [first_day]
+        pl = mk_pl(lp, clock, "probe-lease-bmm")
+        try:
+            tick(pl, "probe-lease-bmm", first_day,
+                 probe_feeds(first_day), st, jd,
+                 _fault="after_barrier_before_marker_mid")
+            _refuse("mid-marker fault did not fire")
+        except RuntimeError:
+            pass
+        pl_r = ACC.PersistentLedger(lp, clock=lambda: clock[0])
+        n_ev = sum(1 for e in pl_r.ledger.events
+                   if e["kind"] == "PREDICTION")
+        n_mark = phases_of(jd, first_day).count("ACCRUED")
+        if n_ev != 2 or n_mark != 1:
+            _refuse("mid-marker fault did not construct the "
+                    f"boundary (events={n_ev} markers={n_mark})")
+        tick(pl_r, "probe-lease-bmm", first_day,
+             probe_feeds(first_day), st, jd)
+        consistent(st, jd, first_day, regions, pl=pl_r)
+        out["scenarios"]["barrier_marker_mid_resume"] = \
+            "POST_BARRIER_PRE_MARKER_MID_RESUMED_EXACTLY_ONCE"
+        # 13: crash after the durable store append, before the
+        # STORED journal marker
+        st, jd, lp = scenario("store_marker_fault_resume")
+        clock = [first_day]
+        pl = mk_pl(lp, clock, "probe-lease-smf")
+        try:
+            tick(pl, "probe-lease-smf", first_day,
+                 probe_feeds(first_day), st, jd,
+                 _fault="after_store_write_before_STORED")
+            _refuse("store-marker fault did not fire")
+        except RuntimeError:
+            pass
+        with open(st, encoding="utf-8") as f:
+            n_rows = sum(1 for l in f if l.strip())
+        if n_rows != len(regions) or \
+                "STORED" in phases_of(jd, first_day):
+            _refuse("store-marker fault did not construct the "
+                    f"boundary (rows={n_rows})")
+        pl_r = ACC.PersistentLedger(lp, clock=lambda: clock[0])
+        tick(pl_r, "probe-lease-smf", first_day,
+             probe_feeds(first_day), st, jd)
+        consistent(st, jd, first_day, regions, pl=pl_r)
+        out["scenarios"]["store_marker_fault_resume"] = \
+            "POST_STORE_PRE_MARKER_RESUMED_NO_DUPLICATE_ROW"
+        # 14: partial trailing store record -> recovered from the
+        # PREPARED bytes, then completes consistent
+        st, jd, lp = scenario("store_partial_tail_recovery")
+        clock = [first_day]
+        pl = mk_pl(lp, clock, "probe-lease-ptr")
+        try:
+            tick(pl, "probe-lease-ptr", first_day,
+                 probe_feeds(first_day), st, jd,
+                 _fault="after_store_write_before_STORED")
+        except RuntimeError:
+            pass
+        with open(st, "rb") as f:
+            data = f.read()
+        cut = data.rfind(b"\n", 0, len(data) - 1) + 1
+        keep = max(1, (len(data) - cut) // 2)
+        with open(st, "r+b") as f:
+            f.truncate(cut + keep)
+        with open(st, "rb") as f:
+            if f.read().endswith(b"\n"):
+                _refuse("partial-tail doctor did not construct a "
+                        "trailing fragment")
+        pl_r = ACC.PersistentLedger(lp, clock=lambda: clock[0])
+        tick(pl_r, "probe-lease-ptr", first_day,
+             probe_feeds(first_day), st, jd)
+        consistent(st, jd, first_day, regions, pl=pl_r)
+        if "STORE_TAIL_REPAIRED" not in phases_of(jd, first_day):
+            _refuse("partial-tail resume did not journal the "
+                    "recovery")
+        out["scenarios"]["store_partial_tail_recovery"] = \
+            "PARTIAL_TRAILING_ROW_RECOVERED_FROM_PREPARED_BYTES"
+        # 15: a trailing fragment attributable to NO prepared row
+        # refuses typed
+        st, jd, lp = scenario("store_partial_alien")
+        clock = [first_day]
+        pl = mk_pl(lp, clock, "probe-lease-alien")
+        try:
+            tick(pl, "probe-lease-alien", first_day,
+                 probe_feeds(first_day), st, jd,
+                 _fault="after_store_write_before_STORED")
+        except RuntimeError:
+            pass
+        with open(st, "ab") as f:
+            f.write(b'{"region": "not-a-prepared-row"')
+        pl_r = ACC.PersistentLedger(lp, clock=lambda: clock[0])
+        expect_refusal(
+            lambda: tick(pl_r, "probe-lease-alien", first_day,
+                         probe_feeds(first_day), st, jd),
+            "MF4_TICK_STORE_PARTIAL_ALIEN", "store_partial_alien")
+        # 16: a pre-existing barrier event with a DIFFERENT digest
+        # refuses typed (never backfilled, never re-accrued)
+        st, jd, lp = scenario("barrier_divergent")
+        clock = [first_day]
+        pl = mk_pl(lp, clock, "probe-lease-bardiv")
+        pl.accrue_prediction("probe-lease-bardiv", regions[0],
+                             first_day, "d" * 64)
+        expect_refusal(
+            lambda: tick(pl, "probe-lease-bardiv", first_day,
+                         probe_feeds(first_day), st, jd),
+            "MF4_TICK_BARRIER_DIVERGENT", "barrier_divergent")
+        # 17: a journal ACCRUED marker with NO barrier event
+        # refuses typed (the split is never silently absorbed)
+        st, jd, lp = scenario("journal_split")
+        clock = [first_day]
+        pl = mk_pl(lp, clock, "probe-lease-jsplit")
+        try:
+            tick(pl, "probe-lease-jsplit", first_day,
+                 probe_feeds(first_day), st, jd, _fault="store")
+        except RuntimeError:
+            pass
+        prep = next(j for j in
+                    (json.loads(l) for l in
+                     open(jpath_of(jd, first_day),
+                          encoding="utf-8") if l.strip())
+                    if j.get("phase") == "PREPARED")
+        with open(jpath_of(jd, first_day), "a", encoding="utf-8",
+                  newline="\n") as f:
+            f.write(json.dumps(
+                {"phase": "ACCRUED", "region": regions[0],
+                 "row_digest": prep["digests"][regions[0]]},
+                sort_keys=True, separators=(",", ":")) + "\n")
+        pl_r = ACC.PersistentLedger(lp, clock=lambda: clock[0])
+        expect_refusal(
+            lambda: tick(pl_r, "probe-lease-jsplit", first_day,
+                         probe_feeds(first_day), st, jd),
+            "MF4_TICK_BARRIER_SPLIT", "journal_split")
+        # 18: a journal ACCRUED marker whose digest diverges from
+        # the journaled preparation refuses typed
+        st, jd, lp = scenario("journal_divergent")
+        clock = [first_day]
+        pl = mk_pl(lp, clock, "probe-lease-jdiv")
+        try:
+            tick(pl, "probe-lease-jdiv", first_day,
+                 probe_feeds(first_day), st, jd, _fault="store")
+        except RuntimeError:
+            pass
+        with open(jpath_of(jd, first_day), "a", encoding="utf-8",
+                  newline="\n") as f:
+            f.write(json.dumps(
+                {"phase": "ACCRUED", "region": regions[0],
+                 "row_digest": "e" * 64},
+                sort_keys=True, separators=(",", ":")) + "\n")
+        pl_r = ACC.PersistentLedger(lp, clock=lambda: clock[0])
+        expect_refusal(
+            lambda: tick(pl_r, "probe-lease-jdiv", first_day,
+                         probe_feeds(first_day), st, jd),
+            "MF4_TICK_JOURNAL_DIVERGENT", "journal_divergent")
     finally:
         shutil.rmtree(_EX_TD[0], ignore_errors=True)
     out["no_split_assertion"] = (
-        "receipt digests == stored rows == journal ACCRUED lines "
-        "asserted after every committed/resumed scenario; both "
-        "fault scenarios left no half-committed barrier/row state")
+        "receipt digests == stored rows (one line per region) == "
+        "journal ACCRUED lines == barrier PREDICTION events "
+        "(exactly one per region) asserted after every committed/"
+        "resumed scenario, including the cycle-5 crash boundaries: "
+        "after_barrier_before_marker (first + middle region), "
+        "after_store_write_before_STORED, and partial-trailing-row "
+        "recovery; every divergent-bytes control refuses typed")
     return out
 
 
-def build(repo, *, loaders=None):
-    """loaders is a KAT-only seam: {rel: bytes} overrides for the
-    refusal doctors. Production passes None and reads committed
-    bytes only."""
+def build(repo, *, commit="HEAD", loaders=None):
+    """cycle-5 R2 (codex cycle-4 item 2): `commit` is resolved ONCE
+    to a full sha and carries EVERY read -- blobs, landing-commit
+    lookups, source digests, and the operation-exercise fixtures.
+    A caller verifying target T can no longer inherit HEAD's (or
+    the working tree's) bytes anywhere in the rebuild. loaders is a
+    KAT-only seam: {rel: bytes} overrides for the refusal doctors.
+    Production passes None and reads committed bytes only."""
+    commit_full = _resolve_commit(repo, commit)
+
     def raw(rel):
         if loaders is not None and rel in loaders:
             return loaders[rel]
-        return _blob(repo, rel)
+        return _blob(repo, rel, commit_full)
 
     led_b = raw(LEDGER_REL)
     feed_b = raw(FEED_REL)
@@ -497,7 +761,7 @@ def build(repo, *, loaders=None):
         _refuse("emission census incomplete")
 
     production_op = _production_operation_exercise(
-        repo, cal, led, feed, events)
+        repo, cal, led, feed, events, commit=commit_full, raw=raw)
 
     return {
         "schema": "f2g-w2-mf4-successor-readiness-v1",
@@ -529,7 +793,7 @@ def build(repo, *, loaders=None):
                               "LANDING -> LANDED_PUBLIC (owner-"
                               "fired); landing commit bound below"},
                 "landing_commit": _landing_commit(
-                    repo, FINAL_BIND_REL)}},
+                    repo, FINAL_BIND_REL, commit_full)}},
         "owner_continuity_renewal": {
             "path": RENEWAL_REL,
             "sha256": _sha(ren_b),
@@ -595,13 +859,21 @@ def _selftest():
     ONE committed byte-stream through the KAT-only loader seam; the
     unmutated control passes first."""
     repo = os.path.abspath(os.path.join(_HERE, "..", ".."))
+    head = _resolve_commit(repo, "HEAD")
     rec = build(repo)
     assert rec["state"] == "READY_FOR_ACCRUAL"
     assert rec["emission_proof"]["rows_emitted"] > 0
     assert rec["emission_proof"]["refit_performed"] is False
+    # cycle-5 R2: an unresolvable carrier commit refuses typed
+    # before any read
+    try:
+        build(repo, commit="not-a-commit")
+        raise SystemExit("unresolvable commit must refuse")
+    except ReadinessRefusal as ex:
+        assert "unresolvable readiness commit" in str(ex), str(ex)
 
     def doctored(rel, mutate, why):
-        base = _blob(repo, rel)
+        base = _blob(repo, rel, head)
         try:
             build(repo, loaders={rel: mutate(base)})
             raise SystemExit("readiness doctor must refuse: " + why)
@@ -617,7 +889,7 @@ def _selftest():
              "raw bytes diverge from the final-bind artifact blob")
     # calendar mismatch (v3 schema at the v4 path)
     v3 = _blob(repo, "docs/f2g_window2_execution/"
-                     "calendar_authority_w2_v3.json")
+                     "calendar_authority_w2_v3.json", head)
     doctored(CALENDAR_REL, lambda b: v3, "is not the v4 successor")
     # region-set mismatch (feed regions doctored, sha gate bypassed
     # is impossible -- so doctor the LEDGER copy consistently? No:

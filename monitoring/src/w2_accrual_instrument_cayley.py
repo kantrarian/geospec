@@ -1539,6 +1539,14 @@ class PersistentLedger:
                                       row_digest, self._clock())
         self.save()
 
+    def accrued_row_digest(self, region, issue_day):
+        """READ-ONLY reconcile probe (cycle-5 R1): the digest the
+        barrier holds for (region, issue_day), or None. Derived from
+        the replayed PREDICTION events; never mutates, never appends,
+        never reads a row back (embargo untouched)."""
+        return self.ledger._predictions.get(
+            (str(region), str(issue_day)))
+
     def producer_receipt(self, lease, receipt_digest):
         self.ledger.producer_receipt(lease, receipt_digest)
         self.save()
@@ -1750,8 +1758,11 @@ def append_rows_store(store_path, rows):
     """Append-only embargoed JSONL row store. Duplicate (region,
     issue_day) refuses (PREDICTION_ROW_DUPLICATE) -- second guard
     behind the barrier's; every stored row re-verifies its digest on
-    the way in. Nothing here reads rows back out; release-time access
-    goes through the barrier's embargo gate."""
+    the way in. cycle-5 R1 (codex cycle-4 item 1): every row is
+    flushed + fsynced as it is written, so a stored row is DURABLE
+    before any later phase marker can claim it. Nothing here reads
+    rows back out; release-time access goes through the barrier's
+    embargo gate."""
     seen = set()
     if os.path.exists(store_path):
         with open(store_path, "r", encoding="utf-8") as f:
@@ -1767,6 +1778,8 @@ def append_rows_store(store_path, rows):
                     f"PREDICTION_ROW_DUPLICATE: {key} (store)")
             f.write(json.dumps(row, sort_keys=True,
                                separators=(",", ":")) + "\n")
+            f.flush()
+            os.fsync(f.fileno())
             seen.add(key)
     return len(rows)
 
@@ -1819,6 +1832,58 @@ def _tick_create_once(path, body_text):
             pass
 
 
+def _tick_store_scan_repair(store_path, prepared_rows):
+    """cycle-5 R1 (codex cycle-4 item 1): the row store is read for
+    resume under a RECOVERY contract instead of assuming every line
+    parses. An abrupt stop can leave a partial trailing record; it is
+    recovered by TRUNCATION only when the trailing fragment is a
+    prefix of the canonical serialization of one of THIS tick's
+    PREPARED rows (the row is then re-appended durably by the normal
+    store phase). A mid-file unparsable line, or a trailing fragment
+    attributable to no prepared row, refuses typed -- divergent bytes
+    resolve explicitly, never silently. Returns
+    ({(region, issue_day): row_digest}, repaired_fragment_len)."""
+    if not os.path.exists(store_path):
+        return {}, 0
+    with open(store_path, "rb") as f:
+        data = f.read()
+    if not data:
+        return {}, 0
+    frag = b""
+    body = data
+    if not data.endswith(b"\n"):
+        cut = data.rfind(b"\n") + 1
+        body, frag = data[:cut], data[cut:]
+    stored = {}
+    for ln, line in enumerate(body.split(b"\n")):
+        if not line.strip():
+            continue
+        try:
+            r_ = json.loads(line.decode("utf-8"))
+            stored[(r_["region"], r_["issue_day"])] = \
+                r_["row_digest"]
+        except (ValueError, KeyError, UnicodeDecodeError):
+            raise InstrumentRefusal(
+                f"MF4_TICK_STORE_CORRUPT: store line {ln} does not "
+                "parse as a prediction row -- not a trailing append "
+                "fault; resolve explicitly, never silently")
+    if frag:
+        sers = [json.dumps(row, sort_keys=True,
+                           separators=(",", ":")).encode("utf-8")
+                for row in prepared_rows]
+        if not any(s.startswith(frag) for s in sers):
+            raise InstrumentRefusal(
+                "MF4_TICK_STORE_PARTIAL_ALIEN: trailing store "
+                f"fragment ({len(frag)} bytes) is a prefix of NO "
+                "prepared row for this tick -- divergent bytes "
+                "refuse, never truncate")
+        with open(store_path, "r+b") as f:
+            f.truncate(len(data) - len(frag))
+            f.flush()
+            os.fsync(f.fileno())
+    return stored, len(frag)
+
+
 def run_mf4_daily_tick(repo, pl, lease, issue_day, feeds, *,
                        store_path=None, journal_dir=None,
                        _paths=None, _fault=None,
@@ -1840,7 +1905,16 @@ def run_mf4_daily_tick(repo, pl, lease, issue_day, feeds, *,
         {region: {"risk_series": {...}, "events_view": [...]}};
       - resume reuses the journaled issuance instant, so the row
         digests are stable across restarts; any divergence between
-        a resumed recomputation and the journal refuses typed.
+        a resumed recomputation and the journal refuses typed;
+      - cycle-5 R1 (codex cycle-4 item 1): stored rows are DURABLE
+        (fsync) before the STORED marker; a partial trailing store
+        record is recovered from the PREPARED bytes or refused
+        typed; and resume RECONCILES the journal + the persistent
+        barrier ledger against the PREPARED digests, so a crash on
+        the instruction boundary after a barrier mutation and
+        before its journal marker backfills the marker instead of
+        re-accruing into a LATE_OR_REVISED_PREDICTION refusal --
+        while any divergent identity/digest still refuses typed.
     _paths/_fault/issued_utc are KAT-ONLY seams (readiness-doctor
     fault injection + deterministic probes); production passes none
     of them."""
@@ -1899,8 +1973,10 @@ def run_mf4_daily_tick(repo, pl, lease, issue_day, feeds, *,
             journal = [json.loads(l) for l in f if l.strip()]
     prepared = next((j for j in journal
                      if j.get("phase") == "PREPARED"), None)
-    accrued_done = {j["region"] for j in journal
-                    if j.get("phase") == "ACCRUED"}
+    journal_accrued = {j["region"]: j["row_digest"]
+                       for j in journal
+                       if j.get("phase") == "ACCRUED"}
+    accrued_done = set(journal_accrued)
 
     if prepared is not None:
         tick_issued = prepared["issued_utc"]
@@ -1936,14 +2012,14 @@ def run_mf4_daily_tick(repo, pl, lease, issue_day, feeds, *,
         if _fault == "store":
             raise RuntimeError("KAT_FAULT_STORE: injected before "
                                "the row-store append")
-        # STORE: idempotent against the journal
-        stored = {}
-        if os.path.exists(store_path):
-            with open(store_path, encoding="utf-8") as f:
-                for line in f:
-                    r_ = json.loads(line)
-                    stored[(r_["region"], r_["issue_day"])] = \
-                        r_["row_digest"]
+        # STORE: idempotent against the journal; the store is read
+        # under the cycle-5 R1 recovery contract (partial trailing
+        # record recovered from PREPARED bytes or refused typed)
+        stored, repaired = _tick_store_scan_repair(store_path, rows)
+        if repaired:
+            _tick_json_line(jf, {"phase": "STORE_TAIL_REPAIRED",
+                                 "issue_day": issue_day,
+                                 "truncated_bytes": repaired})
         to_store = []
         for row in rows:
             k_ = (row["region"], row["issue_day"])
@@ -1957,10 +2033,51 @@ def run_mf4_daily_tick(repo, pl, lease, issue_day, feeds, *,
                 to_store.append(row)
         if to_store:
             append_rows_store(store_path, to_store)
+        if _fault == "after_store_write_before_STORED":
+            raise RuntimeError(
+                "KAT_FAULT_STORE_MARKER: injected after the durable "
+                "row-store append, before the STORED journal line")
         _tick_json_line(jf, {"phase": "STORED",
                              "issue_day": issue_day,
                              "appended": len(to_store)})
+        # cycle-5 R1 (codex cycle-4 item 1): RECONCILE journal
+        # markers + the persistent barrier ledger against this
+        # tick's PREPARED digests BEFORE any accrual. The
+        # instruction boundary after the barrier mutation and
+        # before its journal marker is covered here: an exact
+        # already-durable event backfills its missing marker; a
+        # missing event accrues normally below; ANY divergent
+        # identity or digest refuses typed.
+        for region in regions:
+            want = digests[region]
+            jd_ = journal_accrued.get(region)
+            ld_ = pl.accrued_row_digest(region, issue_day)
+            if jd_ is not None and jd_ != want:
+                raise InstrumentRefusal(
+                    "MF4_TICK_JOURNAL_DIVERGENT: journaled ACCRUED "
+                    f"digest for {region} diverges from the "
+                    "journaled preparation")
+            if jd_ is not None and ld_ is None:
+                raise InstrumentRefusal(
+                    "MF4_TICK_BARRIER_SPLIT: journal marks "
+                    f"{region} ACCRUED but the barrier ledger holds "
+                    "no event -- divergent state resolves "
+                    "explicitly, never silently")
+            if ld_ is not None and ld_ != want:
+                raise InstrumentRefusal(
+                    "MF4_TICK_BARRIER_DIVERGENT: the barrier holds "
+                    f"a different digest for ({region}, {issue_day}) "
+                    "than the journaled preparation")
+            if ld_ is not None and jd_ is None:
+                # exact durable event, marker lost at the crash
+                # boundary: repair the journal, never re-accrue
+                accrued_done.add(region)
+                _tick_json_line(jf, {"phase": "ACCRUED",
+                                     "region": region,
+                                     "row_digest": want,
+                                     "backfilled": True})
         # BARRIER: accrue each region once, journaled per region
+        n_new = 0
         for row in rows:
             if row["region"] in accrued_done:
                 continue
@@ -1969,6 +2086,19 @@ def run_mf4_daily_tick(repo, pl, lease, issue_day, feeds, *,
                                    "mid-accrual")
             pl.accrue_prediction(lease, row["region"], issue_day,
                                  row["row_digest"])
+            n_new += 1
+            if _fault == "after_barrier_before_marker_first" \
+                    and n_new == 1:
+                raise RuntimeError(
+                    "KAT_FAULT_BARRIER_MARKER_FIRST: injected after "
+                    "the FIRST durable barrier mutation, before its "
+                    "journal marker")
+            if _fault == "after_barrier_before_marker_mid" \
+                    and n_new == 2:
+                raise RuntimeError(
+                    "KAT_FAULT_BARRIER_MARKER_MID: injected after a "
+                    "MIDDLE durable barrier mutation, before its "
+                    "journal marker")
             accrued_done.add(row["region"])
             _tick_json_line(jf, {"phase": "ACCRUED",
                                  "region": row["region"],

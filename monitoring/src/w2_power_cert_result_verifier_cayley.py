@@ -57,6 +57,22 @@ import w2_power_cert_results_assembly_cayley as ASM  # noqa: E402
 VERIFIER_RECEIPT_REL = (ASM.POWER_CERT_DIR
                         + "/power_cert_verifier_receipt_v1.json")
 RECEIPT_SCHEMA = "f2g-w2-power-cert-verifier-receipt-v1"
+VERDICT_SCHEMA = "f2g-w2-power-cert-result-verdict-v1"
+# cycle-5 R3 (codex cycle-4 item 3): the receipt is a CLOSED
+# contract. One authority for the schema, the exact no-authority
+# text, the closed field set, and the verifier's own registered
+# source path -- the manifest generator's semantic gate imports
+# THESE, so the emitter and the gate can never drift apart.
+AUTHORIZES_TEXT = ("NOTHING by itself: the composed prestart "
+                   "consumes power_gate; no admission, no "
+                   "evaluation value")
+VERIFIER_SOURCE_REL = ("monitoring/src/"
+                       "w2_power_cert_result_verifier_cayley.py")
+RECEIPT_FIELDS = frozenset({
+    "schema", "verdict_schema", "commit", "typed_reasons",
+    "package_valid", "power_gate", "admitted_members",
+    "certified_s_status", "verifier_source_sha256",
+    "verified_utc", "verifier_host", "authorizes"})
 
 
 def _sha(b):
@@ -293,7 +309,7 @@ def verify(repo, commit, *, blob_reader=None,
             ["git", "-C", repo, "show", "-s", "--format=%cI",
              str(commit)], capture_output=True, text=True)
         commit_time_utc = r_.stdout.strip() or None
-    res = {"schema": "f2g-w2-power-cert-result-verdict-v1",
+    res = {"schema": VERDICT_SCHEMA,
            "commit": str(commit), "typed_reasons": [],
            "package_valid": False, "power_gate": "REFUSE"}
 
@@ -498,6 +514,26 @@ def verify(repo, commit, *, blob_reader=None,
     return res
 
 
+def build_receipt(res):
+    """cycle-5 R3 (codex cycle-4 item 3): assemble the CLOSED
+    receipt from a verdict. The prior emit spread `res` over the
+    schema key, so the emitted receipt silently carried the VERDICT
+    schema -- the exact forgeable looseness the closed contract now
+    refuses. Field set is enforced here at emit time and again by
+    the manifest generator's semantic gate at bind time."""
+    receipt = dict(res)
+    receipt.setdefault("admitted_members", 0)
+    receipt.setdefault("certified_s_status", "NOT_EVALUATED")
+    receipt["verdict_schema"] = receipt.pop("schema")
+    receipt["schema"] = RECEIPT_SCHEMA
+    if set(receipt) != set(RECEIPT_FIELDS):
+        raise SystemExit(
+            "VERIFIER_RECEIPT_FIELDS_NOT_CLOSED: "
+            f"extra={sorted(set(receipt) - set(RECEIPT_FIELDS))} "
+            f"missing={sorted(set(RECEIPT_FIELDS) - set(receipt))}")
+    return receipt
+
+
 def main():
     repo = os.path.abspath(sys.argv[1])
     commit = sys.argv[2]
@@ -508,12 +544,10 @@ def main():
     res["verified_utc"] = time.strftime("%Y-%m-%dT%H:%M:%SZ",
                                         time.gmtime())
     res["verifier_host"] = platform.node()
-    res["authorizes"] = ("NOTHING by itself: the composed prestart "
-                         "consumes power_gate; no admission, no "
-                         "evaluation value")
+    res["authorizes"] = AUTHORIZES_TEXT
     print(json.dumps(res, indent=1, sort_keys=True))
     if emit:
-        body = json.dumps({"schema": RECEIPT_SCHEMA, **res},
+        body = json.dumps(build_receipt(res),
                           indent=1, sort_keys=True) + "\n"
         path = os.path.join(repo, VERIFIER_RECEIPT_REL.replace(
             "/", os.sep))

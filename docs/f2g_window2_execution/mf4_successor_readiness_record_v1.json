@@ -108,16 +108,24 @@
    }
   },
   "entrypoint": "w2_accrual_instrument_cayley.run_mf4_daily_tick",
-  "no_split_assertion": "receipt digests == stored rows == journal ACCRUED lines asserted after every committed/resumed scenario; both fault scenarios left no half-committed barrier/row state",
+  "no_split_assertion": "receipt digests == stored rows (one line per region) == journal ACCRUED lines == barrier PREDICTION events (exactly one per region) asserted after every committed/resumed scenario, including the cycle-5 crash boundaries: after_barrier_before_marker (first + middle region), after_store_write_before_STORED, and partial-trailing-row recovery; every divergent-bytes control refuses typed",
   "scenarios": {
+   "barrier_divergent": "REFUSES_TYPED(MF4_TICK_BARRIER_DIVERGENT)",
    "barrier_fault_resume": "PARTIAL_ACCRUAL_RESUMED_EXACTLY_ONCE",
+   "barrier_marker_first_resume": "POST_BARRIER_PRE_MARKER_FIRST_RESUMED_EXACTLY_ONCE",
+   "barrier_marker_mid_resume": "POST_BARRIER_PRE_MARKER_MID_RESUMED_EXACTLY_ONCE",
    "duplicate_tick": "REFUSES_TYPED(MF4_TICK_DUPLICATE)",
    "first_accrual_day": "COMMITTED_CONSISTENT",
+   "journal_divergent": "REFUSES_TYPED(MF4_TICK_JOURNAL_DIVERGENT)",
+   "journal_split": "REFUSES_TYPED(MF4_TICK_BARRIER_SPLIT)",
    "last_accrual_day": "COMMITTED_CONSISTENT",
    "missing_feed": "REFUSES_TYPED(MF4_TICK_FEED_MISSING)",
    "post_tail": "REFUSES_TYPED(MF4_TICK_DAY_OFF_CALENDAR)",
    "resume_divergent": "REFUSES_TYPED(MF4_TICK_RESUME_DIVERGENT)",
    "store_fault_resume": "CRASH_CLEAN_THEN_RESUMED_CONSISTENT",
+   "store_marker_fault_resume": "POST_STORE_PRE_MARKER_RESUMED_NO_DUPLICATE_ROW",
+   "store_partial_alien": "REFUSES_TYPED(MF4_TICK_STORE_PARTIAL_ALIEN)",
+   "store_partial_tail_recovery": "PARTIAL_TRAILING_ROW_RECOVERED_FROM_PREPARED_BYTES",
    "typed_no_prediction": "COMMITTED_CONSISTENT_ALL_TYPED",
    "wrong_frame": "REFUSES_TYPED(MF4_TICK_CALENDAR_WRONG)"
   }

@@ -2271,6 +2271,136 @@ def w_slot13():
               f"{type(exc).__name__}: {exc}")
 
 
+# ---- REV 24: v5 disposition successor + bound delta (codex 1507Z) --------
+def w_dispo_v5():
+    """Bar-side locks over the append-only disposition successor.
+    Codex 1507Z item 5 requires that a v3-as-live authority, an
+    unpinned live authority, an altered delta, and copied-forward old
+    partitions each REFUSE. Every doctor here mutates an otherwise
+    valid capsule so a refusal can only come from the mutation, and
+    the in-bar movement arithmetic is derived from the two committed
+    authorities rather than read out of the capsule."""
+    try:
+        import w2_disposition_capsule_grassmann as DISP
+
+        DR = DISP.DispositionRefusal
+
+        def refuses(fn):
+            try:
+                fn()
+                return False
+            except DR:
+                return True
+
+        with open(os.path.join(_REPO, *DISP.CAPSULE_PATH.split("/")),
+                  encoding="utf-8") as f:
+            cap = json.load(f)
+
+        # (1) positive: the published successor authenticates, and it
+        # says SO -- a capsule-only report is not a rebuild
+        base = DISP.verify_ceiling(cap)
+        ok_pos = (cap["schema"] == DISP.CAPSULE_SCHEMA
+                  and base["supersession_verified"]
+                  == "REBUILT_FROM_COMMITTED_BYTES")
+
+        # (2) the live authority must BE the admitted pin, and the
+        # superseded one must NOT be pinned -- the structural shape of
+        # the defect this successor closes
+        with open(os.path.join(_REPO, "docs", "f2g_window2_execution",
+                               "execution_manifest.json"),
+                  encoding="utf-8") as f:
+            man = json.load(f)
+        pins = {p.get("path") for s in man["slots"].values()
+                for p in (s.get("pins") or []) if isinstance(p, dict)}
+        ok_pinned = (DISP.AUTHORITY_PATH in pins
+                     and DISP.PRIOR_AUTHORITY_PATH not in pins)
+
+        # (3) v3-as-live authority refuses. Two ways in: bytes that do
+        # not match the admitted authority, and -- with the v3
+        # authority supplied explicitly so the digest check passes --
+        # the PATH naming a superseded artifact.
+        v3a, v3sha = DISP._authority_at(DISP.PRIOR_AUTHORITY_PATH)
+        c_v3 = json.loads(json.dumps(cap))
+        c_v3["authority"] = DISP._authority_identity(
+            DISP.PRIOR_AUTHORITY_PATH, v3a, v3sha)
+        ok_v3 = refuses(lambda: DISP.verify_ceiling(c_v3)) and \
+            refuses(lambda: DISP.verify_ceiling(c_v3, authority=v3a))
+
+        # (4) copied-forward old partitions refuse
+        c_cp = json.loads(json.dumps(cap))
+        c_cp["supersession_delta"]["new_partitions"] = \
+            json.loads(json.dumps(
+                cap["supersession_delta"]["old_partitions"]))
+        ok_copy = refuses(lambda: DISP.verify_ceiling(c_cp))
+
+        # (5) altered delta refuses -- both a doctored binding and
+        # doctored PUBLISHED BYTES (served through the module's own
+        # reader, so the rebuild comparison is what catches it)
+        c_bind = json.loads(json.dumps(cap))
+        c_bind["supersession_delta"]["delta_record"]["blob_sha256"] = \
+            "0" * 64
+        ok_bind = refuses(lambda: DISP.verify_ceiling(c_bind))
+
+        real_blob = DISP._blob
+        doctored = json.loads(json.dumps(
+            DISP.build_delta(cap)))
+        if doctored["rows"]:
+            doctored["rows"][0]["new_partition"] = "REUSE_OR_BRIDGE"
+
+        def fake_blob(ref):
+            if ref.endswith(DISP.DELTA_PATH):
+                return DISP.delta_bytes(doctored)
+            return real_blob(ref)
+        try:
+            DISP._blob = fake_blob
+            ok_bytes = refuses(lambda: DISP.verify_ceiling(cap))
+        finally:
+            DISP._blob = real_blob
+
+        # (6) a doctored supersedes binding refuses
+        c_sup = json.loads(json.dumps(cap))
+        c_sup["supersedes"]["authority_blob_sha256"] = "1" * 64
+        ok_sup = refuses(lambda: DISP.verify_ceiling(c_sup))
+
+        # (7) in-bar movement arithmetic from the two COMMITTED
+        # authorities: the moved set is exactly the symmetric
+        # difference of the key sets (no common key changed hands),
+        # every row is a real transition, and the matrix sums to it
+        v4a, _ = DISP._authority_at(DISP.AUTHORITY_PATH)
+        k3 = set(DISP._v4_keys(v3a))
+        k4 = set(DISP._v4_keys(v4a))
+        sd = cap["supersession_delta"]
+        rows = DISP.build_delta(cap)["rows"]
+        moved = {r["key"] for r in rows}
+        ok_move = (moved == (k3 ^ k4)
+                   and sd["authority_keys"] == {
+                       "common": len(k3 & k4), "removed": len(k3 - k4),
+                       "added": len(k4 - k3)}
+                   and all(r["old_partition"] != r["new_partition"]
+                           for r in rows)
+                   and sum(sd["movement_matrix"].values()) == len(rows)
+                   and sd["moved_rows"] == len(rows))
+
+        check("DISPO-V5 append-only disposition successor + bound "
+              "delta (published capsule rebuilds from committed "
+              "bytes, admitted-pin/superseded-unpinned shape, "
+              "v3-as-live refusal both ways, copied-forward "
+              "partitions, doctored delta binding AND doctored "
+              "published delta bytes, doctored supersedes, in-bar "
+              "movement arithmetic vs the two committed authorities)",
+              ok_pos and ok_pinned and ok_v3 and ok_copy and ok_bind
+              and ok_bytes and ok_sup and ok_move,
+              f"pos={ok_pos} pinned={ok_pinned} v3={ok_v3} "
+              f"copy={ok_copy} bind={ok_bind} bytes={ok_bytes} "
+              f"sup={ok_sup} move={ok_move}")
+    except ImportError:
+        check("DISPO-V5 disposition successor locks", False,
+              "W2_ENGINE_ABSENT")
+    except Exception as exc:
+        check("DISPO-V5 disposition successor locks", False,
+              f"{type(exc).__name__}: {exc}")
+
+
 # ---- REV 13: candidate-selector + cert-runner locks (codex 1909Z) ---------
 def w_selrun():
     """Bar-side locks over cayley's repair revision: (1) the
@@ -3626,6 +3756,7 @@ def main():
     w_selrun()
     w_admit()
     w_xform()
+    w_dispo_v5()
 
 
 main()

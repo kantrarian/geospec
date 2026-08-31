@@ -51,7 +51,17 @@ REPO = os.path.abspath(os.path.join(_HERE, "..", ".."))
 # membership, which consumes partition membership only); v2 is what a
 # LINEAGE REGISTRY requires, and every nested field consumed as
 # authority is closed and independently re-derived here.
-CAPSULE_SCHEMA = "f2g-w2-key-disposition-capsule-v2"
+# v3 (codex 1507Z items 1-2): v2's LIVE `authority` still bound the
+# superseded, unpinned staged_expected_contracts_v3 while the manifest
+# admitted the v4 artifact, so an admitted capsule authenticated
+# against bytes the manifest does not admit -- the same class as the
+# missed calendar successor, one level down. v3 is an APPEND-ONLY
+# successor: the v4 capsule bytes stay committed history, this schema
+# binds the admitted v4 authority, and the transition itself is
+# carried as evidence (`supersedes` + `supersession_delta`) rather
+# than absorbed silently.
+CAPSULE_SCHEMA = "f2g-w2-key-disposition-capsule-v3"
+DELTA_SCHEMA = "f2g-w2-key-disposition-delta-v1"
 # cayley's 0110Z P0: build_fixture_capsule over the REAL authority
 # minted a capsule that passed the strict verifier while claiming all
 # 2056 keys native -- internally true, externally false. Their
@@ -68,11 +78,35 @@ _LINEAGE_KEYS = {"v3_key", "s_v3_sha256", "t_v3_sha256",
                  "raw_body_sha256", "raw_body_bytes", "claim",
                  "s_v4_sha256"}
 _PREDECESSOR_KEYS = {"spent_probe"}
+_SUPERSEDES_KEYS = {"capsule_path", "capsule_blob_sha256",
+                    "capsule_schema", "authority_path",
+                    "authority_blob_sha256", "authority_keys_sha256"}
+_SUPERSESSION_DELTA_KEYS = {"old_authority", "new_authority",
+                            "authority_keys", "old_partitions",
+                            "new_partitions", "movement_matrix",
+                            "moved_rows", "delta_record"}
+_AUTHORITY_KEY_COUNTS = {"common", "removed", "added"}
+_DELTA_RECORD_KEYS = {"path", "blob_sha256", "content_sha256",
+                      "rows"}
 _HEX64 = 64
 CAPSULE_PATH = ("docs/f2g_window2_execution/"
-                "key_disposition_capsule_v4.json")
+                "key_disposition_capsule_v5.json")
 AUTHORITY_PATH = ("docs/f2g_window2_execution/"
-                  "staged_expected_contracts_v3.json")
+                  "staged_expected_contracts_v4.json")
+# the append-only predecessor pair this successor supersedes: the
+# capsule that was live, and the authority IT was bound to. Both stay
+# committed history and are reopened here, never rewritten.
+PRIOR_CAPSULE_PATH = ("docs/f2g_window2_execution/"
+                      "key_disposition_capsule_v4.json")
+PRIOR_CAPSULE_SCHEMA = "f2g-w2-key-disposition-capsule-v2"
+PRIOR_AUTHORITY_PATH = ("docs/f2g_window2_execution/"
+                        "staged_expected_contracts_v3.json")
+DELTA_PATH = ("docs/f2g_window2_execution/"
+              "key_disposition_v4_to_v5_delta.json")
+# the pseudo-partition for a key that is absent from one frame's
+# authority entirely: an added key has no old disposition, a removed
+# key has no new one, and neither may be silently dropped
+ABSENT = "ABSENT"
 V3_ARCHIVE_PATH = ("docs/f2g_window2_execution/staged_envelopes/"
                    "capture_run_archive.json")
 PARTITIONS = ("REUSE_OR_BRIDGE", "PREDECESSOR", "HTTP_CAPTURE")
@@ -211,7 +245,14 @@ def build(store_root, commitish="HEAD", transform=None):
         "http_capture": list(http),
     }
     caps["partitions"] = _partition_block(caps)
-    return caps
+    # the supersession evidence is DERIVED from this capsule's own
+    # recomputed partition and the reopened predecessor -- no count is
+    # ever carried forward from the superseded capsule (codex 1507Z)
+    delta = build_delta(caps, commitish)
+    caps["supersedes"] = _supersedes_block(commitish)
+    caps["supersession_delta"] = _supersession_delta(caps, delta,
+                                                     commitish)
+    return caps, delta
 
 
 def _archive_committed(commitish):
@@ -240,6 +281,147 @@ def _partition_block(caps):
         "HTTP_CAPTURE": {
             "count": len(http), "keys_sha256": _canon(sorted(http)),
             "source_bodies_sha256": _canon([])},
+    }
+
+
+def _authority_at(path, commitish="HEAD"):
+    """Reopen ANY registered authority artifact from committed bytes."""
+    raw = _blob(f"{commitish}:{path}")
+    return json.loads(raw.decode("utf-8")), \
+        hashlib.sha256(raw).hexdigest()
+
+
+def _authority_identity(path, authority, sha):
+    return {"path": path, "blob_sha256": sha,
+            "keys_sha256": authority["prestart_expected_keys_sha256"],
+            "census": len(_v4_keys(authority))}
+
+
+def _prior_capsule(commitish="HEAD"):
+    """Reopen the superseded capsule and AUTHENTICATE it before any of
+    its numbers are used: registered predecessor schema, closed
+    partitions that RECOMPUTE from its own key lists, and an authority
+    block that matches the v3 bytes it was actually bound to. A
+    predecessor whose own partitions do not recompute cannot be the
+    baseline of a supersession record."""
+    raw = _blob(f"{commitish}:{PRIOR_CAPSULE_PATH}")
+    cap = json.loads(raw.decode("utf-8"))
+    if cap.get("schema") != PRIOR_CAPSULE_SCHEMA:
+        _d(f"the superseded capsule at {PRIOR_CAPSULE_PATH} is not "
+           f"schema {PRIOR_CAPSULE_SCHEMA!r}")
+    if cap.get("partitions") != _partition_block(cap):
+        _d("the superseded capsule's partitions block does not "
+           "recompute from its own key lists -- it cannot serve as a "
+           "supersession baseline")
+    prior_auth, prior_sha = _authority_at(PRIOR_AUTHORITY_PATH,
+                                          commitish)
+    want = _authority_identity(PRIOR_AUTHORITY_PATH, prior_auth,
+                               prior_sha)
+    if cap.get("authority") != want:
+        _d("the superseded capsule's live authority block does not "
+           "match the committed v3 authority bytes it names")
+    return cap, hashlib.sha256(raw).hexdigest(), prior_auth, prior_sha
+
+
+def _dispositions(caps):
+    return {"REUSE_OR_BRIDGE": set(caps["reuse_or_bridge"]),
+            "PREDECESSOR": set(caps["predecessor"]),
+            "HTTP_CAPTURE": set(caps["http_capture"])}
+
+
+def _dispo_of(key, parts):
+    for name in PARTITIONS:
+        if key in parts[name]:
+            return name
+    return ABSENT
+
+
+def _movement(old_caps, new_caps):
+    """The complete sorted moved-key record + its movement matrix. A
+    key whose disposition is unchanged is NOT a row; a key that leaves
+    or enters the authority moves to/from ABSENT and is never dropped."""
+    old_p, new_p = _dispositions(old_caps), _dispositions(new_caps)
+    universe = set().union(*old_p.values()) | set().union(*new_p.values())
+    rows, matrix = [], {}
+    for key in sorted(universe):
+        o, n = _dispo_of(key, old_p), _dispo_of(key, new_p)
+        if o == n:
+            continue
+        rows.append({"key": key, "old_partition": o,
+                     "new_partition": n})
+        matrix[f"{o}->{n}"] = matrix.get(f"{o}->{n}", 0) + 1
+    return rows, matrix
+
+
+def build_delta(new_caps, commitish="HEAD"):
+    """The companion movement record (codex 1507Z item 2): the FULL
+    sorted moved-key rows, so the index map between the two frames
+    survives. It binds the predecessor and both authorities, never the
+    successor capsule's own digest -- the capsule binds the delta, so
+    the reverse would be circular."""
+    old_caps, old_cap_sha, prior_auth, prior_sha = _prior_capsule(
+        commitish)
+    new_auth, new_sha = _authority_at(AUTHORITY_PATH, commitish)
+    k_old, k_new = set(_v4_keys(prior_auth)), set(_v4_keys(new_auth))
+    rows, matrix = _movement(old_caps, new_caps)
+    return {
+        "schema": DELTA_SCHEMA,
+        "supersedes_capsule": {"path": PRIOR_CAPSULE_PATH,
+                               "blob_sha256": old_cap_sha,
+                               "schema": PRIOR_CAPSULE_SCHEMA},
+        "successor_capsule_path": CAPSULE_PATH,
+        "old_authority": _authority_identity(PRIOR_AUTHORITY_PATH,
+                                             prior_auth, prior_sha),
+        "new_authority": _authority_identity(AUTHORITY_PATH,
+                                             new_auth, new_sha),
+        "authority_keys": {"common": len(k_old & k_new),
+                           "removed": len(k_old - k_new),
+                           "added": len(k_new - k_old)},
+        "movement_matrix": matrix,
+        "rows": rows,
+    }
+
+
+def delta_bytes(delta):
+    """The EXACT published bytes the capsule's binding is taken over
+    (same canonical form as every other audit carrier: indent=1,
+    sorted keys, LF, trailing newline)."""
+    return (json.dumps(delta, indent=1, sort_keys=True)
+            + "\n").encode("utf-8")
+
+
+def _supersedes_block(commitish="HEAD"):
+    old_caps, old_cap_sha, prior_auth, prior_sha = _prior_capsule(
+        commitish)
+    return {"capsule_path": PRIOR_CAPSULE_PATH,
+            "capsule_blob_sha256": old_cap_sha,
+            "capsule_schema": PRIOR_CAPSULE_SCHEMA,
+            "authority_path": PRIOR_AUTHORITY_PATH,
+            "authority_blob_sha256": prior_sha,
+            "authority_keys_sha256":
+                prior_auth["prestart_expected_keys_sha256"]}
+
+
+def _supersession_delta(new_caps, delta, commitish="HEAD"):
+    """The closed in-capsule operation record. Old counts/digests are
+    RECOMPUTED from the superseded capsule's own key lists, never
+    copied from its stored block; new counts/digests are recomputed
+    from this capsule's."""
+    old_caps, _s, prior_auth, prior_sha = _prior_capsule(commitish)
+    raw = delta_bytes(delta)
+    return {
+        "old_authority": delta["old_authority"],
+        "new_authority": delta["new_authority"],
+        "authority_keys": dict(delta["authority_keys"]),
+        "old_partitions": _partition_block(old_caps),
+        "new_partitions": _partition_block(new_caps),
+        "movement_matrix": dict(delta["movement_matrix"]),
+        "moved_rows": len(delta["rows"]),
+        "delta_record": {"path": DELTA_PATH,
+                         "blob_sha256":
+                             hashlib.sha256(raw).hexdigest(),
+                         "content_sha256": _canon(delta),
+                         "rows": len(delta["rows"])},
     }
 
 
@@ -400,6 +582,12 @@ def _verify(capsule, authority=None, commitish="HEAD",
                 "v3_archive", "old_authority", "lane_map",
                 "superseded_v3", "reuse_or_bridge", "predecessor",
                 "http_capture", "partitions"}
+    # the supersession evidence is required of the PRODUCTION
+    # successor only: a fixture has no predecessor frame to move from,
+    # and giving it these blocks would let a fixture mint a
+    # supersession record (codex 1507Z items 1-2)
+    if want_schema == CAPSULE_SCHEMA:
+        want_top = want_top | {"supersedes", "supersession_delta"}
     if set(c) != want_top:
         _d(f"capsule top-level field set is not closed "
            f"(missing={sorted(want_top - set(c))}, "
@@ -437,12 +625,77 @@ def _verify(capsule, authority=None, commitish="HEAD",
         _d("the partitions block is DERIVED, never submitted -- it "
            "does not recompute from the capsule's own key lists")
     _verify_nested(c, authority, store_root, lineage)
-    return {"census": len(keys),
-            "REUSE_OR_BRIDGE": len(reuse),
-            "PREDECESSOR": len(pred),
-            "HTTP_CAPTURE": len(http),
-            "bodies_recomputed": (len(reuse) if store_root
-                                  else None)}
+    out = {"census": len(keys),
+           "REUSE_OR_BRIDGE": len(reuse),
+           "PREDECESSOR": len(pred),
+           "HTTP_CAPTURE": len(http),
+           "bodies_recomputed": (len(reuse) if store_root
+                                 else None)}
+    if want_schema == CAPSULE_SCHEMA:
+        out["supersession_verified"] = _verify_supersession(
+            c, commitish)
+    return out
+
+
+def _verify_supersession(c, commitish="HEAD"):
+    """codex 1507Z items 1-2: the supersession evidence is REBUILT
+    independently from committed bytes -- the superseded capsule, both
+    authorities, and this capsule's own recomputed partition -- and
+    the submitted blocks must equal the rebuild exactly. A capsule
+    that carries a hand-written movement matrix, stale counts copied
+    from its predecessor, or a delta binding that does not hash the
+    published delta bytes refuses here."""
+    _closed(c["supersedes"], _SUPERSEDES_KEYS, "supersedes")
+    for f_ in ("capsule_blob_sha256", "authority_blob_sha256",
+               "authority_keys_sha256"):
+        _hex(c["supersedes"][f_], f"supersedes.{f_}")
+    if c["supersedes"] != _supersedes_block(commitish):
+        _d("the supersedes block does not match the reopened "
+           "predecessor capsule and its formerly-live authority")
+    sd = c["supersession_delta"]
+    _closed(sd, _SUPERSESSION_DELTA_KEYS, "supersession_delta")
+    _closed(sd["authority_keys"], _AUTHORITY_KEY_COUNTS,
+            "supersession_delta.authority_keys")
+    _closed(sd["delta_record"], _DELTA_RECORD_KEYS,
+            "supersession_delta.delta_record")
+    for f_ in ("blob_sha256", "content_sha256"):
+        _hex(sd["delta_record"][f_], f"delta_record.{f_}")
+    if sd["delta_record"]["path"] != DELTA_PATH:
+        _d("supersession_delta.delta_record.path is not the "
+           f"registered companion record {DELTA_PATH}")
+    rebuilt = build_delta(c, commitish)
+    if sd != _supersession_delta(c, rebuilt, commitish):
+        _d("the supersession_delta block does not recompute from the "
+           "reopened predecessor and this capsule's own partition -- "
+           "counts and digests are DERIVED, never submitted")
+    # the companion record itself, when it is published: its bytes
+    # must be the exact bytes the capsule bound, and they must be the
+    # independent rebuild -- not merely well-formed
+    raw = None
+    try:
+        raw = _blob(f"{commitish}:{DELTA_PATH}")
+    except DispositionRefusal:
+        p = os.path.join(REPO, *DELTA_PATH.split("/"))
+        if os.path.isfile(p):
+            with open(p, "rb") as f:
+                raw = f.read()
+    if raw is None:
+        return "CAPSULE_ONLY_DELTA_RECORD_ABSENT"
+    if hashlib.sha256(raw).hexdigest() != \
+            sd["delta_record"]["blob_sha256"]:
+        _d("the published delta record's bytes do not match the "
+           "digest the capsule binds")
+    published = json.loads(raw.decode("utf-8"))
+    if _canon(published) != sd["delta_record"]["content_sha256"]:
+        _d("the published delta record's canonical content digest "
+           "does not match the capsule's binding")
+    if published != rebuilt:
+        _d("the published delta record is not the independent "
+           "rebuild from committed bytes")
+    if len(published["rows"]) != sd["moved_rows"]:
+        _d("the published delta record's row count diverges from "
+           "the capsule's moved_rows")
+    return "REBUILT_FROM_COMMITTED_BYTES"
 
 
 def _hex(v, what):
@@ -464,6 +717,16 @@ def _verify_nested(c, authority, store_root=None, lineage=False):
     closes the top level and the key sets but leaves the interior
     open is well-formed, not authenticating."""
     _closed(c["authority"], _AUTHORITY_KEYS, "authority")
+    # the defect this successor exists to close (codex 1507Z item 1):
+    # the LIVE authority must NAME the admitted artifact, not merely
+    # carry bytes that happen to hash correctly. A capsule pointing at
+    # the superseded v3 path refuses here even if everything else
+    # recomputes.
+    if c["schema"] == CAPSULE_SCHEMA and \
+            c["authority"]["path"] != AUTHORITY_PATH:
+        _d("the live authority path is not the ADMITTED authority "
+           f"{AUTHORITY_PATH!r} (got {c['authority']['path']!r}) -- a "
+           "superseded authority may be history, never live")
     _closed(c["old_authority"], _OLD_AUTHORITY_KEYS, "old_authority")
     _closed(c["v3_archive"], _ARCHIVE_KEYS, "v3_archive")
     _hex(c["authority"]["blob_sha256"], "authority.blob_sha256")
@@ -638,16 +901,29 @@ def main():
     store = os.environ.get("W2_V3_STORE",
                            "E:/GeoSpec/w2_capture_store_20260825")
     out = os.path.join(REPO, *CAPSULE_PATH.split("/"))
+    dout = os.path.join(REPO, *DELTA_PATH.split("/"))
     if mode in ("build", "rebuild"):
-        caps = build(store)
+        caps, delta = build(store)
         print("derived:", verify(caps, store_root=store))
-        if mode == "rebuild" and os.path.exists(out):
+        if mode == "rebuild":
             # codex 2119Z closure 2 ordered the upgraded capsule to
             # be REGENERATED and re-pinned; an explicit mode, never a
             # silent overwrite of a create-once artifact
-            os.remove(out)
+            for p in (out, dout):
+                if os.path.exists(p):
+                    os.remove(p)
+        # the companion lands FIRST: the capsule binds its published
+        # bytes, so a capsule may never exist without the record it
+        # claims to bind
+        CAP._write_once_json(dout, delta, "DISPOSITION_DELTA_DIVERGENT")
+        print("written:", DELTA_PATH, f"({len(delta['rows'])} rows)")
         CAP._write_once_json(out, caps, "DISPOSITION_DIVERGENT")
         print("written:", CAPSULE_PATH)
+        # re-verify from the PUBLISHED bytes: the pre-write pass could
+        # not authenticate a delta record that did not exist yet
+        with open(out, encoding="utf-8") as f:
+            print("published:", verify(json.load(f),
+                                       store_root=store))
     elif mode == "verify":
         with open(out, encoding="utf-8") as f:
             caps = json.load(f)

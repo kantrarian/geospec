@@ -121,8 +121,23 @@ BOUND_SLOTS = {
                   # membership before the opener, so an unpinned
                   # capsule fails the entrypoint closed
                   "monitoring/src/w2_disposition_capsule_grassmann.py",
+                  # cycle-6 (codex 1507Z items 1-2): the LIVE pin is
+                  # the append-only v5 SUCCESSOR. The v4 capsule
+                  # authenticated its live authority against the
+                  # superseded, unpinned v3 contracts, so a 09-02
+                  # capture driven by it would have partitioned keys
+                  # under the wrong frame. v4 stays committed history
+                  # and is deliberately NOT pinned: two capsules in
+                  # this slot would make the production boundary's
+                  # "exactly one" resolution ambiguous.
                   "docs/f2g_window2_execution/"
-                  "key_disposition_capsule_v4.json",
+                  "key_disposition_capsule_v5.json",
+                  # the companion movement record the successor binds
+                  # by path + byte sha + canonical content digest;
+                  # pinned so the delta the capsule points at is
+                  # itself admitted evidence rather than a promise
+                  "docs/f2g_window2_execution/"
+                  "key_disposition_v4_to_v5_delta.json",
                   # the two-leg RESTAGED_LINEAGE verifier: my
                   # boundary calls it, so it must be reopenable
                   # from a pin rather than merely imported

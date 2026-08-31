@@ -1140,7 +1140,15 @@ def _boundary_mechanics(repo, manifest, *, blob_reader=None,
             "descriptor": descriptor, "authorized": authorized}
 
 
-DISPOSITION_CAPSULE_BASENAME = "key_disposition_capsule_v4.json"
+# cycle-6 (codex 1507Z items 1-2): the LIVE disposition authority is
+# the append-only v5 successor. This basename is what the production
+# capture boundary resolves from the accrual_impl pin, so leaving it
+# at v4 would have kept driving admission from the superseded capsule
+# -- the exact defect grassmann measured -- while the manifest
+# advertised the successor. The v4 capsule remains committed history;
+# it is simply no longer the live authority, and this boundary now
+# refuses if the successor is not the pinned one.
+DISPOSITION_CAPSULE_BASENAME = "key_disposition_capsule_v5.json"
 
 
 def _registered_disposition_capsule(manifest, blob_reader):

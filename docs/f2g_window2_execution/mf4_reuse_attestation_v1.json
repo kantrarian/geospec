@@ -16,6 +16,12 @@
  },
  "ruling_basis": "codex Gate-2 2026-08-30T18:44Z reuse rule: 'M-F4's already-verified trust/fit artifacts should be reused as candidates, not rerun by default: the successor must show their model/rules are unchanged and their fit cutoff remains strictly pre-evaluation. If that proof fails, replace/rebind them explicitly rather than silently refitting.'",
  "schema": "f2g-w2-mf4-reuse-attestation-v1",
+ "successor_readiness_record": {
+  "path": "docs/f2g_window2_execution/mf4_successor_readiness_record_v1.json",
+  "role": "codex cycle-2 finding 3: byte reuse proves fit identity only; prospective-producer standing through the successor maturity tail is bound by this record (renewal + producer identities + full-span no-refit emission proof); any divergence at landing refuses reuse",
+  "sha256": "ce5d27c6cf60bcd4c13cdfe56572b806a78122a1e483299a0a607fb43550685e",
+  "state": "READY_FOR_ACCRUAL"
+ },
  "unchanged_model_rules_proof": {
   "artifacts": [
    {

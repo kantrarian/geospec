@@ -215,6 +215,15 @@ BOUND_SLOTS = {
                 "receipts; codex items 3+4 repaired + canonical-UTC "
                 "frame)",
         "paths": ["monitoring/src/w2_calibration_runner_cayley.py",
+                  # w2r1 cycle-3 (codex cycle-2 finding 3): the
+                  # M-F4 successor-readiness generator + record +
+                  # the reuse attestation it is bound into
+                  "monitoring/src/"
+                  "w2_mf4_successor_readiness_gen_cayley.py",
+                  "docs/f2g_window2_execution/"
+                  "mf4_successor_readiness_record_v1.json",
+                  "docs/f2g_window2_execution/"
+                  "mf4_reuse_attestation_v1.json",
                   # P0-4 (codex 1733Z sequence): the feed producer
                   # derives the runner's inputs from committed
                   # staged/capsule bytes -- production machinery on

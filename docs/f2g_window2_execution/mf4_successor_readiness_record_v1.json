@@ -1,0 +1,81 @@
+{
+ "claim_ceiling": "readiness registration only; candidate standing, not admission; no power value, no scientific claim; Lambda_geo INCONCLUSIVE",
+ "emission_proof": {
+  "method": "re-emitted one row per admitted (region, issue_day) over the FULL pinned calibration span from committed bytes; verify_row on every row; double-emission digest equality (determinism); fixed probe issued_utc -- probe rows are not production rows and are not persisted",
+  "refit_performed": false,
+  "regions": [
+   "anchorage",
+   "campi_flegrei",
+   "cascadia",
+   "hualien",
+   "istanbul_marmara",
+   "kaikoura",
+   "kumamoto",
+   "mexico_guerrero",
+   "norcal_hayward",
+   "ridgecrest",
+   "socal_saf_coachella",
+   "socal_saf_mojave",
+   "turkey_kahramanmaras"
+  ],
+  "rows_emitted": 3991,
+  "span": [
+   "2025-10-18",
+   "2026-08-20"
+  ],
+  "typed_no_prediction_rows": 3978
+ },
+ "operational_dependency": {
+  "daily_input_feed": "the daily-risk monitor supplies per-day inputs during accrual; continuity is owner-authorized (renewal above) and any missing accrual day types at scoring time under the frozen support rules -- never backfilled, never silent"
+ },
+ "owner_continuity_renewal": {
+  "concrete_close_under_successor": "2027-01-20",
+  "path": "docs/f2g_window2_execution/renewal_2026-08-22_owner_authorization.md",
+  "quote_sha256": "7caab14d2b7379609c096f2a52b25d29c8c92209dbd2217111e513b5a8acb270",
+  "relational_term": "through the WINDOW-2 CLOSE = evaluation_end + H_max, binding when PRESTART fixes evaluation_start",
+  "sha256": "f46a4b9238bca0dd66f2b5165f857698ffdb5e7bb54aab3e2ea2348b5c9e3f70"
+ },
+ "producer_identities": {
+  "acquisition_receipt_sha256": "054002dd617b174e859645fce5c34a9adbc5b5c8024a0eed54f55757ae29c9ff",
+  "amended_training_digest": "bbb193d0e008703ec764c08cf4471478a13ce33bb55ceaf9f558a28ce1160ffc",
+  "catalog_snapshot_sha256": "490c407796209a513995a9012911a1e3764825622d4e33d355c983a13dbbb7f3",
+  "catalog_table_digest": "1e4839cf062ad63c8b8bb8b835b829925a80f3d38c2552962fbd94c047092ad2",
+  "frozen_entry": {
+   "entrypoint": "predict_row (apply-never-refit; typed no-prediction days emit a typing row, never silence)",
+   "path": "monitoring/src/w2_mf4.py",
+   "sha256": "f9ea9b33d0c9819f78b40782c3c3880e193c017ff749671c392a25f3e004ccef"
+  },
+  "input_feed_sha256": "c337b07f18a237155da2439e5ece57b8ad793301941edeb90d03e0286e185511",
+  "ledger_sha256": "3f07d9bb112b9d195cce1fd97e5f6f304ca1c2a28d6d66d65b3bf5a70e90623a",
+  "receipt_sha256": "251be9a46951e1ce77fda8d532b86f341c0351b092b2ec2462b6500920775c88",
+  "training_digest_three_way_equal": true
+ },
+ "ruling_basis": "codex w2r1 cycle-2 ruling 2026-08-30T22:40Z finding 3 (MAJOR): byte reuse proves fit identity, not prospective readiness; this record binds the missing standing",
+ "schema": "f2g-w2-mf4-successor-readiness-v1",
+ "state": "READY_FOR_ACCRUAL",
+ "successor_accrual_frame": {
+  "evaluation_end": "2027-01-13",
+  "evaluation_start": "2026-09-04",
+  "h_days": 7,
+  "maturity_tail_end": "2027-01-20"
+ },
+ "supersedes_standing_fields_only": {
+  "final_bind_record": {
+   "landing_commit": "ec9245ee2f42705878546a40c05846a61586f578",
+   "path": "docs/f2g_window2_execution/calibration/mf4_final_bind_record_v1.json",
+   "sha256": "ddff627634e42eaa0b00b6e2beed54ee7fa7d099069100d95fcc924e7fd52768",
+   "superseded": {
+    "status": "PRIVATE_CANDIDATE_PENDING_OWNER_LANDING -> LANDED_PUBLIC (owner-fired); landing commit bound below"
+   }
+  },
+  "maturity_record": {
+   "path": "docs/f2g_window2_execution/mf4_maturity_record_v4.json",
+   "sha256": "74507258849d314255836e3552809ea116bb61b2357487ca627822e04a104507",
+   "superseded": {
+    "gate_b_prospective_producer.accrual_span": "08-28-schedule dates -> the successor frame below",
+    "gate_b_prospective_producer.status": "OPEN -> discharged by this record's emission proof + renewal binding"
+   }
+  },
+  "note": "both artifacts stand as history; ONLY the standing/date fields below are superseded, never their bytes"
+ }
+}

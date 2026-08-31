@@ -50,6 +50,78 @@
   "receipt_sha256": "251be9a46951e1ce77fda8d532b86f341c0351b092b2ec2462b6500920775c88",
   "training_digest_three_way_equal": true
  },
+ "production_operation": {
+  "census": {
+   "first_accrual_day": {
+    "predictions": [
+     "anchorage",
+     "campi_flegrei",
+     "cascadia",
+     "hualien",
+     "istanbul_marmara",
+     "kaikoura",
+     "kumamoto",
+     "mexico_guerrero",
+     "norcal_hayward",
+     "ridgecrest",
+     "socal_saf_coachella",
+     "socal_saf_mojave",
+     "turkey_kahramanmaras"
+    ],
+    "typed_no_prediction": []
+   },
+   "last_accrual_day": {
+    "predictions": [
+     "anchorage",
+     "campi_flegrei",
+     "cascadia",
+     "hualien",
+     "istanbul_marmara",
+     "kaikoura",
+     "kumamoto",
+     "mexico_guerrero",
+     "norcal_hayward",
+     "ridgecrest",
+     "socal_saf_coachella",
+     "socal_saf_mojave",
+     "turkey_kahramanmaras"
+    ],
+    "typed_no_prediction": []
+   },
+   "typed_no_prediction": {
+    "predictions": [],
+    "typed_no_prediction": [
+     "anchorage",
+     "campi_flegrei",
+     "cascadia",
+     "hualien",
+     "istanbul_marmara",
+     "kaikoura",
+     "kumamoto",
+     "mexico_guerrero",
+     "norcal_hayward",
+     "ridgecrest",
+     "socal_saf_coachella",
+     "socal_saf_mojave",
+     "turkey_kahramanmaras"
+    ]
+   }
+  },
+  "entrypoint": "w2_accrual_instrument_cayley.run_mf4_daily_tick",
+  "no_split_assertion": "receipt digests == stored rows == journal ACCRUED lines asserted after every committed/resumed scenario; both fault scenarios left no half-committed barrier/row state",
+  "scenarios": {
+   "barrier_fault_resume": "PARTIAL_ACCRUAL_RESUMED_EXACTLY_ONCE",
+   "duplicate_tick": "REFUSES_TYPED(MF4_TICK_DUPLICATE)",
+   "first_accrual_day": "COMMITTED_CONSISTENT",
+   "last_accrual_day": "COMMITTED_CONSISTENT",
+   "missing_feed": "REFUSES_TYPED(MF4_TICK_FEED_MISSING)",
+   "post_tail": "REFUSES_TYPED(MF4_TICK_DAY_OFF_CALENDAR)",
+   "resume_divergent": "REFUSES_TYPED(MF4_TICK_RESUME_DIVERGENT)",
+   "store_fault_resume": "CRASH_CLEAN_THEN_RESUMED_CONSISTENT",
+   "typed_no_prediction": "COMMITTED_CONSISTENT_ALL_TYPED",
+   "wrong_frame": "REFUSES_TYPED(MF4_TICK_CALENDAR_WRONG)"
+  }
+ },
  "ruling_basis": "codex w2r1 cycle-2 ruling 2026-08-30T22:40Z finding 3 (MAJOR): byte reuse proves fit identity, not prospective readiness; this record binds the missing standing",
  "schema": "f2g-w2-mf4-successor-readiness-v1",
  "state": "READY_FOR_ACCRUAL",

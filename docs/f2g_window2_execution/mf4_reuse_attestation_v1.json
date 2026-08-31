@@ -18,8 +18,8 @@
  "schema": "f2g-w2-mf4-reuse-attestation-v1",
  "successor_readiness_record": {
   "path": "docs/f2g_window2_execution/mf4_successor_readiness_record_v1.json",
-  "role": "codex cycle-2 finding 3: byte reuse proves fit identity only; prospective-producer standing through the successor maturity tail is bound by this record (renewal + producer identities + full-span no-refit emission proof); any divergence at landing refuses reuse",
-  "sha256": "ce5d27c6cf60bcd4c13cdfe56572b806a78122a1e483299a0a607fb43550685e",
+  "role": "codex cycle-2 finding 3: byte reuse proves fit identity only; prospective-producer standing through the successor maturity tail is bound by this record (renewal + producer identities + full-span no-refit emission proof); any divergence at landing refuses reuse; cycle-4 R4: the record now also binds the production-operation exercise of the registered run_mf4_daily_tick entrypoint (journaled prepare/store/accrue/receipt; fault+resume matrix; no barrier/store split)",
+  "sha256": "d5b44c9db720dc710038cc47b9a3a005790a96ad694e1a6efb22f37d617de0d5",
   "state": "READY_FOR_ACCRUAL"
  },
  "unchanged_model_rules_proof": {

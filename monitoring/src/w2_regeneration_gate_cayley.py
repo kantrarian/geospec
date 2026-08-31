@@ -75,6 +75,16 @@ REQUIRED_BAR_SURFACES = (
 # A path pinned in the wrong slot answers to the wrong authority even
 # though a membership-only check would call it bound.
 REQUIRED_BY_SLOT = {
+    # w2r1 cycle-3 (codex cycle-2 finding 2): when the RESULT
+    # slot is BOUND these produced-output classes must be
+    # among its pins; machinery pins never substitute
+    "power_certification_result": (
+        "docs/f2g_window2_execution/power_cert/"
+        "power_cert_result_package_v1.json",
+        "docs/f2g_window2_execution/power_cert/"
+        "power_cert_result_receipt_v1.json",
+        "docs/f2g_window2_execution/power_cert/"
+        "power_cert_verifier_receipt_v1.json"),
     "bars": REQUIRED_BAR_SURFACES,
     "accrual_impl": (
         "monitoring/src/w2_disposition_capsule_grassmann.py",
@@ -168,7 +178,8 @@ REQUIRED_BY_SLOT = {
         "monitoring/src/w2_acquisition_capture_grassmann.py",
     ),
 }
-SLOT_REQUIRED_ONLY_WHEN_BOUND = ("producer_boundary",)
+SLOT_REQUIRED_ONLY_WHEN_BOUND = ("producer_boundary",
+                                 "power_certification_result")
 
 
 # codex 1716Z P0-2: the admission/verification ENTRYPOINTS whose

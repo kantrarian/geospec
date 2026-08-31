@@ -110,3 +110,38 @@ the slot BOUND. Registered text + envelope-record closed schema:
 `producer_boundary_amendment_v1.md`. Claim ceiling: acquisition before the staged
 bytes is receipt-attested, never source-code-attested. Subject to grassmann's
 boundary-owner ratification; verifier KAT grows to 19 cases.
+
+
+## v1.3 (w2r1 cycle-3, codex cycle-2 finding 2): slot 13 -- `power_certification_result`
+
+Append-only successor note; nothing above changes. The closed slot
+set gains ONE member:
+
+- `power_certification_result` (owner cayley) -- the Window-2
+  anticipated-mask power certification RESULT. **OPEN by default**:
+  machinery pins in `power_harness` never substitute for produced
+  result bytes. It binds ONLY under the generator's owner-gated
+  `--power-cert-result` mode, which pins the five registered result
+  classes under `docs/f2g_window2_execution/power_cert/`
+  (`power_cert_result_package_v1.json`,
+  `power_cert_result_receipt_v1.json`,
+  `power_cert_verifier_receipt_v1.json`, `invocation_record.json`,
+  `campaign_summary.json`) plus every `point_NNN.json` the COMMITTED
+  campaign summary declares (n_points read from the summary blob at
+  the target -- never a directory walk), each through the ordinary
+  `pin()` (uncommitted output refuses `PATH_NOT_AT_TARGET`).
+- The execution verifier's closed `SLOT_SET` includes the slot; when
+  BOUND it additionally requires the five registered classes present
+  and every pin under the registered prefix
+  (`POWER_CERT_RESULT_SLOT_INVALID`).
+- **Manifest/slot closure is never a semantic power PASS**: the
+  independent result verifier
+  (`w2_power_cert_result_verifier_cayley.py`) enforces the admission
+  table (admitted members carry envelope + CP-floor threshold;
+  terminally excluded MAG entries typed non-certification and
+  non-blocking; members outside certified S typed
+  CANNOT_DETERMINE_NO_POWER and excluded from Holm), and the
+  composed prestart consumes ITS `power_gate` verdict.
+
+Claim ceiling: registration only; no power value, no admission;
+Lambda_geo INCONCLUSIVE.

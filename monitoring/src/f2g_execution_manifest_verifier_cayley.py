@@ -45,7 +45,11 @@ SLOT_SET = {"execution_generator", "execution_verifier",
             # the staged-envelope trust boundary
             "producer_boundary",
             # v1.1: the repaired execution tools (codex 1358Z)
-            "power_harness", "calibration_runner"}
+            "power_harness", "calibration_runner",
+            # w2r1 cycle-3 (codex cycle-2 finding 2): the
+            # certification RESULT slot -- machinery pins are
+            # never the produced result bytes
+            "power_certification_result"}
 SLOT_FIELDS = {"status", "owner", "note", "pins"}
 PIN_FIELDS = {"path", "commit", "blob_sha256"}
 REQUIRED_BAR_FAMILIES = {"W-SEL", "W-CAS", "W-B2B", "W-B1B", "W-MF4",
@@ -273,6 +277,32 @@ def _verify_obj(repo, manifest_commit, obj, prestart=False):
                             f"amendment={have_amend} code={have_code} "
                             f"envelopes={have_env} "
                             f"authority={have_auth}")
+            # w2r1 cycle-3 (codex cycle-2 finding 2): the
+            # RESULT slot, when BOUND, must pin the five
+            # registered produced-output classes and nothing
+            # outside the registered power_cert/ prefix
+            if name == "power_certification_result":
+                paths = [p.get("path") for p in slot["pins"]
+                         if isinstance(p, dict)]
+                pcd = ("docs/f2g_window2_execution/"
+                       "power_cert/")
+                classes = (
+                    pcd + "power_cert_result_package_v1.json",
+                    pcd + "power_cert_result_receipt_v1.json",
+                    pcd + "power_cert_verifier_receipt_v1.json",
+                    pcd + "invocation_record.json",
+                    pcd + "campaign_summary.json")
+                missing = [c for c in classes
+                           if c not in paths]
+                off = [str(p) for p in paths
+                       if not str(p).startswith(pcd)]
+                if missing or off:
+                    _refuse(res,
+                            "POWER_CERT_RESULT_SLOT_INVALID",
+                            name,
+                            f"missing={len(missing)} "
+                            f"off_prefix={len(off)} e.g. "
+                            f"{(missing + off)[:1]}")
             for p in slot["pins"]:
                 res["pins_checked"] += 1
                 if not isinstance(p, dict) or set(p) != PIN_FIELDS:

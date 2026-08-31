@@ -364,6 +364,16 @@ BOUND_SLOTS = {
 # NOTE: the schema doc is design-adjacent prose, deliberately NOT a slot
 
 OPEN_SLOTS = {
+    # w2r1 cycle-3 (codex cycle-2 finding 2): the Window-2
+    # anticipated-mask power certification RESULT. OPEN until
+    # the campaign output bytes are committed and the owner-
+    # gated --power-cert-result bind runs; machinery pins in
+    # power_harness never substitute for these result bytes.
+    "power_certification_result": (
+        "cayley", "anticipated-mask power certification RESULT "
+                  "package + receipts + committed campaign bytes; "
+                  "OPEN until produced under the successor calendar "
+                  "and bound to exact output bytes"),
     "calibration_ledgers": ("cayley", "MF4/MAG subtraction "
                                       "coefficients + diagnostics -- "
                                       "PRODUCED at the availability "
@@ -677,7 +687,38 @@ def pin(repo, target_full, path):
             "blob_sha256": hashlib.sha256(blob).hexdigest()}
 
 
-def main(repo, target, design_manifest_commit, final_bind_spec=None):
+POWER_CERT_DIR = "docs/f2g_window2_execution/power_cert"
+POWER_CERT_RESULT_CLASSES = (
+    POWER_CERT_DIR + "/power_cert_result_package_v1.json",
+    POWER_CERT_DIR + "/power_cert_result_receipt_v1.json",
+    POWER_CERT_DIR + "/power_cert_verifier_receipt_v1.json",
+    POWER_CERT_DIR + "/invocation_record.json",
+    POWER_CERT_DIR + "/campaign_summary.json")
+
+
+def power_cert_result_pins(repo, target_full):
+    """The 13th slot's pin set: the five registered result
+    classes + every point_NNN.json the COMMITTED campaign
+    summary declares (n_points read from the summary blob at
+    the target -- never a directory walk). Every path resolves
+    through the ordinary pin(), so uncommitted output refuses
+    PATH_NOT_AT_TARGET rather than binding a promise."""
+    summary_rel = POWER_CERT_DIR + "/campaign_summary.json"
+    raw = _git(repo, ["cat-file", "blob",
+                      f"{target_full}:{summary_rel}"],
+               binary=True)
+    n = int(json.loads(raw.decode("utf-8"))["n_points"])
+    if not 0 < n <= 4096:
+        raise SystemExit(
+            f"POWER_CERT_RESULT_N_POINTS_INVALID: {n}")
+    paths = list(POWER_CERT_RESULT_CLASSES) + [
+        POWER_CERT_DIR + f"/point_{i:03d}.json"
+        for i in range(n)]
+    return [pin(repo, target_full, p) for p in paths]
+
+
+def main(repo, target, design_manifest_commit, final_bind_spec=None,
+         power_cert_result=False):
     target_full = _git(repo, ["rev-parse", f"{target}^{{commit}}"])
     dm_full = _git(repo, ["rev-parse",
                           f"{design_manifest_commit}^{{commit}}"])
@@ -697,6 +738,14 @@ def main(repo, target, design_manifest_commit, final_bind_spec=None):
     for name, (owner, note) in OPEN_SLOTS.items():
         slots[name] = {"status": "OPEN", "owner": owner, "note": note,
                        "pins": []}
+    if power_cert_result:
+        slots["power_certification_result"] = {
+            "status": "BOUND", "owner": "cayley",
+            "note": "anticipated-mask power certification RESULT: "
+                    "exact committed output bytes (package + receipts "
+                    "+ campaign artifacts); bound only under the "
+                    "owner-gated --power-cert-result mode",
+            "pins": power_cert_result_pins(repo, target_full)}
     # codex 0532Z P0-1: FINAL BIND is opt-in and fail-closed. Without a
     # spec the shape above is untouched and both slots stay honestly
     # OPEN -- the default generator can no more emit BOUND than it
@@ -803,7 +852,12 @@ def _selftest():
     # ---- DEFAULT SHAPE is the thing that must not regress
     check("C1 default mode still emits both slots OPEN with no pins",
           all(OPEN_SLOTS[n] for n in FINAL_BIND_SLOTS)
-          and set(FINAL_BIND_SLOTS) == set(OPEN_SLOTS))
+          and set(FINAL_BIND_SLOTS) <= set(OPEN_SLOTS)
+          # w2r1 cycle-3: the RESULT slot is OPEN-by-default too,
+          # and it is NOT a final-bind slot -- it binds only under
+          # the owner-gated --power-cert-result mode
+          and set(OPEN_SLOTS) - set(FINAL_BIND_SLOTS)
+          == {"power_certification_result"})
 
     # ---- spec shape
     check("C2 non-closed spec refuses",
@@ -1031,6 +1085,10 @@ if __name__ == "__main__":
     _args = sys.argv[1:]
     if "--selftest" in _args:
         raise SystemExit(_selftest())
+    _pcr = "--power-cert-result" in _args
+    if _pcr:
+        _args = [a for a in _args
+                 if a != "--power-cert-result"]
     _fb = None
     if "--final-bind" in _args:
         _i = _args.index("--final-bind")
@@ -1040,4 +1098,4 @@ if __name__ == "__main__":
         _fb = _args[_i + 1]
         _args = _args[:_i] + _args[_i + 2:]
     main(os.path.abspath(_args[0]), _args[1], _args[2],
-         final_bind_spec=_fb)
+         final_bind_spec=_fb, power_cert_result=_pcr)

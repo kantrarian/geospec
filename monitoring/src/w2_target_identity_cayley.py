@@ -186,7 +186,8 @@ def regenerate_in_isolated_worker(repo, commit, module, entry,
                     f"worktree: {add.stderr.decode(errors='replace')[:160]}")
         src = os.path.join(wt, "monitoring", "src")
         code = (
-            "import json,sys\n"
+            "import json,os,sys\n"
+            "os.environ['W2_ISOLATED_TARGET'] = '1'\n"
             f"sys.path.insert(0, {src!r})\n"
             f"import {module} as M\n"
             f"print('<<<BEGIN>>>' + json.dumps(M.{entry}("

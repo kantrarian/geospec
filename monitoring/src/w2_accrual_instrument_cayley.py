@@ -344,7 +344,7 @@ AUTHORITY_TOP_FIELDS = {
     "registered_probe_authority"}
 AUTHORITY_CENSUS = 2056          # v4: 5x212 + 3x212 + 4x90
 #   MAG 5 obs x 212d (07-31 cutoff) + weather 3 x 212d
-#   + selection 4 x 90d (08-27 cutoff)
+#   + selection 4 x 90d (calendar-v4-derived cutoff)
 AUTHORITY_SCHEMA = "f2g-w2-expected-contracts-v4"
 TEMPLATE_TOKEN_VOCABULARY = ("{day}", "{day_next}", "{day_compact}")
 

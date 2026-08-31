@@ -2038,6 +2038,239 @@ def w_cal_v4():
               f"{type(exc).__name__}: {exc}")
 
 
+# ---- REV 22: the selection-authority successor locks ----------------------
+# (codex cycle-2 finding 1 completion, required by the CAL-v4
+# component pass: cutoff 2026-09-02 + lookback 2026-06-05..09-02
+# locked derived-not-literal, with explicit refusal of the 08-27/v3
+# authority and artifacts.)
+def w_selauth():
+    """Bar-side selection-authority locks: (1) THREE-way identity --
+    my OWN derivation from the committed calendar-v4 artifact
+    (cutoff = last baseline day, lookback = cutoff-89; never a
+    second date literal) == the v4 producer's derived constants ==
+    the staged v4 artifact (schema, selection-day digest, census,
+    closed top-field set); (2) consumer wiring
+    (basename/schema/census); (3) NEGATIVE doctors -- the committed
+    v3 staged authority refuses on closed schema; v3 relabeled as
+    v4 refuses on reproduce; a v3-dates calendar relabeled v4
+    refuses the producer derivation as carry-forward; a
+    wrong-schema calendar refuses typed."""
+    try:
+        import hashlib as _hl
+        import shutil as _sh
+        import tempfile as _tf
+        from datetime import date as _dc, timedelta as _tdc
+        import w2_expected_contracts_gen_v4_cayley as ECG4
+        import w2_accrual_instrument_cayley as ACC
+
+        def refuses(fn, code):
+            try:
+                fn()
+                return False
+            except Exception as exc:
+                return code in str(exc)
+
+        def _span(a, b):
+            d0, d1 = _dc.fromisoformat(a), _dc.fromisoformat(b)
+            return [(d0 + _tdc(days=i)).isoformat()
+                    for i in range((d1 - d0).days + 1)]
+
+        def _dig(days):
+            return _hl.sha256(json.dumps(
+                list(days), separators=(",", ":")).encode()
+                ).hexdigest()
+
+        # (1) my own derivation from the COMMITTED calendar-v4
+        # artifact: cutoff = the last baseline day, lookback =
+        # cutoff - 89 (90 selection days). No date literal enters
+        # the positive path.
+        cal_p = os.path.join(_REPO, "docs", "f2g_window2_execution",
+                             "calendar_authority_w2_v4.json")
+        with open(cal_p, encoding="utf-8") as f:
+            cal = json.load(f)
+        base = cal["frame"]["baseline_days"]
+        my_cutoff = base[-1]
+        my_look = (_dc.fromisoformat(my_cutoff)
+                   - _tdc(days=89)).isoformat()
+        my_days = _span(my_look, my_cutoff)
+        ok_id = len(base) == 60 and len(my_days) == 90 \
+            and ECG4.SELECTION_CUTOFF == my_cutoff \
+            and ECG4.SELECTION_LOOKBACK_START == my_look \
+            and os.path.basename(ECG4.OUT_REL) == \
+            "staged_expected_contracts_v4.json"
+        # ... == the staged v4 artifact bytes
+        v4_p = os.path.join(_REPO, "docs", "f2g_window2_execution",
+                            "staged_expected_contracts_v4.json")
+        with open(v4_p, encoding="utf-8") as f:
+            v4 = json.load(f)
+        census = sum(len(d)
+                     for lane in v4["prestart_expected_keys"].values()
+                     for d in lane.values())
+        ok_id = ok_id \
+            and v4.get("schema") == "f2g-w2-expected-contracts-v4" \
+            and v4["digests"]["selection_days_sha256"] == \
+            _dig(my_days) \
+            and census == 2056 \
+            and set(v4) == ACC.AUTHORITY_TOP_FIELDS
+
+        # (2) the active consumer serves the v4 authority
+        ok_w = ACC.EXPECTED_KEYS_BASENAME == \
+            "staged_expected_contracts_v4.json" \
+            and ACC.AUTHORITY_SCHEMA == \
+            "f2g-w2-expected-contracts-v4" \
+            and ACC.AUTHORITY_CENSUS == 2056
+
+        # (3a) the committed v3 staged authority REFUSES on the
+        # closed top-level schema -- an 08-27 authority cannot
+        # satisfy the successor gate
+        v3_p = os.path.join(_REPO, "docs", "f2g_window2_execution",
+                            "staged_expected_contracts_v3.json")
+        with open(v3_p, encoding="utf-8") as f:
+            v3 = json.load(f)
+        ok_neg = refuses(
+            lambda: ACC._validate_expected_keys_authority(
+                _REPO, v3, reproducer=lambda: v4),
+            "top-level schema not closed")
+        # (3b) v3 RELABELED as v4 (dates alone) refuses on
+        # reproduction against the pinned-generator output
+        relab = dict(v3, schema="f2g-w2-expected-contracts-v4")
+        ok_neg = ok_neg and refuses(
+            lambda: ACC._validate_expected_keys_authority(
+                _REPO, relab, reproducer=lambda: v4),
+            "does not REPRODUCE")
+        # (3c) producer-side carry-forward doctor: a calendar with
+        # the superseded v3 DATES relabeled v4 (schema, frame_id,
+        # recomputed digests, consecutive 08-27/28/29 binding all
+        # forged consistent) must STILL refuse the derivation --
+        # dates alone can never pass
+        v3b = _span("2026-06-29", "2026-08-27")
+        v3e = _span("2026-08-29", "2027-01-07")
+        forged = {
+            "schema": "f2g-w2-calendar-authority-v4",
+            "frame": {"frame_id": "w2-calendar-v4-noncal",
+                      "baseline_days": v3b,
+                      "excluded_days": ["2026-08-28"],
+                      "evaluation_days": v3e,
+                      "engine_days": v3b + v3e},
+            "digests": {"baseline_days_sha256": _dig(v3b),
+                        "evaluation_days_sha256": _dig(v3e),
+                        "engine_days_sha256": _dig(v3b + v3e)},
+            "cutoff_binding": {"cutoff": "2026-08-27"}}
+        tmp = _tf.mkdtemp(prefix="w2selauth_")
+        try:
+            doc = os.path.join(tmp, "docs", "f2g_window2_execution")
+            os.makedirs(doc)
+            with open(os.path.join(
+                    doc, "calendar_authority_w2_v4.json"),
+                    "w", encoding="utf-8") as f:
+                json.dump(forged, f)
+            ok_neg = ok_neg and refuses(
+                lambda: ECG4._derive_selection_frame(tmp),
+                "v3 carry-forward")
+            # (3d) a wrong-schema calendar refuses typed
+            with open(os.path.join(
+                    doc, "calendar_authority_w2_v4.json"),
+                    "w", encoding="utf-8") as f:
+                json.dump(dict(forged,
+                               schema="f2g-w2-calendar-authority-v3"),
+                          f)
+            ok_neg = ok_neg and refuses(
+                lambda: ECG4._derive_selection_frame(tmp),
+                "is not v4")
+        finally:
+            _sh.rmtree(tmp, ignore_errors=True)
+
+        check("SELAUTH selection-authority successor locks "
+              "(three-way cutoff/lookback identity derived from the "
+              "committed calendar-v4 -- never a date literal -- vs "
+              "producer constants + staged v4 artifact "
+              "digest/census/closed-schema, consumer v4 wiring, "
+              "v3-authority + relabeled-v3 + carry-forward-calendar "
+              "+ wrong-schema negative doctors)",
+              ok_id and ok_w and ok_neg,
+              f"id={ok_id} w={ok_w} neg={ok_neg}")
+    except ImportError:
+        check("SELAUTH selection-authority successor locks", False,
+              "W2_ENGINE_ABSENT")
+    except Exception as exc:
+        check("SELAUTH selection-authority successor locks", False,
+              f"{type(exc).__name__}: {exc}")
+
+
+# ---- REV 23: the 13-slot result-slot structural locks ---------------------
+# (codex cycle-2 finding 2, cayley's cycle-3 invitation: bar-side
+# cross-authored locks on the power_certification_result slot shape.
+# STRUCTURAL locks on committed manifest/verifier surfaces only --
+# executing the verifier is its own KAT domain (23/23), not this
+# bar's. The invariants are durable across the pre-fire (OPEN) and
+# post-result-bind (BOUND) states so the bar passes at both trees.)
+def w_slot13():
+    """Bar-side 13-slot locks: (1) slot-set closure -- the
+    verifier's SLOT_SET == the committed manifest's slot names ==
+    13, with power_certification_result a member; (2) every slot's
+    status/pins invariant: status in {OPEN, BOUND}, OPEN carries
+    zero pins, BOUND carries pins; (3) the result slot's registered
+    class list -- an INDEPENDENT in-bar transcription from the
+    result contract: when BOUND it must pin all five classes and
+    nothing outside the power_cert/ prefix (vacuously armed while
+    OPEN; the OPEN state itself must carry zero pins -- a silently
+    pre-bound result slot refuses here)."""
+    try:
+        import f2g_execution_manifest_verifier_cayley as MV
+
+        with open(os.path.join(
+                _REPO, "docs", "f2g_window2_execution",
+                "execution_manifest.json"), encoding="utf-8") as f:
+            man = json.load(f)
+        slots = man["slots"]
+
+        # (1) three-way slot-set closure
+        ok_set = set(slots) == set(MV.SLOT_SET) \
+            and len(MV.SLOT_SET) == 13 \
+            and "power_certification_result" in MV.SLOT_SET
+
+        # (2) the status/pins invariant on EVERY slot
+        ok_inv = all(
+            s.get("status") in ("OPEN", "BOUND")
+            and (s.get("status") == "BOUND") == bool(s.get("pins"))
+            for s in slots.values())
+
+        # (3) the result slot: my own transcription of the five
+        # registered produced-output classes from
+        # power_cert_result_contract_v1 -- independent of the
+        # verifier's copy, so drift between contract and verifier
+        # surfaces here
+        pcd = "docs/f2g_window2_execution/power_cert/"
+        my_classes = {
+            pcd + "power_cert_result_package_v1.json",
+            pcd + "power_cert_result_receipt_v1.json",
+            pcd + "power_cert_verifier_receipt_v1.json",
+            pcd + "invocation_record.json",
+            pcd + "campaign_summary.json"}
+        rs = slots["power_certification_result"]
+        if rs.get("status") == "OPEN":
+            ok_rs = not rs.get("pins")
+        else:
+            paths = {p.get("path") for p in rs.get("pins", [])
+                     if isinstance(p, dict)}
+            ok_rs = my_classes <= paths \
+                and all(str(p).startswith(pcd) for p in paths)
+
+        check("SLOT13 result-slot structural locks (three-way "
+              "13-slot closure incl power_certification_result, "
+              "every-slot OPEN/BOUND pins invariant, independent "
+              "five-class transcription armed on bind + "
+              "zero-pins-while-OPEN)",
+              ok_set and ok_inv and ok_rs,
+              f"set={ok_set} inv={ok_inv} rs={ok_rs}")
+    except ImportError:
+        check("SLOT13 result-slot structural locks", False,
+              "W2_ENGINE_ABSENT")
+    except Exception as exc:
+        check("SLOT13 result-slot structural locks", False,
+              f"{type(exc).__name__}: {exc}")
+
+
 # ---- REV 13: candidate-selector + cert-runner locks (codex 1909Z) ---------
 def w_selrun():
     """Bar-side locks over cayley's repair revision: (1) the
@@ -2590,7 +2823,12 @@ def w_selrun():
         bar_keys = {"SELECTION_RECORDS": {"cascadia": ["2026-08-20"]},
                     "MAG_FEED": {"frn": ["2026-08-20"]},
                     "MAG_WEATHER_FEED": {"mf4drv": ["2026-08-20"]}}
-        bar_auth = {"schema": "f2g-w2-expected-contracts-v3",
+        # REV-22 succession: fixture schema v3 -> v4 (the accrual
+        # instrument's closed top-level schema moved to
+        # f2g-w2-expected-contracts-v4 under codex cycle-2
+        # finding 1; the v3 string now refuses typed -- see
+        # w_selauth's negative doctors).
+        bar_auth = {"schema": "f2g-w2-expected-contracts-v4",
                 # DISCLOSED cross-owner fixture touch
                 # (cayley): the v4 authority top-field set
                 # gained registered_probe_authority -- the
@@ -2849,7 +3087,9 @@ def w_admit():
                                          "day": "{day}"}}
         # REV 16: the CLOSED self-verifying authority capsule (codex
         # 0320Z item 3) with the per-key static templates (item 1)
-        auth = {"schema": "f2g-w2-expected-contracts-v3",
+        # REV-22 succession: fixture schema v3 -> v4 (same closed-
+        # schema move as the bar_auth fixture above).
+        auth = {"schema": "f2g-w2-expected-contracts-v4",
                 # DISCLOSED cross-owner fixture touch
                 # (cayley): the v4 authority top-field set
                 # gained registered_probe_authority -- the
@@ -3220,8 +3460,11 @@ def w_xform():
                       {"vars": {"17": 1}}))
 
         # (3) the FROZEN socal template + the REAL attempt-4 body
+        # (REV-22 succession: read from the ACTIVE v4 authority --
+        # the socal template is byte-identical v3==v4, verified at
+        # extension time; the frozen comparison target is unchanged)
         auth_p = os.path.join(_REPO, "docs", "f2g_window2_execution",
-                              "staged_expected_contracts_v3.json")
+                              "staged_expected_contracts_v4.json")
         with open(auth_p, encoding="utf-8") as f:
             authx = json.load(f)
         csoc = authx["static_layer"]["SELECTION_RECORDS"][
@@ -3378,6 +3621,8 @@ def main():
     w_loco()
     w_cal()
     w_cal_v4()
+    w_selauth()
+    w_slot13()
     w_selrun()
     w_admit()
     w_xform()

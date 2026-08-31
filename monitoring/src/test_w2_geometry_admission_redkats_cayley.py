@@ -293,6 +293,125 @@ def _selftest():
           "record as the positive -- no loop bound comes from "
           "submitted evidence")
 
+    # ---- GA-7 (codex cycle-6c): PROVENANCE BY REGENERATION ------
+    # The execution label was caller-settable, the child inherited a
+    # steerable environment, and admission checked the label on the
+    # seed record only. All four of codex's locks run here. These
+    # spawn isolated worktrees and are the slowest controls in the
+    # suite; that cost is the point -- provenance is proved by
+    # rebuilding bytes, never by reading a self-reported string.
+    import os as _os
+    import subprocess as _sp
+    import tempfile as _tf
+    import w2_target_identity_cayley as TID
+    import w2_selection as WSEL
+
+    head_c = _sp.run(["git", "-C", REPO, "rev-parse", "HEAD"],
+                     capture_output=True, text=True).stdout.strip()
+    SEED_REL = "docs/f2g_window2_execution/power_seed_authority_w2_v1.json"
+    BUN_REL = "docs/f2g_window2_execution/power_geometry_inputs_w2_v1.json"
+    seed_ok, bun_ok = _blob("HEAD", SEED_REL), _blob("HEAD", BUN_REL)
+    pair = {"seed_authority": (seed_ok,
+                               "w2_power_seed_authority_gen_cayley"),
+            "inputs_bundle": (bun_ok,
+                              "w2_power_geometry_inputs_gen_cayley")}
+    if PH._verify_regenerates(REPO, head_c, pair) is not True:
+        raise GeometryAdmissionRefusal(
+            "GA-7 POSITIVE_FAILED: the live pinned seed and bundle do "
+            "not regenerate, so every probe below is vacuous")
+    print("  GA-7a PASS  both live pinned artifacts REGENERATE "
+          "byte-identically in the hardened worker (the positive)")
+
+    def _adm_refuses(raw, mod, name, label):
+        try:
+            PH._verify_regenerates(REPO, head_c, {name: (raw, mod)})
+        except PH.PowerHarnessError:
+            return
+        raise GeometryAdmissionRefusal(
+            f"GA-7 {label}: ADMITTED -- bytes that do not reproduce "
+            "must never be admissible")
+
+    # lock 1: parent sets the marker AND monkeypatches a callable
+    _os.environ["W2_ISOLATED_TARGET"] = "1"
+    _orig_sel = WSEL.select
+    try:
+        WSEL.select = (lambda ck, dr, c, **k: (
+            lambda r: dict(r, selected=sorted(r["selected"])[:-1])
+        )(_orig_sel(ck, dr, c, **k)))
+        import w2_power_geometry_inputs_gen_cayley as _G
+        forged = _G.build(REPO, commit=head_c)
+    finally:
+        WSEL.select = _orig_sel
+        _os.environ.pop("W2_ISOLATED_TARGET", None)
+    if forged["target_identity"]["execution"] != \
+            "ISOLATED_TARGET_WORKER" or \
+            len(forged["registries"]["cascadia"]) != \
+            len(live["registries"]["cascadia"]) - 1:
+        raise GeometryAdmissionRefusal(
+            "GA-7 CONTROL_INERT: the forging probe did not construct "
+            "a mislabelled, altered artifact")
+    _adm_refuses(json.dumps(forged, indent=1,
+                            sort_keys=True).encode() + b"\n",
+                 "w2_power_geometry_inputs_gen_cayley",
+                 "inputs_bundle", "FORGED_MARKER_ADMITTED")
+    print("  GA-7b PASS  a parent-set marker + callable monkeypatch "
+          "CAN mint a mislabelled 15-station artifact, and it is NOT "
+          "ADMISSIBLE -- the label is a hint, the bytes are the proof")
+
+    # lock 2: PYTHONPATH/sitecustomize steering leaves the hardened
+    # worker byte-identical
+    probe = _tf.mkdtemp(prefix="ga7-sitecustomize-")
+    try:
+        with open(os.path.join(probe, "sitecustomize.py"), "w",
+                  encoding="utf-8") as f:
+            f.write("try:\n"
+                    "    import w2_selection as _W\n"
+                    "    _o = _W.select\n"
+                    "    _W.select = lambda ck, dr, c, **k: (lambda r:"
+                    " dict(r, selected=sorted(r['selected'])[:-1]))"
+                    "(_o(ck, dr, c, **k))\n"
+                    "except Exception:\n    pass\n")
+        clean = TID.regenerate_in_isolated_worker(
+            REPO, head_c, "w2_power_geometry_inputs_gen_cayley",
+            "build")
+        _os.environ["PYTHONPATH"] = probe
+        try:
+            steered = TID.regenerate_in_isolated_worker(
+                REPO, head_c, "w2_power_geometry_inputs_gen_cayley",
+                "build")
+        finally:
+            _os.environ.pop("PYTHONPATH", None)
+    finally:
+        import shutil as _sh
+        _sh.rmtree(probe, ignore_errors=True)
+    if json.dumps(clean, sort_keys=True) != \
+            json.dumps(steered, sort_keys=True):
+        raise GeometryAdmissionRefusal(
+            "GA-7 CHILD_ENVIRONMENT_STEERED: a PYTHONPATH "
+            "sitecustomize probe changed hardened-worker output")
+    print("  GA-7c PASS  a PYTHONPATH/sitecustomize steering probe "
+          "leaves hardened-worker output BYTE-IDENTICAL (isolated "
+          "mode + sanitized environment)")
+
+    # lock 3: a bundle self-declaring IN_PROCESS_FIXTURE_ONLY refuses
+    fixture_claim = copy.deepcopy(json.loads(bun_ok.decode()))
+    fixture_claim["target_identity"]["execution"] = \
+        "IN_PROCESS_FIXTURE_ONLY"
+    _adm_refuses(json.dumps(fixture_claim, indent=1,
+                            sort_keys=True).encode() + b"\n",
+                 "w2_power_geometry_inputs_gen_cayley",
+                 "inputs_bundle", "FIXTURE_ONLY_BUNDLE_ADMITTED")
+    # lock 4: change ONE byte of either artifact and admission refuses
+    tampered = copy.deepcopy(json.loads(seed_ok.decode()))
+    tampered["state"] = "TAMPERED"
+    _adm_refuses(json.dumps(tampered, indent=1,
+                            sort_keys=True).encode() + b"\n",
+                 "w2_power_seed_authority_gen_cayley",
+                 "seed_authority", "TAMPERED_SEED_ADMITTED")
+    print("  GA-7d PASS  a bundle claiming IN_PROCESS_FIXTURE_ONLY "
+          "and a one-byte-changed seed record BOTH refuse at "
+          "admission, before any capsule or replicate")
+
     # ---- GA-5 the loader takes no capsule dict -------------------
     try:
         PH._load_bound_geometry(REPO, dict(live))

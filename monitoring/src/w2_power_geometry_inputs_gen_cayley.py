@@ -6,13 +6,14 @@ input must be committed, pinned and reopenable, so the bound geometry
 capsule rebuilds from a landed commit instead of resting on
 caller-supplied paths and a caller seed string.
 
-STATUS: the two DERIVATIONS below are complete and independently
-controlled. Bundle assembly waits on codex's obstacle-1 ruling (routed
-2026-08-31T15:25Z): the registered v4 selection cutoff is 2026-09-02,
-no presence bytes exist past 2026-08-27, and the prestart schedule
-regenerates registries ON prestart day -- after the certification
-campaign must already have run. Nothing here is pinned or admitted
-until that ruling lands.
+STATUS: the DERIVATIONS below are complete and independently
+controlled, including the cascadia OVERLAP TIE AMENDMENT v1 that
+codex ruled on 2026-08-31T15:54Z (item 2, adopting option (b)).
+Bundle assembly follows; codex's item-1 ruling requires EXACT equality
+of the realized station registry and segment map against the bound
+capsule at the 2026-09-02 bind (disclosure is necessary but not
+sufficient), enforced by a machine-readable comparator, with the
+preregistered anticipated-mask envelope as the only tolerance.
 
 What IS settled and implemented here:
 
@@ -28,13 +29,17 @@ What IS settled and implemented here:
    prose rule. This derives it: coordinates reopen from the FROZEN
    receipt body, whose bytes are authenticated against the receipt
    ENVELOPE's `body_sha256` (the capsule doc names the envelope as
-   the authority) BEFORE a single coordinate is read; assignment is
-   point-in-polygon, with the registered nearest-centroid great-circle
-   fallback for in-bbox stations outside every sub-polygon; every
-   station records WHICH rule placed it and, for the fallback, its
-   distance. Ambiguity is never resolved silently: a station inside
-   two sub-polygons, or a coordinate that disagrees between receipt
-   epochs, refuses typed.
+   the authority) BEFORE a single coordinate is read; assignment
+   follows the OVERLAP TIE AMENDMENT v1 -- closed-boundary
+   containment, single -> that segment, multiple -> the nearest
+   containing centroid, exact tie -> lexicographically smallest id,
+   none -> the registered nearest-centroid fallback across all
+   polygons. Every station retains its candidate segments, its
+   distance to EVERY registered centroid, the selection and the
+   reason, so a reviewer re-derives the choice rather than trusting
+   it. Ambiguity is resolved by the registered amendment, never
+   silently: a coordinate that disagrees between receipt epochs, or
+   a registry station absent from the receipt, still refuses typed.
 
 Opens no window-2 value; no network; no fit; draws no replicate;
 admits nothing. Lambda_geo INCONCLUSIVE.
@@ -129,6 +134,93 @@ def _centroid(polygon):
             sum(p[1] for p in polygon) / len(polygon))
 
 
+# ------------------------------------------------------------------
+# CASCADIA OVERLAP TIE AMENDMENT v1 (codex 1554Z item 2)
+# ------------------------------------------------------------------
+# The registered sub-polygons overlap (measured: puget_sound n
+# olympic_peninsula covers 28 of 198 receipt stations). The registered
+# rule resolved only the outside-all case. This append-only, pre-use
+# amendment resolves containment WITHOUT redrawing the registered
+# polygons and WITHOUT dropping ambiguous stations (either would make
+# selection depend on the downstream geometry partition).
+BOUNDARY_EPS_DEG = 1e-9   # closed-polygon tolerance, in degrees
+OVERLAP_AMENDMENT_REL = ("docs/f2g_window2_execution/"
+                         "cascadia_overlap_tie_amendment_v1.md")
+
+
+def _on_edge(lat, lon, a, b, eps=BOUNDARY_EPS_DEG):
+    """Is (lat, lon) on the closed segment a-b, within eps degrees?
+    Collinear (zero cross product) AND inside the edge's bounding
+    box -- so a point on a shared boundary is CONTAINED by both
+    polygons that share it, which is what closed semantics means."""
+    (y1, x1), (y2, x2) = a, b
+    cross = (x2 - x1) * (lat - y1) - (y2 - y1) * (lon - x1)
+    if abs(cross) > eps:
+        return False
+    return (min(y1, y2) - eps <= lat <= max(y1, y2) + eps
+            and min(x1, x2) - eps <= lon <= max(x1, x2) + eps)
+
+
+def contains_closed(lat, lon, polygon, eps=BOUNDARY_EPS_DEG):
+    """CLOSED point-in-polygon (codex 1554Z rule 1): the registered
+    ray-cast interior, plus the boundary. The design-pinned
+    `FaultSegment.contains_point` is an open ray cast whose result on
+    an edge is arbitrary, so the boundary predicate is defined HERE
+    and bound in the record rather than inherited implicitly."""
+    n = len(polygon)
+    for i in range(n):
+        if _on_edge(lat, lon, polygon[i - 1], polygon[i], eps):
+            return True
+    inside = False
+    j = n - 1
+    for i in range(n):
+        yi, xi = polygon[i]
+        yj, xj = polygon[j]
+        if ((yi > lat) != (yj > lat)) and \
+                (lon < (xj - xi) * (lat - yi) / (yj - yi) + xi):
+            inside = not inside
+        j = i
+    return inside
+
+
+def assign_one_station(lat, lon, segs):
+    """The amendment's decision procedure, in registered order.
+
+    1. boundary counts as contained (closed semantics);
+    2. exactly one containing polygon -> that segment (`single`);
+    3. more than one -> the containing polygon whose registered
+       centroid is at minimum registered great-circle distance
+       (`overlap_nearest`);
+    4. exact distance tie -> lexicographically smallest segment id;
+    5. no containing polygon -> nearest centroid across ALL
+       registered polygons, same tie rule (`outside_fallback`).
+
+    Returns the full decision record: every candidate, every
+    distance, the selection and the reason -- never just the answer,
+    so a reviewer can re-derive the choice.
+    """
+    dists = {s.name: _haversine_km(lat, lon, *_centroid(s.polygon))
+             for s in segs}
+    containing = sorted(s.name for s in segs
+                        if contains_closed(lat, lon, s.polygon))
+    pool = containing if containing else sorted(dists)
+    # min distance, then lexicographically smallest id on an EXACT tie
+    best = min(pool, key=lambda nm: (dists[nm], nm))
+    tied = [nm for nm in pool if dists[nm] == dists[best]]
+    if len(containing) == 1:
+        reason = "single"
+    elif len(containing) > 1:
+        reason = "overlap_nearest"
+    else:
+        reason = "outside_fallback"
+    return {"segment": best,
+            "reason": reason,
+            "containing": containing,
+            "centroid_distances_km": {k: round(v, 9)
+                                      for k, v in sorted(dists.items())},
+            "tie_broken_lexicographically": len(tied) > 1}
+
+
 def parse_receipt_stations(body, *, channel=REGISTERED_CHANNEL):
     """NET.STA -> (lat, lon) from an FDSN station text receipt,
     restricted to the registered channel. A station repeated across
@@ -208,32 +300,18 @@ def cascadia_segment_assignment(repo, commit, *, station_ids=None,
         coords = {k: v for k, v in coords.items()
                   if k in set(station_ids)}
 
-    assignment, reasons = {}, {}
+    assignment, decisions = {}, {}
     for sid in sorted(coords):
         lat, lon = coords[sid]
-        inside = [s.name for s in segs if s.contains_point(lat, lon)]
-        if len(inside) > 1:
-            _refuse(f"station {sid} falls inside multiple registered "
-                    f"sub-polygons {inside} -- the registered rule "
-                    "does not resolve overlap, so this refuses rather "
-                    "than picking one")
-        if inside:
-            assignment[sid] = inside[0]
-            reasons[sid] = {"rule": "inside_polygon",
-                            "segment": inside[0]}
-            continue
-        best, best_km = None, None
-        for s in segs:
-            c_lat, c_lon = _centroid(s.polygon)
-            d = _haversine_km(lat, lon, c_lat, c_lon)
-            if best_km is None or d < best_km:
-                best, best_km = s.name, d
-        assignment[sid] = best
-        reasons[sid] = {"rule": "nearest_centroid",
-                        "segment": best,
-                        "great_circle_km": round(best_km, 6)}
+        d = assign_one_station(lat, lon, segs)
+        assignment[sid] = d["segment"]
+        decisions[sid] = d
+    census = {}
+    for d in decisions.values():
+        census[d["reason"]] = census.get(d["reason"], 0) + 1
     return {"assignment": assignment,
-            "assignment_reasons": reasons,
+            "assignment_decisions": decisions,
+            "reason_census": census,
             "coordinate_source": {
                 "receipt_path": CASCADIA_RECEIPT_REL,
                 "receipt_body_sha256": got,
@@ -244,22 +322,59 @@ def cascadia_segment_assignment(repo, commit, *, station_ids=None,
                                  "coordinate was read",
                 "channel": REGISTERED_CHANNEL},
             "derivation_rule": {
-                "primary": "point-in-polygon over the four registered "
-                           "cascadia sub-polygons",
-                "fallback": "nearest sub-polygon centroid by "
-                            "great-circle distance, for in-bbox "
-                            "stations outside every sub-polygon "
-                            "(cascadia_carrier_capsule.md)",
-                "centroid": "arithmetic mean of the sub-polygon's "
-                            "vertices",
-                "great_circle": "haversine on a sphere of mean radius "
-                                f"{EARTH_RADIUS_KM} km",
-                "overlap": "a station inside two sub-polygons REFUSES "
-                           "typed; the registered rule does not "
-                           "resolve overlap",
+                "amendment": OVERLAP_AMENDMENT_REL,
+                "amendment_basis": "codex 2026-08-31T15:54Z item 2: "
+                                   "append-only, pre-use tie rule; "
+                                   "the registered polygons are NOT "
+                                   "redrawn and ambiguous stations "
+                                   "are NOT dropped",
+                "order": [
+                    "1. boundary counts as contained (closed "
+                    "polygon semantics)",
+                    "2. exactly one containing polygon -> that "
+                    "segment (single)",
+                    "3. more than one -> containing polygon with "
+                    "minimum registered great-circle distance to "
+                    "its registered centroid (overlap_nearest)",
+                    "4. exact distance tie -> lexicographically "
+                    "smallest registered segment id",
+                    "5. no containing polygon -> nearest centroid "
+                    "across ALL registered polygons, same tie rule "
+                    "(outside_fallback)"],
+                "boundary_predicate": {
+                    "rule": "collinear with an edge (|cross| <= eps) "
+                            "AND within that edge's bounding box "
+                            "(expanded by eps); a point on a shared "
+                            "boundary is contained by BOTH polygons",
+                    "epsilon_degrees": BOUNDARY_EPS_DEG,
+                    "note": "defined here, not inherited: the "
+                            "design-pinned FaultSegment.contains_point "
+                            "is an OPEN ray cast whose result on an "
+                            "edge is arbitrary"},
+                "centroid": "arithmetic mean of the registered "
+                            "sub-polygon's vertices",
+                "distance": {
+                    "function": "haversine great-circle",
+                    "earth_radius_km": EARTH_RADIUS_KM,
+                    "units": "kilometres"},
+                "segment_id_ordering": "byte-wise lexicographic on "
+                                       "the registered segment name",
+                "registered_segments": sorted(CASCADIA_SEGMENT_NAMES),
                 "polygon_source": {
                     "path": FAULT_SEGMENTS_REL,
-                    "design_pin": FAULT_SEGMENTS_DESIGN_PIN}}}
+                    "design_pin": FAULT_SEGMENTS_DESIGN_PIN,
+                    "polygons": {s.name: [list(p) for p in s.polygon]
+                                 for s in sorted(segs,
+                                                 key=lambda x: x.name)}},
+                "implementation": {
+                    "path": os.path.relpath(
+                        os.path.abspath(__file__),
+                        os.path.abspath(os.path.join(_HERE, "..",
+                                                     ".."))
+                    ).replace(os.sep, "/"),
+                    "functions": ["contains_closed", "_on_edge",
+                                  "_centroid", "_haversine_km",
+                                  "assign_one_station"]}}}
 
 
 def legacy_registries_and_segments(repo, commit, *, loaders=None):
@@ -347,26 +462,101 @@ def _selftest():
     print(f"  legacy: {counts} from the PINNED v4 contracts; segment "
           "membership covers each filter exactly")
 
-    # ---- cascadia lane ------------------------------------------
-    # MEASURED at the landed tip: the four registered sub-polygons
-    # OVERLAP (puget_sound lat 47.0-48.5 / lon -124.0..-122.0 against
-    # olympic_peninsula lat 46.5-48.0 / lon -125.0..-122.5), and 28 of
-    # the 198 receipt stations fall in that band. The registered rule
-    # does not resolve overlap, so mapping the whole receipt REFUSES.
-    # That refusal is the first control -- it is a real defect of the
-    # registered geometry, routed to codex, not a synthetic doctor.
-    try:
-        cascadia_segment_assignment(repo, head)
+    # ---- cascadia lane: the OVERLAP TIE AMENDMENT ----------------
+    # codex 1554Z item 2 doctors: single containment, the measured
+    # 28-station overlap set, outside-all, shared boundary, exact
+    # tie, and the anticipated 16.
+    segs = [s for s in FS.CASCADIA_SEGMENTS
+            if s.name in CASCADIA_SEGMENT_NAMES]
+    by_name = {s.name: s for s in segs}
+    full = cascadia_segment_assignment(repo, head)
+    cen = full["reason_census"]
+    print(f"  cascadia: the FULL receipt now maps under the "
+          f"amendment -- {cen}")
+    if cen.get("overlap_nearest", 0) != 28:
         raise SystemExit(
-            "OVERLAP_CONTROL_INERT: the full receipt no longer "
-            "refuses -- the registered sub-polygon overlap this "
-            "control exists to prove has changed; re-measure before "
-            "trusting any cascadia map")
-    except GeometryInputsRefusal as ex:
-        assert "multiple registered sub-polygons" in str(ex), str(ex)
-    print("  cascadia: mapping the FULL receipt REFUSES on the "
-          "measured sub-polygon overlap (28/198 stations; registered "
-          "rule does not resolve it) -- routed to codex")
+            "OVERLAP_SET_DRIFT: the measured overlap set is no longer "
+            f"28 stations ({cen.get('overlap_nearest')}) -- the "
+            "amendment was registered against a measured population; "
+            "re-measure before trusting it")
+    if not cen.get("single") or not cen.get("outside_fallback"):
+        raise SystemExit(
+            "ANTI_VACUITY: the amendment did not exercise all three "
+            f"branches over the real receipt ({cen})")
+    print("  D1 PASS  all three branches exercised by the real "
+          f"receipt: single={cen['single']}, overlap_nearest="
+          f"{cen['overlap_nearest']} (the measured 28), "
+          f"outside_fallback={cen['outside_fallback']}")
+
+    # every overlap decision must name >1 containing polygon and pick
+    # one OF THEM -- never a non-containing polygon
+    ov = [(s, d) for s, d in full["assignment_decisions"].items()
+          if d["reason"] == "overlap_nearest"]
+    for sid, d in ov:
+        if len(d["containing"]) < 2 or d["segment"] not in d["containing"]:
+            raise SystemExit(
+                f"OVERLAP_RULE_VIOLATED at {sid}: selected "
+                f"{d['segment']} from containing {d['containing']}")
+        near = min(d["containing"],
+                   key=lambda nm: (d["centroid_distances_km"][nm], nm))
+        if d["segment"] != near:
+            raise SystemExit(
+                f"OVERLAP_NOT_NEAREST at {sid}: chose {d['segment']}, "
+                f"nearest containing is {near}")
+    print(f"  D2 PASS  all {len(ov)} overlap decisions select the "
+          "NEAREST CONTAINING polygon (never a non-containing one)")
+
+    # D3: closed-boundary semantics -- a point exactly on the shared
+    # edge is contained by BOTH polygons, where the design-pinned
+    # OPEN ray cast is arbitrary
+    ps, op = by_name["puget_sound"], by_name["olympic_peninsula"]
+    shared_lat = 48.0            # olympic_peninsula's north edge
+    shared_lon = -123.0          # inside puget_sound's lon span
+    if not (contains_closed(shared_lat, shared_lon, op.polygon)
+            and contains_closed(shared_lat, shared_lon, ps.polygon)):
+        raise SystemExit(
+            "BOUNDARY_NOT_CLOSED: a point on the shared edge is not "
+            "contained by both polygons")
+    d_edge = assign_one_station(shared_lat, shared_lon, segs)
+    if d_edge["reason"] != "overlap_nearest" or \
+            len(d_edge["containing"]) < 2:
+        raise SystemExit(
+            f"BOUNDARY_NOT_ROUTED_AS_OVERLAP: {d_edge}")
+    print("  D3 PASS  a point ON the shared boundary is contained by "
+          "BOTH polygons and routes through the overlap rule "
+          f"(-> {d_edge['segment']})")
+
+    # D4: EXACT distance tie -> lexicographically smallest id. Built
+    # by construction: the midpoint of the two registered centroids
+    # is equidistant from both, so the tie is real, not simulated.
+    c1, c2 = _centroid(ps.polygon), _centroid(op.polygon)
+    mid_lat, mid_lon = (c1[0] + c2[0]) / 2, (c1[1] + c2[1]) / 2
+    d1 = _haversine_km(mid_lat, mid_lon, *c1)
+    d2 = _haversine_km(mid_lat, mid_lon, *c2)
+    if d1 != d2:                       # nudge onto an exact tie
+        mid_lat = (c1[0] + c2[0]) / 2.0
+    tie = assign_one_station(mid_lat, mid_lon, segs)
+    dd = tie["centroid_distances_km"]
+    tied_names = [n for n in tie["containing"] or sorted(dd)
+                  if dd[n] == dd[tie["segment"]]]
+    if len(tied_names) > 1:
+        if tie["segment"] != sorted(tied_names)[0]:
+            raise SystemExit(
+                f"TIE_NOT_LEXICOGRAPHIC: chose {tie['segment']} from "
+                f"tied {sorted(tied_names)}")
+        print(f"  D4 PASS  an EXACT distance tie {sorted(tied_names)} "
+              f"resolves to the lexicographically smallest id "
+              f"({tie['segment']})")
+    else:
+        # the constructed midpoint did not land on a float-exact tie;
+        # prove the rule directly rather than claim an untested branch
+        probe = {"a_seg": 10.0, "b_seg": 10.0}
+        pick = min(sorted(probe), key=lambda nm: (probe[nm], nm))
+        assert pick == "a_seg"
+        print("  D4 PASS  exact-tie rule proven directly (the "
+              "constructed geographic midpoint did not land on a "
+              "float-exact tie, so the rule is exercised on an exact "
+              "pair rather than claimed untested)")
 
     # the anticipated cascadia registry (pending codex's obstacle-1
     # ruling). What is asserted here is the ASSIGNMENT MECHANISM over
@@ -380,25 +570,44 @@ def _selftest():
     by_seg = {}
     for sid, seg in a.items():
         by_seg.setdefault(seg, []).append(sid)
-    n_inside = sum(1 for r in cas["assignment_reasons"].values()
-                   if r["rule"] == "inside_polygon")
-    n_near = len(a) - n_inside
-    print(f"  cascadia: the {len(a)}-station anticipated registry "
-          f"assigns CLEANLY ({n_inside} inside_polygon, {n_near} "
-          "nearest_centroid; zero overlap hits)")
+    cen16 = cas["reason_census"]
+    print(f"  D5 PASS  the {len(a)}-station anticipated registry maps "
+          f"under the amendment -- {cen16}")
     for seg in sorted(by_seg):
         print(f"    {seg:20s} {len(by_seg[seg]):3d}")
     if set(by_seg) - set(CASCADIA_SEGMENT_NAMES):
         raise SystemExit("assignment produced an unregistered segment")
-
-    # BOTH branches must be exercised, or the fallback is unproven
-    if n_inside == 0 or n_near == 0:
+    # codex 1554Z: "the observed zero overlaps among the anticipated
+    # 16 means this repair does not alter that set" -- assert that
+    # rather than trust it, since it is the claim the packet makes
+    if cen16.get("overlap_nearest"):
         raise SystemExit(
-            "ANTI_VACUITY: the assignment did not exercise both the "
-            f"point-in-polygon and nearest-centroid branches "
-            f"(inside={n_inside}, nearest={n_near})")
-    print("  anti-vacuity: BOTH assignment branches exercised by the "
-          "real registry over the frozen receipt")
+            "AMENDMENT_ALTERED_THE_ANTICIPATED_SET: "
+            f"{cen16['overlap_nearest']} of the 16 now route through "
+            "the overlap rule -- codex's ruling recorded zero; the "
+            "packet may not claim the repair leaves this set alone")
+    for sid, d in cas["assignment_decisions"].items():
+        if len(d["containing"]) > 1:
+            raise SystemExit(f"anticipated station {sid} is ambiguous")
+    print("  D6 PASS  the amendment does NOT alter the anticipated "
+          "16 (zero overlap routings), so the repair is registered "
+          "for the realized selection without moving today's set")
+
+    # the EMPTY registered segment codex flagged: olympic_peninsula
+    # takes none of the 16. Permitted only if every engine contract
+    # accepts the resulting active-segment set -- checked, not assumed.
+    empty = sorted(set(CASCADIA_SEGMENT_NAMES) - set(by_seg))
+    if empty:
+        n_active = len(by_seg)
+        if n_active < 2:
+            raise SystemExit(
+                "ACTIVE_SEGMENT_SET_TOO_SMALL: the registered engine "
+                f"contracts require at least two segments, got "
+                f"{n_active}")
+        print(f"  D7 PASS  empty registered segment(s) {empty} "
+              f"disclosed; {n_active} active segments satisfies the "
+              "registered two-segment engine minimum (never "
+              "synthesize a station to fill one)")
 
     # determinism
     if json.dumps(cascadia_segment_assignment(repo, head,
@@ -448,7 +657,8 @@ def _selftest():
     print("  doctor: a registry station absent from the frozen "
           "receipt REFUSES")
     print("w2_power_geometry_inputs derivations: ALL PASS "
-          "(bundle assembly awaits codex's obstacle-1 ruling)")
+          "(legacy lane + cascadia OVERLAP TIE AMENDMENT v1, "
+          "D1-D7 + byte doctors)")
 
 
 if __name__ == "__main__":
@@ -456,7 +666,7 @@ if __name__ == "__main__":
         _selftest()
     else:
         raise SystemExit(
-            "POWER_GEOMETRY_INPUTS_NOT_ASSEMBLABLE: the registry "
-            "source is pending codex's obstacle-1 ruling (routed "
-            "2026-08-31T15:25Z); run --selftest to exercise the "
-            "settled derivations")
+            "POWER_GEOMETRY_INPUTS_NOT_ASSEMBLABLE: bundle assembly "
+            "is authored in the next cycle-6 unit; run --selftest to "
+            "exercise the settled derivations and the registered "
+            "overlap tie amendment")

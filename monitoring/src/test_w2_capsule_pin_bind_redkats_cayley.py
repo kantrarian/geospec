@@ -45,6 +45,7 @@ Opens no window-2 value; no network; admits nothing.
 """
 import json
 import os
+import subprocess
 import sys
 import tempfile
 
@@ -194,6 +195,73 @@ def _selftest():
         print("  PB-5 PASS  the fixture constructor REFUSES the real "
               "registered authority (grassmann d4740ea: the forgery "
               "cannot be minted either)")
+
+        # ---- PB-5b (codex 1711Z): the RED control for PB-5 --------
+        # The superseded v3 authority must NOT be able to exercise
+        # the current mint door. This is the exact miss that made
+        # PB-5 go red for the wrong reason after the v5 cutover: fed
+        # v3, the door correctly does not recognise the authority and
+        # therefore does not refuse -- so a bar written against v3 is
+        # VACUOUS, passing whatever the door does. Locked here so the
+        # sourcing can never silently regress to the superseded
+        # authority again.
+        import w2_expected_contracts_gen_cayley as GEN_V3
+        auth_v3 = GEN_V3.build(REPO)
+        if auth_v3.get("prestart_expected_keys_sha256") == \
+                auth.get("prestart_expected_keys_sha256"):
+            raise PinBindRefusal(
+                "PB-5b CONTROL_INERT: the v3 and v4 authorities carry "
+                "the same expected-keys digest, so this control "
+                "cannot distinguish them")
+        with tempfile.TemporaryDirectory() as td3:
+            minted_under_v3 = True
+            try:
+                DISP.build_fixture_capsule(
+                    auth_v3, all_keys, os.path.join(td3, "store"),
+                    os.path.join(td3, "arch.json"))
+            except DISP.DispositionRefusal as e3:
+                # it may refuse for an unrelated fixture reason; what
+                # must NOT happen is the REAL-authority guard firing
+                if "REAL registered authority" in str(e3):
+                    raise PinBindRefusal(
+                        "PB-5b MINT_DOOR_MISATTRIBUTED: the mint "
+                        "door treated the SUPERSEDED v3 authority as "
+                        "the real registered one")
+                minted_under_v3 = False
+            del minted_under_v3
+        print("  PB-5b PASS  the superseded v3 authority does NOT "
+              f"exercise the mint door (v3 {auth_v3['prestart_expected_keys_sha256'][:8]}"
+              f" != live v4 {auth['prestart_expected_keys_sha256'][:8]})"
+              " -- a bar sourced from v3 would be vacuous, which is "
+              "exactly how this check first failed")
+
+    # ---- PB-7 (codex 1711Z): the LIVE disposition pin is v5 -------
+    # Proven against the COMMITTED manifest, not a fixture: exactly
+    # one disposition capsule is pinned in accrual_impl, it is the v5
+    # successor, and v4 is pinned NOWHERE (two capsules would make the
+    # production boundary's "exactly one" resolution ambiguous).
+    _man_raw = subprocess.run(
+        ["git", "-C", REPO, "cat-file", "blob",
+         "HEAD:docs/f2g_window2_execution/execution_manifest.json"],
+        capture_output=True).stdout
+    _man = json.loads(_man_raw.decode("utf-8"))
+    _caps = [(sn, p["path"]) for sn, s in _man["slots"].items()
+             for p in s["pins"]
+             if "key_disposition_capsule_v" in p["path"]]
+    _v5 = [c for c in _caps if c[1].endswith(
+        AI.DISPOSITION_CAPSULE_BASENAME)]
+    _v4 = [c for c in _caps
+           if c[1].endswith("key_disposition_capsule_v4.json")]
+    if len(_v5) != 1 or _v5[0][0] != "accrual_impl" or _v4:
+        raise PinBindRefusal(
+            "PB-7 LIVE_DISPOSITION_PIN_WRONG: expected exactly one "
+            f"{AI.DISPOSITION_CAPSULE_BASENAME} pin in accrual_impl "
+            f"and no v4 pin; got v5={_v5} v4={_v4}")
+    print(f"  PB-7 PASS  the live manifest pins exactly ONE "
+          f"disposition capsule ({AI.DISPOSITION_CAPSULE_BASENAME}, "
+          "slot accrual_impl) and v4 is pinned nowhere -- so the "
+          "production boundary's 'exactly one' resolution is "
+          "unambiguous and v4 is history only")
 
     # ---- PB-6 (codex 0151Z P0-3): the slot must be BOUND ----------
     # The distinguishing fixture: accrual_impl OPEN while carrying

@@ -2,8 +2,8 @@
  "design_manifest_blob_sha256": "d6decbd6ab5814bc005ce69c538311ff1b11cb1d13c19e2999e03a92bc7cca1f",
  "design_manifest_commit": "5fba5446cd96722fb86021df5065a46b8a1a78f5",
  "design_target_commit": "12161f6cf2000b2d4aa86fe659f834839ac0d27b",
- "execution_target_commit": "91e5c0f30e6ee9d57b54e30b88afbe07a4a235ab",
- "generated_utc": "2026-08-31T03:17:33Z",
+ "execution_target_commit": "5a9ad03f832a79919cdc1b6cdd53e997ef03a215",
+ "generated_utc": "2026-08-31T03:27:34Z",
  "manifest_state": "OPEN",
  "repository_url": "https://github.com/kantrarian/geospec",
  "schema": "f2g-window2-execution-manifest-v1.2",
@@ -309,8 +309,8 @@
    "owner": "cayley",
    "pins": [
     {
-     "blob_sha256": "3087431f6ffbc38cadeddd5ade519120c48fb7e5ab31c6dd0e8daec431f2406d",
-     "commit": "d40113774db7e376f6079087c174ae16cddc6d2a",
+     "blob_sha256": "55c7fa738c52da186bc926e2afb1a9654766ce22c96833542b788c1acc010ee4",
+     "commit": "5a9ad03f832a79919cdc1b6cdd53e997ef03a215",
      "path": "monitoring/src/f2g_execution_manifest_gen_cayley.py"
     }
    ],
@@ -329,6 +329,11 @@
      "blob_sha256": "369c572b47e96c5c31d0310986ed6972d6b5e1e028a3225f8906adfa5caa6756",
      "commit": "d40113774db7e376f6079087c174ae16cddc6d2a",
      "path": "monitoring/src/w2_regeneration_gate_cayley.py"
+    },
+    {
+     "blob_sha256": "627465a1e5bac3f850650f1b4fb81d1e9882b5f5eff7e85e6f592c85849fd5d1",
+     "commit": "d40113774db7e376f6079087c174ae16cddc6d2a",
+     "path": "monitoring/src/w2_power_cert_result_verifier_cayley.py"
     },
     {
      "blob_sha256": "5cfd410004d1fbdea5a45ad239ca329e6b51e8bf040a4a28352588dfa3260ac6",
@@ -409,6 +414,11 @@
      "blob_sha256": "23038aa5100b7323e96902460ed93baf30809052972b5c38c2ed5a7aff94e19a",
      "commit": "cd6d6e7138e2fa831d0382f85981300187547365",
      "path": "monitoring/src/w2_power_harness_cayley.py"
+    },
+    {
+     "blob_sha256": "39ceb931c10939b4992b19cd11053779ec5cb5de398d07f0cac062017d5308d5",
+     "commit": "d40113774db7e376f6079087c174ae16cddc6d2a",
+     "path": "monitoring/src/w2_power_cert_results_assembly_cayley.py"
     },
     {
      "blob_sha256": "5cbf543f4f1a239707ad3c5eee458b01c35ac9093d354cc3e32b0ea164f41e78",

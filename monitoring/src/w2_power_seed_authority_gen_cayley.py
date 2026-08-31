@@ -285,8 +285,14 @@ def main():
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
     if args:
         commit = args[0]
-    body = json.dumps(build(repo, commit=commit),
-                      indent=1, sort_keys=True) + "\n"
+    # codex cycle-6b item 2: the REGISTERED artifact is produced in an
+    # isolated worker loaded from the named target, so no live
+    # callable in this process can steer it and the emitted target
+    # identity is ISOLATED_TARGET_WORKER rather than fixture-only.
+    import w2_target_identity_cayley as _TID
+    body = json.dumps(_TID.regenerate_in_isolated_worker(
+        repo, commit, "w2_power_seed_authority_gen_cayley", "build"),
+        indent=1, sort_keys=True) + "\n"
     out = os.path.join(repo, OUT_REL.replace("/", os.sep))
     with open(out, "w", encoding="utf-8", newline="\n") as f:
         f.write(body)

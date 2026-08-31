@@ -2,8 +2,8 @@
  "design_manifest_blob_sha256": "d6decbd6ab5814bc005ce69c538311ff1b11cb1d13c19e2999e03a92bc7cca1f",
  "design_manifest_commit": "5fba5446cd96722fb86021df5065a46b8a1a78f5",
  "design_target_commit": "12161f6cf2000b2d4aa86fe659f834839ac0d27b",
- "execution_target_commit": "d494072a3e7915a06838daefe7253cc4b3a80103",
- "generated_utc": "2026-08-31T20:09:26Z",
+ "execution_target_commit": "80cb25e8b7ebe0df4b5b2f15be2c79d4fc62d847",
+ "generated_utc": "2026-08-31T20:11:20Z",
  "manifest_state": "OPEN",
  "repository_url": "https://github.com/kantrarian/geospec",
  "schema": "f2g-window2-execution-manifest-v1.2",
@@ -431,8 +431,8 @@
    "owner": "cayley",
    "pins": [
     {
-     "blob_sha256": "c8c26d9501f304f7084a3a1f079bae55a73a027545e9e5ecaf0d6afa9fd73e41",
-     "commit": "9d6eb860818229dd9e2ca1e61f5397c9ad6e045b",
+     "blob_sha256": "50e0508c0c62c225968b6b85bec98237854b2440f1b2ac88d5cf8478630d7534",
+     "commit": "80cb25e8b7ebe0df4b5b2f15be2c79d4fc62d847",
      "path": "monitoring/src/w2_power_harness_cayley.py"
     },
     {

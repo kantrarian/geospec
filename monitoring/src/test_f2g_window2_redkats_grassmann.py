@@ -1815,14 +1815,80 @@ def w_loco():
 
 
 # ---- REV 12: the calendar-authority locking KATs (codex 1400Z r.1) --------
+# SUCCESSION (REV 21, append-only): the v3 calendar was SUPERSEDED by
+# calendar_authority_w2_v4 (owner word asylum 2026-08-30 "proceed eval
+# starting on 9/04", quote sha 56a08a16...; codex Gate-2 repair 2 +
+# cycle-2 ruling finding 1). This group therefore no longer compares
+# against the LIVE engine frame -- the engine serves v4 and the live
+# locks (three-way identity, compression trap, exclusion/shifted-date
+# refusals, non-cal lint) moved to w_cal_v4() below. What remains here
+# is the HISTORICAL lock: the committed v3 authority artifact bytes are
+# immutable history and must still equal my own v3 derivation. Nothing
+# was deleted; the assertions against pinned historical bytes stand.
 def w_cal():
-    """Bar-side calendar locks: (1) THREE-way frame identity -- my own
-    in-bar derivation from the ruling text == the engine derivation ==
-    the COMMITTED authority artifact; (2) the compression trap
-    (compacted registered_days refuses -- availability is a mask,
-    never a deletion); (3) 08-28 exclusion + shifted-date refusals;
-    (4) the certification path invokes only the pinned NON-cal
-    entrypoints."""
+    """Bar-side calendar locks, v3 HISTORICAL: my own in-bar v3
+    derivation from the superseded schedule == the COMMITTED v3
+    authority artifact bytes (immutable history). Live-engine locks
+    live in w_cal_v4()."""
+    try:
+        from datetime import date as _dc, timedelta as _tdc
+
+        def _span(a, b):
+            d0, d1 = _dc.fromisoformat(a), _dc.fromisoformat(b)
+            return [(d0 + _tdc(days=i)).isoformat()
+                    for i in range((d1 - d0).days + 1)]
+
+        # my own derivation from the SUPERSEDED v3 schedule (owner
+        # redate to PRESTART 2026-08-28, quote sha c2fdcf76...):
+        # cutoff = 08-27 the last complete day, baseline 60 ending at
+        # cutoff, 08-28 the excluded PRESTART day, evaluation 132
+        # from 08-29
+        my_base = _span("2026-06-29", "2026-08-27")
+        my_eval = _span("2026-08-29", "2027-01-07")
+        my_frame = {"baseline_days": my_base,
+                    "excluded_days": ["2026-08-28"],
+                    "evaluation_days": my_eval,
+                    "engine_days": my_base + my_eval}
+        ok_id = len(my_base) == 60 and len(my_eval) == 132 \
+            and len(my_frame["engine_days"]) == 192 \
+            and "2026-08-28" not in my_frame["engine_days"]
+        # ... == the COMMITTED historical artifact bytes
+        with open(os.path.join(
+                _REPO, "docs", "f2g_window2_execution",
+                "calendar_authority_w2_v3.json"),
+                encoding="utf-8") as f:
+            auth = json.load(f)
+        af = auth.get("frame", auth)
+        ok_id = ok_id and all(af[k] == my_frame[k] for k in my_frame) \
+            and af.get("frame_id") == "w2-calendar-v3-noncal" \
+            and af.get("b1b") == {"n_blocks": 16, "block_len": 12,
+                                  "baseline_positions": 60}
+
+        check("CAL v3 HISTORICAL calendar-authority lock (my v3 "
+              "derivation == committed v3 artifact bytes; live locks "
+              "superseded to CAL-V4)",
+              ok_id, f"id={ok_id}")
+    except Exception as exc:
+        check("CAL v3 HISTORICAL calendar-authority lock", False,
+              f"{type(exc).__name__}: {exc}")
+
+
+# ---- REV 21: the v4 calendar-authority successor locks --------------------
+# (codex Gate-2 repair 2 + w2r1 cycle-2 ruling finding 1: "fold
+# Grassmann's v4 calendar red-KATs before any power fire". Owner word
+# bound: asylum 2026-08-30 "proceed eval starting on 9/04", quote sha
+# 56a08a166c7d5c0dc71cd29be113c5b923472632b4ea1d9e2fc6d1a10e745f18 ->
+# evaluation_start = 2026-09-04, PRESTART = 2026-09-03.)
+def w_cal_v4():
+    """Bar-side calendar locks, v4 ACTIVE: (1) THREE-way frame
+    identity -- my own independent derivation from the owner word +
+    successor schedule == the engine derivation == the COMMITTED v4
+    authority artifact; (2) the compression trap (compacted
+    registered_days refuses -- availability is a mask, never a
+    deletion); (3) 09-03 exclusion + shifted/extra-date refusals;
+    (4) the NEGATIVE doctor: the superseded v3 frame must REFUSE
+    against the live validator (no silent v3 carry-forward); (5) the
+    certification path invokes only the pinned NON-cal entrypoints."""
     try:
         import inspect
         from datetime import date as _dc, timedelta as _tdc
@@ -1840,30 +1906,34 @@ def w_cal():
             return [(d0 + _tdc(days=i)).isoformat()
                     for i in range((d1 - d0).days + 1)]
 
-        # (1) my own derivation from the SUCCESSOR schedule (owner
-        # redate to PRESTART 2026-08-28, quote sha c2fdcf76...):
-        # cutoff = 08-27 the last complete day, baseline 60 ending at
-        # cutoff, 08-28 the excluded PRESTART day, evaluation 132
-        # from 08-29
-        my_base = _span("2026-06-29", "2026-08-27")
-        my_eval = _span("2026-08-29", "2027-01-07")
+        # (1) my own derivation from the owner word ("proceed eval
+        # starting on 9/04") + the successor schedule rule
+        # (evaluation_start = first UTC day after a completed PASS
+        # prestart; no slides): evaluation_start = 2026-09-04, so
+        # PRESTART (excluded) = 09-03, cutoff = 09-02 the last
+        # complete day, baseline 60 ending at cutoff, evaluation 132
+        # from 09-04
+        my_base = _span("2026-07-05", "2026-09-02")
+        my_eval = _span("2026-09-04", "2027-01-13")
         my_frame = {"baseline_days": my_base,
-                    "excluded_days": ["2026-08-28"],
+                    "excluded_days": ["2026-09-03"],
                     "evaluation_days": my_eval,
                     "engine_days": my_base + my_eval}
         eng_frame = WPH.w2_calendar_frame()
         ok_id = len(my_base) == 60 and len(my_eval) == 132 \
             and len(my_frame["engine_days"]) == 192 \
-            and "2026-08-28" not in my_frame["engine_days"] \
-            and all(eng_frame[k] == my_frame[k] for k in my_frame)
-        # ... == the COMMITTED authority artifact bytes
+            and "2026-09-03" not in my_frame["engine_days"] \
+            and all(eng_frame[k] == my_frame[k] for k in my_frame) \
+            and eng_frame.get("frame_id") == "w2-calendar-v4-noncal"
+        # ... == the COMMITTED v4 authority artifact bytes
         with open(os.path.join(
                 _REPO, "docs", "f2g_window2_execution",
-                "calendar_authority_w2_v3.json"),
+                "calendar_authority_w2_v4.json"),
                 encoding="utf-8") as f:
             auth = json.load(f)
         af = auth.get("frame", auth)
         ok_id = ok_id and all(af[k] == my_frame[k] for k in my_frame) \
+            and af.get("frame_id") == "w2-calendar-v4-noncal" \
             and af.get("b1b") == {"n_blocks": 16, "block_len": 12,
                                   "baseline_positions": 60}
 
@@ -1871,7 +1941,7 @@ def w_cal():
         # refuses CALENDAR_MASK_COMPRESSION; the honest form (full
         # grid + availability mask) passes
         eng = eng_frame["engine_days"]
-        compacted = [d for d in eng if d != "2026-07-01"]
+        compacted = [d for d in eng if d != "2026-07-10"]
         ok_cmp = refuses(
             lambda: WPH._validate_carrier_mask(
                 "c1", {"registered_days": compacted,
@@ -1880,29 +1950,53 @@ def w_cal():
             and WPH._validate_carrier_mask(
                 "c1", {"registered_days": list(eng),
                        "available_days":
-                       [d for d in eng if d != "2026-07-01"]},
+                       [d for d in eng if d != "2026-07-10"]},
                 eng_frame) is None
 
-        # (3) 08-28 (PRESTART) refusals + shifted/extra authority
+        # (3) 09-03 (PRESTART) refusals + shifted/extra authority
         # dates
         ok_x = refuses(
             lambda: WPH._validate_carrier_mask(
                 "c1", {"registered_days": list(eng),
-                       "available_days": ["2026-08-28"]}, eng_frame),
+                       "available_days": ["2026-09-03"]}, eng_frame),
             "CALENDAR_EXCLUDED_DAY")
         shifted = json.loads(json.dumps(eng_frame))
-        shifted["baseline_days"] = ["2026-06-28"] \
+        shifted["baseline_days"] = ["2026-07-04"] \
             + shifted["baseline_days"][1:]
         ok_x = ok_x and refuses(
             lambda: WPH._validate_calendar_frame(shifted),
             "CALENDAR_AUTHORITY_MISMATCH")
         extra = json.loads(json.dumps(eng_frame))
-        extra["engine_days"] = extra["engine_days"] + ["2027-01-08"]
+        extra["engine_days"] = extra["engine_days"] + ["2027-01-14"]
         ok_x = ok_x and refuses(
             lambda: WPH._validate_calendar_frame(extra),
             "CALENDAR_AUTHORITY_MISMATCH")
 
-        # (4) the bound replicate path routes ONLY through the pinned
+        # (4) the NEGATIVE doctor (codex cycle-2 repair 1 item 4, at
+        # this bar's level): the superseded v3 frame -- exactly as
+        # the v3 authority registered it -- must REFUSE against the
+        # live validator. A silent v3 carry-forward cannot satisfy
+        # the successor gate.
+        v3_base = _span("2026-06-29", "2026-08-27")
+        v3_eval = _span("2026-08-29", "2027-01-07")
+        v3_frame = {"frame_id": "w2-calendar-v3-noncal",
+                    "baseline_days": v3_base,
+                    "excluded_days": ["2026-08-28"],
+                    "evaluation_days": v3_eval,
+                    "engine_days": v3_base + v3_eval,
+                    "b1b": {"n_blocks": 16, "block_len": 12,
+                            "baseline_positions": 60}}
+        ok_neg = refuses(
+            lambda: WPH._validate_calendar_frame(v3_frame),
+            "CALENDAR_AUTHORITY_MISMATCH")
+        # ... and so must the v3 frame relabeled with the v4
+        # frame_id (dates alone cannot pass either)
+        v3_relab = dict(v3_frame, frame_id="w2-calendar-v4-noncal")
+        ok_neg = ok_neg and refuses(
+            lambda: WPH._validate_calendar_frame(v3_relab),
+            "CALENDAR_AUTHORITY_MISMATCH")
+
+        # (5) the bound replicate path routes ONLY through the pinned
         # NON-cal entrypoints (no _family_cal call survives)
         # ---- SITE 3: NOT COVERAGE (cayley, per codex 1542Z option 2)
         # Same class as the site-2 label in w_loco(): these are
@@ -1927,17 +2021,20 @@ def w_cal():
         ok_nc = "family_cal" not in src \
             and "b2a_family" in src and "b3a_family" in src
 
-        check("CAL calendar-authority locks (three-way frame identity "
-              "vs my own derivation + committed artifact, compression "
-              "trap, 08-28 exclusion + shifted/extra-date refusals, "
-              "non-cal-only certification path)",
-              ok_id and ok_cmp and ok_x and ok_nc,
-              f"id={ok_id} cmp={ok_cmp} x={ok_x} nc={ok_nc}")
+        check("CAL-V4 calendar-authority successor locks (three-way "
+              "frame identity vs my own owner-word derivation + "
+              "committed v4 artifact, compression trap, 09-03 "
+              "exclusion + shifted/extra-date refusals, v3 "
+              "carry-forward negative doctor, non-cal-only "
+              "certification path)",
+              ok_id and ok_cmp and ok_x and ok_neg and ok_nc,
+              f"id={ok_id} cmp={ok_cmp} x={ok_x} neg={ok_neg} "
+              f"nc={ok_nc}")
     except ImportError:
-        check("CAL calendar-authority locks", False,
+        check("CAL-V4 calendar-authority successor locks", False,
               "W2_ENGINE_ABSENT")
     except Exception as exc:
-        check("CAL calendar-authority locks", False,
+        check("CAL-V4 calendar-authority successor locks", False,
               f"{type(exc).__name__}: {exc}")
 
 
@@ -3280,6 +3377,7 @@ def main():
     w_mag_null()
     w_loco()
     w_cal()
+    w_cal_v4()
     w_selrun()
     w_admit()
     w_xform()

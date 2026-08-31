@@ -87,9 +87,9 @@ BOUND_SLOTS = {
                   "monitoring/src/w2_accrual_instrument_cayley.py",
                   "monitoring/src/w2_mf4.py",
                   "monitoring/src/w2_mag1.py",
-                  "monitoring/src/w2_expected_contracts_gen_cayley.py",
+                  "monitoring/src/w2_expected_contracts_gen_v4_cayley.py",
                   "docs/f2g_window2_execution/"
-                  "staged_expected_contracts_v3.json",
+                  "staged_expected_contracts_v4.json",
                   # the 2056-key three-way disposition capsule +
                   # its generator/verifier: capture_authorized
                   # reopens THIS pin and requires HTTP_CAPTURE
@@ -432,7 +432,7 @@ PRODUCER_BOUNDARY_REQUIRED = {
     "boundary_code": ("monitoring/src/"
                       "w2_acquisition_capture_grassmann.py"),
     "authority": ("docs/f2g_window2_execution/"
-                  "staged_expected_contracts_v3.json"),
+                  "staged_expected_contracts_v4.json"),
     "inventory": STAGED_PREFIX_V4 + "staged_body_inventory.json",
     "store_descriptor": STAGED_PREFIX_V4 + "store_descriptor.json",
     # the three operation-evidence classes + the ledger come FROM the

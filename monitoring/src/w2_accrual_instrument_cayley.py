@@ -191,7 +191,7 @@ STAGED_ALL_SUFFIXES = tuple(STAGED_CLASS_SUFFIX.values()) + (
 # under it refuses typed, never parses, never satisfies.
 STAGED_PREFIX = "docs/f2g_window2_execution/staged_envelopes_v4/"
 STAGED_PREFIX_RETIRED = "docs/f2g_window2_execution/staged_envelopes/"
-EXPECTED_KEYS_BASENAME = "staged_expected_contracts_v3.json"
+EXPECTED_KEYS_BASENAME = "staged_expected_contracts_v4.json"
 # codex 1547Z repair 2: the three operation-evidence classes the
 # boundary derives its ADMITTED partition from. Exact registered
 # repo-relative paths; the generator's final-bind contract requires
@@ -345,7 +345,7 @@ AUTHORITY_TOP_FIELDS = {
 AUTHORITY_CENSUS = 2056          # v4: 5x212 + 3x212 + 4x90
 #   MAG 5 obs x 212d (07-31 cutoff) + weather 3 x 212d
 #   + selection 4 x 90d (08-27 cutoff)
-AUTHORITY_SCHEMA = "f2g-w2-expected-contracts-v3"
+AUTHORITY_SCHEMA = "f2g-w2-expected-contracts-v4"
 TEMPLATE_TOKEN_VOCABULARY = ("{day}", "{day_next}", "{day_compact}")
 
 
@@ -366,7 +366,7 @@ def _validate_expected_keys_authority(repo, authority, *,
         refuse("top-level schema not closed")
     if authority["template_token_vocabulary"] != \
             list(TEMPLATE_TOKEN_VOCABULARY):
-        refuse("template token vocabulary is not the registered v3 set")
+        refuse("template token vocabulary is not the registered set")
     keys = authority["prestart_expected_keys"]
     got = hashlib.sha256(json.dumps(
         keys, sort_keys=True, separators=(",", ":")).encode()
@@ -399,7 +399,7 @@ def _validate_expected_keys_authority(repo, authority, *,
         # same closed schema + reproduction equality
         refuse(f"census {census} != {AUTHORITY_CENSUS}")
     if reproducer is None:
-        import w2_expected_contracts_gen_cayley as GEN
+        import w2_expected_contracts_gen_v4_cayley as GEN
 
         def reproducer():
             return GEN.build(repo)
@@ -2076,7 +2076,7 @@ def _selftest():
     add_pin(pre + "store_descriptor.json",
             json.dumps(b_desc, sort_keys=True,
                        separators=(",", ":")).encode())
-    add_pin(pre + "staged_expected_contracts_v3.json",
+    add_pin(pre + "staged_expected_contracts_v4.json",
             json.dumps(b_auth, sort_keys=True,
                        separators=(",", ":")).encode())
 
@@ -2398,14 +2398,14 @@ def _selftest():
     def auth_pin_for(a):
         raw = json.dumps(a, sort_keys=True,
                          separators=(",", ":")).encode()
-        path = pre + "staged_expected_contracts_v3.json"
+        path = pre + "staged_expected_contracts_v4.json"
         blobs[("9" * 40, path)] = raw
         return {"path": path, "commit": "9" * 40,
                 "blob_sha256": hashlib.sha256(raw).hexdigest()}
 
     def with_auth(a):
         pins_a = [pn for pn in pins2 if not pn["path"].endswith(
-            "staged_expected_contracts_v3.json")]
+            "staged_expected_contracts_v4.json")]
         pins_a.append(auth_pin_for(a))
         return pins_a
     # forged key digest
@@ -3206,6 +3206,36 @@ def _selftest():
           "the former-404 key; every omitted/mutated member, "
           "forgery, wrong key, opener 0/2, ledger change, marker "
           "divergence and inventory divergence refuses typed")
+
+    # cycle-3 succession doctors (codex cycle-2 finding 1 item
+    # 4): the superseded v3 authority cannot satisfy the
+    # successor gate. Real committed artifacts; PRODUCTION
+    # reproducer path (reproducer=None -> pinned v4 generator).
+    _repo = os.path.abspath(os.path.join(
+        os.path.dirname(os.path.abspath(__file__)),
+        "..", ".."))
+    with open(os.path.join(
+            _repo, "docs", "f2g_window2_execution",
+            "staged_expected_contracts_v3.json"),
+            encoding="utf-8") as _f:
+        _auth3 = json.load(_f)
+    try:
+        _validate_expected_keys_authority(_repo, _auth3)
+        raise SystemExit(
+            "v3 authority must refuse at the v4 gate")
+    except InstrumentRefusal as _ex:
+        assert "schema" in str(_ex), str(_ex)
+    _auth3r = json.loads(json.dumps(_auth3))
+    _auth3r["schema"] = AUTHORITY_SCHEMA
+    try:
+        _validate_expected_keys_authority(_repo, _auth3r)
+        raise SystemExit(
+            "relabeled v3 authority must refuse")
+    except InstrumentRefusal as _ex:
+        assert "REPRODUCE" in str(_ex), str(_ex)
+    print("  cycle-3 authority succession: committed v3 authority "
+          "refuses (schema); relabeled v3 refuses (does not "
+          "REPRODUCE from the pinned v4 generator)")
 
     print("w2_accrual_instrument selftest: ALL PASS")
 

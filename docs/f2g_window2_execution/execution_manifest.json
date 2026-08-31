@@ -2,8 +2,8 @@
  "design_manifest_blob_sha256": "d6decbd6ab5814bc005ce69c538311ff1b11cb1d13c19e2999e03a92bc7cca1f",
  "design_manifest_commit": "5fba5446cd96722fb86021df5065a46b8a1a78f5",
  "design_target_commit": "12161f6cf2000b2d4aa86fe659f834839ac0d27b",
- "execution_target_commit": "a836303f3c401272e8f9242f254ae34262690c5e",
- "generated_utc": "2026-08-31T15:57:39Z",
+ "execution_target_commit": "6c14bbadc1bf830e78bcf251f0aee1231e7505a9",
+ "generated_utc": "2026-08-31T16:55:06Z",
  "manifest_state": "OPEN",
  "repository_url": "https://github.com/kantrarian/geospec",
  "schema": "f2g-window2-execution-manifest-v1.2",
@@ -324,8 +324,8 @@
    "owner": "cayley",
    "pins": [
     {
-     "blob_sha256": "28c6aebba6038ac7f3e2c4bf811cfcd07ea79203c2f6aaf01f81bdb2c39fcf50",
-     "commit": "5bc4d887c93589afa39b86eb53ec1ca68c1269c9",
+     "blob_sha256": "70ca1bd77bb1ed4419216f4d557e4087a7419856e946f4dea23f253b894dd685",
+     "commit": "6c14bbadc1bf830e78bcf251f0aee1231e7505a9",
      "path": "monitoring/src/f2g_execution_manifest_gen_cayley.py"
     }
    ],
@@ -444,6 +444,26 @@
      "blob_sha256": "93975fe43f726830a250da55d7cfcbdb77f2b8a3a5bc156ed4a7cfd57df94b1f",
      "commit": "4aca278599fb14d912cb55ca2a94a1e3b19f2152",
      "path": "monitoring/src/w2_geometry_capsule_gen_cayley.py"
+    },
+    {
+     "blob_sha256": "1c19596fde34838a248232a27dbdbb1655f890e4493acba7f1a083e31391b7ee",
+     "commit": "6c14bbadc1bf830e78bcf251f0aee1231e7505a9",
+     "path": "docs/f2g_window2_execution/power_geometry_inputs_w2_v1.json"
+    },
+    {
+     "blob_sha256": "04d6f3383f29617ab0a71ccdff7f341d140d6a19ead1b6ca5a72e01e68451348",
+     "commit": "6c14bbadc1bf830e78bcf251f0aee1231e7505a9",
+     "path": "monitoring/src/w2_power_geometry_inputs_gen_cayley.py"
+    },
+    {
+     "blob_sha256": "859b6d47bb498523c6705b91b1001168b9c6e91d92a74d381beb58d8d6973fae",
+     "commit": "79efad088726c4fb4f7a07c03a34c0f0d28a4d24",
+     "path": "docs/f2g_window2_execution/cascadia_overlap_tie_amendment_v1.md"
+    },
+    {
+     "blob_sha256": "ab1ad978a9e4a15e771ed0428c60db0aba39ec9358a52413804bc09437f8b32f",
+     "commit": "a49d78b8aa3eeda21e8289f06eb5599625aa45da",
+     "path": "monitoring/src/w2_geometry_bind_comparator_cayley.py"
     },
     {
      "blob_sha256": "a3367b45deb01ea268116093527689c4af63c24d5b2f147def55af168131bed7",

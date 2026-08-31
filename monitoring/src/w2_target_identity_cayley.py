@@ -125,7 +125,14 @@ def verify_consumed_implementations(repo, commit, *, modules,
                 f"target's ({got!r} != {want!r}) -- an in-process "
                 "mutation cannot steer a named-target build")
         checked[f"{rel}:{name}"] = got
-    return {"consumed_implementations": bound,
+    # codex cycle-6b item 2: an IN-PROCESS build may not emit a
+    # registrable target identity, because file and constant checks
+    # cannot reach the callable graph. The marker states how the
+    # build ACTUALLY ran; only the isolated worker sets it.
+    isolated = os.environ.get("W2_ISOLATED_TARGET") == "1"
+    return {"execution": ("ISOLATED_TARGET_WORKER" if isolated
+                          else "IN_PROCESS_FIXTURE_ONLY"),
+            "consumed_implementations": bound,
             "steering_constants_verified": {
                 k: (sorted(v) if isinstance(v, (set, frozenset))
                     else v)
@@ -173,14 +180,10 @@ def regenerate_in_isolated_worker(repo, commit, module, entry,
     try:
         add = subprocess.run(
             ["git", "-C", repo, "worktree", "add", "--detach",
-             "--no-checkout", wt, commit], capture_output=True)
+             wt, commit], capture_output=True)
         if add.returncode:
             _refuse("could not materialize an isolated target "
                     f"worktree: {add.stderr.decode(errors='replace')[:160]}")
-        co = subprocess.run(["git", "-C", wt, "checkout", "--", "."],
-                            capture_output=True)
-        if co.returncode:
-            _refuse("isolated target worktree would not check out")
         src = os.path.join(wt, "monitoring", "src")
         code = (
             "import json,sys\n"

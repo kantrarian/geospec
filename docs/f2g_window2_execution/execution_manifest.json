@@ -2,8 +2,8 @@
  "design_manifest_blob_sha256": "d6decbd6ab5814bc005ce69c538311ff1b11cb1d13c19e2999e03a92bc7cca1f",
  "design_manifest_commit": "5fba5446cd96722fb86021df5065a46b8a1a78f5",
  "design_target_commit": "12161f6cf2000b2d4aa86fe659f834839ac0d27b",
- "execution_target_commit": "e0dd75de333178ef7258e02b9af48607e1397463",
- "generated_utc": "2026-08-31T13:40:21Z",
+ "execution_target_commit": "3921407b5a2638e6f13538f16ddd1a78746799e1",
+ "generated_utc": "2026-08-31T14:02:45Z",
  "manifest_state": "OPEN",
  "repository_url": "https://github.com/kantrarian/geospec",
  "schema": "f2g-window2-execution-manifest-v1.2",
@@ -19,7 +19,7 @@
     },
     {
      "blob_sha256": "ff2671a98938a8c1b4afe34f2d38b5886ad4cdeeb9fff5492694cd6abd96f567",
-     "commit": "e0dd75de333178ef7258e02b9af48607e1397463",
+     "commit": "3921407b5a2638e6f13538f16ddd1a78746799e1",
      "path": "monitoring/src/w2_accrual_instrument_cayley.py"
     },
     {
@@ -34,7 +34,7 @@
     },
     {
      "blob_sha256": "9729103686afce58498a5cc706a2b5f62098e686688d1225e8d9587577ebfef3",
-     "commit": "60ead552cf9e019699fd10fdd1e2028298e063db",
+     "commit": "67a2dd7d6ec8598a7fe45d2b2f096e2f43a88add",
      "path": "monitoring/src/w2_expected_contracts_gen_v4_cayley.py"
     },
     {
@@ -44,7 +44,7 @@
     },
     {
      "blob_sha256": "e42041443fb130ce5800d2470739e71c8929d7f322209c33db3d7ad57529d369",
-     "commit": "60ead552cf9e019699fd10fdd1e2028298e063db",
+     "commit": "67a2dd7d6ec8598a7fe45d2b2f096e2f43a88add",
      "path": "docs/f2g_window2_execution/staged_expected_contracts_v4.json"
     },
     {
@@ -163,7 +163,7 @@
    "pins": [
     {
      "blob_sha256": "ac2338943c8953c74a6b6a712eb21e533a20a5d7a61923debf4e1d15eb77f8f7",
-     "commit": "7e943a857d2fed772787093416f8b0ce2d0224b0",
+     "commit": "01269322529c48f04273c6c3d8f5d7abb4a10f67",
      "path": "monitoring/src/test_f2g_window2_redkats_grassmann.py"
     },
     {
@@ -226,17 +226,17 @@
     },
     {
      "blob_sha256": "26151f450c717bba5a7108b27d8c278fa7ef1f7399186a5a22c689b07738bf3a",
-     "commit": "e0dd75de333178ef7258e02b9af48607e1397463",
+     "commit": "3921407b5a2638e6f13538f16ddd1a78746799e1",
      "path": "monitoring/src/w2_mf4_successor_readiness_gen_cayley.py"
     },
     {
      "blob_sha256": "4f4a7dd41243965179ed5cbec2a539a856279933c8a8b86a0461198680a52e47",
-     "commit": "e0dd75de333178ef7258e02b9af48607e1397463",
+     "commit": "3921407b5a2638e6f13538f16ddd1a78746799e1",
      "path": "docs/f2g_window2_execution/mf4_successor_readiness_record_v1.json"
     },
     {
      "blob_sha256": "20c965c9b20fbbc24e13fdd47d41371ea5830d976b6693abc756d77b19b0c539",
-     "commit": "e0dd75de333178ef7258e02b9af48607e1397463",
+     "commit": "3921407b5a2638e6f13538f16ddd1a78746799e1",
      "path": "docs/f2g_window2_execution/mf4_reuse_attestation_v1.json"
     },
     {
@@ -310,7 +310,7 @@
    "pins": [
     {
      "blob_sha256": "e87e49fb5ff3f9500b7c0fa805cf03688cafa9e5f987d30987f5cdeb69a54c96",
-     "commit": "e04e89e65c0ae44d0e4352bb5701ee36814821be",
+     "commit": "b0a4312a8339a158d93f2e43d5e05eb955c00d56",
      "path": "monitoring/src/f2g_execution_manifest_gen_cayley.py"
     }
    ],
@@ -322,17 +322,17 @@
    "pins": [
     {
      "blob_sha256": "5b96db37bea71f46330f5a79d01d5ca3cd61b382c6cb2a4beebbcd9527f31a86",
-     "commit": "d40113774db7e376f6079087c174ae16cddc6d2a",
+     "commit": "7a9ab79e400eef450ce5a606afd650a43c265115",
      "path": "monitoring/src/f2g_execution_manifest_verifier_cayley.py"
     },
     {
      "blob_sha256": "746556f4fedf73b37898e7cf6aa38e95206d899f7c94811e48b66dd080442a74",
-     "commit": "e04e89e65c0ae44d0e4352bb5701ee36814821be",
+     "commit": "b0a4312a8339a158d93f2e43d5e05eb955c00d56",
      "path": "monitoring/src/w2_regeneration_gate_cayley.py"
     },
     {
      "blob_sha256": "c1e86eab25b9034bfda0d244b8be7e2e833944765d26cd19d5faedc500954a54",
-     "commit": "e04e89e65c0ae44d0e4352bb5701ee36814821be",
+     "commit": "b0a4312a8339a158d93f2e43d5e05eb955c00d56",
      "path": "monitoring/src/w2_power_cert_result_verifier_cayley.py"
     },
     {
@@ -412,12 +412,12 @@
    "pins": [
     {
      "blob_sha256": "23038aa5100b7323e96902460ed93baf30809052972b5c38c2ed5a7aff94e19a",
-     "commit": "cd6d6e7138e2fa831d0382f85981300187547365",
+     "commit": "f4e27f979083ee86c487344af4f251c02a30f3f9",
      "path": "monitoring/src/w2_power_harness_cayley.py"
     },
     {
      "blob_sha256": "39ceb931c10939b4992b19cd11053779ec5cb5de398d07f0cac062017d5308d5",
-     "commit": "d40113774db7e376f6079087c174ae16cddc6d2a",
+     "commit": "7a9ab79e400eef450ce5a606afd650a43c265115",
      "path": "monitoring/src/w2_power_cert_results_assembly_cayley.py"
     },
     {

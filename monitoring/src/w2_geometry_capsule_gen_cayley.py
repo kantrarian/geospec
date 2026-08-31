@@ -208,6 +208,19 @@ def build_capsule_from_manifest(repo, manifest_commit):
         mode="bound")
 
 
+def build(repo, *, commit="HEAD"):
+    """The named-target entry the isolated worker calls (cycle-6e).
+
+    `w2_target_identity_cayley.regenerate_in_isolated_worker` invokes
+    `M.build(<worktree>, commit=<resolved sha>)`. The production
+    builder already takes exactly one resolved manifest commit, so
+    this is a thin adapter with no arguments of its own -- it exists
+    so the pinned capsule can be proven by REGENERATION instead of by
+    reading the references it carries about itself.
+    """
+    return build_capsule_from_manifest(os.path.abspath(repo), commit)
+
+
 def main():
     """PRODUCTION entry (codex 1507Z item 4): ONE resolved manifest
     commit. The former free-form CLI -- caller mask/registry/segment

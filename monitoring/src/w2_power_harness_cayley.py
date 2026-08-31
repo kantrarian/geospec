@@ -688,13 +688,21 @@ def _verify_regenerates(repo, manifest_commit, artifacts):
     """cycle-6c (codex 2130Z): prove a target-labelled artifact by
     REGENERATION, not by reading its own label.
 
-    `artifacts` is {name: (pinned_bytes, generator_module)}. Each is
-    rebuilt from the named target inside the HARDENED isolated worker
-    (Python `-I`, sanitized environment, no inherited PYTHONPATH or
-    caller marker) and its canonical bytes must equal the pinned
-    bytes. A caller that sets the marker, monkeypatches a callable,
-    or steers the child through `sitecustomize` cannot survive this,
-    because the comparison is against bytes it does not control.
+    `artifacts` is {name: (pinned_bytes, generator_module,
+    label_required)}. Each is rebuilt from the named target inside
+    the HARDENED isolated worker (Python `-I`, sanitized environment,
+    no inherited PYTHONPATH or caller marker) and its canonical bytes
+    must equal the pinned bytes. A caller that sets the marker,
+    monkeypatches a callable, or steers the child through
+    `sitecustomize` cannot survive this, because the comparison is
+    against bytes it does not control.
+
+    cycle-6e: `label_required` is per artifact because the bound
+    geometry capsule's schema is CLOSED and carries no
+    `target_identity`. Registering an artifact as unlabelled relaxes
+    nothing -- it is then required to carry NO execution claim at
+    all, so an unchecked self-reported provenance string can never
+    ride in on that surface.
     """
     import w2_target_identity_cayley as _TID
 
@@ -702,7 +710,11 @@ def _verify_regenerates(repo, manifest_commit, artifacts):
         raise PowerHarnessError(
             f"POWER_TARGET_ARTIFACT_UNREPRODUCIBLE: {detail}")
 
-    for name, (raw, module) in sorted(artifacts.items()):
+    for name, spec in sorted(artifacts.items()):
+        if not (isinstance(spec, tuple) and len(spec) == 3):
+            refuse(f"{name} was not submitted as the closed "
+                   "(pinned_bytes, module, label_required) triple")
+        raw, module, label_required = spec
         try:
             pinned = json.loads(raw.decode("utf-8"))
         except ValueError:
@@ -712,10 +724,14 @@ def _verify_regenerates(repo, manifest_commit, artifacts):
         # generator itself is telling us it was not produced the
         # registered way.
         claim = (pinned.get("target_identity") or {}).get("execution")
-        if claim != "ISOLATED_TARGET_WORKER":
-            refuse(f"{name} declares execution {claim!r}; a "
-                   "registered artifact must be produced by the "
-                   "isolated target worker")
+        if label_required:
+            if claim != "ISOLATED_TARGET_WORKER":
+                refuse(f"{name} declares execution {claim!r}; a "
+                       "registered artifact must be produced by the "
+                       "isolated target worker")
+        elif claim is not None:
+            refuse(f"{name} is registered as carrying no target "
+                   f"identity but declares execution {claim!r}")
         try:
             rebuilt = _TID.regenerate_in_isolated_worker(
                 repo, manifest_commit, module, "build")
@@ -911,6 +927,66 @@ def _manifest_pin_index(man):
     return idx
 
 
+def _verify_capsule_matches_inputs(capsule, resolved):
+    """cycle-6e: a direct, worker-INDEPENDENT cross-check that the
+    capsule carries the geometry its own referenced inputs describe.
+
+    The regeneration proof covers this too, but it depends on the
+    isolated worker being available and it can only say "the bytes
+    differ". This reads the four resolved input blobs the capsule
+    already cites and names the divergent field, so the content
+    binding survives on its own and a STALE capsule -- one built
+    before an input changed, which pins and resolves perfectly --
+    refuses here with the reason stated.
+    """
+    def refuse(detail):
+        raise PowerHarnessError(
+            f"POWER_GEOMETRY_CONTENT_UNBOUND: {detail}")
+
+    def load(name):
+        try:
+            return json.loads(resolved[name].decode("utf-8"))
+        except ValueError:
+            refuse(f"the referenced {name} is not JSON")
+
+    def canon(o):
+        return json.dumps(o, sort_keys=True, separators=(",", ":"))
+
+    bundle = load("inputs_bundle")
+    cal = load("calendar_authority")
+    grids = load("effect_grids")
+    frame = cal.get("frame") or {}
+
+    if canon(capsule["registries"]) != canon(bundle.get("registries")):
+        refuse("the capsule's registries are not the referenced "
+               "bundle's registries")
+    if canon(capsule["segments"]) != canon(bundle.get("segments")):
+        refuse("the capsule's segments are not the referenced "
+               "bundle's segments")
+    b_masks = bundle.get("carrier_masks")
+    if (not isinstance(b_masks, dict)
+            or sorted(b_masks) != sorted(capsule["carrier_masks"])):
+        refuse("the capsule's carrier set is not the referenced "
+               "bundle's carrier set")
+    eng = [str(d) for d in (frame.get("engine_days") or [])]
+    for ck in sorted(b_masks):
+        mask = capsule["carrier_masks"][ck]
+        if ([str(d) for d in mask["available_days"]]
+                != [str(d) for d in b_masks[ck]]):
+            refuse(f"the capsule's available days for {ck!r} are not "
+                   "the referenced bundle's mask")
+        if [str(d) for d in mask["registered_days"]] != eng:
+            refuse(f"the capsule's registered days for {ck!r} are not "
+                   "the referenced calendar authority's engine grid")
+    if canon(capsule["calendar_frame"]) != canon(frame):
+        refuse("the capsule's calendar frame is not the referenced "
+               "authority's frame")
+    if canon(capsule["effect_grids"]) != canon(grids.get("grids")):
+        refuse("the capsule's effect grids are not the referenced "
+               "artifact's grids")
+    return True
+
+
 def _resolve_capsule_input_refs(repo, manifest_commit, man, capsule):
     """cycle-6 (codex 1507Z item 4 + item 3): every input reference
     the capsule carries must be an ADMITTED pin of the same manifest,
@@ -979,9 +1055,11 @@ def _resolve_capsule_input_refs(repo, manifest_commit, man, capsule):
     # are the proof; a label alone is not.
     _verify_regenerates(repo, manifest_commit, {
         "seed_authority": (resolved["seed_authority"],
-                           "w2_power_seed_authority_gen_cayley"),
+                           "w2_power_seed_authority_gen_cayley",
+                           True),
         "inputs_bundle": (resolved["inputs_bundle"],
-                          "w2_power_geometry_inputs_gen_cayley")})
+                          "w2_power_geometry_inputs_gen_cayley",
+                          True)})
     # item 3: the seed authority is resolved from its PINNED record
     try:
         seed_rec = json.loads(
@@ -1003,6 +1081,23 @@ def _resolve_capsule_input_refs(repo, manifest_commit, man, capsule):
             f"authority {str(capsule.get('seed_authority_sha256'))[:12]}"
             f" is not the manifest-pinned registered root {root[:12]} "
             "-- an arbitrary 64-hex value is never accepted")
+    # cycle-6e (cayley, self-reported): authenticating the capsule's
+    # REFERENCES while never checking its own registries, segments or
+    # masks let a capsule carrying geometry its own referenced bundle
+    # does not describe pass BOTH admission layers -- measured at
+    # bd4caf42, a 50-station capsule against the bundle's 51.
+    #
+    # These run LAST and in this order deliberately: the cross-check
+    # is cheap and NAMES the divergent field, so a stale capsule gets
+    # an actionable refusal; the regeneration proof is the catch-all
+    # and the most expensive check in admission, so nothing that a
+    # named check can refuse should have to reach it.
+    _verify_capsule_matches_inputs(capsule, resolved)
+    _verify_regenerates(repo, manifest_commit, {
+        "geometry_capsule": (
+            json.dumps(capsule, sort_keys=True,
+                       separators=(",", ":")).encode(),
+            "w2_geometry_capsule_gen_cayley", False)})
     return resolved
 
 
@@ -1788,7 +1883,22 @@ def _selftest():
                "registries": {"c1": ["S0"]},
                "segments": {"c1": {"S0": "sA"}},
                "effect_grids": {"B2B": [{"m": 2}]},
-               "loco_registry_carrier": "c1"}
+               "loco_registry_carrier": "c1",
+               # cycle-6e: this fixture lost the closed schema when
+               # `input_refs` was registered in cycle-6, so THIS call
+               # and every geometry KAT below it in this selftest had
+               # been dead ever since -- the module refused its own
+               # first fixture and the block never executed. The
+               # references are shape-valid and deliberately resolve
+               # to nothing: these KATs test the VALIDATOR, which
+               # checks shape only, while resolution against admitted
+               # pins is the loader's job and is locked in the
+               # geometry-admission bar against the live manifest.
+               "input_refs": {
+                   _n: {"commit": "0" * 40,
+                        "path": f"docs/f2g_window2_execution/{_n}.json",
+                        "blob_sha256": "0" * 64}
+                   for _n in GEOMETRY_INPUT_REFS}}
         cap.update(mut)
         cap["capsule_digest"] = _geometry_capsule_digest(cap)
         cap.update({k: v for k, v in mut.items()

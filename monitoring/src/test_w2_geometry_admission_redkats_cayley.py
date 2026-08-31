@@ -312,9 +312,11 @@ def _selftest():
     BUN_REL = "docs/f2g_window2_execution/power_geometry_inputs_w2_v1.json"
     seed_ok, bun_ok = _blob("HEAD", SEED_REL), _blob("HEAD", BUN_REL)
     pair = {"seed_authority": (seed_ok,
-                               "w2_power_seed_authority_gen_cayley"),
+                               "w2_power_seed_authority_gen_cayley",
+                               True),
             "inputs_bundle": (bun_ok,
-                              "w2_power_geometry_inputs_gen_cayley")}
+                              "w2_power_geometry_inputs_gen_cayley",
+                              True)}
     if PH._verify_regenerates(REPO, head_c, pair) is not True:
         raise GeometryAdmissionRefusal(
             "GA-7 POSITIVE_FAILED: the live pinned seed and bundle do "
@@ -322,9 +324,10 @@ def _selftest():
     print("  GA-7a PASS  both live pinned artifacts REGENERATE "
           "byte-identically in the hardened worker (the positive)")
 
-    def _adm_refuses(raw, mod, name, label):
+    def _adm_refuses(raw, mod, name, label, *, labelled=True):
         try:
-            PH._verify_regenerates(REPO, head_c, {name: (raw, mod)})
+            PH._verify_regenerates(REPO, head_c,
+                                   {name: (raw, mod, labelled)})
         except PH.PowerHarnessError:
             return
         raise GeometryAdmissionRefusal(
@@ -411,6 +414,150 @@ def _selftest():
     print("  GA-7d PASS  a bundle claiming IN_PROCESS_FIXTURE_ONLY "
           "and a one-byte-changed seed record BOTH refuse at "
           "admission, before any capsule or replicate")
+
+    # ---- GA-8 (cayley cycle-6e, self-reported): the capsule's own
+    # CONTENT is bound to the inputs it references -----------------
+    # Measured at bd4caf42: authenticating the capsule's REFERENCES
+    # while never checking its registries/segments/masks let a
+    # 50-station capsule pass admission against its own referenced
+    # 51-station bundle. Both new bindings are locked here -- the
+    # regeneration proof (worker) and the direct cross-check (no
+    # worker) -- and the anti-vacuity control shows the pre-existing
+    # schema validator still ACCEPTS the same forgery, so these locks
+    # are the only thing standing between it and admission.
+    cap_raw = json.dumps(live, sort_keys=True,
+                         separators=(",", ":")).encode()
+    if PH._verify_regenerates(
+            REPO, head_c,
+            {"geometry_capsule": (cap_raw,
+                                  "w2_geometry_capsule_gen_cayley",
+                                  False)}) is not True:
+        raise GeometryAdmissionRefusal(
+            "GA-8 POSITIVE_FAILED: the live pinned capsule does not "
+            "regenerate at its own manifest target, so every capsule "
+            "probe below is vacuous")
+    resolved_inputs = {n: _blob(r["commit"], r["path"])
+                       for n, r in live["input_refs"].items()}
+    if PH._verify_capsule_matches_inputs(
+            live, resolved_inputs) is not True:
+        raise GeometryAdmissionRefusal(
+            "GA-8 POSITIVE_FAILED: the live capsule does not match "
+            "its own referenced inputs")
+    n_live = sum(len(v) for v in live["registries"].values())
+    print(f"  GA-8a PASS  the live pinned capsule REGENERATES "
+          f"byte-identically at its manifest target AND carries "
+          f"exactly its referenced inputs' geometry ({n_live} "
+          "stations) -- the positive")
+
+    # the ORIGINAL forgery: drop one station, recompute the digest
+    forged_cap = copy.deepcopy(live)
+    _victim = forged_cap["registries"]["cascadia"][-1]
+    forged_cap["registries"]["cascadia"] = [
+        st for st in forged_cap["registries"]["cascadia"]
+        if st != _victim]
+    del forged_cap["segments"]["cascadia"][_victim]
+    forged_cap["capsule_digest"] = \
+        PH._geometry_capsule_digest(forged_cap)
+    if sum(len(v) for v in forged_cap["registries"].values()) != \
+            n_live - 1:
+        raise GeometryAdmissionRefusal(
+            "GA-8 CONTROL_INERT: the forging probe did not construct "
+            "a capsule that diverges from its bundle")
+    # ANTI-VACUITY: the pre-existing schema validator accepts it
+    PH._validate_geometry_capsule(forged_cap, fam, point)
+    try:
+        PH._resolve_capsule_input_refs(REPO, "HEAD", man, forged_cap)
+    except PH.PowerHarnessError as e:
+        if not ("POWER_GEOMETRY_CONTENT_UNBOUND" in str(e) or
+                "POWER_TARGET_ARTIFACT_UNREPRODUCIBLE" in str(e)):
+            raise GeometryAdmissionRefusal(
+                f"GA-8 wrong refusal for the forged capsule: "
+                f"{str(e)[:110]}")
+    else:
+        raise GeometryAdmissionRefusal(
+            "GA-8 FORGED_CAPSULE_ADMITTED: a capsule carrying "
+            "geometry its own referenced bundle does not describe "
+            "must never resolve")
+    print("  GA-8b PASS  a station-dropped capsule still passes the "
+          "SCHEMA validator (anti-vacuity) and is REFUSED by the "
+          "content binding -- reference authenticity was never "
+          "content authenticity")
+
+    def _content_refuses(label, mut):
+        bad = copy.deepcopy(live)
+        mut(bad)
+        bad["capsule_digest"] = PH._geometry_capsule_digest(bad)
+        try:
+            PH._verify_capsule_matches_inputs(bad, resolved_inputs)
+        except PH.PowerHarnessError as e:
+            if "POWER_GEOMETRY_CONTENT_UNBOUND" not in str(e):
+                raise GeometryAdmissionRefusal(
+                    f"GA-8 {label}: wrong refusal {str(e)[:90]}")
+            return
+        raise GeometryAdmissionRefusal(
+            f"GA-8 {label}: ACCEPTED -- the capsule may not carry "
+            "geometry its referenced inputs do not describe")
+
+    def _mut_add(c):
+        c["registries"]["cascadia"] = \
+            list(c["registries"]["cascadia"]) + ["ZZ.FAKE"]
+        c["segments"]["cascadia"]["ZZ.FAKE"] = \
+            sorted(set(c["segments"]["cascadia"].values()))[0]
+
+    def _mut_move(c):
+        segs = c["segments"]["cascadia"]
+        st = sorted(segs)[0]
+        other = sorted({v for v in segs.values() if v != segs[st]})
+        if not other:
+            raise GeometryAdmissionRefusal(
+                "GA-8 CONTROL_INERT: cascadia carries a single "
+                "segment, so the moved-segment probe cannot move one")
+        segs[st] = other[0]
+
+    def _mut_mask(c):
+        m = c["carrier_masks"]["cascadia"]["available_days"]
+        c["carrier_masks"]["cascadia"]["available_days"] = list(m[:-1])
+
+    def _mut_frame(c):
+        c["calendar_frame"]["engine_days"] = \
+            list(c["calendar_frame"]["engine_days"])[:-1]
+
+    def _mut_grids(c):
+        f0 = sorted(c["effect_grids"])[0]
+        c["effect_grids"][f0] = list(c["effect_grids"][f0]) + [999.0]
+
+    _content_refuses("added station", _mut_add)
+    _content_refuses("moved segment", _mut_move)
+    _content_refuses("changed availability mask", _mut_mask)
+    _content_refuses("changed calendar frame", _mut_frame)
+    _content_refuses("changed effect grids", _mut_grids)
+    print("  GA-8c PASS  added station, moved segment, changed mask, "
+          "changed frame and changed effect grids EACH refuse "
+          "POWER_GEOMETRY_CONTENT_UNBOUND with no worker in the loop")
+
+    # an artifact registered as UNLABELLED may not smuggle a label
+    smuggled = dict(json.loads(cap_raw.decode()),
+                    target_identity={"execution":
+                                     "ISOLATED_TARGET_WORKER"})
+    _adm_refuses(json.dumps(smuggled, sort_keys=True,
+                            separators=(",", ":")).encode(),
+                 "w2_geometry_capsule_gen_cayley", "geometry_capsule",
+                 "SMUGGLED_LABEL_ADMITTED", labelled=False)
+    # and the artifact spec itself is a closed triple
+    try:
+        PH._verify_regenerates(REPO, head_c,
+                               {"geometry_capsule": (cap_raw, "m")})
+    except PH.PowerHarnessError as e:
+        if "closed" not in str(e):
+            raise GeometryAdmissionRefusal(
+                f"GA-8 wrong refusal for a 2-tuple spec: {str(e)[:90]}")
+    else:
+        raise GeometryAdmissionRefusal(
+            "GA-8 OPEN_SPEC_ACCEPTED: the regeneration contract must "
+            "be a closed (bytes, module, label_required) triple")
+    print("  GA-8d PASS  an artifact registered as carrying no target "
+          "identity may not smuggle one in, and the regeneration "
+          "contract itself refuses a non-closed spec")
 
     # ---- GA-5 the loader takes no capsule dict -------------------
     try:

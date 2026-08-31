@@ -226,6 +226,73 @@ def _selftest():
           "yet REFUSES admission (its input_refs resolve to no "
           "admitted pin) -- structural validity is not admission")
 
+    # ---- GA-6 (codex cycle-6b item 3): the SEED-RECORD locks ----
+    # Codex named eight records that must each refuse. They were
+    # measured ad hoc when the repair was written; a lock is not a
+    # lock until it is a registered control, so they run here.
+    seed_rel = live["input_refs"]["seed_authority"]["path"]
+    seed_pin = live["input_refs"]["seed_authority"]
+    rec = json.loads(_blob(seed_pin["commit"], seed_rel).decode())
+    idx = PH._manifest_pin_index(man)
+    if PH._verify_seed_authority_record(REPO, man, idx, rec) is not True:
+        raise GeometryAdmissionRefusal(
+            "GA-6 POSITIVE_FAILED: the live pinned seed record does "
+            "not verify, so every probe below would be vacuous")
+
+    def _seed_refuses(mut, label):
+        bad = copy.deepcopy(rec)
+        mut(bad)
+        try:
+            PH._verify_seed_authority_record(REPO, man, idx, bad)
+        except PH.PowerHarnessError as e:
+            if "POWER_SEED_RECORD_STALE" not in str(e):
+                raise GeometryAdmissionRefusal(
+                    f"GA-6 {label}: wrong refusal {str(e)[:80]}")
+            return
+        raise GeometryAdmissionRefusal(
+            f"GA-6 {label}: ADMITTED -- no replicate may run behind "
+            "this record")
+
+    fams = list(rec["families"])
+    _seed_refuses(lambda b: [b["grammar_evidence"]["by_family"][f]
+                             .__setitem__("replicate_seeds", [])
+                             for f in fams], "empty evidence")
+    _seed_refuses(lambda b: [b["grammar_evidence"]["by_family"][f]
+                             .__setitem__(
+                                 "replicate_seeds",
+                                 b["grammar_evidence"]["by_family"][f]
+                                 ["replicate_seeds"][:1])
+                             for f in fams], "short evidence")
+    _seed_refuses(lambda b: [b["grammar_evidence"]["by_family"][f]
+                             ["replicate_seeds"].append(9)
+                             for f in fams], "long evidence")
+    _seed_refuses(lambda b: b["grammar_evidence"]["by_family"]
+                  .pop(fams[0]), "missing family")
+    _seed_refuses(lambda b: b["grammar_evidence"]["by_family"]
+                  .__setitem__("BXX", {"master_substream_seed": 1,
+                                       "replicate_seeds": [1, 2, 3]}),
+                  "extra family")
+    _seed_refuses(lambda b: b["grammar_evidence"]["by_family"][fams[0]]
+                  .__setitem__("master_substream_seed", 123),
+                  "wrong master")
+    _seed_refuses(lambda b: b["grammar"]["engine_module"]
+                  .__setitem__("function", "evil"),
+                  "wrong function name")
+    _seed_refuses(lambda b: b["target_identity"]
+                  ["consumed_implementations"]
+                  .__setitem__("monitoring/src/"
+                               "w2_power_harness_cayley.py", "0" * 64),
+                  "doctored target identity")
+    _seed_refuses(lambda b: b["target_identity"]
+                  .__setitem__("execution", "IN_PROCESS_FIXTURE_ONLY"),
+                  "in-process execution claim")
+    print("  GA-6 PASS  9 seed-record probes each refuse "
+          "POWER_SEED_RECORD_STALE (empty / short / long / missing / "
+          "extra family, wrong master, wrong function name, doctored "
+          "target identity, in-process execution) with the live "
+          "record as the positive -- no loop bound comes from "
+          "submitted evidence")
+
     # ---- GA-5 the loader takes no capsule dict -------------------
     try:
         PH._load_bound_geometry(REPO, dict(live))

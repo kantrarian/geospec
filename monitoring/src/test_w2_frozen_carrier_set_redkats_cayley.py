@@ -294,6 +294,26 @@ def _selftest():
             "FC-alias CONTROL_INERT: the reformat changed the parsed "
             "object, so it does not isolate BYTES from SEMANTICS")
     _alias_refuses(_reformatted, "FORMATTING_ONLY_DIVERGENCE_ADMITTED")
+    # DUPLICATE-KEY raw divergence: json.loads keeps the last value,
+    # so this parses identically while the bytes differ -- the same
+    # blind spot as formatting, reached by a different route
+    _dup = _raw_b.rstrip()
+    assert _dup.endswith(b"}")
+    _dup = (_dup[:-1].rstrip().rstrip(b",") +
+            b', "iaga_code": ' +
+            json.dumps(json.loads(
+                _raw_b.decode("utf-8"))["iaga_code"]).encode() +
+            b"}\n")
+    if json.loads(_dup.decode("utf-8")) != \
+            json.loads(_raw_b.decode("utf-8")):
+        raise CarrierSetRefusal(
+            "FC-alias CONTROL_INERT: the duplicate-key body does not "
+            "parse identically, so it does not isolate BYTES")
+    if _dup == _raw_b:
+        raise CarrierSetRefusal(
+            "FC-alias CONTROL_INERT: the duplicate-key body did not "
+            "change the bytes")
+    _alias_refuses(_dup, "DUPLICATE_KEY_DIVERGENCE_ADMITTED")
     # semantic divergence must refuse too
     _semantic = json.dumps(
         dict(json.loads(_raw_b.decode("utf-8")),
@@ -314,12 +334,39 @@ def _selftest():
     finally:
         _RAW_OVERRIDE.clear()
         _RAW_OVERRIDE.update(_saved2)
+    # DIRTY-DISK divergence: the derivation resolves pins from GIT, so
+    # a doctored WORKTREE copy must not steer it at all. This is an
+    # immunity control -- unchanged output, not a refusal -- and it is
+    # the property my worktree-reading version did not have.
+    _disk = os.path.join(REPO, _b.replace("/", os.sep))
+    with open(_disk, "rb") as _f:
+        _disk_orig = _f.read()
+    try:
+        with open(_disk, "wb") as _f:
+            _f.write(json.dumps({"iaga_code": "DIRTY"}).encode())
+        _dirty = admitted_observatories()
+    finally:
+        with open(_disk, "wb") as _f:
+            _f.write(_disk_orig)
+    with open(_disk, "rb") as _f:
+        if _f.read() != _disk_orig:
+            raise CarrierSetRefusal(
+                "FC-alias RESTORE_FAILED: repair the worktree copy "
+                "before trusting the tree")
+    if _dirty != admitted:
+        raise CarrierSetRefusal(
+            "FC-alias DIRTY_DISK_STEERED: a doctored worktree copy "
+            f"changed the derived carrier set ({sorted(_dirty)} != "
+            f"{sorted(admitted)})")
     print("  FC-alias PASS  the alias rule is decided by RAW "
-          f"COMMITTED BYTES ({_sha_a[:12]}): formatting-only "
-          "divergence with an identical parsed object REFUSES (the "
-          "case my parsed-JSON version admitted), semantic "
-          "divergence REFUSES, and bytes that do not match their pin "
-          "refuse at the pin check first")
+          f"COMMITTED BYTES ({_sha_a[:12]}), all five controls: "
+          "formatting-only AND duplicate-key divergence (both parse "
+          "identically -- the exact cases my parsed-JSON version "
+          "admitted) REFUSE, semantic divergence REFUSES, bytes that "
+          "do not match their pin refuse at the pin check first, and "
+          "a doctored WORKTREE copy does not steer the derivation at "
+          "all (pins resolve from git); the byte-identical live VIC "
+          "pair remains the positive")
     print("w2 frozen-carrier-set red-KATs: ALL PASS")
 
 

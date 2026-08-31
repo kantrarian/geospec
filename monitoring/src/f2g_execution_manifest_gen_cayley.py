@@ -47,6 +47,12 @@ BOUND_SLOTS = {
                 "pin set is itself unbound",
         "paths": ["monitoring/src/f2g_execution_manifest_verifier_cayley.py",
                   "monitoring/src/w2_regeneration_gate_cayley.py",
+                  # cycle-4 R1: the INDEPENDENT power-cert result
+                  # verifier is verification authority the dual
+                  # gate imports -- pinned here, or the semantic
+                  # gate itself would be unbound code
+                  "monitoring/src/"
+                  "w2_power_cert_result_verifier_cayley.py",
                   # codex 0532Z: the pre-fire frame-readiness doctor.
                   # VERIFICATION authority, not operation bytes: the
                   # capture runner and RG-10 import the SAME one pinned
@@ -194,6 +200,12 @@ BOUND_SLOTS = {
                 "selector with their registered amendments (codex "
                 "1909Z items 1-4)",
         "paths": ["monitoring/src/w2_power_harness_cayley.py",
+                  # cycle-4 R2: the result ASSEMBLER is production
+                  # machinery of the certification path (builds the
+                  # result package from the fired campaign); its
+                  # import closure rides the power machinery slot
+                  "monitoring/src/"
+                  "w2_power_cert_results_assembly_cayley.py",
                   # codex 1758Z P0-1: the two power-estimation engines
                   # behind this machinery, found by the dependency
                   # closure doctor and previously in NO registry.

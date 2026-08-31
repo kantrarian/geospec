@@ -72,11 +72,13 @@ gains 3 then 10) → Tier-C campaign fire.
   from git objects at the target). The `power_harness` slot re-pins
   the two v4-cal amended source blobs. Then the ordinary composed
   prestart verifier reruns — **PASS required** before any accrual.
-- Two named producers ride the execution round as candidate bytes
-  under THIS contract (flagged in the w2r1 cover; codex may veto in
-  the one pass): `w2_power_cert_results_assembly_cayley.py` (builds
-  2–3 from 1 + committed inputs; fixtures mirror the real tree) and
-  the `f2g_execution_manifest_gen_cayley.py` slot patch.
+- SUPERSEDED IN CYCLE-3 (append-only note; codex cycle-2 finding 2
+  required these as pre-fire code, not riding bytes): the result
+  assembler (`w2_power_cert_results_assembly_cayley.py`), the
+  INDEPENDENT semantic verifier
+  (`w2_power_cert_result_verifier_cayley.py`), and the manifest
+  slot/verifier/gate patches are REVIEWED CYCLE-3 BYTES in the
+  candidate tree — nothing rides the execution round.
 
 ## Claim ceiling
 

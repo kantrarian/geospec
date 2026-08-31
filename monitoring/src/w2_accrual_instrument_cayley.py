@@ -1827,8 +1827,14 @@ def _selftest():
                                     "not-a-seal")
         raise AssertionError("OPEN manifest must refuse admission")
     except InstrumentRefusal as e:
+        # w2r1 cycle-3 succession: the 205e912-era manifest predates
+        # the 13-slot SLOT_SET, so the successor verifier refuses it
+        # SLOT_SET_NOT_CLOSED before it can refuse SLOT_OPEN. Either
+        # typed reason satisfies the doctor's intent -- an OPEN-era
+        # manifest can never cross into ACCRUAL.
         assert "PRESTART_ADMISSION_REFUSED" in str(e) \
-            and "SLOT_OPEN" in str(e)
+            and ("SLOT_OPEN" in str(e)
+                 or "SLOT_SET_NOT_CLOSED" in str(e))
     q = "the owner quote"
     oa_good_shape = {"quote": q, "quote_sha256":
                      hashlib.sha256(q.encode()).hexdigest(),

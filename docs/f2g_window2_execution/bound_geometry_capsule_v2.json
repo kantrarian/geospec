@@ -407,7 +407,7 @@
   ],
   "frame_id": "w2-calendar-v4-noncal"
  },
- "capsule_digest": "ff0e00831b9fa98612a01e1c213f8d151792c53dc00c9e5bdd582298878f85f5",
+ "capsule_digest": "a32f8c5316d8bd8f51b88617c379b84446ea71eba787126f40a2d5d247e7b645",
  "carrier_masks": {
   "cascadia": {
    "available_days": [
@@ -2384,13 +2384,13 @@
    "path": "docs/f2g_window2_execution/effect_grids_w2_v1.json"
   },
   "inputs_bundle": {
-   "blob_sha256": "1c19596fde34838a248232a27dbdbb1655f890e4493acba7f1a083e31391b7ee",
-   "commit": "6c14bbadc1bf830e78bcf251f0aee1231e7505a9",
+   "blob_sha256": "83e8cdd46f7c7f107b03aed2aa6a5e04ded139423def389dda5db4794e187a90",
+   "commit": "54280eabd9983fcefbf06b8975fa9305c2d9c1dc",
    "path": "docs/f2g_window2_execution/power_geometry_inputs_w2_v1.json"
   },
   "seed_authority": {
-   "blob_sha256": "c4f0633dcf15b5978928e652a20403ed8fe9257cfbd4821a848ec4bba22e65d2",
-   "commit": "7c5d82fe3afbd7838bbd82bcd7c69035bf48b422",
+   "blob_sha256": "64cbccb3de2401a4903064df27665f443b04446f9d5653acf0cab3dd9c3d1ba3",
+   "commit": "54280eabd9983fcefbf06b8975fa9305c2d9c1dc",
    "path": "docs/f2g_window2_execution/power_seed_authority_w2_v1.json"
   }
  },

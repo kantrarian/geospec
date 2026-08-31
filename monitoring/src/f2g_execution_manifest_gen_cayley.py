@@ -254,6 +254,16 @@ BOUND_SLOTS = {
                   "cascadia_overlap_tie_amendment_v1.md",
                   "monitoring/src/"
                   "w2_geometry_bind_comparator_cayley.py",
+                  # cycle-6b (codex 1807Z item 2): the EXACT-ONLY
+                  # mask-envelope policy. The bind path resolves it
+                  # from THIS pin; a caller dict with the same words
+                  # is not authority.
+                  "docs/f2g_window2_execution/"
+                  "mask_envelope_policy_w2_v1.json",
+                  # cycle-6b (item 3B): the target-identity guard the
+                  # seed and geometry generators consume, so a
+                  # named-target build cannot execute other code
+                  "monitoring/src/w2_target_identity_cayley.py",
                   # THE bound geometry capsule. It had never been
                   # committed anywhere in this repository's history
                   # (grassmann's Tier-S pre-fire refusal, finding 1);

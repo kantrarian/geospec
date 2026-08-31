@@ -817,7 +817,7 @@
   },
   "observation_source": {
    "artifact_claim_kind": "STATION_PRESENCE",
-   "commit": "a49d78b8aa3eeda21e8289f06eb5599625aa45da",
+   "commit": "9f763bba158ce9b721c36bcfa749f0f9a1f65d8a",
    "directory": "docs/f2g_window2_execution/staged_envelopes_v4",
    "rule": "a day is OBSERVED-available when its committed presence artifact records at least one present station"
   },
@@ -1156,5 +1156,20 @@
    "turkey_kahramanmaras": "bare station code"
   },
   "rule": "every id is preserved BYTE-FOR-BYTE as committed by its own source; display-time normalization is prohibited from feeding seeds or joins (codex 1554Z item 3), and ids are verified globally unique because the harness requires it"
+ },
+ "target_identity": {
+  "consumed_implementations": {
+   "monitoring/src/fault_segments.py": "90acfd35fc05bd9b4f178837ebbd2ff7e44b6211a422e47bfbcfa230c1b8f913",
+   "monitoring/src/w2_selection.py": "7d1b89d3e3f3a98eb73edd1258bee80adb5dab1ee51bf95a15584657d6170718"
+  },
+  "rule": "every consumed implementation's source must equal its bytes AT THE NAMED TARGET, and every registered steering constant re-derived from the target source by AST must equal the live runtime value; otherwise the build REFUSES rather than producing target-labelled output built from other code",
+  "steering_constants_verified": {
+   "monitoring/src/w2_selection.py:CAPS": {
+    "cascadia": 16,
+    "istanbul_marmara": 16,
+    "socal_coachella": 20,
+    "turkey_kahramanmaras": 14
+   }
+  }
  }
 }

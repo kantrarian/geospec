@@ -684,6 +684,54 @@ SEED_TARGET_FIELDS = {"execution", "consumed_implementations",
 SEED_REQUIRED_EXECUTION = "ISOLATED_TARGET_WORKER"
 
 
+def _verify_regenerates(repo, manifest_commit, artifacts):
+    """cycle-6c (codex 2130Z): prove a target-labelled artifact by
+    REGENERATION, not by reading its own label.
+
+    `artifacts` is {name: (pinned_bytes, generator_module)}. Each is
+    rebuilt from the named target inside the HARDENED isolated worker
+    (Python `-I`, sanitized environment, no inherited PYTHONPATH or
+    caller marker) and its canonical bytes must equal the pinned
+    bytes. A caller that sets the marker, monkeypatches a callable,
+    or steers the child through `sitecustomize` cannot survive this,
+    because the comparison is against bytes it does not control.
+    """
+    import w2_target_identity_cayley as _TID
+
+    def refuse(detail):
+        raise PowerHarnessError(
+            f"POWER_TARGET_ARTIFACT_UNREPRODUCIBLE: {detail}")
+
+    for name, (raw, module) in sorted(artifacts.items()):
+        try:
+            pinned = json.loads(raw.decode("utf-8"))
+        except ValueError:
+            refuse(f"{name} pinned bytes are not JSON")
+        # a label that claims isolation is not trusted, but a label
+        # that ADMITS it was in-process refuses immediately: the
+        # generator itself is telling us it was not produced the
+        # registered way.
+        claim = (pinned.get("target_identity") or {}).get("execution")
+        if claim != "ISOLATED_TARGET_WORKER":
+            refuse(f"{name} declares execution {claim!r}; a "
+                   "registered artifact must be produced by the "
+                   "isolated target worker")
+        try:
+            rebuilt = _TID.regenerate_in_isolated_worker(
+                repo, manifest_commit, module, "build")
+        except Exception as exc:                          # noqa: BLE001
+            refuse(f"{name} could not be regenerated at the named "
+                   f"target: {str(exc)[:160]}")
+        if json.dumps(rebuilt, sort_keys=True,
+                      separators=(",", ":")) != \
+                json.dumps(pinned, sort_keys=True,
+                           separators=(",", ":")):
+            refuse(f"{name} does not reproduce from the named target "
+                   "in the hardened worker -- the pinned bytes were "
+                   "not produced the registered way")
+    return True
+
+
 def _verify_seed_authority_record(repo, man, idx, rec):
     """cycle-6 review item 1 (CRITICAL): the seed record's BOUND
     identities must hold against the ADMITTED code at admission time,
@@ -921,6 +969,19 @@ def _resolve_capsule_input_refs(repo, manifest_commit, man, capsule):
                 f"{str(ref['blob_sha256'])[:12]} and/or the manifest "
                 f"pin {str(pin['blob_sha256'])[:12]}")
         resolved[name] = rp.stdout
+    # cycle-6c (codex 2130Z): a self-reported execution label is NOT
+    # provenance -- the marker was caller-settable, the child
+    # inherited a steerable environment, and admission checked the
+    # label on the seed record only while the original exploit
+    # changed the GEOMETRY bundle. Both target-labelled artifacts are
+    # therefore INDEPENDENTLY REGENERATED in the hardened worker and
+    # required to equal the pinned bytes canonically. Identical bytes
+    # are the proof; a label alone is not.
+    _verify_regenerates(repo, manifest_commit, {
+        "seed_authority": (resolved["seed_authority"],
+                           "w2_power_seed_authority_gen_cayley"),
+        "inputs_bundle": (resolved["inputs_bundle"],
+                          "w2_power_geometry_inputs_gen_cayley")})
     # item 3: the seed authority is resolved from its PINNED record
     try:
         seed_rec = json.loads(

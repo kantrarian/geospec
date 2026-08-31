@@ -38,6 +38,17 @@ import os
 import subprocess
 
 
+_WORKER_MARKER = "W2_ISOLATED_TARGET"
+_WORKER_TOKEN = "1"
+# environment variables that can steer a child interpreter. The
+# hardened worker passes NONE of them, and `-I` (isolated mode)
+# additionally ignores PYTHONPATH and user site-packages even if
+# something reintroduced them.
+_ENV_KEEP = ("SYSTEMROOT", "WINDIR", "PATH", "TEMP", "TMP",
+             "COMSPEC", "PATHEXT", "NUMBER_OF_PROCESSORS",
+             "PROCESSOR_ARCHITECTURE", "HOME", "LANG", "LC_ALL")
+
+
 class TargetIdentityRefusal(ValueError):
     pass
 
@@ -125,11 +136,16 @@ def verify_consumed_implementations(repo, commit, *, modules,
                 f"target's ({got!r} != {want!r}) -- an in-process "
                 "mutation cannot steer a named-target build")
         checked[f"{rel}:{name}"] = got
-    # codex cycle-6b item 2: an IN-PROCESS build may not emit a
-    # registrable target identity, because file and constant checks
-    # cannot reach the callable graph. The marker states how the
-    # build ACTUALLY ran; only the isolated worker sets it.
-    isolated = os.environ.get("W2_ISOLATED_TARGET") == "1"
+    # codex cycle-6c: this marker is INFORMATIONAL ONLY and is NOT
+    # provenance. My previous version read a plain environment
+    # variable, so any caller could set `W2_ISOLATED_TARGET=1`,
+    # monkeypatch a callable, and mint a 15-station artifact that
+    # claimed ISOLATED_TARGET_WORKER. A self-reported label can
+    # never establish how a build ran. Admission therefore
+    # REGENERATES the artifact in the hardened worker and compares
+    # canonical bytes; identical bytes are the proof, and this
+    # string is only a hint for a human reader.
+    isolated = os.environ.get(_WORKER_MARKER) == _WORKER_TOKEN
     return {"execution": ("ISOLATED_TARGET_WORKER" if isolated
                           else "IN_PROCESS_FIXTURE_ONLY"),
             "consumed_implementations": bound,
@@ -187,14 +203,25 @@ def regenerate_in_isolated_worker(repo, commit, module, entry,
         src = os.path.join(wt, "monitoring", "src")
         code = (
             "import json,os,sys\n"
-            "os.environ['W2_ISOLATED_TARGET'] = '1'\n"
+            f"os.environ[{_WORKER_MARKER!r}] = {_WORKER_TOKEN!r}\n"
             f"sys.path.insert(0, {src!r})\n"
             f"import {module} as M\n"
             f"print('<<<BEGIN>>>' + json.dumps(M.{entry}("
             f"{wt!r}, commit={commit!r}), sort_keys=True))\n")
-        run = subprocess.run([sys.executable, "-c", code],
+        # codex cycle-6c: the child previously inherited the caller's
+        # environment, so a PYTHONPATH `sitecustomize` probe steered
+        # a "isolated" build (16 -> 15) that still claimed isolation.
+        # Harden it: Python ISOLATED MODE (-I ignores PYTHONPATH and
+        # user site-packages) plus a sanitized environment carrying
+        # only what an interpreter needs to start -- and never the
+        # caller's marker, so the child's own marker is set by THIS
+        # code and not by whoever called us.
+        env = {k: os.environ[k] for k in _ENV_KEEP
+               if k in os.environ}
+        run = subprocess.run([sys.executable, "-I", "-E", "-s",
+                              "-c", code],
                              capture_output=True, cwd=src,
-                             timeout=timeout)
+                             env=env, timeout=timeout)
         out = run.stdout.decode("utf-8", errors="replace")
         if run.returncode != 0 or "<<<BEGIN>>>" not in out:
             _refuse(

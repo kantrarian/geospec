@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-DAILY-TIER-CORPUS red-KAT bar -- grassmann, 2026-09-01.
+DAILY-TIER-CORPUS red-KAT bar -- grassmann, 2026-09-01 (REV 2: codex 2303Z repairs 1-2).
 
 Locks the daily monitor's tier / renormalization / single-method-cap /
 persistence / summary / append-only-history layer against the program's
@@ -21,20 +21,23 @@ LOCKS (typed, PASS/FAIL, exit 1 on any FAIL):
                    modules are byte-identical (LF) to the blobs at that commit
                    (else CORPUS_WORKTREE_DIVERGENT); corpus = every
                    docs/ensemble_latest.json blob in `git rev-list <commit>`.
+                   Blobs that are not a record are a FROZEN EXCLUSION SET
+                   (UNPARSEABLE_EXCLUSIONS, full commit sha -> blob digest):
+                   any added, removed or changed exclusion FAILS; the set and
+                   the coverage denominator are printed every run.
   C-1 COMBINE      real compute_risk (components stubbed from the record, the
                    record's own freeze flags honored) reproduces combined_risk,
                    tier, tier_name, confidence, agreement, methods_available,
                    effective_weights, notes, coverage and every component's
-                   post-freeze notes. Divergences are classified mechanically;
-                   only the pre-era classes pinned in LEDGER (with a max date and
-                   an exact count) are tolerated. Anything else FAILS.
+                   post-freeze notes. Divergences are classified mechanically
+                   (pre-era classes only, each bounded by PRE_ERA_MAX_DATE);
+                   an UNEXPLAINED divergence FAILS outright.
   C-2a PERSISTENCE (exact) real check_persistence over a temp dir holding the
                    prior days' records AS THEY WERE COMMITTED BEFORE that run.
                    Where the public history lacks a prior day, or holds a
                    different version than the runner saw locally, the row is
-                   typed (UNCOMMITTED_PRIOR_DAY / LOCAL_HISTORY_NE_COMMITTED)
-                   and its count pinned in LEDGER -- those are findings about
-                   the public history, not about the counting rule.
+                   typed (UNCOMMITTED_PRIOR_DAY / LOCAL_HISTORY_NE_COMMITTED):
+                   findings about the public history, not the counting rule.
   C-2b PERSISTENCE (self-consistent) real check_persistence over the record's
                    OWN tier_history must reproduce consecutive_days /
                    is_confirmed / tier_history for EVERY row. No tolerance.
@@ -43,26 +46,37 @@ LOCKS (typed, PASS/FAIL, exit 1 on any FAIL):
                    region/component key present in the record round-trips.
   C-4 DATA.CSV     rows dated on/after the append-only era must equal the
                    EARLIEST committed record for their (date, region) with the
-                   writer's own f-strings (the writer skips regions already
-                   present for a date, so a re-score never rewrites a row).
-                   Pre-era rows and rows with no committed record are typed
-                   and their counts pinned.
+                   writer's own f-strings. Rows that match NO committed version
+                   are CSV_RECORD_DISAGREEMENT (a finding). Pre-era rows and
+                   rows with no committed record are typed.
   C-5 APPEND-ONLY  from APPEND_ONLY_SINCE forward, every older docs/data.csv
                    content is a line-prefix of every newer one. The pre-era
                    rewrites (there were 22) are pinned as an exact list.
-  C-6 LEDGER       every pinned class count and max date matches exactly. A
-                   new divergence OR a vanished one fails.
+  C-6 LEDGER       EXACT-SET lock. Every typed exception of C-0/C-1/C-2a/C-4 is
+                   an identity: (lock, class, date, region, FULL source commit
+                   or CSV line) + a digest of its classified content (the diff
+                   text, or the actual+expected rows). The full set lives in the
+                   sidecar LEDGER_FILE whose sha256 is pinned here
+                   (LEDGER_SHA256). The measured set must EQUAL the frozen set;
+                   any added, removed, moved, reclassified or content-changed
+                   exception FAILS and the set difference is printed. Count and
+                   max-date per class are still printed, as information only.
 
 NOT LOCKED: fetch, envelope, correlation, THD, Lambda_geo computation,
 capsule admission, dashboard HTML, scored-day selection. Authorizes nothing.
 
 --selftest plants source-level mutations into TEMP COPIES of the audited
 modules (never the tree) and proves each lock goes RED for exactly the
-region-days an independent scan of the corpus predicts, plus a no-op
-mutation that must stay CLEAN and a data.csv edit named by line.
+region-days an independent scan of the corpus predicts; a no-op mutation
+must stay CLEAN; a same-count/same-max-date swap of two CSV exceptions
+(codex's line-3962/3970 substitution) must go RED under the exact-set
+ledger while the old count+max summary would have accepted it; making a
+parseable blob unparseable must go RED, and a swap that preserves the
+exclusion count must go RED.
 
 Usage (from monitoring/src):
-  python test_daily_tier_corpus_redkats_grassmann.py --repo <root> [--commit <rev>] [--selftest]
+  python test_daily_tier_corpus_redkats_grassmann.py --repo <root> [--commit <rev>]
+      [--selftest] [--dump-ledger] [--write-ledger <path>]
 """
 import argparse
 import csv
@@ -95,29 +109,20 @@ CSV_HEADER = ["date", "region", "tier", "risk", "confidence", "methods", "agreem
 # history is append-only; every earlier rewrite is pinned below.
 APPEND_ONLY_SINCE = "81f704570e9d5381ff79424dd0f477330582cd2f"
 APPEND_ONLY_SINCE_DATE = "2026-06-10"
-
-# Frozen ledger: (lock, class) -> (exact count, max scored date). Measured at
-# public 94968394; every entry was inspected before it was pinned.
-LEDGER: Dict[Tuple[str, str], Tuple[int, str]] = {
-    # C-1: January-2026 records predate the DEGRADED tier, the three-component
-    # record shape and the current combine formula.
-    ("C-1", "PRE_ERA_NO_DEGRADED_TIER"): (9, "2026-01-10"),
-    ("C-1", "PRE_ERA_LAMBDA_ONLY_RECORD"): (6, "2026-01-10"),
-    # Jan-2026 combine multiplied an all_elevated row by exactly 1.1 (measured ratio); gone since.
-    ("C-1", "PRE_ERA_ALL_ELEVATED_BOOST_1P1"): (9, "2026-01-21"),
-    # C-2a: the runner reads prior days from its LOCAL results dir; the public
-    # history is missing some of those days or holds a different version.
-    ("C-2a", "UNCOMMITTED_PRIOR_DAY"): (179, "2026-08-10"),
-    ("C-2a", "LOCAL_HISTORY_NE_COMMITTED"): (242, "2026-06-08"),
-    # C-4: rows before the append-only era / rows predating the record corpus.
-    ("C-4", "NO_COMMITTED_RECORD"): (1304, "2026-08-07"),
-    ("C-4", "PRE_ERA_ROW_MISMATCH"): (182, "2026-05-01"),
-    ("C-4", "PRE_ERA_LATER_VERSION"): (45, "2026-05-01"),
-    # append-only era rows that match NO committed record for their (date, region): a disagreement
-    # between docs/data.csv and the current-output layer. FINDING, pinned; growth fails.
-    ("C-4", "CSV_RECORD_DISAGREEMENT"): (39, "2026-08-08"),
-}
 PRE_ERA_MAX_DATE = "2026-01-21"   # last scored day on which a C-1 pre-era class may occur
+
+# Frozen exclusion set: commits whose docs/ensemble_latest.json blob is not a
+# record. Both are ZERO-BYTE files committed by "Daily monitoring" runs
+# (2026-03-22 and 2026-06-07) -- the publish-stall mechanism cayley measured
+# 2026-09-01T22:53Z. Full commit sha -> sha256 of the blob (empty file).
+UNPARSEABLE_EXCLUSIONS: Dict[str, str] = {
+    "83fee4ec07b8290152d02d328d65c708f4a20381": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",  # Daily monitoring 2026-03-22, 0 B
+    "d48c4786008f36ada5feebf771dc4277a97c20eb": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",  # Daily monitoring 2026-06-07, 0 B
+}
+
+# Exact exception ledger: sidecar JSON (sorted list of identity dicts), sha256 pinned.
+LEDGER_FILE = "daily_tier_corpus_ledger_grassmann.json"
+LEDGER_SHA256 = "12f7286de439fc031e0cb21365f47b5f7dc7a46b16b4a388609e8ca5cdbf9bc2"   # 2,017 identities @ public 94968394
 
 # The 22 pre-era docs/data.csv rewrites, (older commit, newer commit), pinned.
 PRE_ERA_CSV_REWRITES: Tuple[Tuple[str, str], ...] = (
@@ -163,6 +168,14 @@ def _note(name: str, detail: str):
     print(f"    [NOTE] {name} -- {detail}")
 
 
+def _sha(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+
+def _d16(text: str) -> str:
+    return _sha(text.encode("utf-8"))[:16]
+
+
 # --------------------------------------------------------------------------- git
 def _git(repo: str, args: List[str], binary: bool = False):
     r = subprocess.run(["git", "-C", repo] + args, capture_output=True)
@@ -176,33 +189,35 @@ def _blob(repo: str, rev: str, path: str) -> bytes:
 
 
 def _lf_sha(data: bytes) -> str:
-    return hashlib.sha256(data.replace(b"\r\n", b"\n")).hexdigest()
+    return _sha(data.replace(b"\r\n", b"\n"))
 
 
 # --------------------------------------------------------------------------- corpus
 class Corpus:
     """Every committed record in the ancestry of `commit`, newest first."""
 
-    def __init__(self, repo: str, commit: str):
+    def __init__(self, repo: str, commit: str, blob_reader=None):
         self.repo = repo
         self.commit = commit
+        read = blob_reader or (lambda c: _blob(repo, c, RECORD_PATH))
         self.commits: List[str] = _git(repo, ["rev-list", commit, "--", RECORD_PATH]).split()
-        self.records: List[Tuple[int, str, dict]] = []   # (index newest=0, commit, record)
-        self.unparseable: List[str] = []
+        self.records: List[Tuple[int, str, dict]] = []   # (index newest=0, FULL commit, record)
+        self.unparseable: Dict[str, str] = {}             # full commit -> blob sha256
         for i, c in enumerate(self.commits):
-            raw = _blob(repo, c, RECORD_PATH)
+            raw = read(c)
             try:
                 d = json.loads(raw)
             except Exception:
-                self.unparseable.append(c)
+                self.unparseable[c] = _sha(raw)
                 continue
             if not isinstance(d, dict) or "regions" not in d or "date" not in d:
-                self.unparseable.append(c)
+                self.unparseable[c] = _sha(raw)
                 continue
             self.records.append((i, c, d))
         self.by_date: Dict[str, List[Tuple[int, str, dict]]] = {}
         for i, c, d in self.records:
             self.by_date.setdefault(d["date"], []).append((i, c, d))
+        self.by_commit: Dict[str, dict] = {c: d for _, c, d in self.records}
 
     def version_before(self, date: str, index: int) -> Optional[dict]:
         """Most recent committed record for `date` OLDER than commit `index` (None if none)."""
@@ -280,7 +295,7 @@ def _feq(a, b) -> bool:
 
 
 def _diff_fields(got: dict, exp: dict, keys) -> List[str]:
-    """Field diffs restricted to keys PRESENT in the expected (committed) record."""
+    """Field diffs restricted to keys PRESENT in the expected (committed) record; recursive on dicts."""
     out = []
     for k in keys:
         if k not in exp:
@@ -295,7 +310,7 @@ def _diff_fields(got: dict, exp: dict, keys) -> List[str]:
     return out
 
 
-Key = Tuple[str, str, str]   # (scored date, region, commit[:10])
+Key = Tuple[str, str, str]   # (scored date, region, FULL source commit)
 
 
 def _region_result(ens_mod, region: str, rv: dict):
@@ -319,7 +334,7 @@ def lock_c1_combine(corpus: Corpus, ens_mod) -> Dict[Key, List[str]]:
     try:
         for _, c, rec in corpus.records:
             for region, rv in rec["regions"].items():
-                key = (rec["date"], region, c[:10])
+                key = (rec["date"], region, c)
                 comps = rv.get("components", {})
                 mr = {k: _method_result(ens_mod, v) for k, v in comps.items()}
                 if set(mr) != {"lambda_geo", "fault_correlation", "seismic_thd"}:
@@ -384,7 +399,7 @@ def _persistence_replay(red_mod, ens_mod, td: str, rec: dict, prior: Dict[str, O
 
 
 def lock_c2a_persistence_exact(corpus: Corpus, ens_mod, red_mod) -> Dict[Key, Tuple[str, List[str]]]:
-    """Returns {key: (class, diffs)}; class in EXACT-mismatch classes or UNEXPLAINED."""
+    """Returns {key: (class, diffs)}; class is a typed public-history class or UNEXPLAINED."""
     out: Dict[Key, Tuple[str, List[str]]] = {}
     with tempfile.TemporaryDirectory(prefix="corpus-persist-") as td:
         for idx, c, rec in corpus.records:
@@ -411,7 +426,7 @@ def lock_c2a_persistence_exact(corpus: Corpus, ens_mod, red_mod) -> Dict[Key, Tu
                     cls = "LOCAL_HISTORY_NE_COMMITTED"
                 else:
                     cls = "UNEXPLAINED"
-                out[(rec["date"], region, c[:10])] = (cls, diffs)
+                out[(rec["date"], region, c)] = (cls, diffs)
     return out
 
 
@@ -424,14 +439,12 @@ def lock_c2b_persistence_self(corpus: Corpus, ens_mod, red_mod) -> Dict[Key, Lis
             if not rows:
                 continue
             target = datetime.fromisoformat(next(iter(rec["regions"].values()))["date"])
-            # synthesize the prior-day files from each region's own tier_history[:-1] (oldest first)
             prior: Dict[str, dict] = {}
             for region, rv in rows.items():
                 hist = rv["persistence"]["tier_history"]
                 n_prior = len(hist) - 1
                 for k, t in enumerate(hist[:-1]):
-                    back = n_prior - k
-                    dstr = (target - timedelta(days=back)).strftime("%Y-%m-%d")
+                    dstr = (target - timedelta(days=n_prior - k)).strftime("%Y-%m-%d")
                     if t is None:
                         continue
                     prior.setdefault(dstr, {"regions": {}})["regions"][region] = {"tier": t}
@@ -440,7 +453,7 @@ def lock_c2b_persistence_self(corpus: Corpus, ens_mod, red_mod) -> Dict[Key, Lis
                 diffs = _diff_fields(got[region], rv["persistence"],
                                      ("current_tier", "consecutive_days", "is_confirmed", "tier_history"))
                 if diffs:
-                    divergent[(rec["date"], region, c[:10])] = diffs
+                    divergent[(rec["date"], region, c)] = diffs
     return divergent
 
 
@@ -461,7 +474,7 @@ def lock_c3_summary(corpus: Corpus, ens_mod, red_mod) -> Dict[Key, List[str]]:
             diffs = _diff_fields({"summary": written.get("summary", {})}, {"summary": rec.get("summary", {})},
                                  ("summary",))
             if diffs:
-                divergent[(rec["date"], "<summary>", c[:10])] = diffs
+                divergent[(rec["date"], "<summary>", c)] = diffs
             for region, rv in rec["regions"].items():
                 wr = written["regions"][region]
                 d2 = _diff_fields(wr, rv, ("combined_risk", "tier", "tier_name", "confidence",
@@ -471,7 +484,7 @@ def lock_c3_summary(corpus: Corpus, ens_mod, red_mod) -> Dict[Key, List[str]]:
                     d2 += [f"components.{cn}.{d}" for d in
                            _diff_fields(wr["components"][cn], cv, tuple(cv.keys()))]
                 if d2:
-                    divergent[(rec["date"], region, c[:10])] = d2
+                    divergent[(rec["date"], region, c)] = d2
     return divergent
 
 
@@ -481,16 +494,13 @@ def _csv_row_for(rv: dict, date: str, region: str) -> List[str]:
             f"{rv['confidence']:.2f}", str(rv["methods_available"]), rv["agreement"] or ""]
 
 
-def lock_c4_data_csv(corpus: Corpus, csv_text: str) -> Tuple[List[str], Dict[str, Tuple[int, str]], int]:
-    """Returns (hard problems, {class: (count, max date)}, n rows)."""
+def lock_c4_data_csv(corpus: Corpus, csv_text: str) -> Tuple[List[str], List[dict], int]:
+    """Returns (hard problems, typed entries [{cls, line, date, region, actual, expected}], n rows)."""
     rows = list(csv.reader(io.StringIO(csv_text)))
     problems: List[str] = []
-    classes: Dict[str, List[str]] = {"NO_COMMITTED_RECORD": [], "PRE_ERA_ROW_MISMATCH": [],
-                                     "PRE_ERA_LATER_VERSION": [], "CSV_RECORD_DISAGREEMENT": []}
-    lines_by_class: Dict[str, List[str]] = {k: [] for k in classes}
-    lock_c4_data_csv.last_lines = lines_by_class
+    entries: List[dict] = []
     if not rows or rows[0] != CSV_HEADER:
-        return [f"header: {rows[:1]!r}"], {k: (0, "") for k in classes}, 0
+        return [f"header: {rows[:1]!r}"], entries, 0
     seen = set()
     for n, row in enumerate(rows[1:], start=2):
         if len(row) != 7:
@@ -502,7 +512,8 @@ def lock_c4_data_csv(corpus: Corpus, csv_text: str) -> Tuple[List[str], Dict[str
         seen.add((date, region))
         earliest = corpus.earliest(date)
         if earliest is None or region not in earliest["regions"]:
-            classes["NO_COMMITTED_RECORD"].append(date)
+            entries.append({"cls": "NO_COMMITTED_RECORD", "line": n, "date": date, "region": region,
+                            "actual": ",".join(row), "expected": ""})
             continue
         exp = _csv_row_for(earliest["regions"][region], date, region)
         if row == exp:
@@ -511,14 +522,13 @@ def lock_c4_data_csv(corpus: Corpus, csv_text: str) -> Tuple[List[str], Dict[str
                 for v in corpus.versions(date) if region in v["regions"]]
         if date >= APPEND_ONLY_SINCE_DATE:
             # append-only era: the row must be the earliest committed record; a row matching NO
-            # committed version is a public-history / current-output disagreement (pinned finding)
+            # committed version is a public-history / current-output disagreement (a finding)
             cls = "PRE_ERA_LATER_VERSION" if row in alts else "CSV_RECORD_DISAGREEMENT"
         else:
             cls = "PRE_ERA_LATER_VERSION" if row in alts else "PRE_ERA_ROW_MISMATCH"
-        classes[cls].append(date)
-        lines_by_class[cls].append(f"line {n}: {date} {region}: row {row[2:]} vs earliest {exp[2:]}")
-    summary = {k: (len(v), max(v) if v else "") for k, v in classes.items()}
-    return problems, summary, len(rows) - 1
+        entries.append({"cls": cls, "line": n, "date": date, "region": region,
+                        "actual": ",".join(row), "expected": ",".join(exp)})
+    return problems, entries, len(rows) - 1
 
 
 # --------------------------------------------------------------------------- C-5
@@ -555,9 +565,47 @@ def lock_c5_append_only(repo: str, commit: str):
     return pre, post, len(commits) - anchor
 
 
+# --------------------------------------------------------------------------- exception set (C-6)
+def exception_set(res: dict) -> List[dict]:
+    """Every typed exception as an identity dict. Sorted, canonical; this is what the ledger freezes."""
+    corpus: Corpus = res["corpus"]
+    out: List[dict] = []
+    for c, dg in corpus.unparseable.items():
+        out.append({"lock": "C-0", "cls": "UNPARSEABLE_RECORD", "commit": c, "digest": dg[:16]})
+    for (d, r, c), diffs in res["c1"].items():
+        cls = classify_c1((d, r, c), diffs, corpus.by_commit[c]["regions"][r])
+        out.append({"lock": "C-1", "cls": cls, "date": d, "region": r, "commit": c,
+                    "digest": _d16("\n".join(diffs))})
+    for (d, r, c), (cls, diffs) in res["c2a"].items():
+        out.append({"lock": "C-2a", "cls": cls, "date": d, "region": r, "commit": c,
+                    "digest": _d16("\n".join(diffs))})
+    for e in res["c4entries"]:
+        out.append({"lock": "C-4", "cls": e["cls"], "date": e["date"], "region": e["region"],
+                    "line": e["line"], "digest": _d16(e["actual"] + "|" + e["expected"])})
+    return sorted(out, key=lambda e: json.dumps(e, sort_keys=True))
+
+
+def _identity(e: dict) -> str:
+    return json.dumps(e, sort_keys=True)
+
+
+def load_ledger() -> Tuple[List[dict], str]:
+    path = os.path.join(HERE, LEDGER_FILE)
+    with open(path, "rb") as f:
+        raw = f.read()
+    return json.loads(raw.replace(b"\r\n", b"\n")), _lf_sha(raw)
+
+
+def class_summary(entries: List[dict]) -> Dict[Tuple[str, str], Tuple[int, str]]:
+    by: Dict[Tuple[str, str], List[str]] = {}
+    for e in entries:
+        by.setdefault((e["lock"], e["cls"]), []).append(e.get("date", ""))
+    return {k: (len(v), max(v)) for k, v in by.items()}
+
+
 # --------------------------------------------------------------------------- bar
 def run_bar(repo: str, commit: str, ens_mod=None, red_mod=None, quiet: bool = False,
-            csv_override: Optional[str] = None) -> dict:
+            csv_override: Optional[str] = None, blob_reader=None) -> dict:
     full = _git(repo, ["rev-parse", f"{commit}^{{commit}}"])
     for rel in AUDITED:
         blob_sha = _lf_sha(_blob(repo, full, rel))
@@ -570,66 +618,69 @@ def run_bar(repo: str, commit: str, ens_mod=None, red_mod=None, quiet: bool = Fa
         import ensemble as ens_mod  # noqa
     if red_mod is None:
         import run_ensemble_daily as red_mod  # noqa
-    corpus = Corpus(repo, full)
+    corpus = Corpus(repo, full, blob_reader=blob_reader)
     n_rd = sum(len(r["regions"]) for _, _, r in corpus.records)
     if not quiet:
         print(f"  corpus @ {full[:12]}: {len(corpus.commits)} commits, {len(corpus.records)} records, "
               f"{n_rd} region-days, {len(corpus.by_date)} dates, "
               f"{sum(1 for v in corpus.by_date.values() if len(v) > 1)} dates with >1 version, "
-              f"{len(corpus.unparseable)} unparseable")
+              f"{len(corpus.unparseable)} unparseable (frozen exclusion set)")
     c1 = lock_c1_combine(corpus, ens_mod)
     c2a = lock_c2a_persistence_exact(corpus, ens_mod, red_mod)
     c2b = lock_c2b_persistence_self(corpus, ens_mod, red_mod)
     c3 = lock_c3_summary(corpus, ens_mod, red_mod)
     csv_text = csv_override if csv_override is not None else _blob(repo, full, CSV_PATH).decode("utf-8")
-    c4, c4cls, n_rows = lock_c4_data_csv(corpus, csv_text)
-    c4lines = lock_c4_data_csv.last_lines
+    c4, c4entries, n_rows = lock_c4_data_csv(corpus, csv_text)
     c5pre, c5post, n_post = lock_c5_append_only(repo, full)
-    return {"commit": full, "corpus": corpus, "n_region_days": n_rd, "c1": c1, "c2a": c2a, "c2b": c2b,
-            "c3": c3, "c4": c4, "c4cls": c4cls, "c4lines": c4lines, "n_rows": n_rows,
-            "c5pre": c5pre, "c5post": c5post, "n_post": n_post}
-
-
-def _by_class(items: Dict[Key, str]) -> Dict[str, Tuple[int, str]]:
-    out: Dict[str, List[str]] = {}
-    for (d, _, _), cls in items.items():
-        out.setdefault(cls, []).append(d)
-    return {k: (len(v), max(v)) for k, v in out.items()}
+    res = {"commit": full, "corpus": corpus, "n_region_days": n_rd, "c1": c1, "c2a": c2a, "c2b": c2b,
+           "c3": c3, "c4": c4, "c4entries": c4entries, "n_rows": n_rows,
+           "c5pre": c5pre, "c5post": c5post, "n_post": n_post}
+    res["exceptions"] = exception_set(res)
+    return res
 
 
 def report(res: dict) -> None:
-    corpus = res["corpus"]
-    _ok("C-0 BINDING", f"{res['commit'][:12]}: audited modules byte-bound; "
-                       f"{len(corpus.records)} records / {res['n_region_days']} region-days")
-    if corpus.unparseable:
-        _note("C-0", f"{len(corpus.unparseable)} UNPARSEABLE_RECORD blob(s) "
-                     f"{[c[:10] for c in corpus.unparseable]} excluded from replay (typed)")
-    measured: Dict[Tuple[str, str], Tuple[int, str]] = {}
+    corpus: Corpus = res["corpus"]
+    exc = res["exceptions"]
+    summ = class_summary(exc)
+
+    # C-0: binding + frozen exclusion set
+    measured_excl = dict(corpus.unparseable)
+    excl_diff = []
+    for c, dg in measured_excl.items():
+        if c not in UNPARSEABLE_EXCLUSIONS:
+            excl_diff.append(f"ADDED {c[:12]} blob {dg[:12]}")
+        elif UNPARSEABLE_EXCLUSIONS[c] != dg:
+            excl_diff.append(f"CHANGED {c[:12]} blob {dg[:12]} != pinned {UNPARSEABLE_EXCLUSIONS[c][:12]}")
+    for c in UNPARSEABLE_EXCLUSIONS:
+        if c not in measured_excl:
+            excl_diff.append(f"REMOVED {c[:12]} (now parseable or absent)")
+    cov = f"{len(corpus.records)} of {len(corpus.commits)} commits replayed / {res['n_region_days']} region-days"
+    if excl_diff:
+        _fail("C-0 BINDING", f"frozen exclusion set changed: {excl_diff[:4]}")
+    else:
+        _ok("C-0 BINDING", f"{res['commit'][:12]}: audited modules byte-bound; {cov}; "
+                           f"exclusion set = {len(UNPARSEABLE_EXCLUSIONS)} pinned zero-byte blob(s) "
+                           f"{[c[:10] for c in UNPARSEABLE_EXCLUSIONS]}, exact")
 
     # C-1
-    c1cls = {}
-    for key, diffs in res["c1"].items():
-        rv = next(rec for _, c, rec in corpus.records if c.startswith(key[2]))["regions"][key[1]]
-        c1cls[key] = classify_c1(key, diffs, rv)
-    unexplained = [(k, res["c1"][k][0]) for k, cls in c1cls.items() if cls == "UNEXPLAINED"]
-    for cls, cnt in _by_class(c1cls).items():
-        measured[("C-1", cls)] = cnt
+    unexplained = [e for e in exc if e["lock"] == "C-1" and e["cls"] == "UNEXPLAINED"]
     if unexplained:
+        e = unexplained[0]
         _fail("C-1 COMBINE", f"{len(unexplained)} UNEXPLAINED divergent region-day(s): "
-                             + "; ".join(f"{k[0]} {k[1]} @{k[2]}: {d}" for k, d in unexplained[:5]))
+                             f"{e['date']} {e['region']} @{e['commit'][:10]}: "
+                             f"{res['c1'][(e['date'], e['region'], e['commit'])][0]}")
     else:
         _ok("C-1 COMBINE", f"{res['n_region_days'] - len(res['c1'])} region-days reproduce; "
-                           f"{len(res['c1'])} pre-era ledgered")
+                           f"{len(res['c1'])} pre-era typed")
 
     # C-2a
-    c2acls = {k: v[0] for k, v in res["c2a"].items()}
-    unexplained = [(k, res["c2a"][k][1][0]) for k, cls in c2acls.items() if cls == "UNEXPLAINED"]
-    for cls, cnt in _by_class(c2acls).items():
-        measured[("C-2a", cls)] = cnt
     n_pers = sum(1 for _, _, r in corpus.records for rv in r["regions"].values() if "persistence" in rv)
+    unexplained = [e for e in exc if e["lock"] == "C-2a" and e["cls"] == "UNEXPLAINED"]
     if unexplained:
-        _fail("C-2a PERSISTENCE-EXACT", f"{len(unexplained)} UNEXPLAINED: "
-                                       + "; ".join(f"{k[0]} {k[1]} @{k[2]}: {d}" for k, d in unexplained[:5]))
+        e = unexplained[0]
+        _fail("C-2a PERSISTENCE-EXACT", f"{len(unexplained)} UNEXPLAINED: {e['date']} {e['region']} "
+                                       f"@{e['commit'][:10]}: {res['c2a'][(e['date'], e['region'], e['commit'])][1][0]}")
     else:
         _ok("C-2a PERSISTENCE-EXACT", f"{n_pers - len(res['c2a'])} of {n_pers} rows reproduce from the "
                                       f"committed history; {len(res['c2a'])} typed (public history incomplete)")
@@ -638,7 +689,7 @@ def report(res: dict) -> None:
     if res["c2b"]:
         k, d = next(iter(res["c2b"].items()))
         _fail("C-2b PERSISTENCE-SELF", f"{len(res['c2b'])} row(s) violate the counting rule on their own "
-                                      f"history: {k[0]} {k[1]} @{k[2]}: {d[0]}")
+                                      f"history: {k[0]} {k[1]} @{k[2][:10]}: {d[0]}")
     else:
         _ok("C-2b PERSISTENCE-SELF", f"{n_pers} rows: own tier_history -> consecutive_days/is_confirmed "
                                      f"reproduce under the real rule")
@@ -646,20 +697,18 @@ def report(res: dict) -> None:
     # C-3
     if res["c3"]:
         k, d = next(iter(res["c3"].items()))
-        _fail("C-3 SUMMARY", f"{len(res['c3'])} record(s): {k[0]} {k[1]} @{k[2]}: {d[0]}")
+        _fail("C-3 SUMMARY", f"{len(res['c3'])} record(s): {k[0]} {k[1]} @{k[2][:10]}: {d[0]}")
     else:
         _ok("C-3 SUMMARY", f"{len(corpus.records)} records: summary + region/component round-trip")
 
     # C-4
-    for cls, cnt in res["c4cls"].items():
-        measured[("C-4", cls)] = cnt
     if res["c4"]:
-        _fail("C-4 DATA.CSV", f"{len(res['c4'])} problem(s): {res['c4'][:4]}")
+        _fail("C-4 DATA.CSV", f"{len(res['c4'])} structural problem(s): {res['c4'][:4]}")
     else:
-        n_typed = sum(c for c, _ in res["c4cls"].values())
-        dis = res["c4cls"].get("CSV_RECORD_DISAGREEMENT", (0, ""))
+        n_typed = len(res["c4entries"])
+        dis = summ.get(("C-4", "CSV_RECORD_DISAGREEMENT"), (0, ""))
         _ok("C-4 DATA.CSV", f"{res['n_rows'] - n_typed} rows == earliest committed record (writer format); "
-                            f"{n_typed} typed incl. {dis[0]} CSV_RECORD_DISAGREEMENT (pinned finding)")
+                            f"{n_typed} typed incl. {dis[0]} CSV_RECORD_DISAGREEMENT (finding, exact-set pinned)")
 
     # C-5
     if res["c5post"]:
@@ -674,19 +723,26 @@ def report(res: dict) -> None:
                                f"({APPEND_ONLY_SINCE_DATE}), every older content a prefix; "
                                f"{len(res['c5pre'])} pre-era rewrites pinned")
 
-    # C-6
-    problems = []
-    for k, (cnt, mx) in LEDGER.items():
-        m = measured.get(k, (0, ""))
-        if m != (cnt, mx):
-            problems.append(f"{k}: measured {m} pinned {(cnt, mx)}")
-    for k, m in measured.items():
-        if k not in LEDGER and m[0]:
-            problems.append(f"{k}: measured {m} NOT PINNED")
-    if problems:
-        _fail("C-6 LEDGER", "; ".join(problems[:6]))
+    # C-6: exact-set ledger
+    for (lock, cls), (n, mx) in sorted(summ.items()):
+        print(f"           {lock} {cls}: {n} (max scored date {mx or '-'})")
+    try:
+        frozen, sha = load_ledger()
+    except FileNotFoundError:
+        _fail("C-6 LEDGER", f"sidecar {LEDGER_FILE} missing")
+        return
+    if sha != LEDGER_SHA256:
+        _fail("C-6 LEDGER", f"sidecar sha256 {sha[:16]} != pinned {LEDGER_SHA256[:16]}")
+        return
+    fro = {_identity(e) for e in frozen}
+    mea = {_identity(e) for e in exc}
+    added, removed = sorted(mea - fro), sorted(fro - mea)
+    if added or removed:
+        _fail("C-6 LEDGER", f"exception set differs from frozen: +{len(added)} -{len(removed)}; "
+                            f"added {added[:3]}; removed {removed[:3]}")
     else:
-        _ok("C-6 LEDGER", f"{len(LEDGER)} pinned classes match exactly (count + max date)")
+        _ok("C-6 LEDGER", f"{len(fro)} frozen exception identities == measured set exactly "
+                          f"(sidecar {LEDGER_FILE} sha {sha[:12]})")
 
 
 # --------------------------------------------------------------------------- selftest
@@ -717,7 +773,7 @@ def selftest(repo: str, commit: str) -> int:
                         f"exp-got {sorted(exp - got)[:3]}")
 
     def rows(pred):
-        return {(rec["date"], r, c[:10]) for _, c, rec in corpus.records
+        return {(rec["date"], r, c) for _, c, rec in corpus.records
                 for r, rv in rec["regions"].items() if pred(rv)}
 
     with tempfile.TemporaryDirectory(prefix="corpus-selftest-") as td:
@@ -728,11 +784,9 @@ def selftest(repo: str, commit: str) -> int:
         exp = rows(lambda rv: 0.25 <= rv["combined_risk"] < 0.30 and rv["tier"] == 1) | set(base["c1"])
         check("M-A WATCH floor 0.25->0.30 names exactly the band", got, exp)
 
-        # M-B: MIN_METHODS_FOR_OPERATIONAL 1 -> 2. RED exactly on every single-method row.
+        # M-B: MIN_METHODS_FOR_OPERATIONAL 1 -> 2. RED exactly on every <=1-method row.
         m = _mutate(ens_src, "MIN_METHODS_FOR_OPERATIONAL = 1", "MIN_METHODS_FOR_OPERATIONAL = 2")
         got = set(lock_c1_combine(corpus, _load_module_from_source("ensemble", m, td)))
-        # single-method rows flip to DEGRADED; zero-method rows keep tier -1 but their DEGRADED note
-        # text ("need >=N") changes, so they flip too
         exp = rows(lambda rv: rv.get("methods_available", 0) <= 1) | set(base["c1"])
         check("M-B MIN_METHODS 1->2 names exactly the <=1-method rows", got, exp)
 
@@ -748,18 +802,17 @@ def selftest(repo: str, commit: str) -> int:
         got = set(lock_c1_combine(corpus, _load_module_from_source("ensemble", ens_src + "\n# no-op\n", td)))
         check("M-D no-op mutation stays clean", got, set(base["c1"]))
 
-        # M-E: one post-era data.csv row's tier flipped in memory -> C-4 names exactly that line.
+        # M-E: one append-era data.csv row's tier flipped in memory -> exactly one new C-4 identity.
         csv_text = _blob(repo, base["commit"], CSV_PATH).decode("utf-8")
         lines = csv_text.split("\n")
         k = next(i for i in range(len(lines) - 1, 0, -1) if lines[i].startswith(APPEND_ONLY_SINCE_DATE[:7]))
         cells = lines[k].split(",")
         cells[2] = "3" if cells[2] != "3" else "0"
         lines[k] = ",".join(cells)
-        lock_c4_data_csv(corpus, "\n".join(lines))
-        named = {p.split(":")[0] for p in lock_c4_data_csv.last_lines["CSV_RECORD_DISAGREEMENT"]}
-        base_named = {p.split(":")[0] for p in base["c4lines"]["CSV_RECORD_DISAGREEMENT"]}
-        check("M-E data.csv row edit -> CSV_RECORD_DISAGREEMENT names exactly that line", named,
-              base_named | {f"line {k + 1}"})
+        _, ents, _ = lock_c4_data_csv(corpus, "\n".join(lines))
+        got = {(e["cls"], e["line"]) for e in ents}
+        exp = {(e["cls"], e["line"]) for e in base["c4entries"]} | {("CSV_RECORD_DISAGREEMENT", k + 1)}
+        check("M-E data.csv row edit -> one new CSV_RECORD_DISAGREEMENT identity at that line", got, exp)
 
         # M-F: the real append-only comparator on a synthetic history with one edited line + one shrink.
         seq = [("c1", b"h\na\n"), ("c2", b"h\na\nb\n"), ("c3", b"h\nX\nb\n"), ("c4", b"h\nX\n")]
@@ -769,6 +822,54 @@ def selftest(repo: str, commit: str) -> int:
         else:
             fails += 1
             _fail("M-F append-only comparator", f"{v}")
+
+        # M-G (codex 2303Z #1): same-count / same-max-date SWAP of two CSV exceptions. Repair one
+        # existing CSV_RECORD_DISAGREEMENT row to its earliest committed record and break one
+        # previously-matching row on the SAME date. The (count, max date) summary is unchanged --
+        # the old ledger would have accepted it -- but the exact identity set must differ.
+        dis = [e for e in base["c4entries"] if e["cls"] == "CSV_RECORD_DISAGREEMENT"]
+        target = dis[-1]
+        lines = csv_text.split("\n")
+        lines[target["line"] - 1] = target["expected"]                       # repair
+        victim = next(i for i in range(1, len(lines)) if lines[i].startswith(target["date"] + ",")
+                      and (i + 1) not in {e["line"] for e in dis})
+        vc = lines[victim].split(","); vc[3] = "0.9999"; lines[victim] = ",".join(vc)   # break
+        _, ents, _ = lock_c4_data_csv(corpus, "\n".join(lines))
+        swapped = {"corpus": corpus, "c1": base["c1"], "c2a": base["c2a"], "c4entries": ents}
+        swapped_exc = exception_set(swapped)
+        same_summary = class_summary(swapped_exc) == class_summary(base["exceptions"])
+        set_differs = {_identity(e) for e in swapped_exc} != {_identity(e) for e in base["exceptions"]}
+        if same_summary and set_differs:
+            _ok("M-G same-count/same-max swap of CSV exceptions goes RED under the exact set",
+                f"summary unchanged ({len(dis)}, {target['date']}), identity set differs")
+        else:
+            fails += 1
+            _fail("M-G swap KAT", f"same_summary={same_summary} set_differs={set_differs}")
+
+        # M-H (codex 2303Z #2): (a) a parseable record blob made empty -> exclusion set gains one
+        # identity; (b) a swap that empties one parseable blob AND makes one excluded blob parseable
+        # preserves the exclusion COUNT but must still differ from the frozen set.
+        victim_c = corpus.records[5][1]
+        excluded_c = next(iter(corpus.unparseable))
+        good = json.dumps(corpus.records[5][2]).encode("utf-8")
+        real_read = lambda c: _blob(repo, c, RECORD_PATH)
+        ca = Corpus(repo, base["commit"], blob_reader=lambda c: b"" if c == victim_c else real_read(c))
+        cb = Corpus(repo, base["commit"], blob_reader=lambda c: b"" if c == victim_c else
+                    (good if c == excluded_c else real_read(c)))
+        frozen_ids = {json.dumps({"lock": "C-0", "cls": "UNPARSEABLE_RECORD", "commit": c, "digest": d[:16]},
+                                 sort_keys=True) for c, d in UNPARSEABLE_EXCLUSIONS.items()}
+        ids_a = {json.dumps({"lock": "C-0", "cls": "UNPARSEABLE_RECORD", "commit": c, "digest": d[:16]},
+                            sort_keys=True) for c, d in ca.unparseable.items()}
+        ids_b = {json.dumps({"lock": "C-0", "cls": "UNPARSEABLE_RECORD", "commit": c, "digest": d[:16]},
+                            sort_keys=True) for c, d in cb.unparseable.items()}
+        ok_a = len(ca.unparseable) == len(UNPARSEABLE_EXCLUSIONS) + 1 and ids_a != frozen_ids
+        ok_b = len(cb.unparseable) == len(UNPARSEABLE_EXCLUSIONS) and ids_b != frozen_ids
+        if ok_a and ok_b:
+            _ok("M-H unparseable-blob KATs: added exclusion RED; count-preserving swap RED",
+                f"{victim_c[:10]} emptied; {excluded_c[:10]} made parseable")
+        else:
+            fails += 1
+            _fail("M-H unparseable-blob KATs", f"added={ok_a} swap={ok_b}")
 
     print()
     print("DAILY-TIER-CORPUS SELFTEST: " + ("ALL PASS" if not fails else f"{fails} FAIL"))
@@ -781,7 +882,8 @@ def main(argv: List[str]) -> int:
     ap.add_argument("--repo", required=True)
     ap.add_argument("--commit", default="HEAD")
     ap.add_argument("--selftest", action="store_true")
-    ap.add_argument("--dump-ledger", action="store_true", help="print measured classes (for pinning)")
+    ap.add_argument("--dump-ledger", action="store_true", help="print the measured class summary + exclusions")
+    ap.add_argument("--write-ledger", default=None, help="write the measured exception set to this path")
     a = ap.parse_args(argv)
     logging.disable(logging.CRITICAL)
     repo = os.path.abspath(a.repo)
@@ -790,31 +892,24 @@ def main(argv: List[str]) -> int:
     except RuntimeError as e:
         print(f"CORPUS_REVISION_UNRESOLVABLE: {e}")
         return 2
-    print(f"DAILY-TIER-CORPUS red-KAT bar (grassmann) -- repo {repo} commit {a.commit}")
+    print(f"DAILY-TIER-CORPUS red-KAT bar (grassmann, REV 2) -- repo {repo} commit {a.commit}")
     if a.selftest:
         return selftest(repo, a.commit)
     res = run_bar(repo, a.commit)
+    if a.write_ledger:
+        with open(a.write_ledger, "w", encoding="utf-8", newline="\n") as f:
+            json.dump(res["exceptions"], f, indent=0, sort_keys=True)
+            f.write("\n")
+        with open(a.write_ledger, "rb") as f:
+            print(f"wrote {a.write_ledger}: {len(res['exceptions'])} identities, sha256 {_lf_sha(f.read())}")
+        return 0
     if a.dump_ledger:
-        corpus = res["corpus"]
-        c1cls = {}
-        for key, diffs in res["c1"].items():
-            rv = next(rec for _, c, rec in corpus.records if c.startswith(key[2]))["regions"][key[1]]
-            c1cls[key] = classify_c1(key, diffs, rv)
-        print("C-1", _by_class(c1cls))
-        for k, cls in c1cls.items():
-            if cls == "UNEXPLAINED":
-                print("   ", k, res["c1"][k][:2])
-        print("C-2a", _by_class({k: v[0] for k, v in res["c2a"].items()}))
-        for k, (cls, d) in res["c2a"].items():
-            if cls == "UNEXPLAINED":
-                print("   ", k, d[:2])
-        print("C-2b", len(res["c2b"]), list(res["c2b"].items())[:3])
-        print("C-3", len(res["c3"]), list(res["c3"].items())[:3])
-        print("C-4", res["c4cls"], res["c4"][:3])
-        for ln in res["c4lines"]["CSV_RECORD_DISAGREEMENT"]:
-            print("   ", ln[:150])
-        print("C-5 pre", res["c5pre"])
-        print("C-5 post", res["c5post"])
+        for k, v in sorted(class_summary(res["exceptions"]).items()):
+            print(k, v)
+        print("exclusions", {c: d for c, d in res["corpus"].unparseable.items()})
+        for e in res["exceptions"]:
+            if e["cls"] == "UNEXPLAINED":
+                print("   UNEXPLAINED", e)
         return 0
     report(res)
     print()

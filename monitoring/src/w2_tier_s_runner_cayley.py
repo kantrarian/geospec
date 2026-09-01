@@ -148,12 +148,18 @@ def require_live_execution(pre):
 
 
 def _pin_for(manifest, path):
+    matches = []
     for slot in manifest.get("slots", {}).values():
+        if slot.get("status") != "BOUND":
+            continue
         for pin in slot.get("pins", ()) or ():
             if isinstance(pin, dict) and pin.get("path") == path:
-                return pin
-    raise RunnerRefusal(
-        f"RUNNER_TIER_S_UNADMITTED: {path} is not a manifest pin")
+                matches.append(pin)
+    if len(matches) != 1:
+        raise RunnerRefusal(
+            f"RUNNER_TIER_S_UNADMITTED: {path} is not exactly one "
+            f"BOUND manifest pin (found {len(matches)})")
+    return matches[0]
 
 
 def fire_pre(repo, manifest_commit, grids_path, geometry_path,

@@ -155,15 +155,10 @@ def _require_bound_sources(repo, pre):
         pre["manifest_commit"],
         "docs/f2g_window2_execution/execution_manifest.json"
     ).decode("utf-8"))
-    runner_pin = None
-    for slot in man.get("slots", {}).values():
-        for pin in (slot.get("pins") or ()):
-            if isinstance(pin, dict) and \
-                    pin.get("path") == TSR.RUNNER_REL:
-                runner_pin = pin
-    if runner_pin is None:
-        _refuse(f"the runner {TSR.RUNNER_REL} is not a BOUND pin of "
-                "the manifest this pre binds")
+    try:
+        runner_pin = TSR._pin_for(man, TSR.RUNNER_REL)
+    except TSR.RunnerRefusal as e:
+        _refuse(str(e))
     checks.append((TSR.RUNNER_REL, runner_pin["blob_sha256"],
                    "runner"))
     for rel, want, label in checks:

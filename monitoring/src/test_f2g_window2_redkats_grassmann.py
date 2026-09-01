@@ -2839,10 +2839,18 @@ def w_selrun():
                   (MC, "kat/geom.json"): geom_raw,
                   (MC, DRV_REL): drv_raw}
 
+        # codex 0531Z finding 1: a slot's pins are admitted only while
+        # the slot is BOUND. My fixture manifest carried no status at
+        # all, which the pre-repair lookup silently treated as
+        # admitted -- so the fixture has to SAY BOUND, and the paired
+        # negative below flips exactly that one field.
+        def _man_bytes(status="BOUND"):
+            return _j.dumps({"slots": {"power_harness": {
+                "status": status, "pins": adm_pins2}}}).encode()
+
         def rdr2(commit, path):
             if path.endswith("execution_manifest.json"):
-                return _j.dumps({"slots": {"power_harness": {
-                    "pins": adm_pins2}}}).encode()
+                return _man_bytes()
             try:
                 return store2[(commit, path)]
             except KeyError:
@@ -2958,6 +2966,26 @@ def w_selrun():
             geometry_loader=bar_geom_loader, is_ancestor=bar_anc)
         ok_run = ok_run and adm_ok["pre_invocation"][
             "invocation_sha256"] == pre["invocation_sha256"]
+        # LOCK OPEN-SLOT (mine, independent of codex's red KAT for
+        # their 0531Z finding 1). The SAME pins, the SAME bytes, the
+        # SAME identities as the positive one line above -- only
+        # slot.status flips BOUND -> OPEN. Equal bytes are not
+        # admission; the manifest STATE decides, and an authority slot
+        # that is OPEN admits nothing. Its anti-vacuity partner is
+        # that very positive: same machinery, one field apart,
+        # opposite verdict.
+        def rdr2_open(commit, path):
+            if path.endswith("execution_manifest.json"):
+                return _man_bytes("OPEN")
+            return rdr2(commit, path)
+        try:
+            WTS.verify_selector_admission(
+                _REPO, art_adm, MC, blob_reader=rdr2_open,
+                git_resolve=lambda c: c,
+                geometry_loader=bar_geom_loader, is_ancestor=bar_anc)
+            ok_run = False      # OPEN-slot pins must never be admitted
+        except WTS.SelectorRefusal:
+            pass
         # LOCK V1-DOWNGRADE (mine, codex 0338Z: the packet must carry
         # at least one INDEPENDENT admission-path v1 refusal). This is
         # the pre exactly as it stood before Design A -- schema v1,
@@ -3229,7 +3257,8 @@ def w_selrun():
               "write-once/manifest-resolution refusals, v2 pre with "
               "bound driver pin + closed execution capsule, and an "
               "independent v1-downgrade admission refusal through an "
-              "otherwise-valid chain)",
+              "otherwise-valid chain, and an OPEN-slot refusal over "
+              "byte-identical pins)",
               ok_sel and ok_ord and ok_doc and ok_run,
               f"sel={ok_sel} ord={ok_ord} doc={ok_doc} run={ok_run}")
     except ImportError:

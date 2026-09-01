@@ -445,6 +445,14 @@ BOUND_SLOTS = {
                   # pins through the same unchecked lookup.
                   "monitoring/src/"
                   "test_w2_tier_s_open_slot_redkats_codex.py",
+                  # grassmann's static audit, pinned because
+                  # bar REV 25 EXECUTES it against the tree
+                  # under test. It was red at public 94968394
+                  # on exactly driver:314 and driver:337, so
+                  # the bytes doing the checking have to be
+                  # inside the admitted set themselves.
+                  "monitoring/src/"
+                  "w2_tier_s_static_audit_grassmann.py",
                   "monitoring/src/"
                   "test_f2g_window2_redkats_grassmann.py",
                   # closure 4 (635/1420/1) and the P0 pin-bind: the

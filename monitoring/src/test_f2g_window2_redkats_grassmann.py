@@ -2271,6 +2271,77 @@ def w_slot13():
               f"{type(exc).__name__}: {exc}")
 
 
+# ---- REV 25: static execution-path sweeps as a LIVE lock -----------------
+def w_static_audit():
+    """codex 1805Z finding 4: a copied historical audit output is
+    evidence, not a lock. This DRIVES the pinned audit module against
+    the tree under test, so the sweeps re-run at every bar invocation
+    and cannot silently rot.
+
+    Finding 3 is honoured in the label: the arity result is
+    DIRECT_LOCAL_POSITIONAL_ARITY, not a complete call audit, and
+    neither sweep substitutes for the real end-to-end execution gate.
+
+    The module's own selftest runs first: a sweep that cannot detect
+    its own class is not a lock, so a blind sweep fails HERE rather
+    than reporting a clean tree."""
+    try:
+        import w2_tier_s_static_audit_grassmann as AUD
+
+        # (1) anti-vacuity FIRST: each sweep must detect a planted
+        # instance of the class it claims (renamed alias + unknown
+        # key, alias-of-alias, pre-shaped literal, positional
+        # omission, required keyword-only omission)
+        ok_self = AUD.selftest(_REPO)
+
+        pre_f, exec_f, schema = AUD.load_fields(_REPO)
+        present = [r for r in AUD.FILES if os.path.isfile(
+            os.path.join(_REPO, *r.split("/")))]
+        ok_files = len(present) == len(AUD.FILES)
+
+        keys, n_reads, aliases = AUD.key_sweep(
+            _REPO, pre_f, exec_f, present, schema)
+        arity, n_calls, n_defs = AUD.arity_sweep(_REPO, present)
+
+        # (2) the sweeps must actually be reaching code -- a sweep that
+        # examined nothing would report clean
+        ok_reach = n_reads > 0 and n_calls > 0 and n_defs > 0
+        # (3) aliases are DISCOVERED, never a hand-written list: the
+        # driver's multi-alias selftest carriers must be found
+        # carriers are reported scope-qualified ("cmd_fire.pre"), and
+        # the closure case must be present: bad_pre lives in a NESTED
+        # runner helper, so a scope model that kept only the innermost
+        # name would silently drop it
+        drv = "monitoring/src/w2_tier_s_driver_cayley.py"
+        rnr = "monitoring/src/w2_tier_s_runner_cayley.py"
+        found = set(aliases.get(drv, ()))
+        ok_alias = ({"cmd_fire.pre", "_selftest.pre2",
+                     "_selftest.pre6"} <= found
+                    and any(a.endswith(".bad_pre")
+                            for a in aliases.get(rnr, ())))
+
+        ok_clean = not keys and not arity
+        check("STATIC-AUDIT execution-path sweeps as a live lock "
+              "(module selftest plants and detects each class; "
+              "provenance-discovered PRE aliases, no name list; zero "
+              "unknown-key reads; zero DIRECT_LOCAL_POSITIONAL_ARITY "
+              "mismatches; supplements, never substitutes for, the "
+              "end-to-end execution gate)",
+              ok_self and ok_files and ok_reach and ok_alias
+              and ok_clean,
+              f"selftest={ok_self} files={ok_files} "
+              f"reach={ok_reach}({n_reads}r/{n_calls}c/{n_defs}d) "
+              f"alias={ok_alias}{sorted(found)} "
+              f"keys={[(f'{r}:{l}', s) for r, l, s, _ in keys][:3]} "
+              f"arity={[(f'{r}:{l}', fn) for r, l, fn, _w, _t in arity][:3]}")
+    except ImportError:
+        check("STATIC-AUDIT execution-path sweeps", False,
+              "W2_STATIC_AUDIT_MODULE_ABSENT")
+    except Exception as exc:
+        check("STATIC-AUDIT execution-path sweeps", False,
+              f"{type(exc).__name__}: {exc}")
+
+
 # ---- REV 24: v5 disposition successor + bound delta (codex 1507Z) --------
 def w_dispo_v5():
     """Bar-side locks over the append-only disposition successor.
@@ -2974,6 +3045,21 @@ def w_selrun():
         # that is OPEN admits nothing. Its anti-vacuity partner is
         # that very positive: same machinery, one field apart,
         # opposite verdict.
+        def _open_needle(msg):
+            """codex 1805Z finding 1: the earlier needle ORed in
+            "BOUND manifest pin", which I had never exercised and which
+            also matches the selector's UNRELATED ambiguity error
+            ("has <n> BOUND manifest pins; identity is ambiguous") and
+            the runner's generic cardinality refusal -- so a
+            wrong-cause failure could read green again. Defensive
+            breadth in an assertion is the same defect as a broad
+            `except`. This pins the EXACT measured refusal for this
+            fixture: the admitted-pin lookup, on the grid path, at this
+            manifest identity."""
+            return ("is not a pin of the execution manifest" in msg
+                    and "kat/grids.json" in msg
+                    and MC[:12] in msg)
+
         def rdr2_open(commit, path):
             if path.endswith("execution_manifest.json"):
                 return _man_bytes("OPEN")
@@ -2984,8 +3070,25 @@ def w_selrun():
                 git_resolve=lambda c: c,
                 geometry_loader=bar_geom_loader, is_ancestor=bar_anc)
             ok_run = False      # OPEN-slot pins must never be admitted
-        except WTS.SelectorRefusal:
-            pass
+        except WTS.SelectorRefusal as _e:
+            ok_run = ok_run and _open_needle(str(_e))
+        # codex 1805Z finding 5(b): proving the needle EVALUATES is not
+        # proving it SELECTS. Drive an unrelated refusal through the
+        # same call and require the needle to reject it -- otherwise a
+        # wrong-cause failure could still satisfy this lock.
+        def rdr2_wrong(commit, path):
+            if path.endswith("kat/smoke2.json"):
+                return _j.dumps({"schema": "not-the-smoke"}).encode()
+            return rdr2_open(commit, path)
+        try:
+            WTS.verify_selector_admission(
+                _REPO, art_adm, MC, blob_reader=rdr2_wrong,
+                git_resolve=lambda c: c,
+                geometry_loader=bar_geom_loader, is_ancestor=bar_anc)
+            ok_run = False
+        except WTS.SelectorRefusal as _e:
+            # an unrelated refusal must NOT satisfy the OPEN needle
+            ok_run = ok_run and not _open_needle(str(_e))
         # LOCK V1-DOWNGRADE (mine, codex 0338Z: the packet must carry
         # at least one INDEPENDENT admission-path v1 refusal). This is
         # the pre exactly as it stood before Design A -- schema v1,
@@ -3034,8 +3137,11 @@ def w_selrun():
                 git_resolve=lambda c: c,
                 geometry_loader=bar_geom_loader, is_ancestor=bar_anc)
             ok_run = False          # a v1 pre must never be admitted
-        except WTS.SelectorRefusal:
-            pass
+        except WTS.SelectorRefusal as _e:
+            # discriminating for the same reason: the refusal must
+            # name the pre-invocation SCHEMA, so this cannot pass on
+            # an unrelated chain failure
+            ok_run = ok_run and                 "not the closed capsule schema" in str(_e)
         # LOCK A: a minimal self-hashed dict is not the closed
         # pre-invocation capsule
         min_inv = {"schema": "f2g-w2-tier-s-invocation-v1",
@@ -3956,6 +4062,7 @@ def main():
     w_admit()
     w_xform()
     w_dispo_v5()
+    w_static_audit()
 
 
 main()

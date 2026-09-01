@@ -68,6 +68,7 @@ GRIDS_REL = "docs/f2g_window2_execution/effect_grids_w2_v1.json"
 GEOMETRY_REL = ("docs/f2g_window2_execution/"
                 "bound_geometry_capsule_v2.json")
 IMPL_REL = "monitoring/src/w2_power_harness_cayley.py"
+SELECTOR_REL = "monitoring/src/w2_tier_selector_cayley.py"
 PRE_NAME = "tier_s_pre_invocation.json"
 
 
@@ -137,7 +138,7 @@ def _lf_sha(path):
             f.read().replace(b"\r\n", b"\n")).hexdigest()
 
 
-def _require_bound_sources(repo, pre):
+def _require_bound_sources(repo, pre, manifest_commit=None):
     """codex 0314Z point 2: "the driver, runner, and harness used by
     each process must match their bound source identities before any
     work begins."
@@ -147,20 +148,41 @@ def _require_bound_sources(repo, pre):
     THIS process will actually import, so a reviewed driver cannot
     fire and a locally edited one cannot quietly take over mid-run.
     """
-    checks = [(pre["driver"]["path"], pre["driver"]["blob_sha256"],
-               "driver"),
-              (pre["implementation"]["path"],
-               pre["implementation"]["blob_sha256"], "harness")]
     man = json.loads(_blob_reader(repo)(
-        pre["manifest_commit"],
+        pre["manifest_commit"] if pre else manifest_commit,
         "docs/f2g_window2_execution/execution_manifest.json"
     ).decode("utf-8"))
+
+    def _mp(path):
+        try:
+            return TSR._pin_for(man, path)
+        except TSR.RunnerRefusal as e:
+            _refuse(str(e))
+
+    # With a carrier, compare against what the RUN claims; before one
+    # exists (cmd_fire) the manifest is the only authority there is.
+    d_ref = pre["driver"] if pre else _mp(TSR.DRIVER_REL)
+    i_ref = pre["implementation"] if pre else _mp(IMPL_REL)
+    checks = [(d_ref["path"], d_ref["blob_sha256"], "driver"),
+              (i_ref["path"], i_ref["blob_sha256"], "harness")]
     try:
         runner_pin = TSR._pin_for(man, TSR.RUNNER_REL)
     except TSR.RunnerRefusal as e:
         _refuse(str(e))
     checks.append((TSR.RUNNER_REL, runner_pin["blob_sha256"],
                    "runner"))
+    # codex item 4: the SELECTOR is an executable implementation the
+    # later commands run, and `verify-select` uses it to adjudicate
+    # the artifact under test. A tampered live selector could admit a
+    # bad chain, so it is bound here rather than trusted.
+    # through codex's BOUND-only helper, not a private re-scan: my
+    # first version walked every slot without checking `status`,
+    # which is precisely the defect their finding 1 closed.
+    try:
+        sel_pin = TSR._pin_for(man, SELECTOR_REL)
+    except TSR.RunnerRefusal as e:
+        _refuse(str(e))
+    checks.append((SELECTOR_REL, sel_pin["blob_sha256"], "selector"))
     for rel, want, label in checks:
         live = os.path.join(repo, rel.replace("/", os.sep))
         if not os.path.exists(live):
@@ -182,6 +204,26 @@ def _loco_registry(repo, pre):
         pre["geometry"]["path"]).decode("utf-8"))
     carrier = cap["loco_registry_carrier"]
     return sorted(cap["registries"][carrier])
+
+
+def _report_after_publish(kind, report):
+    """Run a reporting closure whose artifact is ALREADY published.
+
+    Returns 0 either way, because the postcondition -- the artifact
+    exists -- has already been met. If the summary itself fails, that
+    is stated as a typed status rather than being allowed to surface
+    as a failed command, because the operator's next decision depends
+    on whether the artifact exists, not on whether it got printed.
+    """
+    try:
+        report()
+    except Exception as exc:                             # noqa: BLE001
+        print(f"{kind}_PUBLISHED_REPORTING_FAILED: the artifact IS "
+              f"published and valid; only this summary failed "
+              f"({type(exc).__name__}: {str(exc)[:160]}). Do NOT "
+              "re-run this command -- the create-once artifact "
+              "exists.")
+    return 0
 
 
 def _capsule_path(outdir, idx, loco):
@@ -294,7 +336,9 @@ def _validate_published(repo, outdir, pre, points, idx, loco):
             if not isinstance(fr, dict) or set(fr) != registry:
                 _refuse(f"{os.path.basename(path)} replicate {j} fold "
                         "set is not the registered LOCO station set")
-    elif "loco_folds" in rec:
+    elif rec.get("loco_folds") is not None:
+        # the harness ALWAYS emits this key; for a detection point it
+        # is None. Refusing on presence rejected every real carrier.
         _refuse(f"{os.path.basename(path)} is a detection carrier "
                 "carrying LOCO folds")
     return cap
@@ -307,18 +351,42 @@ def cmd_fire(repo, outdir, manifest_commit):
         _refuse("a pre-invocation already exists in this outdir; "
                 "create-once is never reused -- use a fresh outdir "
                 "for a new campaign")
+    # The binding is CREATED here, so this is the one place an
+    # unbound driver could mint a pre asserting the pinned identity,
+    # after which every later phase would verify happily against a
+    # claim minted by unbound code. Checked BEFORE publication: a
+    # refusal after fire_pre would strand a create-once carrier.
+    _require_bound_sources(repo, None, manifest_commit)
     pre, points = TSR.fire_pre(
         repo, manifest_commit, GRIDS_REL, GEOMETRY_REL, IMPL_REL,
         outdir, blob_reader=_blob_reader(repo), argv=list(sys.argv))
-    print(f"pre_invocation_sha256 {pre['invocation_sha256']}")
-    print(f"host                  {pre['host']}")
-    print(f"manifest_commit       {pre['manifest_commit']}")
-    print(f"quality               R={pre['quality']['R']} "
-          f"n_draws={pre['quality']['n_draws']}")
-    print(f"detection points      {len(points)}")
-    print(f"output_root           {pre['output_root']}")
-    print("\nNEXT: commit the pre-invocation, then run phase1.")
-    return 0
+    # ---- PUBLICATION HAS HAPPENED. Everything below is reporting.
+    # codex 1550Z finding 4: the exit status must describe the
+    # POSTCONDITION, not whether the summary printed. The first
+    # version of this function published the create-once carrier and
+    # then died on `pre['host']` -- a field v2 had moved into the
+    # execution capsule -- exiting non-zero. An operator trusting
+    # that status retries, hits RUNNER_PUBLISH_EXISTS, and now has a
+    # live carrier they believe does not exist. A reporting
+    # exception must never masquerade as an absent artifact.
+    return _report_after_publish(
+        "TIER_S_PRE", lambda: (
+            print(f"pre_invocation_sha256 {pre['invocation_sha256']}"),
+            print(f"host                  "
+                  f"{pre['execution']['host']}"),
+            print(f"interpreter           "
+                  f"{pre['execution']['interpreter_implementation']} "
+                  f"{pre['execution']['numpy_version']}"),
+            print(f"manifest_commit       {pre['manifest_commit']}"),
+            print(f"driver                "
+                  f"{pre['driver']['commit'][:12]} / "
+                  f"{pre['driver']['blob_sha256'][:12]}"),
+            print(f"quality               R={pre['quality']['R']} "
+                  f"n_draws={pre['quality']['n_draws']}"),
+            print(f"detection points      {len(points)}"),
+            print(f"output_root           {pre['output_root']}"),
+            print("\nNEXT: commit the pre-invocation ALONE, then run "
+                  "phase1 with that commit.")))
 
 
 def _run_one(repo, outdir, sha, idx, loco):
@@ -334,7 +402,7 @@ def cmd_worker(repo, outdir, idx, loco, pre_commit):
     pre, sha = _load_pre_checked(outdir)
     _require_committed_pre(repo, outdir, pre_commit)
     _require_bound_sources(repo, pre)
-    _run_one(repo, outdir, int(idx), loco)
+    _run_one(repo, outdir, sha, int(idx), loco)
     return 0
 
 
@@ -480,6 +548,8 @@ def cmd_finalize(repo, outdir, pre_commit, results_commit, rel_dir):
     final smoke. The digests must already agree; this proves the
     committed bytes are the ones the draft described."""
     pre, sha = _load_pre_checked(outdir)
+    _require_committed_pre(repo, outdir, pre_commit)
+    _require_bound_sources(repo, pre)
     reader = _blob_reader(repo)
     r_rel = f"{rel_dir}/tier_s_results.json"
     r_sha = __import__("hashlib").sha256(
@@ -497,7 +567,8 @@ def cmd_finalize(repo, outdir, pre_commit, results_commit, rel_dir):
     return 0
 
 
-def cmd_select(repo, outdir, smoke_commit, grids_commit, rel_dir):
+def cmd_select(repo, outdir, smoke_commit, grids_commit, rel_dir,
+               pre_commit):
     """codex 0257Z finding 5: the driver used to stop at `finalize`
     and print "run select" for a command that did not exist -- the
     selector module's `__main__` is a selftest only, so the promised
@@ -507,6 +578,9 @@ def cmd_select(repo, outdir, smoke_commit, grids_commit, rel_dir):
     are reopened FROM THEIR COMMITS, the selector artifact is
     published create-once, and nothing is taken from caller state."""
     import w2_tier_selector_cayley as TS
+    pre, _sha = _load_pre_checked(outdir)
+    _require_committed_pre(repo, outdir, pre_commit)
+    _require_bound_sources(repo, pre)
     reader = _blob_reader(repo)
     smoke_rel = f"{rel_dir}/tier_s_smoke_final.json"
     smoke = json.loads(reader(smoke_commit,
@@ -532,13 +606,16 @@ def cmd_select(repo, outdir, smoke_commit, grids_commit, rel_dir):
 
 
 def cmd_verify_select(repo, outdir, selector_commit, manifest_commit,
-                      rel_dir):
+                      rel_dir, pre_commit):
     """The post-commit half: reopen the COMMITTED selector and put it
     through the production admission function. A selector that only
     exists on disk has never been proven to be the one that was
     published."""
     import hashlib
     import w2_tier_selector_cayley as TS
+    pre, _sha = _load_pre_checked(outdir)
+    _require_committed_pre(repo, outdir, pre_commit)
+    _require_bound_sources(repo, pre)
     reader = _blob_reader(repo)
     rel = f"{rel_dir}/selector.json"
     raw = reader(selector_commit, rel)
@@ -565,9 +642,9 @@ def _usage():
         "  driver.py finalize   <repo> <outdir> <pre_commit> "
         "<results_commit> <rel_dir>\n"
         "  driver.py select     <repo> <outdir> <smoke_commit> "
-        "<grids_commit> <rel_dir>\n"
+        "<grids_commit> <rel_dir> <pre_commit>\n"
         "  driver.py verify-select <repo> <outdir> <selector_commit> "
-        "<manifest_commit> <rel_dir>\n"
+        "<manifest_commit> <rel_dir> <pre_commit>\n"
         "  driver.py --worker   <repo> <outdir> <idx> <pre_commit> "
         "[--loco]\n"
         "  driver.py --selftest\n"
@@ -601,10 +678,10 @@ def main(argv):
                              argv[4])
     if cmd == "select":
         return cmd_select(os.path.abspath(argv[2]), argv[3], argv[4],
-                          argv[5], argv[6])
+                          argv[5], argv[6], argv[7])
     if cmd == "verify-select":
         return cmd_verify_select(os.path.abspath(argv[2]), argv[3],
-                                 argv[4], argv[5], argv[6])
+                                 argv[4], argv[5], argv[6], argv[7])
     if cmd == "finalize":
         return cmd_finalize(os.path.abspath(argv[2]), argv[3],
                             argv[4], argv[5], argv[6])
@@ -621,6 +698,7 @@ def _selftest():
     import hashlib
     import shutil
     import tempfile
+    import time
 
     tmp = tempfile.mkdtemp(prefix="tier-s-driver-selftest-")
     try:
@@ -656,6 +734,7 @@ def _selftest():
         # `_require_bound_sources` checks the bytes that would run
         wf(TSR.DRIVER_REL, "# driver fixture\n")
         wf(TSR.RUNNER_REL, "# runner fixture\n")
+        wf(SELECTOR_REL, "# selector fixture\n")
         cap = {"capsule_digest": "c" * 64,
                "seed_authority_sha256": "b" * 64,
                "loco_registry_carrier": "cascadia",
@@ -675,7 +754,8 @@ def _selftest():
         man = {"slots": {"s": {"status": "BOUND", "pins": [
             {"path": r, "commit": c1, "blob_sha256": sha_at(r)}
             for r in (GRIDS_REL, GEOMETRY_REL, IMPL_REL,
-                      TSR.DRIVER_REL, TSR.RUNNER_REL)]}}}
+                      TSR.DRIVER_REL, TSR.RUNNER_REL,
+                      SELECTOR_REL)]}}}
         wf("docs/f2g_window2_execution/execution_manifest.json",
            json.dumps(man, sort_keys=True))
         g("add", "-A")
@@ -792,6 +872,11 @@ def _selftest():
                    "seed_authority_sha256":
                        pre["seed_authority_sha256"],
                    "certifiable": False,
+                   # the REAL harness record always carries
+                   # loco_folds (None for detection). The stub must
+                   # match it, or stub-based controls cannot see a
+                   # shape defect that the real path hits.
+                   "loco_folds": None,
                    "replicates": [{"p_values": {
                        "B1B": 0.001, "B2A": 0.5, "B2B": 0.5,
                        "B3A": 0.5}}
@@ -847,23 +932,57 @@ def _selftest():
         g("add", "-A")
         g("commit", "-qm", "spawn pre")
         c3b = g("rev-parse", "HEAD").stdout.decode().strip()
+        # (a) the worker must reach the HARNESS. Asserting only
+        # that "something failed" is what let the previous
+        # version of this control stay green while the child was
+        # dying on a TypeError in cmd_worker, never reaching the
+        # harness at all -- and the routed packet repeated the
+        # strong reading. The refusal must now NAME the harness.
+        HARNESS_MARK = "w2_power_harness_cayley"
         try:
             _drive(repo, out2, [0], False, 1, pre2, pts2, c3b)
         except DriverRefusal as e:
             assert "point 0 failed" in str(e), str(e)
-            # the child got past argument parsing, the pre load and
-            # the host guard -- it failed inside the runner/harness
-            assert "TIER_S_DRIVER_REFUSED: this pre-invocation"                 not in str(e), "the worker died on the host guard"
+            assert (HARNESS_MARK in str(e)
+                    or "POWER_" in str(e)), (
+                "D-5 FAILED: the worker died BEFORE reaching the "
+                "harness, so this control proves nothing about "
+                "the spawn path -- " + str(e)[:200])
         else:
             raise AssertionError(
-                "D-5 FAILED: a worker that cannot produce a point "
-                "reported success -- a silent hole in a multi-hour "
-                "run")
-        assert not os.path.exists(_capsule_path(out2, 0, False)),             "D-5 FAILED: a failed worker left a carrier behind"
-        print("  D-5 PASS  `_drive` really SPAWNS (the child reached "
-              "the real harness before failing on fixture geometry), "
-              "a worker failure becomes a typed refusal rather than "
-              "a missing point, and nothing partial is left behind")
+                "D-5 FAILED: a worker that cannot produce a "
+                "point reported success -- a silent hole in a "
+                "multi-hour run")
+        assert not os.path.exists(_capsule_path(out2, 0, False)), (
+            "D-5 FAILED: a failed worker left a carrier behind")
+
+        # (b) DISCRIMINATION: the same assertion must go RED when
+        # the worker dies EARLIER, inside the driver's own gates.
+        # Without this, (a) could be satisfied by accident. Here
+        # the child gets a pre commit that does not carry this
+        # outdir, so it refuses in _require_committed_pre --
+        # driver code, before the harness is ever imported.
+        try:
+            _drive(repo, out2, [0], False, 1, pre2, pts2, c3)
+        except DriverRefusal as e2:
+            early = str(e2)
+            assert "point 0 failed" in early, early
+            assert (HARNESS_MARK not in early
+                    and "POWER_" not in early), (
+                "D-5 FAILED: an early driver-gate failure is "
+                "indistinguishable from reaching the harness, so "
+                "the marker cannot discriminate -- " + early[:200])
+        else:
+            raise AssertionError(
+                "D-5 FAILED: a worker with a wrong pre commit "
+                "reported success")
+        print("  D-5 PASS  `_drive` really SPAWNS and the child "
+              "REACHES THE HARNESS (refusal names "
+              "w2_power_harness_cayley/POWER_*), a worker failure "
+              "becomes a typed refusal leaving no partial carrier "
+              "-- AND the same assertion goes RED for a worker "
+              "that dies earlier in the driver's own gates, so it "
+              "discriminates rather than accepting any failure")
 
         # ---- D-6 (codex R-2, CRITICAL): the committed-pre gate ---
         # R-2 ran phase 1 with no git repository at all. The claimed
@@ -938,7 +1057,9 @@ def _selftest():
         short = {"index": 0, "family": pts4[0][0], "point": pts4[0][1],
                  "pre_invocation_sha256": pre4["invocation_sha256"],
                  "execution_sha256": "PLACEHOLDER",
-                 "record": {"replicates": [], "certifiable": False}}
+                 "record": {"replicates": [],
+                            "loco_folds": None,
+                            "certifiable": False}}
         out5 = os.path.join(repo, "tier_s_short")
         pre5, pts5 = TSR.fire_pre(
             repo, c2, GRIDS_REL, GEOMETRY_REL, IMPL_REL, out5,
@@ -967,7 +1088,7 @@ def _selftest():
             {"p_values": {"B1B": 0.5, "B2A": 0.5, "B2B": 0.5,
                           "B3A": 0.5}}
             for _ in range(pre5["quality"]["R"])],
-            "certifiable": False}
+            "loco_folds": None, "certifiable": False}
         out6 = os.path.join(repo, "tier_s_exdrift")
         pre6, pts6 = TSR.fire_pre(
             repo, c2, GRIDS_REL, GEOMETRY_REL, IMPL_REL, out6,
@@ -1025,7 +1146,7 @@ def _selftest():
         man_no_drv = {"slots": {"s": {"status": "BOUND", "pins": [
             {"path": r, "commit": c1, "blob_sha256": sha_at(r)}
             for r in (GRIDS_REL, GEOMETRY_REL, IMPL_REL,
-                      TSR.RUNNER_REL)]}}}
+                      TSR.RUNNER_REL, SELECTOR_REL)]}}}
         wf("docs/f2g_window2_execution/execution_manifest.json",
            json.dumps(man_no_drv, sort_keys=True))
         g("add", "-A")
@@ -1076,11 +1197,269 @@ def _selftest():
               "each refuse by name -- with the untouched positive "
               "re-passing after every one")
 
+        # ---- D-12 (codex item 3): EVERY CLI wrapper, via main() -
+        # Success and refusal through main(argv) for every public
+        # command, asserting exit status, the typed transition, the
+        # exact artifact keyset, and reopen validation. Two of the
+        # three defects in this arc reached public master because the
+        # CLI was never composed end to end.
+        argv0 = sys.argv[0]
+
+        def cli(*a):
+            return main([argv0] + [str(x) for x in a])
+
+        def cli_refuses(where, *a):
+            try:
+                cli(*a)
+            except (DriverRefusal, TSR.RunnerRefusal, SystemExit,
+                    IndexError) as exc:
+                return str(exc)
+            raise AssertionError(
+                f"D-12 {where}: main({a[0]}) returned instead of "
+                "refusing")
+
+        # -- refusal surface, one per command ---------------------
+        cli_refuses("phase1 needs a committed pre", "phase1", repo,
+                    out3, 1, c3)
+        cli_refuses("rank needs a committed pre", "rank", repo, out3,
+                    c3)
+        cli_refuses("aggregate needs a committed pre", "aggregate",
+                    repo, out3, c3)
+        cli_refuses("worker needs a committed pre", "--worker", repo,
+                    out3, 0, c3)
+        cli_refuses("phase2 rejects a hand list", "phase2", repo,
+                    outdir, 1, "0", c3)
+        cli_refuses("unknown command", "not-a-command")
+        cli_refuses("fire refuses a live outdir", "fire", repo,
+                    outdir, c2)
+        print("  D-12a PASS  every command refuses through main(argv) "
+              "when its precondition is absent -- committed pre, "
+              "deterministic ranking, create-once outdir, unknown "
+              "verb")
+
+        # -- success surface, on the stub campaign ----------------
+        # rank: exit 0 and the deterministic top-8
+        assert cli("rank", repo, outdir, c3) == 0, "D-12 rank"
+        top = TSR.rank_stage1_b1b(outdir, sha, reader)
+        # phase 2's LOCO carriers, published through the runner with
+        # the stub, so aggregate's success path is reachable here
+        for i in top:
+            fam_i, pt_i = points[i]
+            TSR.run_smoke_point(repo, outdir, i, sha, reader,
+                                with_loco=True,
+                                smoke_fn=stub)
+        before_keys = set(os.listdir(outdir))
+        assert cli("aggregate", repo, outdir, c3) == 0, "D-12 aggregate"
+        new_keys = set(os.listdir(outdir)) - before_keys
+        assert new_keys == {"tier_s_results.json",
+                            "tier_s_completion.json",
+                            "tier_s_smoke.json"}, sorted(new_keys)
+        for nm in sorted(new_keys):
+            with open(os.path.join(outdir, nm), encoding="utf-8") as f:
+                json.load(f)          # reopen validation
+        g("add", "-A")
+        g("commit", "-qm", "d12 results")
+        c_res = g("rev-parse", "HEAD").stdout.decode().strip()
+        rel_dir = os.path.relpath(outdir, repo).replace(os.sep, "/")
+        assert cli("finalize", repo, outdir, c3, c_res, rel_dir) == 0
+        assert os.path.exists(os.path.join(
+            outdir, "tier_s_smoke_final.json")), "D-12 finalize"
+        g("add", "-A")
+        g("commit", "-qm", "d12 final smoke")
+        c_sm = g("rev-parse", "HEAD").stdout.decode().strip()
+        assert cli("select", repo, outdir, c_sm, c1, rel_dir, c3) == 0
+        assert os.path.exists(os.path.join(outdir, "selector.json")), \
+            "D-12 select"
+        g("add", "-A")
+        g("commit", "-qm", "d12 selector")
+        c_sel = g("rev-parse", "HEAD").stdout.decode().strip()
+        # verify-select drives PRODUCTION selector admission,
+        # which resolves the geometry capsule for real. A
+        # fixture capsule cannot satisfy that, so its SUCCESS
+        # path is reachable only from a real campaign. What is
+        # asserted here is the honest half: it must REFUSE the
+        # fixture chain, and for the geometry reason -- which
+        # is itself a control, because a verify-select that
+        # accepted a fixture chain would be worthless.
+        # its own handler rather than widening cli_refuses: the
+        # generic helper deliberately catches a NARROW tuple, and
+        # broadening it to admit SelectorRefusal would weaken every
+        # other refusal check in D-12a to buy one assertion here.
+        import w2_tier_selector_cayley as _TSsel
+        try:
+            cli("verify-select", repo, outdir, c_sel, c2, rel_dir, c3)
+        except _TSsel.SelectorRefusal as _vsx:
+            vs = str(_vsx)
+            assert "SELECTOR_UNADMITTED" in vs, vs[:200]
+            assert "POWER_GEOMETRY_UNBOUND" in vs, (
+                "D-12: verify-select refused, but not for the geometry "
+                f"reason -- {vs[:200]}")
+        else:
+            raise AssertionError(
+                "D-12 FAILED: verify-select ADMITTED a fixture chain; "
+                "production admission must resolve the geometry "
+                "capsule for real")
+        print("  D-12b PASS  rank, aggregate, finalize and "
+              "select each SUCCEED through main(argv) with exit "
+              "0, publishing exactly their declared artifact "
+              "keyset, every one of which reopens and parses. "
+              "verify-select REFUSES the fixture chain on "
+              "geometry, as it must; its success path needs a "
+              "real campaign and is NOT covered here")
+
+
+        # ---- D-11 (codex item 1): THE PROCESS BOUNDARY, real ----
+        # The defect that killed the campaign lived in the argument
+        # handoff between cmd_worker and _run_one -- a seam every
+        # in-process test skipped. This drives the whole chain for
+        # real, on one point, against the REAL pinned geometry:
+        #   main(argv) -> _drive -> child -> main(argv) --worker
+        #   -> cmd_worker -> _run_one -> TSR.run_smoke_point
+        # and requires the child to EXIT 0 leaving one carrier that
+        # reopens and validates. ~10 minutes; that cost is the point.
+        real_repo = os.path.dirname(os.path.dirname(_HERE))
+        pbt = tempfile.mkdtemp(prefix="d11-process-boundary-")
+        pwt = os.path.join(pbt, "t")
+        try:
+            add = subprocess.run(
+                ["git", "-C", real_repo, "worktree", "add", "--detach",
+                 pwt, "HEAD"], capture_output=True)
+            if add.returncode:
+                raise AssertionError(
+                    "D-11 could not materialise a detached worktree: "
+                    + add.stderr.decode(errors="replace")[:200])
+            pout = os.path.join(pwt, "docs", "f2g_window2_execution",
+                                "d11_boundary")
+
+            def pg(*a):
+                return subprocess.run(["git", "-C", pwt] + list(a),
+                                      capture_output=True, check=True)
+            pg("config", "user.email", "d11@t")
+            pg("config", "user.name", "d11")
+
+            # (1) fire through main(argv) -- exit 0, one carrier
+            rc = main([sys.argv[0], "fire", pwt, pout, "HEAD"])
+            assert rc == 0, f"D-11: fire returned {rc}, expected 0"
+            assert sorted(os.listdir(pout)) == [PRE_NAME], (
+                "D-11: fire must leave exactly the pre-invocation, "
+                f"found {sorted(os.listdir(pout))}")
+
+            # (2) commit it alone, so the committed-pre gate has an
+            # exact artifact to prove the child against
+            pg("add", os.path.relpath(
+                os.path.join(pout, PRE_NAME), pwt).replace(os.sep, "/"))
+            pg("commit", "-qm", "d11 pre")
+            pc = subprocess.run(["git", "-C", pwt, "rev-parse", "HEAD"],
+                                capture_output=True,
+                                text=True).stdout.strip()
+
+            # (3) ONE point through a REAL child process
+            bpre, bsha = _load_pre_checked(pout)
+            bpts = TSR.derive_points(bpre, _blob_reader(pwt))
+            fam0, _pt0 = bpts[0]
+            print(f"  D-11 .... running ONE REAL point ({fam0}) "
+                  "through a real child process, ~10 min")
+            t0 = time.time()
+            done, skipped = _drive(pwt, pout, [0], False, 1, bpre,
+                                   bpts, pc)
+            el = time.time() - t0
+            assert (done, skipped) == (1, 0), (done, skipped)
+
+            # (4) the carrier must exist and REOPEN valid
+            cap_p = _capsule_path(pout, 0, False)
+            assert os.path.exists(cap_p), (
+                "D-11 FAILED: the child reported success but left no "
+                "carrier")
+            cap = _validate_published(pwt, pout, bpre, bpts, 0, False)
+            assert len(cap["record"]["replicates"]) == \
+                bpre["quality"]["R"]
+            assert cap["execution_sha256"] == \
+                TSR.execution_digest(bpre["execution"])
+            # ---- D-11b (codex item 2): the four mutations ----
+            # A positive that cannot go red proves nothing. Each of
+            # these must break the boundary FOR ITS OWN REASON, and
+            # each expectation was measured by running it, not read
+            # off the source. Index 1 is unpublished, and all four
+            # fail before the harness, so they are seconds not
+            # minutes.
+            with open(__file__, encoding="utf-8") as _df:
+                drv_src = _df.read()
+            MUTS = [
+                ("omit sha",
+                 "_run_one(repo, outdir, sha, int(idx), loco)",
+                 "_run_one(repo, outdir, int(idx), loco)",
+                 "missing 1 required positional argument"),
+                ("misorder sha",
+                 "_run_one(repo, outdir, sha, int(idx), loco)",
+                 "_run_one(repo, outdir, int(idx), sha, loco)",
+                 "RUNNER_TIER_S_PRE_DIGEST_MISMATCH"),
+                ("prevent runner entry",
+                 "import w2_tier_s_runner_cayley as TSR",
+                 "raise ImportError('MUTATION: runner entry "
+                 "prevented')\nimport w2_tier_s_runner_cayley as TSR",
+                 "MUTATION: runner entry prevented"),
+                ("break committed-pre loading",
+                 "if committed != live:",
+                 "if True:",
+                 "the committed pre-invocation differs byte-for-byte"),
+            ]
+            menv = dict(os.environ, PYTHONPATH=_HERE)
+            for mname, mold, mnew, needle in MUTS:
+                assert drv_src.count(mold) >= 1, f"{mname}: anchor"
+                mpath = os.path.join(pbt, f"mut_{abs(hash(mname))}.py")
+                with open(mpath, "w", encoding="utf-8",
+                          newline=chr(10)) as _mf:
+                    _mf.write(
+                        drv_src.replace(mold, mnew, 1))
+                mr = subprocess.run(
+                    [sys.executable, mpath, "--worker", pwt, pout,
+                     "1", pc], capture_output=True, text=True,
+                    cwd=_HERE, env=menv, timeout=900)
+                mblob = mr.stdout + mr.stderr
+                assert mr.returncode != 0, (
+                    f"D-11b {mname}: the mutated worker SUCCEEDED")
+                assert needle in mblob, (
+                    f"D-11b {mname}: failed for the wrong reason -- "
+                    f"expected {needle!r}, got "
+                    f"{mblob.strip()[-200:]!r}")
+                assert "w2_power_harness_cayley" not in mblob and \
+                    "POWER_" not in mblob, (
+                        f"D-11b {mname}: reached the harness anyway, "
+                        "so the positive's marker does not "
+                        "discriminate")
+                assert not os.path.exists(
+                    _capsule_path(pout, 1, False)), (
+                        f"D-11b {mname}: left a carrier behind")
+            print(f"  D-11b PASS  all {len(MUTS)} mutations break the "
+                  "boundary, each for its OWN measured reason (missing "
+                  "argument / pre-digest mismatch / runner entry / "
+                  "committed-pre bytes), none reaches the harness, "
+                  "and none leaves a carrier -- so the positive above "
+                  "is falsifiable rather than decorative")
+
+
+            print(f"  D-11 PASS  the FULL process boundary works for "
+                  f"real: main(argv) -> _drive -> child -> --worker "
+                  f"-> cmd_worker -> _run_one -> run_smoke_point, "
+                  f"child exit 0, one carrier with "
+                  f"{len(cap['record']['replicates'])} replicates "
+                  f"that reopens and validates ({el/60:.1f} min). "
+                  "This is the seam the arity defect lived in, and no "
+                  "in-process control could have reached it")
+        finally:
+            subprocess.run(["git", "-C", real_repo, "worktree",
+                            "remove", "--force", pwt],
+                           capture_output=True)
+            subprocess.run(["git", "-C", real_repo, "worktree",
+                            "prune"], capture_output=True)
+            shutil.rmtree(pbt, ignore_errors=True)
+
         print("w2 tier-s driver selftest: ALL PASS "
               "(driver behaviour only; stub smoke; nothing fired). "
-              "NOT covered here: a worker SUCCEEDING end-to-end, "
-              "which needs real pinned geometry and is exercised "
-              "only by the real phase-1 run.")
+              "D-11 covers a worker SUCCEEDING end-to-end against "
+              "REAL pinned geometry through a real child "
+              "process, and D-11b proves that positive is "
+              "falsifiable by four measured mutations.")
         return 0
     finally:
         shutil.rmtree(tmp, ignore_errors=True)

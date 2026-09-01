@@ -40,10 +40,15 @@ FILES = [
     "monitoring/src/w2_cert_runner_cayley.py",
 ]
 RUNNER_REL = "monitoring/src/w2_tier_s_runner_cayley.py"
-# element 0 of the returned tuple is the capsule
-TUPLE_PRODUCERS = {"fire_pre"}
+# element 0 of the returned tuple is the capsule. codex 1914Z: the
+# landed driver defines _load_pre_checked(...) -> (pre, sha), and every
+# real caller unpacks it, so classifying it as a SCALAR producer left a
+# latent false positive -- `both = _load_pre_checked(...)` would have
+# been tagged a whole capsule, the exact shape the fire_pre control
+# already excluded.
+TUPLE_PRODUCERS = {"fire_pre", "_load_pre_checked"}
 # the return value IS the capsule
-SCALAR_PRODUCERS = {"_load_pre", "_load_pre_checked"}
+SCALAR_PRODUCERS = {"_load_pre"}
 COPY_FUNCS = {"dict", "deepcopy", "copy"}
 MODULE_SCOPE = "<module>"
 
@@ -400,37 +405,67 @@ def run(root, commit_rev):
 
 
 # ------------------------------------------------------------- selftest
+# fixtures are LINE LISTS joined at run time: embedding escape
+# sequences here kept getting mangled in transit, and a fixture
+# that does not say what it means is exactly what this audit
+# exists to catch.
 KEY_MUTS = [
     ("renamed alias, unknown key",
-     "def f(repo):\n    pre9 = _load_pre_checked(repo)\n"
-     "    return pre9['host']\n", True),
+     ['def f(repo):',
+      '    pre9 = _load_pre(repo, s)',
+      "    return pre9['host']"], True),
     ("alias derived from another alias",
-     "def f(repo):\n    pre9 = _load_pre_checked(repo)\n"
-     "    later = dict(pre9)\n    return later['interpreter']\n",
-     True),
+     ['def f(repo):',
+      '    pre9 = _load_pre(repo, s)',
+      '    later = dict(pre9)',
+      "    return later['interpreter']"], True),
     ("pre-shaped literal, unknown execution field",
-     "def f():\n    p = {'schema': 'f2g-w2-tier-s-pre-invocation-v2'}\n"
-     "    return p['execution']['hostname']\n", True),
+     ['def f():',
+      "    p = {'schema': 'f2g-w2-tier-s-pre-invocation-v2'}",
+      "    return p['execution']['hostname']"], True),
     ("RENAMED CALLEE PARAMETER carrying a stale key",
-     "def check(carrier):\n    return carrier['host']\n"
-     "def f(repo):\n    pre = _load_pre_checked(repo)\n"
-     "    return check(pre)\n", True),
+     ['def check(carrier):',
+      "    return carrier['host']",
+      'def f(repo):',
+      '    pre = _load_pre(repo, s)',
+      '    return check(pre)'], True),
+    ("TUPLE UNPACK element 0 IS the capsule (_load_pre_checked)",
+     ['def f(outdir):',
+      '    pre, sha = _load_pre_checked(outdir)',
+      "    return pre['host']"], True),
+    ("TUPLE UNPACK element 0 IS the capsule (fire_pre)",
+     ['def f(repo):',
+      '    pre, pts = fire_pre(repo)',
+      "    return pre['interpreter']"], True),
+    ("closure carrier read in a NESTED helper",
+     ['def outer(repo):',
+      '    pre = _load_pre(repo, s)',
+      '    def inner():',
+      "        return pre['host']",
+      '    return inner'], True),
     ("shadowed sub-object must NOT be a capsule (no false positive)",
-     "def f(repo):\n    pre = _load_pre_checked(repo)\n"
-     "    return pre['geometry']\n"
-     "def g(other):\n    pre = other['geometry']\n"
-     "    return pre['capsule_digest']\n", False),
-    ("tuple producer: only element 0 is the capsule",
-     "def f(repo):\n    both = fire_pre(repo)\n"
-     "    return both['host']\n", False),
+     ['def f(repo):',
+      '    pre = _load_pre(repo, s)',
+      "    return pre['geometry']",
+      'def g(other):',
+      "    pre = other['geometry']",
+      "    return pre['capsule_digest']"], False),
+    ("whole tuple from fire_pre is NOT a capsule",
+     ['def f(repo):',
+      '    both = fire_pre(repo)',
+      "    return both['host']"], False),
+    ("whole tuple from _load_pre_checked is NOT a capsule",
+     ['def f(outdir):',
+      '    both = _load_pre_checked(outdir)',
+      "    return both['host']"], False),
 ]
 ARITY_MUTS = [
     ("positional omission",
-     "def g(a, b, c):\n    return a\ndef h():\n    return g(1, 2)\n",
-     True),
+     ['def g(a, b, c):', '    return a',
+      'def h():', '    return g(1, 2)'], True),
     ("required keyword-only omission",
-     "def g(a, *, must):\n    return a\ndef h():\n    return g(1)\n",
-     True),
+     ['def g(a, *, must):', '    return a',
+      'def h():', '    return g(1)'], True),
 ]
 
 
@@ -440,9 +475,10 @@ def selftest(root):
     ok = True
     print("SELFTEST -- planted mutations must be detected, and clean "
           "shapes must NOT be")
-    for label, code, expect in KEY_MUTS + ARITY_MUTS:
-        kind = "key" if (label, code, expect) in [
-            (a, b, c) for a, b, c in KEY_MUTS] else "arity"
+    for label, lines, expect in KEY_MUTS + ARITY_MUTS:
+        code = chr(10).join(lines) + chr(10)
+        kind = "key" if any(l is lines for _a, l, _c in
+                            KEY_MUTS) else "arity"
         with tempfile.TemporaryDirectory() as td:
             os.makedirs(os.path.join(td, "monitoring", "src"))
             rel = FILES[0]

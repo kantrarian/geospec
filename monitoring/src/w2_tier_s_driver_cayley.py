@@ -135,6 +135,116 @@ def _capsule_path(outdir, idx, loco):
     return os.path.join(outdir, name)
 
 
+def _repo_rel(repo, outdir):
+    """The outdir must live INSIDE the repo, because the whole
+    chronology argument rests on the carriers being committable. A
+    campaign writing outside the tree can never have a committed pre
+    to check against, which is exactly how finding 2 slipped past."""
+    r = os.path.abspath(repo)
+    o = os.path.abspath(outdir)
+    try:
+        common = os.path.commonpath([r, o])
+    except ValueError:                      # different drives
+        common = None
+    if common != r or r == o:
+        _refuse(f"the output root {o} is not inside the repository "
+                f"{r}; a carrier that cannot be committed cannot have "
+                "its pre-fire commit verified")
+    return os.path.relpath(o, r).replace(os.sep, "/")
+
+
+def _is_ancestor(repo, a, b):
+    return subprocess.run(
+        ["git", "-C", repo, "merge-base", "--is-ancestor", a, b],
+        capture_output=True).returncode == 0
+
+
+def _require_committed_pre(repo, outdir, pre_commit):
+    """codex 0257Z finding 2 (CRITICAL). The claimed `fire -> commit
+    -> phase1` boundary was advisory: phase 1 needed only a live pre
+    FILE, so it ran happily before the operator commit -- with no git
+    repository at all -- while reporting success. The chronology the
+    runner's contract rests on was therefore not enforced anywhere.
+
+    Every phase and every worker now proves the pre it is about to
+    act on is the one that was COMMITTED: same repo-relative path,
+    byte-identical to the live create-once carrier, and binding a
+    manifest that is an ancestor of the pre commit."""
+    rel = _repo_rel(repo, outdir)
+    live_path = os.path.join(outdir, PRE_NAME)
+    if not os.path.exists(live_path):
+        _refuse(f"no pre-invocation at {live_path}")
+    with open(live_path, "rb") as f:
+        live = f.read()
+    try:
+        committed = _blob_reader(repo)(pre_commit, f"{rel}/{PRE_NAME}")
+    except Exception as exc:                             # noqa: BLE001
+        _refuse(f"the pre-invocation is not committed at "
+                f"{str(pre_commit)[:12]}:{rel}/{PRE_NAME} "
+                f"({str(exc)[:120]}) -- commit it before this phase")
+    if committed != live:
+        _refuse("the committed pre-invocation differs byte-for-byte "
+                "from the live carrier; the chronology would be false")
+    pre = json.loads(live.decode("utf-8"))
+    mc = pre.get("manifest_commit")
+    if not _is_ancestor(repo, mc, pre_commit):
+        _refuse(f"the pre binds manifest {str(mc)[:12]} which is not "
+                f"an ancestor of the pre commit {str(pre_commit)[:12]}"
+                " -- unrelated lineage")
+    return pre
+
+
+def _validate_published(repo, outdir, pre, points, idx, loco):
+    """codex 0257Z finding 4 (MAJOR). Resume trusted a FILENAME: any
+    bytes at the expected path counted as a finished point, so
+    `not-json` read as complete and a forged carrier could steer the
+    rank path. Nothing is a skip until it has been reopened and has
+    passed the same closed validation aggregate applies.
+
+    This is the ONE validator; resume, rank and aggregate all call
+    it, so the three paths cannot drift apart. Invalid bytes REFUSE
+    and are never overwritten -- create-once means a bad carrier is
+    an operator decision, not something a driver silently repairs."""
+    path = _capsule_path(outdir, idx, loco)
+    try:
+        with open(path, encoding="utf-8") as f:
+            cap = json.load(f)
+    except ValueError as exc:
+        _refuse(f"the published carrier {os.path.basename(path)} is "
+                f"not JSON ({str(exc)[:80]}) -- refusing rather than "
+                "counting it complete or overwriting it")
+    fam, point = points[idx]
+    # the RUNNER's own closed check, not a re-implementation
+    TSR._check_point_capsule(cap, idx, fam, point, pre)
+    rec = cap["record"]
+    reps = rec.get("replicates")
+    want_r = pre["quality"]["R"]
+    if not isinstance(reps, list) or len(reps) != want_r:
+        _refuse(f"{os.path.basename(path)} carries "
+                f"{len(reps) if isinstance(reps, list) else 'no'} "
+                f"replicates, the pre binds R={want_r}")
+    for j, rep in enumerate(reps):
+        pv = rep.get("p_values") if isinstance(rep, dict) else None
+        if not isinstance(pv, dict) or \
+                set(pv) != {"B1B", "B2A", "B2B", "B3A"}:
+            _refuse(f"{os.path.basename(path)} replicate {j} is not a "
+                    "closed four-family p-vector")
+    if loco:
+        folds = rec.get("loco_folds")
+        if not isinstance(folds, list) or len(folds) != want_r:
+            _refuse(f"{os.path.basename(path)} is a LOCO carrier with "
+                    "no per-replicate fold map")
+        registry = set(_loco_registry(repo, pre))
+        for j, fr in enumerate(folds):
+            if not isinstance(fr, dict) or set(fr) != registry:
+                _refuse(f"{os.path.basename(path)} replicate {j} fold "
+                        "set is not the registered LOCO station set")
+    elif "loco_folds" in rec:
+        _refuse(f"{os.path.basename(path)} is a detection carrier "
+                "carrying LOCO folds")
+    return cap
+
+
 # ---------------------------------------------------------------- phases
 def cmd_fire(repo, outdir, manifest_commit):
     """Phase 0. Publishes the closed pre-invocation create-once."""
@@ -161,25 +271,40 @@ def _run_one(repo, outdir, sha, idx, loco):
                         with_loco=loco)
 
 
-def cmd_worker(repo, outdir, idx, loco):
-    """One point, in its own process. Re-verifies the pre digest and
-    the host guard independently of the parent."""
+def cmd_worker(repo, outdir, idx, loco, pre_commit):
+    """One point, in its own process. Repeats EVERY gate the parent
+    ran -- the host guard, the pre digest, and the committed-pre
+    proof -- because a child that trusts its parent is a child the
+    parent's caller can steer."""
     pre, sha = _load_pre_checked(outdir)
+    _require_committed_pre(repo, outdir, pre_commit)
     _run_one(repo, outdir, int(idx), loco)
     return 0
 
 
-def _drive(repo, outdir, indices, loco, procs):
+def _drive(repo, outdir, indices, loco, procs, pre, points,
+           pre_commit):
     """Spawn one worker process per point, `procs` at a time.
 
     Separate processes rather than threads because the runner's own
     isolation argument applies here too: a worker that shares this
     interpreter shares every monkeypatchable callable in it.
     """
+    if isinstance(procs, bool) or not isinstance(procs, int) or \
+            procs < 1:
+        _refuse(f"process count {procs!r} is not a positive integer "
+                "(codex 0257Z finding 5: procs=0 entered a "
+                "non-progressing busy loop)")
+    cap = (os.cpu_count() or 1) * 2
+    if procs > cap:
+        _refuse(f"process count {procs} exceeds this host's cap "
+                f"{cap} ({os.cpu_count()} logical cores x2)")
     pending = list(indices)
     done = skipped = 0
     for i in list(pending):
         if os.path.exists(_capsule_path(outdir, i, loco)):
+            # NOT a skip until it has been reopened and validated
+            _validate_published(repo, outdir, pre, points, i, loco)
             pending.remove(i)
             skipped += 1
     total = len(pending)
@@ -190,7 +315,7 @@ def _drive(repo, outdir, indices, loco, procs):
         while pending and len(running) < procs:
             i = pending.pop(0)
             cmd = [sys.executable, os.path.abspath(__file__),
-                   "--worker", repo, outdir, str(i)]
+                   "--worker", repo, outdir, str(i), pre_commit]
             if loco:
                 cmd.append("--loco")
             running[i] = subprocess.Popen(cmd, stdout=subprocess.PIPE,
@@ -216,47 +341,69 @@ def _drive(repo, outdir, indices, loco, procs):
     return done, skipped
 
 
-def cmd_phase1(repo, outdir, procs):
+def cmd_phase1(repo, outdir, procs, pre_commit):
     pre, sha = _load_pre_checked(outdir)
+    _require_committed_pre(repo, outdir, pre_commit)
     points = TSR.derive_points(pre, _blob_reader(repo))
     print(f"phase1: {len(points)} detection points, {procs} processes")
     done, skipped = _drive(repo, outdir, range(len(points)), False,
-                           procs)
+                           procs, pre, points, pre_commit)
     print(f"phase1 complete: {done} run, {skipped} already present")
     print("\nNEXT: run rank.")
     return 0
 
 
-def cmd_rank(repo, outdir):
+def cmd_rank(repo, outdir, pre_commit):
     pre, sha = _load_pre_checked(outdir)
+    _require_committed_pre(repo, outdir, pre_commit)
+    points = TSR.derive_points(pre, _blob_reader(repo))
+    # codex 0257Z finding 4: rank reads every B1B carrier, so it gets
+    # the SAME closed validation as resume and aggregate. Ranking off
+    # a carrier nothing reopened is how a forged point would steer
+    # the stage-2 selection.
+    for i, (fam, _p) in enumerate(points):
+        if fam == "B1B":
+            _validate_published(repo, outdir, pre, points, i, False)
     top8 = TSR.rank_stage1_b1b(outdir, sha, _blob_reader(repo))
     print("top8 " + ",".join(str(i) for i in top8))
     print("\nNEXT: run phase2 with exactly this list.")
     return 0
 
 
-def cmd_phase2(repo, outdir, procs, top8):
+def cmd_phase2(repo, outdir, procs, top8, pre_commit):
     """Stage 2: LOCO folds for the stage-1 top-8 B1B points.
 
     The list is re-derived here and compared against the caller's, so
     a hand-edited selection cannot enter the run.
     """
     pre, sha = _load_pre_checked(outdir)
+    _require_committed_pre(repo, outdir, pre_commit)
+    points = TSR.derive_points(pre, _blob_reader(repo))
+    for i, (fam, _p) in enumerate(points):
+        if fam == "B1B":
+            _validate_published(repo, outdir, pre, points, i, False)
     derived = TSR.rank_stage1_b1b(outdir, sha, _blob_reader(repo))
     if list(top8) != list(derived):
         _refuse(f"the supplied top-8 {list(top8)} is not the "
                 f"deterministic stage-1 ranking {derived}")
     print(f"phase2: {len(derived)} LOCO points, {procs} processes")
-    done, skipped = _drive(repo, outdir, derived, True, procs)
+    done, skipped = _drive(repo, outdir, derived, True, procs, pre,
+                           points, pre_commit)
     print(f"phase2 complete: {done} run, {skipped} already present")
     print("\nNEXT: run aggregate.")
     return 0
 
 
-def cmd_aggregate(repo, outdir):
+def cmd_aggregate(repo, outdir, pre_commit):
     pre, sha = _load_pre_checked(outdir)
+    _require_committed_pre(repo, outdir, pre_commit)
     reader = _blob_reader(repo)
+    points = TSR.derive_points(pre, reader)
+    for i, (fam, _p) in enumerate(points):
+        _validate_published(repo, outdir, pre, points, i, False)
     top8 = TSR.rank_stage1_b1b(outdir, sha, reader)
+    for i in top8:
+        _validate_published(repo, outdir, pre, points, i, True)
     registry = _loco_registry(repo, pre)
     results, comp, smoke = TSR.aggregate(repo, outdir, sha, top8,
                                          registry, reader)
@@ -290,17 +437,79 @@ def cmd_finalize(repo, outdir, pre_commit, results_commit, rel_dir):
     return 0
 
 
+def cmd_select(repo, outdir, smoke_commit, grids_commit, rel_dir):
+    """codex 0257Z finding 5: the driver used to stop at `finalize`
+    and print "run select" for a command that did not exist -- the
+    selector module's `__main__` is a selftest only, so the promised
+    smoke-to-selector route ended in an unreviewed manual link.
+
+    This is that link, governed: the final smoke and the effect grids
+    are reopened FROM THEIR COMMITS, the selector artifact is
+    published create-once, and nothing is taken from caller state."""
+    import w2_tier_selector_cayley as TS
+    reader = _blob_reader(repo)
+    smoke_rel = f"{rel_dir}/tier_s_smoke_final.json"
+    smoke = json.loads(reader(smoke_commit,
+                              smoke_rel).decode("utf-8"))
+    if "pre_invocation_ref" not in smoke:
+        _refuse("the committed smoke is a DRAFT (no pre_invocation "
+                "ref) -- run finalize and commit before select")
+    grids_art = json.loads(reader(grids_commit,
+                                  GRIDS_REL).decode("utf-8"))
+    grids = grids_art.get("grids", grids_art)
+    art = TS.select_candidates(
+        smoke, grids,
+        smoke_ref={"commit": smoke_commit, "path": smoke_rel},
+        effect_grids_ref={"commit": grids_commit,
+                          "path": GRIDS_REL})
+    TSR._publish_once(os.path.join(outdir, "selector.json"),
+                      json.dumps(art, indent=1, sort_keys=True,
+                                 allow_nan=False) + "\n")
+    print("selector published create-once")
+    print("\nNEXT: commit the selector, then run verify-select with "
+          "its commit.")
+    return 0
+
+
+def cmd_verify_select(repo, outdir, selector_commit, manifest_commit,
+                      rel_dir):
+    """The post-commit half: reopen the COMMITTED selector and put it
+    through the production admission function. A selector that only
+    exists on disk has never been proven to be the one that was
+    published."""
+    import hashlib
+    import w2_tier_selector_cayley as TS
+    reader = _blob_reader(repo)
+    rel = f"{rel_dir}/selector.json"
+    raw = reader(selector_commit, rel)
+    art = json.loads(raw.decode("utf-8"))
+    adm = TS.verify_selector_admission(
+        repo, art, manifest_commit,
+        selector_identity={"commit": selector_commit, "path": rel,
+                           "blob_sha256":
+                               hashlib.sha256(raw).hexdigest()})
+    print(f"selector ADMITTED at manifest {adm['manifest_commit'][:12]}"
+          f", pre {adm['pre_invocation']['commit'][:12]}")
+    return 0
+
+
 def _usage():
     return (
         "TIER_S_DRIVER_USAGE:\n"
-        "  driver.py fire      <repo> <outdir> <manifest_commit>\n"
-        "  driver.py phase1    <repo> <outdir> <procs>\n"
-        "  driver.py rank      <repo> <outdir>\n"
-        "  driver.py phase2    <repo> <outdir> <procs> <i,i,...>\n"
-        "  driver.py aggregate <repo> <outdir>\n"
-        "  driver.py finalize  <repo> <outdir> <pre_commit> "
+        "  driver.py fire       <repo> <outdir> <manifest_commit>\n"
+        "  driver.py phase1     <repo> <outdir> <procs> <pre_commit>\n"
+        "  driver.py rank       <repo> <outdir> <pre_commit>\n"
+        "  driver.py phase2     <repo> <outdir> <procs> <i,i,...> "
+        "<pre_commit>\n"
+        "  driver.py aggregate  <repo> <outdir> <pre_commit>\n"
+        "  driver.py finalize   <repo> <outdir> <pre_commit> "
         "<results_commit> <rel_dir>\n"
-        "  driver.py --worker  <repo> <outdir> <idx> [--loco]\n"
+        "  driver.py select     <repo> <outdir> <smoke_commit> "
+        "<grids_commit> <rel_dir>\n"
+        "  driver.py verify-select <repo> <outdir> <selector_commit> "
+        "<manifest_commit> <rel_dir>\n"
+        "  driver.py --worker   <repo> <outdir> <idx> <pre_commit> "
+        "[--loco]\n"
         "  driver.py --selftest\n"
         "Operator commits happen BETWEEN phases and are not made by "
         "this driver.")
@@ -313,21 +522,29 @@ def main(argv):
     if cmd == "--selftest":
         return _selftest()
     if cmd == "--worker":
-        return cmd_worker(argv[2], argv[3], argv[4],
-                          "--loco" in argv[5:])
+        return cmd_worker(argv[2], argv[3], argv[4], "--loco" in argv,
+                          argv[5])
     if cmd == "fire":
         return cmd_fire(os.path.abspath(argv[2]), argv[3], argv[4])
     if cmd == "phase1":
         return cmd_phase1(os.path.abspath(argv[2]), argv[3],
-                          int(argv[4]))
+                          int(argv[4]), argv[5])
     if cmd == "rank":
-        return cmd_rank(os.path.abspath(argv[2]), argv[3])
+        return cmd_rank(os.path.abspath(argv[2]), argv[3], argv[4])
     if cmd == "phase2":
         return cmd_phase2(os.path.abspath(argv[2]), argv[3],
                           int(argv[4]),
-                          [int(x) for x in argv[5].split(",") if x])
+                          [int(x) for x in argv[5].split(",") if x],
+                          argv[6])
     if cmd == "aggregate":
-        return cmd_aggregate(os.path.abspath(argv[2]), argv[3])
+        return cmd_aggregate(os.path.abspath(argv[2]), argv[3],
+                             argv[4])
+    if cmd == "select":
+        return cmd_select(os.path.abspath(argv[2]), argv[3], argv[4],
+                          argv[5], argv[6])
+    if cmd == "verify-select":
+        return cmd_verify_select(os.path.abspath(argv[2]), argv[3],
+                                 argv[4], argv[5], argv[6])
     if cmd == "finalize":
         return cmd_finalize(os.path.abspath(argv[2]), argv[3],
                             argv[4], argv[5], argv[6])
@@ -397,7 +614,11 @@ def _selftest():
             repo, c2, GRIDS_REL, GEOMETRY_REL, IMPL_REL, outdir,
             blob_reader=_blob_reader(repo), argv=["selftest"])
         assert len(points) == 6, len(points)
-        print(f"  D-0 PASS  pre fired over {len(points)} points")
+        g("add", "-A")
+        g("commit", "-qm", "pre-invocation")
+        c3 = g("rev-parse", "HEAD").stdout.decode().strip()
+        print(f"  D-0 PASS  pre fired over {len(points)} points and "
+              "committed")
 
         # ---- D-1 the HOST GUARD ------------------------------------
         _load_pre_checked(outdir)          # positive: same host
@@ -465,9 +686,12 @@ def _selftest():
                    "certifiable": False,
                    "replicates": [{"p_values": {
                        "B1B": 0.001, "B2A": 0.5, "B2B": 0.5,
-                       "B3A": 0.5}}]}
+                       "B3A": 0.5}}
+                       for _ in range(pre["quality"]["R"])]}
             if folds:
-                rec["loco_folds"] = [{"S0": 0.001, "S1": 0.001}]
+                rec["loco_folds"] = [{"S0": 0.001, "S1": 0.001}
+                                     for _ in range(
+                                         pre["quality"]["R"])]
             return rec
 
         for i in range(len(points)):
@@ -475,7 +699,7 @@ def _selftest():
                                 smoke_fn=stub)
         before = sorted(os.listdir(outdir))
         done, skipped = _drive(repo, outdir, range(len(points)),
-                               False, 2)
+                               False, 2, pre, points, c3)
         assert (done, skipped) == (0, len(points)), (done, skipped)
         assert sorted(os.listdir(outdir)) == before, \
             "D-3 FAILED: a resume rewrote or added a carrier"
@@ -487,7 +711,7 @@ def _selftest():
         derived = TSR.rank_stage1_b1b(outdir, sha, reader)
         try:
             cmd_phase2(repo, outdir, 1, [derived[-1]] if derived
-                       else [0])
+                       else [0], c3)
         except DriverRefusal as e:
             assert "deterministic stage-1 ranking" in str(e), str(e)
         else:
@@ -512,8 +736,11 @@ def _selftest():
             repo, c2, GRIDS_REL, GEOMETRY_REL, IMPL_REL, out2,
             blob_reader=_blob_reader(repo), argv=["selftest-spawn"])
         assert not os.path.exists(_capsule_path(out2, 0, False))
+        g("add", "-A")
+        g("commit", "-qm", "spawn pre")
+        c3b = g("rev-parse", "HEAD").stdout.decode().strip()
         try:
-            _drive(repo, out2, [0], False, 1)
+            _drive(repo, out2, [0], False, 1, pre2, pts2, c3b)
         except DriverRefusal as e:
             assert "point 0 failed" in str(e), str(e)
             # the child got past argument parsing, the pre load and
@@ -529,6 +756,121 @@ def _selftest():
               "the real harness before failing on fixture geometry), "
               "a worker failure becomes a typed refusal rather than "
               "a missing point, and nothing partial is left behind")
+
+        # ---- D-6 (codex R-2, CRITICAL): the committed-pre gate ---
+        # R-2 ran phase 1 with no git repository at all. The claimed
+        # fire -> commit -> phase1 boundary was advisory; it is now
+        # proved against the committed bytes.
+        out3 = os.path.join(repo, "tier_s_uncommitted")
+        pre3, pts3 = TSR.fire_pre(
+            repo, c2, GRIDS_REL, GEOMETRY_REL, IMPL_REL, out3,
+            blob_reader=_blob_reader(repo), argv=["selftest-nc"])
+        try:
+            _require_committed_pre(repo, out3, c3)
+        except DriverRefusal as e:
+            assert "not committed" in str(e), str(e)
+        else:
+            raise AssertionError(
+                "D-6 FAILED: an UNCOMMITTED pre was accepted -- the "
+                "chronology boundary is advisory again")
+        g("add", "-A")
+        g("commit", "-qm", "uncommitted-pre now committed")
+        c3c = g("rev-parse", "HEAD").stdout.decode().strip()
+        _require_committed_pre(repo, out3, c3c)      # positive
+        # the SAME carrier under a wrong commit still refuses
+        try:
+            _require_committed_pre(repo, out3, c3)
+        except DriverRefusal as e:
+            assert "not committed" in str(e), str(e)
+        else:
+            raise AssertionError(
+                "D-6 FAILED: a pre commit that does not carry this "
+                "outdir was accepted")
+        # an outdir outside the repo can never be committed
+        try:
+            _repo_rel(repo, tmp)
+        except DriverRefusal as e:
+            assert "not inside the repository" in str(e), str(e)
+        else:
+            raise AssertionError(
+                "D-6 FAILED: an outdir outside the repo was accepted")
+        print("  D-6 PASS  an UNCOMMITTED pre refuses, the same "
+              "carrier under the wrong commit refuses, an outdir "
+              "outside the repo refuses -- and the committed positive "
+              "still passes")
+
+        # ---- D-7 (codex R-3, MAJOR): resume validates, not stats ---
+        out4 = os.path.join(repo, "tier_s_forged")
+        pre4, pts4 = TSR.fire_pre(
+            repo, c2, GRIDS_REL, GEOMETRY_REL, IMPL_REL, out4,
+            blob_reader=_blob_reader(repo), argv=["selftest-forge"])
+        g("add", "-A")
+        g("commit", "-qm", "forge pre")
+        c3d = g("rev-parse", "HEAD").stdout.decode().strip()
+        with open(os.path.join(out4, "smoke_point_000.json"), "w",
+                  encoding="utf-8") as f:
+            f.write("not-json")
+        try:
+            _drive(repo, out4, [0], False, 1, pre4, pts4, c3d)
+        except DriverRefusal as e:
+            assert "not JSON" in str(e), str(e)
+        else:
+            raise AssertionError(
+                "D-7 FAILED: malformed bytes at the expected path "
+                "counted as a completed point")
+        assert open(os.path.join(out4, "smoke_point_000.json"),
+                    encoding="utf-8").read() == "not-json", \
+            "D-7 FAILED: the driver OVERWROTE an existing carrier"
+        # a structurally valid capsule with the WRONG replicate count
+        # must also refuse -- filename plus parseability is not enough
+        short = {"index": 0, "family": pts4[0][0], "point": pts4[0][1],
+                 "pre_invocation_sha256": pre4["invocation_sha256"],
+                 "record": {"replicates": [], "certifiable": False}}
+        out5 = os.path.join(repo, "tier_s_short")
+        pre5, pts5 = TSR.fire_pre(
+            repo, c2, GRIDS_REL, GEOMETRY_REL, IMPL_REL, out5,
+            blob_reader=_blob_reader(repo), argv=["selftest-short"])
+        g("add", "-A")
+        g("commit", "-qm", "short pre")
+        c3e = g("rev-parse", "HEAD").stdout.decode().strip()
+        short["pre_invocation_sha256"] = pre5["invocation_sha256"]
+        with open(os.path.join(out5, "smoke_point_000.json"), "w",
+                  encoding="utf-8") as f:
+            json.dump(short, f)
+        try:
+            _drive(repo, out5, [0], False, 1, pre5, pts5, c3e)
+        except DriverRefusal as e:
+            assert "replicates" in str(e), str(e)
+        else:
+            raise AssertionError(
+                "D-7 FAILED: a carrier with the wrong replicate count "
+                "counted as complete")
+        print("  D-7 PASS  malformed bytes and a wrong-replicate-count "
+              "carrier BOTH refuse instead of counting as complete, "
+              "and neither is overwritten")
+
+        # ---- D-8 (codex R-4, MODERATE): process count ------------
+        for bad in (0, -1, 1.5, True, "4"):
+            try:
+                _drive(repo, outdir, [], False, bad, pre, points, c3)
+            except DriverRefusal as e:
+                assert "process count" in str(e), (bad, str(e))
+            else:
+                raise AssertionError(
+                    f"D-8 FAILED: procs={bad!r} accepted (R-4 was a "
+                    "non-progressing busy loop)")
+        print("  D-8 PASS  0, -1, 1.5, True and \"4\" are each "
+              "refused as a process count, and the host cap is "
+              "enforced")
+
+        # ---- D-9 (codex R-6): the select surface exists -----------
+        u = _usage()
+        assert "select" in u and "verify-select" in u, u
+        for name in ("cmd_select", "cmd_verify_select"):
+            assert name in globals(), name
+        print("  D-9 PASS  a governed select phase and its post-commit "
+              "verification exist on the operator surface (R-6 was "
+              "'no production select command exists')")
 
         print("w2 tier-s driver selftest: ALL PASS "
               "(driver behaviour only; stub smoke; nothing fired). "

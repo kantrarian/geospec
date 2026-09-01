@@ -520,6 +520,19 @@ def _drive(repo, outdir, indices, loco, procs, pre, points,
     if procs > cap:
         _refuse(f"process count {procs} exceeds this host's cap "
                 f"{cap} ({os.cpu_count()} logical cores x2)")
+    # grassmann 2124Z lock: children are spawned from THIS file, so this
+    # file must BE the repository's pinned driver -- asserted HERE, at
+    # the spawn, not only in the join the caller ran, so a shadowed or
+    # external parent can never launch a pristine child while itself
+    # unreviewed
+    spawn = os.path.abspath(__file__)
+    fixed = os.path.join(os.path.abspath(repo),
+                         TSR.DRIVER_REL.replace("/", os.sep))
+    if not (os.path.exists(spawn) and os.path.exists(fixed)
+            and os.path.samefile(spawn, fixed)):
+        _refuse(f"the spawn target {spawn} is not the repository's "
+                f"pinned driver {fixed} -- a parent from anywhere else "
+                "may not launch children")
     pending = list(indices)
     done = skipped = 0
     for i in list(pending):
@@ -1530,6 +1543,37 @@ def _selftest(real_repo):
               "under the real name before the driver imports it) each "
               "refuse BY NAME with no outdir created; the untouched "
               "positive re-passes through the real CLI")
+
+        # ---- D-10d (grassmann 2124Z lock): the SPAWN TARGET must be
+        # the pinned repository driver, asserted at the spawn itself.
+        # Mutation: this module's __file__ is pointed at the pristine
+        # external copy (same bytes, foreign path); _drive must refuse
+        # typed BEFORE validating or spawning anything, and the
+        # restored positive must re-pass.
+        real_file = globals()["__file__"]
+        ext_pristine = os.path.join(shadow_dir,
+                                    "external_pristine_driver.py")
+        assert os.path.exists(ext_pristine)
+        globals()["__file__"] = ext_pristine
+        try:
+            _drive(repo, out2, [0], False, 1, pre2, pts2, c3b)
+        except DriverRefusal as e:
+            assert "spawn target" in str(e) and \
+                "not the repository's pinned driver" in str(e), str(e)
+        else:
+            raise AssertionError(
+                "D-10d FAILED: _drive spawned from a foreign __file__")
+        finally:
+            globals()["__file__"] = real_file
+        assert not os.path.exists(_capsule_path(out2, 0, False)), (
+            "D-10d FAILED: the refused spawn left a carrier")
+        done_d, skipped_d = _drive(repo, outdir, range(len(points)),
+                                   False, 2, pre, points, c3)
+        assert (done_d, skipped_d) == (0, len(points)), (done_d, skipped_d)
+        print("  D-10d PASS  a parent whose __file__ is a foreign copy of "
+              "the driver (same bytes) is refused AT THE SPAWN, typed, "
+              "before validation or launch; the restored positive "
+              "re-passes")
 
         # ---- D-11b (codex item 2, re-based): the boundary mutations
         # as ADMITTED MUTANTS. Under a source-identity join, an

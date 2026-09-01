@@ -1,5 +1,5 @@
 {
- "generated": "2026-08-31T07:02:10.974612",
+ "generated": "2026-09-01T07:05:31.512887",
  "config": {
   "spec": "AMENDMENT_2026-07-29_prospective_arm (R4)",
   "start_date": "2026-07-29",
@@ -15,36 +15,36 @@
  },
  "period": {
   "start": "2026-07-29",
-  "end": "2026-08-31"
+  "end": "2026-09-01"
  },
  "molchan": {
   "per_region": {
    "ridgecrest": {
-    "scoreable_days": 32,
+    "scoreable_days": 33,
     "alarm_days": 0,
     "excluded_days": 0,
     "tau": 0.0
    },
    "socal_saf_mojave": {
-    "scoreable_days": 32,
+    "scoreable_days": 33,
     "alarm_days": 0,
     "excluded_days": 0,
     "tau": 0.0
    },
    "socal_saf_coachella": {
-    "scoreable_days": 32,
+    "scoreable_days": 33,
     "alarm_days": 0,
     "excluded_days": 0,
     "tau": 0.0
    },
    "norcal_hayward": {
-    "scoreable_days": 32,
+    "scoreable_days": 33,
     "alarm_days": 0,
     "excluded_days": 0,
     "tau": 0.0
    },
    "cascadia": {
-    "scoreable_days": 32,
+    "scoreable_days": 33,
     "alarm_days": 0,
     "excluded_days": 0,
     "tau": 0.0
@@ -52,29 +52,29 @@
    "tokyo_kanto": {
     "scoreable_days": 0,
     "alarm_days": 0,
-    "excluded_days": 32,
+    "excluded_days": 33,
     "tau": null
    },
    "istanbul_marmara": {
-    "scoreable_days": 32,
+    "scoreable_days": 33,
     "alarm_days": 0,
     "excluded_days": 0,
     "tau": 0.0
    },
    "turkey_kahramanmaras": {
-    "scoreable_days": 32,
+    "scoreable_days": 33,
     "alarm_days": 2,
     "excluded_days": 0,
-    "tau": 0.0625
+    "tau": 0.06060606060606061
    },
    "campi_flegrei": {
     "scoreable_days": 0,
     "alarm_days": 0,
-    "excluded_days": 32,
+    "excluded_days": 33,
     "tau": null
    },
    "kaikoura": {
-    "scoreable_days": 32,
+    "scoreable_days": 33,
     "alarm_days": 0,
     "excluded_days": 0,
     "tau": 0.0
@@ -82,32 +82,32 @@
    "anchorage": {
     "scoreable_days": 0,
     "alarm_days": 0,
-    "excluded_days": 32,
+    "excluded_days": 33,
     "tau": null
    },
    "kumamoto": {
     "scoreable_days": 0,
     "alarm_days": 0,
-    "excluded_days": 32,
+    "excluded_days": 33,
     "tau": null
    },
    "hualien": {
     "scoreable_days": 0,
     "alarm_days": 0,
-    "excluded_days": 32,
+    "excluded_days": 33,
     "tau": null
    },
    "mexico_guerrero": {
     "scoreable_days": 0,
     "alarm_days": 0,
-    "excluded_days": 32,
+    "excluded_days": 33,
     "tau": null
    }
   },
   "pooled": {
-   "scoreable_days": 256,
+   "scoreable_days": 264,
    "alarm_days": 2,
-   "tau": 0.0078125,
+   "tau": 0.007575757575757576,
    "admissible_mainshocks": 0,
    "hits": 0,
    "misses": 0,

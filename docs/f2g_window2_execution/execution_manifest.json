@@ -2,8 +2,8 @@
  "design_manifest_blob_sha256": "d6decbd6ab5814bc005ce69c538311ff1b11cb1d13c19e2999e03a92bc7cca1f",
  "design_manifest_commit": "5fba5446cd96722fb86021df5065a46b8a1a78f5",
  "design_target_commit": "12161f6cf2000b2d4aa86fe659f834839ac0d27b",
- "execution_target_commit": "a30b6bdbfeead5686041490d8396a1470e0a411c",
- "generated_utc": "2026-09-01T03:25:38Z",
+ "execution_target_commit": "ce92f26a1d5fc1f83b8be96f610f3c85e431e0e0",
+ "generated_utc": "2026-09-01T03:40:53Z",
  "manifest_state": "OPEN",
  "repository_url": "https://github.com/kantrarian/geospec",
  "schema": "f2g-window2-execution-manifest-v1.2",
@@ -486,8 +486,8 @@
      "path": "docs/f2g_window2_execution/bound_geometry_capsule_v2.json"
     },
     {
-     "blob_sha256": "ef874d1e9482e2c5a4324fcd521da5b08aae6aaf5f370e7a433b8e673ca50a6b",
-     "commit": "a30b6bdbfeead5686041490d8396a1470e0a411c",
+     "blob_sha256": "91971300dddb8aaf96e44d24abebb6c630ca9e93bc4a0ec574178a94a1b2a33c",
+     "commit": "ce92f26a1d5fc1f83b8be96f610f3c85e431e0e0",
      "path": "monitoring/src/w2_tier_s_runner_cayley.py"
     },
     {

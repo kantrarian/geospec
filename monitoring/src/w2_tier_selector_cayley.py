@@ -55,13 +55,25 @@ TIER_S_RESULTS_FIELDS = {"schema", "quality",
 TIER_S_RESULT_ENTRY_FIELDS = {"point", "grid_index",
                               "replicates",
                               "loco_folds"}
-TIER_S_PRE_SCHEMA = "f2g-w2-tier-s-pre-invocation-v1"
+# v2 (codex 0314Z Design A). No v1 acceptance in the production path:
+# there is no production v1 Tier-S carrier to preserve, and a
+# permissive downgrade would let a pre without the driver pin or the
+# execution capsule reach admission -- which is the whole gap v2
+# closes. A v1 fixture survives only inside the explicit downgrade
+# REFUSAL control.
+TIER_S_PRE_SCHEMA = "f2g-w2-tier-s-pre-invocation-v2"
 TIER_S_PRE_FIELDS = {"schema", "manifest_commit", "effect_grids",
                      "effect_grids_content_sha256",
                      "geometry", "quality", "seed_authority_sha256",
-                     "implementation", "grid_order_sha256",
-                     "output_root", "argv", "host", "interpreter",
+                     "implementation", "driver", "execution",
+                     "grid_order_sha256",
+                     "output_root", "argv",
                      "fired_utc", "invocation_sha256"}
+TIER_S_EXECUTION_SCHEMA = "f2g-w2-tier-s-execution-identity-v1"
+TIER_S_EXECUTION_FIELDS = {"schema", "host", "interpreter_executable",
+                           "interpreter_implementation",
+                           "interpreter_version", "numpy_version",
+                           "numpy_config_sha256"}
 TIER_S_COMPLETION_SCHEMA = "f2g-w2-tier-s-completion-v1"
 TIER_S_COMPLETION_FIELDS = {"schema", "pre_invocation_sha256",
                             "results_blob_sha256", "fired_utc",
@@ -426,14 +438,23 @@ def verify_selector_admission(repo, art, manifest_commit, *,
     man = json.loads(blob_reader(
         mc_full, "docs/f2g_window2_execution/"
                  "execution_manifest.json").decode("utf-8"))
+    def _bound_pin(path):
+        matches = []
+        for slot in man.get("slots", {}).values():
+            if slot.get("status") != "BOUND":
+                continue
+            for pin in slot.get("pins", ()) or ():
+                if isinstance(pin, dict) and pin.get("path") == path:
+                    matches.append(pin)
+        if len(matches) > 1:
+            raise SelectorRefusal(
+                f"SELECTOR_UNADMITTED: {path} has {len(matches)} "
+                "BOUND manifest pins; identity is ambiguous")
+        return matches[0] if matches else None
+
     # (a) the effect grids must BE the manifest-pinned blob
     g_ref = art["effect_grids_ref"]
-    pinned = None
-    for slot in man.get("slots", {}).values():
-        for pin in slot.get("pins", ()) or ():
-            if isinstance(pin, dict) and \
-                    pin.get("path") == g_ref["path"]:
-                pinned = pin
+    pinned = _bound_pin(g_ref["path"])
     if pinned is None:
         raise SelectorRefusal(
             f"SELECTOR_UNADMITTED: {g_ref['path']} is not a pin of "
@@ -513,17 +534,50 @@ def verify_selector_admission(repo, art, manifest_commit, *,
         raise SelectorRefusal(
             "SELECTOR_UNADMITTED: pre-invocation quality is not the "
             "admitted Tier-S quality")
+    # codex 0314Z point 4: the two identities v2 added are ADMITTED
+    # here, not merely carried. The driver is the artifact that fired
+    # the campaign; before v2 it was outside the admitted set
+    # entirely, so a selector could admit a chain without ever
+    # establishing what produced it.
+    drv = pre["driver"]
+    if not isinstance(drv, dict) or set(drv) != ID_FIELDS:
+        raise SelectorRefusal(
+            "SELECTOR_UNADMITTED: pre-invocation driver identity is "
+            "not a closed {commit, path, blob_sha256} reference")
+    drv_pin = _bound_pin(drv["path"])
+    if drv_pin is None:
+        raise SelectorRefusal(
+            f"SELECTOR_UNADMITTED: the firing driver {drv['path']} is "
+            "not a BOUND pin of the admitted manifest")
+    if drv["commit"] != drv_pin["commit"] or \
+            drv["blob_sha256"] != drv_pin["blob_sha256"]:
+        raise SelectorRefusal(
+            "SELECTOR_UNADMITTED: the pre binds a driver identity "
+            f"({str(drv['commit'])[:12]}/"
+            f"{str(drv['blob_sha256'])[:12]}) that is not the "
+            f"admitted pin ({str(drv_pin['commit'])[:12]}/"
+            f"{str(drv_pin['blob_sha256'])[:12]})")
+    ex = pre["execution"]
+    if not isinstance(ex, dict) or \
+            set(ex) != TIER_S_EXECUTION_FIELDS or \
+            ex.get("schema") != TIER_S_EXECUTION_SCHEMA:
+        raise SelectorRefusal(
+            "SELECTOR_UNADMITTED: pre-invocation execution identity "
+            "is not the closed registered capsule")
+    for _k in ("host", "interpreter_executable",
+               "interpreter_implementation", "interpreter_version",
+               "numpy_version", "numpy_config_sha256"):
+        if not isinstance(ex[_k], str) or not ex[_k].strip():
+            raise SelectorRefusal(
+                f"SELECTOR_UNADMITTED: execution identity field {_k} "
+                "is empty -- an identity with a hole in it attests "
+                "less than it appears to")
     geo = pre["geometry"]
     if not isinstance(geo, dict) or set(geo) != GEO_ID_FIELDS:
         raise SelectorRefusal(
             "SELECTOR_UNADMITTED: pre-invocation geometry identity "
             "not closed")
-    geo_pin = None
-    for slot in man.get("slots", {}).values():
-        for pin in slot.get("pins", ()) or ():
-            if isinstance(pin, dict) and \
-                    pin.get("path") == geo["path"]:
-                geo_pin = pin
+    geo_pin = _bound_pin(geo["path"])
     if geo_pin is None or geo["commit"] != geo_pin["commit"]:
         raise SelectorRefusal(
             "SELECTOR_UNADMITTED: pre-invocation geometry commit is "
@@ -566,12 +620,7 @@ def verify_selector_admission(repo, art, manifest_commit, *,
             "SELECTOR_UNADMITTED: seed authority is not "
             "lowercase-hex")
     impl = pre["implementation"]
-    impl_pin = None
-    for slot in man.get("slots", {}).values():
-        for pin in slot.get("pins", ()) or ():
-            if isinstance(pin, dict) and \
-                    pin.get("path") == impl.get("path"):
-                impl_pin = pin
+    impl_pin = _bound_pin(impl.get("path"))
     if not isinstance(impl, dict) or set(impl) != ID_FIELDS or \
             impl_pin is None or \
             impl["blob_sha256"] != impl_pin["blob_sha256"] or \
@@ -964,8 +1013,13 @@ def _selftest():
         grid_pin = pin_by(lambda p: p.startswith("grids"))
         geom_pin = pin_by(lambda p: p == "geom.json")
         impl_pin = pin_by(lambda p: p == impl_path)
+        driver_pin = pin_by(
+            lambda p: p.endswith("w2_tier_s_driver_cayley.py"))
         impl_id = {"commit": impl_pin["commit"], "path": impl_path,
                    "blob_sha256": impl_pin["blob_sha256"]}
+        driver_id = {"commit": driver_pin["commit"],
+                     "path": driver_pin["path"],
+                     "blob_sha256": driver_pin["blob_sha256"]}
         results = {"schema": "f2g-w2-tier-s-results-v2",
                    "quality": {"R": 50, "n_draws": 999},
                    "seed_authority_sha256": "b" * 64,
@@ -987,7 +1041,7 @@ def _selftest():
         store_map[(STAGE_RES, "ts_results.json")] = r_raw
         det_order = {f: [p for p in grids_obj[f] if "gain" not in p]
                      for f in ("B2A", "B2B", "B1B", "B3A")}
-        pre = {"schema": "f2g-w2-tier-s-pre-invocation-v1",
+        pre = {"schema": "f2g-w2-tier-s-pre-invocation-v2",
                "manifest_commit": mc_override or commit,
                "effect_grids": {"commit": grid_pin["commit"],
                                "path": grid_pin["path"],
@@ -1002,9 +1056,17 @@ def _selftest():
                "quality": {"R": 50, "n_draws": 999},
                "seed_authority_sha256": "b" * 64,
                "implementation": impl_id,
+               "driver": driver_id,
+               "execution": {
+                   "schema": "f2g-w2-tier-s-execution-identity-v1",
+                   "host": "kat",
+                   "interpreter_executable": "kat",
+                   "interpreter_implementation": "CPython",
+                   "interpreter_version": "kat",
+                   "numpy_version": "kat",
+                   "numpy_config_sha256": "e" * 64},
                "grid_order_sha256": _digest_fn(det_order),
                "output_root": "kat", "argv": ["kat"],
-               "host": "kat", "interpreter": {"executable": "kat"},
                "fired_utc": "2026-08-25T00:00:00Z"}
         pre["invocation_sha256"] = _digest_fn(
             {k: v for k, v in pre.items()
@@ -1032,17 +1094,23 @@ def _selftest():
 
     grids_raw = json.dumps({"schema": "f2g-w2-effect-grids-v1",
                             "grids": grids}).encode()
+    driver_rel = "monitoring/src/w2_tier_s_driver_cayley.py"
+    driver_raw = b"# pinned tier-s driver"
     astore = {("a" * 40, "grids2.json"): grids_raw,
-              ("a" * 40, "impl.py"): b"# pinned impl",
-              ("a" * 40, "geom.json"): b"{}"}
+               ("a" * 40, "impl.py"): b"# pinned impl",
+               ("a" * 40, "geom.json"): b"{}",
+               ("a" * 40, driver_rel): driver_raw}
     man_pins = [
         {"path": "grids2.json", "commit": "a" * 40,
          "blob_sha256": _hl.sha256(grids_raw).hexdigest()},
         {"path": "impl.py", "commit": "a" * 40,
          "blob_sha256": _hl.sha256(b"# pinned impl").hexdigest()},
         {"path": "geom.json", "commit": "a" * 40,
-         "blob_sha256": _hl.sha256(b"{}").hexdigest()}]
-    fix_man = {"slots": {"x": {"pins": man_pins}}}
+         "blob_sha256": _hl.sha256(b"{}").hexdigest()},
+        {"path": driver_rel, "commit": "a" * 40,
+         "blob_sha256": _hl.sha256(driver_raw).hexdigest()}]
+    fix_man = {"slots": {"x": {"status": "BOUND",
+                                  "pins": man_pins}}}
     caps = mk_tier_s_capsule(sm["families"], grids, grids_raw,
                              astore, "a" * 40, man_pins, "impl.py")
     sm2 = dict(sm, schema="f2g-w2-tier-s-smoke-v1",

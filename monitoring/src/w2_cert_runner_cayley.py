@@ -555,6 +555,8 @@ def _selftest():
         grid_pin = pin_by(lambda p: p.startswith("grids"))
         geom_pin = pin_by(lambda p: p == "geom.json")
         impl_pin = pin_by(lambda p: p == impl_path)
+        driver_pin = pin_by(
+            lambda p: p.endswith("w2_tier_s_driver_cayley.py"))
         impl_id = {"commit": impl_pin["commit"], "path": impl_path,
                    "blob_sha256": impl_pin["blob_sha256"]}
         results = {"schema": "f2g-w2-tier-s-results-v2",
@@ -578,7 +580,7 @@ def _selftest():
         store_map[(STAGE_RES, "ts_results.json")] = r_raw
         det_order = {f: [p for p in grids_obj[f] if "gain" not in p]
                      for f in ("B2A", "B2B", "B1B", "B3A")}
-        pre = {"schema": "f2g-w2-tier-s-pre-invocation-v1",
+        pre = {"schema": "f2g-w2-tier-s-pre-invocation-v2",
                "manifest_commit": mc_override or commit,
                "effect_grids": {"commit": grid_pin["commit"],
                                "path": grid_pin["path"],
@@ -593,9 +595,23 @@ def _selftest():
                "quality": {"R": 50, "n_draws": 999},
                "seed_authority_sha256": "b" * 64,
                "implementation": impl_id,
+               # v2 (codex 0314Z): the fixture carries the same
+               # closed shape the production chain does -- a KAT
+               # fixture that keeps the OLD schema would quietly stop
+               # exercising the admission path it exists to exercise.
+               "driver": {"commit": driver_pin["commit"],
+                          "path": driver_pin["path"],
+                          "blob_sha256": driver_pin["blob_sha256"]},
+               "execution": {
+                   "schema": "f2g-w2-tier-s-execution-identity-v1",
+                   "host": "kat",
+                   "interpreter_executable": "kat",
+                   "interpreter_implementation": "CPython",
+                   "interpreter_version": "kat",
+                   "numpy_version": "kat",
+                   "numpy_config_sha256": "e" * 64},
                "grid_order_sha256": _digest_fn(det_order),
                "output_root": "kat", "argv": ["kat"],
-               "host": "kat", "interpreter": {"executable": "kat"},
                "fired_utc": "2026-08-25T00:00:00Z"}
         pre["invocation_sha256"] = _digest_fn(
             {k: v for k, v in pre.items()
@@ -623,17 +639,23 @@ def _selftest():
 
     grids_raw = json.dumps({"schema": "f2g-w2-effect-grids-v1",
                             "grids": grids}).encode()
+    driver_rel = "monitoring/src/w2_tier_s_driver_cayley.py"
+    driver_raw = b"# pinned tier-s driver"
     store = {("d" * 40, "grids.json"): grids_raw,
              ("d" * 40, "impl.py"): b"# pinned impl",
-             ("d" * 40, "geom.json"): b"{}"}
+             ("d" * 40, "geom.json"): b"{}",
+             ("d" * 40, driver_rel): driver_raw}
     man_pins = [
         {"path": "grids.json", "commit": "d" * 40,
          "blob_sha256": hashlib.sha256(grids_raw).hexdigest()},
         {"path": "impl.py", "commit": "d" * 40,
          "blob_sha256": hashlib.sha256(b"# pinned impl").hexdigest()},
         {"path": "geom.json", "commit": "d" * 40,
-         "blob_sha256": hashlib.sha256(b"{}").hexdigest()}]
-    fix_man = {"slots": {"power_harness": {"pins": man_pins}}}
+         "blob_sha256": hashlib.sha256(b"{}").hexdigest()},
+        {"path": driver_rel, "commit": "d" * 40,
+         "blob_sha256": hashlib.sha256(driver_raw).hexdigest()}]
+    fix_man = {"slots": {"power_harness": {
+        "status": "BOUND", "pins": man_pins}}}
     hexmc = subprocess.run(["git", "-C", repo_g, "rev-parse", "HEAD"],
                            capture_output=True).stdout.decode().strip()
     caps = mk_tier_s_capsule(fams, grids, grids_raw, store,

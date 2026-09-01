@@ -276,6 +276,15 @@ BOUND_SLOTS = {
                   # BLOCKER item 1 (0432Z) -- it was writing results
                   # from outside the admitted set
                   "monitoring/src/w2_tier_s_runner_cayley.py",
+                  # codex 0257Z finding 1 (CRITICAL): the runner was
+                  # pinned but its CALLER was not, so the artifact
+                  # that actually fires a campaign sat outside the
+                  # admitted set and the pin audit stayed clean at
+                  # 90/0/0/0/0 while it did. It rides the same slot
+                  # as the runner it drives: same authority, same
+                  # lane, and the v2 pre-invocation now binds its
+                  # {commit, path, blob_sha256} from this pin.
+                  "monitoring/src/w2_tier_s_driver_cayley.py",
                   # cycle-4 R2: the result ASSEMBLER is production
                   # machinery of the certification path (builds the
                   # result package from the fired campaign); its
@@ -426,6 +435,16 @@ BOUND_SLOTS = {
         # below, and unbound evidence cannot support a packet claim.
         "paths": ["monitoring/src/"
                   "test_w2_geometry_admission_redkats_cayley.py",
+                  # codex 0531Z CRITICAL: every pin lookup in the
+                  # Tier-S chain scanned all slots without checking
+                  # `status`, so an OPEN slot's pins -- including the
+                  # FIRING DRIVER's -- were accepted as admitted. This
+                  # is codex's own reproduction, installed permanently
+                  # because the defect was invisible to a 91/91 pin
+                  # audit and to nine green bars: all of them resolved
+                  # pins through the same unchecked lookup.
+                  "monitoring/src/"
+                  "test_w2_tier_s_open_slot_redkats_codex.py",
                   "monitoring/src/"
                   "test_f2g_window2_redkats_grassmann.py",
                   # closure 4 (635/1420/1) and the P0 pin-bind: the

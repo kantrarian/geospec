@@ -793,6 +793,31 @@ def _selftest():
     _admit_with_mutated_pre(
         lambda p: p.__setitem__("execution", {"schema": "wrong"}),
         "execution capsule shape", "closed registered capsule")
+    # the ADMISSION-PATH v1 downgrade refusal (codex 0338Z). The
+    # driver refuses a v1 carrier too, but that is the producer
+    # refusing its own input; this is the independent consumer
+    # refusing it, which is the one that matters if a v1 pre ever
+    # reaches admission by some route the driver never saw.
+    _admit_with_mutated_pre(
+        lambda p: p.__setitem__(
+            "schema", "f2g-w2-tier-s-pre-invocation-v1"),
+        "v1 schema downgrade", "closed capsule schema")
+    # and a v1-SHAPED pre -- correct old schema AND the old field set,
+    # not merely a relabelled v2 -- must refuse just as hard, so the
+    # lock cannot be satisfied by a label check alone.
+    def _to_v1_shape(p):
+        p["schema"] = "f2g-w2-tier-s-pre-invocation-v1"
+        ex = p.pop("execution")
+        p.pop("driver")
+        p["host"] = ex["host"]
+        p["interpreter"] = {"executable": ex["interpreter_executable"],
+                            "version": ex["interpreter_version"]}
+    _admit_with_mutated_pre(_to_v1_shape, "genuine v1 shape",
+                            "closed capsule schema")
+    print("  selector REFUSES both a relabelled v1 and a GENUINELY "
+          "v1-shaped pre (old schema, old field set, no driver, no "
+          "execution) -- the downgrade path is closed at admission, "
+          "not just at the producer")
     print("  selector REJECTS an altered driver blob, an unadmitted "
           "driver path, an emptied NumPy build fingerprint and a "
           "malformed execution capsule -- the v2 identities are "

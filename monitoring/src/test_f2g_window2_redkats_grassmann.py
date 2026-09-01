@@ -2819,16 +2819,25 @@ def w_selrun():
         grids_raw = _j.dumps({"grids": grids}).encode()
         impl_raw = b"# bar-pinned impl"
         geom_raw = b"{}"
+        # codex 0314Z Design A: the artifact that FIRES must itself be
+        # inside the admitted set, so the selector now adjudicates the
+        # pre's driver reference -- the path must be a BOUND pin and
+        # both commit and blob must equal that pin.
+        drv_raw = b"# bar-pinned tier-s driver"
+        DRV_REL = "monitoring/src/w2_tier_s_driver_cayley.py"
         adm_pins2 = [
             {"path": "kat/grids.json", "commit": MC,
              "blob_sha256": hashlib.sha256(grids_raw).hexdigest()},
             {"path": "kat/impl.py", "commit": MC,
              "blob_sha256": hashlib.sha256(impl_raw).hexdigest()},
             {"path": "kat/geom.json", "commit": MC,
-             "blob_sha256": hashlib.sha256(geom_raw).hexdigest()}]
+             "blob_sha256": hashlib.sha256(geom_raw).hexdigest()},
+            {"path": DRV_REL, "commit": MC,
+             "blob_sha256": hashlib.sha256(drv_raw).hexdigest()}]
         store2 = {(MC, "kat/grids.json"): grids_raw,
                   (MC, "kat/impl.py"): impl_raw,
-                  (MC, "kat/geom.json"): geom_raw}
+                  (MC, "kat/geom.json"): geom_raw,
+                  (MC, DRV_REL): drv_raw}
 
         def rdr2(commit, path):
             if path.endswith("execution_manifest.json"):
@@ -2883,7 +2892,7 @@ def w_selrun():
         r_sha = hashlib.sha256(r_raw).hexdigest()
         det_order = {f: [p for p in grids[f] if "gain" not in p]
                      for f in ("B2A", "B2B", "B1B", "B3A")}
-        pre = {"schema": "f2g-w2-tier-s-pre-invocation-v1",
+        pre = {"schema": "f2g-w2-tier-s-pre-invocation-v2",
                "manifest_commit": MC,
                "effect_grids": {"commit": MC,
                                 "path": "kat/grids.json",
@@ -2896,8 +2905,24 @@ def w_selrun():
                "seed_authority_sha256": "b" * 64,
                "implementation": dict(impl_id),
                "grid_order_sha256": canon_sha(det_order),
+               "driver": {"commit": MC, "path": DRV_REL,
+                          "blob_sha256":
+                              hashlib.sha256(drv_raw).hexdigest()},
+               # ONE runtime identity, not two that can drift apart
+               # (codex 0314Z). These are deliberately FIXTURE
+               # strings: this bar never runs a real point, so a real
+               # identity here would be a lie, and importing the
+               # producer's execution_identity() would make the peer
+               # admission lock depend on the producer it checks.
+               "execution": {
+                   "schema": "f2g-w2-tier-s-execution-identity-v1",
+                   "host": "kat",
+                   "interpreter_executable": "kat",
+                   "interpreter_implementation": "CPython",
+                   "interpreter_version": "kat",
+                   "numpy_version": "kat",
+                   "numpy_config_sha256": "e" * 64},
                "output_root": "kat", "argv": ["kat"],
-               "host": "kat", "interpreter": {"executable": "kat"},
                "fired_utc": "2026-08-25T00:00:00Z"}
         pre["invocation_sha256"] = canon_sha(
             {k: v for k, v in pre.items()
@@ -2933,6 +2958,56 @@ def w_selrun():
             geometry_loader=bar_geom_loader, is_ancestor=bar_anc)
         ok_run = ok_run and adm_ok["pre_invocation"][
             "invocation_sha256"] == pre["invocation_sha256"]
+        # LOCK V1-DOWNGRADE (mine, codex 0338Z: the packet must carry
+        # at least one INDEPENDENT admission-path v1 refusal). This is
+        # the pre exactly as it stood before Design A -- schema v1,
+        # top-level host/interpreter, no driver, no execution capsule
+        # -- presented through an OTHERWISE VALID chain: its own
+        # digest recomputes, the completion binds it, the smoke
+        # references it. Nothing about it is malformed except that it
+        # is v1, so a refusal here cannot be coming from anything
+        # else. The v2 positive immediately above is its anti-vacuity
+        # partner: same machinery, same fixtures, opposite verdict.
+        v1_pre = {k: v for k, v in pre.items()
+                  if k not in ("driver", "execution",
+                               "invocation_sha256")}
+        v1_pre["schema"] = "f2g-w2-tier-s-pre-invocation-v1"
+        v1_pre["host"] = "kat"
+        v1_pre["interpreter"] = {"executable": "kat"}
+        v1_pre["invocation_sha256"] = canon_sha(
+            {k: v for k, v in v1_pre.items()
+             if k != "invocation_sha256"})
+        store2[(PRE_C, "kat/ts_pre_v1.json")] = _j.dumps(
+            v1_pre).encode()
+        v1_comp = dict(
+            comp, pre_invocation_sha256=v1_pre["invocation_sha256"])
+        store2[(RC, "kat/ts_comp_v1.json")] = _j.dumps(
+            v1_comp).encode()
+        v1_smoke = dict(
+            smoke, schema="f2g-w2-tier-s-smoke-v1",
+            effect_grids_sha256=canon_sha(grids),
+            pre_invocation_ref={"commit": PRE_C,
+                                "path": "kat/ts_pre_v1.json"},
+            pre_invocation_sha256=v1_pre["invocation_sha256"],
+            completion_ref={"commit": RC,
+                            "path": "kat/ts_comp_v1.json"},
+            results_ref={"commit": RC, "path": "kat/ts_results.json",
+                         "blob_sha256": r_sha})
+        store2[(SC, "kat/smoke_v1.json")] = _j.dumps(
+            v1_smoke).encode()
+        v1_art = WTS.select_candidates(
+            v1_smoke, grids,
+            smoke_ref={"commit": SC, "path": "kat/smoke_v1.json"},
+            effect_grids_ref={"commit": MC,
+                              "path": "kat/grids.json"})
+        try:
+            WTS.verify_selector_admission(
+                _REPO, v1_art, MC, blob_reader=rdr2,
+                git_resolve=lambda c: c,
+                geometry_loader=bar_geom_loader, is_ancestor=bar_anc)
+            ok_run = False          # a v1 pre must never be admitted
+        except WTS.SelectorRefusal:
+            pass
         # LOCK A: a minimal self-hashed dict is not the closed
         # pre-invocation capsule
         min_inv = {"schema": "f2g-w2-tier-s-invocation-v1",
@@ -3151,7 +3226,10 @@ def w_selrun():
               "reorder + B2A select-all + gain value-order + digest "
               "determinism, quality/coverage/stage-2 doctors, "
               "fire-input/points/selector-digest/stale-outdir/"
-              "write-once/manifest-resolution refusals)",
+              "write-once/manifest-resolution refusals, v2 pre with "
+              "bound driver pin + closed execution capsule, and an "
+              "independent v1-downgrade admission refusal through an "
+              "otherwise-valid chain)",
               ok_sel and ok_ord and ok_doc and ok_run,
               f"sel={ok_sel} ord={ok_ord} doc={ok_doc} run={ok_run}")
     except ImportError:

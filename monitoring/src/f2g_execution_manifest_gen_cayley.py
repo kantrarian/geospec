@@ -435,6 +435,16 @@ BOUND_SLOTS = {
         # below, and unbound evidence cannot support a packet claim.
         "paths": ["monitoring/src/"
                   "test_w2_geometry_admission_redkats_cayley.py",
+                  # codex 0531Z CRITICAL: every pin lookup in the
+                  # Tier-S chain scanned all slots without checking
+                  # `status`, so an OPEN slot's pins -- including the
+                  # FIRING DRIVER's -- were accepted as admitted. This
+                  # is codex's own reproduction, installed permanently
+                  # because the defect was invisible to a 91/91 pin
+                  # audit and to nine green bars: all of them resolved
+                  # pins through the same unchecked lookup.
+                  "monitoring/src/"
+                  "test_w2_tier_s_open_slot_redkats_codex.py",
                   "monitoring/src/"
                   "test_f2g_window2_redkats_grassmann.py",
                   # closure 4 (635/1420/1) and the P0 pin-bind: the

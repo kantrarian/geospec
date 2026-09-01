@@ -38,17 +38,113 @@ from w2_cert_runner_cayley import (_canon, _digest, _publish_once,
                                    resolve_manifest_commit,
                                    RunnerRefusal)
 
-PRE_SCHEMA = "f2g-w2-tier-s-pre-invocation-v1"
+PRE_SCHEMA = "f2g-w2-tier-s-pre-invocation-v2"
+# v2 (codex 0314Z Design A): `host` and `interpreter` are GONE as
+# top-level fields -- they now live only inside the closed `execution`
+# capsule, because two copies of a runtime identity are two things
+# that can drift apart. `driver` joins them: the artifact that fires
+# the campaign was outside the admitted identity entirely (codex
+# 0257Z finding 1), so the pre now names it the way it names the
+# harness. There is no v1 fallback: no production v1 carrier exists,
+# and a permissive downgrade path would reintroduce exactly the
+# unbound surface this closes.
 PRE_FIELDS = {"schema", "manifest_commit", "effect_grids",
               "effect_grids_content_sha256",
               "geometry", "quality", "seed_authority_sha256",
-              "implementation", "grid_order_sha256", "output_root",
-              "argv", "host", "interpreter", "fired_utc",
-              "invocation_sha256"}
+              "implementation", "driver", "execution",
+              "grid_order_sha256", "output_root",
+              "argv", "fired_utc", "invocation_sha256"}
+# The REGISTERED production driver. A module constant, not a caller
+# argument, for the same reason the grid and geometry paths are.
+DRIVER_REL = "monitoring/src/w2_tier_s_driver_cayley.py"
+RUNNER_REL = "monitoring/src/w2_tier_s_runner_cayley.py"
+
+# The single closed runtime identity. `numpy_config_sha256` is the
+# deterministic build-config fingerprint: same-host interpreter drift
+# is what made the driver's earlier host-only guard useless, and a
+# NumPy rebuilt with different SIMD support is the same hazard one
+# layer down. If it cannot be produced we REFUSE rather than omit it
+# -- an identity with a hole in it attests less than it appears to.
+EXECUTION_SCHEMA = "f2g-w2-tier-s-execution-identity-v1"
+EXECUTION_FIELDS = {"schema", "host", "interpreter_executable",
+                    "interpreter_implementation",
+                    "interpreter_version", "numpy_version",
+                    "numpy_config_sha256"}
+
+# grassmann pre-registered these from the manifest-pinned effect-grid
+# blob BEFORE any run existed (0302Z), deriving them without importing
+# this module; cayley reproduced them through this code path. codex
+# 0314Z made them a PRE-RUN GATE: a divergent grid refuses before
+# point 0 rather than producing a campaign nobody predicted.
+REGISTERED_GRID_ORDER_SHA256 = (
+    "00e8e9fdf61e7e12b4aac8a113f61513b8ae60bd45183cf646a07ce44f9fcde8")
+REGISTERED_GRIDS_CONTENT_SHA256 = (
+    "f76a5acc2814e1b3be99aa338945ff8829ad7f0cc360967370a13710834232d0")
 COMPLETION_SCHEMA = "f2g-w2-tier-s-completion-v1"
 COMPLETION_FIELDS = {"schema", "pre_invocation_sha256",
                      "results_blob_sha256", "fired_utc",
                      "completed_utc"}
+
+
+def execution_identity():
+    """The live runtime identity, recomputed wherever it is checked.
+
+    Never cached and never passed in: a value handed to a verifier is
+    a claim, while a value the verifier computes for itself is a
+    measurement. Every worker calls this before doing any work.
+    """
+    import hashlib as _h
+    import json as _j
+    try:
+        import numpy as _np
+        cfg = _np.show_config(mode="dicts")
+        fp = _h.sha256(_j.dumps(cfg, sort_keys=True,
+                                default=str).encode()).hexdigest()
+        ver = str(_np.__version__)
+    except Exception as exc:                             # noqa: BLE001
+        raise RunnerRefusal(
+            "RUNNER_TIER_S_EXECUTION_IDENTITY_UNAVAILABLE: the NumPy "
+            f"build fingerprint could not be produced ({str(exc)[:120]})"
+            " -- refusing rather than omitting a field the identity "
+            "claims to carry")
+    return {"schema": EXECUTION_SCHEMA,
+            "host": platform.node().strip().lower(),
+            "interpreter_executable":
+                os.path.normcase(os.path.abspath(sys.executable)),
+            "interpreter_implementation":
+                platform.python_implementation(),
+            "interpreter_version": sys.version,
+            "numpy_version": ver,
+            "numpy_config_sha256": fp}
+
+
+def validate_execution(ex):
+    if not isinstance(ex, dict) or set(ex) != EXECUTION_FIELDS or \
+            ex.get("schema") != EXECUTION_SCHEMA:
+        raise RunnerRefusal(
+            "RUNNER_TIER_S_UNADMITTED: the execution identity is not "
+            "the closed registered capsule")
+    return ex
+
+
+def execution_digest(ex):
+    return _digest(validate_execution(ex))
+
+
+def require_live_execution(pre):
+    """Every worker's first act. Compares the LIVE identity against
+    the pre-bound one field by field so the refusal names what
+    drifted -- 'the run does not match' is not an actionable thing to
+    read at 3am."""
+    want = validate_execution(pre["execution"])
+    got = execution_identity()
+    diff = sorted(k for k in EXECUTION_FIELDS if got[k] != want[k])
+    if diff:
+        raise RunnerRefusal(
+            "RUNNER_TIER_S_EXECUTION_DRIFT: "
+            + "; ".join(f"{k}: bound {str(want[k])[:40]!r} != live "
+                        f"{str(got[k])[:40]!r}" for k in diff))
+    return got
 
 
 def _pin_for(manifest, path):
@@ -95,6 +191,18 @@ def fire_pre(repo, manifest_commit, grids_path, geometry_path,
                  for f in ("B2A", "B2B", "B1B", "B3A")}
     points = [(fam, p) for fam in ("B2A", "B2B", "B1B", "B3A")
               for p in det_order[fam]]
+    # codex 0314Z: the PRE-RUN GATE, from grassmann's pre-registration.
+    # It fires here, before the pre is published, so a divergent grid
+    # cannot produce a campaign at all.
+    _og, _cg = _digest(det_order), _digest(grids)
+    if _og != REGISTERED_GRID_ORDER_SHA256 or \
+            _cg != REGISTERED_GRIDS_CONTENT_SHA256:
+        raise RunnerRefusal(
+            "RUNNER_TIER_S_GRID_UNREGISTERED: order "
+            f"{_og[:12]} / content {_cg[:12]} do not match the "
+            f"pre-registered {REGISTERED_GRID_ORDER_SHA256[:12]} / "
+            f"{REGISTERED_GRIDS_CONTENT_SHA256[:12]}")
+    drv_pin = _pin_for(man, DRIVER_REL)
     pre = {"schema": PRE_SCHEMA,
            "manifest_commit": mc_full,
            "effect_grids": {"commit": g_pin["commit"],
@@ -115,12 +223,13 @@ def fire_pre(repo, manifest_commit, grids_path, geometry_path,
                               "path": impl_path,
                               "blob_sha256":
                                   impl_pin["blob_sha256"]},
+           "driver": {"commit": drv_pin["commit"],
+                      "path": DRIVER_REL,
+                      "blob_sha256": drv_pin["blob_sha256"]},
+           "execution": execution_identity(),
            "grid_order_sha256": _digest(det_order),
            "output_root": str(outdir),
            "argv": list(argv if argv is not None else sys.argv),
-           "host": platform.node(),
-           "interpreter": {"executable": sys.executable,
-                           "version": sys.version},
            "fired_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ",
                                       time.gmtime())}
     pre["invocation_sha256"] = _digest(
@@ -154,6 +263,10 @@ def derive_points(pre, blob_reader):
         raise RunnerRefusal(
             "RUNNER_TIER_S_UNADMITTED: grid order diverges from the "
             "pre-bound digest")
+    if _digest(det_order) != REGISTERED_GRID_ORDER_SHA256:
+        raise RunnerRefusal(
+            "RUNNER_TIER_S_GRID_UNREGISTERED: the derived order is "
+            "not the pre-registered one")
     return [(fam, p) for fam in ("B2A", "B2B", "B1B", "B3A")
             for p in det_order[fam]]
 
@@ -200,9 +313,11 @@ def run_smoke_point(repo, outdir, idx, expected_pre_sha,
                 repo, {"manifest_commit": pre["manifest_commit"],
                        "path": pre["geometry"]["path"]},
                 f, p, with_loco_folds=folds)
+    live = require_live_execution(pre)
     rec = smoke_fn(fam, point, with_loco)
     out = {"index": int(idx), "family": fam, "point": point,
            "pre_invocation_sha256": pre["invocation_sha256"],
+           "execution_sha256": execution_digest(live),
            "record": rec}
     name = (f"smoke_loco_{idx:03d}.json" if with_loco
             else f"smoke_point_{idx:03d}.json")
@@ -258,7 +373,7 @@ def _check_point_capsule(cap, idx, fam, point, pre):
     p-vector has no seam."""
     if not isinstance(cap, dict) or set(cap) != {
             "index", "family", "point", "pre_invocation_sha256",
-            "record"}:
+            "execution_sha256", "record"}:
         raise RunnerRefusal(
             f"RUNNER_TIER_S_UNADMITTED: point capsule {idx} schema "
             "not closed")
@@ -270,6 +385,10 @@ def _check_point_capsule(cap, idx, fam, point, pre):
     if cap["pre_invocation_sha256"] != pre["invocation_sha256"]:
         raise RunnerRefusal(
             f"RUNNER_TIER_S_PRE_DIGEST_MISMATCH: point {idx}")
+    if cap["execution_sha256"] != execution_digest(pre["execution"]):
+        raise RunnerRefusal(
+            f"RUNNER_TIER_S_EXECUTION_DRIFT: point {idx} was produced "
+            "under a runtime identity that is not the pre-bound one")
     rec = cap.get("record")
     if not isinstance(rec, dict):
         raise RunnerRefusal(
@@ -483,15 +602,16 @@ def _selftest():
         with open(pth, "w", encoding="utf-8", newline="\n") as f:
             f.write(body)
     g("init", "-q")
-    grids = {"B2A": [{"m": 1}, {"m": 2}, {"m": 3}],
-             "B2B": [{"m": 1}, {"m": 2}, {"m": 3}],
-             "B3A": [{"d": 1}, {"d": 2}, {"d": 3}],
-             "B1B": [{"delta_lat": 0.1, "k": 3, "n_e": 3},
-                     {"delta_lat": 0.2, "k": 3, "n_e": 3},
-                     {"delta_lat": 0.3, "k": 3, "n_e": 3},
-                     {"gain": 3.0}, {"gain": 10.0}]}
-    grids_body = json.dumps({"schema": "f2g-w2-effect-grids-v1",
-                             "grids": grids}, sort_keys=True)
+    # v2: the REGISTERED grids verbatim. The pre-run gate (codex
+    # 0314Z, from grassmann's pre-registration) refuses any other
+    # order, and a fixture able to opt out of a production gate is
+    # not exercising production.
+    with open(os.path.join(
+            os.path.dirname(os.path.dirname(_HERE)),
+            "docs", "f2g_window2_execution",
+            "effect_grids_w2_v1.json"), encoding="utf-8") as _f:
+        grids_body = _f.read()
+    grids = json.loads(grids_body)["grids"]
     geo_body_obj = {"capsule_digest": None,
                     "seed_authority_sha256": "b" * 64,
                     "loco_registry_carrier": "cascadia",
@@ -503,6 +623,8 @@ def _selftest():
     wf("grids.json", grids_body)
     wf("geom.json", json.dumps(geo_body_obj, sort_keys=True))
     wf("impl.py", "# impl")
+    wf(DRIVER_REL, "# driver fixture\n")
+    wf(RUNNER_REL, "# runner fixture\n")
     c1 = commit_all("carriers")
 
     def sha_at(commit, path):
@@ -516,7 +638,11 @@ def _selftest():
         {"path": "geom.json", "commit": c1,
          "blob_sha256": sha_at(c1, "geom.json")},
         {"path": "impl.py", "commit": c1,
-         "blob_sha256": sha_at(c1, "impl.py")}]}}}
+         "blob_sha256": sha_at(c1, "impl.py")},
+        {"path": DRIVER_REL, "commit": c1,
+         "blob_sha256": sha_at(c1, DRIVER_REL)},
+        {"path": RUNNER_REL, "commit": c1,
+         "blob_sha256": sha_at(c1, RUNNER_REL)}]}}}
     wf("docs/f2g_window2_execution/execution_manifest.json",
        json.dumps(man, sort_keys=True))
     c2 = commit_all("manifest")
@@ -534,7 +660,9 @@ def _selftest():
     pre, points = fire_pre(repo2, c2, "grids.json", "geom.json",
                            "impl.py", outdir, blob_reader=breader,
                            argv=["kat"])
-    assert len(points) == 12
+    assert len(points) == 80, len(points)
+    assert pre['schema'] == PRE_SCHEMA
+    validate_execution(pre['execution'])
     assert pre["effect_grids_content_sha256"] == _digest(grids)
     c3 = commit_all("pre-invocation")
 
@@ -563,7 +691,7 @@ def _selftest():
                         smoke_fn=stub_smoke_for(fam, point))
     top8 = rank_stage1_b1b(outdir, pre["invocation_sha256"],
                            breader)
-    assert len(top8) == 3
+    assert len(top8) == 8, len(top8)
     for i in top8:
         fam, point = points[i]
         run_smoke_point(repo2, outdir, i, pre["invocation_sha256"],
@@ -603,6 +731,72 @@ def _selftest():
                            "blob_sha256": "unused"})
     assert adm["manifest_commit"] == c2
     assert adm["pre_invocation"]["commit"] == c3
+
+    # codex 0314Z: selector admission must REJECT an otherwise valid
+    # chain whose v2 driver pin or execution capsule was altered.
+    # Without these the two identities v2 adds would be carried but
+    # never adjudicated -- which is the shape of the gap they close.
+    import copy as _copy
+
+    NL = chr(10)
+    _mut_n = [0]
+
+    def _admit_with_mutated_pre(mut, label, expect):
+        """The mutated chain must be INTERNALLY CONSISTENT, or the
+        artifact's independent rerun diverges first and the control
+        never reaches the check it exists to exercise. So the pre is
+        mutated and committed, then a smoke carrying its digest and
+        ref is committed on top: everything agrees, and the only
+        thing wrong is the identity under test."""
+        _mut_n[0] += 1
+        tag = _mut_n[0]
+        bad_pre = _copy.deepcopy(pre)
+        mut(bad_pre)
+        bad_pre["invocation_sha256"] = _digest(
+            {k: v for k, v in bad_pre.items()
+             if k != "invocation_sha256"})
+        p_rel = f"tier_s/pre_mutated_{tag}.json"
+        wf(p_rel, json.dumps(bad_pre, indent=1, sort_keys=True) + NL)
+        cm1 = commit_all(f"mutated pre {tag}: {label}")
+        bad_smoke = dict(
+            smoke, pre_invocation_sha256=bad_pre["invocation_sha256"],
+            pre_invocation_ref={"commit": cm1, "path": p_rel})
+        s_rel = f"tier_s/smoke_mutated_{tag}.json"
+        wf(s_rel, json.dumps(bad_smoke, indent=1, sort_keys=True) + NL)
+        cm2 = commit_all(f"mutated smoke {tag}: {label}")
+        bad_art = TS.select_candidates(
+            bad_smoke, grids,
+            smoke_ref={"commit": cm2, "path": s_rel},
+            effect_grids_ref={"commit": c1, "path": "grids.json"})
+        try:
+            TS.verify_selector_admission(
+                repo2, bad_art, c2, geometry_loader=real_geom_loader,
+                selector_identity={"commit": c6,
+                                   "path": "tier_s/selector.json",
+                                   "blob_sha256": "unused"})
+        except TS.SelectorRefusal as e:
+            assert expect in str(e), (label, str(e))
+            return
+        raise AssertionError(
+            f"SELECTOR ADMITTED a chain whose {label} was altered")
+
+    _admit_with_mutated_pre(
+        lambda p: p["driver"].update({"blob_sha256": "c" * 64}),
+        "driver blob", "not the admitted pin")
+    _admit_with_mutated_pre(
+        lambda p: p["driver"].update({"path": "monitoring/src/"
+                                              "not_the_driver.py"}),
+        "driver path", "not a BOUND pin")
+    _admit_with_mutated_pre(
+        lambda p: p["execution"].update({"numpy_config_sha256": ""}),
+        "execution NumPy config", "is empty")
+    _admit_with_mutated_pre(
+        lambda p: p.__setitem__("execution", {"schema": "wrong"}),
+        "execution capsule shape", "closed registered capsule")
+    print("  selector REJECTS an altered driver blob, an unadmitted "
+          "driver path, an emptied NumPy build fingerprint and a "
+          "malformed execution capsule -- the v2 identities are "
+          "adjudicated, not merely carried")
 
     # item-1 doctor: a draft smoke with a None grid digest refuses
     # at finalize

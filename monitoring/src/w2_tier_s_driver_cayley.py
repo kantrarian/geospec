@@ -108,15 +108,75 @@ def _load_pre_checked(outdir):
         _refuse("the pre-invocation carries no invocation digest")
     # the runner recomputes and refuses on divergence
     pre = TSR._load_pre(outdir, sha)
-    here = platform.node()
-    if pre.get("host") != here:
+    if pre.get("schema") != TSR.PRE_SCHEMA:
         _refuse(
-            f"this pre-invocation was fired on host {pre.get('host')!r} "
-            f"and this is {here!r}. The per-point capsule check does "
-            "NOT verify host, so a cross-host run would verify clean "
-            "while the carrier's host field became false. Run every "
-            "phase on the firing host, or fire a new campaign here.")
+            f"the pre-invocation carries schema {pre.get('schema')!r}; "
+            f"this production path admits only {TSR.PRE_SCHEMA!r}. A v1 "
+            "carrier has no driver pin and no execution capsule, so "
+            "accepting one here would reopen exactly the unbound "
+            "surfaces v2 closes -- there is no downgrade path.")
+    # codex 0314Z point 4: the LIVE runtime identity, recomputed here
+    # rather than read from the carrier. My earlier host-only guard
+    # was defense-in-depth that same-host interpreter drift walked
+    # straight through; this names whichever field drifted.
+    TSR.require_live_execution(pre)
     return pre, sha
+
+
+def _lf_sha(path):
+    """LF-normalized digest of a working-tree file.
+
+    The manifest's `blob_sha256` is the git blob, which is LF; the
+    checkout on this box is CRLF. Comparing raw bytes would refuse
+    every file on Windows for a reason that has nothing to do with
+    provenance.
+    """
+    import hashlib
+    with open(path, "rb") as f:
+        return hashlib.sha256(
+            f.read().replace(b"\r\n", b"\n")).hexdigest()
+
+
+def _require_bound_sources(repo, pre):
+    """codex 0314Z point 2: "the driver, runner, and harness used by
+    each process must match their bound source identities before any
+    work begins."
+
+    The pre binds the driver and the harness directly; the runner is
+    resolved from the manifest the pre binds. This checks the files
+    THIS process will actually import, so a reviewed driver cannot
+    fire and a locally edited one cannot quietly take over mid-run.
+    """
+    checks = [(pre["driver"]["path"], pre["driver"]["blob_sha256"],
+               "driver"),
+              (pre["implementation"]["path"],
+               pre["implementation"]["blob_sha256"], "harness")]
+    man = json.loads(_blob_reader(repo)(
+        pre["manifest_commit"],
+        "docs/f2g_window2_execution/execution_manifest.json"
+    ).decode("utf-8"))
+    runner_pin = None
+    for slot in man.get("slots", {}).values():
+        for pin in (slot.get("pins") or ()):
+            if isinstance(pin, dict) and \
+                    pin.get("path") == TSR.RUNNER_REL:
+                runner_pin = pin
+    if runner_pin is None:
+        _refuse(f"the runner {TSR.RUNNER_REL} is not a BOUND pin of "
+                "the manifest this pre binds")
+    checks.append((TSR.RUNNER_REL, runner_pin["blob_sha256"],
+                   "runner"))
+    for rel, want, label in checks:
+        live = os.path.join(repo, rel.replace("/", os.sep))
+        if not os.path.exists(live):
+            _refuse(f"the {label} {rel} is absent from the worktree")
+        got = _lf_sha(live)
+        if got != want:
+            _refuse(
+                f"the {label} on disk ({got[:12]}) is not the source "
+                f"identity the pre binds ({str(want)[:12]}) -- the "
+                "reviewed bytes are not the bytes that would run")
+    return True
 
 
 def _loco_registry(repo, pre):
@@ -278,6 +338,7 @@ def cmd_worker(repo, outdir, idx, loco, pre_commit):
     parent's caller can steer."""
     pre, sha = _load_pre_checked(outdir)
     _require_committed_pre(repo, outdir, pre_commit)
+    _require_bound_sources(repo, pre)
     _run_one(repo, outdir, int(idx), loco)
     return 0
 
@@ -344,6 +405,7 @@ def _drive(repo, outdir, indices, loco, procs, pre, points,
 def cmd_phase1(repo, outdir, procs, pre_commit):
     pre, sha = _load_pre_checked(outdir)
     _require_committed_pre(repo, outdir, pre_commit)
+    _require_bound_sources(repo, pre)
     points = TSR.derive_points(pre, _blob_reader(repo))
     print(f"phase1: {len(points)} detection points, {procs} processes")
     done, skipped = _drive(repo, outdir, range(len(points)), False,
@@ -356,6 +418,7 @@ def cmd_phase1(repo, outdir, procs, pre_commit):
 def cmd_rank(repo, outdir, pre_commit):
     pre, sha = _load_pre_checked(outdir)
     _require_committed_pre(repo, outdir, pre_commit)
+    _require_bound_sources(repo, pre)
     points = TSR.derive_points(pre, _blob_reader(repo))
     # codex 0257Z finding 4: rank reads every B1B carrier, so it gets
     # the SAME closed validation as resume and aggregate. Ranking off
@@ -378,6 +441,7 @@ def cmd_phase2(repo, outdir, procs, top8, pre_commit):
     """
     pre, sha = _load_pre_checked(outdir)
     _require_committed_pre(repo, outdir, pre_commit)
+    _require_bound_sources(repo, pre)
     points = TSR.derive_points(pre, _blob_reader(repo))
     for i, (fam, _p) in enumerate(points):
         if fam == "B1B":
@@ -397,6 +461,7 @@ def cmd_phase2(repo, outdir, procs, top8, pre_commit):
 def cmd_aggregate(repo, outdir, pre_commit):
     pre, sha = _load_pre_checked(outdir)
     _require_committed_pre(repo, outdir, pre_commit)
+    _require_bound_sources(repo, pre)
     reader = _blob_reader(repo)
     points = TSR.derive_points(pre, reader)
     for i, (fam, _p) in enumerate(points):
@@ -580,10 +645,22 @@ def _selftest():
             with open(p, "w", encoding="utf-8", newline="\n") as f:
                 f.write(body)
 
-        grids = {"B2A": [{"m": 1}], "B2B": [{"m": 2}],
-                 "B1B": [{"k": 1}, {"k": 2}, {"k": 3}],
-                 "B3A": [{"m": 3}]}
-        wf(GRIDS_REL, json.dumps({"grids": grids}, sort_keys=True))
+        # The REGISTERED effect grids, verbatim. A synthetic grid
+        # cannot be used any more: the pre-run gate (codex 0314Z,
+        # from grassmann's pre-registration) refuses any order that
+        # is not the registered one, and a selftest that could opt
+        # out of a production gate would not be testing production.
+        real_grids = os.path.join(
+            os.path.dirname(os.path.dirname(_HERE)),
+            GRIDS_REL.replace("/", os.sep))
+        with open(real_grids, encoding="utf-8") as f:
+            grids_body = f.read()
+        wf(GRIDS_REL, grids_body)
+        grids = json.loads(grids_body)["grids"]
+        # the driver and runner are pinned too, because
+        # `_require_bound_sources` checks the bytes that would run
+        wf(TSR.DRIVER_REL, "# driver fixture\n")
+        wf(TSR.RUNNER_REL, "# runner fixture\n")
         cap = {"capsule_digest": "c" * 64,
                "seed_authority_sha256": "b" * 64,
                "loco_registry_carrier": "cascadia",
@@ -602,7 +679,8 @@ def _selftest():
 
         man = {"slots": {"s": {"status": "BOUND", "pins": [
             {"path": r, "commit": c1, "blob_sha256": sha_at(r)}
-            for r in (GRIDS_REL, GEOMETRY_REL, IMPL_REL)]}}}
+            for r in (GRIDS_REL, GEOMETRY_REL, IMPL_REL,
+                      TSR.DRIVER_REL, TSR.RUNNER_REL)]}}}
         wf("docs/f2g_window2_execution/execution_manifest.json",
            json.dumps(man, sort_keys=True))
         g("add", "-A")
@@ -613,44 +691,79 @@ def _selftest():
         pre, points = TSR.fire_pre(
             repo, c2, GRIDS_REL, GEOMETRY_REL, IMPL_REL, outdir,
             blob_reader=_blob_reader(repo), argv=["selftest"])
-        assert len(points) == 6, len(points)
+        assert len(points) == 80, len(points)
+        assert pre["schema"] == TSR.PRE_SCHEMA
+        assert set(pre["driver"]) == {"commit", "path", "blob_sha256"}
+        TSR.validate_execution(pre["execution"])
+        _require_bound_sources(repo, pre)
         g("add", "-A")
         g("commit", "-qm", "pre-invocation")
         c3 = g("rev-parse", "HEAD").stdout.decode().strip()
-        print(f"  D-0 PASS  pre fired over {len(points)} points and "
-              "committed")
+        print(f"  D-0 PASS  v2 pre fired over {len(points)} REAL "
+              "registered points, carrying the driver pin and the "
+              "closed execution capsule, with the bound sources "
+              "verified on disk")
 
-        # ---- D-1 the HOST GUARD ------------------------------------
-        _load_pre_checked(outdir)          # positive: same host
+        # ---- D-1 EXECUTION DRIFT, field by field ----------------
+        # The v1 driver guarded `host` only, and codex showed
+        # same-host interpreter drift walking straight through it.
+        # Every field of the closed capsule is now load-bearing, so
+        # every field gets its own refusal AND the untouched positive
+        # is re-run between them -- a guard that refuses everything
+        # would otherwise look identical to one that works.
+        _load_pre_checked(outdir)                      # positive
         p = os.path.join(outdir, PRE_NAME)
-        with open(p, encoding="utf-8") as f:
-            body = json.load(f)
-        real_host = body["host"]
-        body["host"] = "some-other-machine"
-        body["invocation_sha256"] = TSR._digest(
-            {k: v for k, v in body.items()
-             if k != "invocation_sha256"})
-        os.remove(p)
-        with open(p, "w", encoding="utf-8", newline="\n") as f:
-            f.write(json.dumps(body, indent=1, sort_keys=True) + "\n")
+
+        def _repre(mut):
+            with open(p, encoding="utf-8") as f:
+                body = json.load(f)
+            mut(body)
+            body["invocation_sha256"] = TSR._digest(
+                {k: v for k, v in body.items()
+                 if k != "invocation_sha256"})
+            os.remove(p)
+            with open(p, "w", encoding="utf-8", newline="\n") as f:
+                f.write(json.dumps(body, indent=1, sort_keys=True)
+                        + "\n")
+
+        real_ex = dict(pre["execution"])
+        for field, bogus in (
+                ("host", "some-other-machine"),
+                ("interpreter_executable", "X:/not-this-python.exe"),
+                ("interpreter_implementation", "NotCPython"),
+                ("interpreter_version", "different-python"),
+                ("numpy_version", "0.0.0"),
+                ("numpy_config_sha256", "f" * 64)):
+            _repre(lambda b, _f=field, _v=bogus: b["execution"].update(
+                {_f: _v}))
+            try:
+                _load_pre_checked(outdir)
+            except TSR.RunnerRefusal as e:
+                assert "EXECUTION_DRIFT" in str(e) and field in str(e), \
+                    (field, str(e))
+            else:
+                raise AssertionError(
+                    f"D-1 FAILED: execution drift on {field} accepted")
+            _repre(lambda b, _e=real_ex: b.__setitem__("execution",
+                                                       dict(_e)))
+            _load_pre_checked(outdir)      # positive between each
+        # and a v1 carrier has no way back in
+        _repre(lambda b: b.__setitem__(
+            "schema", "f2g-w2-tier-s-pre-invocation-v1"))
         try:
             _load_pre_checked(outdir)
         except DriverRefusal as e:
-            assert "host" in str(e), str(e)
+            assert "no downgrade path" in str(e), str(e)
         else:
             raise AssertionError(
-                "D-1 FAILED: a pre fired on another host was accepted")
-        body["host"] = real_host
-        body["invocation_sha256"] = TSR._digest(
-            {k: v for k, v in body.items()
-             if k != "invocation_sha256"})
-        os.remove(p)
-        with open(p, "w", encoding="utf-8", newline="\n") as f:
-            f.write(json.dumps(body, indent=1, sort_keys=True) + "\n")
+                "D-1 FAILED: a v1 pre was admitted by the v2 path")
+        _repre(lambda b: b.__setitem__("schema", TSR.PRE_SCHEMA))
         _load_pre_checked(outdir)
-        print("  D-1 PASS  a pre-invocation fired on another host "
-              "REFUSES here, and the same-host positive still loads "
-              "(so the guard is not refusing everything)")
+        print("  D-1 PASS  all six execution-identity fields drift-"
+              "refuse INDIVIDUALLY (host, interpreter path, "
+              "implementation, version, NumPy version, NumPy build "
+              "config), a v1 downgrade refuses, and the untouched "
+              "positive re-passes between every one")
 
         # ---- D-2 phase ordering ------------------------------------
         empty = os.path.join(tmp, "empty")
@@ -823,8 +936,13 @@ def _selftest():
             "D-7 FAILED: the driver OVERWROTE an existing carrier"
         # a structurally valid capsule with the WRONG replicate count
         # must also refuse -- filename plus parseability is not enough
+        # NOTE the capsule is otherwise WELL FORMED under v2 -- closed
+        # schema, right identities, right execution digest -- so the
+        # refusal isolates the replicate-count check rather than
+        # tripping an earlier one.
         short = {"index": 0, "family": pts4[0][0], "point": pts4[0][1],
                  "pre_invocation_sha256": pre4["invocation_sha256"],
+                 "execution_sha256": "PLACEHOLDER",
                  "record": {"replicates": [], "certifiable": False}}
         out5 = os.path.join(repo, "tier_s_short")
         pre5, pts5 = TSR.fire_pre(
@@ -834,6 +952,8 @@ def _selftest():
         g("commit", "-qm", "short pre")
         c3e = g("rev-parse", "HEAD").stdout.decode().strip()
         short["pre_invocation_sha256"] = pre5["invocation_sha256"]
+        short["execution_sha256"] = TSR.execution_digest(
+            pre5["execution"])
         with open(os.path.join(out5, "smoke_point_000.json"), "w",
                   encoding="utf-8") as f:
             json.dump(short, f)
@@ -845,9 +965,37 @@ def _selftest():
             raise AssertionError(
                 "D-7 FAILED: a carrier with the wrong replicate count "
                 "counted as complete")
-        print("  D-7 PASS  malformed bytes and a wrong-replicate-count "
-              "carrier BOTH refuse instead of counting as complete, "
-              "and neither is overwritten")
+        # and a point produced under a DIFFERENT runtime identity
+        # refuses even though everything else about it is right
+        drift = dict(short, execution_sha256="a" * 64)
+        drift["record"] = {"replicates": [
+            {"p_values": {"B1B": 0.5, "B2A": 0.5, "B2B": 0.5,
+                          "B3A": 0.5}}
+            for _ in range(pre5["quality"]["R"])],
+            "certifiable": False}
+        out6 = os.path.join(repo, "tier_s_exdrift")
+        pre6, pts6 = TSR.fire_pre(
+            repo, c2, GRIDS_REL, GEOMETRY_REL, IMPL_REL, out6,
+            blob_reader=_blob_reader(repo), argv=["selftest-exd"])
+        g("add", "-A")
+        g("commit", "-qm", "exdrift pre")
+        c3f = g("rev-parse", "HEAD").stdout.decode().strip()
+        drift["pre_invocation_sha256"] = pre6["invocation_sha256"]
+        with open(os.path.join(out6, "smoke_point_000.json"), "w",
+                  encoding="utf-8") as f:
+            json.dump(drift, f)
+        try:
+            _drive(repo, out6, [0], False, 1, pre6, pts6, c3f)
+        except TSR.RunnerRefusal as e:
+            assert "EXECUTION_DRIFT" in str(e), str(e)
+        else:
+            raise AssertionError(
+                "D-7 FAILED: a point carrying a foreign execution "
+                "digest counted as complete")
+        print("  D-7 PASS  malformed bytes, a wrong-replicate-count "
+              "carrier, and a point bearing a FOREIGN execution digest "
+              "all refuse instead of counting as complete, and none is "
+              "overwritten")
 
         # ---- D-8 (codex R-4, MODERATE): process count ------------
         for bad in (0, -1, 1.5, True, "4"):
@@ -871,6 +1019,67 @@ def _selftest():
         print("  D-9 PASS  a governed select phase and its post-commit "
               "verification exist on the operator surface (R-6 was "
               "'no production select command exists')")
+
+        # ---- D-10 the SOURCE identity is load-bearing ------------
+        # codex 0257Z finding 1 was that the firing artifact sat
+        # outside the admitted set. Two halves close it: it must BE
+        # in the manifest, and the bytes on disk must be the bytes
+        # that were admitted. Both get a refusal, and the untouched
+        # positive is re-run after, so neither is a guard that simply
+        # refuses everything.
+        man_no_drv = {"slots": {"s": {"status": "BOUND", "pins": [
+            {"path": r, "commit": c1, "blob_sha256": sha_at(r)}
+            for r in (GRIDS_REL, GEOMETRY_REL, IMPL_REL,
+                      TSR.RUNNER_REL)]}}}
+        wf("docs/f2g_window2_execution/execution_manifest.json",
+           json.dumps(man_no_drv, sort_keys=True))
+        g("add", "-A")
+        g("commit", "-qm", "manifest without the driver")
+        c2_nodrv = g("rev-parse", "HEAD").stdout.decode().strip()
+        try:
+            TSR.fire_pre(repo, c2_nodrv, GRIDS_REL, GEOMETRY_REL,
+                         IMPL_REL, os.path.join(repo, "tier_s_nodrv"),
+                         blob_reader=_blob_reader(repo),
+                         argv=["selftest-nodrv"])
+        except TSR.RunnerRefusal as e:
+            assert TSR.DRIVER_REL in str(e), str(e)
+        else:
+            raise AssertionError(
+                "D-10 FAILED: a pre was fired binding a driver that "
+                "the manifest does not admit")
+        # restore the good manifest
+        wf("docs/f2g_window2_execution/execution_manifest.json",
+           json.dumps(man, sort_keys=True))
+        g("add", "-A")
+        g("commit", "-qm", "restore manifest")
+        c2_ok = g("rev-parse", "HEAD").stdout.decode().strip()
+        for label, rel in (("driver", TSR.DRIVER_REL),
+                           ("runner", TSR.RUNNER_REL),
+                           ("harness", IMPL_REL)):
+            live = os.path.join(repo, rel.replace("/", os.sep))
+            with open(live, encoding="utf-8") as f:
+                keep = f.read()
+            with open(live, "w", encoding="utf-8",
+                      newline="\n") as f:
+                f.write(keep + "# locally edited after admission\n")
+            try:
+                _require_bound_sources(repo, pre)
+            except DriverRefusal as e:
+                assert label in str(e) and "not the source identity" \
+                    in str(e), (label, str(e))
+            else:
+                raise AssertionError(
+                    f"D-10 FAILED: an edited {label} on disk was "
+                    "accepted -- the reviewed bytes are not the bytes "
+                    "that would run")
+            with open(live, "w", encoding="utf-8",
+                      newline="\n") as f:
+                f.write(keep)
+            _require_bound_sources(repo, pre)      # positive again
+        print("  D-10 PASS  a driver absent from the manifest cannot "
+              "fire, and an edited driver, runner or harness on disk "
+              "each refuse by name -- with the untouched positive "
+              "re-passing after every one")
 
         print("w2 tier-s driver selftest: ALL PASS "
               "(driver behaviour only; stub smoke; nothing fired). "

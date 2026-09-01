@@ -55,13 +55,25 @@ TIER_S_RESULTS_FIELDS = {"schema", "quality",
 TIER_S_RESULT_ENTRY_FIELDS = {"point", "grid_index",
                               "replicates",
                               "loco_folds"}
-TIER_S_PRE_SCHEMA = "f2g-w2-tier-s-pre-invocation-v1"
+# v2 (codex 0314Z Design A). No v1 acceptance in the production path:
+# there is no production v1 Tier-S carrier to preserve, and a
+# permissive downgrade would let a pre without the driver pin or the
+# execution capsule reach admission -- which is the whole gap v2
+# closes. A v1 fixture survives only inside the explicit downgrade
+# REFUSAL control.
+TIER_S_PRE_SCHEMA = "f2g-w2-tier-s-pre-invocation-v2"
 TIER_S_PRE_FIELDS = {"schema", "manifest_commit", "effect_grids",
                      "effect_grids_content_sha256",
                      "geometry", "quality", "seed_authority_sha256",
-                     "implementation", "grid_order_sha256",
-                     "output_root", "argv", "host", "interpreter",
+                     "implementation", "driver", "execution",
+                     "grid_order_sha256",
+                     "output_root", "argv",
                      "fired_utc", "invocation_sha256"}
+TIER_S_EXECUTION_SCHEMA = "f2g-w2-tier-s-execution-identity-v1"
+TIER_S_EXECUTION_FIELDS = {"schema", "host", "interpreter_executable",
+                           "interpreter_implementation",
+                           "interpreter_version", "numpy_version",
+                           "numpy_config_sha256"}
 TIER_S_COMPLETION_SCHEMA = "f2g-w2-tier-s-completion-v1"
 TIER_S_COMPLETION_FIELDS = {"schema", "pre_invocation_sha256",
                             "results_blob_sha256", "fired_utc",
@@ -513,6 +525,49 @@ def verify_selector_admission(repo, art, manifest_commit, *,
         raise SelectorRefusal(
             "SELECTOR_UNADMITTED: pre-invocation quality is not the "
             "admitted Tier-S quality")
+    # codex 0314Z point 4: the two identities v2 added are ADMITTED
+    # here, not merely carried. The driver is the artifact that fired
+    # the campaign; before v2 it was outside the admitted set
+    # entirely, so a selector could admit a chain without ever
+    # establishing what produced it.
+    drv = pre["driver"]
+    if not isinstance(drv, dict) or set(drv) != ID_FIELDS:
+        raise SelectorRefusal(
+            "SELECTOR_UNADMITTED: pre-invocation driver identity is "
+            "not a closed {commit, path, blob_sha256} reference")
+    drv_pin = None
+    for slot in man.get("slots", {}).values():
+        for pin in slot.get("pins", ()) or ():
+            if isinstance(pin, dict) and \
+                    pin.get("path") == drv["path"]:
+                drv_pin = pin
+    if drv_pin is None:
+        raise SelectorRefusal(
+            f"SELECTOR_UNADMITTED: the firing driver {drv['path']} is "
+            "not a BOUND pin of the admitted manifest")
+    if drv["commit"] != drv_pin["commit"] or \
+            drv["blob_sha256"] != drv_pin["blob_sha256"]:
+        raise SelectorRefusal(
+            "SELECTOR_UNADMITTED: the pre binds a driver identity "
+            f"({str(drv['commit'])[:12]}/"
+            f"{str(drv['blob_sha256'])[:12]}) that is not the "
+            f"admitted pin ({str(drv_pin['commit'])[:12]}/"
+            f"{str(drv_pin['blob_sha256'])[:12]})")
+    ex = pre["execution"]
+    if not isinstance(ex, dict) or \
+            set(ex) != TIER_S_EXECUTION_FIELDS or \
+            ex.get("schema") != TIER_S_EXECUTION_SCHEMA:
+        raise SelectorRefusal(
+            "SELECTOR_UNADMITTED: pre-invocation execution identity "
+            "is not the closed registered capsule")
+    for _k in ("host", "interpreter_executable",
+               "interpreter_implementation", "interpreter_version",
+               "numpy_version", "numpy_config_sha256"):
+        if not isinstance(ex[_k], str) or not ex[_k].strip():
+            raise SelectorRefusal(
+                f"SELECTOR_UNADMITTED: execution identity field {_k} "
+                "is empty -- an identity with a hole in it attests "
+                "less than it appears to")
     geo = pre["geometry"]
     if not isinstance(geo, dict) or set(geo) != GEO_ID_FIELDS:
         raise SelectorRefusal(

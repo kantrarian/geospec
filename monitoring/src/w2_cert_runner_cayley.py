@@ -578,7 +578,7 @@ def _selftest():
         store_map[(STAGE_RES, "ts_results.json")] = r_raw
         det_order = {f: [p for p in grids_obj[f] if "gain" not in p]
                      for f in ("B2A", "B2B", "B1B", "B3A")}
-        pre = {"schema": "f2g-w2-tier-s-pre-invocation-v1",
+        pre = {"schema": "f2g-w2-tier-s-pre-invocation-v2",
                "manifest_commit": mc_override or commit,
                "effect_grids": {"commit": grid_pin["commit"],
                                "path": grid_pin["path"],
@@ -593,9 +593,24 @@ def _selftest():
                "quality": {"R": 50, "n_draws": 999},
                "seed_authority_sha256": "b" * 64,
                "implementation": impl_id,
+               # v2 (codex 0314Z): the fixture carries the same
+               # closed shape the production chain does -- a KAT
+               # fixture that keeps the OLD schema would quietly stop
+               # exercising the admission path it exists to exercise.
+               "driver": {"commit": "d" * 40,
+                          "path": "monitoring/src/"
+                                  "w2_tier_s_driver_cayley.py",
+                          "blob_sha256": "d" * 64},
+               "execution": {
+                   "schema": "f2g-w2-tier-s-execution-identity-v1",
+                   "host": "kat",
+                   "interpreter_executable": "kat",
+                   "interpreter_implementation": "CPython",
+                   "interpreter_version": "kat",
+                   "numpy_version": "kat",
+                   "numpy_config_sha256": "e" * 64},
                "grid_order_sha256": _digest_fn(det_order),
                "output_root": "kat", "argv": ["kat"],
-               "host": "kat", "interpreter": {"executable": "kat"},
                "fired_utc": "2026-08-25T00:00:00Z"}
         pre["invocation_sha256"] = _digest_fn(
             {k: v for k, v in pre.items()

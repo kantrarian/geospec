@@ -276,6 +276,15 @@ BOUND_SLOTS = {
                   # BLOCKER item 1 (0432Z) -- it was writing results
                   # from outside the admitted set
                   "monitoring/src/w2_tier_s_runner_cayley.py",
+                  # codex 0257Z finding 1 (CRITICAL): the runner was
+                  # pinned but its CALLER was not, so the artifact
+                  # that actually fires a campaign sat outside the
+                  # admitted set and the pin audit stayed clean at
+                  # 90/0/0/0/0 while it did. It rides the same slot
+                  # as the runner it drives: same authority, same
+                  # lane, and the v2 pre-invocation now binds its
+                  # {commit, path, blob_sha256} from this pin.
+                  "monitoring/src/w2_tier_s_driver_cayley.py",
                   # cycle-4 R2: the result ASSEMBLER is production
                   # machinery of the certification path (builds the
                   # result package from the fired campaign); its

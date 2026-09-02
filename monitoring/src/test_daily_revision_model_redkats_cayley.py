@@ -193,6 +193,125 @@ def _inputs(tag):
 FIRED = datetime(2026, 9, 3, 6, 15, 1, 123456, tzinfo=timezone.utc)
 
 
+def _pub(repo, cap, day, tiers, tag, fired, reason=None, snap=None, pins=None):
+    """Publish through the REAL path the runner uses: resolve the prior view
+    against the journal snapshot, then publish binding that snapshot."""
+    snap = REV.journal_bytes(repo) if snap is None else snap
+    if pins is None:
+        pins = [v[2] for v in REV.prior_days_view(repo, snap, cap, day, 3, git=fake_git)]
+    return REV.publish_revision(repo, _rec(day, tiers), _inputs(tag), snap, pins, fired,
+                                rescore_reason=reason), snap, pins
+
+
+def _codex_partners():
+    """codex 1505Z (`codex_daily_d7845cb0_adversarial_redkats.py`): the five
+    reproductions that were ACCEPTED/BRICKS/MISSING on the withdrawn v1,
+    ported to the corrected-v1 API scenario-for-scenario and required to
+    REFUSE typed (or to be structurally impossible) here."""
+    # CODEX-1 index rewrite / forged earlier entry
+    repo, cap = _mkstore()
+    try:
+        e1, _s, _p1 = _pub(repo, cap, "2026-09-01", {"alpha": 1}, "one", FIRED)
+        prefix = REV.journal_bytes(repo)
+        e2, _s, _p2 = _pub(repo, cap, "2026-09-02", {"alpha": 1}, "two", FIRED.replace(day=4))
+        later = REV.journal_bytes(repo)
+        lines = later.split(b"\n")[:-1]
+        forged_first = json.loads(lines[0])
+        forged_first["appended_utc"] = "2099-01-01T00:00:00Z"
+        forged_journal = REV.canonical_bytes(forged_first) + lines[1] + b"\n"
+        r2, _raw = REV.reopen_revision(repo, e2)
+        rec1_path = _p(repo, e1["path"])
+        rec1 = json.loads(_read(rec1_path).decode("utf-8"))
+        rec1["revision"]["inputs"]["entries"][0]["identity"] = "forged"
+        with io.open(rec1_path, "wb") as f:
+            f.write(REV.record_bytes(rec1))
+        h_reopen, m_reopen = _refuses(lambda: REV.reopen_revision(repo, e1), "REVISION_DIGEST_MISMATCH")
+        ok = (later.startswith(prefix)
+              and not REV.journal_prefix_ok(prefix, forged_journal)
+              and r2["revision"]["source_index"]["prefix_sha256"] == hashlib.sha256(prefix).hexdigest()
+              and r2["revision"]["source_index"]["prefix_sha256"]
+              != hashlib.sha256(REV.canonical_bytes(forged_first)).hexdigest()
+              and h_reopen)
+        _check("CODEX-1 INDEX-REWRITE", ok,
+               "later journal starts with the earlier bytes; a forged earlier line fails the C-8 prefix "
+               "comparator AND the recorded source_index of r2; forged revision inputs refuse on reopen (digest)")
+    finally:
+        shutil.rmtree(repo, ignore_errors=True)
+    # CODEX-2 legacy drift
+    repo, cap = _mkstore()
+    try:
+        _pub(repo, cap, "2026-09-01", {"alpha": 1}, "one", FIRED)
+        csvp = _p(repo, REV.CSV_REL)
+        with io.open(csvp, "wb") as f:
+            f.write(_read(csvp).replace(b"0.5000", b"0.9999", 1))
+        h, m = _refuses(lambda: _pub(repo, cap, "2026-09-02", {"alpha": 1}, "two", FIRED.replace(day=4)),
+                        "CSV_LEGACY_PREFIX_CHANGED")
+        _check("CODEX-2 LEGACY-DRIFT", h and os.path.exists(_p(repo, REV.LEGACY_REL)),
+               f"pre-model row 0.5000->0.9999: next publish -> {m.split(':')[0]}; capsule exists")
+    finally:
+        shutil.rmtree(repo, ignore_errors=True)
+    # CODEX-3 stale prior identities (TOCTOU)
+    repo, cap = _mkstore()
+    try:
+        e1, _s, _p1 = _pub(repo, cap, "2026-09-01", {"alpha": 1}, "v1", FIRED)
+        snap = REV.journal_bytes(repo)
+        stale_pins = [v[2] for v in REV.prior_days_view(repo, snap, cap, "2026-09-02", 3, git=fake_git)]
+        e2, _s, _p2 = _pub(repo, cap, "2026-09-01", {"alpha": 2}, "v2", FIRED.replace(hour=7),
+                           reason="later correction")
+        h, m = _refuses(lambda: REV.publish_revision(repo, _rec("2026-09-02", {"alpha": 1}), _inputs("t"),
+                                                     snap, stale_pins, FIRED.replace(day=4)), "JOURNAL_MOVED")
+        _check("CODEX-3 STALE-PRIOR", h and stale_pins[0]["run_id"] == e1["run_id"]
+               and REV.current_map(REV.parse_journal(REV.journal_bytes(repo)))["2026-09-01"]["run_id"] == e2["run_id"],
+               f"captured r1 identity, rescore to r2, publish with the stale snapshot -> {m.split(':')[0]}")
+    finally:
+        shutil.rmtree(repo, ignore_errors=True)
+    # CODEX-4 empty / untyped inputs
+    repo, cap = _mkstore()
+    try:
+        snap = REV.journal_bytes(repo)
+        pins = [v[2] for v in REV.prior_days_view(repo, snap, cap, "2026-09-01", 3, git=fake_git)]
+        h, m = _refuses(lambda: REV.publish_revision(repo, _rec("2026-09-01", {"alpha": 1}), {}, snap, pins, FIRED),
+                        "INPUTS_CAPSULE_SCHEMA")
+        _check("CODEX-4 EMPTY-INPUTS", h and not os.path.isdir(_p(repo, "docs/ensemble/2026-09-01")),
+               f"inputs={{}} -> {m.split(':')[0]}; nothing written")
+    finally:
+        shutil.rmtree(repo, ignore_errors=True)
+    # CODEX-5 planted crash after revision creation -> typed recovery, not a brick
+    repo, cap = _mkstore()
+    try:
+        real = REV._write_atomic
+
+        def crash_journal(path, data):
+            if path.endswith("index.ndjson") and os.sep + ".txn" + os.sep not in path:
+                raise RuntimeError("planted crash before the journal publish")
+            return real(path, data)
+        REV._write_atomic = crash_journal
+        try:
+            _pub(repo, cap, "2026-09-01", {"alpha": 1}, "v1", FIRED)
+            crashed = False
+        except RuntimeError:
+            crashed = True
+        finally:
+            REV._write_atomic = real
+        revs = os.listdir(_p(repo, "docs/ensemble/2026-09-01"))
+        h, m = _refuses(lambda: _pub(repo, cap, "2026-09-01", {"alpha": 1}, "v1", FIRED.replace(hour=8)),
+                        "REVISION_TXN_DIRTY")
+        _check("CODEX-5 CRASH-RECOVERY", crashed and len(revs) == 1 and h and "RECOVERY" in m,
+               f"crash after create-once left one revision + staging; the retry refuses {m.split(':')[0]} "
+               "with a RECOVERY instruction (not REVISION_PATH_EXISTS forever)")
+    finally:
+        shutil.rmtree(repo, ignore_errors=True)
+    # CODEX-6 revision fields present for B6 and replay
+    repo, cap = _mkstore()
+    try:
+        e, _s, _p1 = _pub(repo, cap, "2026-09-01", {"alpha": 1}, "v1", FIRED)
+        r, _raw = REV.reopen_revision(repo, e)
+        missing = sorted({"scored_day_utc", "source_index"} - set(r["revision"]))
+        _check("CODEX-6 REVISION-FIELDS", not missing, f"missing={missing}")
+    finally:
+        shutil.rmtree(repo, ignore_errors=True)
+
+
 def main():
     print("DAILY REVISION MODEL red-KATs (cayley, corrected v1) -- temp stores, scripted git, no network")
     repo, cap = _mkstore()
@@ -451,6 +570,8 @@ def main():
                "capsule is create-once; a changed legacy csv prefix refuses the derivation")
     finally:
         shutil.rmtree(repo, ignore_errors=True)
+
+    _codex_partners()
 
     if FAILS:
         print(f"DAILY REVISION MODEL: {len(FAILS)} FAIL -> {FAILS}")

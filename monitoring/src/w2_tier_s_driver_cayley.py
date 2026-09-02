@@ -1515,8 +1515,10 @@ def _selftest(real_repo):
         g("add", "-A")
         g("commit", "-qm", "forgedref pre")
         p7 = os.path.join(out7, PRE_NAME)
-        # a REAL, live, imported module that is pinned NOWHERE
-        UNPINNED = "monitoring/src/d2_f2g_phase_b_stats.py"
+        # a REAL live module the fixture manifest does not pin (the
+        # stats engine that used to play this role is now the ninth
+        # bound executable -- codex 2303Z)
+        UNPINNED = "monitoring/src/w2_cascadia.py"
         assert os.path.exists(os.path.join(repo, UNPINNED.replace(
             "/", os.sep))), UNPINNED
         assert not any(pin["path"] == UNPINNED

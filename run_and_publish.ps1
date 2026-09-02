@@ -133,27 +133,30 @@ if ($MonitoringExitCode -gt 10) {
     Write-Host "  Monitoring completed (exit code $MonitoringExitCode)" -ForegroundColor Green
 }
 
-# 3. Copy results to docs/
-Write-Host "[3/5] Copying results to docs/..." -ForegroundColor Yellow
-$EnsembleDir = Join-Path $RepoRoot "monitoring\data\ensemble_results"
+# 3. Public record surfaces (asylum 2026-09-02, immutable revision model)
+# The runner publishes each scored day CREATE-ONCE under
+# docs/ensemble/<date>/<run_id>.json and DERIVES docs/ensemble_latest.json,
+# docs/ensemble/current.json and docs/data.csv from the append-only index
+# (monitoring/src/ensemble_revisions_cayley.py). This step no longer copies
+# the newest LOCAL ensemble_*.json over the derived surface -- a stale local
+# file with a newer mtime used to be able to overwrite it silently.
+Write-Host "[3/5] Reading the published record surfaces in docs/..." -ForegroundColor Yellow
 $DocsDir = Join-Path $RepoRoot "docs"
-
-# Find latest ensemble file
-$LatestFile = Get-ChildItem -Path $EnsembleDir -Filter "ensemble_*.json" -ErrorAction SilentlyContinue |
-    Sort-Object LastWriteTime -Descending |
-    Select-Object -First 1
+$LatestFile = Get-Item (Join-Path $DocsDir "ensemble_latest.json") -ErrorAction SilentlyContinue
 
 if ($LatestFile) {
-    Copy-Item $LatestFile.FullName (Join-Path $DocsDir "ensemble_latest.json") -Force
-    Write-Host "  Copied: $($LatestFile.Name) -> docs/ensemble_latest.json" -ForegroundColor Green
-
-    # Extract date and summary for README
+    # Extract date and summary for README (from the DERIVED surface)
     $EnsembleData = Get-Content $LatestFile.FullName | ConvertFrom-Json
     $AssessmentDate = $EnsembleData.date
     $MaxRisk = $EnsembleData.summary.max_risk
     $MaxRegion = $EnsembleData.summary.max_risk_region
+    if ($EnsembleData.revision) {
+        Write-Host "  Published revision: $($EnsembleData.revision.date)/$($EnsembleData.revision.run_id)" -ForegroundColor Green
+    } else {
+        Write-Host "  WARNING: docs/ensemble_latest.json carries no revision block (pre-model record)" -ForegroundColor Yellow
+    }
 } else {
-    Write-Host "  No ensemble results found" -ForegroundColor Red
+    Write-Host "  No published ensemble record found at docs/ensemble_latest.json" -ForegroundColor Red
     exit 1
 }
 
@@ -277,7 +280,7 @@ try {
     $ErrorActionPreference = 'Continue'
 
     $Candidates = @(
-        'docs/ensemble_latest.json', 'docs/data.csv', 'docs/validated_events.json',
+        'docs/ensemble', 'docs/ensemble_latest.json', 'docs/data.csv', 'docs/validated_events.json',
         'docs/r4_prospective_record.json', 'docs/r5_daily.json',
         'monitoring/dashboard/data.csv', 'monitoring/receipts', 'README.md'
     )

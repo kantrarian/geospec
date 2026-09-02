@@ -34,10 +34,12 @@ import sys
 import os
 import argparse
 import csv
+import hashlib
 import json
 import logging
+import subprocess
 import numpy as np
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -45,6 +47,13 @@ from typing import Dict, List, Optional
 sys.path.insert(0, os.path.dirname(__file__))
 
 from ensemble import GeoSpecEnsemble, EnsembleResult, RISK_TIERS
+# Immutable public revision store (asylum 2026-09-02: "use immutable
+# revision"; codex's model). The runner's production path publishes
+# every scored day create-once under docs/ensemble/<date>/<run_id>.json
+# and derives data.csv / ensemble_latest.json from the append-only index.
+import ensemble_revisions_cayley as REV
+
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
 # Earthquake event fetching
 try:
@@ -668,6 +677,7 @@ def check_persistence(
     output_dir: Path,
     target_date: datetime,
     required_consecutive: int = 2,
+    loader=None,
 ) -> Dict[str, Dict]:
     """
     Check which regions have persistent elevated status.
@@ -698,7 +708,13 @@ def check_persistence(
 
         # Look back for consecutive days at same or higher tier
         for days_back in range(1, required_consecutive + 2):
-            prev_data = load_previous_results(output_dir, target_date, days_back)
+            # `loader` (production path) serves the PUBLIC revision for the
+            # prior day or None for a hole; the default keeps the local-dir
+            # replay semantics the corpus bar exercises.
+            if loader is not None:
+                prev_data = loader(days_back)
+            else:
+                prev_data = load_previous_results(output_dir, target_date, days_back)
             if prev_data and region in prev_data.get('regions', {}):
                 prev_tier = prev_data['regions'][region].get('tier', 0)
                 tier_history.insert(0, prev_tier)
@@ -745,7 +761,7 @@ def save_results(
 
     output_data = {
         'date': date_str,
-        'timestamp': datetime.now().isoformat(),
+        'timestamp': datetime.now(timezone.utc).isoformat(),
         'regions': {},
         'summary': {
             'total_regions': 0,
@@ -1170,6 +1186,40 @@ def print_summary(results: Dict[str, EnsembleResult], persistence: Optional[Dict
     print()
 
 
+def _lf_sha256(path: Path) -> str:
+    with open(path, 'rb') as f:
+        return hashlib.sha256(f.read().replace(b'\r\n', b'\n')).hexdigest()
+
+
+def _input_identities(prior_revisions: List[Optional[Dict]]) -> Dict:
+    """The closed input-identity block stored on every published revision:
+    LF digests of the scoring code and the live calibration capsules, the
+    exact prior revisions consumed by persistence, and the repository HEAD
+    the runner executed from (None if git is unavailable)."""
+    code = {}
+    for rel in ('monitoring/src/run_ensemble_daily.py',
+                'monitoring/src/ensemble.py',
+                'monitoring/src/ensemble_revisions_cayley.py'):
+        code[rel] = _lf_sha256(REPO_ROOT / rel)
+    cal_dir = REPO_ROOT / 'monitoring' / 'data' / 'calibration'
+    capsules = {}
+    if cal_dir.is_dir():
+        for cp in sorted(cal_dir.glob('*.json')):
+            capsules[cp.name] = _lf_sha256(cp)
+    head = None
+    try:
+        out = subprocess.run(['git', '-C', str(REPO_ROOT), 'rev-parse', 'HEAD'],
+                             capture_output=True, text=True, timeout=30)
+        head = out.stdout.strip() or None
+    except (OSError, subprocess.SubprocessError):
+        head = None
+    return {'schema': 'geospec-ensemble-inputs-v1',
+            'code_sha256_lf': code,
+            'calibration_capsules_sha256_lf': capsules,
+            'prior_revisions': prior_revisions,
+            'repo_head': head}
+
+
 def main():
     parser = argparse.ArgumentParser(
         description='GeoSpec Daily Ensemble Assessment'
@@ -1198,6 +1248,13 @@ def main():
         '--quiet', action='store_true',
         help='Suppress console output'
     )
+    parser.add_argument(
+        '--rescore', type=str, default=None, metavar='REASON',
+        help='Owner-authorized RE-SCORE of a day that already has a public '
+             'revision: appends a NEW immutable revision naming the previous '
+             'one and this reason. Without it, a second run of a scored day '
+             'REFUSES (exit 12) and writes nothing public.'
+    )
 
     args = parser.parse_args()
 
@@ -1210,8 +1267,14 @@ def main():
         _HISTORICAL_REPLAY = True
     else:
         # Default: N days ago due to data latency (seismic ~1 day, GPS 2-14 days)
-        target_date = datetime.now() - timedelta(days=args.latency)
-        logger.info(f"Using {args.latency}-day latency offset (data date: {target_date.date()})")
+        # B6 (asylum 2026-09-02): the scored day is keyed in UTC. A naive
+        # host-local clock moved the day boundary with the runner's zone;
+        # the key is now the UTC calendar day minus the latency, held as a
+        # naive midnight so every downstream strftime stays byte-identical.
+        today_utc = datetime.now(timezone.utc).date()
+        target_date = (datetime(today_utc.year, today_utc.month, today_utc.day)
+                       - timedelta(days=args.latency))
+        logger.info(f"Using {args.latency}-day latency offset (UTC data date: {target_date.date()})")
 
     # Determine regions
     regions = [args.region] if args.region else None
@@ -1236,12 +1299,29 @@ def main():
         logger.error("No results produced")
         return 1
 
-    # Check persistence (requires 2 consecutive days for confirmed status)
+    # Check persistence (requires 2 consecutive days for confirmed status).
+    # Production path (no --output-dir): prior days come from the PUBLIC
+    # revision store only; the exact (date, run_id, sha256) consumed and any
+    # holes are recorded on the published record. A replay into a custom
+    # --output-dir keeps the local-dir semantics and publishes nothing.
+    production = args.output_dir is None
+    prior_idents, holes, loader = [], [], None
+    if production:
+        idx = REV.load_index(REPO_ROOT)
+        prior = REV.prior_days(REPO_ROOT, idx,
+                               target_date.strftime('%Y-%m-%d'), 3)
+        prior_map = {k + 1: rec for k, (_ds, rec, _id) in enumerate(prior)}
+        prior_idents = [ident for (_ds, _rec, ident) in prior]
+        holes = [ds for (ds, rec, _id) in prior if rec is None]
+        if holes:
+            logger.warning(f"Persistence holes (no public revision): {holes}")
+        loader = lambda days_back: prior_map.get(days_back)  # noqa: E731
     persistence = check_persistence(
         results,
         output_dir,
         target_date,
         required_consecutive=2,
+        loader=loader,
     )
 
     # Save results with persistence info and earthquake events
@@ -1250,12 +1330,34 @@ def main():
     # Append to daily CSV for trending (detailed log)
     append_to_daily_csv(results, output_dir, target_date, persistence)
 
-    # Append to dashboard CSV (authoritative source for 30-day history chart)
-    append_to_dashboard_csv(results, target_date)
+    # docs/data.csv is now DERIVED from the revision index by one writer
+    # (REV.write_data_csv, inside publish_revision); the old appender is
+    # no longer called on the production path.
 
     # Run the stress-release drop detector and persist its verdict into the
-    # authoritative ensemble JSON (the dashboard recomputes it client-side).
+    # local ensemble JSON BEFORE publication (a revision is create-once).
     run_stress_release_detection(output_dir, target_date)
+
+    # ---- Publish the immutable public revision (production path only)
+    if production:
+        date_str = target_date.strftime('%Y-%m-%d')
+        with open(output_dir / f'ensemble_{date_str}.json', 'r', encoding='utf-8') as f:
+            record = json.load(f)
+        record['persistence_inputs'] = {
+            'schema': 'geospec-ensemble-persistence-inputs-v1',
+            'required_consecutive': 2,
+            'prior_revisions': prior_idents,   # None entries are holes
+            'holes': holes,
+        }
+        try:
+            entry = REV.publish_revision(
+                REPO_ROOT, record, _input_identities(prior_idents),
+                rescore_reason=args.rescore)
+        except REV.RevisionRefusal as e:
+            logger.error(str(e))
+            return 12
+        logger.info(f"Published public revision {entry['date']}/{entry['run_id']} "
+                    f"sha256 {entry['sha256'][:12]} (supersedes {entry['supersedes']})")
 
     # Print summary
     if not args.quiet:

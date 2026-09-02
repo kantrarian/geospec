@@ -2872,9 +2872,10 @@ def w_selrun():
         # itself; reflexive chains are structurally dead)
         MC = "a" * 40
         PRE_C = "b" * 40
+        PC = "e" * 40      # v7: the committed point corpus (PRE_C < PC < RC)
         RC = "c" * 40
         SC = "d" * 40
-        CHAIN = [MC, PRE_C, RC, SC]
+        CHAIN = [MC, PRE_C, PC, RC, SC]
         GEOMD = "ab" * 32
         BAR_GEOM = {"capsule_digest": GEOMD,
                     "loco_registry_carrier": "cascadia",
@@ -3014,13 +3015,60 @@ def w_selrun():
                 "completed_utc": "2026-08-25T11:00:00Z"}
         store2[(RC, "kat/ts_comp.json")] = _j.dumps(comp).encode()
         store2[(RC, "kat/ts_results.json")] = r_raw
+        # v7 (codex 0537Z, cayley 0705Z): the smoke names the COMMITTED
+        # point corpus (points_commit) and the digest of the exact
+        # sorted path->blob carrier set (point_corpus_sha256). Admission
+        # reopens one detection carrier per registered point in runner
+        # order and a LOCO carrier for exactly the stage-1 top-8 from
+        # that commit, REBUILDS the results they imply and requires
+        # equality with the reopened results. The carriers live at PC,
+        # strictly between PRE_C and RC, in the results path's directory
+        # ("kat/"); their records are the same my_reps/my_folds the
+        # results above were built from, so the rebuild equality holds
+        # by construction. Its must-refuse partners (a receipt that does
+        # not recompute; a co-tampered carrier) follow the positive.
+        ex_d = canon_sha(pre["execution"])
+        carriers = []
+        c_idx = 0
+        for fam_c in ("B2A", "B2B", "B1B", "B3A"):
+            for k_c, pt_c in enumerate(det_order[fam_c]):
+                e_c = fams[fam_c][k_c]
+                cap_c = {"index": c_idx, "family": fam_c,
+                         "point": dict(pt_c),
+                         "pre_invocation_sha256":
+                             pre["invocation_sha256"],
+                         "execution_sha256": ex_d,
+                         "record": {"replicates":
+                                    my_reps(e_c["outcomes"], fam_c),
+                                    "loco_folds": None,
+                                    "certifiable": False}}
+                raw_c = _j.dumps(cap_c).encode()
+                nm_c = f"kat/smoke_point_{c_idx:03d}.json"
+                store2[(PC, nm_c)] = raw_c
+                carriers.append([nm_c,
+                                 hashlib.sha256(raw_c).hexdigest()])
+                if fam_c == "B1B" and \
+                        e_c.get("post_loco_outcomes") is not None:
+                    lcap_c = dict(cap_c, record={
+                        "replicates": my_reps(e_c["outcomes"], fam_c),
+                        "loco_folds": my_folds(e_c["post_loco_outcomes"]),
+                        "certifiable": False})
+                    lraw_c = _j.dumps(lcap_c).encode()
+                    lnm_c = f"kat/smoke_loco_{c_idx:03d}.json"
+                    store2[(PC, lnm_c)] = lraw_c
+                    carriers.append([lnm_c,
+                                     hashlib.sha256(lraw_c).hexdigest()])
+                c_idx += 1
+        corpus_sha = canon_sha(sorted(carriers))
         chain_fields = dict(
             pre_invocation_ref={"commit": PRE_C,
                                 "path": "kat/ts_pre.json"},
             pre_invocation_sha256=pre["invocation_sha256"],
             completion_ref={"commit": RC, "path": "kat/ts_comp.json"},
             results_ref={"commit": RC, "path": "kat/ts_results.json",
-                         "blob_sha256": r_sha})
+                         "blob_sha256": r_sha},
+            points_commit=PC,
+            point_corpus_sha256=corpus_sha)
         smoke_adm = dict(smoke, schema="f2g-w2-tier-s-smoke-v1",
                          effect_grids_sha256=canon_sha(grids),
                          **chain_fields)
@@ -3037,6 +3085,45 @@ def w_selrun():
             geometry_loader=bar_geom_loader, is_ancestor=bar_anc)
         ok_run = ok_run and adm_ok["pre_invocation"][
             "invocation_sha256"] == pre["invocation_sha256"]
+        ok_run = ok_run and adm_ok.get("point_corpus", {}).get(
+            "commit") == PC and adm_ok["point_corpus"].get(
+            "sha256") == corpus_sha and adm_ok["point_corpus"].get(
+            "carriers") == len(carriers)
+        # v7 RECEIPT locks (mine): the receipt must RECOMPUTE from the
+        # committed carriers, and the carriers must REBUILD the reopened
+        # results -- each refuses for its OWN measured reason, and the
+        # admitted positive above is their anti-vacuity partner (same
+        # store, same chain, one field / one carrier byte apart).
+        bad_rcpt = dict(smoke_adm, point_corpus_sha256="f" * 64)
+        store2[(SC, "kat/smoke_badrcpt.json")] = _j.dumps(
+            bad_rcpt).encode()
+        art_badrcpt = WTS.select_candidates(
+            bad_rcpt, grids,
+            smoke_ref={"commit": SC, "path": "kat/smoke_badrcpt.json"},
+            effect_grids_ref=refs_adm["effect_grids_ref"])
+        ok_run = ok_run and refuses(
+            lambda: WTS.verify_selector_admission(
+                _REPO, art_badrcpt, MC, blob_reader=rdr2,
+                git_resolve=lambda c: c,
+                geometry_loader=bar_geom_loader, is_ancestor=bar_anc),
+            "point_corpus_sha256 does not recompute")
+
+        def rdr2_cotamper(commit, path):
+            # codex's v5/v6 class: one well-shaped p-value in one
+            # served carrier changed -- the rebuilt results no longer
+            # equal the reopened results
+            raw = rdr2(commit, path)
+            if (commit, path) == (PC, "kat/smoke_point_000.json"):
+                cap_t = _j.loads(raw)
+                cap_t["record"]["replicates"][0]["p_values"]["B2A"] = 0.5
+                return _j.dumps(cap_t).encode()
+            return raw
+        ok_run = ok_run and refuses(
+            lambda: WTS.verify_selector_admission(
+                _REPO, art_adm, MC, blob_reader=rdr2_cotamper,
+                git_resolve=lambda c: c,
+                geometry_loader=bar_geom_loader, is_ancestor=bar_anc),
+            "REBUILT from the committed point corpus")
         # LOCK OPEN-SLOT (mine, independent of codex's red KAT for
         # their 0531Z finding 1). The SAME pins, the SAME bytes, the
         # SAME identities as the positive one line above -- only
@@ -3363,8 +3450,10 @@ def w_selrun():
               "write-once/manifest-resolution refusals, v2 pre with "
               "bound driver pin + closed execution capsule, and an "
               "independent v1-downgrade admission refusal through an "
-              "otherwise-valid chain, and an OPEN-slot refusal over "
-              "byte-identical pins)",
+              "otherwise-valid chain, an OPEN-slot refusal over "
+              "byte-identical pins, and the v7 point-corpus receipt: "
+              "admitted from committed carriers, refused when the "
+              "receipt does not recompute or a carrier is co-tampered)",
               ok_sel and ok_ord and ok_doc and ok_run,
               f"sel={ok_sel} ord={ok_ord} doc={ok_doc} run={ok_run}")
     except ImportError:

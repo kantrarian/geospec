@@ -1282,32 +1282,24 @@ def main():
     else:
         output_dir = Path(__file__).parent.parent / 'data' / 'ensemble_results'
 
-    # Run assessment
-    logger.info(f"Starting ensemble assessment for {target_date.date()}")
-
-    results, events_data = run_all_regions(
-        target_date=target_date,
-        regions=regions,
-        use_seismic=not args.no_seismic,
-        fetch_events=True,
-    )
-
-    if not results:
-        logger.error("No results produced")
-        return 1
-
-    # Check persistence (requires 2 consecutive days for confirmed status).
-    # Production path (no --output-dir): prior days come from the PUBLIC
-    # revision store only; the exact (date, run_id, sha256) consumed and any
-    # holes are recorded on the published record. A replay into a custom
-    # --output-dir keeps the local-dir semantics and publishes nothing.
+    # Production path (no --output-dir) publishes an immutable public
+    # revision; a replay into a custom --output-dir keeps the local-dir
+    # semantics and publishes nothing.
     production = args.output_dir is None
+
+    # ---- Production PREFLIGHT, before any scoring or acquisition (codex
+    # 1912Z; the 1831Z F3 repair as accepted). The program that scores must
+    # be the COMMITTED program: resolve the Git view of code + calibration at
+    # HEAD and refuse typed on any untracked / missing / dirty file; refuse a
+    # dirty store; require the cutover capsule; capture the journal bytes and
+    # resolve the prior-day pins -- ALL of it before run_all_regions (which
+    # owns the provider-fetch seam). A typed refusal here exits 12 with
+    # nothing scored, nothing fetched and nothing written. publish_revision
+    # re-runs the Git/checkout check after scoring; that second check is the
+    # post-scoring TOCTOU guard and stays.
     pins, loader, journal_snapshot, legacy_cap, committed_view = [], None, None, None, None
     if production:
         try:
-            # codex 1831Z F3: the program that scores must be the COMMITTED
-            # program -- resolve the Git view of code + calibration at HEAD and
-            # refuse typed on any untracked / missing / dirty file BEFORE scoring
             committed_view = REV.committed_inputs_view(REPO_ROOT, 'HEAD')
             REV.checkout_matches_committed(REPO_ROOT, committed_view)
             REV.check_store_clean(REPO_ROOT)          # typed recovery refusal
@@ -1328,6 +1320,27 @@ def main():
         if holes:
             logger.warning(f"Persistence holes (no public revision, no legacy record): {holes}")
         loader = lambda days_back: prior_map.get(days_back)  # noqa: E731
+
+    # Run assessment (scoring + provider fetch; only reached once the
+    # production preflight above has passed)
+    logger.info(f"Starting ensemble assessment for {target_date.date()}")
+
+    results, events_data = run_all_regions(
+        target_date=target_date,
+        regions=regions,
+        use_seismic=not args.no_seismic,
+        fetch_events=True,
+    )
+
+    if not results:
+        logger.error("No results produced")
+        return 1
+
+    # Check persistence (requires 2 consecutive days for confirmed status).
+    # Production path: prior days come from the PUBLIC revision store only,
+    # through the pins / loader the preflight resolved against the captured
+    # journal bytes; the exact (date, run_id, sha256) consumed and any holes
+    # are recorded on the published record. Replay: local-dir semantics.
     persistence = check_persistence(
         results,
         output_dir,

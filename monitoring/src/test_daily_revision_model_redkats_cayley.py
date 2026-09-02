@@ -40,6 +40,15 @@ live positive and refuses for its OWN measured reason.
            input-pin mismatch refuse; the full capsule passes
   CODEX-10 F4: reason / schema / fired_utc / source_index / persistence
            mismatch (re-sealed) refuse; the untouched revision passes
+  R-12 .gitattributes carries docs/ensemble/** -text (grassmann REV 6 M-AE)
+  CODEX-11 1831Z F3: untracked / missing / dirty code or calibration refuse
+           the checkout preflight and publication; LF and CRLF checkouts of
+           one commit build the SAME committed capsule
+  CODEX-12 1912Z MAJOR: the production preflight runs BEFORE scoring --
+           (a) AST lock: every REV preflight call in main() precedes
+           run_all_regions; (b) hermetic execution: a typed refusal planted
+           at checkout_matches_committed makes main() return 12 with the
+           scorer / fetch tripwires untouched and no store / output write
 """
 import ast
 import hashlib
@@ -468,6 +477,7 @@ def main():
     _codex_partners_1505()
     _codex_partners_1755()
     _codex_partners_1831()
+    _codex_partners_1912()
 
     if FAILS:
         print(f"DAILY REVISION MODEL: {len(FAILS)} FAIL -> {FAILS}")
@@ -763,6 +773,105 @@ def _codex_partners_1831():
            caps["LF"][0] and caps["CRLF"][0] and same and all(h for _l, h in res),
            "clean LF and CRLF checkouts pass preflight and build the SAME committed capsule; "
            + "; ".join(f"{l}->{'refused' if h else 'ACCEPTED'}" for l, h in res))
+
+
+def _codex_partners_1912():
+    """codex 1912Z MAJOR: the production preflight (committed-input view,
+    checkout match, store clean, legacy capsule, journal snapshot, prior-day
+    pins) must run BEFORE run_all_regions and the provider-fetch seam.
+    (a) an AST call-order lock on main(); (b) a hermetic execution partner
+    that plants a typed refusal at the preflight and tripwires the scorer and
+    every fetch seam -- so a fixture that never calls main() cannot
+    false-green the ordering again."""
+    # ---- CODEX-12a AST call-order lock
+    src = io.open(os.path.join(HERE, "run_ensemble_daily.py"), encoding="utf-8").read()
+    tree = ast.parse(src)
+    main_fn = [n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == "main"][0]
+
+    def first_call(name, allow_name=False):
+        lines = [n.lineno for n in ast.walk(main_fn) if isinstance(n, ast.Call)
+                 and ((isinstance(n.func, ast.Attribute) and n.func.attr == name)
+                      or (allow_name and isinstance(n.func, ast.Name) and n.func.id == name))]
+        return min(lines) if lines else None
+    l_run = first_call("run_all_regions", allow_name=True)
+    preflight = ["committed_inputs_view", "checkout_matches_committed", "check_store_clean",
+                 "load_legacy_baseline", "journal_bytes", "prior_days_view"]
+    pl = {name: first_call(name) for name in preflight}
+    l_pub = first_call("publish_revision")
+    ok = (l_run is not None and l_pub is not None
+          and all(pl[n] is not None and pl[n] < l_run for n in preflight)
+          and l_pub > l_run)
+    _check("CODEX-12a PREFLIGHT-CALL-ORDER-AST", ok,
+           f"main(): committed_inputs_view@L{pl['committed_inputs_view']} and "
+           f"checkout_matches_committed@L{pl['checkout_matches_committed']} precede "
+           f"run_all_regions@L{l_run} (all six preflight calls: "
+           + ", ".join(f"L{pl[n]}" for n in preflight)
+           + f"); publish_revision@L{l_pub} stays after (TOCTOU guard)")
+
+    # ---- CODEX-12b hermetic execution partner (no network, no writes)
+    _shim_obspy_if_absent()
+    import run_ensemble_daily as RED  # noqa
+    calls = []
+
+    def tripwire(name):
+        def _t(*a, **k):
+            calls.append(name)
+            raise AssertionError(f"TRIPWIRE {name}: reached after a preflight refusal")
+        return _t
+
+    def snapshot(p):
+        if not os.path.isdir(p):
+            return None
+        out = []
+        for root, _dirs, files in os.walk(p):
+            for fn in files:
+                out.append(os.path.relpath(os.path.join(root, fn), p))
+        return sorted(out)
+
+    def describe(s):
+        return "absent" if s is None else f"{len(s)} files"
+
+    store_dir = os.path.join(str(RED.REPO_ROOT), "docs", "ensemble")
+    out_dir = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(RED.__file__)),
+                                            "..", "data", "ensemble_results"))
+    stub_view = {"commit": "1" * 40, "code": {}, "calibration": {}}
+
+    def refuse(_repo, _view):
+        raise RED.REV.RevisionRefusal("INPUTS_CODE_DIRTY: call-order partner")
+
+    seams = ["run_all_regions", "fetch_earthquake_events", "fetch_ngl_lambda_geo",
+             "fetch_region_events"]
+    saved_red, wired = {}, []
+    saved_rev = {"committed_inputs_view": RED.REV.committed_inputs_view,
+                 "checkout_matches_committed": RED.REV.checkout_matches_committed}
+    saved_argv = sys.argv
+    before = (snapshot(store_dir), snapshot(out_dir))
+    try:
+        RED.REV.committed_inputs_view = lambda _repo, _commit="HEAD", **_k: stub_view
+        RED.REV.checkout_matches_committed = refuse
+        for name in seams:
+            if hasattr(RED, name):
+                saved_red[name] = getattr(RED, name)
+                setattr(RED, name, tripwire(name))
+                wired.append(name)
+        sys.argv = ["run_ensemble_daily.py"]          # production: no --output-dir, no --date
+        try:
+            rc = RED.main()
+        except AssertionError as e:
+            rc = f"TRIPWIRE:{e}"
+    finally:
+        sys.argv = saved_argv
+        for name, fn in saved_red.items():
+            setattr(RED, name, fn)
+        for name, fn in saved_rev.items():
+            setattr(RED.REV, name, fn)
+    after = (snapshot(store_dir), snapshot(out_dir))
+    _check("CODEX-12b PREFLIGHT-REFUSAL-BEFORE-SCORING",
+           rc == 12 and not calls and before == after and "run_all_regions" in wired,
+           f"typed refusal at checkout_matches_committed -> main() returned {rc!r}; tripwires "
+           f"{wired} recorded {len(calls)} calls {calls}; docs/ensemble {describe(before[0])} -> "
+           f"{describe(after[0])}, default output dir {describe(before[1])} -> {describe(after[1])} "
+           f"(unchanged={before == after})")
 
 
 if __name__ == "__main__":

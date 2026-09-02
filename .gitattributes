@@ -6,6 +6,11 @@ monitoring/data/calibration/*.json -text
 monitoring/replay_capsules/** -text
 data/phase_a_builder_artifact_v1/** -text
 docs/f2g_window2_execution/probe_evidence/** -text
+# immutable revision store (asylum 2026-09-02, codex corrected v1; grassmann REV 6 M-AE):
+# the NDJSON journal, the revisions and the cutover capsule are read as BYTES and digest-
+# checked; a checkout must never translate them (core.autocrlf would make every canonical
+# line non-canonical and every digest diverge). Same class as probe_evidence/** -text.
+docs/ensemble/** -text
 docs/f2g_window2_execution/staged_envelopes/capture_run_archive.json -text
 docs/f2g_window2_execution/staged_envelopes_v4/** -text
 docs/f2g_window2_execution/staged_envelopes/** -text
@@ -22,8 +27,3 @@ monitoring/src/fault_segments.py text eol=lf
 monitoring/src/w2_mf4_catalog_adapter_grassmann.py text eol=lf
 docs/f2g_window2_execution/key_disposition_capsule_v5.json -text
 docs/f2g_window2_execution/key_disposition_v4_to_v5_delta.json -text
-# immutable revision store (asylum 2026-09-02, codex corrected v1; grassmann REV 6 M-AE):
-# the NDJSON journal, the revisions and the cutover capsule are read as BYTES and digest-
-# checked; a checkout must never translate them (core.autocrlf would make every canonical
-# line non-canonical and every digest diverge). Same class as probe_evidence/** -text.
-docs/ensemble/** -text

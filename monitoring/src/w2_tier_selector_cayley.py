@@ -1895,13 +1895,18 @@ def _selftest():
             # an UNTYPED escape is a defect the partner must see as a
             # failed needle, not as a crashed selftest
             return "EXC " + repr(e), None
+    # every partner must refuse TYPED (a SelectorRefusal, never an
+    # untyped escape that merely carries the needle text) on BOTH
+    # replicate kinds -- the EXC prefix is asserted absent
     for label, n_reps, folds, needle in SEAM_PARTNERS:
         msg_o, _out = seam(_self_mod, own_none_pv, n_reps, folds)
-        assert msg_o is not None and "SELECTOR_UNADMITTED" in msg_o and \
-            needle in msg_o, (label, msg_o)
+        assert msg_o is not None and not msg_o.startswith("EXC ") and \
+            "SELECTOR_UNADMITTED" in msg_o and needle in msg_o, \
+            (label, msg_o)
         msg_n, _out = seam(_self_mod, numeric_pv, n_reps, folds)
-        assert msg_n is not None and "SELECTOR_UNADMITTED" in msg_n and \
-            needle in msg_n, (label, msg_n)
+        assert msg_n is not None and not msg_n.startswith("EXC ") and \
+            "SELECTOR_UNADMITTED" in msg_n and needle in msg_n, \
+            (label, msg_n)
     # positive twins: own-None with a VALID fold map, and with a None
     # fold entry, stay ([False], [False]); the numeric twin stays
     # ([True], [True]) / ([True], [False])
@@ -1943,9 +1948,11 @@ def _selftest():
     # the mutant IS the old order and not a broken module: the numeric
     # defect still refuses there, and the positive twin agrees
     msg_m, _out = seam(_mut, numeric_pv, 1, [{"bogus_station": 0.001}])
-    assert msg_m is not None and NEEDLE_REG in msg_m, msg_m
+    assert msg_m is not None and not msg_m.startswith("EXC ") and \
+        NEEDLE_REG in msg_m, msg_m
     msg_m, _out = seam(_mut, numeric_pv, 1, [{st: "x" for st in _reg}])
-    assert msg_m is not None and NEEDLE_NUM in msg_m, msg_m
+    assert msg_m is not None and not msg_m.startswith("EXC ") and \
+        NEEDLE_NUM in msg_m, msg_m
     assert seam(_mut, own_none_pv, 1, [dict(fold_ok)]) == \
         (None, ([False], [False]))
     assert seam(_mut, numeric_pv, 1, [dict(fold_ok)]) == \
@@ -1971,9 +1978,11 @@ def _selftest():
     assert seam(_mut2, numeric_pv, 1, _longer) == \
         (None, ([True], [True]))            # RED: passes silently
     msg_m, _out = seam(_mut2, own_none_pv, 2, [dict(fold_ok)])
-    assert msg_m is not None and NEEDLE_COVER in msg_m, msg_m
+    assert msg_m is not None and not msg_m.startswith("EXC ") and \
+        NEEDLE_COVER in msg_m, msg_m
     msg_m, _out = seam(_mut2, own_none_pv, 1, [sorted(_reg)])
-    assert msg_m is not None and NEEDLE_REG in msg_m, msg_m
+    assert msg_m is not None and not msg_m.startswith("EXC ") and \
+        NEEDLE_REG in msg_m, msg_m
     del _mut2, _mut2_src
     del _mut, _mut_src, _src
     # (d) invalid classes in a component each refuse TYPED -- at the

@@ -2848,6 +2848,17 @@ def _selftest(real_repo):
             c_pts_p = subprocess.run(
                 ["git", "-C", pwt, "rev-parse", "HEAD"],
                 capture_output=True, text=True).stdout.strip()
+            # CODEX KAT: create a second, valid point-stage identity with
+            # byte-identical carriers. Aggregate still names c_pts_p, while
+            # the later results commit descends from both identities.
+            alt_marker = os.path.join(pwt, "d11_alt_point_identity.txt")
+            with open(alt_marker, "w", encoding="utf-8", newline="\n") as f:
+                f.write("same point-carrier bytes; distinct commit identity\n")
+            pg("add", "d11_alt_point_identity.txt")
+            pg("commit", "-qm", "d11 alternate identical point identity")
+            c_pts_alt = subprocess.run(
+                ["git", "-C", pwt, "rev-parse", "HEAD"],
+                capture_output=True, text=True).stdout.strip()
             before_p = set(os.listdir(pout))
             rc, blob = _cli([pdrv, "aggregate", pwt, pout, pc, c_pts_p])
             assert rc == 0, f"D-11 aggregate rc={rc}: {blob[-400:]}"
@@ -2904,6 +2915,39 @@ def _selftest(real_repo):
             with open(fsp, "rb") as f:
                 p_final = f.read()
             selp = os.path.join(pout, "selector.json")
+            # CODEX KAT: substitute the other valid intermediate commit.
+            # Its carrier bytes and corpus digest are identical, but it is
+            # not the receipt sealed in the results-commit envelope.
+            fs = json.loads(p_final.decode("utf-8"))
+            assert fs["points_commit"] == c_pts_p
+            fs["points_commit"] = c_pts_alt
+            with open(fsp, "w", encoding="utf-8", newline="\n") as f:
+                f.write(json.dumps(fs, indent=1, sort_keys=True) + "\n")
+            pg("add", "-A")
+            pg("commit", "-qm", "d11 forge valid alternate point identity")
+            c_forge_alt = _pg_head()
+            rc, blob = _cli([pdrv, "select", pwt, pout, c_forge_alt,
+                             bpre["effect_grids"]["commit"], prel, pc])
+            assert rc == 0, blob[-800:]
+            pg("add", "-A")
+            pg("commit", "-qm", "d11 selector over alternate identity")
+            c_sel_alt = _pg_head()
+            rc, blob = _cli([pdrv, "verify-select", pwt, pout, c_sel_alt,
+                             bpre["manifest_commit"], prel, pc])
+            # codex 0730Z: the alternate commit is VALID and its carriers
+            # are byte-identical, so carrier rebuild and corpus digest both
+            # pass; only the join against the receipt sealed at the results
+            # commit (committed draft smoke + envelope) can refuse it -- and
+            # must, typed, before any admission
+            assert rc != 0 and "SELECTOR_UNADMITTED" in blob and \
+                "final smoke point-corpus receipt diverges from the " \
+                "results-commit" in blob, blob[-800:]
+            print("  D-11e PASS  a VALID alternate point-stage commit with "
+                  "byte-identical carriers (same corpus digest), forged into "
+                  "the final smoke, carried through select and REFUSED at "
+                  "verify-select against the receipt sealed at the results "
+                  "commit (codex 0730Z counterexample inverted)")
+            os.remove(selp)
             for mlabel, mut, needle in (
                     ("forged points commit",
                      lambda s: s.__setitem__("points_commit", "a" * 40),

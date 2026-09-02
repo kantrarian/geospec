@@ -775,6 +775,42 @@ def verify_selector_admission(repo, art, manifest_commit, *,
         raise SelectorRefusal(
             "SELECTOR_UNADMITTED: smoke carries no 64-hex "
             "point_corpus_sha256")
+    rel_dir = res_ref["path"].rsplit("/", 1)[0] \
+        if "/" in res_ref["path"] else ""
+
+    def _cpath(name):
+        return f"{rel_dir}/{name}" if rel_dir else name
+
+    # The results commit is the independent authority for the receipt
+    # finalize consumed.  Rebuilding equal carrier bytes is not enough:
+    # without this join, a different intermediate commit carrying those
+    # same bytes can be substituted into a later final smoke.
+    try:
+        committed_draft = json.loads(blob_reader(
+            r_full, _cpath("tier_s_smoke.json")).decode("utf-8"))
+        committed_envelope = json.loads(blob_reader(
+            r_full, _cpath("tier_s_aggregate_envelope.json"))
+            .decode("utf-8"))
+    except SelectorRefusal:
+        raise
+    except (ValueError, UnicodeDecodeError):
+        raise SelectorRefusal(
+            "SELECTOR_UNADMITTED: results-commit draft smoke or "
+            "aggregate envelope is not JSON")
+    if committed_draft.get("schema") != "f2g-w2-tier-s-smoke-v1" or \
+            committed_envelope.get("schema") != \
+            "f2g-w2-tier-s-aggregate-envelope-v1":
+        raise SelectorRefusal(
+            "SELECTOR_UNADMITTED: results-commit draft smoke or "
+            "aggregate envelope is not the registered schema")
+    for label, receipt in (("draft smoke", committed_draft),
+                           ("aggregate envelope", committed_envelope)):
+        if not isinstance(receipt, dict) or \
+                receipt.get("points_commit") != pc or \
+                receipt.get("point_corpus_sha256") != pcs:
+            raise SelectorRefusal(
+                "SELECTOR_UNADMITTED: final smoke point-corpus receipt "
+                f"diverges from the results-commit {label}")
     pc_full = _resolve(pc)
     if pc_full != pc:
         raise SelectorRefusal(
@@ -783,11 +819,6 @@ def verify_selector_admission(repo, art, manifest_commit, *,
     strict_edge(pc_full, r_full, "points->results")
     if comp_full != r_full:
         strict_edge(pc_full, comp_full, "points->completion")
-    rel_dir = res_ref["path"].rsplit("/", 1)[0] \
-        if "/" in res_ref["path"] else ""
-
-    def _cpath(name):
-        return f"{rel_dir}/{name}" if rel_dir else name
     ex_digest = _digest(pre["execution"])
     points_all = [(fam, p) for fam in FAMILIES_ORDER
                   for p in det_order[fam]]
@@ -1258,6 +1289,17 @@ def _selftest():
                     carriers.append([lnm_c, _h.sha256(lraw_c).hexdigest()])
                 idx += 1
         corpus_sha = _digest_fn(sorted(carriers))
+        # The results-stage fixture carries both independent receipt
+        # authorities used by admission, as the real aggregate does.
+        store_map[(STAGE_RES, "tier_s_smoke.json")] = json.dumps({
+            "schema": "f2g-w2-tier-s-smoke-v1",
+            "points_commit": STAGE_PTS,
+            "point_corpus_sha256": corpus_sha}).encode()
+        store_map[(STAGE_RES, "tier_s_aggregate_envelope.json")] = \
+            json.dumps({
+                "schema": "f2g-w2-tier-s-aggregate-envelope-v1",
+                "points_commit": STAGE_PTS,
+                "point_corpus_sha256": corpus_sha}).encode()
         comp = {"schema": "f2g-w2-tier-s-completion-v1",
                 "pre_invocation_sha256": pre["invocation_sha256"],
                 "results_blob_sha256": r_sha,

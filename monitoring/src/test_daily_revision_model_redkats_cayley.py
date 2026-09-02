@@ -457,6 +457,14 @@ def main():
     finally:
         shutil.rmtree(repo, ignore_errors=True)
 
+    # ---- R-12 store files are exempt from checkout translation (grassmann REV 6 M-AE)
+    ga_path = os.path.join(HERE, "..", "..", ".gitattributes")
+    ga = io.open(ga_path, encoding="utf-8").read() if os.path.exists(ga_path) else ""
+    _check("R-12 STORE-NOT-TRANSLATED",
+           "docs/ensemble/** -text" in [ln.strip() for ln in ga.splitlines()],
+           ".gitattributes carries `docs/ensemble/** -text` (journal / revisions / capsule are bytes; a "
+           "CRLF checkout would refuse JOURNAL_NONCANONICAL and diverge every digest)")
+
     _codex_partners_1505()
     _codex_partners_1755()
     _codex_partners_1831()

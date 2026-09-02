@@ -2271,6 +2271,77 @@ def w_slot13():
               f"{type(exc).__name__}: {exc}")
 
 
+# ---- REV 25: static execution-path sweeps as a LIVE lock -----------------
+def w_static_audit():
+    """codex 1805Z finding 4: a copied historical audit output is
+    evidence, not a lock. This DRIVES the pinned audit module against
+    the tree under test, so the sweeps re-run at every bar invocation
+    and cannot silently rot.
+
+    Finding 3 is honoured in the label: the arity result is
+    DIRECT_LOCAL_POSITIONAL_ARITY, not a complete call audit, and
+    neither sweep substitutes for the real end-to-end execution gate.
+
+    The module's own selftest runs first: a sweep that cannot detect
+    its own class is not a lock, so a blind sweep fails HERE rather
+    than reporting a clean tree."""
+    try:
+        import w2_tier_s_static_audit_grassmann as AUD
+
+        # (1) anti-vacuity FIRST: each sweep must detect a planted
+        # instance of the class it claims (renamed alias + unknown
+        # key, alias-of-alias, pre-shaped literal, positional
+        # omission, required keyword-only omission)
+        ok_self = AUD.selftest(_REPO)
+
+        pre_f, exec_f, schema = AUD.load_fields(_REPO)
+        present = [r for r in AUD.FILES if os.path.isfile(
+            os.path.join(_REPO, *r.split("/")))]
+        ok_files = len(present) == len(AUD.FILES)
+
+        keys, n_reads, aliases = AUD.key_sweep(
+            _REPO, pre_f, exec_f, present, schema)
+        arity, n_calls, n_defs = AUD.arity_sweep(_REPO, present)
+
+        # (2) the sweeps must actually be reaching code -- a sweep that
+        # examined nothing would report clean
+        ok_reach = n_reads > 0 and n_calls > 0 and n_defs > 0
+        # (3) aliases are DISCOVERED, never a hand-written list: the
+        # driver's multi-alias selftest carriers must be found
+        # carriers are reported scope-qualified ("cmd_fire.pre"), and
+        # the closure case must be present: bad_pre lives in a NESTED
+        # runner helper, so a scope model that kept only the innermost
+        # name would silently drop it
+        drv = "monitoring/src/w2_tier_s_driver_cayley.py"
+        rnr = "monitoring/src/w2_tier_s_runner_cayley.py"
+        found = set(aliases.get(drv, ()))
+        ok_alias = ({"cmd_fire.pre", "_selftest.pre2",
+                     "_selftest.pre6"} <= found
+                    and any(a.endswith(".bad_pre")
+                            for a in aliases.get(rnr, ())))
+
+        ok_clean = not keys and not arity
+        check("STATIC-AUDIT execution-path sweeps as a live lock "
+              "(module selftest plants and detects each class; "
+              "provenance-discovered PRE aliases, no name list; zero "
+              "unknown-key reads; zero DIRECT_LOCAL_POSITIONAL_ARITY "
+              "mismatches; supplements, never substitutes for, the "
+              "end-to-end execution gate)",
+              ok_self and ok_files and ok_reach and ok_alias
+              and ok_clean,
+              f"selftest={ok_self} files={ok_files} "
+              f"reach={ok_reach}({n_reads}r/{n_calls}c/{n_defs}d) "
+              f"alias={ok_alias}{sorted(found)} "
+              f"keys={[(f'{r}:{l}', s) for r, l, s, _ in keys][:3]} "
+              f"arity={[(f'{r}:{l}', fn) for r, l, fn, _w, _t in arity][:3]}")
+    except ImportError:
+        check("STATIC-AUDIT execution-path sweeps", False,
+              "W2_STATIC_AUDIT_MODULE_ABSENT")
+    except Exception as exc:
+        check("STATIC-AUDIT execution-path sweeps", False,
+              f"{type(exc).__name__}: {exc}")
+
+
 # ---- REV 24: v5 disposition successor + bound delta (codex 1507Z) --------
 def w_dispo_v5():
     """Bar-side locks over the append-only disposition successor.
@@ -2801,9 +2872,10 @@ def w_selrun():
         # itself; reflexive chains are structurally dead)
         MC = "a" * 40
         PRE_C = "b" * 40
+        PC = "e" * 40      # v7: the committed point corpus (PRE_C < PC < RC)
         RC = "c" * 40
         SC = "d" * 40
-        CHAIN = [MC, PRE_C, RC, SC]
+        CHAIN = [MC, PRE_C, PC, RC, SC]
         GEOMD = "ab" * 32
         BAR_GEOM = {"capsule_digest": GEOMD,
                     "loco_registry_carrier": "cascadia",
@@ -2943,13 +3015,74 @@ def w_selrun():
                 "completed_utc": "2026-08-25T11:00:00Z"}
         store2[(RC, "kat/ts_comp.json")] = _j.dumps(comp).encode()
         store2[(RC, "kat/ts_results.json")] = r_raw
+        # v7 (codex 0537Z, cayley 0705Z): the smoke names the COMMITTED
+        # point corpus (points_commit) and the digest of the exact
+        # sorted path->blob carrier set (point_corpus_sha256). Admission
+        # reopens one detection carrier per registered point in runner
+        # order and a LOCO carrier for exactly the stage-1 top-8 from
+        # that commit, REBUILDS the results they imply and requires
+        # equality with the reopened results. The carriers live at PC,
+        # strictly between PRE_C and RC, in the results path's directory
+        # ("kat/"); their records are the same my_reps/my_folds the
+        # results above were built from, so the rebuild equality holds
+        # by construction. Its must-refuse partners (a receipt that does
+        # not recompute; a co-tampered carrier) follow the positive.
+        ex_d = canon_sha(pre["execution"])
+        carriers = []
+        c_idx = 0
+        for fam_c in ("B2A", "B2B", "B1B", "B3A"):
+            for k_c, pt_c in enumerate(det_order[fam_c]):
+                e_c = fams[fam_c][k_c]
+                cap_c = {"index": c_idx, "family": fam_c,
+                         "point": dict(pt_c),
+                         "pre_invocation_sha256":
+                             pre["invocation_sha256"],
+                         "execution_sha256": ex_d,
+                         "record": {"replicates":
+                                    my_reps(e_c["outcomes"], fam_c),
+                                    "loco_folds": None,
+                                    "certifiable": False}}
+                raw_c = _j.dumps(cap_c).encode()
+                nm_c = f"kat/smoke_point_{c_idx:03d}.json"
+                store2[(PC, nm_c)] = raw_c
+                carriers.append([nm_c,
+                                 hashlib.sha256(raw_c).hexdigest()])
+                if fam_c == "B1B" and \
+                        e_c.get("post_loco_outcomes") is not None:
+                    lcap_c = dict(cap_c, record={
+                        "replicates": my_reps(e_c["outcomes"], fam_c),
+                        "loco_folds": my_folds(e_c["post_loco_outcomes"]),
+                        "certifiable": False})
+                    lraw_c = _j.dumps(lcap_c).encode()
+                    lnm_c = f"kat/smoke_loco_{c_idx:03d}.json"
+                    store2[(PC, lnm_c)] = lraw_c
+                    carriers.append([lnm_c,
+                                     hashlib.sha256(lraw_c).hexdigest()])
+                c_idx += 1
+        corpus_sha = canon_sha(sorted(carriers))
+        # REV-24 (codex 0730Z join, cayley 0747Z spec): admission also
+        # reopens the DRAFT smoke and the aggregate ENVELOPE committed at
+        # the results commit and requires both to carry the same receipt
+        # as the final smoke -- that is what closes the valid-alternate-
+        # commit substitution (byte-identical carriers at a different
+        # commit). Served at RC under the results directory.
+        store2[(RC, "kat/tier_s_smoke.json")] = _j.dumps({
+            "schema": "f2g-w2-tier-s-smoke-v1",
+            "points_commit": PC,
+            "point_corpus_sha256": corpus_sha}).encode()
+        store2[(RC, "kat/tier_s_aggregate_envelope.json")] = _j.dumps({
+            "schema": "f2g-w2-tier-s-aggregate-envelope-v1",
+            "points_commit": PC,
+            "point_corpus_sha256": corpus_sha}).encode()
         chain_fields = dict(
             pre_invocation_ref={"commit": PRE_C,
                                 "path": "kat/ts_pre.json"},
             pre_invocation_sha256=pre["invocation_sha256"],
             completion_ref={"commit": RC, "path": "kat/ts_comp.json"},
             results_ref={"commit": RC, "path": "kat/ts_results.json",
-                         "blob_sha256": r_sha})
+                         "blob_sha256": r_sha},
+            points_commit=PC,
+            point_corpus_sha256=corpus_sha)
         smoke_adm = dict(smoke, schema="f2g-w2-tier-s-smoke-v1",
                          effect_grids_sha256=canon_sha(grids),
                          **chain_fields)
@@ -2966,6 +3099,90 @@ def w_selrun():
             geometry_loader=bar_geom_loader, is_ancestor=bar_anc)
         ok_run = ok_run and adm_ok["pre_invocation"][
             "invocation_sha256"] == pre["invocation_sha256"]
+        ok_run = ok_run and adm_ok.get("point_corpus", {}).get(
+            "commit") == PC and adm_ok["point_corpus"].get(
+            "sha256") == corpus_sha and adm_ok["point_corpus"].get(
+            "carriers") == len(carriers)
+        # v7 RECEIPT locks (mine): the receipt must RECOMPUTE from the
+        # committed carriers, and the carriers must REBUILD the reopened
+        # results -- each refuses for its OWN measured reason, and the
+        # admitted positive above is their anti-vacuity partner (same
+        # store, same chain, one field / one carrier byte apart).
+        bad_rcpt = dict(smoke_adm, point_corpus_sha256="f" * 64)
+        store2[(SC, "kat/smoke_badrcpt.json")] = _j.dumps(
+            bad_rcpt).encode()
+        art_badrcpt = WTS.select_candidates(
+            bad_rcpt, grids,
+            smoke_ref={"commit": SC, "path": "kat/smoke_badrcpt.json"},
+            effect_grids_ref=refs_adm["effect_grids_ref"])
+
+        # REV-25 (cayley 0803Z correction, partner 2): the final smoke
+        # carries the bad digest while the served results-stage
+        # authorities carry the TRUE one -- the join refuses FIRST, for
+        # divergence, before points_commit resolves or anything rebuilds
+        ok_run = ok_run and refuses(
+            lambda: WTS.verify_selector_admission(
+                _REPO, art_badrcpt, MC, blob_reader=rdr2,
+                git_resolve=lambda c: c,
+                geometry_loader=bar_geom_loader, is_ancestor=bar_anc),
+            "final smoke point-corpus receipt diverges from the "
+            "results-commit draft smoke")
+
+        def rdr2_badrcpt(commit, path):
+            # REV-24 (= cayley 0803Z partner 3): the chain is
+            # SELF-CONSISTENT about the bad digest
+            # (draft smoke + envelope at RC carry it too), so the only
+            # thing wrong is that it does not recompute from the
+            # carriers -- the refusal must be the recompute one, not the
+            # continuity one
+            if commit == RC and path in ("kat/tier_s_smoke.json",
+                                         "kat/tier_s_aggregate_envelope.json"):
+                d = _j.loads(rdr2(commit, path))
+                d["point_corpus_sha256"] = "f" * 64
+                return _j.dumps(d).encode()
+            return rdr2(commit, path)
+        ok_run = ok_run and refuses(
+            lambda: WTS.verify_selector_admission(
+                _REPO, art_badrcpt, MC, blob_reader=rdr2_badrcpt,
+                git_resolve=lambda c: c,
+                geometry_loader=bar_geom_loader, is_ancestor=bar_anc),
+            "point_corpus_sha256 does not recompute")
+
+        def rdr2_cotamper(commit, path):
+            # codex's v5/v6 class: one well-shaped p-value in one
+            # served carrier changed -- the rebuilt results no longer
+            # equal the reopened results
+            raw = rdr2(commit, path)
+            if (commit, path) == (PC, "kat/smoke_point_000.json"):
+                cap_t = _j.loads(raw)
+                cap_t["record"]["replicates"][0]["p_values"]["B2A"] = 0.5
+                return _j.dumps(cap_t).encode()
+            return raw
+        ok_run = ok_run and refuses(
+            lambda: WTS.verify_selector_admission(
+                _REPO, art_adm, MC, blob_reader=rdr2_cotamper,
+                git_resolve=lambda c: c,
+                geometry_loader=bar_geom_loader, is_ancestor=bar_anc),
+            "REBUILT from the committed point corpus")
+
+        # REV-24 third partner (codex's v7 class): the results-commit
+        # DRAFT names a different point commit than the final smoke --
+        # the receipt is not continuous from aggregate to admission
+        PC_ALT = "9" * 40
+
+        def rdr2_altdraft(commit, path):
+            if (commit, path) == (RC, "kat/tier_s_smoke.json"):
+                return _j.dumps({
+                    "schema": "f2g-w2-tier-s-smoke-v1",
+                    "points_commit": PC_ALT,
+                    "point_corpus_sha256": corpus_sha}).encode()
+            return rdr2(commit, path)
+        ok_run = ok_run and refuses(
+            lambda: WTS.verify_selector_admission(
+                _REPO, art_adm, MC, blob_reader=rdr2_altdraft,
+                git_resolve=lambda c: c,
+                geometry_loader=bar_geom_loader, is_ancestor=bar_anc),
+            "final smoke point-corpus receipt diverges")
         # LOCK OPEN-SLOT (mine, independent of codex's red KAT for
         # their 0531Z finding 1). The SAME pins, the SAME bytes, the
         # SAME identities as the positive one line above -- only
@@ -2974,6 +3191,21 @@ def w_selrun():
         # that is OPEN admits nothing. Its anti-vacuity partner is
         # that very positive: same machinery, one field apart,
         # opposite verdict.
+        def _open_needle(msg):
+            """codex 1805Z finding 1: the earlier needle ORed in
+            "BOUND manifest pin", which I had never exercised and which
+            also matches the selector's UNRELATED ambiguity error
+            ("has <n> BOUND manifest pins; identity is ambiguous") and
+            the runner's generic cardinality refusal -- so a
+            wrong-cause failure could read green again. Defensive
+            breadth in an assertion is the same defect as a broad
+            `except`. This pins the EXACT measured refusal for this
+            fixture: the admitted-pin lookup, on the grid path, at this
+            manifest identity."""
+            return ("is not a pin of the execution manifest" in msg
+                    and "kat/grids.json" in msg
+                    and MC[:12] in msg)
+
         def rdr2_open(commit, path):
             if path.endswith("execution_manifest.json"):
                 return _man_bytes("OPEN")
@@ -2984,8 +3216,25 @@ def w_selrun():
                 git_resolve=lambda c: c,
                 geometry_loader=bar_geom_loader, is_ancestor=bar_anc)
             ok_run = False      # OPEN-slot pins must never be admitted
-        except WTS.SelectorRefusal:
-            pass
+        except WTS.SelectorRefusal as _e:
+            ok_run = ok_run and _open_needle(str(_e))
+        # codex 1805Z finding 5(b): proving the needle EVALUATES is not
+        # proving it SELECTS. Drive an unrelated refusal through the
+        # same call and require the needle to reject it -- otherwise a
+        # wrong-cause failure could still satisfy this lock.
+        def rdr2_wrong(commit, path):
+            if path.endswith("kat/smoke2.json"):
+                return _j.dumps({"schema": "not-the-smoke"}).encode()
+            return rdr2_open(commit, path)
+        try:
+            WTS.verify_selector_admission(
+                _REPO, art_adm, MC, blob_reader=rdr2_wrong,
+                git_resolve=lambda c: c,
+                geometry_loader=bar_geom_loader, is_ancestor=bar_anc)
+            ok_run = False
+        except WTS.SelectorRefusal as _e:
+            # an unrelated refusal must NOT satisfy the OPEN needle
+            ok_run = ok_run and not _open_needle(str(_e))
         # LOCK V1-DOWNGRADE (mine, codex 0338Z: the packet must carry
         # at least one INDEPENDENT admission-path v1 refusal). This is
         # the pre exactly as it stood before Design A -- schema v1,
@@ -3034,8 +3283,11 @@ def w_selrun():
                 git_resolve=lambda c: c,
                 geometry_loader=bar_geom_loader, is_ancestor=bar_anc)
             ok_run = False          # a v1 pre must never be admitted
-        except WTS.SelectorRefusal:
-            pass
+        except WTS.SelectorRefusal as _e:
+            # discriminating for the same reason: the refusal must
+            # name the pre-invocation SCHEMA, so this cannot pass on
+            # an unrelated chain failure
+            ok_run = ok_run and                 "not the closed capsule schema" in str(_e)
         # LOCK A: a minimal self-hashed dict is not the closed
         # pre-invocation capsule
         min_inv = {"schema": "f2g-w2-tier-s-invocation-v1",
@@ -3257,8 +3509,10 @@ def w_selrun():
               "write-once/manifest-resolution refusals, v2 pre with "
               "bound driver pin + closed execution capsule, and an "
               "independent v1-downgrade admission refusal through an "
-              "otherwise-valid chain, and an OPEN-slot refusal over "
-              "byte-identical pins)",
+              "otherwise-valid chain, an OPEN-slot refusal over "
+              "byte-identical pins, and the v7 point-corpus receipt: "
+              "admitted from committed carriers, refused when the "
+              "receipt does not recompute or a carrier is co-tampered)",
               ok_sel and ok_ord and ok_doc and ok_run,
               f"sel={ok_sel} ord={ok_ord} doc={ok_doc} run={ok_run}")
     except ImportError:
@@ -3956,6 +4210,7 @@ def main():
     w_admit()
     w_xform()
     w_dispo_v5()
+    w_static_audit()
 
 
 main()

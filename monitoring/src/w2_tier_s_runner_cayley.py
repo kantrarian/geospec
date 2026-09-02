@@ -23,10 +23,13 @@ are chronologically real):
 Tier-S output is PRELIMINARY_SMOKE; nothing here certifies anything
 or opens any window-2 value. Selftest uses stub smoke functions only.
 """
+import datetime
 import hashlib
 import json
+import math
 import os
 import platform
+import re
 import sys
 import time
 
@@ -80,6 +83,17 @@ REGISTERED_GRID_ORDER_SHA256 = (
     "00e8e9fdf61e7e12b4aac8a113f61513b8ae60bd45183cf646a07ce44f9fcde8")
 REGISTERED_GRIDS_CONTENT_SHA256 = (
     "f76a5acc2814e1b3be99aa338945ff8829ad7f0cc360967370a13710834232d0")
+# codex 2303Z finding 2: aggregate publication is ONE create-once envelope
+# carrying the exact bytes of its three members; the members are
+# materialised FROM it, so a retry after a partial publication completes
+# exactly and never overwrites a divergent member.
+AGGREGATE_ENVELOPE = "tier_s_aggregate_envelope.json"
+AGGREGATE_ENVELOPE_SCHEMA = "f2g-w2-tier-s-aggregate-envelope-v1"
+ENVELOPE_FIELDS = {"schema", "pre_invocation_sha256", "points_commit",
+                   "point_corpus_sha256", "members"}
+AGGREGATE_MEMBERS = ("tier_s_results.json", "tier_s_completion.json",
+                     "tier_s_smoke.json")
+FAMILIES = ("B1B", "B2A", "B2B", "B3A")
 COMPLETION_SCHEMA = "f2g-w2-tier-s-completion-v1"
 COMPLETION_FIELDS = {"schema", "pre_invocation_sha256",
                      "results_blob_sha256", "fired_utc",
@@ -361,16 +375,193 @@ def rank_stage1_b1b(outdir, expected_pre_sha, blob_reader):
     return [idx for idx, _ in order[:8]]
 
 
-def write_completion(outdir, pre, results_blob_sha256):
-    comp = {"schema": COMPLETION_SCHEMA,
+def build_completion(pre, results_blob_sha256):
+    return {"schema": COMPLETION_SCHEMA,
             "pre_invocation_sha256": pre["invocation_sha256"],
             "results_blob_sha256": str(results_blob_sha256),
             "fired_utc": pre["fired_utc"],
             "completed_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ",
                                            time.gmtime())}
+
+
+def write_completion(outdir, pre, results_blob_sha256):
+    comp = build_completion(pre, results_blob_sha256)
     _publish_once(os.path.join(outdir, "tier_s_completion.json"),
                   json.dumps(comp, indent=1, sort_keys=True) + "\n")
     return comp
+
+
+def _publish_members_from_envelope(outdir, env):
+    """Materialise the envelope's members: a missing member is published
+    from the envelope's exact bytes; an existing member must equal them
+    byte-for-byte and is NEVER overwritten. Returns how many were
+    published by this call."""
+    published = 0
+    for name in AGGREGATE_MEMBERS:
+        body = env["members"][name]["body"]
+        p = os.path.join(outdir, name)
+        if os.path.exists(p):
+            # codex 0444Z finding 2: compare BYTES, so a non-UTF-8 or
+            # otherwise undecodable existing member takes this typed
+            # path instead of escaping as a decode error
+            with open(p, "rb") as f:
+                live = f.read()
+            if live != body.encode("utf-8"):
+                raise RunnerRefusal(
+                    f"RUNNER_TIER_S_AGGREGATE_DIVERGENT: {name} exists "
+                    "with bytes that differ from the aggregate envelope "
+                    "-- never overwritten; an operator decision")
+            continue
+        _publish_once(p, body)
+        published += 1
+    return published
+
+
+def _validate_envelope_members(env, pre):
+    """codex 0149Z finding 2: a recovery envelope is UNTRUSTED bytes on
+    disk. Every member is validated -- closed {body, sha256} record,
+    text body, lowercase 64-hex digest that recomputes, JSON-object body
+    of the admitted per-member schema bound to THIS campaign -- before
+    anything is digested for publication. A defect is a typed refusal
+    that writes nothing; an operator gets a decision, not a traceback."""
+    import w2_tier_selector_cayley as TS
+    members = env.get("members")
+    if not isinstance(members, dict) or \
+            set(members) != set(AGGREGATE_MEMBERS):
+        raise RunnerRefusal(
+            "RUNNER_TIER_S_UNADMITTED: the aggregate envelope does not "
+            "carry exactly the three admitted members")
+    parsed = {}
+    for name in AGGREGATE_MEMBERS:
+        m = members[name]
+        if not isinstance(m, dict) or set(m) != {"body", "sha256"}:
+            raise RunnerRefusal(
+                f"RUNNER_TIER_S_UNADMITTED: envelope member {name} is not "
+                "a closed {body, sha256} record")
+        body, sha = m["body"], m["sha256"]
+        if not isinstance(body, str):
+            raise RunnerRefusal(
+                f"RUNNER_TIER_S_UNADMITTED: envelope member {name} body "
+                "is not text")
+        if not isinstance(sha, str) or \
+                not re.fullmatch(r"[0-9a-f]{64}", sha):
+            raise RunnerRefusal(
+                f"RUNNER_TIER_S_UNADMITTED: envelope member {name} digest "
+                "is not lowercase 64-hex")
+        if hashlib.sha256(body.encode("utf-8")).hexdigest() != sha:
+            raise RunnerRefusal(
+                f"RUNNER_TIER_S_UNADMITTED: envelope member {name} does "
+                "not recompute its own digest")
+        try:
+            obj = json.loads(body)
+        except ValueError:
+            raise RunnerRefusal(
+                f"RUNNER_TIER_S_UNADMITTED: envelope member {name} body "
+                "is not JSON")
+        if not isinstance(obj, dict):
+            raise RunnerRefusal(
+                f"RUNNER_TIER_S_UNADMITTED: envelope member {name} body "
+                "is not a JSON object")
+        parsed[name] = obj
+    res, comp, smoke = (parsed[n] for n in AGGREGATE_MEMBERS)
+    if res.get("schema") != TS.TIER_S_RESULTS_SCHEMA or \
+            set(res) != {"schema", "quality", "seed_authority_sha256",
+                         "geometry_capsule_digest", "implementation",
+                         "families"} or \
+            res.get("quality") != pre["quality"] or \
+            res.get("implementation") != pre["implementation"]:
+        raise RunnerRefusal(
+            "RUNNER_TIER_S_UNADMITTED: envelope results member is not the "
+            "closed results schema bound to this pre")
+    if comp.get("schema") != COMPLETION_SCHEMA or \
+            set(comp) != COMPLETION_FIELDS or \
+            comp.get("pre_invocation_sha256") != pre["invocation_sha256"] \
+            or comp.get("results_blob_sha256") != \
+            members["tier_s_results.json"]["sha256"]:
+        raise RunnerRefusal(
+            "RUNNER_TIER_S_UNADMITTED: envelope completion member is not "
+            "the closed completion bound to this pre and these results")
+    if smoke.get("schema") != "f2g-w2-tier-s-smoke-v1" or \
+            smoke.get("pre_invocation_sha256") != pre["invocation_sha256"] \
+            or smoke.get("results_blob_sha256") != \
+            members["tier_s_results.json"]["sha256"] or \
+            smoke.get("completion_sha256") != _digest(comp):
+        raise RunnerRefusal(
+            "RUNNER_TIER_S_UNADMITTED: envelope smoke member is not the "
+            "closed draft smoke bound to this pre, results and completion")
+    return res, comp, smoke
+
+
+def _complete_aggregate_from_envelope(repo, outdir, pre, top8,
+                                      loco_registry, blob_reader,
+                                      points_commit):
+    """Retry path. codex 0352Z: a self-hash proves consistency with the
+    edited envelope, not provenance. So the envelope is first checked as
+    a WRAPPER (closed record, text bodies, recomputing digests, admitted
+    per-member schemas bound to this pre), then the results and the
+    smoke are REBUILT from the point capsules and the envelope must
+    equal them byte-for-byte, and the completion is BOUND to the pre's
+    fired time and the rebuilt results digest -- all before any member
+    is written. Then complete only the missing members, exactly."""
+    # codex 0444Z finding 2: the envelope file is UNTRUSTED bytes; an
+    # unreadable / undecodable / unparsable envelope is a typed refusal
+    try:
+        with open(os.path.join(outdir, AGGREGATE_ENVELOPE), "rb") as f:
+            env = json.loads(f.read().decode("utf-8"))
+    except (OSError, ValueError, UnicodeDecodeError) as exc:
+        raise RunnerRefusal(
+            "RUNNER_TIER_S_UNADMITTED: the aggregate envelope in this "
+            f"outdir cannot be read as JSON ({type(exc).__name__}) -- "
+            "nothing written; an operator decision")
+    if not isinstance(env, dict) or \
+            set(env) != ENVELOPE_FIELDS or \
+            env.get("schema") != AGGREGATE_ENVELOPE_SCHEMA or \
+            env.get("pre_invocation_sha256") != pre["invocation_sha256"]:
+        raise RunnerRefusal(
+            "RUNNER_TIER_S_UNADMITTED: the aggregate envelope in this "
+            "outdir is not this campaign's closed envelope")
+    # codex 0444Z finding 1: the envelope binds the COMMITTED point
+    # corpus it was derived from; the caller must name that very
+    # commit, and the rebuild below reads ONLY that commit's blobs
+    if env.get("points_commit") != points_commit:
+        raise RunnerRefusal(
+            "RUNNER_TIER_S_UNADMITTED: the aggregate envelope binds point "
+            f"corpus commit {str(env.get('points_commit'))[:12]}; this "
+            f"call names {str(points_commit)[:12]} -- not the carrier "
+            "identity the envelope was derived from")
+    res, comp, smoke = _validate_envelope_members(env, pre)
+    members = env["members"]
+    results, r_body, r_sha, build_smoke, corpus = _rebuild_aggregate(
+        repo, outdir, pre, top8, loco_registry, blob_reader, points_commit)
+    if env.get("point_corpus_sha256") != corpus["point_corpus_sha256"]:
+        raise RunnerRefusal(
+            "RUNNER_TIER_S_UNADMITTED: envelope point-corpus digest "
+            "diverges from the COMMITTED carriers at "
+            f"{points_commit[:12]}")
+    if members["tier_s_results.json"]["body"] != r_body:
+        raise RunnerRefusal(
+            "RUNNER_TIER_S_UNADMITTED: envelope results diverge from the "
+            "results REBUILT from the point capsules -- a self-hash proves "
+            "consistency with the edited envelope, not provenance")
+    _validate_completion(comp, pre, r_sha)
+    if members["tier_s_completion.json"]["body"] != \
+            json.dumps(comp, indent=1, sort_keys=True) + "\n":
+        raise RunnerRefusal(
+            "RUNNER_TIER_S_UNADMITTED: envelope completion body is not "
+            "canonical")
+    expected_smoke = json.dumps(build_smoke(comp), indent=1,
+                                sort_keys=True, allow_nan=False) + "\n"
+    if members["tier_s_smoke.json"]["body"] != expected_smoke:
+        raise RunnerRefusal(
+            "RUNNER_TIER_S_UNADMITTED: envelope smoke diverges from the "
+            "smoke REBUILT from the point capsules and the validated "
+            "completion")
+    if _publish_members_from_envelope(outdir, env) == 0:
+        raise RunnerRefusal(
+            "RUNNER_PUBLISH_EXISTS: aggregate already complete (envelope "
+            "and all three members present and byte-equal; create-once, "
+            "never re-derived)")
+    return results, comp, smoke
 
 
 def _check_point_capsule(cap, idx, fam, point, pre):
@@ -424,39 +615,121 @@ def _check_point_capsule(cap, idx, fam, point, pre):
         raise RunnerRefusal(
             f"RUNNER_TIER_S_UNADMITTED: point {idx} record claims "
             "certifiability")
+    # codex 2303Z finding 2: VALUES, not just keys. A JSON-valid string
+    # or an out-of-range number passed the key check and serialised
+    # fine, then raised during numeric work AFTER two create-once
+    # artifacts had been published. Exact closed replicate / fold
+    # schemas; every p-value None or a finite real (not bool) in [0,1].
+    reps = rec.get("replicates")
+    if not isinstance(reps, list):
+        raise RunnerRefusal(
+            f"RUNNER_TIER_S_UNADMITTED: point {idx} replicates are not "
+            "a list")
+    for j, rep in enumerate(reps):
+        if not isinstance(rep, dict) or set(rep) != {"p_values"} or \
+                not isinstance(rep["p_values"], dict) or \
+                set(rep["p_values"]) != set(FAMILIES):
+            raise RunnerRefusal(
+                f"RUNNER_TIER_S_UNADMITTED: point {idx} replicate {j} "
+                "is not a closed four-family p-vector")
+        for fam_k, v in rep["p_values"].items():
+            if not _p_value_ok(v):
+                raise RunnerRefusal(
+                    f"RUNNER_TIER_S_UNADMITTED: point {idx} replicate "
+                    f"{j} {fam_k} p-value {v!r} is not None or a finite "
+                    "real in [0,1]")
+    folds = rec.get("loco_folds")
+    if folds is not None:
+        if not isinstance(folds, list):
+            raise RunnerRefusal(
+                f"RUNNER_TIER_S_UNADMITTED: point {idx} loco_folds is "
+                "neither null nor a list")
+        for j, fr in enumerate(folds):
+            if not isinstance(fr, dict):
+                raise RunnerRefusal(
+                    f"RUNNER_TIER_S_UNADMITTED: point {idx} fold {j} is "
+                    "not a station->p map")
+            for st, v in fr.items():
+                if not isinstance(st, str) or not _p_value_ok(v):
+                    raise RunnerRefusal(
+                        f"RUNNER_TIER_S_UNADMITTED: point {idx} fold {j} "
+                        f"station {st!r} p-value {v!r} is not None or a "
+                        "finite real in [0,1]")
 
 
-def aggregate(repo, outdir, expected_pre_sha, top8, loco_registry,
-              blob_reader):
-    """The DETERMINISTIC aggregator: per-point capsules -> the closed
-    derivational results v2 -> completion -> smoke; the selector runs
-    separately over the COMMITTED carriers. Missing results refuse;
-    nothing is recomputed from caller state."""
-    pre = _load_pre(outdir, expected_pre_sha)
-    _check_outdir(pre, outdir)
+def _p_value_ok(v):
+    return v is None or (isinstance(v, (int, float))
+                         and not isinstance(v, bool)
+                         and math.isfinite(v) and 0.0 <= v <= 1.0)
+
+
+def _rebuild_aggregate(repo, outdir, pre, top8, loco_registry, blob_reader,
+                       points_commit):
+    """The DETERMINISTIC re-aggregation, publishing NOTHING: reopen and
+    validate every detection / LOCO capsule through the one validator,
+    rebuild the closed results v2 (bytes + digest) from the pre-bound
+    grids, the registered LOCO set and the Holm rule, and return a
+    smoke builder that takes the completion. First publication and
+    recovery both go through here (codex 0352Z: an envelope cannot
+    authenticate its own semantics; the capsules can)."""
+    # codex 0444Z finding 1: the point corpus is a COMMITTED trust root.
+    # Live carrier bytes are mutable; the carriers this rebuild reads
+    # are the blobs at `points_commit`, and their exact path->blob set
+    # is digested into the smoke and the envelope.
+    if not isinstance(points_commit, str) or len(points_commit) != 40 or \
+            any(c not in "0123456789abcdef" for c in points_commit):
+        raise RunnerRefusal(
+            "RUNNER_TIER_S_UNADMITTED: points_commit is not a full 40-hex "
+            "commit identity")
+    r_abs, o_abs = os.path.abspath(repo), os.path.abspath(outdir)
+    try:
+        common = os.path.commonpath([r_abs, o_abs])
+    except ValueError:
+        common = None
+    if common != r_abs or r_abs == o_abs:
+        raise RunnerRefusal(
+            "RUNNER_TIER_S_UNADMITTED: the outdir is not inside the "
+            "repository, so its carriers have no committed identity")
+    rel = os.path.relpath(o_abs, r_abs).replace(os.sep, "/")
+
+    def committed(name):
+        try:
+            raw = blob_reader(points_commit, f"{rel}/{name}")
+        except RunnerRefusal:
+            raise
+        except Exception as exc:                        # noqa: BLE001
+            raise RunnerRefusal(
+                f"RUNNER_TIER_S_RESULT_MISSING: {name} is not committed at "
+                f"{points_commit[:12]} ({type(exc).__name__})")
+        if not raw:
+            raise RunnerRefusal(
+                f"RUNNER_TIER_S_RESULT_MISSING: {name} is not committed at "
+                f"{points_commit[:12]}")
+        try:
+            return json.loads(raw.decode("utf-8")), \
+                hashlib.sha256(raw).hexdigest()
+        except (ValueError, UnicodeDecodeError):
+            raise RunnerRefusal(
+                f"RUNNER_TIER_S_UNADMITTED: committed carrier {name} at "
+                f"{points_commit[:12]} is not JSON")
     points = derive_points(pre, blob_reader)
     fams = {"B2A": [], "B2B": [], "B1B": [], "B3A": []}
+    carriers = []
     for idx, (fam, point) in enumerate(points):
-        p = os.path.join(outdir, f"smoke_point_{idx:03d}.json")
-        if not os.path.exists(p):
-            raise RunnerRefusal(
-                f"RUNNER_TIER_S_RESULT_MISSING: point {idx}")
-        with open(p, encoding="utf-8") as f:
-            cap = json.load(f)
+        name = f"smoke_point_{idx:03d}.json"
+        cap, csha = committed(name)
         _check_point_capsule(cap, idx, fam, point, pre)
+        carriers.append([f"{rel}/{name}", csha])
         folds = None
         if fam == "B1B" and idx in top8:
-            lp = os.path.join(outdir, f"smoke_loco_{idx:03d}.json")
-            if not os.path.exists(lp):
-                raise RunnerRefusal(
-                    f"RUNNER_TIER_S_RESULT_MISSING: loco {idx}")
-            with open(lp, encoding="utf-8") as f:
-                lcap = json.load(f)
+            lname = f"smoke_loco_{idx:03d}.json"
+            lcap, lsha = committed(lname)
             _check_point_capsule(lcap, idx, fam, point, pre)
+            carriers.append([f"{rel}/{lname}", lsha])
             folds = lcap["record"]["loco_folds"]
         fams[fam].append({
             "point": dict(point),
-            "grid_index": len(fams[fam]) if False else None,
+            "grid_index": None,
             "replicates": cap["record"]["replicates"],
             "loco_folds": folds})
     # registered grid indices: position within the FULL family grid
@@ -478,10 +751,7 @@ def aggregate(repo, outdir, expected_pre_sha, top8, loco_registry,
                "families": fams}
     r_body = json.dumps(results, indent=1, sort_keys=True,
                         allow_nan=False) + "\n"
-    _publish_once(os.path.join(outdir, "tier_s_results.json"),
-                  r_body)
     r_sha = hashlib.sha256(r_body.encode()).hexdigest()
-    comp = write_completion(outdir, pre, r_sha)
     smoke_fams = {}
     for fam, entries in fams.items():
         smoke_fams[fam] = []
@@ -511,33 +781,219 @@ def aggregate(repo, outdir, expected_pre_sha, top8, loco_registry,
                         post.append(ok)
                     entry["post_loco_outcomes"] = post
             smoke_fams[fam].append(entry)
-    smoke = {"schema": "f2g-w2-tier-s-smoke-v1",
-             "quality": dict(pre["quality"]),
-             "geometry_capsule_digest":
-                 pre["geometry"]["capsule_digest"],
-             # codex 1328Z item 1: inherited from the PRE, which
-             # derived it from the reopened manifest-pinned bytes
-             "effect_grids_sha256":
-                 pre["effect_grids_content_sha256"],
-             "pre_invocation_sha256": pre["invocation_sha256"],
-             "completion_sha256": _digest(comp),
-             "results_blob_sha256": r_sha,
-             "families": smoke_fams}
-    _publish_once(os.path.join(outdir, "tier_s_smoke.json"),
+
+    corpus = {"points_commit": points_commit,
+              "point_corpus_sha256": _digest(sorted(carriers)),
+              "carriers": len(carriers)}
+
+    def build_smoke(comp):
+        return {"schema": "f2g-w2-tier-s-smoke-v1",
+                "quality": dict(pre["quality"]),
+                "geometry_capsule_digest":
+                    pre["geometry"]["capsule_digest"],
+                # codex 1328Z item 1: inherited from the PRE, which
+                # derived it from the reopened manifest-pinned bytes
+                "effect_grids_sha256":
+                    pre["effect_grids_content_sha256"],
+                "pre_invocation_sha256": pre["invocation_sha256"],
+                "completion_sha256": _digest(comp),
+                "results_blob_sha256": r_sha,
+                # codex 0444Z finding 1: the COMMITTED point corpus this
+                # smoke was derived from -- the commit and the exact
+                # path->blob digest of every carrier read
+                "points_commit": points_commit,
+                "point_corpus_sha256": corpus["point_corpus_sha256"],
+                "families": smoke_fams}
+    return results, r_body, r_sha, build_smoke, corpus
+
+
+_UTC_RE = r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ"
+
+
+def _validate_completion(comp, pre, r_sha):
+    """The completion is the one member that cannot be rebuilt (it
+    carries the completion instant), so it is BOUND instead: closed
+    fields, the pre's digest, the pre's OWN fired time, the REBUILT
+    results digest, canonical UTC instants in order."""
+    if not isinstance(comp, dict) or set(comp) != COMPLETION_FIELDS or \
+            comp.get("schema") != COMPLETION_SCHEMA:
+        raise RunnerRefusal(
+            "RUNNER_TIER_S_UNADMITTED: completion is not the closed schema")
+    if comp["pre_invocation_sha256"] != pre["invocation_sha256"]:
+        raise RunnerRefusal(
+            "RUNNER_TIER_S_UNADMITTED: completion does not bind this pre")
+    if comp["results_blob_sha256"] != r_sha:
+        raise RunnerRefusal(
+            "RUNNER_TIER_S_UNADMITTED: completion does not bind the "
+            "results REBUILT from the point capsules")
+    if comp["fired_utc"] != pre["fired_utc"]:
+        raise RunnerRefusal(
+            "RUNNER_TIER_S_UNADMITTED: completion fired time is not the "
+            "pre's fired time")
+    # codex 0444Z finding 3: a digit-shape regex admitted
+    # 9999-99-99T99:99:99Z. Parse strictly, require an exact round-trip
+    # to the canonical format, then compare the parsed instants.
+    inst = {}
+    for k in ("fired_utc", "completed_utc"):
+        inst[k] = _parse_utc_instant(comp[k], f"completion {k}")
+    if not inst["fired_utc"] <= inst["completed_utc"]:
+        raise RunnerRefusal(
+            "RUNNER_TIER_S_UNADMITTED: completion times reversed")
+
+
+def _parse_utc_instant(v, where):
+    fmt = "%Y-%m-%dT%H:%M:%SZ"
+    if not isinstance(v, str) or not re.fullmatch(_UTC_RE, v):
+        raise RunnerRefusal(
+            f"RUNNER_TIER_S_UNADMITTED: {where} is not a canonical UTC "
+            "instant")
+    try:
+        dt = datetime.datetime.strptime(v, fmt)
+    except ValueError:
+        raise RunnerRefusal(
+            f"RUNNER_TIER_S_UNADMITTED: {where} {v!r} is not a real "
+            "instant (impossible month, day, hour, minute or second)")
+    if dt.strftime(fmt) != v:
+        raise RunnerRefusal(
+            f"RUNNER_TIER_S_UNADMITTED: {where} {v!r} does not round-trip "
+            "the canonical format")
+    return dt
+
+
+def aggregate(repo, outdir, expected_pre_sha, top8, loco_registry,
+              blob_reader, points_commit):
+    """The DETERMINISTIC aggregator: per-point capsules -> the closed
+    derivational results v2 -> completion -> smoke; the selector runs
+    separately over the COMMITTED carriers. Missing results refuse;
+    nothing is recomputed from caller state."""
+    pre = _load_pre(outdir, expected_pre_sha)
+    _check_outdir(pre, outdir)
+    if os.path.exists(os.path.join(outdir, AGGREGATE_ENVELOPE)):
+        return _complete_aggregate_from_envelope(
+            repo, outdir, pre, top8, loco_registry, blob_reader,
+            points_commit)
+    results, r_body, r_sha, build_smoke, corpus = _rebuild_aggregate(
+        repo, outdir, pre, top8, loco_registry, blob_reader, points_commit)
+    comp = build_completion(pre, r_sha)      # in memory; nothing published yet
+    _validate_completion(comp, pre, r_sha)
+    smoke = build_smoke(comp)
+    # ---- everything above ran in memory. codex 2303Z finding 2: the
+    # first irreversible publication used to happen BEFORE the numeric
+    # work (results, completion, then holm), so a value defect stranded
+    # two create-once members and the retry refused. Now every member
+    # is serialised and re-parsed here, sealed into ONE create-once
+    # envelope, and only then materialised -- a failure before the
+    # envelope leaves nothing durable; a failure after it is completed
+    # exactly by the next call, which RE-DERIVES the members from the
+    # point capsules and requires the envelope to agree (codex 0352Z).
+    bodies = {"tier_s_results.json": r_body,
+              "tier_s_completion.json":
+                  json.dumps(comp, indent=1, sort_keys=True) + "\n",
+              "tier_s_smoke.json":
                   json.dumps(smoke, indent=1, sort_keys=True,
+                             allow_nan=False) + "\n"}
+    for name, body in bodies.items():
+        json.loads(body)                     # reparse before anything lands
+    env = {"schema": AGGREGATE_ENVELOPE_SCHEMA,
+           "pre_invocation_sha256": pre["invocation_sha256"],
+           "points_commit": points_commit,
+           "point_corpus_sha256": corpus["point_corpus_sha256"],
+           "members": {name: {"sha256": hashlib.sha256(
+                                  body.encode("utf-8")).hexdigest(),
+                              "body": body}
+                       for name, body in bodies.items()}}
+    _publish_once(os.path.join(outdir, AGGREGATE_ENVELOPE),
+                  json.dumps(env, indent=1, sort_keys=True,
                              allow_nan=False) + "\n")
+    _publish_members_from_envelope(outdir, env)
     return results, comp, smoke
 
 
-def finalize_smoke(outdir, pre_ref, completion_ref, results_ref,
+def _is_ancestor_git(repo, a, b):
+    import subprocess
+    return subprocess.run(["git", "-C", repo, "merge-base", "--is-ancestor",
+                           a, b], capture_output=True).returncode == 0
+
+
+def _hex(s, n):
+    return isinstance(s, str) and len(s) == n and \
+        all(c in "0123456789abcdef" for c in s)
+
+
+def finalize_smoke(repo, outdir, pre_ref, completion_ref, results_ref,
                    blob_reader):
-    """After the results/completion COMMIT exists: REOPEN all three
-    refs, verify their recorded digests against the draft smoke, and
-    only then publish the final smoke create-once (codex 1328Z
-    item 1 -- a None/caller/altered digest never survives)."""
-    with open(os.path.join(outdir, "tier_s_smoke.json"),
-              encoding="utf-8") as f:
-        draft = json.load(f)
+    """After the results/completion COMMIT exists: REOPEN all three refs,
+    verify their recorded digests against the draft smoke, and only then
+    publish the final smoke create-once (codex 1328Z item 1 -- a
+    None/caller/altered digest never survives).
+
+    codex 0537Z: the draft smoke used to be read from the LIVE outdir and
+    every field not re-verified was copied into the final smoke -- so an
+    edited point-corpus receipt (points_commit, point_corpus_sha256)
+    passed straight through while pre/completion/results all reopened
+    clean. Now the draft smoke and the aggregate envelope are reopened
+    FROM THE RESULTS COMMIT; the live draft must EQUAL the committed
+    draft byte-for-byte; the draft's receipt must equal the envelope's;
+    every envelope member must be the committed member at that commit;
+    the point commit must sit STRICTLY between the pre commit and the
+    results commit; and the final smoke is published from the COMMITTED
+    draft, never from a live file."""
+    rc = results_ref["commit"]
+    r_dir = results_ref["path"].rsplit("/", 1)[0] \
+        if "/" in results_ref["path"] else ""
+
+    def rp(name):
+        return f"{r_dir}/{name}" if r_dir else name
+    draft_raw = blob_reader(rc, rp("tier_s_smoke.json"))
+    env_raw = blob_reader(rc, rp(AGGREGATE_ENVELOPE))
+    try:
+        draft = json.loads(draft_raw.decode("utf-8"))
+        env = json.loads(env_raw.decode("utf-8"))
+    except (ValueError, UnicodeDecodeError):
+        raise RunnerRefusal(
+            "RUNNER_TIER_S_UNADMITTED: the committed draft smoke or "
+            f"aggregate envelope at {str(rc)[:12]} is not JSON")
+    live_path = os.path.join(outdir, "tier_s_smoke.json")
+    if not os.path.exists(live_path):
+        raise RunnerRefusal(
+            "RUNNER_TIER_S_UNADMITTED: no draft smoke in the outdir")
+    with open(live_path, "rb") as f:
+        live = f.read()
+    if live != draft_raw:
+        raise RunnerRefusal(
+            "RUNNER_TIER_S_UNADMITTED: the live draft smoke diverges "
+            f"byte-for-byte from the draft committed at {str(rc)[:12]} -- "
+            "the committed draft is the authority; nothing is finalised "
+            "from a live file")
+    if not isinstance(env, dict) or set(env) != ENVELOPE_FIELDS or \
+            env.get("schema") != AGGREGATE_ENVELOPE_SCHEMA:
+        raise RunnerRefusal(
+            "RUNNER_TIER_S_UNADMITTED: the committed aggregate envelope is "
+            "not the closed envelope")
+    pc, pcs = draft.get("points_commit"), draft.get("point_corpus_sha256")
+    if not _hex(pc, 40) or not _hex(pcs, 64) or \
+            pc != env.get("points_commit") or \
+            pcs != env.get("point_corpus_sha256"):
+        raise RunnerRefusal(
+            "RUNNER_TIER_S_UNADMITTED: the draft smoke's point-corpus "
+            "receipt does not equal the committed envelope's receipt")
+    for name in AGGREGATE_MEMBERS:
+        member = env["members"].get(name)
+        if not isinstance(member, dict) or \
+                member.get("body", "").encode("utf-8") != \
+                blob_reader(rc, rp(name)):
+            raise RunnerRefusal(
+                f"RUNNER_TIER_S_UNADMITTED: committed member {name} at "
+                f"{str(rc)[:12]} differs from the committed envelope")
+    pre_c = pre_ref["commit"]
+    if pc == pre_c or not _is_ancestor_git(repo, pre_c, pc):
+        raise RunnerRefusal(
+            "RUNNER_TIER_S_UNADMITTED: the point corpus commit is not "
+            "strictly after the pre commit")
+    if pc == rc or not _is_ancestor_git(repo, pc, rc):
+        raise RunnerRefusal(
+            "RUNNER_TIER_S_UNADMITTED: the results commit is not strictly "
+            "after the point corpus commit")
     pre = json.loads(blob_reader(
         pre_ref["commit"], pre_ref["path"]).decode("utf-8"))
     got_pre = _digest({k: v for k, v in pre.items()
@@ -703,13 +1159,14 @@ def _selftest():
         run_smoke_point(repo2, outdir, i, pre["invocation_sha256"],
                         breader, with_loco=True,
                         smoke_fn=stub_smoke_for(fam, point))
+    c_pts = commit_all("point carriers")   # codex 0444Z: committed corpus
     results, comp, smoke_draft = aggregate(
         repo2, outdir, pre["invocation_sha256"], top8,
-        ["S0", "S1"], breader)
+        ["S0", "S1"], breader, c_pts)
     assert smoke_draft["effect_grids_sha256"] == _digest(grids)
     c4 = commit_all("results+completion")
     smoke = finalize_smoke(
-        outdir,
+        repo2, outdir,
         {"commit": c3, "path": "tier_s/tier_s_pre_invocation.json"},
         {"commit": c4, "path": "tier_s/tier_s_completion.json"},
         {"commit": c4, "path": "tier_s/tier_s_results.json",
@@ -842,7 +1299,7 @@ def _selftest():
         json.dump(d, f)
     try:
         finalize_smoke(
-            out2,
+            repo2, out2,
             {"commit": c3,
              "path": "tier_s/tier_s_pre_invocation.json"},
             {"commit": c4, "path": "tier_s/tier_s_completion.json"},
@@ -899,9 +1356,12 @@ def _selftest():
     cap0["point"] = {"m": 2}          # relabel the outer identity
     with open(cap_p, "w", encoding="utf-8") as f:
         json.dump(cap0, f)
+    # the corpus is COMMITTED authority now: the relabelled capsule must
+    # be committed to be what aggregate reads
+    c_rel = commit_all("relabelled capsule")
     try:
         aggregate(repo2, out3, pre3["invocation_sha256"], t8,
-                  ["S0", "S1"], breader)
+                  ["S0", "S1"], breader, c_rel)
         raise AssertionError("relabelled capsule must refuse")
     except RunnerRefusal as e:
         assert "identity diverges" in str(e)

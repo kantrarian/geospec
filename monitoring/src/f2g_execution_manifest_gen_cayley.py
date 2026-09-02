@@ -305,6 +305,14 @@ BOUND_SLOTS = {
                   "f2g_phase_b_power_estimation_cal_cayley.py",
                   "docs/f2g_window2_execution/"
                   "loco_composition_amendment_v1.md",
+                  # codex 2303Z finding 1 (CRITICAL): the phase-B stats
+                  # engine the power harness imports at import time and
+                  # calls for the B2A and B3A p-values -- pinned NOWHERE
+                  # until now, so a foreign copy could supply two of the
+                  # four p-values while the join attested the pristine
+                  # repository file. Ninth executable of the Tier-S
+                  # identity join; it rides the harness's slot.
+                  "monitoring/src/d2_f2g_phase_b_stats.py",
                   "monitoring/src/w2_cert_runner_cayley.py",
                   "monitoring/src/w2_tier_selector_cayley.py",
                   "docs/f2g_window2_execution/"
@@ -445,6 +453,14 @@ BOUND_SLOTS = {
                   # pins through the same unchecked lookup.
                   "monitoring/src/"
                   "test_w2_tier_s_open_slot_redkats_codex.py",
+                  # grassmann's static audit, pinned because
+                  # bar REV 25 EXECUTES it against the tree
+                  # under test. It was red at public 94968394
+                  # on exactly driver:314 and driver:337, so
+                  # the bytes doing the checking have to be
+                  # inside the admitted set themselves.
+                  "monitoring/src/"
+                  "w2_tier_s_static_audit_grassmann.py",
                   "monitoring/src/"
                   "test_f2g_window2_redkats_grassmann.py",
                   # closure 4 (635/1420/1) and the P0 pin-bind: the

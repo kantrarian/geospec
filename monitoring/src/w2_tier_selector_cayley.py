@@ -756,6 +756,186 @@ def verify_selector_admission(repo, art, manifest_commit, *,
                 f"SELECTOR_UNADMITTED: lineage edge {label} is not "
                 "STRICT stage ancestry (same-commit or non-ancestor)")
     strict_edge(mc_full, pre_full, "manifest->pre")
+    # ---- codex 0537Z: the point-corpus RECEIPT is adjudicated, never
+    # carried. The smoke names the commit its carriers were read from
+    # and the digest of that exact carrier set; admission reopens those
+    # carriers, rebuilds the results they imply and requires equality
+    # with the reopened results -- so a real point commit cannot be
+    # paired with unrelated result bytes, and a forged receipt cannot
+    # ride a self-consistent selector chain.
+    pc = smoke.get("points_commit")
+    pcs = smoke.get("point_corpus_sha256")
+    if not (isinstance(pc, str) and len(pc) == 40 and
+            all(c in "0123456789abcdef" for c in pc)):
+        raise SelectorRefusal(
+            "SELECTOR_UNADMITTED: smoke carries no full lowercase-40 "
+            "points_commit -- the point corpus has no committed identity")
+    if not (isinstance(pcs, str) and len(pcs) == 64 and
+            all(c in "0123456789abcdef" for c in pcs)):
+        raise SelectorRefusal(
+            "SELECTOR_UNADMITTED: smoke carries no 64-hex "
+            "point_corpus_sha256")
+    rel_dir = res_ref["path"].rsplit("/", 1)[0] \
+        if "/" in res_ref["path"] else ""
+
+    def _cpath(name):
+        return f"{rel_dir}/{name}" if rel_dir else name
+
+    # The results commit is the independent authority for the receipt
+    # finalize consumed.  Rebuilding equal carrier bytes is not enough:
+    # without this join, a different intermediate commit carrying those
+    # same bytes can be substituted into a later final smoke.
+    try:
+        committed_draft = json.loads(blob_reader(
+            r_full, _cpath("tier_s_smoke.json")).decode("utf-8"))
+        committed_envelope = json.loads(blob_reader(
+            r_full, _cpath("tier_s_aggregate_envelope.json"))
+            .decode("utf-8"))
+    except SelectorRefusal:
+        raise
+    except (ValueError, UnicodeDecodeError):
+        raise SelectorRefusal(
+            "SELECTOR_UNADMITTED: results-commit draft smoke or "
+            "aggregate envelope is not JSON")
+    if not isinstance(committed_draft, dict) or \
+            not isinstance(committed_envelope, dict) or \
+            committed_draft.get("schema") != "f2g-w2-tier-s-smoke-v1" or \
+            committed_envelope.get("schema") != \
+            "f2g-w2-tier-s-aggregate-envelope-v1":
+        raise SelectorRefusal(
+            "SELECTOR_UNADMITTED: results-commit draft smoke or "
+            "aggregate envelope is not the registered schema")
+    for label, receipt in (("draft smoke", committed_draft),
+                           ("aggregate envelope", committed_envelope)):
+        if not isinstance(receipt, dict) or \
+                receipt.get("points_commit") != pc or \
+                receipt.get("point_corpus_sha256") != pcs:
+            raise SelectorRefusal(
+                "SELECTOR_UNADMITTED: final smoke point-corpus receipt "
+                f"diverges from the results-commit {label}")
+    pc_full = _resolve(pc)
+    if pc_full != pc:
+        raise SelectorRefusal(
+            "SELECTOR_UNADMITTED: points_commit does not resolve to itself")
+    strict_edge(pre_full, pc_full, "pre->points")
+    strict_edge(pc_full, r_full, "points->results")
+    if comp_full != r_full:
+        strict_edge(pc_full, comp_full, "points->completion")
+    ex_digest = _digest(pre["execution"])
+    points_all = [(fam, p) for fam in FAMILIES_ORDER
+                  for p in det_order[fam]]
+    CAP_FIELDS = {"index", "family", "point", "pre_invocation_sha256",
+                  "execution_sha256", "record"}
+
+    def _reopen_capsule(idx, fam, point, name):
+        raw = blob_reader(pc_full, _cpath(name))
+        try:
+            cap = json.loads(raw.decode("utf-8"))
+        except (ValueError, UnicodeDecodeError):
+            raise SelectorRefusal(
+                f"SELECTOR_UNADMITTED: committed carrier {name} at "
+                f"{pc_full[:12]} is not JSON")
+        if not isinstance(cap, dict) or set(cap) != CAP_FIELDS:
+            raise SelectorRefusal(
+                f"SELECTOR_UNADMITTED: committed carrier {name} schema "
+                "not closed")
+        if cap["index"] != idx or cap["family"] != fam or \
+                cap["point"] != point:
+            raise SelectorRefusal(
+                f"SELECTOR_UNADMITTED: committed carrier {name} identity "
+                "diverges from the derived grid point")
+        if cap["pre_invocation_sha256"] != pre["invocation_sha256"]:
+            raise SelectorRefusal(
+                f"SELECTOR_UNADMITTED: committed carrier {name} does not "
+                "bind this pre")
+        if cap["execution_sha256"] != ex_digest:
+            raise SelectorRefusal(
+                f"SELECTOR_UNADMITTED: committed carrier {name} was "
+                "produced under a runtime identity that is not the "
+                "pre-bound one")
+        rec = cap["record"]
+        if not isinstance(rec, dict) or \
+                rec.get("certifiable", False) is not False:
+            raise SelectorRefusal(
+                f"SELECTOR_UNADMITTED: committed carrier {name} record is "
+                "not a non-certifiable smoke record")
+        reps = rec.get("replicates")
+        if not isinstance(reps, list) or len(reps) != TIER_S_R:
+            raise SelectorRefusal(
+                f"SELECTOR_UNADMITTED: committed carrier {name} does not "
+                f"carry exactly R={TIER_S_R} replicates")
+        for j, rep in enumerate(reps):
+            if not isinstance(rep, dict) or set(rep) != {"p_values"} or \
+                    not isinstance(rep["p_values"], dict) or \
+                    set(rep["p_values"]) != set(FAMILIES_ORDER):
+                raise SelectorRefusal(
+                    f"SELECTOR_UNADMITTED: committed carrier {name} "
+                    f"replicate {j} is not a closed four-family p-vector")
+            for fk, v in rep["p_values"].items():
+                _valid_p(v, f"carrier {name} replicate {j} {fk}",
+                         allow_none=True)
+        return cap, hashlib.sha256(raw).hexdigest()
+    carriers = []
+    rebuilt = {fam: [] for fam in FAMILIES_ORDER}
+    b1b_counts = []
+    for idx, (fam, point) in enumerate(points_all):
+        name = f"smoke_point_{idx:03d}.json"
+        cap, csha = _reopen_capsule(idx, fam, point, name)
+        carriers.append([_cpath(name), csha])
+        if cap["record"].get("loco_folds") is not None:
+            raise SelectorRefusal(
+                f"SELECTOR_UNADMITTED: detection carrier {name} carries "
+                "LOCO folds")
+        entry = {"point": dict(point), "grid_index": None,
+                 "replicates": cap["record"]["replicates"],
+                 "loco_folds": None}
+        rebuilt[fam].append((idx, entry))
+        if fam == "B1B":
+            b1b_counts.append((idx, sum(
+                1 for rep in entry["replicates"]
+                if "B1B" in _PH.holm_rejects(rep["p_values"]))))
+    top8 = [i for i, _c in sorted(b1b_counts, key=lambda t: (-t[1], t[0]))
+            [:8]]
+    for fam in FAMILIES_ORDER:
+        for k, (idx, e) in enumerate(rebuilt[fam]):
+            e["grid_index"] = k
+            if fam == "B1B" and idx in top8:
+                lname = f"smoke_loco_{idx:03d}.json"
+                lcap, lsha = _reopen_capsule(idx, fam, e["point"], lname)
+                folds = lcap["record"].get("loco_folds")
+                if not isinstance(folds, list) or len(folds) != TIER_S_R:
+                    raise SelectorRefusal(
+                        f"SELECTOR_UNADMITTED: LOCO carrier {lname} does "
+                        f"not carry exactly R={TIER_S_R} fold maps")
+                for j, fr in enumerate(folds):
+                    if not isinstance(fr, dict) or \
+                            sorted(fr) != sorted(loco_registry):
+                        raise SelectorRefusal(
+                            f"SELECTOR_UNADMITTED: LOCO carrier {lname} "
+                            f"fold {j} is not over the registered LOCO set")
+                    for st, v in fr.items():
+                        _valid_p(v, f"LOCO carrier {lname} fold {j} {st}",
+                                 allow_none=True)
+                e["loco_folds"] = folds
+                carriers.append([_cpath(lname), lsha])
+    expected_results = {"schema": TIER_S_RESULTS_SCHEMA,
+                        "quality": dict(pre["quality"]),
+                        "seed_authority_sha256":
+                            pre["seed_authority_sha256"],
+                        "geometry_capsule_digest": geo["capsule_digest"],
+                        "implementation": dict(pre["implementation"]),
+                        "families": {fam: [e for _i, e in rebuilt[fam]]
+                                     for fam in FAMILIES_ORDER}}
+    if expected_results != results:
+        raise SelectorRefusal(
+            "SELECTOR_UNADMITTED: the reopened results do not equal the "
+            "results REBUILT from the committed point corpus at "
+            f"{pc_full[:12]} -- a real point commit paired with unrelated "
+            "result bytes")
+    if _digest(sorted(carriers)) != pcs:
+        raise SelectorRefusal(
+            "SELECTOR_UNADMITTED: point_corpus_sha256 does not recompute "
+            f"from the {len(carriers)} committed carriers at {pc_full[:12]}")
     if r_full == comp_full:
         # results and completion may intentionally share ONE commit;
         # that shared commit must sit strictly between pre and smoke
@@ -784,7 +964,9 @@ def verify_selector_admission(repo, art, manifest_commit, *,
                       "blob_sha256": hashlib.sha256(blob_reader(
                           s_full, s_ref["path"])).hexdigest(),
                       "pre_invocation_sha256":
-                          smoke.get("pre_invocation_sha256")}}
+                          smoke.get("pre_invocation_sha256")},
+            "point_corpus": {"commit": pc_full, "sha256": pcs,
+                             "carriers": len(carriers)}}
 
 
 # ---------------------------------------------------------------- selftest
@@ -971,12 +1153,13 @@ def _selftest():
         return FIX_GEOM
 
     STAGE_PRE = "3" * 40
+    STAGE_PTS = "7" * 40          # codex 0537Z: the committed point corpus
     STAGE_RES = "4" * 40
     STAGE_SMOKE = "5" * 40
     STAGE_SEL = "6" * 40
 
     def dag_ancestor(a, b):
-        order = ["a" * 40, STAGE_PRE, STAGE_RES,
+        order = ["a" * 40, STAGE_PRE, STAGE_PTS, STAGE_RES,
                  STAGE_SMOKE, STAGE_SEL]
         try:
             return order.index(a) <= order.index(b)
@@ -1073,6 +1256,52 @@ def _selftest():
              if k != "invocation_sha256"})
         store_map[(STAGE_PRE, "ts_pre.json")] = json.dumps(
             pre).encode()
+        # codex 0537Z: the COMMITTED point corpus the receipt names --
+        # one carrier per registered detection point (runner order) and
+        # a LOCO carrier for exactly the stage-1 top-8 (the entries the
+        # fixture gives post-LOCO outcomes), all at STAGE_PTS; the
+        # receipt is the digest of the exact sorted path->blob set
+        ex_d = _digest_fn(pre["execution"])
+        carriers = []
+        idx = 0
+        for fam_c in ("B2A", "B2B", "B1B", "B3A"):
+            for k_c, pt_c in enumerate(det_order[fam_c]):
+                e_c = smoke_families[fam_c][k_c]
+                cap_c = {"index": idx, "family": fam_c,
+                         "point": dict(pt_c),
+                         "pre_invocation_sha256": pre["invocation_sha256"],
+                         "execution_sha256": ex_d,
+                         "record": {"replicates": reps_from(e_c["outcomes"],
+                                                            fam_c),
+                                    "loco_folds": None,
+                                    "certifiable": False}}
+                raw_c = json.dumps(cap_c).encode()
+                nm_c = f"smoke_point_{idx:03d}.json"
+                store_map[(STAGE_PTS, nm_c)] = raw_c
+                carriers.append([nm_c, _h.sha256(raw_c).hexdigest()])
+                if fam_c == "B1B" and \
+                        e_c.get("post_loco_outcomes") is not None:
+                    lcap_c = dict(cap_c, record={
+                        "replicates": reps_from(e_c["outcomes"], fam_c),
+                        "loco_folds": folds_from(e_c["post_loco_outcomes"]),
+                        "certifiable": False})
+                    lraw_c = json.dumps(lcap_c).encode()
+                    lnm_c = f"smoke_loco_{idx:03d}.json"
+                    store_map[(STAGE_PTS, lnm_c)] = lraw_c
+                    carriers.append([lnm_c, _h.sha256(lraw_c).hexdigest()])
+                idx += 1
+        corpus_sha = _digest_fn(sorted(carriers))
+        # The results-stage fixture carries both independent receipt
+        # authorities used by admission, as the real aggregate does.
+        store_map[(STAGE_RES, "tier_s_smoke.json")] = json.dumps({
+            "schema": "f2g-w2-tier-s-smoke-v1",
+            "points_commit": STAGE_PTS,
+            "point_corpus_sha256": corpus_sha}).encode()
+        store_map[(STAGE_RES, "tier_s_aggregate_envelope.json")] = \
+            json.dumps({
+                "schema": "f2g-w2-tier-s-aggregate-envelope-v1",
+                "points_commit": STAGE_PTS,
+                "point_corpus_sha256": corpus_sha}).encode()
         comp = {"schema": "f2g-w2-tier-s-completion-v1",
                 "pre_invocation_sha256": pre["invocation_sha256"],
                 "results_blob_sha256": r_sha,
@@ -1090,7 +1319,9 @@ def _selftest():
                                        "path": "ts_comp.json"},
                     "results_ref": {"commit": STAGE_RES,
                                     "path": "ts_results.json",
-                                    "blob_sha256": r_sha}}}
+                                    "blob_sha256": r_sha},
+                    "points_commit": STAGE_PTS,
+                    "point_corpus_sha256": corpus_sha}}
 
     grids_raw = json.dumps({"schema": "f2g-w2-effect-grids-v1",
                             "grids": grids}).encode()
@@ -1151,6 +1382,16 @@ def _selftest():
             return False
         except SelectorRefusal as e:
             return needle in str(e)
+    # A valid JSON value at either results-stage authority must still
+    # refuse through the typed schema boundary.  Lists previously reached
+    # `.get()` before the object check and escaped as AttributeError.
+    for authority_name in ("tier_s_smoke.json",
+                           "tier_s_aggregate_envelope.json"):
+        authority_key = (STAGE_RES, authority_name)
+        authority_true = astore[authority_key]
+        astore[authority_key] = b"[]"
+        assert arefuses(art_a, "not the registered schema"), authority_name
+        astore[authority_key] = authority_true
     # THREE COMMITTED, INTERNALLY CONSISTENT SUBSTITUTE CARRIERS:
     # a coordinated grid+smoke+selector at other paths -- committed,
     # readable, self-consistent -- refuse as UNADMITTED (the grid is

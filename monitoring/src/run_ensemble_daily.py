@@ -1186,38 +1186,43 @@ def print_summary(results: Dict[str, EnsembleResult], persistence: Optional[Dict
     print()
 
 
-def _lf_sha256(path: Path) -> str:
-    with open(path, 'rb') as f:
-        return hashlib.sha256(f.read().replace(b'\r\n', b'\n')).hexdigest()
-
-
-def _input_identities(prior_revisions: List[Optional[Dict]]) -> Dict:
-    """The closed input-identity block stored on every published revision:
-    LF digests of the scoring code and the live calibration capsules, the
-    exact prior revisions consumed by persistence, and the repository HEAD
-    the runner executed from (None if git is unavailable)."""
-    code = {}
+def _inputs_capsule(pins: List[Dict], scored_day: str) -> Dict:
+    """codex correction 5: the closed, ORDERED inputs capsule stored on every
+    revision -- each entry names kind, committed path or identity, data day,
+    keyset where applicable, byte length and sha256, so `inputs_sha256`
+    (sha256 over the canonical encoding) has an auditable preimage the bar
+    can reopen and recompute. Code and capsule bytes are LF-normalized."""
+    entries = []
     for rel in ('monitoring/src/run_ensemble_daily.py',
                 'monitoring/src/ensemble.py',
                 'monitoring/src/ensemble_revisions_cayley.py'):
-        code[rel] = _lf_sha256(REPO_ROOT / rel)
+        with open(REPO_ROOT / rel, 'rb') as f:
+            raw = f.read().replace(b'\r\n', b'\n')
+        entries.append(REV.input_entry('code', rel, None, None, raw_bytes=raw))
     cal_dir = REPO_ROOT / 'monitoring' / 'data' / 'calibration'
-    capsules = {}
     if cal_dir.is_dir():
         for cp in sorted(cal_dir.glob('*.json')):
-            capsules[cp.name] = _lf_sha256(cp)
-    head = None
-    try:
-        out = subprocess.run(['git', '-C', str(REPO_ROOT), 'rev-parse', 'HEAD'],
-                             capture_output=True, text=True, timeout=30)
-        head = out.stdout.strip() or None
-    except (OSError, subprocess.SubprocessError):
-        head = None
-    return {'schema': 'geospec-ensemble-inputs-v1',
-            'code_sha256_lf': code,
-            'calibration_capsules_sha256_lf': capsules,
-            'prior_revisions': prior_revisions,
-            'repo_head': head}
+            with open(cp, 'rb') as f:
+                raw = f.read().replace(b'\r\n', b'\n')
+            try:
+                keys = sorted(json.loads(raw.decode('utf-8')).keys())
+            except (ValueError, AttributeError):
+                keys = None
+            entries.append(REV.input_entry(
+                'calibration_capsule', f'monitoring/data/calibration/{cp.name}',
+                None, keys, raw_bytes=raw))
+    for pin in pins:
+        if pin['kind'] == 'revision':
+            entries.append(REV.input_entry('prior_revision', pin['run_id'],
+                                           pin['date'], None,
+                                           sha256=pin['sha256'], byte_length=None))
+        elif pin['kind'] == 'legacy':
+            entries.append(REV.input_entry('legacy_record',
+                                           pin['legacy']['git_blob'], pin['date'],
+                                           None, sha256=pin['sha256'],
+                                           byte_length=None))
+    entries.append(REV.input_entry('scored_day', scored_day, scored_day, None))
+    return {'schema': REV.INPUTS_SCHEMA, 'entries': entries}
 
 
 def main():
@@ -1249,6 +1254,13 @@ def main():
         help='Suppress console output'
     )
     parser.add_argument(
+        '--cutover', action='store_true',
+        help='OWNER-RUN ONCE at landing: write docs/ensemble/legacy_baseline_v1.json '
+             '(the immutable cutover capsule enumerating every committed pre-cutover '
+             'record and binding the frozen data.csv prefix). Scores nothing; refuses '
+             'if the capsule exists.'
+    )
+    parser.add_argument(
         '--rescore', type=str, default=None, metavar='REASON',
         help='Owner-authorized RE-SCORE of a day that already has a public '
              'revision: appends a NEW immutable revision naming the previous '
@@ -1257,6 +1269,18 @@ def main():
     )
 
     args = parser.parse_args()
+
+    if args.cutover:
+        try:
+            cap = REV.build_legacy_baseline(REPO_ROOT)
+            path = REV.write_legacy_baseline(REPO_ROOT, cap)
+        except REV.RevisionRefusal as e:
+            logger.error(str(e))
+            return 12
+        logger.info(f"Cutover capsule written: {path} "
+                    f"({len(cap['records'])} committed records, "
+                    f"{cap['legacy_csv']['row_count']} frozen csv rows)")
+        return 0
 
     # Parse date (apply latency offset if no explicit date given)
     if args.date:
@@ -1305,16 +1329,26 @@ def main():
     # holes are recorded on the published record. A replay into a custom
     # --output-dir keeps the local-dir semantics and publishes nothing.
     production = args.output_dir is None
-    prior_idents, holes, loader = [], [], None
+    pins, loader, journal_snapshot, legacy_cap = [], None, None, None
     if production:
-        idx = REV.load_index(REPO_ROOT)
-        prior = REV.prior_days(REPO_ROOT, idx,
-                               target_date.strftime('%Y-%m-%d'), 3)
-        prior_map = {k + 1: rec for k, (_ds, rec, _id) in enumerate(prior)}
-        prior_idents = [ident for (_ds, _rec, ident) in prior]
-        holes = [ds for (ds, rec, _id) in prior if rec is None]
+        try:
+            REV.check_store_clean(REPO_ROOT)          # typed recovery refusal
+            legacy_cap = REV.load_legacy_baseline(REPO_ROOT)
+            if legacy_cap is None:
+                raise REV.RevisionRefusal(
+                    "LEGACY_CAPSULE_ABSENT: run `--cutover` once (owner) before "
+                    "the first production run of the revision model")
+            journal_snapshot = REV.journal_bytes(REPO_ROOT)
+            view = REV.prior_days_view(REPO_ROOT, journal_snapshot, legacy_cap,
+                                       target_date.strftime('%Y-%m-%d'), 3)
+        except REV.RevisionRefusal as e:
+            logger.error(str(e))
+            return 12
+        prior_map = {k + 1: rec for k, (_ds, rec, _pin) in enumerate(view)}
+        pins = [pin for (_ds, _rec, pin) in view]
+        holes = [pin['date'] for pin in pins if pin['kind'] == 'hole']
         if holes:
-            logger.warning(f"Persistence holes (no public revision): {holes}")
+            logger.warning(f"Persistence holes (no public revision, no legacy record): {holes}")
         loader = lambda days_back: prior_map.get(days_back)  # noqa: E731
     persistence = check_persistence(
         results,
@@ -1343,21 +1377,17 @@ def main():
         date_str = target_date.strftime('%Y-%m-%d')
         with open(output_dir / f'ensemble_{date_str}.json', 'r', encoding='utf-8') as f:
             record = json.load(f)
-        record['persistence_inputs'] = {
-            'schema': 'geospec-ensemble-persistence-inputs-v1',
-            'required_consecutive': 2,
-            'prior_revisions': prior_idents,   # None entries are holes
-            'holes': holes,
-        }
         try:
             entry = REV.publish_revision(
-                REPO_ROOT, record, _input_identities(prior_idents),
+                REPO_ROOT, record, _inputs_capsule(pins, date_str),
+                journal_snapshot, pins, datetime.now(timezone.utc),
                 rescore_reason=args.rescore)
         except REV.RevisionRefusal as e:
             logger.error(str(e))
             return 12
         logger.info(f"Published public revision {entry['date']}/{entry['run_id']} "
-                    f"sha256 {entry['sha256'][:12]} (supersedes {entry['supersedes']})")
+                    f"sha256 {entry['sha256'][:12]} (supersedes {entry['supersedes']}); "
+                    "commit docs/ensemble, docs/ensemble_latest.json and docs/data.csv TOGETHER")
 
     # Print summary
     if not args.quiet:

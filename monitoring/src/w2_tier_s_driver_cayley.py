@@ -829,7 +829,7 @@ def cmd_finalize(repo, outdir, pre_commit, results_commit, rel_dir):
     r_sha = __import__("hashlib").sha256(
         reader(results_commit, r_rel)).hexdigest()
     smoke = TSR.finalize_smoke(
-        outdir,
+        repo, outdir,
         {"commit": pre_commit, "path": f"{rel_dir}/{PRE_NAME}"},
         {"commit": results_commit,
          "path": f"{rel_dir}/tier_s_completion.json"},
@@ -2118,6 +2118,24 @@ def _selftest(real_repo):
         g("commit", "-qm", "d12 results")
         c_res = g("rev-parse", "HEAD").stdout.decode().strip()
         rel_dir = os.path.relpath(outdir, repo).replace(os.sep, "/")
+        # codex 0537Z: the receipt in the LIVE draft is not authority --
+        # an edited live draft is refused for divergence from the
+        # committed draft, then the committed bytes are restored
+        dp = os.path.join(outdir, "tier_s_smoke.json")
+        with open(dp, "rb") as f:
+            draft_live = f.read()
+        dd = json.loads(draft_live.decode("utf-8"))
+        dd["points_commit"] = "a" * 40
+        with open(dp, "w", encoding="utf-8", newline="\n") as f:
+            f.write(json.dumps(dd, indent=1, sort_keys=True) + "\n")
+        msg = cli_refuses("finalize on an edited live draft receipt",
+                          "finalize", repo, outdir, c3, c_res, rel_dir)
+        assert "diverges byte-for-byte from the draft committed" in msg, \
+            msg[:200]
+        assert not os.path.exists(os.path.join(outdir,
+                                               "tier_s_smoke_final.json"))
+        with open(dp, "wb") as f:
+            f.write(draft_live)
         rc = with_broken_stdout(lambda: cli("finalize", repo, outdir, c3,
                                             c_res, rel_dir))
         assert rc == 0, f"D-12 finalize exit {rc} with broken stdout"
@@ -2842,6 +2860,23 @@ def _selftest(real_repo):
             c_res_p = subprocess.run(
                 ["git", "-C", pwt, "rev-parse", "HEAD"],
                 capture_output=True, text=True).stdout.strip()
+            # (7a) codex 0537Z: an edited LIVE draft receipt is refused at
+            # finalize (the committed draft is the authority)
+            pdp = os.path.join(pout, "tier_s_smoke.json")
+            with open(pdp, "rb") as f:
+                p_draft = f.read()
+            pdd = json.loads(p_draft.decode("utf-8"))
+            pdd["point_corpus_sha256"] = "b" * 64
+            with open(pdp, "w", encoding="utf-8", newline="\n") as f:
+                f.write(json.dumps(pdd, indent=1, sort_keys=True) + "\n")
+            rc, blob = _cli([pdrv, "finalize", pwt, pout, pc, c_res_p,
+                             prel])
+            assert rc != 0 and "diverges byte-for-byte from the draft " \
+                "committed" in blob, blob[-400:]
+            assert not os.path.exists(os.path.join(
+                pout, "tier_s_smoke_final.json"))
+            with open(pdp, "wb") as f:
+                f.write(p_draft)
             rc, blob = _cli([pdrv, "finalize", pwt, pout, pc, c_res_p,
                              prel])
             assert rc == 0, f"D-11 finalize rc={rc}: {blob[-400:]}"
@@ -2852,19 +2887,74 @@ def _selftest(real_repo):
             c_sm_p = subprocess.run(
                 ["git", "-C", pwt, "rev-parse", "HEAD"],
                 capture_output=True, text=True).stdout.strip()
+
+            def _pg_head():
+                return subprocess.run(
+                    ["git", "-C", pwt, "rev-parse", "HEAD"],
+                    capture_output=True, text=True).stdout.strip()
+            # (7b) codex 0537Z: a COMMITTED final smoke with a forged
+            # receipt, and a selector built over it (select does not
+            # adjudicate), must be refused at verify-select -- once for a
+            # forged point commit, once for a forged corpus digest with
+            # the true commit. Each mutant is committed, selected,
+            # committed, verified; the selector artifact is removed
+            # between them (selftest fixture manipulation in a temp
+            # worktree; the driver itself never deletes a carrier).
+            fsp = os.path.join(pout, "tier_s_smoke_final.json")
+            with open(fsp, "rb") as f:
+                p_final = f.read()
+            selp = os.path.join(pout, "selector.json")
+            for mlabel, mut, needle in (
+                    ("forged points commit",
+                     lambda s: s.__setitem__("points_commit", "a" * 40),
+                     "SELECTOR_UNADMITTED"),
+                    ("forged corpus digest, true commit",
+                     lambda s: s.__setitem__("point_corpus_sha256",
+                                             "b" * 64),
+                     "point_corpus_sha256 does not recompute")):
+                fs = json.loads(p_final.decode("utf-8"))
+                mut(fs)
+                with open(fsp, "w", encoding="utf-8", newline="\n") as f:
+                    f.write(json.dumps(fs, indent=1, sort_keys=True) + "\n")
+                pg("add", "-A")
+                pg("commit", "-qm", f"d11 forged final smoke ({mlabel})")
+                c_forge = _pg_head()
+                rc, blob = _cli([pdrv, "select", pwt, pout, c_forge,
+                                 bpre["effect_grids"]["commit"], prel, pc])
+                assert rc == 0, f"D-11 select over forged smoke rc={rc}: " \
+                    f"{blob[-400:]}"
+                pg("add", "-A")
+                pg("commit", "-qm", f"d11 selector over forged ({mlabel})")
+                c_self = _pg_head()
+                rc, blob = _cli([pdrv, "verify-select", pwt, pout, c_self,
+                                 bpre["manifest_commit"], prel, pc])
+                assert rc != 0 and "SELECTOR_UNADMITTED" in blob and \
+                    needle in blob, (mlabel, blob[-600:])
+                os.remove(selp)
+            with open(fsp, "wb") as f:
+                f.write(p_final)
+            pg("add", "-A")
+            pg("commit", "-qm", "d11 restore final smoke, drop forged selector")
+            # (7c) the untouched chain: select over the TRUE final smoke
+            # commit, then verify-select ADMITTED
             rc, blob = _cli([pdrv, "select", pwt, pout, c_sm_p,
                              bpre["effect_grids"]["commit"], prel, pc])
             assert rc == 0, f"D-11 select rc={rc}: {blob[-400:]}"
-            assert os.path.exists(os.path.join(pout, "selector.json"))
+            assert os.path.exists(selp)
             pg("add", "-A")
             pg("commit", "-qm", "d11 selector")
-            c_sel_p = subprocess.run(
-                ["git", "-C", pwt, "rev-parse", "HEAD"],
-                capture_output=True, text=True).stdout.strip()
+            c_sel_p = _pg_head()
             rc, blob = _cli([pdrv, "verify-select", pwt, pout, c_sel_p,
                              bpre["manifest_commit"], prel, pc])
             assert rc == 0 and "selector ADMITTED" in blob, (
                 f"D-11 verify-select rc={rc}: {blob[-800:]}")
+            print("  D-11d PASS  on the REAL chain: an edited live draft "
+                  "receipt is refused at finalize (committed draft is the "
+                  "authority); a committed final smoke with a forged "
+                  "points commit, and one with a forged corpus digest over "
+                  "the true commit, each carried through select and "
+                  "REFUSED at verify-select; the untouched chain is "
+                  "ADMITTED")
             # ---- D-11c (2112Z finding 1 on the REAL tree): an
             # external driver copy -- pristine bytes, foreign path --
             # and a shadowed runner refuse before any outdir exists;

@@ -909,15 +909,91 @@ def aggregate(repo, outdir, expected_pre_sha, top8, loco_registry,
     return results, comp, smoke
 
 
-def finalize_smoke(outdir, pre_ref, completion_ref, results_ref,
+def _is_ancestor_git(repo, a, b):
+    import subprocess
+    return subprocess.run(["git", "-C", repo, "merge-base", "--is-ancestor",
+                           a, b], capture_output=True).returncode == 0
+
+
+def _hex(s, n):
+    return isinstance(s, str) and len(s) == n and \
+        all(c in "0123456789abcdef" for c in s)
+
+
+def finalize_smoke(repo, outdir, pre_ref, completion_ref, results_ref,
                    blob_reader):
-    """After the results/completion COMMIT exists: REOPEN all three
-    refs, verify their recorded digests against the draft smoke, and
-    only then publish the final smoke create-once (codex 1328Z
-    item 1 -- a None/caller/altered digest never survives)."""
-    with open(os.path.join(outdir, "tier_s_smoke.json"),
-              encoding="utf-8") as f:
-        draft = json.load(f)
+    """After the results/completion COMMIT exists: REOPEN all three refs,
+    verify their recorded digests against the draft smoke, and only then
+    publish the final smoke create-once (codex 1328Z item 1 -- a
+    None/caller/altered digest never survives).
+
+    codex 0537Z: the draft smoke used to be read from the LIVE outdir and
+    every field not re-verified was copied into the final smoke -- so an
+    edited point-corpus receipt (points_commit, point_corpus_sha256)
+    passed straight through while pre/completion/results all reopened
+    clean. Now the draft smoke and the aggregate envelope are reopened
+    FROM THE RESULTS COMMIT; the live draft must EQUAL the committed
+    draft byte-for-byte; the draft's receipt must equal the envelope's;
+    every envelope member must be the committed member at that commit;
+    the point commit must sit STRICTLY between the pre commit and the
+    results commit; and the final smoke is published from the COMMITTED
+    draft, never from a live file."""
+    rc = results_ref["commit"]
+    r_dir = results_ref["path"].rsplit("/", 1)[0] \
+        if "/" in results_ref["path"] else ""
+
+    def rp(name):
+        return f"{r_dir}/{name}" if r_dir else name
+    draft_raw = blob_reader(rc, rp("tier_s_smoke.json"))
+    env_raw = blob_reader(rc, rp(AGGREGATE_ENVELOPE))
+    try:
+        draft = json.loads(draft_raw.decode("utf-8"))
+        env = json.loads(env_raw.decode("utf-8"))
+    except (ValueError, UnicodeDecodeError):
+        raise RunnerRefusal(
+            "RUNNER_TIER_S_UNADMITTED: the committed draft smoke or "
+            f"aggregate envelope at {str(rc)[:12]} is not JSON")
+    live_path = os.path.join(outdir, "tier_s_smoke.json")
+    if not os.path.exists(live_path):
+        raise RunnerRefusal(
+            "RUNNER_TIER_S_UNADMITTED: no draft smoke in the outdir")
+    with open(live_path, "rb") as f:
+        live = f.read()
+    if live != draft_raw:
+        raise RunnerRefusal(
+            "RUNNER_TIER_S_UNADMITTED: the live draft smoke diverges "
+            f"byte-for-byte from the draft committed at {str(rc)[:12]} -- "
+            "the committed draft is the authority; nothing is finalised "
+            "from a live file")
+    if not isinstance(env, dict) or set(env) != ENVELOPE_FIELDS or \
+            env.get("schema") != AGGREGATE_ENVELOPE_SCHEMA:
+        raise RunnerRefusal(
+            "RUNNER_TIER_S_UNADMITTED: the committed aggregate envelope is "
+            "not the closed envelope")
+    pc, pcs = draft.get("points_commit"), draft.get("point_corpus_sha256")
+    if not _hex(pc, 40) or not _hex(pcs, 64) or \
+            pc != env.get("points_commit") or \
+            pcs != env.get("point_corpus_sha256"):
+        raise RunnerRefusal(
+            "RUNNER_TIER_S_UNADMITTED: the draft smoke's point-corpus "
+            "receipt does not equal the committed envelope's receipt")
+    for name in AGGREGATE_MEMBERS:
+        member = env["members"].get(name)
+        if not isinstance(member, dict) or \
+                member.get("body", "").encode("utf-8") != \
+                blob_reader(rc, rp(name)):
+            raise RunnerRefusal(
+                f"RUNNER_TIER_S_UNADMITTED: committed member {name} at "
+                f"{str(rc)[:12]} differs from the committed envelope")
+    pre_c = pre_ref["commit"]
+    if pc == pre_c or not _is_ancestor_git(repo, pre_c, pc):
+        raise RunnerRefusal(
+            "RUNNER_TIER_S_UNADMITTED: the point corpus commit is not "
+            "strictly after the pre commit")
+    if pc == rc or not _is_ancestor_git(repo, pc, rc):
+        raise RunnerRefusal(
+            "RUNNER_TIER_S_UNADMITTED: the results commit is not strictly "
+            "after the point corpus commit")
     pre = json.loads(blob_reader(
         pre_ref["commit"], pre_ref["path"]).decode("utf-8"))
     got_pre = _digest({k: v for k, v in pre.items()
@@ -1090,7 +1166,7 @@ def _selftest():
     assert smoke_draft["effect_grids_sha256"] == _digest(grids)
     c4 = commit_all("results+completion")
     smoke = finalize_smoke(
-        outdir,
+        repo2, outdir,
         {"commit": c3, "path": "tier_s/tier_s_pre_invocation.json"},
         {"commit": c4, "path": "tier_s/tier_s_completion.json"},
         {"commit": c4, "path": "tier_s/tier_s_results.json",
@@ -1223,7 +1299,7 @@ def _selftest():
         json.dump(d, f)
     try:
         finalize_smoke(
-            out2,
+            repo2, out2,
             {"commit": c3,
              "path": "tier_s/tier_s_pre_invocation.json"},
             {"commit": c4, "path": "tier_s/tier_s_completion.json"},

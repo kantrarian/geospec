@@ -2955,7 +2955,11 @@ def _selftest(real_repo):
                     ("forged corpus digest, true commit",
                      lambda s: s.__setitem__("point_corpus_sha256",
                                              "b" * 64),
-                     "point_corpus_sha256 does not recompute")):
+                     # codex 0730Z: the results-commit join precedes the
+                     # recompute, so a lone forged digest is refused for
+                     # DIVERGENCE from the committed draft smoke
+                     "final smoke point-corpus receipt diverges from the "
+                     "results-commit draft smoke")):
                 fs = json.loads(p_final.decode("utf-8"))
                 mut(fs)
                 with open(fsp, "w", encoding="utf-8", newline="\n") as f:
@@ -2975,6 +2979,55 @@ def _selftest(real_repo):
                 assert rc != 0 and "SELECTOR_UNADMITTED" in blob and \
                     needle in blob, (mlabel, blob[-600:])
                 os.remove(selp)
+            # (7b') codex 0730Z consequence: with the join in front, the
+            # digest-recompute refusal is reachable only by an attacker
+            # who also commits their OWN results-stage authorities. Tamper
+            # the draft smoke AND the aggregate envelope to the same forged
+            # digest, commit them as a new results-stage commit (results
+            # and completion blobs unchanged), point the final smoke's
+            # results_ref at that commit with the same forged digest: the
+            # join PASSES, the strict edges hold, the carriers rebuild --
+            # and the digest must still fail to recompute from the
+            # committed carriers.
+            pep = os.path.join(pout, "tier_s_aggregate_envelope.json")
+            with open(pdp, "rb") as f:
+                p_draft_true = f.read()
+            with open(pep, "rb") as f:
+                p_env_true = f.read()
+            for path_t, raw_t in ((pdp, p_draft_true), (pep, p_env_true)):
+                obj_t = json.loads(raw_t.decode("utf-8"))
+                obj_t["point_corpus_sha256"] = "b" * 64
+                with open(path_t, "w", encoding="utf-8", newline="\n") as f:
+                    f.write(json.dumps(obj_t, indent=1, sort_keys=True)
+                            + "\n")
+            pg("add", "-A")
+            pg("commit", "-qm", "d11 co-tampered results-stage authorities")
+            c_res2 = _pg_head()
+            fs = json.loads(p_final.decode("utf-8"))
+            fs["point_corpus_sha256"] = "b" * 64
+            fs["results_ref"] = dict(fs["results_ref"], commit=c_res2)
+            with open(fsp, "w", encoding="utf-8", newline="\n") as f:
+                f.write(json.dumps(fs, indent=1, sort_keys=True) + "\n")
+            pg("add", "-A")
+            pg("commit", "-qm", "d11 forged final smoke (co-tampered digest)")
+            c_forge2 = _pg_head()
+            rc, blob = _cli([pdrv, "select", pwt, pout, c_forge2,
+                             bpre["effect_grids"]["commit"], prel, pc])
+            assert rc == 0, f"D-11 select over co-tampered rc={rc}: " \
+                f"{blob[-400:]}"
+            pg("add", "-A")
+            pg("commit", "-qm", "d11 selector over co-tampered digest")
+            c_self2 = _pg_head()
+            rc, blob = _cli([pdrv, "verify-select", pwt, pout, c_self2,
+                             bpre["manifest_commit"], prel, pc])
+            assert rc != 0 and "SELECTOR_UNADMITTED" in blob and \
+                "point_corpus_sha256 does not recompute" in blob, \
+                ("co-tampered digest", blob[-600:])
+            os.remove(selp)
+            with open(pdp, "wb") as f:
+                f.write(p_draft_true)
+            with open(pep, "wb") as f:
+                f.write(p_env_true)
             with open(fsp, "wb") as f:
                 f.write(p_final)
             pg("add", "-A")
@@ -2995,10 +3048,14 @@ def _selftest(real_repo):
             print("  D-11d PASS  on the REAL chain: an edited live draft "
                   "receipt is refused at finalize (committed draft is the "
                   "authority); a committed final smoke with a forged "
-                  "points commit, and one with a forged corpus digest over "
-                  "the true commit, each carried through select and "
-                  "REFUSED at verify-select; the untouched chain is "
-                  "ADMITTED")
+                  "points commit, one with a forged corpus digest over "
+                  "the true commit (refused for DIVERGENCE from the "
+                  "results-commit draft smoke), and one with the forged "
+                  "digest CO-TAMPERED into its own committed results-stage "
+                  "authorities (join passes; refused because the digest "
+                  "does not recompute from the committed carriers), each "
+                  "carried through select and REFUSED at verify-select; "
+                  "the untouched chain is ADMITTED")
             # ---- D-11c (2112Z finding 1 on the REAL tree): an
             # external driver copy -- pristine bytes, foreign path --
             # and a shadowed runner refuse before any outdir exists;

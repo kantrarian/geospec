@@ -390,7 +390,10 @@ def _rebuild_outcomes(fam, entry, holm_fn, loco_registry):
                     "every replicate")
             fr = folds[r_i]
             if fr is not None:
-                if sorted(fr) != sorted(loco_registry):
+                # a fold map is a dict over exactly the registered set;
+                # a non-dict iterable of the station names is not one
+                if not isinstance(fr, dict) or \
+                        sorted(fr) != sorted(loco_registry):
                     raise SelectorRefusal(
                         "SELECTOR_UNADMITTED: LOCO fold set diverges "
                         "from the bound registry")
@@ -1849,12 +1852,15 @@ def _selftest():
     # replicate whose OWN p is None must not carry a malformed fold map
     # through the seam silently while the identical defect on a numeric
     # replicate refuses -- the fold-map checks run BEFORE the own-None
-    # short-circuit. Four partners refuse typed on BOTH replicate kinds
-    # (the same needle each), the positive twins are unchanged, and a
-    # mutant copy of THIS module's source with the pre-fix order
-    # restored (own-None short-circuit moved back in front of the fold
-    # checks) proves every partner goes RED -- returns silently -- under
-    # the old order, while the mutant still refuses the numeric defect.
+    # short-circuit. Six partners refuse typed on BOTH replicate kinds
+    # (the same needle each; both halves of the coverage check and a
+    # non-dict fold map are among them), the positive twins are
+    # unchanged, and two mutant copies of THIS module's source compiled
+    # in memory prove the partners have teeth: the pre-fix order (own-
+    # None short-circuit moved back in front of the fold checks) makes
+    # every partner return silently, and a coverage check weakened from
+    # != to < lets the longer-than-replicates partner through silently
+    # while the shorter one still refuses.
     import sys as _sys
     import types as _types
     _self_mod = _sys.modules[__name__]
@@ -1868,7 +1874,11 @@ def _selftest():
         ("fold p 'x'", 1, [{st: "x" for st in _reg}], NEEDLE_NUM),
         ("folds shorter than replicates", 2, [dict(fold_ok)],
          NEEDLE_COVER),
+        ("folds longer than replicates", 1, [dict(fold_ok), dict(fold_ok)],
+         NEEDLE_COVER),
         ("folds not a list", 1, {0: dict(fold_ok)}, NEEDLE_COVER),
+        ("fold entry a list of the station names", 1, [sorted(_reg)],
+         NEEDLE_REG),
     )
 
     def seam(mod, pv, n_reps, folds):
@@ -1881,6 +1891,10 @@ def _selftest():
                         "loco_folds": folds}, _PHt.holm_rejects, _reg)
         except mod.SelectorRefusal as e:
             return str(e), None
+        except Exception as e:                           # noqa: BLE001
+            # an UNTYPED escape is a defect the partner must see as a
+            # failed needle, not as a crashed selftest
+            return "EXC " + repr(e), None
     for label, n_reps, folds, needle in SEAM_PARTNERS:
         msg_o, _out = seam(_self_mod, own_none_pv, n_reps, folds)
         assert msg_o is not None and "SELECTOR_UNADMITTED" in msg_o and \
@@ -1936,6 +1950,31 @@ def _selftest():
         (None, ([False], [False]))
     assert seam(_mut, numeric_pv, 1, [dict(fold_ok)]) == \
         (None, ([True], [True]))
+    # second mutant: the coverage check weakened from != to < (a longer
+    # fold list would pass the seam silently). The longer-than-
+    # replicates partner must go RED on BOTH replicate kinds under it,
+    # the shorter-than-replicates partner must still refuse, and the
+    # non-dict fold-map partner must still refuse typed.
+    _L = ("            if not isinstance(folds, list) or "
+          "len(folds) != len(reps):\n")
+    _L2 = _L.replace("len(folds) != len(reps)", "len(folds) < len(reps)")
+    assert _src.count(_L) == 1 and _src.count(_L2) == 0
+    _mut2_src = _src.replace(_L, _L2)
+    _mut2 = _types.ModuleType("w2_tier_selector_cayley_coverage_mutant")
+    _mut2.__file__ = "<coverage-lt mutant, in memory>"
+    exec(compile(_mut2_src, "<coverage-lt-mutant>", "exec"),
+         _mut2.__dict__)
+    assert _mut2._rebuild_outcomes is not _rebuild_outcomes
+    _longer = [dict(fold_ok), dict(fold_ok)]
+    assert seam(_mut2, own_none_pv, 1, _longer) == \
+        (None, ([False], [False]))          # RED: passes silently
+    assert seam(_mut2, numeric_pv, 1, _longer) == \
+        (None, ([True], [True]))            # RED: passes silently
+    msg_m, _out = seam(_mut2, own_none_pv, 2, [dict(fold_ok)])
+    assert msg_m is not None and NEEDLE_COVER in msg_m, msg_m
+    msg_m, _out = seam(_mut2, own_none_pv, 1, [sorted(_reg)])
+    assert msg_m is not None and NEEDLE_REG in msg_m, msg_m
+    del _mut2, _mut2_src
     del _mut, _mut_src, _src
     # (d) invalid classes in a component each refuse TYPED -- at the
     # rebuild seam naming the component, and through the chain

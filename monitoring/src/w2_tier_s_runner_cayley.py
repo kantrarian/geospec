@@ -28,6 +28,7 @@ import json
 import math
 import os
 import platform
+import re
 import sys
 import time
 
@@ -410,6 +411,81 @@ def _publish_members_from_envelope(outdir, env):
     return published
 
 
+def _validate_envelope_members(env, pre):
+    """codex 0149Z finding 2: a recovery envelope is UNTRUSTED bytes on
+    disk. Every member is validated -- closed {body, sha256} record,
+    text body, lowercase 64-hex digest that recomputes, JSON-object body
+    of the admitted per-member schema bound to THIS campaign -- before
+    anything is digested for publication. A defect is a typed refusal
+    that writes nothing; an operator gets a decision, not a traceback."""
+    import w2_tier_selector_cayley as TS
+    members = env.get("members")
+    if not isinstance(members, dict) or \
+            set(members) != set(AGGREGATE_MEMBERS):
+        raise RunnerRefusal(
+            "RUNNER_TIER_S_UNADMITTED: the aggregate envelope does not "
+            "carry exactly the three admitted members")
+    parsed = {}
+    for name in AGGREGATE_MEMBERS:
+        m = members[name]
+        if not isinstance(m, dict) or set(m) != {"body", "sha256"}:
+            raise RunnerRefusal(
+                f"RUNNER_TIER_S_UNADMITTED: envelope member {name} is not "
+                "a closed {body, sha256} record")
+        body, sha = m["body"], m["sha256"]
+        if not isinstance(body, str):
+            raise RunnerRefusal(
+                f"RUNNER_TIER_S_UNADMITTED: envelope member {name} body "
+                "is not text")
+        if not isinstance(sha, str) or \
+                not re.fullmatch(r"[0-9a-f]{64}", sha):
+            raise RunnerRefusal(
+                f"RUNNER_TIER_S_UNADMITTED: envelope member {name} digest "
+                "is not lowercase 64-hex")
+        if hashlib.sha256(body.encode("utf-8")).hexdigest() != sha:
+            raise RunnerRefusal(
+                f"RUNNER_TIER_S_UNADMITTED: envelope member {name} does "
+                "not recompute its own digest")
+        try:
+            obj = json.loads(body)
+        except ValueError:
+            raise RunnerRefusal(
+                f"RUNNER_TIER_S_UNADMITTED: envelope member {name} body "
+                "is not JSON")
+        if not isinstance(obj, dict):
+            raise RunnerRefusal(
+                f"RUNNER_TIER_S_UNADMITTED: envelope member {name} body "
+                "is not a JSON object")
+        parsed[name] = obj
+    res, comp, smoke = (parsed[n] for n in AGGREGATE_MEMBERS)
+    if res.get("schema") != TS.TIER_S_RESULTS_SCHEMA or \
+            set(res) != {"schema", "quality", "seed_authority_sha256",
+                         "geometry_capsule_digest", "implementation",
+                         "families"} or \
+            res.get("quality") != pre["quality"] or \
+            res.get("implementation") != pre["implementation"]:
+        raise RunnerRefusal(
+            "RUNNER_TIER_S_UNADMITTED: envelope results member is not the "
+            "closed results schema bound to this pre")
+    if comp.get("schema") != COMPLETION_SCHEMA or \
+            set(comp) != COMPLETION_FIELDS or \
+            comp.get("pre_invocation_sha256") != pre["invocation_sha256"] \
+            or comp.get("results_blob_sha256") != \
+            members["tier_s_results.json"]["sha256"]:
+        raise RunnerRefusal(
+            "RUNNER_TIER_S_UNADMITTED: envelope completion member is not "
+            "the closed completion bound to this pre and these results")
+    if smoke.get("schema") != "f2g-w2-tier-s-smoke-v1" or \
+            smoke.get("pre_invocation_sha256") != pre["invocation_sha256"] \
+            or smoke.get("results_blob_sha256") != \
+            members["tier_s_results.json"]["sha256"] or \
+            smoke.get("completion_sha256") != _digest(comp):
+        raise RunnerRefusal(
+            "RUNNER_TIER_S_UNADMITTED: envelope smoke member is not the "
+            "closed draft smoke bound to this pre, results and completion")
+    return res, comp, smoke
+
+
 def _complete_aggregate_from_envelope(outdir, pre):
     """Retry path: the envelope exists, so the aggregate was already
     derived once. Complete only the missing members, exactly."""
@@ -417,25 +493,19 @@ def _complete_aggregate_from_envelope(outdir, pre):
               encoding="utf-8") as f:
         env = json.load(f)
     if not isinstance(env, dict) or \
+            set(env) != {"schema", "pre_invocation_sha256", "members"} or \
             env.get("schema") != AGGREGATE_ENVELOPE_SCHEMA or \
-            env.get("pre_invocation_sha256") != pre["invocation_sha256"] \
-            or set(env.get("members", {})) != set(AGGREGATE_MEMBERS):
+            env.get("pre_invocation_sha256") != pre["invocation_sha256"]:
         raise RunnerRefusal(
             "RUNNER_TIER_S_UNADMITTED: the aggregate envelope in this "
             "outdir is not this campaign's closed envelope")
-    for name, m in env["members"].items():
-        if hashlib.sha256(m["body"].encode("utf-8")).hexdigest() != \
-                m["sha256"]:
-            raise RunnerRefusal(
-                f"RUNNER_TIER_S_UNADMITTED: envelope member {name} does "
-                "not recompute its own digest")
+    res, comp, smoke = _validate_envelope_members(env, pre)
     if _publish_members_from_envelope(outdir, env) == 0:
         raise RunnerRefusal(
             "RUNNER_PUBLISH_EXISTS: aggregate already complete (envelope "
             "and all three members present and byte-equal; create-once, "
             "never re-derived)")
-    return tuple(json.loads(env["members"][n]["body"])
-                 for n in AGGREGATE_MEMBERS)
+    return res, comp, smoke
 
 
 def _check_point_capsule(cap, idx, fam, point, pre):

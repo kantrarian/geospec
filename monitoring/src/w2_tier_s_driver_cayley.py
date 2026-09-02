@@ -311,7 +311,7 @@ def _bootstrap(repo, manifest_commit):
         mods[label] = mod
     TSR = mods["runner"]
     RunnerRefusal = mods["cert-runner"].RunnerRefusal
-    if DRIVER_REL != DRIVER_REL or RUNNER_REL != RUNNER_REL:
+    if TSR.DRIVER_REL != DRIVER_REL or TSR.RUNNER_REL != RUNNER_REL:
         _refuse("the bound runner registers different driver/runner "
                 "paths than this driver")
     return mods
@@ -328,21 +328,52 @@ def _loaded_executables():
             for label, rel, modname in EXECUTABLES]
 
 
-def _enter(repo, outdir):
-    """Every command after `fire` begins here: read the pre's manifest
-    commit with the stdlib (the pre itself is authenticated a moment
-    later by `_load_pre_checked`, and its references by the join), run
-    the provenance preflight against that manifest, bind the proven
-    executables. Nothing project-local runs before this returns."""
-    p = os.path.join(outdir, PRE_NAME)
-    if not os.path.exists(p):
-        _refuse(f"no pre-invocation at {p} -- fire the pre first")
-    with open(p, encoding="utf-8") as f:
-        raw = json.load(f)
-    mc = raw.get("manifest_commit")
-    if not isinstance(mc, str) or not mc:
-        _refuse("the pre-invocation names no manifest commit")
+def _enter(repo, outdir, pre_commit):
+    """codex 0149Z finding 1 (CRITICAL): the trust root is the COMMITTED
+    pre-invocation, never the live pointer. The previous gate read the
+    LIVE pre's `manifest_commit` and ran the preflight against it, so a
+    substituted live file naming a local manifest that pinned a
+    marker-bearing runner got that runner imported before the
+    committed-pre check ever ran.
+
+    Stdlib-only until the root is proven, in this order:
+      1. the outdir must be inside the repository (its committed path
+         is derivable);
+      2. reopen `pre_commit:<rel>/tier_s_pre_invocation.json` with
+         `git cat-file`; the LIVE bytes must EQUAL the committed bytes;
+      3. parse the COMMITTED bytes; `manifest_commit` must be a 40-hex
+         commit that is an ancestor of `pre_commit`;
+      4. only then run the provenance preflight against THAT manifest
+         and bind the executables.
+    The later digest / reference / committed-pre checks in every caller
+    stay as defence in depth. Returns the committed pre."""
+    rel = _repo_rel(repo, outdir)
+    live_path = os.path.join(outdir, PRE_NAME)
+    if not os.path.exists(live_path):
+        _refuse(f"no pre-invocation at {live_path} -- fire the pre first")
+    with open(live_path, "rb") as f:
+        live = f.read()
+    committed = _read_blob(repo, pre_commit, f"{rel}/{PRE_NAME}")
+    if committed != live:
+        _refuse("the live pre-invocation differs byte-for-byte from the "
+                f"one committed at {str(pre_commit)[:12]} -- the trust "
+                "root is the COMMITTED carrier; nothing is imported "
+                "against a live pointer")
+    try:
+        pre = json.loads(committed.decode("utf-8"))
+    except (ValueError, UnicodeDecodeError):
+        _refuse("the committed pre-invocation is not JSON")
+    mc = pre.get("manifest_commit") if isinstance(pre, dict) else None
+    if not isinstance(mc, str) or len(mc) != 40 or \
+            any(c not in "0123456789abcdef" for c in mc):
+        _refuse("the committed pre-invocation names no 40-hex manifest "
+                "commit")
+    if not _is_ancestor(repo, mc, pre_commit):
+        _refuse(f"the committed pre binds manifest {mc[:12]} which is "
+                f"not an ancestor of the pre commit {str(pre_commit)[:12]}"
+                " -- unrelated lineage")
     _bootstrap(repo, mc)
+    return pre
 
 
 def _require_bound_sources(repo, pre, manifest_commit=None):
@@ -591,7 +622,7 @@ def cmd_worker(repo, outdir, idx, loco, pre_commit):
     ran -- the host guard, the pre digest, and the committed-pre
     proof -- because a child that trusts its parent is a child the
     parent's caller can steer."""
-    _enter(repo, outdir)
+    _enter(repo, outdir, pre_commit)
     pre, sha = _load_pre_checked(outdir)
     _require_committed_pre(repo, outdir, pre_commit)
     _require_bound_sources(repo, pre)
@@ -672,7 +703,7 @@ def _drive(repo, outdir, indices, loco, procs, pre, points,
 
 
 def cmd_phase1(repo, outdir, procs, pre_commit):
-    _enter(repo, outdir)
+    _enter(repo, outdir, pre_commit)
     pre, sha = _load_pre_checked(outdir)
     _require_committed_pre(repo, outdir, pre_commit)
     _require_bound_sources(repo, pre)
@@ -686,7 +717,7 @@ def cmd_phase1(repo, outdir, procs, pre_commit):
 
 
 def cmd_rank(repo, outdir, pre_commit):
-    _enter(repo, outdir)
+    _enter(repo, outdir, pre_commit)
     pre, sha = _load_pre_checked(outdir)
     _require_committed_pre(repo, outdir, pre_commit)
     _require_bound_sources(repo, pre)
@@ -710,7 +741,7 @@ def cmd_phase2(repo, outdir, procs, top8, pre_commit):
     The list is re-derived here and compared against the caller's, so
     a hand-edited selection cannot enter the run.
     """
-    _enter(repo, outdir)
+    _enter(repo, outdir, pre_commit)
     pre, sha = _load_pre_checked(outdir)
     _require_committed_pre(repo, outdir, pre_commit)
     _require_bound_sources(repo, pre)
@@ -731,7 +762,7 @@ def cmd_phase2(repo, outdir, procs, top8, pre_commit):
 
 
 def cmd_aggregate(repo, outdir, pre_commit):
-    _enter(repo, outdir)
+    _enter(repo, outdir, pre_commit)
     pre, sha = _load_pre_checked(outdir)
     _require_committed_pre(repo, outdir, pre_commit)
     _require_bound_sources(repo, pre)
@@ -762,7 +793,7 @@ def cmd_finalize(repo, outdir, pre_commit, results_commit, rel_dir):
     """Reopens all three carriers from their COMMITS and publishes the
     final smoke. The digests must already agree; this proves the
     committed bytes are the ones the draft described."""
-    _enter(repo, outdir)
+    _enter(repo, outdir, pre_commit)
     pre, sha = _load_pre_checked(outdir)
     _require_committed_pre(repo, outdir, pre_commit)
     _require_bound_sources(repo, pre)
@@ -795,7 +826,7 @@ def cmd_select(repo, outdir, smoke_commit, grids_commit, rel_dir,
     This is that link, governed: the final smoke and the effect grids
     are reopened FROM THEIR COMMITS, the selector artifact is
     published create-once, and nothing is taken from caller state."""
-    _enter(repo, outdir)
+    _enter(repo, outdir, pre_commit)
     import w2_tier_selector_cayley as TS
     pre, _sha = _load_pre_checked(outdir)
     _require_committed_pre(repo, outdir, pre_commit)
@@ -833,7 +864,7 @@ def cmd_verify_select(repo, outdir, selector_commit, manifest_commit,
     exists on disk has never been proven to be the one that was
     published."""
     import hashlib
-    _enter(repo, outdir)
+    _enter(repo, outdir, pre_commit)
     import w2_tier_selector_cayley as TS
     pre, _sha = _load_pre_checked(outdir)
     _require_committed_pre(repo, outdir, pre_commit)
@@ -1044,11 +1075,10 @@ def _selftest(real_repo):
 
         PINNED = (GRIDS_REL, GEOMETRY_REL) + EXEC_RELS
 
-        def manifest_for(driver_commit=None):
+        def manifest_for(overrides=None):
             pins = []
             for r in PINNED:
-                cm = driver_commit if (driver_commit and
-                                       r == DRIVER_REL) else c1
+                cm = (overrides or {}).get(r, c1)
                 pins.append({"path": r, "commit": cm,
                              "blob_sha256": sha_at(r, cm)})
             return {"slots": {"s": {"status": "BOUND", "pins": pins}}}
@@ -1757,6 +1787,110 @@ def _selftest(real_repo):
               "before any harness call, leaving no carrier -- the ninth "
               "executable is inside the join")
 
+        # ---- D-10g (codex 0149Z finding 1): the trust root is the
+        # COMMITTED pre. Reproduces codex's counterexample as a real
+        # child: a local commit whose manifest pins an in-tree runner
+        # carrying an IMPORT-TIME marker; the LIVE pre file is replaced
+        # by a pointer at that manifest while the command names the clean
+        # committed pre. The gate must refuse the live-vs-committed
+        # divergence BEFORE any bootstrap: marker absent, no harness, no
+        # carrier. Then the pointer is restored and the positive re-passes.
+        rn_live = os.path.join(repo, RUNNER_REL.replace("/", os.sep))
+        with open(rn_live, "rb") as f:
+            keep_runner = f.read()
+        g_marker = os.path.join(tmp, "anchor_marker_runner.txt")
+        g_side = ("import os as _mo\n_mo.makedirs(%r, exist_ok=True)\n"
+                  "open(%r, 'w').write('runner imported')\n"
+                  % (os.path.dirname(g_marker), g_marker))
+        with open(rn_live, "wb") as f:
+            f.write(g_side.encode("utf-8") + keep_runner)
+        g("add", "-A")
+        g("commit", "-qm", "marker runner (D-10g)")
+        c_rmark = g("rev-parse", "HEAD").stdout.decode().strip()
+        wf("docs/f2g_window2_execution/execution_manifest.json",
+           json.dumps(manifest_for({RUNNER_REL: c_rmark}), sort_keys=True))
+        g("add", "-A")
+        g("commit", "-qm", "manifest pinning the marker runner (D-10g)")
+        c_manmark = g("rev-parse", "HEAD").stdout.decode().strip()
+        out_g = os.path.join(repo, "tier_s_trustroot")
+        TSR.fire_pre(repo, c2_ok, GRIDS_REL, GEOMETRY_REL, IMPL_REL, out_g,
+                     blob_reader=_blob_reader(repo),
+                     argv=["selftest-trustroot"])
+        g("add", "-A")
+        g("commit", "-qm", "clean committed pre (D-10g)")
+        pc_g = g("rev-parse", "HEAD").stdout.decode().strip()
+        p_g = os.path.join(out_g, PRE_NAME)
+        with open(p_g, "rb") as f:
+            committed_pre_bytes = f.read()
+        with open(p_g, "w", encoding="utf-8", newline="\n") as f:
+            f.write(json.dumps({"manifest_commit": c_manmark}) + "\n")
+        # the marker runner IS on disk and IS pinned by the pointed-at
+        # manifest: the old gate imported it here
+        rc, blob = _cli([drv_path, "phase1", repo, out_g, "1", pc_g])
+        assert rc != 0 and "differs byte-for-byte from the one committed" \
+            in blob and "the trust root is the COMMITTED carrier" in blob, \
+            blob[-500:]
+        assert not os.path.exists(g_marker), (
+            "D-10g FAILED: the marker runner was IMPORTED before the "
+            "committed-pre check -- the live pointer selected the pins")
+        assert HARNESS_MARK not in blob and "POWER_" not in blob
+        assert not os.path.exists(_capsule_path(out_g, 0, False))
+        assert "not the source identity" not in blob, (
+            "D-10g: refused at the pin, not at the trust root -- ordering "
+            "not proven: " + blob[-300:])
+        # restore the pointer and the pristine runner; positive re-passes
+        with open(p_g, "wb") as f:
+            f.write(committed_pre_bytes)
+        with open(rn_live, "wb") as f:
+            f.write(keep_runner)
+        g("add", "-A")
+        g("commit", "-qm", "restore runner (D-10g)")
+        got_pre = _enter(repo, out_g, pc_g)
+        assert got_pre["manifest_commit"] == c2_ok, got_pre["manifest_commit"]
+        rc, blob = _cli([drv_path, "rank", repo, outdir, c3])
+        assert rc == 0 and "top8 " in blob, blob[-300:]
+        print("  D-10g PASS  a LIVE pre pointer at a local manifest pinning "
+              "an import-marker runner (the runner on disk, pinned) is "
+              "refused for live-vs-committed divergence BEFORE any "
+              "bootstrap -- marker never written, no harness, no carrier; "
+              "the restored committed pre re-enters and the positive "
+              "re-passes")
+
+        # ---- D-10h (codex 0149Z finding 1, second half): the runner's
+        # registration is COMPARED, not tautologically. An admitted
+        # mutant runner registering a different driver path must be
+        # refused by the bound-registration check (the previous guard
+        # compared a constant with itself and could never refuse).
+        rn_src = keep_runner.decode("utf-8")
+        rn_old = 'DRIVER_REL = "monitoring/src/w2_tier_s_driver_cayley.py"'
+        assert rn_src.count(rn_old) == 1, rn_src.count(rn_old)
+        with open(rn_live, "wb") as f:
+            f.write(rn_src.replace(
+                rn_old, 'DRIVER_REL = "monitoring/src/NOT_THE_DRIVER.py"',
+                1).encode("utf-8"))
+        g("add", "-A")
+        g("commit", "-qm", "runner registering another driver (D-10h)")
+        c_rreg = g("rev-parse", "HEAD").stdout.decode().strip()
+        wf("docs/f2g_window2_execution/execution_manifest.json",
+           json.dumps(manifest_for({RUNNER_REL: c_rreg}), sort_keys=True))
+        g("add", "-A")
+        g("commit", "-qm", "manifest admitting the mis-registering runner")
+        c_manreg = g("rev-parse", "HEAD").stdout.decode().strip()
+        out_h = os.path.join(repo, "tier_s_misregistered")
+        rc, blob = _cli([drv_path, "fire", repo, out_h, c_manreg])
+        assert rc != 0 and "registers different driver/runner paths" \
+            in blob, blob[-400:]
+        assert not os.path.exists(out_h)
+        with open(rn_live, "wb") as f:
+            f.write(keep_runner)
+        g("add", "-A")
+        g("commit", "-qm", "restore runner (D-10h)")
+        rc, blob = _cli([drv_path, "rank", repo, outdir, c3])
+        assert rc == 0 and "top8 " in blob, blob[-300:]
+        print("  D-10h PASS  an ADMITTED runner registering a different "
+              "driver path is refused by the registration comparison "
+              "(fire refuses, no outdir); the restored positive re-passes")
+
         # ---- D-11b (codex item 2, re-based): the boundary mutations
         # as ADMITTED MUTANTS. Under a source-identity join, an
         # external mutated copy refuses at the join -- correct, but it
@@ -1799,7 +1933,7 @@ def _selftest(real_repo):
             cD = _commit_driver(
                 drv_src.replace(mold, mnew, 1).encode("utf-8"))
             wf("docs/f2g_window2_execution/execution_manifest.json",
-               json.dumps(manifest_for(cD), sort_keys=True))
+               json.dumps(manifest_for({DRIVER_REL: cD}), sort_keys=True))
             g("add", "-A")
             g("commit", "-qm", "manifest admits the mutant")
             cM = g("rev-parse", "HEAD").stdout.decode().strip()
@@ -2131,12 +2265,85 @@ def _selftest(real_repo):
         with open(rp, "r", encoding="utf-8", newline="") as f:
             assert f.read() == r_live + " ", "D-13: divergent member rewritten"
         assert not os.path.exists(os.path.join(o_d, "tier_s_smoke.json"))
+        # (d) codex 0149Z finding 2: a MALFORMED recovery envelope is a
+        # typed, no-write refusal -- never a traceback. On a campaign
+        # left partial (smoke missing), the envelope file is mutated in
+        # place seven ways; each must refuse RUNNER_TIER_S_UNADMITTED
+        # naming the member, publish no missing member, and leave every
+        # existing byte untouched; the restored envelope then completes.
+        o_m, c_m = _fresh_campaign("malformed")
+        real_pub = TSR._publish_once
+        TSR._publish_once = _failing_on("tier_s_smoke.json", real_pub)
+        try:
+            try:
+                cli("aggregate", repo, o_m, c_m)
+            except OSError:
+                pass
+        finally:
+            TSR._publish_once = real_pub
+        env_p = os.path.join(o_m, "tier_s_aggregate_envelope.json")
+        with open(env_p, "r", encoding="utf-8", newline="") as f:
+            env_txt = f.read()
+        env_ok = json.loads(env_txt)
+        before_bytes = {}
+        for nm in ("tier_s_results.json", "tier_s_completion.json"):
+            with open(os.path.join(o_m, nm), "rb") as f:
+                before_bytes[nm] = f.read()
+        assert not os.path.exists(os.path.join(o_m, "tier_s_smoke.json"))
+        good_sha = env_ok["members"]["tier_s_results.json"]["sha256"]
+        good_body = env_ok["members"]["tier_s_results.json"]["body"]
+
+        def _mut_env(fn):
+            e = json.loads(env_txt)
+            fn(e)
+            with open(env_p, "w", encoding="utf-8", newline="\n") as f:
+                f.write(json.dumps(e, indent=1, sort_keys=True) + "\n")
+        MALFORMED = [
+            ("member is {}", lambda e: e["members"].__setitem__(
+                "tier_s_smoke.json", {})),
+            ("member is not a dict", lambda e: e["members"].__setitem__(
+                "tier_s_smoke.json", ["body", "sha256"])),
+            ("body is not text", lambda e: e["members"]["tier_s_smoke.json"]
+             .__setitem__("body", 123)),
+            ("digest is not hex", lambda e: e["members"]["tier_s_smoke.json"]
+             .__setitem__("sha256", "zz" * 32)),
+            ("digest does not recompute", lambda e:
+             e["members"]["tier_s_smoke.json"].__setitem__(
+                 "sha256", good_sha if good_sha !=
+                 e["members"]["tier_s_smoke.json"]["sha256"]
+                 else "0" * 64)),
+            ("extra key", lambda e: e["members"]["tier_s_smoke.json"]
+             .__setitem__("note", "x")),
+            ("body is not JSON", lambda e: e["members"]["tier_s_smoke.json"]
+             .update({"body": "not json", "sha256": __import__("hashlib")
+                      .sha256(b"not json").hexdigest()})),
+        ]
+        for mlabel, mut in MALFORMED:
+            _mut_env(mut)
+            msg = cli_refuses(f"aggregate malformed envelope ({mlabel})",
+                              "aggregate", repo, o_m, c_m)
+            assert "RUNNER_TIER_S_UNADMITTED" in msg and \
+                "envelope member" in msg, (mlabel, msg[:200])
+            assert not os.path.exists(os.path.join(o_m, "tier_s_smoke.json")), \
+                (mlabel, "wrote a member from a malformed envelope")
+            for nm, b0 in before_bytes.items():
+                with open(os.path.join(o_m, nm), "rb") as f:
+                    assert f.read() == b0, (mlabel, nm, "existing member changed")
+        del good_body
+        with open(env_p, "w", encoding="utf-8", newline="") as f:
+            f.write(env_txt)
+        assert cli("aggregate", repo, o_m, c_m) == 0
+        assert _agg_files(o_m) == AGG
         print("  D-13 PASS  a string / NaN / out-of-range / bool / negative "
               "p-value refuses typed with ZERO aggregate files; injected "
               "failures on member 2 and member 3 leave a durable envelope "
               "and the retry completes the missing members byte-exactly, "
               "then refuses create-once; a diverged member is refused and "
-              "never overwritten")
+              f"never overwritten; {len(MALFORMED)} malformed envelopes "
+              "(empty member, non-dict, non-text body, non-hex / wrong "
+              "digest, extra key, non-JSON body) each refuse TYPED naming "
+              "the member with no write and every existing byte untouched, "
+              "and the restored envelope completes")
 
         # ---- D-11 (codex item 1 + 2112Z finding 2): THE FULL CLI
         # over REAL pinned geometry, every command through main(argv)

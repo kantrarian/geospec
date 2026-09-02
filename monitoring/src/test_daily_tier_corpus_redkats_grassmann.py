@@ -1,7 +1,23 @@
 #!/usr/bin/env python3
 """
-DAILY-TIER-CORPUS red-KAT bar -- grassmann, 2026-09-02 (REV 6b: REV 6 re-ported onto cayley's daily-path v5
-ec7d10cb = v4 [codex 1831Z F3: committed inputs authority] + docs/ensemble/** -text; on top of REV 5/6).
+DAILY-TIER-CORPUS red-KAT bar -- grassmann, 2026-09-02 (REV 6c: REV 6b re-based onto cayley's daily-path v6
+c592d236 = v5 + the production preflight BEFORE run_all_regions [codex 1912Z MAJOR]; on top of REV 5/6/6b).
+
+REV 6c -- WHAT CHANGED vs REV 6b (codex 1912Z, cayley 2040Z):
+  C-13  PREFLIGHT-ORDER: the COMMITTED run_ensemble_daily.py at the target is parsed (AST; never imported or
+        executed here) and in main() the FIRST call of each of the six production preflight seams
+        (committed_inputs_view, checkout_matches_committed, check_store_clean, load_legacy_baseline,
+        journal_bytes, prior_days_view) must precede the first call of run_all_regions, publish_revision
+        must follow it, and `production` must be bound before the preflight. Typed PREFLIGHT_MAIN_ABSENT /
+        PREFLIGHT_ABSENT / PREFLIGHT_AFTER_SCORING / PREFLIGHT_BEFORE_PRODUCTION_BOUND. Independent of
+        cayley's CODEX-12a (own walker, own line arithmetic). Proven both ways: M-AH (one preflight call
+        deleted -> ABSENT), M-AH2 (a run_all_regions call textually hoisted above the preflight ->
+        AFTER_SCORING for all six), M-AI (the historical negatives when reachable: v5 ec7d10cb ->
+        AFTER_SCORING, public base fb13421f -> ABSENT).
+  M-AE2/M-AE3  the EOL pin measured through REAL git: a temp repo carrying the target's committed
+        .gitattributes and an LF store is cloned with core.autocrlf=true -> every store byte UNCHANGED
+        (M-AE2, the positive carrier C-12 protects); the same repo WITHOUT the line -> the clone CRLF-
+        translates the store (M-AE3, the necessity that REV 6 M-AE only simulated).
 
 REV 6b -- WHAT CHANGED vs REV 6 (cayley 1901Z):
   C-11  the inputs capsule of every revision is checked against the GIT view of the code + calibration
@@ -177,6 +193,7 @@ import argparse
 import csv
 import hashlib
 import importlib.util
+import ast
 import io
 import json
 import logging
@@ -1070,6 +1087,63 @@ def lock_revision_store(view: StoreView, ens_mod, red_mod, REV, git_history=None
 
 
 # --------------------------------------------------------------------------- bar
+# --------------------------------------------------------------------------- C-13 preflight order (REV 6c)
+RUN_DAILY_PATH = "monitoring/src/run_ensemble_daily.py"
+PREFLIGHT_SEAMS = ("committed_inputs_view", "checkout_matches_committed", "check_store_clean",
+                   "load_legacy_baseline", "journal_bytes", "prior_days_view")
+
+
+def _first_calls(fn: ast.FunctionDef) -> Dict[str, int]:
+    """Lowest-line call of every callee name inside fn -- `x(...)` and `M.x(...)` alike."""
+    first: Dict[str, int] = {}
+    for n in ast.walk(fn):
+        if isinstance(n, ast.Call):
+            f = n.func
+            name = f.attr if isinstance(f, ast.Attribute) else (f.id if isinstance(f, ast.Name) else None)
+            if name is not None and (name not in first or n.lineno < first[name]):
+                first[name] = n.lineno
+    return first
+
+
+def lock_c13_preflight_order(src: bytes) -> List[str]:
+    """C-13 (REV 6c, codex 1912Z MAJOR): in main() of the COMMITTED runner source every production
+    preflight seam is first called BEFORE run_all_regions (a typed refusal scores, fetches and writes
+    nothing), publish_revision only AFTER it, and `production` is bound before the preflight. AST only --
+    the source is never imported or executed by this lock. Returns typed problems (empty == PASS)."""
+    problems: List[str] = []
+    try:
+        tree = ast.parse(src.decode("utf-8"))
+    except (SyntaxError, UnicodeDecodeError, ValueError) as e:
+        return [f"C-13 PREFLIGHT_MAIN_ABSENT: runner source does not parse: {type(e).__name__}"]
+    fn = next((n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == "main"), None)
+    if fn is None:
+        return ["C-13 PREFLIGHT_MAIN_ABSENT: no top-level main() in the runner"]
+    first = _first_calls(fn)
+    prod = min((n.lineno for n in ast.walk(fn) if isinstance(n, ast.Assign)
+                and any(isinstance(t, ast.Name) and t.id == "production" for t in n.targets)), default=None)
+    rar = first.get("run_all_regions")
+    if rar is None:
+        problems.append("C-13 PREFLIGHT_ABSENT: main() never calls run_all_regions")
+    if prod is None:
+        problems.append("C-13 PREFLIGHT_ABSENT: `production` is never bound in main()")
+    for seam in PREFLIGHT_SEAMS:
+        ln = first.get(seam)
+        if ln is None:
+            problems.append(f"C-13 PREFLIGHT_ABSENT: {seam} is never called in main()")
+            continue
+        if rar is not None and ln >= rar:
+            problems.append(f"C-13 PREFLIGHT_AFTER_SCORING: {seam} first called L{ln} >= run_all_regions L{rar}")
+        if prod is not None and ln <= prod:
+            problems.append(f"C-13 PREFLIGHT_BEFORE_PRODUCTION_BOUND: {seam} first called L{ln} <= "
+                            f"`production` L{prod}")
+    pub = first.get("publish_revision")
+    if pub is None:
+        problems.append("C-13 PREFLIGHT_ABSENT: publish_revision is never called in main()")
+    elif rar is not None and pub <= rar:
+        problems.append(f"C-13 PREFLIGHT_AFTER_SCORING: publish_revision L{pub} <= run_all_regions L{rar}")
+    return problems
+
+
 def run_bar(repo: str, commit: str, ens_mod=None, red_mod=None, quiet: bool = False,
             csv_override: Optional[str] = None, blob_reader=None) -> dict:
     full = _git(repo, ["rev-parse", f"{commit}^{{commit}}"])
@@ -1102,6 +1176,7 @@ def run_bar(repo: str, commit: str, ens_mod=None, red_mod=None, quiet: bool = Fa
            "c3": c3, "c4": c4, "c4entries": c4entries, "n_rows": n_rows,
            "c5pre": c5pre, "c5post": c5post, "n_post": n_post}
     res["exceptions"] = exception_set(res)
+    res["c13"] = lock_c13_preflight_order(_blob(repo, full, RUN_DAILY_PATH))   # REV 6c
     import ensemble_revisions_cayley as REV  # noqa  (source-bound in bind_sources)
     res["rev"] = lock_revision_store(git_store_view(repo, full), ens_mod, red_mod, REV, git_history=(repo, full))
     return res
@@ -1207,6 +1282,14 @@ def report(res: dict) -> None:
                                         f"journal prefix-monotone, revisions create-once + digest-bound, "
                                         f"persistence binds captured priors + replays, latest == current, "
                                         f"csv == legacy prefix + current rows (hard), UTC key, inputs recompute")
+
+    # C-13 (REV 6c): production preflight order in the COMMITTED runner at the target
+    if res.get("c13"):
+        _fail("C-13 PREFLIGHT-ORDER", f"{len(res['c13'])} problem(s): {res['c13'][:3]}")
+    else:
+        _ok("C-13 PREFLIGHT-ORDER", f"main(): first calls of all {len(PREFLIGHT_SEAMS)} preflight seams precede "
+                                   "run_all_regions, publish_revision follows it, `production` bound first "
+                                   "(AST over the committed blob; codex 1912Z MAJOR closed at the target)")
 
     # C-6: exact-set ledger
     for (lock, cls), (n, mx) in sorted(summ.items()):
@@ -1503,6 +1586,9 @@ def selftest(repo: str, commit: str) -> int:
 
     # ---- REV 5 partners: the revision-store locks through the REAL ensemble_revisions API in a temp store
     fails += revision_store_partners(real_ens, real_red, corpus)
+    # ---- REV 6c partners: C-13 both ways on the target's committed runner; the EOL pin through real git
+    fails += preflight_order_partners(repo, commit)
+    fails += eol_pin_partners(repo, commit)
 
     print()
     print("DAILY-TIER-CORPUS SELFTEST: " + ("ALL PASS" if not fails else f"{fails} FAIL"))
@@ -1864,6 +1950,124 @@ def revision_store_partners(ens_mod, red_mod, corpus: Corpus) -> int:
     return fails
 
 
+def preflight_order_partners(repo: str, commit: str) -> int:
+    """M-AH.. (REV 6c): C-13 proven both ways on the TARGET's committed runner source."""
+    fails = 0
+
+    def check(name, cond, detail=""):
+        nonlocal fails
+        if cond:
+            _ok(name, detail)
+        else:
+            fails += 1
+            _fail(name, detail)
+
+    full = _git(repo, ["rev-parse", f"{commit}^{{commit}}"])
+    src = _blob(repo, full, RUN_DAILY_PATH).decode("utf-8")
+    base = lock_c13_preflight_order(src.encode("utf-8"))
+    check("M-AH0 C-13 positive: the target's committed runner passes with 0 problems", not base, f"{base[:2]}")
+    lines = src.split("\n")
+    victim = "REV.check_store_clean(REPO_ROOT)"
+    idx = [i for i, ln in enumerate(lines) if ln.strip().startswith(victim)]
+    if len(idx) == 1:
+        m = "\n".join(lines[:idx[0]] + lines[idx[0] + 1:])
+        p = lock_c13_preflight_order(m.encode("utf-8"))
+        check("M-AH the check_store_clean call deleted from main() -> C-13 PREFLIGHT_ABSENT (that seam only)",
+              any("PREFLIGHT_ABSENT: check_store_clean" in x for x in p) and len(p) == 1, f"{p[:2]}")
+    else:
+        check("M-AH the check_store_clean call deleted", False, f"anchor `{victim}` found {len(idx)}x")
+    anchor = "production = args.output_dir is None"
+    idx = [i for i, ln in enumerate(lines) if ln.strip() == anchor]
+    if len(idx) == 1:
+        ind = lines[idx[0]][:len(lines[idx[0]]) - len(lines[idx[0]].lstrip())]
+        m = "\n".join(lines[:idx[0]] + [ind + "run_all_regions()"] + lines[idx[0]:])
+        p = lock_c13_preflight_order(m.encode("utf-8"))
+        n_after = sum(1 for x in p if "PREFLIGHT_AFTER_SCORING" in x)
+        check("M-AH2 a run_all_regions call hoisted above the preflight -> C-13 PREFLIGHT_AFTER_SCORING for all 6 seams",
+              n_after >= len(PREFLIGHT_SEAMS), f"{n_after} after-scoring problem(s); first {p[:1]}")
+    else:
+        check("M-AH2 hoisted run_all_regions", False, f"anchor `{anchor}` found {len(idx)}x")
+    for label, rev, want in (("v5 ec7d10cb", "ec7d10cb4af99c17feef56f9fca8caf670b38289", "PREFLIGHT_AFTER_SCORING"),
+                             ("base fb13421f", "fb13421f8c92f4aca56e00e155f6a5271c9c89ad", "PREFLIGHT_ABSENT")):
+        try:
+            hsrc = _blob(repo, rev, RUN_DAILY_PATH)
+        except Exception:
+            _note(f"M-AI historical negative {label}", "not reachable in this repo; skipped (never required)")
+            continue
+        p = lock_c13_preflight_order(hsrc)
+        check(f"M-AI historical negative {label} -> C-13 {want}", any(want in x for x in p), f"{p[:1]}")
+    return fails
+
+
+def eol_pin_partners(repo: str, commit: str) -> int:
+    """M-AE2/M-AE3 (REV 6c): C-12's attribute measured through REAL git -- an LF store survives a
+    core.autocrlf=true clone with the target's committed .gitattributes, and does not without the line."""
+    import shutil
+    fails = 0
+
+    def check(name, cond, detail=""):
+        nonlocal fails
+        if cond:
+            _ok(name, detail)
+        else:
+            fails += 1
+            _fail(name, detail)
+
+    full = _git(repo, ["rev-parse", f"{commit}^{{commit}}"])
+    ga = _blob(repo, full, ".gitattributes")
+    pin = [ln for ln in ga.decode("utf-8", "replace").splitlines() if ln.split() == ["docs/ensemble/**", "-text"]]
+    store = {"docs/ensemble/index.ndjson": b'{"run_id": "a"}\n{"run_id": "b"}\n',
+             "docs/ensemble/2026-09-03/r.json": b'{\n  "k": "v"\n}\n',
+             "docs/ensemble/legacy_baseline_v1.json": b'{\n  "schema": "x"\n}\n'}
+
+    def measure(attr: bytes) -> Tuple[int, int, str]:
+        tmp = tempfile.mkdtemp(prefix="corpus-eol-")
+        try:
+            src = os.path.join(tmp, "src")
+            os.makedirs(src)
+            _git(src, ["init", "-q"])
+            with open(os.path.join(src, ".gitattributes"), "wb") as f:
+                f.write(attr)
+            for rel, raw in store.items():
+                fp = os.path.join(src, rel.replace("/", os.sep))
+                os.makedirs(os.path.dirname(fp), exist_ok=True)
+                with open(fp, "wb") as f:
+                    f.write(raw)
+            _git(src, ["-c", "core.autocrlf=false", "add", "-A"])
+            _git(src, ["-c", "core.autocrlf=false", "-c", "user.name=kat", "-c", "user.email=kat@kat",
+                       "commit", "-q", "-m", "store"])
+            dst = os.path.join(tmp, "clone")
+            _git(tmp, ["-c", "core.autocrlf=true", "clone", "-q", src, dst])
+            translated = 0
+            unchanged = 0
+            for rel, raw in store.items():
+                got = open(os.path.join(dst, rel.replace("/", os.sep)), "rb").read()
+                if got == raw:
+                    unchanged += 1
+                elif got == raw.replace(b"\n", b"\r\n"):
+                    translated += 1
+            eol = _git(dst, ["ls-files", "--eol", "docs/ensemble/index.ndjson"])
+            return unchanged, translated, eol.split()[1] if len(eol.split()) > 1 else eol
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+    try:
+        u, t, eol = measure(ga)
+        check("M-AE2 REAL git, core.autocrlf=true clone WITH the target's committed .gitattributes -> "
+              "every store file byte-identical to the committed LF bytes",
+              bool(pin) and u == len(store) and t == 0, f"pin line {pin[:1]}; unchanged {u}/{len(store)}, "
+                                                        f"translated {t}, index.ndjson {eol}")
+        without = "\n".join(ln for ln in ga.decode("utf-8", "replace").splitlines()
+                            if ln.split() != ["docs/ensemble/**", "-text"]).encode("utf-8") + b"\n"
+        u2, t2, eol2 = measure(without)
+        check("M-AE3 the same clone WITHOUT `docs/ensemble/** -text` -> the store is CRLF-translated on checkout "
+              "(the necessity; the committed module then refuses, REV 6 M-AE)",
+              t2 == len(store) and u2 == 0, f"unchanged {u2}, translated {t2}/{len(store)}, index.ndjson {eol2}")
+    except RuntimeError as e:
+        check("M-AE2/M-AE3 real-git EOL measurement", False, f"git failed: {str(e)[:160]}")
+    return fails
+
+
 # --------------------------------------------------------------------------- main
 def main(argv: List[str]) -> int:
     ap = argparse.ArgumentParser()
@@ -1887,7 +2091,7 @@ def main(argv: List[str]) -> int:
     except RuntimeError as e:
         print(f"CORPUS_REVISION_UNRESOLVABLE: {e}")
         return 2
-    print(f"DAILY-TIER-CORPUS red-KAT bar (grassmann, REV 6b) -- repo {repo} commit {a.commit}")
+    print(f"DAILY-TIER-CORPUS red-KAT bar (grassmann, REV 6c) -- repo {repo} commit {a.commit}")
     if a.write_ledger:
         print("  UNBOUND: --write-ledger authors the sidecar from the measured set; it emits NO verdict")
     else:

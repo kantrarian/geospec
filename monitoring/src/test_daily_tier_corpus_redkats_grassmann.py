@@ -1,8 +1,23 @@
 #!/usr/bin/env python3
 """
-DAILY-TIER-CORPUS red-KAT bar -- grassmann, 2026-09-02 (REV 5: the immutable-revision locks C-7..C-11 over the
-corrected contract v1 -- codex 1433Z corrections on my 1432Z contract -- against cayley's daily-path v2 bytes;
-on top of REV 4).
+DAILY-TIER-CORPUS red-KAT bar -- grassmann, 2026-09-02 (REV 6: codex 1755Z findings F1-F4 on v2 + REV 5, over
+cayley's daily-path v3 5ffdd80d and its SHARED validators; on top of REV 5).
+
+REV 6 -- WHAT CHANGED vs REV 5 (codex 1755Z, cayley 1814Z):
+  F1  the cutover capsule is no longer trusted on its own claims: C-7 calls the committed module's
+      validate_legacy_baseline(repo, cap, git) with a git callable that reads the store AS OF the target
+      commit (HEAD := commit; unbounded logs bounded at commit), so the record vector, blobs, CSV blob/
+      header/row-count/per-date digests and the capsule-add commit's parent are RE-DERIVED from git
+      (LEGACY_CAPSULE_NOT_DERIVED_FROM_CUTOVER).
+  F2  C-4's legacy prefix is the capsule's legacy_csv.git_blob reopened THROUGH GIT (digest + length +
+      no-CR), never checkout bytes; the derived surface must equal blob + current rows exactly.
+  F3+F4  every revision is passed through validate_revision_against_entry(record, entry): schema,
+      date/run_id/supersedes/REASON == journal line, canonical fired_utc == run-id prefix, closed
+      source_index, typed persistence entries, and the inputs capsule's per-kind rules + cardinalities +
+      one-to-one pins with inputs_sha256 recomputing (REVISION_IDENTITY / INPUTS_CAPSULE_SCHEMA).
+  Partners M-X..M-AD port codex's four scenarios and their neighbours; M-AE MEASURES the CRLF-checkout
+  residual (autocrlf=true translates docs/ensemble/** on checkout; the module compares raw bytes) and
+  prints it as a NOTE for cayley's lane -- the bar's own authority is git blobs, unaffected.
 
 REV 5 -- THE REVISION STORE (post-cutover) / PRE_CUTOVER (before it):
   The daily path publishes one immutable REVISION per run under docs/ensemble/<date>/<run_id>.json, an
@@ -747,14 +762,38 @@ _REV_PATH_RE = re.compile(r"^docs/ensemble/(\d{4}-\d{2}-\d{2})/([0-9A-Za-z_\-]+)
 
 
 class StoreView:
-    """A revision store at one point in time, behind three readers so the SAME comparators run over a
-    git commit (the bar) and over a temp filesystem store (the selftest partners)."""
+    """A revision store at one point in time, behind readers + a git callable so the SAME comparators
+    (and the committed module's own validators) run over a git commit (the bar) and over a temp
+    filesystem store with a scripted git (the selftest partners)."""
 
-    def __init__(self, read, list_paths, read_blob, label: str):
+    def __init__(self, root, read, list_paths, read_blob, git, label: str):
+        self.root = root                  # the repo path handed to the module's validators
         self.read = read                  # rel -> bytes | None
         self.list_paths = list_paths      # () -> sorted rel paths under docs/ensemble/
         self.read_blob = read_blob        # git blob sha -> bytes (legacy records)
+        self.git = git                    # (repo, *args) -> bytes, the module's git seam
         self.label = label
+
+
+_HEX40_RE = re.compile(r"^[0-9a-f]{40}$")
+
+
+def _git_at(repo: str, commit: str):
+    """The module's git seam pinned to ONE commit: 'rev-parse HEAD' answers `commit`, and a log that
+    names no revision is bounded at `commit` -- so validate_legacy_baseline re-derives the capsule
+    as of the target commit, not as of the checkout's HEAD."""
+    def g(_repo, *a):
+        a = list(a)
+        if a[:2] == ["rev-parse", "HEAD"]:
+            return (commit + "\n").encode()
+        if a[:1] == ["log"] and "--" in a and not any(_HEX40_RE.match(x) for x in a):
+            i = a.index("--")
+            a = a[:i] + [commit] + a[i:]
+        r = subprocess.run(["git", "-C", repo] + a, capture_output=True)
+        if r.returncode != 0:
+            raise subprocess.CalledProcessError(r.returncode, ["git"] + a, r.stdout, r.stderr)
+        return r.stdout
+    return g
 
 
 def git_store_view(repo: str, commit: str) -> StoreView:
@@ -770,10 +809,17 @@ def git_store_view(repo: str, commit: str) -> StoreView:
 
     def read_blob(sha):
         return _git(repo, ["cat-file", "blob", sha], binary=True)
-    return StoreView(read, list_paths, read_blob, f"git {commit[:12]}")
+    return StoreView(repo, read, list_paths, read_blob, _git_at(repo, commit), f"git {commit[:12]}")
 
 
-def fs_store_view(root: str, blobs: Dict[str, bytes]) -> StoreView:
+def _no_git_authority(_repo, *a):
+    """A store view with no git seam can never validate a cutover capsule: fail closed (F1)."""
+    raise RuntimeError("no git authority for this store view -- the legacy capsule cannot be re-derived")
+
+
+def fs_store_view(root: str, blobs: Dict[str, bytes], git=None) -> StoreView:
+    git = git or _no_git_authority
+
     def read(rel):
         p = os.path.join(root, rel.replace("/", os.sep))
         if not os.path.exists(p):
@@ -792,7 +838,7 @@ def fs_store_view(root: str, blobs: Dict[str, bytes]) -> StoreView:
 
     def read_blob(sha):
         return blobs[sha]
-    return StoreView(read, list_paths, read_blob, f"fs {root}")
+    return StoreView(root, read, list_paths, read_blob, git, f"fs {root}")
 
 
 def _journal_prefix_bytes(raw: bytes, n: int) -> Optional[bytes]:
@@ -819,8 +865,13 @@ def lock_revision_store(view: StoreView, ens_mod, red_mod, REV, git_history=None
         if not isinstance(cap, dict) or cap.get("schema") != REV.LEGACY_SCHEMA:
             raise ValueError("schema")
         cap["_sha256"] = _sha(cap_raw)
+        # F1 (REV 6): the capsule is RE-DERIVED from git as of this view -- never trusted on its own claims
+        REV.validate_legacy_baseline(view.root, cap, git=view.git)
+    except REV.RevisionRefusal as e:
+        problems.append(f"C-7 {e}")
+        return {"state": "ACTIVE", "problems": problems, "n_revisions": 0, "n_dates": 0}
     except Exception as e:
-        problems.append(f"LEGACY_CAPSULE_INVALID: {e}")
+        problems.append(f"C-7 LEGACY_CAPSULE_INVALID: {type(e).__name__}: {e}")
         return {"state": "ACTIVE", "problems": problems, "n_revisions": 0, "n_dates": 0}
     if any(p.startswith(REV.TXN_DIR_REL + "/") for p in paths):
         problems.append("STAGING_DIR_IN_STORE: docs/ensemble/.txn present")
@@ -855,6 +906,13 @@ def lock_revision_store(view: StoreView, ens_mod, red_mod, REV, git_history=None
         if not isinstance(rv, dict) or set(rv) != REV.REVISION_FIELDS:
             problems.append(f"C-7 REVISION_BLOCK_NOT_CLOSED: {e['path']}")
             continue
+        # F3+F4 (REV 6): identity-linked to the journal line through the committed module's validator
+        # (schema, date/run_id/supersedes/REASON, canonical fired_utc == run-id prefix, closed
+        # source_index, typed persistence entries, inputs per-kind rules + one-to-one pins + recompute)
+        try:
+            REV.validate_revision_against_entry(rec, e)
+        except REV.RevisionRefusal as ex:
+            problems.append(f"C-7 {ex}")
         if not (rv["date"] == e["date"] == rec.get("date") and rv["run_id"] == e["run_id"]
                 and rv["supersedes"] == e["supersedes"]):
             problems.append(f"C-7 REVISION_IDENTITY_NE_JOURNAL: {e['path']}")
@@ -926,16 +984,24 @@ def lock_revision_store(view: StoreView, ens_mod, red_mod, REV, git_history=None
         cur_raw = recs.get(cur[mx]["run_id"], (None, None))[1]
         if latest is None or cur_raw is None or latest != cur_raw:
             problems.append(f"C-10 LATEST_NE_CURRENT: {mx} {cur[mx]['run_id']}")
-    # C-4 hard: csv == bound legacy prefix + current rows
+    # C-4 hard (F2, REV 6): the legacy prefix is the capsule's GIT BLOB reopened through git (digest +
+    # length + no CR), never checkout bytes; the surface must equal blob + current rows exactly
     csv_raw = view.read(REV.CSV_REL)
     lc = cap.get("legacy_csv") or {}
+    prefix = None
+    try:
+        prefix = view.git(view.root, "cat-file", "blob", lc["git_blob"])
+    except Exception as ex:
+        problems.append(f"C-4 CSV_LEGACY_BLOB_UNREADABLE: {type(ex).__name__}")
     if csv_raw is None:
         problems.append("C-4 CSV_ABSENT")
-    else:
-        n = lc.get("row_count", -1)
-        prefix = _journal_prefix_bytes(csv_raw, n + 1) if n >= 0 else None
-        if prefix is None or _sha(prefix) != lc.get("prefix_sha256"):
-            problems.append("C-4 CSV_LEGACY_PREFIX_CHANGED")
+    elif prefix is not None:
+        if _sha(prefix) != lc.get("prefix_sha256") or len(prefix) != lc.get("byte_length"):
+            problems.append("C-4 CSV_LEGACY_BLOB_MISMATCH: the committed legacy CSV blob does not hash to the capsule")
+        elif b"\r" in prefix:
+            problems.append("C-4 CSV_LEGACY_BLOB_NOT_LF")
+        elif csv_raw[:len(prefix)] != prefix:
+            problems.append("C-4 CSV_LEGACY_PREFIX_CHANGED: the surface no longer starts with the committed legacy blob")
         else:
             want = []
             for d in sorted(cur):
@@ -1444,37 +1510,25 @@ def revision_store_partners(ens_mod, red_mod, corpus: Corpus) -> int:
     legacy_day = (t_date - timedelta(days=1)).strftime("%Y-%m-%d")
     legacy_rec = rec_for(legacy_day)
     legacy_raw = REV.record_bytes(legacy_rec)
-    legacy_blob = "b" * 40
+    REC_BLOB, CSV_BLOB, HEAD = "b" * 40, "c" * 40, "1" * 40
     legacy_csv = ("date,region,tier,risk,confidence,methods,agreement\n"
                   + "\n".join(",".join(r) for r in REV._csv_rows_for_record(legacy_rec)) + "\n").encode()
-    blobs = {legacy_blob: legacy_raw}
+    blobs = {REC_BLOB: legacy_raw, CSV_BLOB: legacy_csv}
+    # the committed module's own scripted git: ONE committed legacy record + the LF legacy CSV blob at HEAD
+    fake_git = REV.make_fake_git(legacy_csv, legacy_raw, csv_blob=CSV_BLOB, rec_blob=REC_BLOB, head=HEAD)
+    code_raws = {p: (b"# kat " + p.encode() + b"\n") for p in REV.CODE_PATHS}
+    CAL_REL = REV.CALIBRATION_DIR_REL + "/kat.json"
+    CAL_RAW = b'{"region": "kat", "valid_through": "2026-09-09"}\n'
+    EXPECT = {"calibration_paths": [CAL_REL]}
 
-    def fake_git(_repo, *a):
-        if a[0] == "log":
-            return b"c1\n"
-        if a[0] == "rev-parse" and a[1] == "c1:docs/ensemble_latest.json":
-            return legacy_blob.encode() + b"\n"
-        if a[0] == "rev-parse" and a[1] == "HEAD":
-            return b"h" * 40 + b"\n"
-        if a[0] == "cat-file":
-            return legacy_raw
-        if a[0] == "show":
-            return legacy_csv
-        raise AssertionError(a)
-
-    code_rel = "monitoring/src/kat_code.py"
-    code_raw = b"# kat code\n"
-
-    def inputs_for(day, pins):
-        ents = [REV.input_entry("code", code_rel, None, None, raw_bytes=code_raw)]
+    def inputs_for(repo, cap, day, pins):
+        ents = [REV.input_entry("code", p, None, None, raw_bytes=code_raws[p]) for p in REV.CODE_PATHS]
+        ents.append(REV.input_entry("calibration_capsule", CAL_REL, None, ["region", "valid_through"],
+                                    raw_bytes=CAL_RAW))
         for pe in pins:
-            if pe["kind"] == "revision":
-                ents.append(REV.input_entry("prior_revision", pe["run_id"], pe["date"], None,
-                                            sha256=pe["sha256"], byte_length=None))
-            elif pe["kind"] == "legacy":
-                ents.append(REV.input_entry("legacy_record", pe["legacy"]["git_blob"], pe["date"], None,
-                                            sha256=pe["sha256"], byte_length=None))
-        ents.append(REV.input_entry("scored_day", day, day, None))
+            if pe["kind"] != "hole":
+                ents.append(REV.pin_input_entry(repo, cap, pe, git=fake_git))
+        ents.append(REV.scored_day_entry(day))
         return {"schema": REV.INPUTS_SCHEMA, "entries": ents}
 
     def publish(repo, cap, day, fired, bump=0, reason=None):
@@ -1487,19 +1541,27 @@ def revision_store_partners(ens_mod, red_mod, corpus: Corpus) -> int:
             pers = _persistence_replay(red_mod, ens_mod, td, rec, prior)
         for region in rec["regions"]:
             rec["regions"][region]["persistence"] = pers[region]
-        return REV.publish_revision(repo, rec, inputs_for(day, pins), snap, pins, fired, rescore_reason=reason)
+        return REV.publish_revision(repo, rec, inputs_for(repo, cap, day, pins), snap, pins, fired,
+                                    rescore_reason=reason, expect_inputs=EXPECT, git=fake_git)
 
     def build_store() -> Tuple[str, dict]:
         repo = tempfile.mkdtemp(prefix="corpus-rev-store-")
         os.makedirs(os.path.join(repo, "docs"))
-        os.makedirs(os.path.join(repo, "monitoring", "src"))
+        os.makedirs(os.path.join(repo, "monitoring", "dashboard"))
+        os.makedirs(os.path.join(repo, REV.CALIBRATION_DIR_REL.replace("/", os.sep)))
+        # the CHECKOUT csv is CRLF-translated (the Windows runner case); git authority is the LF blob
         with open(os.path.join(repo, "docs", "data.csv"), "wb") as f:
-            f.write(legacy_csv)
-        with open(os.path.join(repo, code_rel.replace("/", os.sep)), "wb") as f:
-            f.write(code_raw)
+            f.write(legacy_csv.replace(b"\n", b"\r\n"))
+        for p, raw in code_raws.items():
+            fp = os.path.join(repo, p.replace("/", os.sep))
+            os.makedirs(os.path.dirname(fp), exist_ok=True)
+            with open(fp, "wb") as f:
+                f.write(raw)
+        with open(os.path.join(repo, CAL_REL.replace("/", os.sep)), "wb") as f:
+            f.write(CAL_RAW)
         cap = REV.build_legacy_baseline(repo, git=fake_git)
-        REV.write_legacy_baseline(repo, cap)
-        cap = REV.load_legacy_baseline(repo)
+        REV.write_legacy_baseline(repo, cap, git=fake_git)
+        cap = REV.load_legacy_baseline(repo, git=fake_git)
         d1 = t_date.strftime("%Y-%m-%d")
         d2 = (t_date + timedelta(days=1)).strftime("%Y-%m-%d")
         f0 = datetime(2026, 9, 3, 6, 15, 1, 123456, tzinfo=_tz.utc)
@@ -1509,7 +1571,7 @@ def revision_store_partners(ens_mod, red_mod, corpus: Corpus) -> int:
         return repo, cap
 
     def lock(repo):
-        return lock_revision_store(fs_store_view(repo, blobs), ens_mod, red_mod, REV)
+        return lock_revision_store(fs_store_view(repo, blobs, fake_git), ens_mod, red_mod, REV)
 
     def last_entry(repo):
         return REV.parse_journal(REV.journal_bytes(repo))[-1]
@@ -1643,6 +1705,109 @@ def revision_store_partners(ens_mod, red_mod, corpus: Corpus) -> int:
         partner("M-W2 capsule removed with revisions present -> PARTIAL_STORE_BEFORE_CUTOVER (never a vacuous PRE_CUTOVER)",
                 m_partial, "PARTIAL_STORE_BEFORE_CUTOVER")
 
+        # ---- REV 6 partners: codex 1755Z F1-F4 through the SHARED validators
+        def cap_path(repo):
+            return os.path.join(repo, REV.LEGACY_REL.replace("/", os.sep))
+
+        def rewrite_capsule(repo, mutate):
+            cap = json.loads(open(cap_path(repo), "rb").read().decode("utf-8"))
+            mutate(cap)
+            open(cap_path(repo), "wb").write(REV.record_bytes(cap))
+
+        def m_forged_capsule(repo):
+            # codex RED-2: schema + empty records + a self-consistent legacy_csv block, nothing else
+            cap = json.loads(open(cap_path(repo), "rb").read().decode("utf-8"))
+            forged = {"schema": REV.LEGACY_SCHEMA, "records": [],
+                      "legacy_csv": {"row_count": cap["legacy_csv"]["row_count"],
+                                     "prefix_sha256": cap["legacy_csv"]["prefix_sha256"]}}
+            open(cap_path(repo), "wb").write(REV.record_bytes(forged))
+        partner("M-X codex RED-2: forged capsule (empty records, self-consistent csv block) -> C-7 not derived from cutover",
+                m_forged_capsule, "LEGACY_CAPSULE_NOT_DERIVED_FROM_CUTOVER")
+
+        def m_drop_record(repo):
+            rewrite_capsule(repo, lambda cap: cap["records"].pop())
+        partner("M-Y one legacy record deleted from the capsule -> C-7 record vector diverges",
+                m_drop_record, "LEGACY_CAPSULE_NOT_DERIVED_FROM_CUTOVER")
+
+        def m_dup_record(repo):
+            rewrite_capsule(repo, lambda cap: cap["records"].append(dict(cap["records"][0])))
+        partner("M-Y2 a legacy record duplicated -> C-7 record vector diverges",
+                m_dup_record, "LEGACY_CAPSULE_NOT_DERIVED_FROM_CUTOVER")
+
+        def m_csv_meta(repo):
+            def mut(cap):
+                cap["legacy_csv"]["row_count"] += 1
+            rewrite_capsule(repo, mut)
+        partner("M-Z legacy_csv.row_count altered -> C-7 csv metadata does not recompute",
+                m_csv_meta, "LEGACY_CAPSULE_NOT_DERIVED_FROM_CUTOVER")
+
+        def m_cutover(repo):
+            def mut(cap):
+                cap["cutover_commit"] = "2" * 40
+            rewrite_capsule(repo, mut)
+        partner("M-AA cutover_commit changed -> C-7 declared cutover is not HEAD",
+                m_cutover, "LEGACY_CAPSULE_NOT_DERIVED_FROM_CUTOVER")
+
+        def m_reason(repo):
+            # codex RED-4: revision.reason differs from the journal line, re-sealed
+            def mut(rec):
+                rec["revision"]["reason"] = "KAT rescore (forged)"
+            rewrite_last_revision(repo, mut)
+        partner("M-AB codex RED-4: revision.reason != journal reason (re-sealed) -> REVISION_IDENTITY",
+                m_reason, "REVISION_IDENTITY: revision.reason")
+
+        def m_fired(repo):
+            def mut(rec):
+                rec["revision"]["fired_utc"] = "2026-09-04T12:15:01.999999Z"
+            rewrite_last_revision(repo, mut)
+        partner("M-AC fired_utc != run-id time prefix (re-sealed) -> REVISION_IDENTITY",
+                m_fired, "REVISION_IDENTITY: run_id time prefix")
+
+        def m_inputs_null(repo):
+            # codex RED-3: a semantically empty input entry (all-None fields) inside a re-sealed revision
+            def mut(rec):
+                ents = rec["revision"]["inputs"]["entries"]
+                ents[0]["byte_length"] = None
+            rewrite_last_revision(repo, mut)
+        partner("M-AD codex RED-3: an inputs entry with a null length (re-sealed) -> INPUTS_CAPSULE_SCHEMA",
+                m_inputs_null, "INPUTS_CAPSULE_SCHEMA")
+
+        def m_inputs_pin(repo):
+            def mut(rec):
+                for ent in rec["revision"]["inputs"]["entries"]:
+                    if ent["kind"] == "prior_revision":
+                        ent["data_day"] = "1999-01-01"
+            rewrite_last_revision(repo, mut)
+        partner("M-AD2 an inputs prior_revision entry that no longer matches its persistence pin -> one-to-one refusal",
+                m_inputs_pin, "INPUTS_CAPSULE_SCHEMA")
+
+        # M-AE: MEASURE the CRLF-checkout residual (cayley's lane). core.autocrlf=true on this class of host
+        # translates docs/ensemble/** on checkout/pull; the module compares raw bytes. This is reported, not
+        # asserted, so the number is on the record until the daily path pins eol for the store.
+        repo = tempfile.mkdtemp(prefix="corpus-rev-crlf-")
+        shutil.rmtree(repo)
+        shutil.copytree(base_repo, repo)
+        try:
+            translated = 0
+            for dp, _dn, fns in os.walk(os.path.join(repo, REV_DIR.replace("/", os.sep))):
+                for fn in fns:
+                    fp = os.path.join(dp, fn)
+                    raw = open(fp, "rb").read()
+                    if b"\r\n" not in raw:
+                        open(fp, "wb").write(raw.replace(b"\n", b"\r\n"))
+                        translated += 1
+            try:
+                REV.check_store_clean(repo)
+                outcome = "module ACCEPTS the CRLF-translated store"
+            except REV.RevisionRefusal as ex:
+                outcome = f"module REFUSES the CRLF-translated store: {str(ex).split(':')[0]}"
+            r = lock(repo)
+            _note("M-AE CRLF-checkout residual (measured, not asserted)",
+                  f"{translated} store file(s) CRLF-translated as autocrlf=true would on checkout -> {outcome}; "
+                  f"fs-view lock problems={len(r['problems'])}; git-blob authority (the bar's) unaffected")
+        finally:
+            shutil.rmtree(repo, ignore_errors=True)
+
         repo = tempfile.mkdtemp(prefix="corpus-rev-noop-")
         shutil.rmtree(repo)
         shutil.copytree(base_repo, repo)
@@ -1680,7 +1845,7 @@ def main(argv: List[str]) -> int:
     except RuntimeError as e:
         print(f"CORPUS_REVISION_UNRESOLVABLE: {e}")
         return 2
-    print(f"DAILY-TIER-CORPUS red-KAT bar (grassmann, REV 5) -- repo {repo} commit {a.commit}")
+    print(f"DAILY-TIER-CORPUS red-KAT bar (grassmann, REV 6) -- repo {repo} commit {a.commit}")
     if a.write_ledger:
         print("  UNBOUND: --write-ledger authors the sidecar from the measured set; it emits NO verdict")
     else:

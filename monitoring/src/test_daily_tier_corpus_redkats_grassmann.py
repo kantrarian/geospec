@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-DAILY-TIER-CORPUS red-KAT bar -- grassmann, 2026-09-01 (REV 2: codex 2303Z repairs 1-2).
+DAILY-TIER-CORPUS red-KAT bar -- grassmann, 2026-09-02 (REV 3: codex 0003Z repairs 1-2 on top of 2303Z).
 
 Locks the daily monitor's tier / renormalization / single-method-cap /
 persistence / summary / append-only-history layer against the program's
@@ -16,10 +16,31 @@ re-implements the combine logic as an oracle: if the logic in
 `ensemble.py` / `run_ensemble_daily.py` changes, the committed corpus stops
 reproducing and the bar names the exact region-days and fields that flip.
 
+TWO COMMITS. `--commit` (target_commit) is the production history under
+audit. `--bar-commit` (bar_commit) is the commit the EXECUTING bar and its
+sidecar ledger are bound to; it defaults to the worktree's exact HEAD and is
+overridable only explicitly. Before the ledger is loaded or any lock is
+reported, SOURCE BINDING (exit 3, typed) requires, in this order:
+  CORPUS_BAR_NOT_IN_TREE    the executing module's __file__ is not (samefile)
+                            <repo>/monitoring/src/<this file>;
+  CORPUS_BAR_NOT_COMMITTED  bar_commit has no blob at that path (or none for
+                            the sidecar);
+  CORPUS_BAR_DIVERGENT      the executing bar's LF bytes != its blob at
+                            bar_commit;
+  CORPUS_LEDGER_DIVERGENT   the live sidecar's LF bytes != its blob at
+                            bar_commit (the independent LEDGER_SHA256 pin in
+                            C-6 is retained as defense in depth).
+Both commits and all four full blob digests (bar / ledger at bar_commit, and
+the live files) are printed on every run. A byte-modified external copy of
+this bar, an edited in-tree bar, or an edited sidecar therefore cannot emit a
+commit-labelled verdict (selftest M-K proves each refusal, and the untouched
+committed positive proceeds).
+
 LOCKS (typed, PASS/FAIL, exit 1 on any FAIL):
   C-0 BINDING      --commit resolves; the worktree copies of the two audited
                    modules are byte-identical (LF) to the blobs at that commit
-                   (else CORPUS_WORKTREE_DIVERGENT); corpus = every
+                   (else CORPUS_WORKTREE_DIVERGENT); the source binding above
+                   is reported here with its digests; corpus = every
                    docs/ensemble_latest.json blob in `git rev-list <commit>`.
                    Blobs that are not a record are a FROZEN EXCLUSION SET
                    (UNPARSEABLE_EXCLUSIONS, full commit sha -> blob digest):
@@ -54,8 +75,14 @@ LOCKS (typed, PASS/FAIL, exit 1 on any FAIL):
                    rewrites (there were 22) are pinned as an exact list.
   C-6 LEDGER       EXACT-SET lock. Every typed exception of C-0/C-1/C-2a/C-4 is
                    an identity: (lock, class, date, region, FULL source commit
-                   or CSV line) + a digest of its classified content (the diff
-                   text, or the actual+expected rows). The full set lives in the
+                   or CSV line) + the FULL 64-hex sha256 of its classified
+                   content, hashed as canonical compact sorted-key JSON of the
+                   STRUCTURED value ({"diffs": [...]} for C-1/C-2a,
+                   {"actual": [cells], "expected": [cells]} for C-4, the raw
+                   blob for C-0) -- never a newline- or '|'-joined string, so
+                   values containing those characters cannot share a preimage
+                   (selftest M-J proves the old joined framing collides and the
+                   canonical framing separates). The full set lives in the
                    sidecar LEDGER_FILE whose sha256 is pinned here
                    (LEDGER_SHA256). The measured set must EQUAL the frozen set;
                    any added, removed, moved, reclassified or content-changed
@@ -72,11 +99,19 @@ must stay CLEAN; a same-count/same-max-date swap of two CSV exceptions
 (codex's line-3962/3970 substitution) must go RED under the exact-set
 ledger while the old count+max summary would have accepted it; making a
 parseable blob unparseable must go RED, and a swap that preserves the
-exclusion count must go RED.
+exclusion count must go RED; a same-key content change of one exception
+must change its full identity (M-I); the framing KAT (M-J) must show the
+old joined preimage colliding and the canonical one separating; and the
+source-binding KATs (M-K, run as real child processes in a throwaway
+detached worktree at bar_commit) must show an external byte-modified bar,
+an edited in-tree bar and an edited sidecar each REFUSED with the typed
+code before any lock line, while the untouched committed positive binds.
 
 Usage (from monitoring/src):
   python test_daily_tier_corpus_redkats_grassmann.py --repo <root> [--commit <rev>]
-      [--selftest] [--dump-ledger] [--write-ledger <path>]
+      [--bar-commit <rev>] [--selftest] [--bind-only] [--dump-ledger] [--write-ledger <path>]
+  --write-ledger is the only mode that runs UNBOUND (it authors the sidecar and
+  emits no verdict); it says so loudly.
 """
 import argparse
 import csv
@@ -100,6 +135,9 @@ sys.path.insert(0, HERE)
 RECORD_PATH = "docs/ensemble_latest.json"
 CSV_PATH = "docs/data.csv"
 AUDITED = ("monitoring/src/ensemble.py", "monitoring/src/run_ensemble_daily.py")
+BAR_FILE = "test_daily_tier_corpus_redkats_grassmann.py"
+BAR_PATH = "monitoring/src/" + BAR_FILE
+BOUND: Optional[dict] = None   # set by bind_sources(); report() refuses to run without it
 FROZEN_NOTE = "FROZEN (incident 2026-07-31): excluded from tier pending fix"
 FLOAT_TOL = 1e-12
 CSV_HEADER = ["date", "region", "tier", "risk", "confidence", "methods", "agreement"]
@@ -122,7 +160,8 @@ UNPARSEABLE_EXCLUSIONS: Dict[str, str] = {
 
 # Exact exception ledger: sidecar JSON (sorted list of identity dicts), sha256 pinned.
 LEDGER_FILE = "daily_tier_corpus_ledger_grassmann.json"
-LEDGER_SHA256 = "12f7286de439fc031e0cb21365f47b5f7dc7a46b16b4a388609e8ca5cdbf9bc2"   # 2,017 identities @ public 94968394
+LEDGER_PATH = "monitoring/src/" + LEDGER_FILE
+LEDGER_SHA256 = "5de4948a29d435ee8f882f460a01cd8485a031b72fde873e54527add917804d3"   # 2,017 identities @ public 94968394 (REV 3 full-digest canonical framing)
 
 # The 22 pre-era docs/data.csv rewrites, (older commit, newer commit), pinned.
 PRE_ERA_CSV_REWRITES: Tuple[Tuple[str, str], ...] = (
@@ -172,8 +211,15 @@ def _sha(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
-def _d16(text: str) -> str:
-    return _sha(text.encode("utf-8"))[:16]
+def _canon(obj) -> bytes:
+    """Canonical compact sorted-key UTF-8 JSON: length-framed by construction, so structured values
+    containing newlines or '|' cannot share a preimage."""
+    return json.dumps(obj, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+
+
+def _digest_json(obj) -> str:
+    """FULL 64-hex sha256 of the canonical structured value (codex 0003Z #2)."""
+    return _sha(_canon(obj))
 
 
 # --------------------------------------------------------------------------- git
@@ -513,7 +559,7 @@ def lock_c4_data_csv(corpus: Corpus, csv_text: str) -> Tuple[List[str], List[dic
         earliest = corpus.earliest(date)
         if earliest is None or region not in earliest["regions"]:
             entries.append({"cls": "NO_COMMITTED_RECORD", "line": n, "date": date, "region": region,
-                            "actual": ",".join(row), "expected": ""})
+                            "actual": list(row), "expected": []})
             continue
         exp = _csv_row_for(earliest["regions"][region], date, region)
         if row == exp:
@@ -527,7 +573,7 @@ def lock_c4_data_csv(corpus: Corpus, csv_text: str) -> Tuple[List[str], List[dic
         else:
             cls = "PRE_ERA_LATER_VERSION" if row in alts else "PRE_ERA_ROW_MISMATCH"
         entries.append({"cls": cls, "line": n, "date": date, "region": region,
-                        "actual": ",".join(row), "expected": ",".join(exp)})
+                        "actual": list(row), "expected": list(exp)})
     return problems, entries, len(rows) - 1
 
 
@@ -571,17 +617,18 @@ def exception_set(res: dict) -> List[dict]:
     corpus: Corpus = res["corpus"]
     out: List[dict] = []
     for c, dg in corpus.unparseable.items():
-        out.append({"lock": "C-0", "cls": "UNPARSEABLE_RECORD", "commit": c, "digest": dg[:16]})
+        out.append({"lock": "C-0", "cls": "UNPARSEABLE_RECORD", "commit": c, "digest": dg})
     for (d, r, c), diffs in res["c1"].items():
         cls = classify_c1((d, r, c), diffs, corpus.by_commit[c]["regions"][r])
         out.append({"lock": "C-1", "cls": cls, "date": d, "region": r, "commit": c,
-                    "digest": _d16("\n".join(diffs))})
+                    "digest": _digest_json({"diffs": list(diffs)})})
     for (d, r, c), (cls, diffs) in res["c2a"].items():
         out.append({"lock": "C-2a", "cls": cls, "date": d, "region": r, "commit": c,
-                    "digest": _d16("\n".join(diffs))})
+                    "digest": _digest_json({"diffs": list(diffs)})})
     for e in res["c4entries"]:
         out.append({"lock": "C-4", "cls": e["cls"], "date": e["date"], "region": e["region"],
-                    "line": e["line"], "digest": _d16(e["actual"] + "|" + e["expected"])})
+                    "line": e["line"], "digest": _digest_json({"actual": list(e["actual"]),
+                                                                "expected": list(e["expected"])})})
     return sorted(out, key=lambda e: json.dumps(e, sort_keys=True))
 
 
@@ -594,6 +641,54 @@ def load_ledger() -> Tuple[List[dict], str]:
     with open(path, "rb") as f:
         raw = f.read()
     return json.loads(raw.replace(b"\r\n", b"\n")), _lf_sha(raw)
+
+
+def bind_sources(repo: str, bar_commit_rev: str) -> dict:
+    """codex 0003Z #1: bind the EXECUTING bar and its live sidecar to their blobs at bar_commit.
+    Refuses (SystemExit, exit 3, typed) BEFORE the ledger is loaded or any lock is reported.
+    Order: in-tree (samefile) -> committed at bar_commit -> bar bytes -> ledger bytes."""
+    global BOUND
+    bar_commit = _git(repo, ["rev-parse", f"{bar_commit_rev}^{{commit}}"])
+    expected_bar = os.path.join(repo, BAR_PATH.replace("/", os.sep))
+    executing = os.path.abspath(__file__)
+    try:
+        in_tree = os.path.samefile(executing, expected_bar)
+    except OSError:
+        in_tree = False
+    if not in_tree:
+        raise SystemExit(f"CORPUS_BAR_NOT_IN_TREE: executing {executing} is not {expected_bar}")
+    blobs = {}
+    for rel in (BAR_PATH, LEDGER_PATH):
+        try:
+            blobs[rel] = _lf_sha(_blob(repo, bar_commit, rel))
+        except RuntimeError as e:
+            raise SystemExit(f"CORPUS_BAR_NOT_COMMITTED: {rel} has no blob at bar_commit {bar_commit[:12]}: {e}")
+    with open(executing, "rb") as f:
+        live_bar = _lf_sha(f.read())
+    if live_bar != blobs[BAR_PATH]:
+        raise SystemExit(f"CORPUS_BAR_DIVERGENT: executing bar {live_bar} != blob {blobs[BAR_PATH]} "
+                         f"at bar_commit {bar_commit[:12]}")
+    ledger_live_path = os.path.join(HERE, LEDGER_FILE)
+    try:
+        with open(ledger_live_path, "rb") as f:
+            live_ledger = _lf_sha(f.read())
+    except FileNotFoundError:
+        raise SystemExit(f"CORPUS_LEDGER_DIVERGENT: live sidecar {ledger_live_path} missing; blob at "
+                         f"bar_commit {bar_commit[:12]} = {blobs[LEDGER_PATH]}")
+    if live_ledger != blobs[LEDGER_PATH]:
+        raise SystemExit(f"CORPUS_LEDGER_DIVERGENT: live sidecar {live_ledger} != blob {blobs[LEDGER_PATH]} "
+                         f"at bar_commit {bar_commit[:12]}")
+    BOUND = {"bar_commit": bar_commit, "bar_blob": blobs[BAR_PATH], "bar_live": live_bar,
+             "ledger_blob": blobs[LEDGER_PATH], "ledger_live": live_ledger, "bar_file": executing}
+    return BOUND
+
+
+def print_binding(bound: dict, target_commit: str) -> None:
+    print(f"  SOURCE BINDING: bar_commit {bound['bar_commit']} / target_commit {target_commit}")
+    print(f"    bar    {BAR_PATH}: blob {bound['bar_blob']}")
+    print(f"           live == blob: {bound['bar_live']} ({bound['bar_file']})")
+    print(f"    ledger {LEDGER_PATH}: blob {bound['ledger_blob']}")
+    print(f"           live == blob: {bound['ledger_live']}")
 
 
 def class_summary(entries: List[dict]) -> Dict[Tuple[str, str], Tuple[int, str]]:
@@ -640,6 +735,8 @@ def run_bar(repo: str, commit: str, ens_mod=None, red_mod=None, quiet: bool = Fa
 
 
 def report(res: dict) -> None:
+    if BOUND is None:
+        raise SystemExit("CORPUS_UNBOUND_REPORT: report() called before bind_sources()")
     corpus: Corpus = res["corpus"]
     exc = res["exceptions"]
     summ = class_summary(exc)
@@ -659,7 +756,9 @@ def report(res: dict) -> None:
     if excl_diff:
         _fail("C-0 BINDING", f"frozen exclusion set changed: {excl_diff[:4]}")
     else:
-        _ok("C-0 BINDING", f"{res['commit'][:12]}: audited modules byte-bound; {cov}; "
+        _ok("C-0 BINDING", f"target {res['commit'][:12]}: audited modules byte-bound; bar+sidecar bound to "
+                           f"bar_commit {BOUND['bar_commit'][:12]} (bar blob {BOUND['bar_blob'][:12]}, "
+                           f"ledger blob {BOUND['ledger_blob'][:12]}); {cov}; "
                            f"exclusion set = {len(UNPARSEABLE_EXCLUSIONS)} pinned zero-byte blob(s) "
                            f"{[c[:10] for c in UNPARSEABLE_EXCLUSIONS]}, exact")
 
@@ -734,6 +833,13 @@ def report(res: dict) -> None:
     if sha != LEDGER_SHA256:
         _fail("C-6 LEDGER", f"sidecar sha256 {sha[:16]} != pinned {LEDGER_SHA256[:16]}")
         return
+    if sha != BOUND["ledger_blob"]:
+        _fail("C-6 LEDGER", f"sidecar sha256 {sha[:16]} != blob {BOUND['ledger_blob'][:16]} at bar_commit")
+        return
+    bad_digest = [e for e in frozen if not re.fullmatch(r"[0-9a-f]{64}", str(e.get("digest", "")))]
+    if bad_digest:
+        _fail("C-6 LEDGER", f"{len(bad_digest)} frozen identities without a full 64-hex digest: {bad_digest[:2]}")
+        return
     fro = {_identity(e) for e in frozen}
     mea = {_identity(e) for e in exc}
     added, removed = sorted(mea - fro), sorted(fro - mea)
@@ -742,7 +848,8 @@ def report(res: dict) -> None:
                             f"added {added[:3]}; removed {removed[:3]}")
     else:
         _ok("C-6 LEDGER", f"{len(fro)} frozen exception identities == measured set exactly "
-                          f"(sidecar {LEDGER_FILE} sha {sha[:12]})")
+                          f"(sidecar {LEDGER_FILE} sha {sha[:12]} == pin == blob at bar_commit "
+                          f"{BOUND['bar_commit'][:12]}; full 64-hex canonical-JSON content digests)")
 
 
 # --------------------------------------------------------------------------- selftest
@@ -830,7 +937,7 @@ def selftest(repo: str, commit: str) -> int:
         dis = [e for e in base["c4entries"] if e["cls"] == "CSV_RECORD_DISAGREEMENT"]
         target = dis[-1]
         lines = csv_text.split("\n")
-        lines[target["line"] - 1] = target["expected"]                       # repair
+        lines[target["line"] - 1] = ",".join(target["expected"])             # repair
         victim = next(i for i in range(1, len(lines)) if lines[i].startswith(target["date"] + ",")
                       and (i + 1) not in {e["line"] for e in dis})
         vc = lines[victim].split(","); vc[3] = "0.9999"; lines[victim] = ",".join(vc)   # break
@@ -856,11 +963,11 @@ def selftest(repo: str, commit: str) -> int:
         ca = Corpus(repo, base["commit"], blob_reader=lambda c: b"" if c == victim_c else real_read(c))
         cb = Corpus(repo, base["commit"], blob_reader=lambda c: b"" if c == victim_c else
                     (good if c == excluded_c else real_read(c)))
-        frozen_ids = {json.dumps({"lock": "C-0", "cls": "UNPARSEABLE_RECORD", "commit": c, "digest": d[:16]},
+        frozen_ids = {json.dumps({"lock": "C-0", "cls": "UNPARSEABLE_RECORD", "commit": c, "digest": d},
                                  sort_keys=True) for c, d in UNPARSEABLE_EXCLUSIONS.items()}
-        ids_a = {json.dumps({"lock": "C-0", "cls": "UNPARSEABLE_RECORD", "commit": c, "digest": d[:16]},
+        ids_a = {json.dumps({"lock": "C-0", "cls": "UNPARSEABLE_RECORD", "commit": c, "digest": d},
                             sort_keys=True) for c, d in ca.unparseable.items()}
-        ids_b = {json.dumps({"lock": "C-0", "cls": "UNPARSEABLE_RECORD", "commit": c, "digest": d[:16]},
+        ids_b = {json.dumps({"lock": "C-0", "cls": "UNPARSEABLE_RECORD", "commit": c, "digest": d},
                             sort_keys=True) for c, d in cb.unparseable.items()}
         ok_a = len(ca.unparseable) == len(UNPARSEABLE_EXCLUSIONS) + 1 and ids_a != frozen_ids
         ok_b = len(cb.unparseable) == len(UNPARSEABLE_EXCLUSIONS) and ids_b != frozen_ids
@@ -871,6 +978,102 @@ def selftest(repo: str, commit: str) -> int:
             fails += 1
             _fail("M-H unparseable-blob KATs", f"added={ok_a} swap={ok_b}")
 
+        # M-I (codex 0003Z #2): SAME-KEY content change. One C-2a exception keeps (lock, cls, date,
+        # region, commit) and has one character of its classified content changed. Every non-digest
+        # key of the measured set must be unchanged, yet the identity set must differ by exactly one
+        # identity each way (RED under set equality).
+        k2, (cls2, diffs2) = next(iter(base["c2a"].items()))
+        alt_c2a = dict(base["c2a"])
+        alt_c2a[k2] = (cls2, [diffs2[0] + "X"] + list(diffs2[1:]))
+        alt = exception_set({"corpus": corpus, "c1": base["c1"], "c2a": alt_c2a, "c4entries": base["c4entries"]})
+        strip = lambda e: {k: v for k, v in e.items() if k != "digest"}
+        same_keys = sorted(_identity(strip(e)) for e in alt) == sorted(_identity(strip(e)) for e in base["exceptions"])
+        base_ids, alt_ids = {_identity(e) for e in base["exceptions"]}, {_identity(e) for e in alt}
+        full_hex = all(re.fullmatch(r"[0-9a-f]{64}", e["digest"]) for e in alt)
+        if same_keys and len(alt_ids - base_ids) == 1 and len(base_ids - alt_ids) == 1 and full_hex:
+            _ok("M-I same-key content change flips exactly one full 64-hex identity",
+                f"{k2[0]} {k2[1]} @{k2[2][:10]} ({cls2})")
+        else:
+            fails += 1
+            _fail("M-I same-key content change", f"same_keys={same_keys} +{len(alt_ids - base_ids)} "
+                                                 f"-{len(base_ids - alt_ids)} full_hex={full_hex}")
+
+        # M-J (codex 0003Z #2): FRAMING. Values containing newline / '|' / ',' : REV 2's joined-text
+        # preimages COLLIDE (proved here), the canonical structured JSON digests SEPARATE.
+        old_c1 = ("\n".join(["x\ny", "z"]), "\n".join(["x", "y\nz"]))
+        old_c4 = ("a|b" + "|" + "c", "a" + "|" + "b|c")
+        old_cells = (",".join(["a,b", "c"]), ",".join(["a", "b,c"]))
+        new_c1 = (_digest_json({"diffs": ["x\ny", "z"]}), _digest_json({"diffs": ["x", "y\nz"]}))
+        new_c4 = (_digest_json({"actual": ["a|b"], "expected": ["c"]}),
+                  _digest_json({"actual": ["a"], "expected": ["b|c"]}))
+        new_cells = (_digest_json({"actual": ["a,b", "c"], "expected": []}),
+                     _digest_json({"actual": ["a", "b,c"], "expected": []}))
+        collide = old_c1[0] == old_c1[1] and old_c4[0] == old_c4[1] and old_cells[0] == old_cells[1]
+        separate = new_c1[0] != new_c1[1] and new_c4[0] != new_c4[1] and new_cells[0] != new_cells[1]
+        if collide and separate:
+            _ok("M-J framing: joined-text preimages collide (newline, '|', ','); canonical JSON separates",
+                "3 of 3 pairs each way")
+        else:
+            fails += 1
+            _fail("M-J framing", f"old_collide={collide} new_separate={separate}")
+
+        # M-K (codex 0003Z #1): SOURCE BINDING, as REAL child processes. (a) an external byte-modified
+        # copy of this bar (with a matching sidecar beside it) run against the pristine tree; then in a
+        # throwaway DETACHED worktree at bar_commit: (d) the untouched committed positive BINDS,
+        # (b) an edited in-tree bar and (c) an edited sidecar are each REFUSED with the typed code,
+        # exit 3, before any lock line.
+        bar_commit = BOUND["bar_commit"]
+
+        def child(bar_path: str, repo_arg: str) -> Tuple[int, str]:
+            r = subprocess.run([sys.executable, bar_path, "--repo", repo_arg, "--commit", base["commit"],
+                                "--bind-only"], capture_output=True, text=True, cwd=os.path.dirname(bar_path))
+            return r.returncode, r.stdout + r.stderr
+
+        def refused(code: int, out: str, typed: str) -> bool:
+            return code == 3 and typed in out and "[PASS]" not in out and "[FAIL]" not in out
+
+        ext = os.path.join(td, "external_copy")
+        os.makedirs(ext)
+        with open(__file__, "rb") as f:
+            bar_bytes = f.read()
+        ext_bar = os.path.join(ext, BAR_FILE)
+        with open(ext_bar, "wb") as f:
+            f.write(bar_bytes + b"\n# externally modified\n")
+        with open(os.path.join(HERE, LEDGER_FILE), "rb") as f:
+            ledger_bytes = f.read()
+        with open(os.path.join(ext, LEDGER_FILE), "wb") as f:
+            f.write(ledger_bytes)
+        code_a, out_a = child(ext_bar, repo)
+        ok_ka = refused(code_a, out_a, "CORPUS_BAR_NOT_IN_TREE")
+
+        wt = os.path.join(td, "wt_bind")
+        _git(repo, ["worktree", "add", "--detach", wt, bar_commit])
+        try:
+            wt_bar = os.path.join(wt, BAR_PATH.replace("/", os.sep))
+            wt_ledger = os.path.join(wt, LEDGER_PATH.replace("/", os.sep))
+            code_d, out_d = child(wt_bar, wt)
+            ok_kd = code_d == 0 and "SOURCE BINDING" in out_d and "BIND-ONLY" in out_d \
+                and f"bar_commit {bar_commit}" in out_d and "[PASS]" not in out_d
+            with open(wt_bar, "ab") as f:
+                f.write(b"\n# edited in tree\n")
+            code_b, out_b = child(wt_bar, wt)
+            ok_kb = refused(code_b, out_b, "CORPUS_BAR_DIVERGENT")
+            _git(wt, ["checkout", "--", BAR_PATH])
+            with open(wt_ledger, "ab") as f:
+                f.write(b"\n")
+            code_c, out_c = child(wt_bar, wt)
+            ok_kc = refused(code_c, out_c, "CORPUS_LEDGER_DIVERGENT")
+        finally:
+            _git(repo, ["worktree", "remove", "--force", wt])
+        if ok_ka and ok_kb and ok_kc and ok_kd:
+            _ok("M-K source binding: external copy / edited in-tree bar / edited sidecar REFUSED (exit 3, "
+                "typed, no lock line); untouched committed positive BINDS", f"bar_commit {bar_commit[:12]}")
+        else:
+            fails += 1
+            _fail("M-K source binding", f"external={ok_ka}({code_a}) in-tree={ok_kb}({code_b}) "
+                                        f"sidecar={ok_kc}({code_c}) positive={ok_kd}({code_d}); "
+                                        f"tail: {out_d.strip().splitlines()[-1:] if out_d.strip() else out_d!r}")
+
     print()
     print("DAILY-TIER-CORPUS SELFTEST: " + ("ALL PASS" if not fails else f"{fails} FAIL"))
     return 1 if fails else 0
@@ -880,19 +1083,39 @@ def selftest(repo: str, commit: str) -> int:
 def main(argv: List[str]) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--repo", required=True)
-    ap.add_argument("--commit", default="HEAD")
+    ap.add_argument("--commit", default="HEAD", help="target_commit: the production history under audit")
+    ap.add_argument("--bar-commit", default="HEAD",
+                    help="bar_commit: the commit the EXECUTING bar + sidecar must be byte-bound to "
+                         "(default: the worktree's exact HEAD; override only explicitly)")
     ap.add_argument("--selftest", action="store_true")
+    ap.add_argument("--bind-only", action="store_true", help="perform source binding, print it, emit no verdict")
     ap.add_argument("--dump-ledger", action="store_true", help="print the measured class summary + exclusions")
-    ap.add_argument("--write-ledger", default=None, help="write the measured exception set to this path")
+    ap.add_argument("--write-ledger", default=None, help="write the measured exception set to this path (UNBOUND)")
     a = ap.parse_args(argv)
     logging.disable(logging.CRITICAL)
     repo = os.path.abspath(a.repo)
     try:
-        _git(repo, ["rev-parse", f"{a.commit}^{{commit}}"])
+        target = _git(repo, ["rev-parse", f"{a.commit}^{{commit}}"])
     except RuntimeError as e:
         print(f"CORPUS_REVISION_UNRESOLVABLE: {e}")
         return 2
-    print(f"DAILY-TIER-CORPUS red-KAT bar (grassmann, REV 2) -- repo {repo} commit {a.commit}")
+    print(f"DAILY-TIER-CORPUS red-KAT bar (grassmann, REV 3) -- repo {repo} commit {a.commit}")
+    if a.write_ledger:
+        print("  UNBOUND: --write-ledger authors the sidecar from the measured set; it emits NO verdict")
+    else:
+        try:
+            bound = bind_sources(repo, a.bar_commit)
+        except RuntimeError as e:
+            print(f"CORPUS_REVISION_UNRESOLVABLE: bar_commit {a.bar_commit}: {e}")
+            return 2
+        except SystemExit as e:
+            print(str(e))
+            print("SOURCE BINDING REFUSED -- no corpus verdict")
+            return 3
+        print_binding(bound, target)
+        if a.bind_only:
+            print("BIND-ONLY: sources bound; no corpus verdict emitted")
+            return 0
     if a.selftest:
         return selftest(repo, a.commit)
     res = run_bar(repo, a.commit)

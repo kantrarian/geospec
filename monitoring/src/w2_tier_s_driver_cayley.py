@@ -1914,10 +1914,14 @@ def _selftest(real_repo):
              "prevented')\n            mod = "
              "importlib.import_module(modname)",
              "MUTATION: runner entry prevented", False),
-            ("break committed-pre loading",
+            # the FIRST `if committed != live:` in this file is now the
+            # trust-root gate in _enter (codex 0149Z), which precedes
+            # _require_committed_pre; breaking it refuses with _enter's
+            # measured text (v4 run 03:18Z), before any import
+            ("break committed-pre loading (trust-root gate)",
              "if committed != live:",
              "if True:",
-             "the committed pre-invocation differs byte-for-byte", True),
+             "the live pre-invocation differs byte-for-byte", True),
         ]
         drv_src = pristine.decode("utf-8")
 

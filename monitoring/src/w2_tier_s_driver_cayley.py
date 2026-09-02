@@ -2747,7 +2747,11 @@ def _selftest(real_repo):
         #   phase2 (validated LOCO carriers) -> aggregate -> commit ->
         #   finalize -> commit -> select -> commit -> verify-select == 0
         #   -> a fresh core.autocrlf=true worktree reproduces the run
-        #   bytes and verify-select is ADMITTED there (D-11f)
+        #   bytes and verify-select is ADMITTED there (D-11f) -> the
+        #   unprotected-checkout CRLF twin of the pre and of the
+        #   selector, written over the live carriers there, is measured
+        #   through the same verify-select and the exact blob bytes
+        #   re-ADMIT (D-11f-neg)
         # plus the identity join's locks on the real tree. ~11 minutes;
         # that cost is the point.
         pbt = tempfile.mkdtemp(prefix="d11-process-boundary-")
@@ -3174,6 +3178,77 @@ def _selftest(real_repo):
                   "reproduces pre/results/final smoke/selector byte-equal "
                   "to their git blobs (tier_s_run_*/** -text) and "
                   "verify-select is ADMITTED there")
+            # ---- D-11f-neg (verifier LOW finding 2 on 5c9d66ec): D-11f
+            # showed the PROTECTED checkout agreeing with its blobs; it
+            # never CONSTRUCTED the failure the attribute prevents. The
+            # unprotected-checkout twin of a carrier is exactly the
+            # translation the marker file proved live above (every LF
+            # -> CRLF, d11_alt_point_identity.txt). Written over the
+            # live carrier in pwt2 it is put through the SAME
+            # verify-select as D-11f; the pre twin must REFUSE typed at
+            # the committed-pre gate (the live pre is the only run
+            # carrier verify-select reads from the working tree), the
+            # selector twin is MEASURED against the same command (the
+            # selector is reopened from its COMMIT, so the live twin
+            # is not an input of admission; the D-11f byte comparison
+            # is the gate it fails, asserted here), and restoring the
+            # exact blob bytes must ADMIT again -- so the refusal was
+            # the bytes and nothing else.
+            neg = {}
+            for name in (PRE_NAME, "selector.json"):
+                blob_n = subprocess.run(
+                    ["git", "-C", pwt2, "cat-file", "blob",
+                     f"{c_sel_p}:{prel}/{name}"], capture_output=True)
+                assert blob_n.returncode == 0, name
+                blob_n = blob_n.stdout
+                assert b"\r" not in blob_n and b"\n" in blob_n, name
+                twin = blob_n.replace(b"\n", b"\r\n")
+                assert twin != blob_n and \
+                    twin.replace(b"\r\n", b"\n") == blob_n, name
+                live_n = os.path.join(pout2, name)
+                with open(live_n, "wb") as f:
+                    f.write(twin)
+                with open(live_n, "rb") as f:
+                    assert f.read() == twin, name
+                rc, blob = _cli([pdrv2, "verify-select", pwt2, pout2,
+                                 c_sel_p, bpre["manifest_commit"], prel,
+                                 pc])
+                neg[name] = (rc, blob)
+                with open(live_n, "wb") as f:
+                    f.write(blob_n)
+                with open(live_n, "rb") as f:
+                    assert f.read() == blob_n, name
+                rc, blob = _cli([pdrv2, "verify-select", pwt2, pout2,
+                                 c_sel_p, bpre["manifest_commit"], prel,
+                                 pc])
+                assert rc == 0 and "selector ADMITTED" in blob, (
+                    f"D-11f-neg: {name} restored to its exact blob "
+                    f"bytes is not re-ADMITTED rc={rc}: {blob[-800:]}")
+            PRE_NEEDLE = ("the live pre-invocation differs byte-for-byte "
+                          "from the one committed at")
+            rc_p, out_p = neg[PRE_NAME]
+            assert rc_p != 0 and PRE_NEEDLE in out_p and \
+                "selector ADMITTED" not in out_p, (
+                    f"D-11f-neg pre twin rc={rc_p}: {out_p[-800:]}")
+            rc_s, out_s = neg["selector.json"]
+            sel_line = [ln for ln in out_s.splitlines() if ln.strip()]
+            sel_line = sel_line[-1] if sel_line else ""
+            print(f"  D-11f-neg .... selector.json CRLF twin through "
+                  f"verify-select: rc={rc_s} last line {sel_line[:160]!r}",
+                  flush=True)
+            assert rc_s == 0 and "selector ADMITTED" in out_s, (
+                f"D-11f-neg selector twin rc={rc_s}: {out_s[-800:]}")
+            print("  D-11f-neg PASS  the unprotected-checkout CRLF twin "
+                  "(the translation proven live on the marker file) "
+                  "written over the live pre in the core.autocrlf=true "
+                  "worktree REFUSES verify-select typed at the "
+                  f"committed-pre gate ({PRE_NEEDLE!r}); the same twin "
+                  "of selector.json leaves verify-select ADMITTED (rc 0, "
+                  "'selector ADMITTED': the selector is reopened from its "
+                  "COMMIT, the live twin is not an input of admission, "
+                  "and it fails the D-11f live==blob comparison); "
+                  "restoring the exact blob bytes re-ADMITS both -- the "
+                  "pre refusal was the bytes and nothing else")
             print("  D-11d PASS  on the REAL chain: an edited live draft "
                   "receipt is refused at finalize (committed draft is the "
                   "authority); a committed final smoke with a forged "
@@ -3236,9 +3311,10 @@ def _selftest(real_repo):
                   f"{len(cap['record']['replicates'])} replicates "
                   f"reopened each, {el/60:.1f} min) -> rank -> phase2 -> "
                   "aggregate -> finalize -> select -> verify-select "
-                  "ADMITTED (exit 0) -> byte-carrier checkout ADMITTED. "
-                  "Composition class closed: no wrapper handoff is "
-                  "untested")
+                  "ADMITTED (exit 0) -> byte-carrier checkout ADMITTED "
+                  "(D-11f) with its CRLF pre twin REFUSED and its exact "
+                  "bytes re-ADMITTED (D-11f-neg). Composition class "
+                  "closed: no wrapper handoff is untested")
         finally:
             subprocess.run(["git", "-C", real_repo, "worktree",
                             "remove", "--force", pwt2],
@@ -3256,7 +3332,9 @@ def _selftest(real_repo):
               "CLI through real child processes over real pinned "
               "geometry with two real points (incl. the registered-None "
               "B2B dropout class, D-11g) and re-admits the committed "
-              "chain from a core.autocrlf=true checkout (D-11f); "
+              "chain from a core.autocrlf=true checkout (D-11f) whose "
+              "unprotected CRLF pre twin is REFUSED and whose exact "
+              "bytes re-ADMIT (D-11f-neg); "
               "D-10b/D-10c/D-11b/D-11c prove the identity join and the "
               "boundary are falsifiable by measured forgeries, shadows "
               "and admitted mutants; D-12 proves every create-once "

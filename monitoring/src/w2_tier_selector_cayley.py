@@ -373,6 +373,30 @@ def _rebuild_outcomes(fam, entry, holm_fn, loco_registry):
             # hypothesis and never a synthesized number; booleans,
             # strings, NaN, infinities, negatives and >1 still refuse
             _valid_p(v, f"{f} p-value", allow_none=True)
+        # cayley successor of the 1912Z rule (verifier LOW finding 1,
+        # seam ORDERING): the replicate's LOCO fold map is VALIDATED
+        # here, before the own-family None short-circuit below, so a
+        # B1B replicate whose own p is None can no longer carry a
+        # malformed fold map through the seam silently while the
+        # identical defect on a numeric replicate refuses. The fold
+        # p-values are only CONSUMED (substituted into Holm) after the
+        # short-circuit; the registry needle and the fold p needle are
+        # the pre-existing ones, the coverage needle is new.
+        fr = None
+        if fam == "B1B" and folds is not None:
+            if not isinstance(folds, list) or len(folds) != len(reps):
+                raise SelectorRefusal(
+                    "SELECTOR_UNADMITTED: LOCO fold maps do not cover "
+                    "every replicate")
+            fr = folds[r_i]
+            if fr is not None:
+                if sorted(fr) != sorted(loco_registry):
+                    raise SelectorRefusal(
+                        "SELECTOR_UNADMITTED: LOCO fold set diverges "
+                        "from the bound registry")
+                for st in sorted(fr):
+                    _valid_p(fr[st], f"loco:{st} fold p-value",
+                             allow_none=True)
         if pv[fam] is None:
             # the entry's OWN family is untestable on this replicate:
             # a non-recovery (False), not an unadmitted artifact
@@ -383,19 +407,12 @@ def _rebuild_outcomes(fam, entry, holm_fn, loco_registry):
         rej = holm_fn(pv)
         pre.append(fam in rej)
         if fam == "B1B" and folds is not None:
-            fr = folds[r_i]
             if fr is None:
                 post.append(False)
                 continue
-            if sorted(fr) != sorted(loco_registry):
-                raise SelectorRefusal(
-                    "SELECTOR_UNADMITTED: LOCO fold set diverges "
-                    "from the bound registry")
             ok = "B1B" in rej
             for st in sorted(fr):
                 p_s = fr[st]
-                _valid_p(p_s, f"loco:{st} fold p-value",
-                         allow_none=True)
                 if p_s is None or "B1B" not in holm_fn(
                         dict(pv, B1B=p_s)):
                     ok = False
@@ -1828,6 +1845,98 @@ def _selftest():
     assert _rebuild_outcomes("B1B", dict(b1b_none, loco_folds=None),
                              _PHt.holm_rejects, _reg) == \
         ([False, True], None)
+    # (c'') seam ORDERING (post-1912Z verifier finding 1): a B1B
+    # replicate whose OWN p is None must not carry a malformed fold map
+    # through the seam silently while the identical defect on a numeric
+    # replicate refuses -- the fold-map checks run BEFORE the own-None
+    # short-circuit. Four partners refuse typed on BOTH replicate kinds
+    # (the same needle each), the positive twins are unchanged, and a
+    # mutant copy of THIS module's source with the pre-fix order
+    # restored (own-None short-circuit moved back in front of the fold
+    # checks) proves every partner goes RED -- returns silently -- under
+    # the old order, while the mutant still refuses the numeric defect.
+    import sys as _sys
+    import types as _types
+    _self_mod = _sys.modules[__name__]
+    own_none_pv = {"B1B": None, "B2A": 0.9, "B2B": 0.9, "B3A": 0.9}
+    numeric_pv = {"B1B": 0.001, "B2A": 0.9, "B2B": 0.9, "B3A": 0.9}
+    NEEDLE_COVER = "LOCO fold maps do not cover every replicate"
+    NEEDLE_REG = "LOCO fold set diverges from the bound registry"
+    NEEDLE_NUM = "not a finite numeric"
+    SEAM_PARTNERS = (
+        ("bogus registry", 1, [{"bogus_station": 0.001}], NEEDLE_REG),
+        ("fold p 'x'", 1, [{st: "x" for st in _reg}], NEEDLE_NUM),
+        ("folds shorter than replicates", 2, [dict(fold_ok)],
+         NEEDLE_COVER),
+        ("folds not a list", 1, {0: dict(fold_ok)}, NEEDLE_COVER),
+    )
+
+    def seam(mod, pv, n_reps, folds):
+        """(refusal message | None, output | None) at mod's seam for
+        n_reps replicates that all carry pv."""
+        try:
+            return None, mod._rebuild_outcomes(
+                "B1B", {"replicates": [{"p_values": dict(pv)}
+                                       for _ in range(n_reps)],
+                        "loco_folds": folds}, _PHt.holm_rejects, _reg)
+        except mod.SelectorRefusal as e:
+            return str(e), None
+    for label, n_reps, folds, needle in SEAM_PARTNERS:
+        msg_o, _out = seam(_self_mod, own_none_pv, n_reps, folds)
+        assert msg_o is not None and "SELECTOR_UNADMITTED" in msg_o and \
+            needle in msg_o, (label, msg_o)
+        msg_n, _out = seam(_self_mod, numeric_pv, n_reps, folds)
+        assert msg_n is not None and "SELECTOR_UNADMITTED" in msg_n and \
+            needle in msg_n, (label, msg_n)
+    # positive twins: own-None with a VALID fold map, and with a None
+    # fold entry, stay ([False], [False]); the numeric twin stays
+    # ([True], [True]) / ([True], [False])
+    assert seam(_self_mod, own_none_pv, 1, [dict(fold_ok)]) == \
+        (None, ([False], [False]))
+    assert seam(_self_mod, own_none_pv, 1, [None]) == \
+        (None, ([False], [False]))
+    assert seam(_self_mod, numeric_pv, 1, [dict(fold_ok)]) == \
+        (None, ([True], [True]))
+    assert seam(_self_mod, numeric_pv, 1, [None]) == \
+        (None, ([True], [False]))
+    # the anti-vacuity mutant: this module's own source with the fold
+    # block and the own-None short-circuit swapped back into the
+    # pre-fix order, compiled IN MEMORY (nothing written into the
+    # tree) and run against the same partners
+    with open(__file__, "rb") as f:
+        _src = f.read().replace(b"\r\n", b"\n").decode("utf-8")
+    _A = ("        # cayley successor of the 1912Z rule (verifier LOW "
+          "finding 1,\n")
+    _B = "        if pv[fam] is None:\n"
+    _E = "        rej = holm_fn(pv)\n        pre.append(fam in rej)\n"
+    assert _src.count(_A) == 1 and _src.count(_B) == 1 and \
+        _src.count(_E) == 1, (_src.count(_A), _src.count(_B),
+                              _src.count(_E))
+    _ia, _ib, _ie = _src.index(_A), _src.index(_B), _src.index(_E)
+    assert _ia < _ib < _ie
+    _mut_src = _src[:_ia] + _src[_ib:_ie] + _src[_ia:_ib] + _src[_ie:]
+    assert _mut_src != _src and len(_mut_src) == len(_src) and \
+        _mut_src.index(_B) < _mut_src.index(_A) < _mut_src.index(_E)
+    _mut = _types.ModuleType("w2_tier_selector_cayley_seam_mutant")
+    _mut.__file__ = "<seam-order mutant, in memory>"
+    exec(compile(_mut_src, "<seam-order-mutant>", "exec"), _mut.__dict__)
+    assert _mut._rebuild_outcomes is not _rebuild_outcomes
+    for label, n_reps, folds, needle in SEAM_PARTNERS:
+        msg_m, out_m = seam(_mut, own_none_pv, n_reps, folds)
+        assert msg_m is None and out_m == ([False] * n_reps,
+                                           [False] * n_reps), \
+            (label, msg_m, out_m)   # RED under the old order
+    # the mutant IS the old order and not a broken module: the numeric
+    # defect still refuses there, and the positive twin agrees
+    msg_m, _out = seam(_mut, numeric_pv, 1, [{"bogus_station": 0.001}])
+    assert msg_m is not None and NEEDLE_REG in msg_m, msg_m
+    msg_m, _out = seam(_mut, numeric_pv, 1, [{st: "x" for st in _reg}])
+    assert msg_m is not None and NEEDLE_NUM in msg_m, msg_m
+    assert seam(_mut, own_none_pv, 1, [dict(fold_ok)]) == \
+        (None, ([False], [False]))
+    assert seam(_mut, numeric_pv, 1, [dict(fold_ok)]) == \
+        (None, ([True], [True]))
+    del _mut, _mut_src, _src
     # (d) invalid classes in a component each refuse TYPED -- at the
     # rebuild seam naming the component, and through the chain
     for bad in (True, "0.5", float("nan"), float("inf"), -1.0, 1.1):

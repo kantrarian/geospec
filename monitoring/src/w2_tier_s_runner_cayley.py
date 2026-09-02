@@ -486,9 +486,16 @@ def _validate_envelope_members(env, pre):
     return res, comp, smoke
 
 
-def _complete_aggregate_from_envelope(outdir, pre):
-    """Retry path: the envelope exists, so the aggregate was already
-    derived once. Complete only the missing members, exactly."""
+def _complete_aggregate_from_envelope(repo, outdir, pre, top8,
+                                      loco_registry, blob_reader):
+    """Retry path. codex 0352Z: a self-hash proves consistency with the
+    edited envelope, not provenance. So the envelope is first checked as
+    a WRAPPER (closed record, text bodies, recomputing digests, admitted
+    per-member schemas bound to this pre), then the results and the
+    smoke are REBUILT from the point capsules and the envelope must
+    equal them byte-for-byte, and the completion is BOUND to the pre's
+    fired time and the rebuilt results digest -- all before any member
+    is written. Then complete only the missing members, exactly."""
     with open(os.path.join(outdir, AGGREGATE_ENVELOPE),
               encoding="utf-8") as f:
         env = json.load(f)
@@ -500,12 +507,33 @@ def _complete_aggregate_from_envelope(outdir, pre):
             "RUNNER_TIER_S_UNADMITTED: the aggregate envelope in this "
             "outdir is not this campaign's closed envelope")
     res, comp, smoke = _validate_envelope_members(env, pre)
+    members = env["members"]
+    results, r_body, r_sha, build_smoke = _rebuild_aggregate(
+        repo, outdir, pre, top8, loco_registry, blob_reader)
+    if members["tier_s_results.json"]["body"] != r_body:
+        raise RunnerRefusal(
+            "RUNNER_TIER_S_UNADMITTED: envelope results diverge from the "
+            "results REBUILT from the point capsules -- a self-hash proves "
+            "consistency with the edited envelope, not provenance")
+    _validate_completion(comp, pre, r_sha)
+    if members["tier_s_completion.json"]["body"] != \
+            json.dumps(comp, indent=1, sort_keys=True) + "\n":
+        raise RunnerRefusal(
+            "RUNNER_TIER_S_UNADMITTED: envelope completion body is not "
+            "canonical")
+    expected_smoke = json.dumps(build_smoke(comp), indent=1,
+                                sort_keys=True, allow_nan=False) + "\n"
+    if members["tier_s_smoke.json"]["body"] != expected_smoke:
+        raise RunnerRefusal(
+            "RUNNER_TIER_S_UNADMITTED: envelope smoke diverges from the "
+            "smoke REBUILT from the point capsules and the validated "
+            "completion")
     if _publish_members_from_envelope(outdir, env) == 0:
         raise RunnerRefusal(
             "RUNNER_PUBLISH_EXISTS: aggregate already complete (envelope "
             "and all three members present and byte-equal; create-once, "
             "never re-derived)")
-    return res, comp, smoke
+    return results, comp, smoke
 
 
 def _check_point_capsule(cap, idx, fam, point, pre):
@@ -607,16 +635,14 @@ def _p_value_ok(v):
                          and math.isfinite(v) and 0.0 <= v <= 1.0)
 
 
-def aggregate(repo, outdir, expected_pre_sha, top8, loco_registry,
-              blob_reader):
-    """The DETERMINISTIC aggregator: per-point capsules -> the closed
-    derivational results v2 -> completion -> smoke; the selector runs
-    separately over the COMMITTED carriers. Missing results refuse;
-    nothing is recomputed from caller state."""
-    pre = _load_pre(outdir, expected_pre_sha)
-    _check_outdir(pre, outdir)
-    if os.path.exists(os.path.join(outdir, AGGREGATE_ENVELOPE)):
-        return _complete_aggregate_from_envelope(outdir, pre)
+def _rebuild_aggregate(repo, outdir, pre, top8, loco_registry, blob_reader):
+    """The DETERMINISTIC re-aggregation, publishing NOTHING: reopen and
+    validate every detection / LOCO capsule through the one validator,
+    rebuild the closed results v2 (bytes + digest) from the pre-bound
+    grids, the registered LOCO set and the Holm rule, and return a
+    smoke builder that takes the completion. First publication and
+    recovery both go through here (codex 0352Z: an envelope cannot
+    authenticate its own semantics; the capsules can)."""
     points = derive_points(pre, blob_reader)
     fams = {"B2A": [], "B2B": [], "B1B": [], "B3A": []}
     for idx, (fam, point) in enumerate(points):
@@ -639,7 +665,7 @@ def aggregate(repo, outdir, expected_pre_sha, top8, loco_registry,
             folds = lcap["record"]["loco_folds"]
         fams[fam].append({
             "point": dict(point),
-            "grid_index": len(fams[fam]) if False else None,
+            "grid_index": None,
             "replicates": cap["record"]["replicates"],
             "loco_folds": folds})
     # registered grid indices: position within the FULL family grid
@@ -662,7 +688,6 @@ def aggregate(repo, outdir, expected_pre_sha, top8, loco_registry,
     r_body = json.dumps(results, indent=1, sort_keys=True,
                         allow_nan=False) + "\n"
     r_sha = hashlib.sha256(r_body.encode()).hexdigest()
-    comp = build_completion(pre, r_sha)      # in memory; nothing published yet
     smoke_fams = {}
     for fam, entries in fams.items():
         smoke_fams[fam] = []
@@ -692,18 +717,73 @@ def aggregate(repo, outdir, expected_pre_sha, top8, loco_registry,
                         post.append(ok)
                     entry["post_loco_outcomes"] = post
             smoke_fams[fam].append(entry)
-    smoke = {"schema": "f2g-w2-tier-s-smoke-v1",
-             "quality": dict(pre["quality"]),
-             "geometry_capsule_digest":
-                 pre["geometry"]["capsule_digest"],
-             # codex 1328Z item 1: inherited from the PRE, which
-             # derived it from the reopened manifest-pinned bytes
-             "effect_grids_sha256":
-                 pre["effect_grids_content_sha256"],
-             "pre_invocation_sha256": pre["invocation_sha256"],
-             "completion_sha256": _digest(comp),
-             "results_blob_sha256": r_sha,
-             "families": smoke_fams}
+
+    def build_smoke(comp):
+        return {"schema": "f2g-w2-tier-s-smoke-v1",
+                "quality": dict(pre["quality"]),
+                "geometry_capsule_digest":
+                    pre["geometry"]["capsule_digest"],
+                # codex 1328Z item 1: inherited from the PRE, which
+                # derived it from the reopened manifest-pinned bytes
+                "effect_grids_sha256":
+                    pre["effect_grids_content_sha256"],
+                "pre_invocation_sha256": pre["invocation_sha256"],
+                "completion_sha256": _digest(comp),
+                "results_blob_sha256": r_sha,
+                "families": smoke_fams}
+    return results, r_body, r_sha, build_smoke
+
+
+_UTC_RE = r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ"
+
+
+def _validate_completion(comp, pre, r_sha):
+    """The completion is the one member that cannot be rebuilt (it
+    carries the completion instant), so it is BOUND instead: closed
+    fields, the pre's digest, the pre's OWN fired time, the REBUILT
+    results digest, canonical UTC instants in order."""
+    if not isinstance(comp, dict) or set(comp) != COMPLETION_FIELDS or \
+            comp.get("schema") != COMPLETION_SCHEMA:
+        raise RunnerRefusal(
+            "RUNNER_TIER_S_UNADMITTED: completion is not the closed schema")
+    if comp["pre_invocation_sha256"] != pre["invocation_sha256"]:
+        raise RunnerRefusal(
+            "RUNNER_TIER_S_UNADMITTED: completion does not bind this pre")
+    if comp["results_blob_sha256"] != r_sha:
+        raise RunnerRefusal(
+            "RUNNER_TIER_S_UNADMITTED: completion does not bind the "
+            "results REBUILT from the point capsules")
+    if comp["fired_utc"] != pre["fired_utc"]:
+        raise RunnerRefusal(
+            "RUNNER_TIER_S_UNADMITTED: completion fired time is not the "
+            "pre's fired time")
+    for k in ("fired_utc", "completed_utc"):
+        if not isinstance(comp[k], str) or \
+                not re.fullmatch(_UTC_RE, comp[k]):
+            raise RunnerRefusal(
+                f"RUNNER_TIER_S_UNADMITTED: completion {k} is not a "
+                "canonical UTC instant")
+    if not comp["fired_utc"] <= comp["completed_utc"]:
+        raise RunnerRefusal(
+            "RUNNER_TIER_S_UNADMITTED: completion times reversed")
+
+
+def aggregate(repo, outdir, expected_pre_sha, top8, loco_registry,
+              blob_reader):
+    """The DETERMINISTIC aggregator: per-point capsules -> the closed
+    derivational results v2 -> completion -> smoke; the selector runs
+    separately over the COMMITTED carriers. Missing results refuse;
+    nothing is recomputed from caller state."""
+    pre = _load_pre(outdir, expected_pre_sha)
+    _check_outdir(pre, outdir)
+    if os.path.exists(os.path.join(outdir, AGGREGATE_ENVELOPE)):
+        return _complete_aggregate_from_envelope(
+            repo, outdir, pre, top8, loco_registry, blob_reader)
+    results, r_body, r_sha, build_smoke = _rebuild_aggregate(
+        repo, outdir, pre, top8, loco_registry, blob_reader)
+    comp = build_completion(pre, r_sha)      # in memory; nothing published yet
+    _validate_completion(comp, pre, r_sha)
+    smoke = build_smoke(comp)
     # ---- everything above ran in memory. codex 2303Z finding 2: the
     # first irreversible publication used to happen BEFORE the numeric
     # work (results, completion, then holm), so a value defect stranded
@@ -711,7 +791,8 @@ def aggregate(repo, outdir, expected_pre_sha, top8, loco_registry,
     # is serialised and re-parsed here, sealed into ONE create-once
     # envelope, and only then materialised -- a failure before the
     # envelope leaves nothing durable; a failure after it is completed
-    # exactly by the next call.
+    # exactly by the next call, which RE-DERIVES the members from the
+    # point capsules and requires the envelope to agree (codex 0352Z).
     bodies = {"tier_s_results.json": r_body,
               "tier_s_completion.json":
                   json.dumps(comp, indent=1, sort_keys=True) + "\n",

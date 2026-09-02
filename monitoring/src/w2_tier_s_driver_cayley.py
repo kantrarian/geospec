@@ -2349,6 +2349,147 @@ def _selftest(real_repo):
               "the member with no write and every existing byte untouched, "
               "and the restored envelope completes")
 
+        # ---- D-13e (codex 0352Z MAJOR): a SEMANTICALLY divergent but
+        # wrapper-valid, fully re-hashed envelope must not publish. On a
+        # campaign left with ONLY the envelope (failure injected before
+        # member 1), the envelope is mutated fourteen self-consistent
+        # ways -- every dependent digest recomputed so each case passes
+        # every wrapper/linkage check -- and each must refuse typed with
+        # no member written; the untouched envelope then recovers exactly.
+        o_s, c_s = _fresh_campaign("semantic")
+        real_pub = TSR._publish_once
+        TSR._publish_once = _failing_on("tier_s_results.json", real_pub)
+        try:
+            try:
+                cli("aggregate", repo, o_s, c_s)
+            except OSError:
+                pass
+        finally:
+            TSR._publish_once = real_pub
+        env_s = os.path.join(o_s, "tier_s_aggregate_envelope.json")
+        assert _agg_files(o_s) == {"tier_s_aggregate_envelope.json"}
+        with open(env_s, "r", encoding="utf-8", newline="") as f:
+            env_s_txt = f.read()
+
+        def _members_of(e):
+            return tuple(json.loads(e["members"][n]["body"]) for n in (
+                "tier_s_results.json", "tier_s_completion.json",
+                "tier_s_smoke.json"))
+
+        def _reseal(res, comp, smoke):
+            """recompute the whole digest chain so the mutated envelope
+            is internally consistent: results body/sha -> completion
+            results digest + body/sha -> smoke results/completion
+            digests + body/sha"""
+            import hashlib as _h
+            r_body = json.dumps(res, indent=1, sort_keys=True) + "\n"
+            r_sha = _h.sha256(r_body.encode("utf-8")).hexdigest()
+            comp = dict(comp, results_blob_sha256=r_sha)
+            c_body = json.dumps(comp, indent=1, sort_keys=True) + "\n"
+            smoke = dict(smoke, results_blob_sha256=r_sha,
+                         completion_sha256=TSR._digest(comp))
+            s_body = json.dumps(smoke, indent=1, sort_keys=True) + "\n"
+            e = json.loads(env_s_txt)
+            for n, b in (("tier_s_results.json", r_body),
+                         ("tier_s_completion.json", c_body),
+                         ("tier_s_smoke.json", s_body)):
+                e["members"][n] = {"body": b, "sha256": _h.sha256(
+                    b.encode("utf-8")).hexdigest()}
+            with open(env_s, "w", encoding="utf-8", newline="\n") as f:
+                f.write(json.dumps(e, indent=1, sort_keys=True) + "\n")
+        R0, C0, S0 = _members_of(json.loads(env_s_txt))
+        b1b_loco = next(i for i, e in enumerate(R0["families"]["B1B"])
+                        if e["loco_folds"] is not None)
+        s_b1b_post = next(i for i, e in enumerate(S0["families"]["B1B"])
+                          if e.get("post_loco_outcomes") is not None)
+
+        def m_res(fn):
+            def m(r, c, s):
+                fn(r)
+            return m
+
+        def m_comp(fn):
+            def m(r, c, s):
+                fn(c)
+            return m
+
+        def m_smoke(fn):
+            def m(r, c, s):
+                fn(s)
+            return m
+        SEMANTIC = [
+            ("results seed authority", m_res(lambda r: r.__setitem__(
+                "seed_authority_sha256", "a" * 64))),
+            ("results geometry digest", m_res(lambda r: r.__setitem__(
+                "geometry_capsule_digest", "b" * 64))),
+            ("results families replaced", m_res(lambda r: r.__setitem__(
+                "families", {"ATTACK": [{"accepted": True}]}))),
+            ("results well-shaped replicate p-value", m_res(
+                lambda r: r["families"]["B1B"][0]["replicates"][0]
+                ["p_values"].__setitem__("B1B", 0.9))),
+            ("results well-shaped LOCO fold p-value", m_res(
+                lambda r: r["families"]["B1B"][b1b_loco]["loco_folds"][0]
+                .__setitem__("S0", 0.9))),
+            ("results one family entry dropped", m_res(
+                lambda r: r["families"]["B2A"].pop())),
+            ("completion fired time forged", m_comp(lambda c: c.__setitem__(
+                "fired_utc", "2099-01-01T00:00:00Z"))),
+            ("completion times reversed", m_comp(lambda c: c.__setitem__(
+                "completed_utc", "2000-01-01T00:00:00Z"))),
+            ("smoke extra field", m_smoke(lambda s: s.__setitem__(
+                "note", "x"))),
+            ("smoke missing field", m_smoke(lambda s: s.__delitem__(
+                "quality"))),
+            ("smoke quality", m_smoke(lambda s: s["quality"].__setitem__(
+                "R", 49))),
+            ("smoke geometry digest", m_smoke(lambda s: s.__setitem__(
+                "geometry_capsule_digest", "b" * 64))),
+            ("smoke grid digest", m_smoke(lambda s: s.__setitem__(
+                "effect_grids_sha256", "c" * 64))),
+            ("smoke well-shaped B2A outcome flipped", m_smoke(
+                lambda s: s["families"]["B2A"][0]["outcomes"].__setitem__(
+                    0, not s["families"]["B2A"][0]["outcomes"][0]))),
+            ("smoke well-shaped B1B LOCO outcome flipped", m_smoke(
+                lambda s: s["families"]["B1B"][s_b1b_post]
+                ["post_loco_outcomes"].__setitem__(
+                    0, not s["families"]["B1B"][s_b1b_post]
+                    ["post_loco_outcomes"][0]))),
+        ]
+        for slabel, mut in SEMANTIC:
+            r, c, s = _members_of(json.loads(env_s_txt))
+            mut(r, c, s)
+            _reseal(r, c, s)
+            # wrapper sanity: the mutated envelope recomputes its own
+            # digests (this is exactly what codex's KAT supplied)
+            e_chk = json.loads(open(env_s, encoding="utf-8").read())
+            import hashlib as _hh
+            assert all(_hh.sha256(m["body"].encode("utf-8")).hexdigest()
+                       == m["sha256"] for m in e_chk["members"].values())
+            msg = cli_refuses(f"aggregate semantic envelope ({slabel})",
+                              "aggregate", repo, o_s, c_s)
+            assert "RUNNER_TIER_S_UNADMITTED" in msg, (slabel, msg[:200])
+            assert _agg_files(o_s) == {"tier_s_aggregate_envelope.json"}, (
+                slabel, "a member was written from a divergent envelope")
+        with open(env_s, "w", encoding="utf-8", newline="") as f:
+            f.write(env_s_txt)
+        assert cli("aggregate", repo, o_s, c_s) == 0
+        assert _agg_files(o_s) == AGG
+        e_ok = json.loads(env_s_txt)
+        for name in ("tier_s_results.json", "tier_s_completion.json",
+                     "tier_s_smoke.json"):
+            with open(os.path.join(o_s, name), "r", encoding="utf-8",
+                      newline="") as f:
+                assert f.read() == e_ok["members"][name]["body"], name
+        print(f"  D-13e PASS  {len(SEMANTIC)} SEMANTICALLY divergent, "
+              "wrapper-valid, fully re-hashed envelopes (results seed / "
+              "geometry / families replaced / well-shaped replicate and "
+              "fold p-values / dropped entry; completion fired time / "
+              "reversed times; smoke extra / missing field, quality, "
+              "geometry, grid digest, well-shaped B2A and B1B-LOCO "
+              "outcome flips) each refuse TYPED with no member written -- "
+              "recovery re-derives results and smoke from the point "
+              "capsules; the untouched envelope recovers byte-exactly")
+
         # ---- D-11 (codex item 1 + 2112Z finding 2): THE FULL CLI
         # over REAL pinned geometry, every command through main(argv)
         # in a REAL child process running the real checkout's own

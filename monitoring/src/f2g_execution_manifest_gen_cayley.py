@@ -305,6 +305,14 @@ BOUND_SLOTS = {
                   "f2g_phase_b_power_estimation_cal_cayley.py",
                   "docs/f2g_window2_execution/"
                   "loco_composition_amendment_v1.md",
+                  # codex 2303Z finding 1 (CRITICAL): the phase-B stats
+                  # engine the power harness imports at import time and
+                  # calls for the B2A and B3A p-values -- pinned NOWHERE
+                  # until now, so a foreign copy could supply two of the
+                  # four p-values while the join attested the pristine
+                  # repository file. Ninth executable of the Tier-S
+                  # identity join; it rides the harness's slot.
+                  "monitoring/src/d2_f2g_phase_b_stats.py",
                   "monitoring/src/w2_cert_runner_cayley.py",
                   "monitoring/src/w2_tier_selector_cayley.py",
                   "docs/f2g_window2_execution/"

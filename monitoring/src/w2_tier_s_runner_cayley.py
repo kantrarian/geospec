@@ -25,6 +25,7 @@ or opens any window-2 value. Selftest uses stub smoke functions only.
 """
 import hashlib
 import json
+import math
 import os
 import platform
 import sys
@@ -80,6 +81,15 @@ REGISTERED_GRID_ORDER_SHA256 = (
     "00e8e9fdf61e7e12b4aac8a113f61513b8ae60bd45183cf646a07ce44f9fcde8")
 REGISTERED_GRIDS_CONTENT_SHA256 = (
     "f76a5acc2814e1b3be99aa338945ff8829ad7f0cc360967370a13710834232d0")
+# codex 2303Z finding 2: aggregate publication is ONE create-once envelope
+# carrying the exact bytes of its three members; the members are
+# materialised FROM it, so a retry after a partial publication completes
+# exactly and never overwrites a divergent member.
+AGGREGATE_ENVELOPE = "tier_s_aggregate_envelope.json"
+AGGREGATE_ENVELOPE_SCHEMA = "f2g-w2-tier-s-aggregate-envelope-v1"
+AGGREGATE_MEMBERS = ("tier_s_results.json", "tier_s_completion.json",
+                     "tier_s_smoke.json")
+FAMILIES = ("B1B", "B2A", "B2B", "B3A")
 COMPLETION_SCHEMA = "f2g-w2-tier-s-completion-v1"
 COMPLETION_FIELDS = {"schema", "pre_invocation_sha256",
                      "results_blob_sha256", "fired_utc",
@@ -361,16 +371,71 @@ def rank_stage1_b1b(outdir, expected_pre_sha, blob_reader):
     return [idx for idx, _ in order[:8]]
 
 
-def write_completion(outdir, pre, results_blob_sha256):
-    comp = {"schema": COMPLETION_SCHEMA,
+def build_completion(pre, results_blob_sha256):
+    return {"schema": COMPLETION_SCHEMA,
             "pre_invocation_sha256": pre["invocation_sha256"],
             "results_blob_sha256": str(results_blob_sha256),
             "fired_utc": pre["fired_utc"],
             "completed_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ",
                                            time.gmtime())}
+
+
+def write_completion(outdir, pre, results_blob_sha256):
+    comp = build_completion(pre, results_blob_sha256)
     _publish_once(os.path.join(outdir, "tier_s_completion.json"),
                   json.dumps(comp, indent=1, sort_keys=True) + "\n")
     return comp
+
+
+def _publish_members_from_envelope(outdir, env):
+    """Materialise the envelope's members: a missing member is published
+    from the envelope's exact bytes; an existing member must equal them
+    byte-for-byte and is NEVER overwritten. Returns how many were
+    published by this call."""
+    published = 0
+    for name in AGGREGATE_MEMBERS:
+        body = env["members"][name]["body"]
+        p = os.path.join(outdir, name)
+        if os.path.exists(p):
+            with open(p, "r", encoding="utf-8", newline="") as f:
+                live = f.read()
+            if live != body:
+                raise RunnerRefusal(
+                    f"RUNNER_TIER_S_AGGREGATE_DIVERGENT: {name} exists "
+                    "with bytes that differ from the aggregate envelope "
+                    "-- never overwritten; an operator decision")
+            continue
+        _publish_once(p, body)
+        published += 1
+    return published
+
+
+def _complete_aggregate_from_envelope(outdir, pre):
+    """Retry path: the envelope exists, so the aggregate was already
+    derived once. Complete only the missing members, exactly."""
+    with open(os.path.join(outdir, AGGREGATE_ENVELOPE),
+              encoding="utf-8") as f:
+        env = json.load(f)
+    if not isinstance(env, dict) or \
+            env.get("schema") != AGGREGATE_ENVELOPE_SCHEMA or \
+            env.get("pre_invocation_sha256") != pre["invocation_sha256"] \
+            or set(env.get("members", {})) != set(AGGREGATE_MEMBERS):
+        raise RunnerRefusal(
+            "RUNNER_TIER_S_UNADMITTED: the aggregate envelope in this "
+            "outdir is not this campaign's closed envelope")
+    for name, m in env["members"].items():
+        if hashlib.sha256(m["body"].encode("utf-8")).hexdigest() != \
+                m["sha256"]:
+            raise RunnerRefusal(
+                f"RUNNER_TIER_S_UNADMITTED: envelope member {name} does "
+                "not recompute its own digest")
+    if _publish_members_from_envelope(outdir, env) == 0:
+        raise RunnerRefusal(
+            "RUNNER_PUBLISH_EXISTS: aggregate already complete (envelope "
+            "and all three members present and byte-equal; create-once, "
+            "never re-derived)")
+    return tuple(json.loads(env["members"][n]["body"])
+                 for n in AGGREGATE_MEMBERS)
 
 
 def _check_point_capsule(cap, idx, fam, point, pre):
@@ -424,6 +489,52 @@ def _check_point_capsule(cap, idx, fam, point, pre):
         raise RunnerRefusal(
             f"RUNNER_TIER_S_UNADMITTED: point {idx} record claims "
             "certifiability")
+    # codex 2303Z finding 2: VALUES, not just keys. A JSON-valid string
+    # or an out-of-range number passed the key check and serialised
+    # fine, then raised during numeric work AFTER two create-once
+    # artifacts had been published. Exact closed replicate / fold
+    # schemas; every p-value None or a finite real (not bool) in [0,1].
+    reps = rec.get("replicates")
+    if not isinstance(reps, list):
+        raise RunnerRefusal(
+            f"RUNNER_TIER_S_UNADMITTED: point {idx} replicates are not "
+            "a list")
+    for j, rep in enumerate(reps):
+        if not isinstance(rep, dict) or set(rep) != {"p_values"} or \
+                not isinstance(rep["p_values"], dict) or \
+                set(rep["p_values"]) != set(FAMILIES):
+            raise RunnerRefusal(
+                f"RUNNER_TIER_S_UNADMITTED: point {idx} replicate {j} "
+                "is not a closed four-family p-vector")
+        for fam_k, v in rep["p_values"].items():
+            if not _p_value_ok(v):
+                raise RunnerRefusal(
+                    f"RUNNER_TIER_S_UNADMITTED: point {idx} replicate "
+                    f"{j} {fam_k} p-value {v!r} is not None or a finite "
+                    "real in [0,1]")
+    folds = rec.get("loco_folds")
+    if folds is not None:
+        if not isinstance(folds, list):
+            raise RunnerRefusal(
+                f"RUNNER_TIER_S_UNADMITTED: point {idx} loco_folds is "
+                "neither null nor a list")
+        for j, fr in enumerate(folds):
+            if not isinstance(fr, dict):
+                raise RunnerRefusal(
+                    f"RUNNER_TIER_S_UNADMITTED: point {idx} fold {j} is "
+                    "not a station->p map")
+            for st, v in fr.items():
+                if not isinstance(st, str) or not _p_value_ok(v):
+                    raise RunnerRefusal(
+                        f"RUNNER_TIER_S_UNADMITTED: point {idx} fold {j} "
+                        f"station {st!r} p-value {v!r} is not None or a "
+                        "finite real in [0,1]")
+
+
+def _p_value_ok(v):
+    return v is None or (isinstance(v, (int, float))
+                         and not isinstance(v, bool)
+                         and math.isfinite(v) and 0.0 <= v <= 1.0)
 
 
 def aggregate(repo, outdir, expected_pre_sha, top8, loco_registry,
@@ -434,6 +545,8 @@ def aggregate(repo, outdir, expected_pre_sha, top8, loco_registry,
     nothing is recomputed from caller state."""
     pre = _load_pre(outdir, expected_pre_sha)
     _check_outdir(pre, outdir)
+    if os.path.exists(os.path.join(outdir, AGGREGATE_ENVELOPE)):
+        return _complete_aggregate_from_envelope(outdir, pre)
     points = derive_points(pre, blob_reader)
     fams = {"B2A": [], "B2B": [], "B1B": [], "B3A": []}
     for idx, (fam, point) in enumerate(points):
@@ -478,10 +591,8 @@ def aggregate(repo, outdir, expected_pre_sha, top8, loco_registry,
                "families": fams}
     r_body = json.dumps(results, indent=1, sort_keys=True,
                         allow_nan=False) + "\n"
-    _publish_once(os.path.join(outdir, "tier_s_results.json"),
-                  r_body)
     r_sha = hashlib.sha256(r_body.encode()).hexdigest()
-    comp = write_completion(outdir, pre, r_sha)
+    comp = build_completion(pre, r_sha)      # in memory; nothing published yet
     smoke_fams = {}
     for fam, entries in fams.items():
         smoke_fams[fam] = []
@@ -523,9 +634,32 @@ def aggregate(repo, outdir, expected_pre_sha, top8, loco_registry,
              "completion_sha256": _digest(comp),
              "results_blob_sha256": r_sha,
              "families": smoke_fams}
-    _publish_once(os.path.join(outdir, "tier_s_smoke.json"),
+    # ---- everything above ran in memory. codex 2303Z finding 2: the
+    # first irreversible publication used to happen BEFORE the numeric
+    # work (results, completion, then holm), so a value defect stranded
+    # two create-once members and the retry refused. Now every member
+    # is serialised and re-parsed here, sealed into ONE create-once
+    # envelope, and only then materialised -- a failure before the
+    # envelope leaves nothing durable; a failure after it is completed
+    # exactly by the next call.
+    bodies = {"tier_s_results.json": r_body,
+              "tier_s_completion.json":
+                  json.dumps(comp, indent=1, sort_keys=True) + "\n",
+              "tier_s_smoke.json":
                   json.dumps(smoke, indent=1, sort_keys=True,
+                             allow_nan=False) + "\n"}
+    for name, body in bodies.items():
+        json.loads(body)                     # reparse before anything lands
+    env = {"schema": AGGREGATE_ENVELOPE_SCHEMA,
+           "pre_invocation_sha256": pre["invocation_sha256"],
+           "members": {name: {"sha256": hashlib.sha256(
+                                  body.encode("utf-8")).hexdigest(),
+                              "body": body}
+                       for name, body in bodies.items()}}
+    _publish_once(os.path.join(outdir, AGGREGATE_ENVELOPE),
+                  json.dumps(env, indent=1, sort_keys=True,
                              allow_nan=False) + "\n")
+    _publish_members_from_envelope(outdir, env)
     return results, comp, smoke
 
 

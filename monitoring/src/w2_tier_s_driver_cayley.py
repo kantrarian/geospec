@@ -47,7 +47,11 @@ WHAT IT ADDS, and why each is here rather than in the runner:
   `repo/<registered path>` (samefile) -- so a module from anywhere else
   refuses even when the repository copy is pristine; that file's LF
   digest must equal the pin; and the pre's `driver` and
-  `implementation` references must EQUAL their pins exactly.
+  `implementation` references must EQUAL their pins exactly. codex
+  2303Z: the resolution is stdlib-only and NON-EXECUTING
+  (`PathFinder.find_spec`) and precedes every project import, so no
+  module acts before it is proven; the phase-B stats engine that
+  computes two of the four p-values is the ninth bound executable.
 
 - **Resume-safety.** `_publish_once` is create-once and refuses an
   existing destination, so a naive re-run after a crash dies on the
@@ -74,8 +78,17 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 if _HERE not in sys.path:
     sys.path.insert(0, _HERE)
 
-import w2_tier_s_runner_cayley as TSR
-from w2_cert_runner_cayley import RunnerRefusal
+# codex 2303Z finding 1 (CRITICAL): NO project-local import before the
+# provenance preflight. Module top-levels execute on import, so a module
+# imported here would act before it was proven. The runner and the
+# cert-runner's typed refusal are bound by `_bootstrap` after EVERY
+# executable's origin has been resolved without executing it and checked
+# against its BOUND pin.
+TSR = None
+RunnerRefusal = None
+MANIFEST_REL = "docs/f2g_window2_execution/execution_manifest.json"
+DRIVER_REL = "monitoring/src/w2_tier_s_driver_cayley.py"
+RUNNER_REL = "monitoring/src/w2_tier_s_runner_cayley.py"
 
 # The REGISTERED production paths. They are module constants rather
 # than CLI arguments on purpose: a caller-supplied grid or geometry
@@ -94,6 +107,24 @@ CERT_REL = "monitoring/src/w2_cert_runner_cayley.py"
 TARGET_ID_REL = "monitoring/src/w2_target_identity_cayley.py"
 B1B_REL = "monitoring/src/w2_b1b.py"
 B2B_REL = "monitoring/src/w2_b2b.py"
+# codex 2303Z finding 1 half A: the phase-B stats engine -- imported by
+# the harness at import time, called for the B2A and B3A p-values, and
+# pinned NOWHERE until this cycle. Ninth executable.
+STATS_REL = "monitoring/src/d2_f2g_phase_b_stats.py"
+# EVERY executable a Tier-S process can run: (label, registered path,
+# module name). Order is the refusal order: the driver first, then the
+# runner whose helpers the rest of the process would otherwise trust.
+EXECUTABLES = (
+    ("driver", DRIVER_REL, "w2_tier_s_driver_cayley"),
+    ("runner", RUNNER_REL, "w2_tier_s_runner_cayley"),
+    ("cert-runner", CERT_REL, "w2_cert_runner_cayley"),
+    ("harness", IMPL_REL, "w2_power_harness_cayley"),
+    ("selector", SELECTOR_REL, "w2_tier_selector_cayley"),
+    ("target-identity", TARGET_ID_REL, "w2_target_identity_cayley"),
+    ("b1b adapter", B1B_REL, "w2_b1b"),
+    ("b2b adapter", B2B_REL, "w2_b2b"),
+    ("phase-b stats", STATS_REL, "d2_f2g_phase_b_stats"),
+)
 PRE_NAME = "tier_s_pre_invocation.json"
 
 
@@ -110,7 +141,7 @@ def _blob_reader(repo):
         p = subprocess.run(["git", "-C", repo, "cat-file", "blob",
                             f"{commit}:{path}"], capture_output=True)
         if p.returncode != 0:
-            raise RunnerRefusal(
+            raise (RunnerRefusal or DriverRefusal)(
                 f"RUNNER_TIER_S_UNADMITTED: {path} unreadable at "
                 f"{commit}")
         return p.stdout
@@ -163,27 +194,14 @@ def _lf_sha(path):
             f.read().replace(b"\r\n", b"\n")).hexdigest()
 
 
-def _loaded_executables():
-    """codex 2112Z finding 1: the identity that matters is the module
-    EXECUTING, not a repository file with the same name. Every
-    executable this process can run is imported HERE, before any of
-    them acts, and handed back with its registered path so the join can
-    compare `module.__file__` -- never `repo/<path>` -- against the pin.
-    Order matters for the refusal text: the driver first, then the
-    runner whose helpers the rest of the process would otherwise trust."""
-    import importlib
-    return [("driver", TSR.DRIVER_REL, sys.modules[__name__]),
-            ("runner", TSR.RUNNER_REL, TSR),
-            ("cert-runner", CERT_REL,
-             importlib.import_module("w2_cert_runner_cayley")),
-            ("harness", IMPL_REL,
-             importlib.import_module("w2_power_harness_cayley")),
-            ("selector", SELECTOR_REL,
-             importlib.import_module("w2_tier_selector_cayley")),
-            ("target-identity", TARGET_ID_REL,
-             importlib.import_module("w2_target_identity_cayley")),
-            ("b1b adapter", B1B_REL, importlib.import_module("w2_b1b")),
-            ("b2b adapter", B2B_REL, importlib.import_module("w2_b2b"))]
+def _read_blob(repo, commit, path):
+    """stdlib-only committed-blob read for the preflight: nothing
+    project-local may run before provenance is established."""
+    p = subprocess.run(["git", "-C", repo, "cat-file", "blob",
+                        f"{commit}:{path}"], capture_output=True)
+    if p.returncode != 0:
+        _refuse(f"{path} unreadable at {str(commit)[:12]}")
+    return p.stdout
 
 
 def _bound_pin(man, rel):
@@ -207,63 +225,139 @@ def _ref_short(ref):
             f"{str(ref.get('blob_sha256'))[:12]}}}")
 
 
-def _require_bound_sources(repo, pre, manifest_commit=None):
-    """codex 0314Z point 2 + codex 2112Z finding 1 (CRITICAL): ONE typed
-    identity join before any publication or work.
+def _bootstrap(repo, manifest_commit):
+    """codex 2303Z finding 1 (CRITICAL): provenance BEFORE execution.
 
-    The previous guard hashed `repo/<path>` -- files, not the code
-    executing. codex ran a byte-modified EXTERNAL copy of this driver
-    with a clean repository as `<repo>`: the guard hashed the pristine
-    repository files, passed, and the external copy minted a pre
-    claiming the pinned identity. The same split let a shadowed runner,
-    cert-runner, harness or selector run unchecked, and a self-hashed
-    committed pre could point `driver` / `implementation` at any live
-    path whose bytes it also named.
+    Two halves were open. (A) The harness imports the phase-B stats
+    engine and calls it for two of the four p-values; it was pinned
+    nowhere and outside the join, so a foreign copy returning p=0.0
+    passed while the gate attested the pristine repository file. (B)
+    The driver imported the runner and cert-runner at module top and
+    the join imported the rest BEFORE checking them; module top-levels
+    run on import, so a shadow's import-time code had already acted by
+    the time it was refused.
 
-    Now, for EVERY executable this process can run (imported here,
-    before it acts):
-      1. exactly one BOUND manifest pin exists for its registered path,
-         resolved by this module -- not by the runner it is verifying;
-      2. the module actually loaded -- `module.__file__` -- IS
-         `repo/<registered path>` (`os.path.samefile`), so a module
-         from anywhere else refuses even when the repository copy is
-         pristine, and the samefile check precedes any use of the
-         module so a bare shadow cannot steer it;
-      3. the LF digest of that `module.__file__` equals the pin.
-    And with a pre present, its `driver` and `implementation`
-    references must EQUAL their resolved pins exactly
-    ({commit, path, blob_sha256}): a reference that merely names live
-    bytes is not an identity.
+    Now, stdlib-only and in this order:
+      1. read the manifest at `manifest_commit` (git cat-file);
+      2. for EVERY executable in EXECUTABLES (nine, the stats engine
+         included) resolve the origin the interpreter WOULD load --
+         `importlib.machinery.PathFinder.find_spec` over `sys.path`,
+         which executes nothing -- or, if the name is already bound in
+         `sys.modules` (imported before this process reached the
+         preflight), take that module's `__file__`; require the origin
+         to BE `repo/<registered path>` (samefile) and its LF digest to
+         equal exactly one BOUND pin -- before importing anything;
+      3. only then import, and re-check each module's `__file__`
+         against the same pin (defence in depth);
+      4. bind the proven runner and the cert-runner's refusal class.
+    Idempotent: later calls re-run every check against the same pins.
     """
-    man = json.loads(_blob_reader(repo)(
-        pre["manifest_commit"] if pre else manifest_commit,
-        "docs/f2g_window2_execution/execution_manifest.json"
-    ).decode("utf-8"))
-    for label, rel, mod in _loaded_executables():
+    global TSR, RunnerRefusal
+    import importlib
+    import importlib.machinery as _mach
+    repo = os.path.abspath(repo)
+    man = json.loads(_read_blob(repo, manifest_commit,
+                                MANIFEST_REL).decode("utf-8"))
+    resolved = []
+    for label, rel, modname in EXECUTABLES:
         fixed = os.path.join(repo, rel.replace("/", os.sep))
         if not os.path.exists(fixed):
             _refuse(f"the {label} {rel} is absent from the worktree")
-        mf = getattr(mod, "__file__", None)
-        if not mf or not os.path.exists(mf):
-            _refuse(f"the {label} executing in this process has no "
-                    f"source file to bind (module "
-                    f"{getattr(mod, '__name__', '?')})")
-        if not os.path.samefile(mf, fixed):
-            _refuse(f"the {label} executing in this process was loaded "
-                    f"from {os.path.abspath(mf)}, not the repository's "
-                    f"{rel} -- a module from anywhere else refuses even "
-                    "when the repository copy is pristine")
         pin = _bound_pin(man, rel)
-        got = _lf_sha(mf)
+        preloaded = None if label == "driver" else sys.modules.get(modname)
+        if label == "driver":
+            origin = os.path.abspath(__file__)
+            how = "executing in this process was loaded from"
+        elif preloaded is not None:
+            # bound before this preflight (a launcher, a .pth, a
+            # sitecustomize): its import-time code has already run in
+            # this process; it is refused by name and never used
+            origin = getattr(preloaded, "__file__", None)
+            how = "executing in this process was loaded from"
+        else:
+            spec = _mach.PathFinder.find_spec(modname, list(sys.path))
+            origin = getattr(spec, "origin", None) \
+                if spec is not None else None
+            how = "would be loaded from"
+        if not origin or not os.path.exists(origin):
+            _refuse(f"the {label} ({modname}) resolves to no source "
+                    "file on this interpreter's path")
+        if not os.path.samefile(origin, fixed):
+            _refuse(f"the {label} {how} {os.path.abspath(origin)}, not "
+                    f"the repository's {rel} -- a module from anywhere "
+                    "else refuses even when the repository copy is "
+                    "pristine")
+        got = _lf_sha(origin)
         if got != pin["blob_sha256"]:
             _refuse(
                 f"the {label} on disk ({got[:12]}) is not the source "
                 f"identity the manifest binds "
                 f"({str(pin['blob_sha256'])[:12]}) -- the reviewed "
                 "bytes are not the bytes that would run")
+        resolved.append((label, rel, modname, fixed, pin))
+    # every origin is proven; NOW import, and re-check what was loaded
+    mods = {}
+    for label, rel, modname, fixed, pin in resolved:
+        if label == "driver":
+            mod = sys.modules[__name__]
+        else:
+            mod = importlib.import_module(modname)
+        mf = getattr(mod, "__file__", None)
+        if not mf or not os.path.exists(mf) or \
+                not os.path.samefile(mf, fixed) or \
+                _lf_sha(mf) != pin["blob_sha256"]:
+            _refuse(f"the {label} changed identity between preflight "
+                    f"and import ({mf})")
+        mods[label] = mod
+    TSR = mods["runner"]
+    RunnerRefusal = mods["cert-runner"].RunnerRefusal
+    if DRIVER_REL != DRIVER_REL or RUNNER_REL != RUNNER_REL:
+        _refuse("the bound runner registers different driver/runner "
+                "paths than this driver")
+    return mods
+
+
+def _loaded_executables():
+    """(label, registered path, module) for every bound executable,
+    AFTER `_bootstrap` has proven and imported them."""
+    if TSR is None:
+        _refuse("executables requested before the provenance preflight "
+                "bound them")
+    return [(label, rel, sys.modules[__name__] if label == "driver"
+             else sys.modules[modname])
+            for label, rel, modname in EXECUTABLES]
+
+
+def _enter(repo, outdir):
+    """Every command after `fire` begins here: read the pre's manifest
+    commit with the stdlib (the pre itself is authenticated a moment
+    later by `_load_pre_checked`, and its references by the join), run
+    the provenance preflight against that manifest, bind the proven
+    executables. Nothing project-local runs before this returns."""
+    p = os.path.join(outdir, PRE_NAME)
+    if not os.path.exists(p):
+        _refuse(f"no pre-invocation at {p} -- fire the pre first")
+    with open(p, encoding="utf-8") as f:
+        raw = json.load(f)
+    mc = raw.get("manifest_commit")
+    if not isinstance(mc, str) or not mc:
+        _refuse("the pre-invocation names no manifest commit")
+    _bootstrap(repo, mc)
+
+
+def _require_bound_sources(repo, pre, manifest_commit=None):
+    """The identity join: `_bootstrap` (stdlib preflight -> import ->
+    recheck) for the manifest the pre binds, then the pre's own
+    `driver` and `implementation` references must EQUAL their resolved
+    pins exactly ({commit, path, blob_sha256}) -- a reference that
+    merely names live bytes is not an identity."""
+    mc = pre["manifest_commit"] if pre else manifest_commit
+    _bootstrap(repo, mc)
     if pre is not None:
-        drv_pin = _bound_pin(man, TSR.DRIVER_REL)
-        want_d = {"commit": drv_pin["commit"], "path": TSR.DRIVER_REL,
+        man = json.loads(_read_blob(repo, mc, MANIFEST_REL)
+                         .decode("utf-8"))
+        drv_pin = _bound_pin(man, DRIVER_REL)
+        want_d = {"commit": drv_pin["commit"], "path": DRIVER_REL,
                   "blob_sha256": drv_pin["blob_sha256"]}
         if pre["driver"] != want_d:
             _refuse(f"the pre's driver reference "
@@ -280,6 +374,7 @@ def _require_bound_sources(repo, pre, manifest_commit=None):
                     "reference that merely names live bytes is not an "
                     "identity")
     return True
+
 
 def _loco_registry(repo, pre):
     """The LOCO fold set, resolved from the PINNED geometry capsule
@@ -496,6 +591,7 @@ def cmd_worker(repo, outdir, idx, loco, pre_commit):
     ran -- the host guard, the pre digest, and the committed-pre
     proof -- because a child that trusts its parent is a child the
     parent's caller can steer."""
+    _enter(repo, outdir)
     pre, sha = _load_pre_checked(outdir)
     _require_committed_pre(repo, outdir, pre_commit)
     _require_bound_sources(repo, pre)
@@ -527,7 +623,7 @@ def _drive(repo, outdir, indices, loco, procs, pre, points,
     # unreviewed
     spawn = os.path.abspath(__file__)
     fixed = os.path.join(os.path.abspath(repo),
-                         TSR.DRIVER_REL.replace("/", os.sep))
+                         DRIVER_REL.replace("/", os.sep))
     if not (os.path.exists(spawn) and os.path.exists(fixed)
             and os.path.samefile(spawn, fixed)):
         _refuse(f"the spawn target {spawn} is not the repository's "
@@ -576,6 +672,7 @@ def _drive(repo, outdir, indices, loco, procs, pre, points,
 
 
 def cmd_phase1(repo, outdir, procs, pre_commit):
+    _enter(repo, outdir)
     pre, sha = _load_pre_checked(outdir)
     _require_committed_pre(repo, outdir, pre_commit)
     _require_bound_sources(repo, pre)
@@ -589,6 +686,7 @@ def cmd_phase1(repo, outdir, procs, pre_commit):
 
 
 def cmd_rank(repo, outdir, pre_commit):
+    _enter(repo, outdir)
     pre, sha = _load_pre_checked(outdir)
     _require_committed_pre(repo, outdir, pre_commit)
     _require_bound_sources(repo, pre)
@@ -612,6 +710,7 @@ def cmd_phase2(repo, outdir, procs, top8, pre_commit):
     The list is re-derived here and compared against the caller's, so
     a hand-edited selection cannot enter the run.
     """
+    _enter(repo, outdir)
     pre, sha = _load_pre_checked(outdir)
     _require_committed_pre(repo, outdir, pre_commit)
     _require_bound_sources(repo, pre)
@@ -632,6 +731,7 @@ def cmd_phase2(repo, outdir, procs, top8, pre_commit):
 
 
 def cmd_aggregate(repo, outdir, pre_commit):
+    _enter(repo, outdir)
     pre, sha = _load_pre_checked(outdir)
     _require_committed_pre(repo, outdir, pre_commit)
     _require_bound_sources(repo, pre)
@@ -662,6 +762,7 @@ def cmd_finalize(repo, outdir, pre_commit, results_commit, rel_dir):
     """Reopens all three carriers from their COMMITS and publishes the
     final smoke. The digests must already agree; this proves the
     committed bytes are the ones the draft described."""
+    _enter(repo, outdir)
     pre, sha = _load_pre_checked(outdir)
     _require_committed_pre(repo, outdir, pre_commit)
     _require_bound_sources(repo, pre)
@@ -694,6 +795,7 @@ def cmd_select(repo, outdir, smoke_commit, grids_commit, rel_dir,
     This is that link, governed: the final smoke and the effect grids
     are reopened FROM THEIR COMMITS, the selector artifact is
     published create-once, and nothing is taken from caller state."""
+    _enter(repo, outdir)
     import w2_tier_selector_cayley as TS
     pre, _sha = _load_pre_checked(outdir)
     _require_committed_pre(repo, outdir, pre_commit)
@@ -731,6 +833,7 @@ def cmd_verify_select(repo, outdir, selector_commit, manifest_commit,
     exists on disk has never been proven to be the one that was
     published."""
     import hashlib
+    _enter(repo, outdir)
     import w2_tier_selector_cayley as TS
     pre, _sha = _load_pre_checked(outdir)
     _require_committed_pre(repo, outdir, pre_commit)
@@ -925,7 +1028,7 @@ def _selftest(real_repo):
         # their registered paths -- no stub modules any more, because
         # the identity join binds the module EXECUTING, and the module
         # executing here is this very file.
-        EXEC_RELS = tuple(rel for _l, rel, _m in _loaded_executables())
+        EXEC_RELS = tuple(rel for _l, rel, _m in EXECUTABLES)
         for rel in EXEC_RELS:
             assert os.path.exists(os.path.join(
                 repo, rel.replace("/", os.sep))), rel
@@ -945,7 +1048,7 @@ def _selftest(real_repo):
             pins = []
             for r in PINNED:
                 cm = driver_commit if (driver_commit and
-                                       r == TSR.DRIVER_REL) else c1
+                                       r == DRIVER_REL) else c1
                 pins.append({"path": r, "commit": cm,
                              "blob_sha256": sha_at(r, cm)})
             return {"slots": {"s": {"status": "BOUND", "pins": pins}}}
@@ -955,6 +1058,12 @@ def _selftest(real_repo):
         g("add", "-A")
         g("commit", "-qm", "manifest")
         c2 = g("rev-parse", "HEAD").stdout.decode().strip()
+        # the provenance preflight against the fixture manifest binds
+        # TSR and RunnerRefusal for everything below -- the FIRST
+        # project-local import in this process happens here
+        assert TSR is None, "a project module was bound before the preflight"
+        _bootstrap(repo, c2)
+        assert TSR is not None and RunnerRefusal is not None
 
         outdir = os.path.join(repo, "tier_s")
         pre, points = TSR.fire_pre(
@@ -1344,7 +1453,7 @@ def _selftest(real_repo):
         # refuses everything.
         man_no_drv = {"slots": {"s": {"status": "BOUND", "pins": [
             pin for pin in man["slots"]["s"]["pins"]
-            if pin["path"] != TSR.DRIVER_REL]}}}
+            if pin["path"] != DRIVER_REL]}}}
         wf("docs/f2g_window2_execution/execution_manifest.json",
            json.dumps(man_no_drv, sort_keys=True))
         g("add", "-A")
@@ -1356,7 +1465,7 @@ def _selftest(real_repo):
                          blob_reader=_blob_reader(repo),
                          argv=["selftest-nodrv"])
         except TSR.RunnerRefusal as e:
-            assert TSR.DRIVER_REL in str(e), str(e)
+            assert DRIVER_REL in str(e), str(e)
         else:
             raise AssertionError(
                 "D-10 FAILED: a pre was fired binding a driver that "
@@ -1425,8 +1534,8 @@ def _selftest(real_repo):
                  "blob_sha256": sha_at(UNPINNED)})),
             ("driver", "driver -> a DIFFERENT bound pin (the runner's)",
              lambda b: b.__setitem__("driver", {
-                 "commit": c1, "path": TSR.RUNNER_REL,
-                 "blob_sha256": sha_at(TSR.RUNNER_REL)})),
+                 "commit": c1, "path": RUNNER_REL,
+                 "blob_sha256": sha_at(RUNNER_REL)})),
             ("driver", "driver -> right path and bytes, wrong commit",
              lambda b: b["driver"].__setitem__("commit", c2_ok)),
         ]
@@ -1490,7 +1599,7 @@ def _selftest(real_repo):
                 "importlib.import_module(name)   # binds the SHADOW",
                 "sys.argv = [drv] + sys.argv[4:]",
                 "runpy.run_path(drv, run_name='__main__')", ""]))
-        drv_path = os.path.join(repo, TSR.DRIVER_REL.replace("/", os.sep))
+        drv_path = os.path.join(repo, DRIVER_REL.replace("/", os.sep))
         with open(drv_path, "rb") as f:
             pristine = f.read()
         src_dir = os.path.join(repo, "monitoring", "src")
@@ -1575,6 +1684,77 @@ def _selftest(real_repo):
               "before validation or launch; the restored positive "
               "re-passes")
 
+        # ---- D-10e (codex 2303Z finding 1, half B): provenance BEFORE
+        # execution. The in-tree runner and the in-tree phase-B stats
+        # engine each get an IMPORT-TIME side effect (write a marker
+        # file) prepended. A child driver must refuse each by name on
+        # the byte digest -- and the marker must NOT exist afterwards,
+        # proving the module was resolved and rejected without ever
+        # being imported. (The previous driver imported the runner at
+        # module top: the marker would have been written first.)
+        for label, rel, modname in (("runner", RUNNER_REL,
+                                     "w2_tier_s_runner_cayley"),
+                                    ("phase-b stats", STATS_REL,
+                                     "d2_f2g_phase_b_stats")):
+            live = os.path.join(repo, rel.replace("/", os.sep))
+            marker = os.path.join(tmp, f"import_marker_{modname}.txt")
+            with open(live, "rb") as f:
+                keep_b = f.read()
+            side_effect = ("import os as _mo\n_mo.makedirs(%r, exist_ok="
+                           "True)\nopen(%r, 'w').write('EXECUTED')\n"
+                           % (os.path.dirname(marker), marker))
+            with open(live, "wb") as f:
+                f.write(side_effect.encode("utf-8") + keep_b)
+            out_m = os.path.join(repo, f"tier_s_marker_{modname}")
+            rc, blob = _cli([drv_path, "fire", repo, out_m, c2_ok])
+            with open(live, "wb") as f:
+                f.write(keep_b)
+            assert rc != 0 and f"the {label}" in blob and \
+                "not the source identity" in blob, (label, blob[-400:])
+            assert not os.path.exists(marker), (
+                f"D-10e FAILED: the {label}'s import-time code EXECUTED "
+                "before the identity check")
+            assert not os.path.exists(out_m), label
+        rc, blob = _cli([drv_path, "rank", repo, outdir, c3])
+        assert rc == 0 and "top8 " in blob, blob[-300:]
+        print("  D-10e PASS  an in-tree runner and an in-tree phase-B "
+              "stats engine carrying IMPORT-TIME side effects are each "
+              "refused by name in a child driver and their markers "
+              "never appear -- resolved and rejected without being "
+              "imported; the restored positive re-passes")
+
+        # ---- D-10f (codex 2303Z finding 1, half A + its control): a
+        # FOREIGN phase-B stats engine that would return p=0.0 for B2A
+        # and B3A is bound under the real name before the driver runs;
+        # the worker must refuse it BY NAME before any harness call,
+        # leaving no carrier.
+        sh = os.path.join(shadow_dir, "d2_f2g_phase_b_stats.py")
+        with open(sh, "w", encoding="utf-8", newline="\n") as f:
+            f.write("def b2a_family(*a, **k):\n"
+                    "    return {'p_value': 0.0, 'source': 'MALICIOUS'}\n"
+                    "\n\ndef b3a_family(*a, **k):\n"
+                    "    return {'p_value': 0.0, 'source': 'MALICIOUS'}\n")
+        out_fs = os.path.join(repo, "tier_s_foreign_stats")
+        TSR.fire_pre(repo, c2_ok, GRIDS_REL, GEOMETRY_REL, IMPL_REL, out_fs,
+                     blob_reader=_blob_reader(repo),
+                     argv=["selftest-foreign-stats"])
+        g("add", "-A")
+        g("commit", "-qm", "foreign-stats pre")
+        c_fs = g("rev-parse", "HEAD").stdout.decode().strip()
+        rc, blob = _cli([launcher, "d2_f2g_phase_b_stats", src_dir,
+                         drv_path, "--worker", repo, out_fs, "0", c_fs])
+        os.remove(sh)
+        assert rc != 0 and "the phase-b stats executing in this process " \
+            "was loaded from" in blob, blob[-500:]
+        assert HARNESS_MARK not in blob and "POWER_" not in blob, (
+            "D-10f FAILED: the harness ran with a foreign stats engine "
+            "bound -- " + blob[-300:])
+        assert not os.path.exists(_capsule_path(out_fs, 0, False))
+        print("  D-10f PASS  a foreign phase-B stats engine (p=0.0 for "
+              "B2A/B3A) bound under the real name is refused BY NAME "
+              "before any harness call, leaving no carrier -- the ninth "
+              "executable is inside the join")
+
         # ---- D-11b (codex item 2, re-based): the boundary mutations
         # as ADMITTED MUTANTS. Under a source-identity join, an
         # external mutated copy refuses at the join -- correct, but it
@@ -1593,9 +1773,10 @@ def _selftest(real_repo):
              "_run_one(repo, outdir, int(idx), sha, loco)",
              "RUNNER_TIER_S_PRE_DIGEST_MISMATCH", True),
             ("prevent runner entry",
-             "import w2_tier_s_runner_cayley as TSR",
-             "raise ImportError('MUTATION: runner entry "
-             "prevented')\nimport w2_tier_s_runner_cayley as TSR",
+             "            mod = importlib.import_module(modname)",
+             "            raise ImportError('MUTATION: runner entry "
+             "prevented')\n            mod = "
+             "importlib.import_module(modname)",
              "MUTATION: runner entry prevented", False),
             ("break committed-pre loading",
              "if committed != live:",
@@ -1751,7 +1932,8 @@ def _selftest(real_repo):
                                             c3))
         assert rc == 0, f"D-12 aggregate exit {rc} with broken stdout"
         new_keys = set(os.listdir(outdir)) - before_keys
-        assert new_keys == {"tier_s_results.json",
+        assert new_keys == {"tier_s_aggregate_envelope.json",
+                            "tier_s_results.json",
                             "tier_s_completion.json",
                             "tier_s_smoke.json"}, sorted(new_keys)
         for nm in sorted(new_keys):
@@ -1819,6 +2001,141 @@ def _selftest(real_repo):
               "streams broken. verify-select REFUSES the fixture "
               "chain on geometry, as it must; its success is D-11's")
 
+        # ---- D-13 (codex 2303Z finding 2): aggregate publishes NOTHING
+        # until every artifact is built and validated in memory, and a
+        # partial publication is RECOVERABLE from the create-once
+        # envelope, byte-exactly, never overwriting a divergent member.
+        AGG = {"tier_s_aggregate_envelope.json", "tier_s_results.json",
+               "tier_s_completion.json", "tier_s_smoke.json"}
+
+        def _agg_files(o):
+            return {n for n in os.listdir(o) if n in AGG}
+
+        def _fresh_campaign(tag):
+            o = os.path.join(repo, f"tier_s_agg_{tag}")
+            pz, pts_z = TSR.fire_pre(
+                repo, c2_ok, GRIDS_REL, GEOMETRY_REL, IMPL_REL, o,
+                blob_reader=_blob_reader(repo), argv=["selftest-agg-" + tag])
+            g("add", "-A")
+            g("commit", "-qm", f"agg {tag} pre")
+            cz = g("rev-parse", "HEAD").stdout.decode().strip()
+            shz = pz["invocation_sha256"]
+
+            def stub_z(fam, point, folds):
+                rec = {"family": fam, "point": point,
+                       "quality": dict(pz["quality"]),
+                       "geometry_capsule_digest":
+                           pz["geometry"]["capsule_digest"],
+                       "seed_authority_sha256": pz["seed_authority_sha256"],
+                       "certifiable": False, "loco_folds": None,
+                       "replicates": [{"p_values": {
+                           "B1B": 0.001, "B2A": 0.5, "B2B": 0.5,
+                           "B3A": 0.5}} for _ in range(pz["quality"]["R"])]}
+                if folds:
+                    rec["loco_folds"] = [{"S0": 0.001, "S1": 0.001}
+                                         for _ in range(pz["quality"]["R"])]
+                return rec
+            for i in range(len(pts_z)):
+                TSR.run_smoke_point(repo, o, i, shz, reader, smoke_fn=stub_z)
+            for i in TSR.rank_stage1_b1b(o, shz, reader):
+                TSR.run_smoke_point(repo, o, i, shz, reader, with_loco=True,
+                                    smoke_fn=stub_z)
+            return o, cz
+
+        # (a) a bad VALUE in one carrier refuses typed with ZERO
+        # aggregate files -- string, NaN, out-of-range, bool, negative
+        o_bad, c_bad = _fresh_campaign("badval")
+        cp0 = os.path.join(o_bad, "smoke_point_000.json")
+        with open(cp0, encoding="utf-8") as f:
+            good_txt = f.read()
+        for vlabel, bad in (("string", '"0.5"'), ("NaN", "NaN"),
+                            ("out-of-range", "1.5"), ("bool", "true"),
+                            ("negative", "-0.001")):
+            capd = json.loads(good_txt)
+            capd["record"]["replicates"][0]["p_values"]["B2A"] = "__BAD__"
+            txt = json.dumps(capd, indent=1, sort_keys=True).replace(
+                '"__BAD__"', bad)
+            with open(cp0, "w", encoding="utf-8", newline="\n") as f:
+                f.write(txt)
+            msg = cli_refuses(f"aggregate {vlabel} p-value", "aggregate",
+                              repo, o_bad, c_bad)
+            assert "RUNNER_TIER_S_UNADMITTED" in msg and "p-value" in msg, \
+                (vlabel, msg[:200])
+            assert _agg_files(o_bad) == set(), (vlabel, _agg_files(o_bad))
+        with open(cp0, "w", encoding="utf-8", newline="\n") as f:
+            f.write(good_txt)
+        assert cli("aggregate", repo, o_bad, c_bad) == 0
+        assert _agg_files(o_bad) == AGG, _agg_files(o_bad)
+
+        # (b) an injected failure on member 2 and on member 3: the
+        # envelope is durable, the retry completes the missing members
+        # with the envelope's exact bytes, and a further call refuses
+        def _failing_on(member, real_pub):
+            def failing(path, body):
+                if os.path.basename(path) == member:
+                    raise OSError(f"MUTATION: publication of {member} "
+                                  "failed")
+                return real_pub(path, body)
+            return failing
+        for member in ("tier_s_completion.json", "tier_s_smoke.json"):
+            o_i, c_i = _fresh_campaign("inject_" + member[7:-5])
+            real_pub = TSR._publish_once
+            TSR._publish_once = _failing_on(member, real_pub)
+            try:
+                try:
+                    cli("aggregate", repo, o_i, c_i)
+                    raise AssertionError(
+                        "D-13 FAILED: the injected publication failure "
+                        "did not surface")
+                except OSError as e:
+                    assert "MUTATION" in str(e), str(e)
+            finally:
+                TSR._publish_once = real_pub
+            present = _agg_files(o_i)
+            assert "tier_s_aggregate_envelope.json" in present and \
+                member not in present, (member, present)
+            with open(os.path.join(o_i, "tier_s_aggregate_envelope.json"),
+                      encoding="utf-8") as f:
+                env = json.load(f)
+            assert cli("aggregate", repo, o_i, c_i) == 0, member
+            assert _agg_files(o_i) == AGG, (member, _agg_files(o_i))
+            for name in ("tier_s_results.json", "tier_s_completion.json",
+                         "tier_s_smoke.json"):
+                with open(os.path.join(o_i, name), "r", encoding="utf-8",
+                          newline="") as f:
+                    assert f.read() == env["members"][name]["body"], name
+            assert "RUNNER_PUBLISH_EXISTS" in cli_refuses(
+                "aggregate complete", "aggregate", repo, o_i, c_i)
+
+        # (c) a member that DIVERGED between attempts is never overwritten
+        o_d, c_d = _fresh_campaign("divergent")
+        real_pub = TSR._publish_once
+        TSR._publish_once = _failing_on("tier_s_smoke.json", real_pub)
+        try:
+            try:
+                cli("aggregate", repo, o_d, c_d)
+            except OSError:
+                pass
+        finally:
+            TSR._publish_once = real_pub
+        rp = os.path.join(o_d, "tier_s_results.json")
+        with open(rp, "r", encoding="utf-8", newline="") as f:
+            r_live = f.read()
+        with open(rp, "w", encoding="utf-8", newline="") as f:
+            f.write(r_live + " ")
+        msg = cli_refuses("aggregate divergent member", "aggregate", repo,
+                          o_d, c_d)
+        assert "RUNNER_TIER_S_AGGREGATE_DIVERGENT" in msg, msg[:200]
+        with open(rp, "r", encoding="utf-8", newline="") as f:
+            assert f.read() == r_live + " ", "D-13: divergent member rewritten"
+        assert not os.path.exists(os.path.join(o_d, "tier_s_smoke.json"))
+        print("  D-13 PASS  a string / NaN / out-of-range / bool / negative "
+              "p-value refuses typed with ZERO aggregate files; injected "
+              "failures on member 2 and member 3 leave a durable envelope "
+              "and the retry completes the missing members byte-exactly, "
+              "then refuses create-once; a diverged member is refused and "
+              "never overwritten")
+
         # ---- D-11 (codex item 1 + 2112Z finding 2): THE FULL CLI
         # over REAL pinned geometry, every command through main(argv)
         # in a REAL child process running the real checkout's own
@@ -1839,7 +2156,7 @@ def _selftest(real_repo):
                 raise AssertionError(
                     "D-11 could not materialise a detached worktree: "
                     + add.stderr.decode(errors="replace")[:200])
-            pdrv = os.path.join(pwt, TSR.DRIVER_REL.replace("/", os.sep))
+            pdrv = os.path.join(pwt, DRIVER_REL.replace("/", os.sep))
             prel = "docs/f2g_window2_execution/d11_boundary"
             pout = os.path.join(pwt, prel.replace("/", os.sep))
 
@@ -1939,6 +2256,7 @@ def _selftest(real_repo):
             rc, blob = _cli([pdrv, "aggregate", pwt, pout, pc])
             assert rc == 0, f"D-11 aggregate rc={rc}: {blob[-400:]}"
             assert set(os.listdir(pout)) - before_p == {
+                "tier_s_aggregate_envelope.json",
                 "tier_s_results.json", "tier_s_completion.json",
                 "tier_s_smoke.json"}
             pg("add", "-A")

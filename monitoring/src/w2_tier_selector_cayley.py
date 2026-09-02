@@ -797,7 +797,9 @@ def verify_selector_admission(repo, art, manifest_commit, *,
         raise SelectorRefusal(
             "SELECTOR_UNADMITTED: results-commit draft smoke or "
             "aggregate envelope is not JSON")
-    if committed_draft.get("schema") != "f2g-w2-tier-s-smoke-v1" or \
+    if not isinstance(committed_draft, dict) or \
+            not isinstance(committed_envelope, dict) or \
+            committed_draft.get("schema") != "f2g-w2-tier-s-smoke-v1" or \
             committed_envelope.get("schema") != \
             "f2g-w2-tier-s-aggregate-envelope-v1":
         raise SelectorRefusal(
@@ -1380,6 +1382,16 @@ def _selftest():
             return False
         except SelectorRefusal as e:
             return needle in str(e)
+    # A valid JSON value at either results-stage authority must still
+    # refuse through the typed schema boundary.  Lists previously reached
+    # `.get()` before the object check and escaped as AttributeError.
+    for authority_name in ("tier_s_smoke.json",
+                           "tier_s_aggregate_envelope.json"):
+        authority_key = (STAGE_RES, authority_name)
+        authority_true = astore[authority_key]
+        astore[authority_key] = b"[]"
+        assert arefuses(art_a, "not the registered schema"), authority_name
+        astore[authority_key] = authority_true
     # THREE COMMITTED, INTERNALLY CONSISTENT SUBSTITUTE CARRIERS:
     # a coordinated grid+smoke+selector at other paths -- committed,
     # readable, self-consistent -- refuse as UNADMITTED (the grid is

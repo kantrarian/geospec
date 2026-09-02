@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-DAILY-TIER-CORPUS red-KAT bar -- grassmann, 2026-09-02 (REV 3: codex 0003Z repairs 1-2 on top of 2303Z).
+DAILY-TIER-CORPUS red-KAT bar -- grassmann, 2026-09-02 (REV 4: codex 0043Z mode-exclusion repair on top of 0003Z + 2303Z).
 
 Locks the daily monitor's tier / renormalization / single-method-cap /
 persistence / summary / append-only-history layer against the program's
@@ -109,9 +109,13 @@ code before any lock line, while the untouched committed positive binds.
 
 Usage (from monitoring/src):
   python test_daily_tier_corpus_redkats_grassmann.py --repo <root> [--commit <rev>]
-      [--bar-commit <rev>] [--selftest] [--bind-only] [--dump-ledger] [--write-ledger <path>]
-  --write-ledger is the only mode that runs UNBOUND (it authors the sidecar and
-  emits no verdict); it says so loudly.
+      [--bar-commit <rev>] [--selftest | --bind-only | --dump-ledger | --write-ledger <path>]
+  The four modes are an argparse MUTUALLY-EXCLUSIVE group (codex 0043Z): any two
+  together are rejected by argparse (exit 2, usage to stderr) BEFORE the banner,
+  the binding and the corpus path -- there is no pairwise precedence. Selftest
+  M-L proves all six pairs as real child processes and keeps a positive control
+  per mode. --write-ledger is the only mode that runs UNBOUND (it authors the
+  sidecar and emits no verdict); it says so loudly.
 """
 import argparse
 import csv
@@ -1074,6 +1078,47 @@ def selftest(repo: str, commit: str) -> int:
                                         f"sidecar={ok_kc}({code_c}) positive={ok_kd}({code_d}); "
                                         f"tail: {out_d.strip().splitlines()[-1:] if out_d.strip() else out_d!r}")
 
+        # M-L (codex 0043Z): MODE EXCLUSION, as REAL child processes of THIS bound bar. All six pairwise
+        # combinations of the four modes must be rejected by argparse (exit 2, "not allowed with") BEFORE
+        # the banner, the binding, the UNBOUND line, any lock line, any verdict, or any traceback.
+        # Positive controls per mode: --bind-only = M-K (d); --selftest = this bound run (BOUND set);
+        # --dump-ledger and --write-ledger run here as children and must succeed alone.
+        ml_ledger = os.path.join(td, "ml_ledger.json")
+        mode_args = {"--selftest": ["--selftest"], "--bind-only": ["--bind-only"],
+                     "--dump-ledger": ["--dump-ledger"], "--write-ledger": ["--write-ledger", ml_ledger]}
+        forbidden = ("DAILY-TIER-CORPUS red-KAT bar", "SOURCE BINDING", "UNBOUND", "[PASS]", "[FAIL]",
+                     "ALL PASS", "ALL DAILY-TIER-CORPUS", "Traceback")
+
+        def child_modes(extra: List[str]) -> Tuple[int, str]:
+            r = subprocess.run([sys.executable, __file__, "--repo", repo, "--commit", base["commit"]] + extra,
+                               capture_output=True, text=True, cwd=HERE)
+            return r.returncode, r.stdout + r.stderr
+
+        names = list(mode_args)
+        pairs = [(names[i], names[j]) for i in range(len(names)) for j in range(i + 1, len(names))]
+        pair_results = {}
+        for x, y in pairs:
+            code, out = child_modes(mode_args[x] + mode_args[y])
+            pair_results[(x, y)] = code == 2 and "not allowed with" in out and not any(s in out for s in forbidden)
+        code_dl, out_dl = child_modes(mode_args["--dump-ledger"])
+        ok_dl = code_dl == 0 and "SOURCE BINDING" in out_dl and "exclusions" in out_dl \
+            and "[PASS]" not in out_dl and "[FAIL]" not in out_dl
+        code_wl, out_wl = child_modes(mode_args["--write-ledger"])
+        with open(ml_ledger, "rb") as f:
+            written_sha = _lf_sha(f.read()) if os.path.exists(ml_ledger) else ""
+        ok_wl = code_wl == 0 and "UNBOUND" in out_wl and "wrote " in out_wl and "SOURCE BINDING" not in out_wl \
+            and "[PASS]" not in out_wl and "[FAIL]" not in out_wl and written_sha == LEDGER_SHA256
+        ok_self = BOUND is not None
+        if len(pairs) == 6 and all(pair_results.values()) and ok_dl and ok_wl and ok_self:
+            _ok("M-L mode exclusion: all 6 mode pairs rejected by argparse (exit 2) before banner/binding/verdict; "
+                "positives: --dump-ledger bound, --write-ledger unbound re-authors the pinned sidecar, "
+                "--selftest bound (this run), --bind-only (M-K d)", f"re-authored sidecar {written_sha[:12]}")
+        else:
+            fails += 1
+            bad = [f"{x}+{y}" for (x, y), ok in pair_results.items() if not ok]
+            _fail("M-L mode exclusion", f"rejected pairs {6 - len(bad)}/6 (bad: {bad}); dump={ok_dl}({code_dl}) "
+                                        f"write={ok_wl}({code_wl}, sha {written_sha[:12]}) selftest_bound={ok_self}")
+
     print()
     print("DAILY-TIER-CORPUS SELFTEST: " + ("ALL PASS" if not fails else f"{fails} FAIL"))
     return 1 if fails else 0
@@ -1087,10 +1132,13 @@ def main(argv: List[str]) -> int:
     ap.add_argument("--bar-commit", default="HEAD",
                     help="bar_commit: the commit the EXECUTING bar + sidecar must be byte-bound to "
                          "(default: the worktree's exact HEAD; override only explicitly)")
-    ap.add_argument("--selftest", action="store_true")
-    ap.add_argument("--bind-only", action="store_true", help="perform source binding, print it, emit no verdict")
-    ap.add_argument("--dump-ledger", action="store_true", help="print the measured class summary + exclusions")
-    ap.add_argument("--write-ledger", default=None, help="write the measured exception set to this path (UNBOUND)")
+    # codex 0043Z: the modes are MUTUALLY EXCLUSIVE at the parser -- no pairwise precedence, no
+    # composition; argparse rejects any pair (exit 2) before the banner, the binding or the corpus path.
+    mode = ap.add_mutually_exclusive_group()
+    mode.add_argument("--selftest", action="store_true")
+    mode.add_argument("--bind-only", action="store_true", help="perform source binding, print it, emit no verdict")
+    mode.add_argument("--dump-ledger", action="store_true", help="print the measured class summary + exclusions")
+    mode.add_argument("--write-ledger", default=None, help="write the measured exception set to this path (UNBOUND)")
     a = ap.parse_args(argv)
     logging.disable(logging.CRITICAL)
     repo = os.path.abspath(a.repo)
@@ -1099,7 +1147,7 @@ def main(argv: List[str]) -> int:
     except RuntimeError as e:
         print(f"CORPUS_REVISION_UNRESOLVABLE: {e}")
         return 2
-    print(f"DAILY-TIER-CORPUS red-KAT bar (grassmann, REV 3) -- repo {repo} commit {a.commit}")
+    print(f"DAILY-TIER-CORPUS red-KAT bar (grassmann, REV 4) -- repo {repo} commit {a.commit}")
     if a.write_ledger:
         print("  UNBOUND: --write-ledger authors the sidecar from the measured set; it emits NO verdict")
     else:

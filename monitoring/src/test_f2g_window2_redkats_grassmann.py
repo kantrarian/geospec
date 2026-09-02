@@ -3060,6 +3060,20 @@ def w_selrun():
                                      hashlib.sha256(lraw_c).hexdigest()])
                 c_idx += 1
         corpus_sha = canon_sha(sorted(carriers))
+        # REV-24 (codex 0730Z join, cayley 0747Z spec): admission also
+        # reopens the DRAFT smoke and the aggregate ENVELOPE committed at
+        # the results commit and requires both to carry the same receipt
+        # as the final smoke -- that is what closes the valid-alternate-
+        # commit substitution (byte-identical carriers at a different
+        # commit). Served at RC under the results directory.
+        store2[(RC, "kat/tier_s_smoke.json")] = _j.dumps({
+            "schema": "f2g-w2-tier-s-smoke-v1",
+            "points_commit": PC,
+            "point_corpus_sha256": corpus_sha}).encode()
+        store2[(RC, "kat/tier_s_aggregate_envelope.json")] = _j.dumps({
+            "schema": "f2g-w2-tier-s-aggregate-envelope-v1",
+            "points_commit": PC,
+            "point_corpus_sha256": corpus_sha}).encode()
         chain_fields = dict(
             pre_invocation_ref={"commit": PRE_C,
                                 "path": "kat/ts_pre.json"},
@@ -3101,9 +3115,22 @@ def w_selrun():
             bad_rcpt, grids,
             smoke_ref={"commit": SC, "path": "kat/smoke_badrcpt.json"},
             effect_grids_ref=refs_adm["effect_grids_ref"])
+
+        def rdr2_badrcpt(commit, path):
+            # REV-24: the chain is SELF-CONSISTENT about the bad digest
+            # (draft smoke + envelope at RC carry it too), so the only
+            # thing wrong is that it does not recompute from the
+            # carriers -- the refusal must be the recompute one, not the
+            # continuity one
+            if commit == RC and path in ("kat/tier_s_smoke.json",
+                                         "kat/tier_s_aggregate_envelope.json"):
+                d = _j.loads(rdr2(commit, path))
+                d["point_corpus_sha256"] = "f" * 64
+                return _j.dumps(d).encode()
+            return rdr2(commit, path)
         ok_run = ok_run and refuses(
             lambda: WTS.verify_selector_admission(
-                _REPO, art_badrcpt, MC, blob_reader=rdr2,
+                _REPO, art_badrcpt, MC, blob_reader=rdr2_badrcpt,
                 git_resolve=lambda c: c,
                 geometry_loader=bar_geom_loader, is_ancestor=bar_anc),
             "point_corpus_sha256 does not recompute")
@@ -3124,6 +3151,25 @@ def w_selrun():
                 git_resolve=lambda c: c,
                 geometry_loader=bar_geom_loader, is_ancestor=bar_anc),
             "REBUILT from the committed point corpus")
+
+        # REV-24 third partner (codex's v7 class): the results-commit
+        # DRAFT names a different point commit than the final smoke --
+        # the receipt is not continuous from aggregate to admission
+        PC_ALT = "9" * 40
+
+        def rdr2_altdraft(commit, path):
+            if (commit, path) == (RC, "kat/tier_s_smoke.json"):
+                return _j.dumps({
+                    "schema": "f2g-w2-tier-s-smoke-v1",
+                    "points_commit": PC_ALT,
+                    "point_corpus_sha256": corpus_sha}).encode()
+            return rdr2(commit, path)
+        ok_run = ok_run and refuses(
+            lambda: WTS.verify_selector_admission(
+                _REPO, art_adm, MC, blob_reader=rdr2_altdraft,
+                git_resolve=lambda c: c,
+                geometry_loader=bar_geom_loader, is_ancestor=bar_anc),
+            "final smoke point-corpus receipt diverges")
         # LOCK OPEN-SLOT (mine, independent of codex's red KAT for
         # their 0531Z finding 1). The SAME pins, the SAME bytes, the
         # SAME identities as the positive one line above -- only

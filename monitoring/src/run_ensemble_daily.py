@@ -1186,42 +1186,42 @@ def print_summary(results: Dict[str, EnsembleResult], persistence: Optional[Dict
     print()
 
 
+def _calibration_paths() -> List[str]:
+    """The complete committed calibration set (repo-relative paths)."""
+    cal_dir = REPO_ROOT / 'monitoring' / 'data' / 'calibration'
+    if not cal_dir.is_dir():
+        return []
+    return [f'monitoring/data/calibration/{cp.name}'
+            for cp in sorted(cal_dir.glob('*.json'))]
+
+
 def _inputs_capsule(pins: List[Dict], scored_day: str) -> Dict:
-    """codex correction 5: the closed, ORDERED inputs capsule stored on every
-    revision -- each entry names kind, committed path or identity, data day,
-    keyset where applicable, byte length and sha256, so `inputs_sha256`
-    (sha256 over the canonical encoding) has an auditable preimage the bar
-    can reopen and recompute. Code and capsule bytes are LF-normalized."""
+    """codex 1433Z correction 5 + 1755Z F3: the closed, ORDERED inputs capsule
+    with per-kind semantics -- the three registered code paths (LF bytes),
+    the complete committed calibration set (LF bytes + keyset), exactly one
+    prior_revision / legacy_record per non-hole persistence pin with the real
+    byte length of the named bytes, and one scored_day entry over its
+    canonical preimage. `inputs_sha256` is recomputable by the bar from the
+    named bytes; publication cross-checks all of it (expect_inputs)."""
     entries = []
-    for rel in ('monitoring/src/run_ensemble_daily.py',
-                'monitoring/src/ensemble.py',
-                'monitoring/src/ensemble_revisions_cayley.py'):
+    for rel in REV.CODE_PATHS:
         with open(REPO_ROOT / rel, 'rb') as f:
             raw = f.read().replace(b'\r\n', b'\n')
         entries.append(REV.input_entry('code', rel, None, None, raw_bytes=raw))
-    cal_dir = REPO_ROOT / 'monitoring' / 'data' / 'calibration'
-    if cal_dir.is_dir():
-        for cp in sorted(cal_dir.glob('*.json')):
-            with open(cp, 'rb') as f:
-                raw = f.read().replace(b'\r\n', b'\n')
-            try:
-                keys = sorted(json.loads(raw.decode('utf-8')).keys())
-            except (ValueError, AttributeError):
-                keys = None
-            entries.append(REV.input_entry(
-                'calibration_capsule', f'monitoring/data/calibration/{cp.name}',
-                None, keys, raw_bytes=raw))
+    for rel in _calibration_paths():
+        with open(REPO_ROOT / rel, 'rb') as f:
+            raw = f.read().replace(b'\r\n', b'\n')
+        try:
+            keys = sorted(json.loads(raw.decode('utf-8')).keys())
+        except (ValueError, AttributeError):
+            keys = None
+        entries.append(REV.input_entry('calibration_capsule', rel, None, keys,
+                                       raw_bytes=raw))
+    cap = REV.load_legacy_baseline(REPO_ROOT)
     for pin in pins:
-        if pin['kind'] == 'revision':
-            entries.append(REV.input_entry('prior_revision', pin['run_id'],
-                                           pin['date'], None,
-                                           sha256=pin['sha256'], byte_length=None))
-        elif pin['kind'] == 'legacy':
-            entries.append(REV.input_entry('legacy_record',
-                                           pin['legacy']['git_blob'], pin['date'],
-                                           None, sha256=pin['sha256'],
-                                           byte_length=None))
-    entries.append(REV.input_entry('scored_day', scored_day, scored_day, None))
+        if pin['kind'] != 'hole':
+            entries.append(REV.pin_input_entry(REPO_ROOT, cap, pin))
+    entries.append(REV.scored_day_entry(scored_day))
     return {'schema': REV.INPUTS_SCHEMA, 'entries': entries}
 
 
@@ -1381,7 +1381,8 @@ def main():
             entry = REV.publish_revision(
                 REPO_ROOT, record, _inputs_capsule(pins, date_str),
                 journal_snapshot, pins, datetime.now(timezone.utc),
-                rescore_reason=args.rescore)
+                rescore_reason=args.rescore,
+                expect_inputs={'calibration_paths': _calibration_paths()})
         except REV.RevisionRefusal as e:
             logger.error(str(e))
             return 12

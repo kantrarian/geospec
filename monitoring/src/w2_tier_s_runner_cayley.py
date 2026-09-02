@@ -23,6 +23,7 @@ are chronologically real):
 Tier-S output is PRELIMINARY_SMOKE; nothing here certifies anything
 or opens any window-2 value. Selftest uses stub smoke functions only.
 """
+import datetime
 import hashlib
 import json
 import math
@@ -88,6 +89,8 @@ REGISTERED_GRIDS_CONTENT_SHA256 = (
 # exactly and never overwrites a divergent member.
 AGGREGATE_ENVELOPE = "tier_s_aggregate_envelope.json"
 AGGREGATE_ENVELOPE_SCHEMA = "f2g-w2-tier-s-aggregate-envelope-v1"
+ENVELOPE_FIELDS = {"schema", "pre_invocation_sha256", "points_commit",
+                   "point_corpus_sha256", "members"}
 AGGREGATE_MEMBERS = ("tier_s_results.json", "tier_s_completion.json",
                      "tier_s_smoke.json")
 FAMILIES = ("B1B", "B2A", "B2B", "B3A")
@@ -398,9 +401,12 @@ def _publish_members_from_envelope(outdir, env):
         body = env["members"][name]["body"]
         p = os.path.join(outdir, name)
         if os.path.exists(p):
-            with open(p, "r", encoding="utf-8", newline="") as f:
+            # codex 0444Z finding 2: compare BYTES, so a non-UTF-8 or
+            # otherwise undecodable existing member takes this typed
+            # path instead of escaping as a decode error
+            with open(p, "rb") as f:
                 live = f.read()
-            if live != body:
+            if live != body.encode("utf-8"):
                 raise RunnerRefusal(
                     f"RUNNER_TIER_S_AGGREGATE_DIVERGENT: {name} exists "
                     "with bytes that differ from the aggregate envelope "
@@ -487,7 +493,8 @@ def _validate_envelope_members(env, pre):
 
 
 def _complete_aggregate_from_envelope(repo, outdir, pre, top8,
-                                      loco_registry, blob_reader):
+                                      loco_registry, blob_reader,
+                                      points_commit):
     """Retry path. codex 0352Z: a self-hash proves consistency with the
     edited envelope, not provenance. So the envelope is first checked as
     a WRAPPER (closed record, text bodies, recomputing digests, admitted
@@ -496,20 +503,41 @@ def _complete_aggregate_from_envelope(repo, outdir, pre, top8,
     equal them byte-for-byte, and the completion is BOUND to the pre's
     fired time and the rebuilt results digest -- all before any member
     is written. Then complete only the missing members, exactly."""
-    with open(os.path.join(outdir, AGGREGATE_ENVELOPE),
-              encoding="utf-8") as f:
-        env = json.load(f)
+    # codex 0444Z finding 2: the envelope file is UNTRUSTED bytes; an
+    # unreadable / undecodable / unparsable envelope is a typed refusal
+    try:
+        with open(os.path.join(outdir, AGGREGATE_ENVELOPE), "rb") as f:
+            env = json.loads(f.read().decode("utf-8"))
+    except (OSError, ValueError, UnicodeDecodeError) as exc:
+        raise RunnerRefusal(
+            "RUNNER_TIER_S_UNADMITTED: the aggregate envelope in this "
+            f"outdir cannot be read as JSON ({type(exc).__name__}) -- "
+            "nothing written; an operator decision")
     if not isinstance(env, dict) or \
-            set(env) != {"schema", "pre_invocation_sha256", "members"} or \
+            set(env) != ENVELOPE_FIELDS or \
             env.get("schema") != AGGREGATE_ENVELOPE_SCHEMA or \
             env.get("pre_invocation_sha256") != pre["invocation_sha256"]:
         raise RunnerRefusal(
             "RUNNER_TIER_S_UNADMITTED: the aggregate envelope in this "
             "outdir is not this campaign's closed envelope")
+    # codex 0444Z finding 1: the envelope binds the COMMITTED point
+    # corpus it was derived from; the caller must name that very
+    # commit, and the rebuild below reads ONLY that commit's blobs
+    if env.get("points_commit") != points_commit:
+        raise RunnerRefusal(
+            "RUNNER_TIER_S_UNADMITTED: the aggregate envelope binds point "
+            f"corpus commit {str(env.get('points_commit'))[:12]}; this "
+            f"call names {str(points_commit)[:12]} -- not the carrier "
+            "identity the envelope was derived from")
     res, comp, smoke = _validate_envelope_members(env, pre)
     members = env["members"]
-    results, r_body, r_sha, build_smoke = _rebuild_aggregate(
-        repo, outdir, pre, top8, loco_registry, blob_reader)
+    results, r_body, r_sha, build_smoke, corpus = _rebuild_aggregate(
+        repo, outdir, pre, top8, loco_registry, blob_reader, points_commit)
+    if env.get("point_corpus_sha256") != corpus["point_corpus_sha256"]:
+        raise RunnerRefusal(
+            "RUNNER_TIER_S_UNADMITTED: envelope point-corpus digest "
+            "diverges from the COMMITTED carriers at "
+            f"{points_commit[:12]}")
     if members["tier_s_results.json"]["body"] != r_body:
         raise RunnerRefusal(
             "RUNNER_TIER_S_UNADMITTED: envelope results diverge from the "
@@ -635,7 +663,8 @@ def _p_value_ok(v):
                          and math.isfinite(v) and 0.0 <= v <= 1.0)
 
 
-def _rebuild_aggregate(repo, outdir, pre, top8, loco_registry, blob_reader):
+def _rebuild_aggregate(repo, outdir, pre, top8, loco_registry, blob_reader,
+                       points_commit):
     """The DETERMINISTIC re-aggregation, publishing NOTHING: reopen and
     validate every detection / LOCO capsule through the one validator,
     rebuild the closed results v2 (bytes + digest) from the pre-bound
@@ -643,25 +672,60 @@ def _rebuild_aggregate(repo, outdir, pre, top8, loco_registry, blob_reader):
     smoke builder that takes the completion. First publication and
     recovery both go through here (codex 0352Z: an envelope cannot
     authenticate its own semantics; the capsules can)."""
+    # codex 0444Z finding 1: the point corpus is a COMMITTED trust root.
+    # Live carrier bytes are mutable; the carriers this rebuild reads
+    # are the blobs at `points_commit`, and their exact path->blob set
+    # is digested into the smoke and the envelope.
+    if not isinstance(points_commit, str) or len(points_commit) != 40 or \
+            any(c not in "0123456789abcdef" for c in points_commit):
+        raise RunnerRefusal(
+            "RUNNER_TIER_S_UNADMITTED: points_commit is not a full 40-hex "
+            "commit identity")
+    r_abs, o_abs = os.path.abspath(repo), os.path.abspath(outdir)
+    try:
+        common = os.path.commonpath([r_abs, o_abs])
+    except ValueError:
+        common = None
+    if common != r_abs or r_abs == o_abs:
+        raise RunnerRefusal(
+            "RUNNER_TIER_S_UNADMITTED: the outdir is not inside the "
+            "repository, so its carriers have no committed identity")
+    rel = os.path.relpath(o_abs, r_abs).replace(os.sep, "/")
+
+    def committed(name):
+        try:
+            raw = blob_reader(points_commit, f"{rel}/{name}")
+        except RunnerRefusal:
+            raise
+        except Exception as exc:                        # noqa: BLE001
+            raise RunnerRefusal(
+                f"RUNNER_TIER_S_RESULT_MISSING: {name} is not committed at "
+                f"{points_commit[:12]} ({type(exc).__name__})")
+        if not raw:
+            raise RunnerRefusal(
+                f"RUNNER_TIER_S_RESULT_MISSING: {name} is not committed at "
+                f"{points_commit[:12]}")
+        try:
+            return json.loads(raw.decode("utf-8")), \
+                hashlib.sha256(raw).hexdigest()
+        except (ValueError, UnicodeDecodeError):
+            raise RunnerRefusal(
+                f"RUNNER_TIER_S_UNADMITTED: committed carrier {name} at "
+                f"{points_commit[:12]} is not JSON")
     points = derive_points(pre, blob_reader)
     fams = {"B2A": [], "B2B": [], "B1B": [], "B3A": []}
+    carriers = []
     for idx, (fam, point) in enumerate(points):
-        p = os.path.join(outdir, f"smoke_point_{idx:03d}.json")
-        if not os.path.exists(p):
-            raise RunnerRefusal(
-                f"RUNNER_TIER_S_RESULT_MISSING: point {idx}")
-        with open(p, encoding="utf-8") as f:
-            cap = json.load(f)
+        name = f"smoke_point_{idx:03d}.json"
+        cap, csha = committed(name)
         _check_point_capsule(cap, idx, fam, point, pre)
+        carriers.append([f"{rel}/{name}", csha])
         folds = None
         if fam == "B1B" and idx in top8:
-            lp = os.path.join(outdir, f"smoke_loco_{idx:03d}.json")
-            if not os.path.exists(lp):
-                raise RunnerRefusal(
-                    f"RUNNER_TIER_S_RESULT_MISSING: loco {idx}")
-            with open(lp, encoding="utf-8") as f:
-                lcap = json.load(f)
+            lname = f"smoke_loco_{idx:03d}.json"
+            lcap, lsha = committed(lname)
             _check_point_capsule(lcap, idx, fam, point, pre)
+            carriers.append([f"{rel}/{lname}", lsha])
             folds = lcap["record"]["loco_folds"]
         fams[fam].append({
             "point": dict(point),
@@ -718,6 +782,10 @@ def _rebuild_aggregate(repo, outdir, pre, top8, loco_registry, blob_reader):
                     entry["post_loco_outcomes"] = post
             smoke_fams[fam].append(entry)
 
+    corpus = {"points_commit": points_commit,
+              "point_corpus_sha256": _digest(sorted(carriers)),
+              "carriers": len(carriers)}
+
     def build_smoke(comp):
         return {"schema": "f2g-w2-tier-s-smoke-v1",
                 "quality": dict(pre["quality"]),
@@ -730,8 +798,13 @@ def _rebuild_aggregate(repo, outdir, pre, top8, loco_registry, blob_reader):
                 "pre_invocation_sha256": pre["invocation_sha256"],
                 "completion_sha256": _digest(comp),
                 "results_blob_sha256": r_sha,
+                # codex 0444Z finding 1: the COMMITTED point corpus this
+                # smoke was derived from -- the commit and the exact
+                # path->blob digest of every carrier read
+                "points_commit": points_commit,
+                "point_corpus_sha256": corpus["point_corpus_sha256"],
                 "families": smoke_fams}
-    return results, r_body, r_sha, build_smoke
+    return results, r_body, r_sha, build_smoke, corpus
 
 
 _UTC_RE = r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ"
@@ -757,19 +830,38 @@ def _validate_completion(comp, pre, r_sha):
         raise RunnerRefusal(
             "RUNNER_TIER_S_UNADMITTED: completion fired time is not the "
             "pre's fired time")
+    # codex 0444Z finding 3: a digit-shape regex admitted
+    # 9999-99-99T99:99:99Z. Parse strictly, require an exact round-trip
+    # to the canonical format, then compare the parsed instants.
+    inst = {}
     for k in ("fired_utc", "completed_utc"):
-        if not isinstance(comp[k], str) or \
-                not re.fullmatch(_UTC_RE, comp[k]):
-            raise RunnerRefusal(
-                f"RUNNER_TIER_S_UNADMITTED: completion {k} is not a "
-                "canonical UTC instant")
-    if not comp["fired_utc"] <= comp["completed_utc"]:
+        inst[k] = _parse_utc_instant(comp[k], f"completion {k}")
+    if not inst["fired_utc"] <= inst["completed_utc"]:
         raise RunnerRefusal(
             "RUNNER_TIER_S_UNADMITTED: completion times reversed")
 
 
+def _parse_utc_instant(v, where):
+    fmt = "%Y-%m-%dT%H:%M:%SZ"
+    if not isinstance(v, str) or not re.fullmatch(_UTC_RE, v):
+        raise RunnerRefusal(
+            f"RUNNER_TIER_S_UNADMITTED: {where} is not a canonical UTC "
+            "instant")
+    try:
+        dt = datetime.datetime.strptime(v, fmt)
+    except ValueError:
+        raise RunnerRefusal(
+            f"RUNNER_TIER_S_UNADMITTED: {where} {v!r} is not a real "
+            "instant (impossible month, day, hour, minute or second)")
+    if dt.strftime(fmt) != v:
+        raise RunnerRefusal(
+            f"RUNNER_TIER_S_UNADMITTED: {where} {v!r} does not round-trip "
+            "the canonical format")
+    return dt
+
+
 def aggregate(repo, outdir, expected_pre_sha, top8, loco_registry,
-              blob_reader):
+              blob_reader, points_commit):
     """The DETERMINISTIC aggregator: per-point capsules -> the closed
     derivational results v2 -> completion -> smoke; the selector runs
     separately over the COMMITTED carriers. Missing results refuse;
@@ -778,9 +870,10 @@ def aggregate(repo, outdir, expected_pre_sha, top8, loco_registry,
     _check_outdir(pre, outdir)
     if os.path.exists(os.path.join(outdir, AGGREGATE_ENVELOPE)):
         return _complete_aggregate_from_envelope(
-            repo, outdir, pre, top8, loco_registry, blob_reader)
-    results, r_body, r_sha, build_smoke = _rebuild_aggregate(
-        repo, outdir, pre, top8, loco_registry, blob_reader)
+            repo, outdir, pre, top8, loco_registry, blob_reader,
+            points_commit)
+    results, r_body, r_sha, build_smoke, corpus = _rebuild_aggregate(
+        repo, outdir, pre, top8, loco_registry, blob_reader, points_commit)
     comp = build_completion(pre, r_sha)      # in memory; nothing published yet
     _validate_completion(comp, pre, r_sha)
     smoke = build_smoke(comp)
@@ -803,6 +896,8 @@ def aggregate(repo, outdir, expected_pre_sha, top8, loco_registry,
         json.loads(body)                     # reparse before anything lands
     env = {"schema": AGGREGATE_ENVELOPE_SCHEMA,
            "pre_invocation_sha256": pre["invocation_sha256"],
+           "points_commit": points_commit,
+           "point_corpus_sha256": corpus["point_corpus_sha256"],
            "members": {name: {"sha256": hashlib.sha256(
                                   body.encode("utf-8")).hexdigest(),
                               "body": body}
@@ -988,9 +1083,10 @@ def _selftest():
         run_smoke_point(repo2, outdir, i, pre["invocation_sha256"],
                         breader, with_loco=True,
                         smoke_fn=stub_smoke_for(fam, point))
+    c_pts = commit_all("point carriers")   # codex 0444Z: committed corpus
     results, comp, smoke_draft = aggregate(
         repo2, outdir, pre["invocation_sha256"], top8,
-        ["S0", "S1"], breader)
+        ["S0", "S1"], breader, c_pts)
     assert smoke_draft["effect_grids_sha256"] == _digest(grids)
     c4 = commit_all("results+completion")
     smoke = finalize_smoke(
@@ -1184,9 +1280,12 @@ def _selftest():
     cap0["point"] = {"m": 2}          # relabel the outer identity
     with open(cap_p, "w", encoding="utf-8") as f:
         json.dump(cap0, f)
+    # the corpus is COMMITTED authority now: the relabelled capsule must
+    # be committed to be what aggregate reads
+    c_rel = commit_all("relabelled capsule")
     try:
         aggregate(repo2, out3, pre3["invocation_sha256"], t8,
-                  ["S0", "S1"], breader)
+                  ["S0", "S1"], breader, c_rel)
         raise AssertionError("relabelled capsule must refuse")
     except RunnerRefusal as e:
         assert "identity diverges" in str(e)

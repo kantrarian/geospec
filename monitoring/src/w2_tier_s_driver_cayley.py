@@ -479,6 +479,20 @@ def _is_ancestor(repo, a, b):
         capture_output=True).returncode == 0
 
 
+def _resolve_commit(repo, commitish):
+    """Full 40-hex identity of an operator-named commit, or a typed
+    refusal -- never a prefix, never a ref name, in anything that binds."""
+    p = subprocess.run(["git", "-C", repo, "rev-parse", "--verify",
+                        "--quiet", f"{commitish}^{{commit}}"],
+                       capture_output=True)
+    full = p.stdout.decode("utf-8", "replace").strip()
+    if p.returncode != 0 or len(full) != 40 or \
+            any(c not in "0123456789abcdef" for c in full):
+        _refuse(f"{commitish!r} does not resolve to a commit in this "
+                "repository")
+    return full
+
+
 def _require_committed_pre(repo, outdir, pre_commit):
     """codex 0257Z finding 2 (CRITICAL). The claimed `fire -> commit
     -> phase1` boundary was advisory: phase 1 needed only a live pre
@@ -757,15 +771,26 @@ def cmd_phase2(repo, outdir, procs, top8, pre_commit):
     done, skipped = _drive(repo, outdir, derived, True, procs, pre,
                            points, pre_commit)
     print(f"phase2 complete: {done} run, {skipped} already present")
-    print("\nNEXT: run aggregate.")
+    print("\nNEXT: commit the point carriers, then run aggregate naming "
+          "that commit.")
     return 0
 
 
-def cmd_aggregate(repo, outdir, pre_commit):
+def cmd_aggregate(repo, outdir, pre_commit, points_commit):
+    """codex 0444Z finding 1: the point corpus is a COMMITTED trust root,
+    like the pre. The operator commits the carriers after phase 2 and
+    names that commit here; it must descend from the committed pre, and
+    the runner rebuilds results and smoke from ITS blobs only -- live
+    carrier bytes are validated as a tree check but never trusted."""
     _enter(repo, outdir, pre_commit)
     pre, sha = _load_pre_checked(outdir)
     _require_committed_pre(repo, outdir, pre_commit)
     _require_bound_sources(repo, pre)
+    points_full = _resolve_commit(repo, points_commit)
+    if not _is_ancestor(repo, pre_commit, points_full):
+        _refuse(f"points commit {points_full[:12]} does not descend from "
+                f"the pre commit {str(pre_commit)[:12]} -- the carriers "
+                "must be committed on the pre's lineage")
     reader = _blob_reader(repo)
     points = TSR.derive_points(pre, reader)
     for i, (fam, _p) in enumerate(points):
@@ -775,7 +800,7 @@ def cmd_aggregate(repo, outdir, pre_commit):
         _validate_published(repo, outdir, pre, points, i, True)
     registry = _loco_registry(repo, pre)
     results, comp, smoke = TSR.aggregate(repo, outdir, sha, top8,
-                                         registry, reader)
+                                         registry, reader, points_full)
     # ---- PUBLICATION HAS HAPPENED (three create-once artifacts).
     # codex 2112Z finding 3: the exit status describes the
     # postcondition, never whether the summary printed.
@@ -784,9 +809,11 @@ def cmd_aggregate(repo, outdir, pre_commit):
             print(f"results_blob_sha256   {smoke['results_blob_sha256']}"),
             print(f"completion_sha256     {smoke['completion_sha256']}"),
             print(f"loco fold set         {len(registry)} stations"),
-            print("\nNEXT: commit results+completion+draft smoke, then "
-                  "run finalize with the pre commit and the results "
-                  "commit.")))
+            print(f"point corpus          {points_full[:12]} / "
+                  f"{smoke['point_corpus_sha256'][:12]}"),
+            print("\nNEXT: commit envelope+results+completion+draft "
+                  "smoke, then run finalize with the pre commit and the "
+                  "results commit.")))
 
 
 def cmd_finalize(repo, outdir, pre_commit, results_commit, rel_dir):
@@ -891,7 +918,8 @@ def _usage():
         "  driver.py rank       <repo> <outdir> <pre_commit>\n"
         "  driver.py phase2     <repo> <outdir> <procs> <i,i,...> "
         "<pre_commit>\n"
-        "  driver.py aggregate  <repo> <outdir> <pre_commit>\n"
+        "  driver.py aggregate  <repo> <outdir> <pre_commit> "
+        "<points_commit>\n"
         "  driver.py finalize   <repo> <outdir> <pre_commit> "
         "<results_commit> <rel_dir>\n"
         "  driver.py select     <repo> <outdir> <smoke_commit> "
@@ -933,7 +961,7 @@ def main(argv):
                           argv[6])
     if cmd == "aggregate":
         return cmd_aggregate(os.path.abspath(argv[2]), argv[3],
-                             argv[4])
+                             argv[4], argv[5])
     if cmd == "select":
         return cmd_select(os.path.abspath(argv[2]), argv[3], argv[4],
                           argv[5], argv[6], argv[7])
@@ -2021,7 +2049,7 @@ def _selftest(real_repo):
         cli_refuses("rank needs a committed pre", "rank", repo, out3,
                     c3)
         cli_refuses("aggregate needs a committed pre", "aggregate",
-                    repo, out3, c3)
+                    repo, out3, c3, c3)
         cli_refuses("worker needs a committed pre", "--worker", repo,
                     out3, 0, c3)
         cli_refuses("phase2 rejects a hand list", "phase2", repo,
@@ -2064,12 +2092,17 @@ def _selftest(real_repo):
         # carriers: the wrapper transition, exit 0, nothing spawned
         assert cli("phase2", repo, outdir, 1, ",".join(
             str(i) for i in top), c3) == 0, "D-12 phase2"
+        # codex 0444Z finding 1: the point corpus is committed BEFORE
+        # aggregate and named to it
+        g("add", "-A")
+        g("commit", "-qm", "d12 point corpus")
+        c_pts12 = g("rev-parse", "HEAD").stdout.decode().strip()
         before_keys = set(os.listdir(outdir))
         # aggregate publishes THREE create-once artifacts; its
         # reporting tail runs on a BROKEN stdout and the exit status
         # must still describe the postcondition
         rc = with_broken_stdout(lambda: cli("aggregate", repo, outdir,
-                                            c3))
+                                            c3, c_pts12))
         assert rc == 0, f"D-12 aggregate exit {rc} with broken stdout"
         new_keys = set(os.listdir(outdir)) - before_keys
         assert new_keys == {"tier_s_aggregate_envelope.json",
@@ -2080,7 +2113,7 @@ def _selftest(real_repo):
             with open(os.path.join(outdir, nm), encoding="utf-8") as f:
                 json.load(f)          # reopen validation
         assert "RUNNER_PUBLISH_EXISTS" in cli_refuses(
-            "aggregate create-once", "aggregate", repo, outdir, c3)
+            "aggregate create-once", "aggregate", repo, outdir, c3, c_pts12)
         g("add", "-A")
         g("commit", "-qm", "d12 results")
         c_res = g("rev-parse", "HEAD").stdout.decode().strip()
@@ -2180,11 +2213,14 @@ def _selftest(real_repo):
             for i in TSR.rank_stage1_b1b(o, shz, reader):
                 TSR.run_smoke_point(repo, o, i, shz, reader, with_loco=True,
                                     smoke_fn=stub_z)
-            return o, cz
+            g("add", "-A")
+            g("commit", "-qm", f"agg {tag} point corpus")
+            cp = g("rev-parse", "HEAD").stdout.decode().strip()
+            return o, cz, cp
 
         # (a) a bad VALUE in one carrier refuses typed with ZERO
         # aggregate files -- string, NaN, out-of-range, bool, negative
-        o_bad, c_bad = _fresh_campaign("badval")
+        o_bad, c_bad, p_bad = _fresh_campaign("badval")
         cp0 = os.path.join(o_bad, "smoke_point_000.json")
         with open(cp0, encoding="utf-8") as f:
             good_txt = f.read()
@@ -2198,13 +2234,13 @@ def _selftest(real_repo):
             with open(cp0, "w", encoding="utf-8", newline="\n") as f:
                 f.write(txt)
             msg = cli_refuses(f"aggregate {vlabel} p-value", "aggregate",
-                              repo, o_bad, c_bad)
+                              repo, o_bad, c_bad, p_bad)
             assert "RUNNER_TIER_S_UNADMITTED" in msg and "p-value" in msg, \
                 (vlabel, msg[:200])
             assert _agg_files(o_bad) == set(), (vlabel, _agg_files(o_bad))
         with open(cp0, "w", encoding="utf-8", newline="\n") as f:
             f.write(good_txt)
-        assert cli("aggregate", repo, o_bad, c_bad) == 0
+        assert cli("aggregate", repo, o_bad, c_bad, p_bad) == 0
         assert _agg_files(o_bad) == AGG, _agg_files(o_bad)
 
         # (b) an injected failure on member 2 and on member 3: the
@@ -2218,12 +2254,12 @@ def _selftest(real_repo):
                 return real_pub(path, body)
             return failing
         for member in ("tier_s_completion.json", "tier_s_smoke.json"):
-            o_i, c_i = _fresh_campaign("inject_" + member[7:-5])
+            o_i, c_i, p_i = _fresh_campaign("inject_" + member[7:-5])
             real_pub = TSR._publish_once
             TSR._publish_once = _failing_on(member, real_pub)
             try:
                 try:
-                    cli("aggregate", repo, o_i, c_i)
+                    cli("aggregate", repo, o_i, c_i, p_i)
                     raise AssertionError(
                         "D-13 FAILED: the injected publication failure "
                         "did not surface")
@@ -2237,7 +2273,7 @@ def _selftest(real_repo):
             with open(os.path.join(o_i, "tier_s_aggregate_envelope.json"),
                       encoding="utf-8") as f:
                 env = json.load(f)
-            assert cli("aggregate", repo, o_i, c_i) == 0, member
+            assert cli("aggregate", repo, o_i, c_i, p_i) == 0, member
             assert _agg_files(o_i) == AGG, (member, _agg_files(o_i))
             for name in ("tier_s_results.json", "tier_s_completion.json",
                          "tier_s_smoke.json"):
@@ -2245,15 +2281,15 @@ def _selftest(real_repo):
                           newline="") as f:
                     assert f.read() == env["members"][name]["body"], name
             assert "RUNNER_PUBLISH_EXISTS" in cli_refuses(
-                "aggregate complete", "aggregate", repo, o_i, c_i)
+                "aggregate complete", "aggregate", repo, o_i, c_i, p_i)
 
         # (c) a member that DIVERGED between attempts is never overwritten
-        o_d, c_d = _fresh_campaign("divergent")
+        o_d, c_d, p_d = _fresh_campaign("divergent")
         real_pub = TSR._publish_once
         TSR._publish_once = _failing_on("tier_s_smoke.json", real_pub)
         try:
             try:
-                cli("aggregate", repo, o_d, c_d)
+                cli("aggregate", repo, o_d, c_d, p_d)
             except OSError:
                 pass
         finally:
@@ -2275,12 +2311,12 @@ def _selftest(real_repo):
         # place seven ways; each must refuse RUNNER_TIER_S_UNADMITTED
         # naming the member, publish no missing member, and leave every
         # existing byte untouched; the restored envelope then completes.
-        o_m, c_m = _fresh_campaign("malformed")
+        o_m, c_m, p_m = _fresh_campaign("malformed")
         real_pub = TSR._publish_once
         TSR._publish_once = _failing_on("tier_s_smoke.json", real_pub)
         try:
             try:
-                cli("aggregate", repo, o_m, c_m)
+                cli("aggregate", repo, o_m, c_m, p_m)
             except OSError:
                 pass
         finally:
@@ -2325,7 +2361,7 @@ def _selftest(real_repo):
         for mlabel, mut in MALFORMED:
             _mut_env(mut)
             msg = cli_refuses(f"aggregate malformed envelope ({mlabel})",
-                              "aggregate", repo, o_m, c_m)
+                              "aggregate", repo, o_m, c_m, p_m)
             assert "RUNNER_TIER_S_UNADMITTED" in msg and \
                 "envelope member" in msg, (mlabel, msg[:200])
             assert not os.path.exists(os.path.join(o_m, "tier_s_smoke.json")), \
@@ -2336,7 +2372,7 @@ def _selftest(real_repo):
         del good_body
         with open(env_p, "w", encoding="utf-8", newline="") as f:
             f.write(env_txt)
-        assert cli("aggregate", repo, o_m, c_m) == 0
+        assert cli("aggregate", repo, o_m, c_m, p_m) == 0
         assert _agg_files(o_m) == AGG
         print("  D-13 PASS  a string / NaN / out-of-range / bool / negative "
               "p-value refuses typed with ZERO aggregate files; injected "
@@ -2356,12 +2392,12 @@ def _selftest(real_repo):
         # ways -- every dependent digest recomputed so each case passes
         # every wrapper/linkage check -- and each must refuse typed with
         # no member written; the untouched envelope then recovers exactly.
-        o_s, c_s = _fresh_campaign("semantic")
+        o_s, c_s, p_s = _fresh_campaign("semantic")
         real_pub = TSR._publish_once
         TSR._publish_once = _failing_on("tier_s_results.json", real_pub)
         try:
             try:
-                cli("aggregate", repo, o_s, c_s)
+                cli("aggregate", repo, o_s, c_s, p_s)
             except OSError:
                 pass
         finally:
@@ -2466,13 +2502,13 @@ def _selftest(real_repo):
             assert all(_hh.sha256(m["body"].encode("utf-8")).hexdigest()
                        == m["sha256"] for m in e_chk["members"].values())
             msg = cli_refuses(f"aggregate semantic envelope ({slabel})",
-                              "aggregate", repo, o_s, c_s)
+                              "aggregate", repo, o_s, c_s, p_s)
             assert "RUNNER_TIER_S_UNADMITTED" in msg, (slabel, msg[:200])
             assert _agg_files(o_s) == {"tier_s_aggregate_envelope.json"}, (
                 slabel, "a member was written from a divergent envelope")
         with open(env_s, "w", encoding="utf-8", newline="") as f:
             f.write(env_s_txt)
-        assert cli("aggregate", repo, o_s, c_s) == 0
+        assert cli("aggregate", repo, o_s, c_s, p_s) == 0
         assert _agg_files(o_s) == AGG
         e_ok = json.loads(env_s_txt)
         for name in ("tier_s_results.json", "tier_s_completion.json",
@@ -2489,6 +2525,189 @@ def _selftest(real_repo):
               "outcome flips) each refuse TYPED with no member written -- "
               "recovery re-derives results and smoke from the point "
               "capsules; the untouched envelope recovers byte-exactly")
+
+        def _envelope_only(tag):
+            """a fresh committed campaign left with ONLY its envelope"""
+            o, c, p = _fresh_campaign(tag)
+            rp = TSR._publish_once
+            TSR._publish_once = _failing_on("tier_s_results.json", rp)
+            try:
+                try:
+                    cli("aggregate", repo, o, c, p)
+                except OSError:
+                    pass
+            finally:
+                TSR._publish_once = rp
+            ep = os.path.join(o, "tier_s_aggregate_envelope.json")
+            assert _agg_files(o) == {"tier_s_aggregate_envelope.json"}
+            with open(ep, "r", encoding="utf-8", newline="") as f:
+                return o, c, p, ep, f.read()
+
+        def _reseal_to(ep, base_txt, res, comp, smoke, corpus_sha=None):
+            import hashlib as _h
+            r_body = json.dumps(res, indent=1, sort_keys=True) + "\n"
+            r_sha = _h.sha256(r_body.encode("utf-8")).hexdigest()
+            comp = dict(comp, results_blob_sha256=r_sha)
+            c_body = json.dumps(comp, indent=1, sort_keys=True) + "\n"
+            smoke = dict(smoke, results_blob_sha256=r_sha,
+                         completion_sha256=TSR._digest(comp))
+            s_body = json.dumps(smoke, indent=1, sort_keys=True) + "\n"
+            e = json.loads(base_txt)
+            if corpus_sha is not None:
+                e["point_corpus_sha256"] = corpus_sha
+            for n, b in (("tier_s_results.json", r_body),
+                         ("tier_s_completion.json", c_body),
+                         ("tier_s_smoke.json", s_body)):
+                e["members"][n] = {"body": b, "sha256": _h.sha256(
+                    b.encode("utf-8")).hexdigest()}
+            with open(ep, "w", encoding="utf-8", newline="\n") as f:
+                f.write(json.dumps(e, indent=1, sort_keys=True) + "\n")
+
+        # ---- D-13f (codex 0444Z finding 1): the point corpus is
+        # COMMITTED. codex's counterexample: co-edit ONE well-shaped
+        # p-value in the LIVE point 0 and rebuild + reseal the envelope
+        # from the LIVE bytes (everything an attacker with the outdir can
+        # do). Recovery rebuilds from the COMMITTED blobs, so the corpus
+        # digest diverges and nothing is written; a different caller
+        # commit is refused unless it IS the envelope's; the untouched
+        # envelope then recovers and publishes the COMMITTED value.
+        o_t, c_t, p_t, env_t, env_t_txt = _envelope_only("cotamper")
+        pre_t, sha_t = _load_pre_checked(o_t)
+        top_t = TSR.rank_stage1_b1b(o_t, sha_t, reader)
+        reg_t = _loco_registry(repo, pre_t)
+        rel_t = os.path.relpath(o_t, repo).replace(os.sep, "/")
+        cp_t = os.path.join(o_t, "smoke_point_000.json")
+        with open(cp_t, "rb") as f:
+            keep_cp = f.read()
+        capd = json.loads(keep_cp.decode("utf-8"))
+        assert capd["family"] == "B2A" and \
+            capd["record"]["replicates"][0]["p_values"]["B2A"] == 0.5
+        capd["record"]["replicates"][0]["p_values"]["B2A"] = 0.01
+        with open(cp_t, "w", encoding="utf-8", newline="\n") as f:
+            f.write(json.dumps(capd, indent=1, sort_keys=True) + "\n")
+
+        def live_or_git(commit, path):
+            if path.startswith(rel_t + "/"):
+                with open(os.path.join(repo, path.replace("/", os.sep)),
+                          "rb") as f:
+                    return f.read()
+            return _blob_reader(repo)(commit, path)
+        _r, _rb, _rs, bs_l, corpus_l = TSR._rebuild_aggregate(
+            repo, o_t, pre_t, top_t, reg_t, live_or_git, p_t)
+        e0 = json.loads(env_t_txt)
+        assert corpus_l["point_corpus_sha256"] != e0["point_corpus_sha256"], \
+            "D-13f: the live edit did not change the corpus digest"
+        comp_l = json.loads(e0["members"]["tier_s_completion.json"]["body"])
+        _reseal_to(env_t, env_t_txt, _r, comp_l, bs_l(comp_l),
+                   corpus_sha=corpus_l["point_corpus_sha256"])
+        msg = cli_refuses("aggregate co-tampered point + envelope",
+                          "aggregate", repo, o_t, c_t, p_t)
+        assert "RUNNER_TIER_S_UNADMITTED" in msg and \
+            "point-corpus digest" in msg, msg[:200]
+        assert _agg_files(o_t) == {"tier_s_aggregate_envelope.json"}
+        with open(env_t, "w", encoding="utf-8", newline="") as f:
+            f.write(env_t_txt)
+        wf("d13f_marker.txt", "x\n")
+        g("add", "-A")
+        g("commit", "-qm", "d13f another commit on the lineage")
+        c_other = g("rev-parse", "HEAD").stdout.decode().strip()
+        msg = cli_refuses("aggregate foreign points commit", "aggregate",
+                          repo, o_t, c_t, c_other)
+        assert "RUNNER_TIER_S_UNADMITTED" in msg and \
+            "binds point corpus commit" in msg, msg[:200]
+        assert _agg_files(o_t) == {"tier_s_aggregate_envelope.json"}
+        # the live point is STILL edited; recovery publishes the committed value
+        assert cli("aggregate", repo, o_t, c_t, p_t) == 0
+        assert _agg_files(o_t) == AGG
+        with open(os.path.join(o_t, "tier_s_results.json"),
+                  encoding="utf-8") as f:
+            pub_t = json.load(f)
+        assert pub_t["families"]["B2A"][0]["replicates"][0]["p_values"]["B2A"] \
+            == 0.5, "D-13f FAILED: the LIVE edit was published"
+        assert pub_t["families"]["B2A"][0]["point"] == capd["point"]
+        with open(cp_t, "wb") as f:
+            f.write(keep_cp)
+        print("  D-13f PASS  a co-edited LIVE point capsule + fully resealed "
+              "envelope is refused (corpus digest diverges from the "
+              "COMMITTED carriers), a foreign caller commit on the same "
+              "lineage is refused, and recovery publishes the COMMITTED "
+              "p-value (0.5) over the live edit (0.01)")
+
+        # ---- D-13g (codex 0444Z finding 2): the envelope's OWN parse and
+        # an existing member's BYTES are typed, no-write boundaries
+        o_g, c_g, p_g, env_g, env_g_txt = _envelope_only("envjson")
+        for glabel, gbytes in (("not JSON", b"not json\n"),
+                               ("not UTF-8", b"\xff\xfe\x00{")):
+            with open(env_g, "wb") as f:
+                f.write(gbytes)
+            msg = cli_refuses(f"aggregate envelope {glabel}", "aggregate",
+                              repo, o_g, c_g, p_g)
+            assert "RUNNER_TIER_S_UNADMITTED" in msg and \
+                "cannot be read as JSON" in msg, (glabel, msg[:200])
+            assert _agg_files(o_g) == {"tier_s_aggregate_envelope.json"}
+        with open(env_g, "w", encoding="utf-8", newline="") as f:
+            f.write(env_g_txt)
+        rp = TSR._publish_once
+        TSR._publish_once = _failing_on("tier_s_smoke.json", rp)
+        try:
+            try:
+                cli("aggregate", repo, o_g, c_g, p_g)
+            except OSError:
+                pass
+        finally:
+            TSR._publish_once = rp
+        rg = os.path.join(o_g, "tier_s_results.json")
+        assert os.path.exists(rg) and not os.path.exists(
+            os.path.join(o_g, "tier_s_smoke.json"))
+        garbage = b"\xff\xfe\x00 not utf-8"
+        with open(rg, "wb") as f:
+            f.write(garbage)
+        msg = cli_refuses("aggregate non-UTF-8 existing member", "aggregate",
+                          repo, o_g, c_g, p_g)
+        assert "RUNNER_TIER_S_AGGREGATE_DIVERGENT" in msg, msg[:200]
+        with open(rg, "rb") as f:
+            assert f.read() == garbage, "D-13g: divergent member rewritten"
+        assert not os.path.exists(os.path.join(o_g, "tier_s_smoke.json"))
+        with open(rg, "wb") as f:
+            f.write(json.loads(env_g_txt)["members"]["tier_s_results.json"]
+                    ["body"].encode("utf-8"))
+        assert cli("aggregate", repo, o_g, c_g, p_g) == 0
+        assert _agg_files(o_g) == AGG
+        print("  D-13g PASS  an envelope that is not JSON / not UTF-8 refuses "
+              "typed with nothing written; a non-UTF-8 existing member takes "
+              "the typed divergent path untouched; the restored campaign "
+              "completes")
+
+        # ---- D-13h (codex 0444Z finding 3): completion instants are
+        # PARSED, not shape-checked -- impossible instants refuse, a real
+        # leap day is admitted
+        o_h, c_h, p_h, env_h, env_h_txt = _envelope_only("instants")
+        eh = json.loads(env_h_txt)
+        res_h = json.loads(eh["members"]["tier_s_results.json"]["body"])
+        comp_h = json.loads(eh["members"]["tier_s_completion.json"]["body"])
+        smoke_h = json.loads(eh["members"]["tier_s_smoke.json"]["body"])
+        for hlabel, bad in (("all-nines", "9999-99-99T99:99:99Z"),
+                            ("month 13", "2026-13-01T00:00:00Z"),
+                            ("day 32", "2026-09-32T00:00:00Z"),
+                            ("hour 24", "2026-09-02T24:00:00Z"),
+                            ("non-leap Feb 29", "2027-02-29T00:00:00Z"),
+                            ("reversed", "2000-01-01T00:00:00Z")):
+            _reseal_to(env_h, env_h_txt, res_h,
+                       dict(comp_h, completed_utc=bad), smoke_h)
+            msg = cli_refuses(f"aggregate instant {hlabel}", "aggregate",
+                              repo, o_h, c_h, p_h)
+            assert "RUNNER_TIER_S_UNADMITTED" in msg and (
+                "instant" in msg or "times reversed" in msg), (hlabel, msg[:200])
+            assert _agg_files(o_h) == {"tier_s_aggregate_envelope.json"}
+        _reseal_to(env_h, env_h_txt, res_h,
+                   dict(comp_h, completed_utc="2028-02-29T00:00:00Z"), smoke_h)
+        assert cli("aggregate", repo, o_h, c_h, p_h) == 0, \
+            "D-13h: a real leap day was refused"
+        assert _agg_files(o_h) == AGG
+        print("  D-13h PASS  five impossible instants (all-nines, month 13, "
+              "day 32, hour 24, non-leap Feb 29) and a reversed pair each "
+              "refuse typed with nothing written; a real leap day "
+              "(2028-02-29) is admitted and the campaign completes")
 
         # ---- D-11 (codex item 1 + 2112Z finding 2): THE FULL CLI
         # over REAL pinned geometry, every command through main(argv)
@@ -2606,8 +2825,13 @@ def _selftest(real_repo):
                 "already present" in blob, blob[-400:]
             # (7) aggregate -> commit -> finalize -> commit -> select
             # -> commit -> verify-select, all through main, exit 0
+            pg("add", "-A")
+            pg("commit", "-qm", "d11 point corpus")
+            c_pts_p = subprocess.run(
+                ["git", "-C", pwt, "rev-parse", "HEAD"],
+                capture_output=True, text=True).stdout.strip()
             before_p = set(os.listdir(pout))
-            rc, blob = _cli([pdrv, "aggregate", pwt, pout, pc])
+            rc, blob = _cli([pdrv, "aggregate", pwt, pout, pc, c_pts_p])
             assert rc == 0, f"D-11 aggregate rc={rc}: {blob[-400:]}"
             assert set(os.listdir(pout)) - before_p == {
                 "tier_s_aggregate_envelope.json",

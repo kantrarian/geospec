@@ -1,6 +1,32 @@
 #!/usr/bin/env python3
 """
-DAILY-TIER-CORPUS red-KAT bar -- grassmann, 2026-09-02 (REV 4: codex 0043Z mode-exclusion repair on top of 0003Z + 2303Z).
+DAILY-TIER-CORPUS red-KAT bar -- grassmann, 2026-09-02 (REV 5: the immutable-revision locks C-7..C-11 over the
+corrected contract v1 -- codex 1433Z corrections on my 1432Z contract -- against cayley's daily-path v2 bytes;
+on top of REV 4).
+
+REV 5 -- THE REVISION STORE (post-cutover) / PRE_CUTOVER (before it):
+  The daily path publishes one immutable REVISION per run under docs/ensemble/<date>/<run_id>.json, an
+  APPEND-ONLY NDJSON journal docs/ensemble/index.ndjson, a create-once cutover capsule
+  docs/ensemble/legacy_baseline_v1.json, and derives docs/ensemble_latest.json + docs/data.csv from them
+  (module ensemble_revisions_cayley, source-bound here like the bar itself). Locks, typed:
+  C-7 REVISIONS  every journaled revision reopens to its journal sha256; its closed `revision` block
+                 names the journal's date/run_id/supersedes; no revision path is ever modified or
+                 deleted in the ancestry (git view); no orphan file, no dangling line, no staging dir.
+  C-8 JOURNAL    parses under the module's own C-8 rules (canonical lines, no duplicate run id, exact
+                 supersedes); across commits every older journal is a byte-prefix of every newer one.
+  C-9 PERSISTENCE-BINDS-PRIORS  each revision's source_index (entry_count, prefix_sha256) names an exact
+                 prefix of the journal; each persistence_inputs entry (revision|legacy|hole) resolves
+                 against THAT prefix plus the capsule; the real check_persistence replayed over exactly
+                 those priors reproduces the record's persistence block. No tolerance.
+  C-10 LATEST    docs/ensemble_latest.json == the current revision bytes of the max journaled date.
+  C-11 UTC-KEY   revision.scored_day_utc == date (B6); the closed inputs capsule recomputes to
+                 inputs_sha256 and every `code` entry reopens to its digest.
+  C-4/C-2a HARD  for journaled dates: data.csv == bound legacy prefix + current-revision rows exactly
+                 (a disagreement is a FAIL, not a finding); the frozen ledger keeps the pre-cutover set.
+  PRE_CUTOVER    before the capsule exists the same lock asserts NO part of the store exists (a partial
+                 store is a FAIL) and reports the typed state -- never a vacuous PASS.
+  Selftest M-M..M-W: the locks are proven discriminating through the REAL ensemble_revisions API in a
+  temp store (cutover -> publish -> rescore), one change per partner.
 
 Locks the daily monitor's tier / renormalization / single-method-cap /
 persistence / summary / append-only-history layer against the program's
@@ -141,6 +167,7 @@ CSV_PATH = "docs/data.csv"
 AUDITED = ("monitoring/src/ensemble.py", "monitoring/src/run_ensemble_daily.py")
 BAR_FILE = "test_daily_tier_corpus_redkats_grassmann.py"
 BAR_PATH = "monitoring/src/" + BAR_FILE
+REV_MODULE_PATH = "monitoring/src/ensemble_revisions_cayley.py"   # REV 5: source-bound like the bar
 BOUND: Optional[dict] = None   # set by bind_sources(); report() refuses to run without it
 FROZEN_NOTE = "FROZEN (incident 2026-07-31): excluded from tier pending fix"
 FLOAT_TOL = 1e-12
@@ -662,11 +689,20 @@ def bind_sources(repo: str, bar_commit_rev: str) -> dict:
     if not in_tree:
         raise SystemExit(f"CORPUS_BAR_NOT_IN_TREE: executing {executing} is not {expected_bar}")
     blobs = {}
-    for rel in (BAR_PATH, LEDGER_PATH):
+    for rel in (BAR_PATH, LEDGER_PATH, REV_MODULE_PATH):
         try:
             blobs[rel] = _lf_sha(_blob(repo, bar_commit, rel))
         except RuntimeError as e:
             raise SystemExit(f"CORPUS_BAR_NOT_COMMITTED: {rel} has no blob at bar_commit {bar_commit[:12]}: {e}")
+    rev_live_path = os.path.join(HERE, os.path.basename(REV_MODULE_PATH))
+    try:
+        with open(rev_live_path, "rb") as f:
+            rev_live = _lf_sha(f.read())
+    except FileNotFoundError:
+        raise SystemExit(f"CORPUS_REVISION_MODULE_DIVERGENT: live {rev_live_path} missing")
+    if rev_live != blobs[REV_MODULE_PATH]:
+        raise SystemExit(f"CORPUS_REVISION_MODULE_DIVERGENT: live {rev_live} != blob {blobs[REV_MODULE_PATH]} "
+                         f"at bar_commit {bar_commit[:12]}")
     with open(executing, "rb") as f:
         live_bar = _lf_sha(f.read())
     if live_bar != blobs[BAR_PATH]:
@@ -683,7 +719,8 @@ def bind_sources(repo: str, bar_commit_rev: str) -> dict:
         raise SystemExit(f"CORPUS_LEDGER_DIVERGENT: live sidecar {live_ledger} != blob {blobs[LEDGER_PATH]} "
                          f"at bar_commit {bar_commit[:12]}")
     BOUND = {"bar_commit": bar_commit, "bar_blob": blobs[BAR_PATH], "bar_live": live_bar,
-             "ledger_blob": blobs[LEDGER_PATH], "ledger_live": live_ledger, "bar_file": executing}
+             "ledger_blob": blobs[LEDGER_PATH], "ledger_live": live_ledger, "bar_file": executing,
+             "rev_blob": blobs[REV_MODULE_PATH], "rev_live": rev_live}
     return BOUND
 
 
@@ -693,6 +730,8 @@ def print_binding(bound: dict, target_commit: str) -> None:
     print(f"           live == blob: {bound['bar_live']} ({bound['bar_file']})")
     print(f"    ledger {LEDGER_PATH}: blob {bound['ledger_blob']}")
     print(f"           live == blob: {bound['ledger_live']}")
+    print(f"    revmod {REV_MODULE_PATH}: blob {bound['rev_blob']}")
+    print(f"           live == blob: {bound['rev_live']}")
 
 
 def class_summary(entries: List[dict]) -> Dict[Tuple[str, str], Tuple[int, str]]:
@@ -700,6 +739,235 @@ def class_summary(entries: List[dict]) -> Dict[Tuple[str, str], Tuple[int, str]]
     for e in entries:
         by.setdefault((e["lock"], e["cls"]), []).append(e.get("date", ""))
     return {k: (len(v), max(v)) for k, v in by.items()}
+
+
+# --------------------------------------------------------------------------- REV 5: revision store (C-7..C-11)
+REV_DIR = "docs/ensemble"
+_REV_PATH_RE = re.compile(r"^docs/ensemble/(\d{4}-\d{2}-\d{2})/([0-9A-Za-z_\-]+)\.json$")
+
+
+class StoreView:
+    """A revision store at one point in time, behind three readers so the SAME comparators run over a
+    git commit (the bar) and over a temp filesystem store (the selftest partners)."""
+
+    def __init__(self, read, list_paths, read_blob, label: str):
+        self.read = read                  # rel -> bytes | None
+        self.list_paths = list_paths      # () -> sorted rel paths under docs/ensemble/
+        self.read_blob = read_blob        # git blob sha -> bytes (legacy records)
+        self.label = label
+
+
+def git_store_view(repo: str, commit: str) -> StoreView:
+    def read(rel):
+        try:
+            return _blob(repo, commit, rel)
+        except RuntimeError:
+            return None
+
+    def list_paths():
+        out = _git(repo, ["ls-tree", "-r", "--name-only", commit, "--", REV_DIR])
+        return sorted(p for p in out.split("\n") if p)
+
+    def read_blob(sha):
+        return _git(repo, ["cat-file", "blob", sha], binary=True)
+    return StoreView(read, list_paths, read_blob, f"git {commit[:12]}")
+
+
+def fs_store_view(root: str, blobs: Dict[str, bytes]) -> StoreView:
+    def read(rel):
+        p = os.path.join(root, rel.replace("/", os.sep))
+        if not os.path.exists(p):
+            return None
+        with open(p, "rb") as f:
+            return f.read()
+
+    def list_paths():
+        base = os.path.join(root, REV_DIR.replace("/", os.sep))
+        out = []
+        for dp, _dn, fns in os.walk(base):
+            for fn in fns:
+                rel = os.path.relpath(os.path.join(dp, fn), root).replace(os.sep, "/")
+                out.append(rel)
+        return sorted(out)
+
+    def read_blob(sha):
+        return blobs[sha]
+    return StoreView(read, list_paths, read_blob, f"fs {root}")
+
+
+def _journal_prefix_bytes(raw: bytes, n: int) -> Optional[bytes]:
+    lines = raw.split(b"\n")
+    if n > len(lines) - 1:
+        return None
+    return b"" if n == 0 else b"\n".join(lines[:n]) + b"\n"
+
+
+def lock_revision_store(view: StoreView, ens_mod, red_mod, REV, git_history=None) -> dict:
+    """C-7..C-11 (+ C-4/C-2a hard) over one store view. Returns {"state": PRE_CUTOVER|ACTIVE,
+    "problems": [typed strings], counts...}. git_history (git view only) = (repo, commit) for the
+    cross-commit C-7/C-8 checks."""
+    problems: List[str] = []
+    paths = view.list_paths()
+    cap_raw = view.read(REV.LEGACY_REL)
+    if cap_raw is None:
+        # PRE_CUTOVER: the store must be entirely absent
+        if paths:
+            problems.append(f"PARTIAL_STORE_BEFORE_CUTOVER: {paths[:3]}")
+        return {"state": "PRE_CUTOVER", "problems": problems, "n_revisions": 0, "n_dates": 0}
+    try:
+        cap = json.loads(cap_raw.decode("utf-8"))
+        if not isinstance(cap, dict) or cap.get("schema") != REV.LEGACY_SCHEMA:
+            raise ValueError("schema")
+        cap["_sha256"] = _sha(cap_raw)
+    except Exception as e:
+        problems.append(f"LEGACY_CAPSULE_INVALID: {e}")
+        return {"state": "ACTIVE", "problems": problems, "n_revisions": 0, "n_dates": 0}
+    if any(p.startswith(REV.TXN_DIR_REL + "/") for p in paths):
+        problems.append("STAGING_DIR_IN_STORE: docs/ensemble/.txn present")
+    journal_raw = view.read(REV.JOURNAL_REL) or b""
+    try:
+        entries = REV.parse_journal(journal_raw)
+    except REV.RevisionRefusal as e:
+        problems.append(f"C-8 {e}")
+        return {"state": "ACTIVE", "problems": problems, "n_revisions": 0, "n_dates": 0}
+    journaled = {e["path"] for e in entries}
+    present = {p for p in paths if _REV_PATH_RE.match(p)}
+    for p in sorted(present - journaled):
+        problems.append(f"C-8 REVISION_ORPHAN: {p}")
+    for p in sorted(journaled - present):
+        problems.append(f"C-8 REVISION_DANGLING_JOURNAL_LINE: {p}")
+    cur = REV.current_map(entries)
+    recs: Dict[str, Tuple[dict, bytes]] = {}
+    for i, e in enumerate(entries, 1):
+        raw = view.read(e["path"])
+        if raw is None:
+            continue
+        if _sha(raw) != e["sha256"]:
+            problems.append(f"C-7 REVISION_DIGEST_MISMATCH: {e['path']}")
+            continue
+        try:
+            rec = json.loads(raw.decode("utf-8"))
+        except Exception:
+            problems.append(f"C-7 REVISION_UNPARSABLE: {e['path']}")
+            continue
+        recs[e["run_id"]] = (rec, raw)
+        rv = rec.get("revision")
+        if not isinstance(rv, dict) or set(rv) != REV.REVISION_FIELDS:
+            problems.append(f"C-7 REVISION_BLOCK_NOT_CLOSED: {e['path']}")
+            continue
+        if not (rv["date"] == e["date"] == rec.get("date") and rv["run_id"] == e["run_id"]
+                and rv["supersedes"] == e["supersedes"]):
+            problems.append(f"C-7 REVISION_IDENTITY_NE_JOURNAL: {e['path']}")
+        if rv["scored_day_utc"] != rv["date"]:
+            problems.append(f"C-11 SCORED_DAY_NE_DATE: {e['path']} {rv['scored_day_utc']} != {rv['date']}")
+        # inputs capsule recomputes; code entries reopen
+        try:
+            if REV.inputs_sha256(rv["inputs"]) != rv["inputs_sha256"]:
+                problems.append(f"C-11 INPUTS_SHA256_MISMATCH: {e['path']}")
+            for ie in rv["inputs"]["entries"]:
+                if ie["kind"] == "code":
+                    blob = view.read(ie["identity"])
+                    if blob is None or _lf_sha(blob) != ie["sha256"] and _sha(blob) != ie["sha256"]:
+                        problems.append(f"C-11 INPUT_CODE_DIGEST_MISMATCH: {e['path']} {ie['identity']}")
+        except REV.RevisionRefusal as ex:
+            problems.append(f"C-11 {ex}")
+        # source_index names an exact journal prefix
+        si = rv["source_index"]
+        prefix = _journal_prefix_bytes(journal_raw, si.get("entry_count", -1)) if isinstance(si, dict) else None
+        if prefix is None or _sha(prefix) != si.get("prefix_sha256") or si["entry_count"] > i - 1:
+            problems.append(f"C-9 SOURCE_INDEX_NOT_A_PREFIX: {e['path']}")
+            continue
+        pcur = REV.current_map(REV.parse_journal(prefix))
+        # persistence inputs resolve against that prefix + the capsule
+        prior: Dict[str, Optional[dict]] = {}
+        for pe in rv["persistence_inputs"]:
+            kind = pe.get("kind")
+            d = pe.get("date")
+            if kind == "revision":
+                pc = pcur.get(d)
+                if pc is None or pc["run_id"] != pe["run_id"] or pc["sha256"] != pe["sha256"]:
+                    problems.append(f"C-9 PRIOR_NOT_CURRENT_IN_PREFIX: {e['path']} {d}")
+                    prior[d] = None
+                    continue
+                praw = view.read(pc["path"])
+                prior[d] = json.loads(praw.decode("utf-8")) if praw is not None and _sha(praw) == pc["sha256"] else None
+                if prior[d] is None:
+                    problems.append(f"C-9 PRIOR_REVISION_UNREADABLE: {e['path']} {d}")
+            elif kind == "legacy":
+                lr = REV.legacy_record_for(cap, d)
+                if lr is None or lr["sha256"] != pe["sha256"] or pcur.get(d) is not None \
+                        or (pe.get("legacy") or {}).get("capsule_sha256") != cap["_sha256"]:
+                    problems.append(f"C-9 LEGACY_PRIOR_NOT_BOUND: {e['path']} {d}")
+                    prior[d] = None
+                    continue
+                braw = view.read_blob(lr["git_blob"])
+                prior[d] = json.loads(braw.decode("utf-8")) if _sha(braw) == lr["sha256"] else None
+            elif kind == "hole":
+                if pcur.get(d) is not None or REV.legacy_record_for(cap, d) is not None:
+                    problems.append(f"C-9 FALSE_HOLE: {e['path']} {d} exists in the captured view")
+                prior[d] = None
+            else:
+                problems.append(f"C-9 PERSISTENCE_KIND: {e['path']} {kind!r}")
+        # the real rule over exactly those priors reproduces the record's persistence block
+        if any("persistence" in r for r in rec["regions"].values()):
+            with tempfile.TemporaryDirectory(prefix="corpus-rev-persist-") as td:
+                got = _persistence_replay(red_mod, ens_mod, td, rec, prior)
+            for region, r in rec["regions"].items():
+                if "persistence" not in r:
+                    continue
+                diffs = _diff_fields(got[region], r["persistence"],
+                                     ("current_tier", "consecutive_days", "is_confirmed", "tier_history"))
+                if diffs:
+                    problems.append(f"C-9 PERSISTENCE_NOT_REPRODUCED: {e['path']} {region}: {diffs[0]}")
+    # C-10 latest == current revision of the max date
+    if cur:
+        mx = max(cur)
+        latest = view.read(REV.LATEST_REL)
+        cur_raw = recs.get(cur[mx]["run_id"], (None, None))[1]
+        if latest is None or cur_raw is None or latest != cur_raw:
+            problems.append(f"C-10 LATEST_NE_CURRENT: {mx} {cur[mx]['run_id']}")
+    # C-4 hard: csv == bound legacy prefix + current rows
+    csv_raw = view.read(REV.CSV_REL)
+    lc = cap.get("legacy_csv") or {}
+    if csv_raw is None:
+        problems.append("C-4 CSV_ABSENT")
+    else:
+        n = lc.get("row_count", -1)
+        prefix = _journal_prefix_bytes(csv_raw, n + 1) if n >= 0 else None
+        if prefix is None or _sha(prefix) != lc.get("prefix_sha256"):
+            problems.append("C-4 CSV_LEGACY_PREFIX_CHANGED")
+        else:
+            want = []
+            for d in sorted(cur):
+                rec = recs.get(cur[d]["run_id"], (None, None))[0]
+                if rec is not None:
+                    want += [",".join(r) for r in REV._csv_rows_for_record(rec)]
+            got_rows = [ln for ln in csv_raw[len(prefix):].decode("utf-8").split("\n") if ln]
+            if got_rows != want:
+                bad = next((k for k, (a, b) in enumerate(zip(got_rows, want)) if a != b), min(len(got_rows), len(want)))
+                problems.append(f"C-4 CSV_RECORD_DISAGREEMENT (hard, post-cutover): row {bad}: "
+                                f"{got_rows[bad] if bad < len(got_rows) else '<absent>'!r} != "
+                                f"{want[bad] if bad < len(want) else '<absent>'!r}")
+    # cross-commit: no revision/capsule path ever modified or deleted; journal byte-prefix monotone
+    if git_history is not None:
+        repo, commit = git_history
+        md = _git(repo, ["log", "--format=", "--diff-filter=MD", "--name-only", commit, "--", REV_DIR])
+        for p in sorted(set(x for x in md.split("\n") if x)):
+            if p == REV.JOURNAL_REL:
+                continue
+            problems.append(f"C-7 STORE_PATH_MODIFIED_OR_DELETED: {p}")
+        jc = _git(repo, ["rev-list", "--reverse", commit, "--", REV.JOURNAL_REL]).split()
+        prev = b""
+        for c in jc:
+            try:
+                now_raw = _blob(repo, c, REV.JOURNAL_REL)
+            except RuntimeError:
+                problems.append(f"C-8 JOURNAL_DELETED_AT: {c[:12]}")
+                break
+            if not REV.journal_prefix_ok(prev, now_raw):
+                problems.append(f"C-8 JOURNAL_NOT_PREFIX_MONOTONE_AT: {c[:12]}")
+            prev = now_raw
+    return {"state": "ACTIVE", "problems": problems, "n_revisions": len(entries), "n_dates": len(cur)}
 
 
 # --------------------------------------------------------------------------- bar
@@ -735,6 +1003,8 @@ def run_bar(repo: str, commit: str, ens_mod=None, red_mod=None, quiet: bool = Fa
            "c3": c3, "c4": c4, "c4entries": c4entries, "n_rows": n_rows,
            "c5pre": c5pre, "c5post": c5post, "n_post": n_post}
     res["exceptions"] = exception_set(res)
+    import ensemble_revisions_cayley as REV  # noqa  (source-bound in bind_sources)
+    res["rev"] = lock_revision_store(git_store_view(repo, full), ens_mod, red_mod, REV, git_history=(repo, full))
     return res
 
 
@@ -825,6 +1095,19 @@ def report(res: dict) -> None:
         _ok("C-5 APPEND-ONLY", f"{res['n_post']} data.csv commits since {APPEND_ONLY_SINCE[:10]} "
                                f"({APPEND_ONLY_SINCE_DATE}), every older content a prefix; "
                                f"{len(res['c5pre'])} pre-era rewrites pinned")
+
+    # C-7..C-11 (REV 5): the revision store, or the typed pre-cutover state
+    rv = res["rev"]
+    if rv["problems"]:
+        _fail("C-7..C-11 REVISION-STORE", f"{rv['state']}: {len(rv['problems'])} problem(s): {rv['problems'][:3]}")
+    elif rv["state"] == "PRE_CUTOVER":
+        _ok("C-7..C-11 REVISION-STORE", "PRE_CUTOVER: no capsule, no journal, no revision at the target "
+                                        "(a partial store would FAIL); the locks activate at the cutover commit")
+    else:
+        _ok("C-7..C-11 REVISION-STORE", f"ACTIVE: {rv['n_revisions']} revision(s) over {rv['n_dates']} date(s): "
+                                        f"journal prefix-monotone, revisions create-once + digest-bound, "
+                                        f"persistence binds captured priors + replays, latest == current, "
+                                        f"csv == legacy prefix + current rows (hard), UTC key, inputs recompute")
 
     # C-6: exact-set ledger
     for (lock, cls), (n, mx) in sorted(summ.items()):
@@ -1119,9 +1402,259 @@ def selftest(repo: str, commit: str) -> int:
             _fail("M-L mode exclusion", f"rejected pairs {6 - len(bad)}/6 (bad: {bad}); dump={ok_dl}({code_dl}) "
                                         f"write={ok_wl}({code_wl}, sha {written_sha[:12]}) selftest_bound={ok_self}")
 
+    # ---- REV 5 partners: the revision-store locks through the REAL ensemble_revisions API in a temp store
+    fails += revision_store_partners(real_ens, real_red, corpus)
+
     print()
     print("DAILY-TIER-CORPUS SELFTEST: " + ("ALL PASS" if not fails else f"{fails} FAIL"))
     return 1 if fails else 0
+
+
+def revision_store_partners(ens_mod, red_mod, corpus: Corpus) -> int:
+    """M-M..M-W. Build a real store with the real API (cutover -> r1 -> r2 -> rescore r2) using a
+    REAL committed record as the template so the real check_persistence produces the persistence
+    blocks; the positive must be ACTIVE with 0 problems; each partner is ONE change away."""
+    import shutil
+    import ensemble_revisions_cayley as REV
+    from datetime import timezone as _tz
+    fails = 0
+
+    def check(name, cond, detail=""):
+        nonlocal fails
+        if cond:
+            _ok(name, detail)
+        else:
+            fails += 1
+            _fail(name, detail)
+
+    # template: the latest committed record (real shape: components, coverage, persistence keys)
+    _i, _c, template = corpus.records[0]
+    t_date = datetime.fromisoformat(template["date"])
+
+    def rec_for(day: str, tier_bump: int = 0) -> dict:
+        r = json.loads(json.dumps(template))
+        r["date"] = day
+        for region, rv in r["regions"].items():
+            rv["date"] = day
+            rv.pop("persistence", None)
+            rv["tier"] = int(rv["tier"]) if not tier_bump else min(3, int(rv["tier"]) + tier_bump)
+        r["timestamp"] = day + "T00:00:00+00:00"
+        return r
+
+    legacy_day = (t_date - timedelta(days=1)).strftime("%Y-%m-%d")
+    legacy_rec = rec_for(legacy_day)
+    legacy_raw = REV.record_bytes(legacy_rec)
+    legacy_blob = "b" * 40
+    legacy_csv = ("date,region,tier,risk,confidence,methods,agreement\n"
+                  + "\n".join(",".join(r) for r in REV._csv_rows_for_record(legacy_rec)) + "\n").encode()
+    blobs = {legacy_blob: legacy_raw}
+
+    def fake_git(_repo, *a):
+        if a[0] == "log":
+            return b"c1\n"
+        if a[0] == "rev-parse" and a[1] == "c1:docs/ensemble_latest.json":
+            return legacy_blob.encode() + b"\n"
+        if a[0] == "rev-parse" and a[1] == "HEAD":
+            return b"h" * 40 + b"\n"
+        if a[0] == "cat-file":
+            return legacy_raw
+        if a[0] == "show":
+            return legacy_csv
+        raise AssertionError(a)
+
+    code_rel = "monitoring/src/kat_code.py"
+    code_raw = b"# kat code\n"
+
+    def inputs_for(day, pins):
+        ents = [REV.input_entry("code", code_rel, None, None, raw_bytes=code_raw)]
+        for pe in pins:
+            if pe["kind"] == "revision":
+                ents.append(REV.input_entry("prior_revision", pe["run_id"], pe["date"], None,
+                                            sha256=pe["sha256"], byte_length=None))
+            elif pe["kind"] == "legacy":
+                ents.append(REV.input_entry("legacy_record", pe["legacy"]["git_blob"], pe["date"], None,
+                                            sha256=pe["sha256"], byte_length=None))
+        ents.append(REV.input_entry("scored_day", day, day, None))
+        return {"schema": REV.INPUTS_SCHEMA, "entries": ents}
+
+    def publish(repo, cap, day, fired, bump=0, reason=None):
+        snap = REV.journal_bytes(repo)
+        view = REV.prior_days_view(repo, snap, cap, day, 3, git=fake_git)
+        pins = [v[2] for v in view]
+        prior = {d: r for d, r, _pe in view}
+        rec = rec_for(day, bump)
+        with tempfile.TemporaryDirectory(prefix="corpus-rev-kat-") as td:
+            pers = _persistence_replay(red_mod, ens_mod, td, rec, prior)
+        for region in rec["regions"]:
+            rec["regions"][region]["persistence"] = pers[region]
+        return REV.publish_revision(repo, rec, inputs_for(day, pins), snap, pins, fired, rescore_reason=reason)
+
+    def build_store() -> Tuple[str, dict]:
+        repo = tempfile.mkdtemp(prefix="corpus-rev-store-")
+        os.makedirs(os.path.join(repo, "docs"))
+        os.makedirs(os.path.join(repo, "monitoring", "src"))
+        with open(os.path.join(repo, "docs", "data.csv"), "wb") as f:
+            f.write(legacy_csv)
+        with open(os.path.join(repo, code_rel.replace("/", os.sep)), "wb") as f:
+            f.write(code_raw)
+        cap = REV.build_legacy_baseline(repo, git=fake_git)
+        REV.write_legacy_baseline(repo, cap)
+        cap = REV.load_legacy_baseline(repo)
+        d1 = t_date.strftime("%Y-%m-%d")
+        d2 = (t_date + timedelta(days=1)).strftime("%Y-%m-%d")
+        f0 = datetime(2026, 9, 3, 6, 15, 1, 123456, tzinfo=_tz.utc)
+        publish(repo, cap, d1, f0)
+        publish(repo, cap, d2, f0 + timedelta(hours=24))
+        publish(repo, cap, d2, f0 + timedelta(hours=30), bump=1, reason="KAT rescore")
+        return repo, cap
+
+    def lock(repo):
+        return lock_revision_store(fs_store_view(repo, blobs), ens_mod, red_mod, REV)
+
+    def last_entry(repo):
+        return REV.parse_journal(REV.journal_bytes(repo))[-1]
+
+    def rewrite_last_revision(repo, mutate):
+        """Change the LAST revision's bytes and keep its journal line's sha consistent, so only the
+        semantic lock under test can fire (no later revision's source_index depends on it)."""
+        raw = REV.journal_bytes(repo)
+        entries = REV.parse_journal(raw)
+        e = entries[-1]
+        p = os.path.join(repo, e["path"].replace("/", os.sep))
+        with open(p, "rb") as f:
+            rec = json.loads(f.read().decode("utf-8"))
+        mutate(rec)
+        data = REV.record_bytes(rec)
+        with open(p, "wb") as f:
+            f.write(data)
+        e2 = dict(e, sha256=_sha(data))
+        lines = raw.split(b"\n")[:-1]
+        lines[-1] = REV.canonical_bytes(e2)[:-1]
+        with open(os.path.join(repo, REV.JOURNAL_REL.replace("/", os.sep)), "wb") as f:
+            f.write(b"\n".join(lines) + b"\n")
+        with open(os.path.join(repo, REV.LATEST_REL.replace("/", os.sep)), "wb") as f:
+            f.write(data)          # keep C-10 consistent
+        return e2
+
+    base_repo, base_cap = build_store()
+    try:
+        pos = lock(base_repo)
+        check("M-M revision store POSITIVE through the real API (cutover, r1, r2, rescore r2): ACTIVE, 0 problems",
+              pos["state"] == "ACTIVE" and not pos["problems"] and pos["n_revisions"] == 3 and pos["n_dates"] == 2,
+              f"{pos['state']} {pos['problems'][:2]} n={pos['n_revisions']}")
+
+        def partner(name, mutate, needle):
+            repo = tempfile.mkdtemp(prefix="corpus-rev-partner-")
+            shutil.rmtree(repo)
+            shutil.copytree(base_repo, repo)
+            try:
+                mutate(repo)
+                r = lock(repo)
+                hit = any(needle in p for p in r["problems"])
+                check(name, hit, f"{r['state']} problems={r['problems'][:2]}")
+            finally:
+                shutil.rmtree(repo, ignore_errors=True)
+
+        def m_forged_line(repo):
+            jp = os.path.join(repo, REV.JOURNAL_REL.replace("/", os.sep))
+            lines = open(jp, "rb").read().split(b"\n")[:-1]
+            e0 = json.loads(lines[0])
+            e0["appended_utc"] = "1999-01-01T00:00:00Z"
+            lines[0] = REV.canonical_bytes(e0)[:-1]
+            open(jp, "wb").write(b"\n".join(lines) + b"\n")
+        partner("M-N forged earlier journal line -> a later revision's source_index no longer names a prefix",
+                m_forged_line, "SOURCE_INDEX_NOT_A_PREFIX")
+
+        def m_edit_rev(repo):
+            e = REV.parse_journal(REV.journal_bytes(repo))[0]
+            p = os.path.join(repo, e["path"].replace("/", os.sep))
+            open(p, "ab").write(b"\n")
+        partner("M-O revision bytes edited -> C-7 digest mismatch", m_edit_rev, "REVISION_DIGEST_MISMATCH")
+
+        def m_latest_superseded(repo):
+            entries = REV.parse_journal(REV.journal_bytes(repo))
+            sup = next(e for e in entries if e["date"] == entries[-1]["date"] and e["supersedes"] is None)
+            raw = open(os.path.join(repo, sup["path"].replace("/", os.sep)), "rb").read()
+            open(os.path.join(repo, REV.LATEST_REL.replace("/", os.sep)), "wb").write(raw)
+        partner("M-P ensemble_latest.json = the SUPERSEDED revision -> C-10", m_latest_superseded, "LATEST_NE_CURRENT")
+
+        def m_csv_row(repo):
+            p = os.path.join(repo, "docs", "data.csv")
+            raw = open(p, "rb").read()
+            lines = raw.split(b"\n")
+            k = len(lines) - 2                        # last data row = a journaled date
+            cells = lines[k].split(b",")
+            cells[3] = b"0.9999"
+            lines[k] = b",".join(cells)
+            open(p, "wb").write(b"\n".join(lines))
+        partner("M-Q data.csv row of a journaled date edited -> C-4 HARD", m_csv_row, "CSV_RECORD_DISAGREEMENT (hard")
+
+        def m_csv_legacy(repo):
+            p = os.path.join(repo, "docs", "data.csv")
+            raw = open(p, "rb").read()
+            lines = raw.split(b"\n")
+            cells = lines[1].split(b",")
+            cells[3] = b"0.9999"
+            lines[1] = b",".join(cells)
+            open(p, "wb").write(b"\n".join(lines))
+        partner("M-R legacy CSV prefix row edited -> C-4 LEGACY_PREFIX_CHANGED", m_csv_legacy, "CSV_LEGACY_PREFIX_CHANGED")
+
+        def m_stale_prior(repo):
+            entries = REV.parse_journal(REV.journal_bytes(repo))
+            d1_entry = entries[0]
+
+            def mut(rec):
+                for pe in rec["revision"]["persistence_inputs"]:
+                    if pe["kind"] == "revision" and pe["date"] == d1_entry["date"]:
+                        pe["run_id"] = pe["run_id"][:-8] + "deadbeef"
+            rewrite_last_revision(repo, mut)
+        partner("M-S persistence_inputs names a run that is not current in the captured prefix -> C-9",
+                m_stale_prior, "PRIOR_NOT_CURRENT_IN_PREFIX")
+
+        def m_scored_day(repo):
+            def mut(rec):
+                rec["revision"]["scored_day_utc"] = "1999-01-01"
+            rewrite_last_revision(repo, mut)
+        partner("M-T scored_day_utc != date -> C-11", m_scored_day, "SCORED_DAY_NE_DATE")
+
+        def m_inputs(repo):
+            def mut(rec):
+                rec["revision"]["inputs"]["entries"][0]["sha256"] = "f" * 64
+            rewrite_last_revision(repo, mut)
+        partner("M-U inputs entry digest changed without re-sealing -> C-11 INPUTS_SHA256_MISMATCH",
+                m_inputs, "INPUTS_SHA256_MISMATCH")
+
+        def m_persist(repo):
+            def mut(rec):
+                region = next(iter(rec["regions"]))
+                rec["regions"][region]["persistence"]["consecutive_days"] += 7
+            rewrite_last_revision(repo, mut)
+        partner("M-V persistence block not reproduced by the real rule over the bound priors -> C-9",
+                m_persist, "PERSISTENCE_NOT_REPRODUCED")
+
+        def m_orphan(repo):
+            e = last_entry(repo)
+            p = os.path.join(repo, e["path"].replace("/", os.sep))
+            open(p.replace(".json", "x.json"), "wb").write(open(p, "rb").read())
+        partner("M-W orphan revision file -> C-8", m_orphan, "REVISION_ORPHAN")
+
+        def m_partial(repo):
+            os.remove(os.path.join(repo, REV.LEGACY_REL.replace("/", os.sep)))
+        partner("M-W2 capsule removed with revisions present -> PARTIAL_STORE_BEFORE_CUTOVER (never a vacuous PRE_CUTOVER)",
+                m_partial, "PARTIAL_STORE_BEFORE_CUTOVER")
+
+        repo = tempfile.mkdtemp(prefix="corpus-rev-noop-")
+        shutil.rmtree(repo)
+        shutil.copytree(base_repo, repo)
+        try:
+            r = lock(repo)
+            check("M-W3 no-op copy stays ACTIVE with 0 problems", r["state"] == "ACTIVE" and not r["problems"],
+                  f"{r['problems'][:2]}")
+        finally:
+            shutil.rmtree(repo, ignore_errors=True)
+    finally:
+        shutil.rmtree(base_repo, ignore_errors=True)
+    return fails
 
 
 # --------------------------------------------------------------------------- main
@@ -1147,7 +1680,7 @@ def main(argv: List[str]) -> int:
     except RuntimeError as e:
         print(f"CORPUS_REVISION_UNRESOLVABLE: {e}")
         return 2
-    print(f"DAILY-TIER-CORPUS red-KAT bar (grassmann, REV 4) -- repo {repo} commit {a.commit}")
+    print(f"DAILY-TIER-CORPUS red-KAT bar (grassmann, REV 5) -- repo {repo} commit {a.commit}")
     if a.write_ledger:
         print("  UNBOUND: --write-ledger authors the sidecar from the measured set; it emits NO verdict")
     else:

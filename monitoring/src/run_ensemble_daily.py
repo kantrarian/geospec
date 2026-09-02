@@ -1186,43 +1186,16 @@ def print_summary(results: Dict[str, EnsembleResult], persistence: Optional[Dict
     print()
 
 
-def _calibration_paths() -> List[str]:
-    """The complete committed calibration set (repo-relative paths)."""
-    cal_dir = REPO_ROOT / 'monitoring' / 'data' / 'calibration'
-    if not cal_dir.is_dir():
-        return []
-    return [f'monitoring/data/calibration/{cp.name}'
-            for cp in sorted(cal_dir.glob('*.json'))]
-
-
-def _inputs_capsule(pins: List[Dict], scored_day: str) -> Dict:
-    """codex 1433Z correction 5 + 1755Z F3: the closed, ORDERED inputs capsule
-    with per-kind semantics -- the three registered code paths (LF bytes),
-    the complete committed calibration set (LF bytes + keyset), exactly one
-    prior_revision / legacy_record per non-hole persistence pin with the real
-    byte length of the named bytes, and one scored_day entry over its
-    canonical preimage. `inputs_sha256` is recomputable by the bar from the
-    named bytes; publication cross-checks all of it (expect_inputs)."""
-    entries = []
-    for rel in REV.CODE_PATHS:
-        with open(REPO_ROOT / rel, 'rb') as f:
-            raw = f.read().replace(b'\r\n', b'\n')
-        entries.append(REV.input_entry('code', rel, None, None, raw_bytes=raw))
-    for rel in _calibration_paths():
-        with open(REPO_ROOT / rel, 'rb') as f:
-            raw = f.read().replace(b'\r\n', b'\n')
-        try:
-            keys = sorted(json.loads(raw.decode('utf-8')).keys())
-        except (ValueError, AttributeError):
-            keys = None
-        entries.append(REV.input_entry('calibration_capsule', rel, None, keys,
-                                       raw_bytes=raw))
+def _inputs_capsule(pins: List[Dict], scored_day: str, view: Dict) -> Dict:
+    """codex 1831Z F3: the inputs capsule from the COMMITTED view (code and
+    calibration reopened from Git at HEAD by REV.committed_inputs_view), one
+    prior_revision / legacy_record per non-hole pin with the real reopened
+    byte length, and one scored_day entry over its canonical preimage. No
+    checkout bytes are read here."""
     cap = REV.load_legacy_baseline(REPO_ROOT)
-    for pin in pins:
-        if pin['kind'] != 'hole':
-            entries.append(REV.pin_input_entry(REPO_ROOT, cap, pin))
-    entries.append(REV.scored_day_entry(scored_day))
-    return {'schema': REV.INPUTS_SCHEMA, 'entries': entries}
+    pin_entries = [REV.pin_input_entry(REPO_ROOT, cap, pin)
+                   for pin in pins if pin['kind'] != 'hole']
+    return REV.inputs_from_view(view, pin_entries, scored_day)
 
 
 def main():
@@ -1329,9 +1302,14 @@ def main():
     # holes are recorded on the published record. A replay into a custom
     # --output-dir keeps the local-dir semantics and publishes nothing.
     production = args.output_dir is None
-    pins, loader, journal_snapshot, legacy_cap = [], None, None, None
+    pins, loader, journal_snapshot, legacy_cap, committed_view = [], None, None, None, None
     if production:
         try:
+            # codex 1831Z F3: the program that scores must be the COMMITTED
+            # program -- resolve the Git view of code + calibration at HEAD and
+            # refuse typed on any untracked / missing / dirty file BEFORE scoring
+            committed_view = REV.committed_inputs_view(REPO_ROOT, 'HEAD')
+            REV.checkout_matches_committed(REPO_ROOT, committed_view)
             REV.check_store_clean(REPO_ROOT)          # typed recovery refusal
             legacy_cap = REV.load_legacy_baseline(REPO_ROOT)
             if legacy_cap is None:
@@ -1379,10 +1357,9 @@ def main():
             record = json.load(f)
         try:
             entry = REV.publish_revision(
-                REPO_ROOT, record, _inputs_capsule(pins, date_str),
+                REPO_ROOT, record, _inputs_capsule(pins, date_str, committed_view),
                 journal_snapshot, pins, datetime.now(timezone.utc),
-                rescore_reason=args.rescore,
-                expect_inputs={'calibration_paths': _calibration_paths()})
+                rescore_reason=args.rescore)
         except REV.RevisionRefusal as e:
             logger.error(str(e))
             return 12

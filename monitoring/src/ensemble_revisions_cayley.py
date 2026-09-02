@@ -503,6 +503,102 @@ def _refuse_inputs(what):
     raise RevisionRefusal(f"INPUTS_CAPSULE_SCHEMA: {what}")
 
 
+def committed_inputs_view(repo, commit="HEAD", git=_git):
+    """codex 1831Z F3 (shared with REV 6): the GIT-AUTHORITY view of the
+    code and calibration inputs at `commit` -- calibration paths enumerated
+    with `git ls-tree` (never a checkout glob), every CODE_PATHS and
+    calibration blob reopened with `git cat-file`, digest / byte length /
+    calibration keyset derived from those blob bytes."""
+    sha = git(repo, "rev-parse", f"{commit}^{{commit}}").decode().strip()
+    view = {"commit": sha, "code": {}, "calibration": {}}
+    for rel in CODE_PATHS:
+        try:
+            raw = git(repo, "cat-file", "blob", f"{sha}:{rel}")
+        except subprocess.CalledProcessError:
+            raise RevisionRefusal(f"INPUTS_CODE_NOT_COMMITTED: {rel} at {sha[:12]}")
+        view["code"][rel] = {"sha256": sha256_bytes(raw), "byte_length": len(raw)}
+    try:
+        names = git(repo, "ls-tree", "-r", "--name-only", sha, "--",
+                    CALIBRATION_DIR_REL).decode().split("\n")
+    except subprocess.CalledProcessError:
+        names = []
+    for rel in sorted(n.strip() for n in names if n.strip().endswith(".json")):
+        raw = git(repo, "cat-file", "blob", f"{sha}:{rel}")
+        try:
+            obj = json.loads(raw.decode("utf-8"))
+            keys = sorted(obj.keys()) if isinstance(obj, dict) else None
+        except (ValueError, UnicodeDecodeError):
+            keys = None
+        view["calibration"][rel] = {"sha256": sha256_bytes(raw),
+                                    "byte_length": len(raw), "keyset": keys}
+    return view
+
+
+def checkout_matches_committed(repo, view):
+    """codex 1831Z F3 preflight: the CHECKOUT must carry exactly the
+    committed calibration set and byte-identical (LF-normalized) code and
+    calibration files, else the executed program is not the committed one.
+    Typed refusals: INPUTS_CODE_DIRTY / INPUTS_CALIBRATION_UNTRACKED /
+    INPUTS_CALIBRATION_MISSING / INPUTS_CALIBRATION_DIRTY."""
+    for rel, meta in view["code"].items():
+        p = _p(repo, rel)
+        if not os.path.exists(p):
+            raise RevisionRefusal(f"INPUTS_CODE_DIRTY: {rel} absent from the checkout")
+        raw = _read(p).replace(b"\r\n", b"\n")
+        if sha256_bytes(raw) != meta["sha256"]:
+            raise RevisionRefusal(
+                f"INPUTS_CODE_DIRTY: {rel} in the checkout is not the committed "
+                f"blob at {view['commit'][:12]}")
+    cal_dir = _p(repo, CALIBRATION_DIR_REL)
+    checkout = set()
+    if os.path.isdir(cal_dir):
+        checkout = {f"{CALIBRATION_DIR_REL}/{fn}" for fn in os.listdir(cal_dir)
+                    if fn.endswith(".json")}
+    committed = set(view["calibration"])
+    extra = sorted(checkout - committed)
+    if extra:
+        raise RevisionRefusal(f"INPUTS_CALIBRATION_UNTRACKED: {extra} present in "
+                              f"the checkout but not committed at {view['commit'][:12]}")
+    missing = sorted(committed - checkout)
+    if missing:
+        raise RevisionRefusal(f"INPUTS_CALIBRATION_MISSING: {missing} committed at "
+                              f"{view['commit'][:12]} but absent from the checkout")
+    for rel, meta in view["calibration"].items():
+        raw = _read(_p(repo, rel)).replace(b"\r\n", b"\n")
+        if sha256_bytes(raw) != meta["sha256"]:
+            raise RevisionRefusal(
+                f"INPUTS_CALIBRATION_DIRTY: {rel} in the checkout is not the "
+                f"committed blob at {view['commit'][:12]}")
+    return True
+
+
+def inputs_from_view(view, pin_entries, scored_day):
+    """The inputs capsule built from the COMMITTED view (never from checkout
+    reads): the three code entries, the complete committed calibration set,
+    the caller's pin entries, and the scored-day entry."""
+    ents = [input_entry("code", rel, None, None, sha256=m["sha256"],
+                        byte_length=m["byte_length"])
+            for rel, m in ((r, view["code"][r]) for r in CODE_PATHS)]
+    for rel, m in sorted(view["calibration"].items()):
+        ents.append(input_entry("calibration_capsule", rel, None, m["keyset"],
+                                sha256=m["sha256"], byte_length=m["byte_length"]))
+    ents.extend(pin_entries)
+    ents.append(scored_day_entry(scored_day))
+    return {"schema": INPUTS_SCHEMA, "entries": ents}
+
+
+def expected_entries_from_view(view):
+    """The `expect["expected_entries"]` map for validate_inputs_capsule."""
+    out = {}
+    for rel, m in view["code"].items():
+        out[rel] = {"kind": "code", "sha256": m["sha256"],
+                    "byte_length": m["byte_length"], "keyset": None}
+    for rel, m in view["calibration"].items():
+        out[rel] = {"kind": "calibration_capsule", "sha256": m["sha256"],
+                    "byte_length": m["byte_length"], "keyset": m["keyset"]}
+    return out
+
+
 def validate_inputs_capsule(cap, expect=None):
     """F3: closed shape AND per-kind semantics AND cardinalities.
 
@@ -601,7 +697,29 @@ def validate_inputs_capsule(cap, expect=None):
         if "scored_day" in expect and \
                 by_kind["scored_day"][0]["identity"] != expect["scored_day"]:
             _refuse_inputs("scored_day entry is not the day being published")
-        if "calibration_paths" in expect:
+        if "expected_entries" in expect:
+            # codex 1831Z F3: the reopened COMMITTED entry map -- every code
+            # and calibration entry must equal it in identity + byte_length +
+            # sha256 (+ keyset for calibration), and the calibration set must
+            # be exactly the committed set
+            exp_map = expect["expected_entries"]
+            want_cal = sorted(i for i, m in exp_map.items()
+                              if m["kind"] == "calibration_capsule")
+            got_cal = sorted(e["identity"] for e in by_kind["calibration_capsule"])
+            if got_cal != want_cal:
+                _refuse_inputs(f"calibration set {got_cal} != committed set {want_cal}")
+            for k in ("code", "calibration_capsule"):
+                for e in by_kind[k]:
+                    m = exp_map.get(e["identity"])
+                    if m is None or m["kind"] != k:
+                        _refuse_inputs(f"{k} {e['identity']} is not in the committed view")
+                    if e["sha256"] != m["sha256"]:
+                        _refuse_inputs(f"{k} {e['identity']} sha256 != committed blob")
+                    if e["byte_length"] != m["byte_length"]:
+                        _refuse_inputs(f"{k} {e['identity']} byte_length != committed blob")
+                    if k == "calibration_capsule" and e["keyset"] != m["keyset"]:
+                        _refuse_inputs(f"{k} {e['identity']} keyset != committed blob")
+        elif "calibration_paths" in expect:
             want = sorted(expect["calibration_paths"])
             got = sorted(e["identity"] for e in by_kind["calibration_capsule"])
             if got != want:
@@ -896,7 +1014,13 @@ def publish_revision(repo, record, inputs_capsule, journal_snapshot,
     cap = load_legacy_baseline(repo, git=git)
     if cap is None:
         raise RevisionRefusal("LEGACY_CAPSULE_ABSENT: run the cutover first")
+    # codex 1831Z F3: the expectation is GIT authority, never the caller's
+    # checkout view -- and the checkout must match it before anything is
+    # published as "the committed program"
+    view = committed_inputs_view(repo, "HEAD", git=git)
+    checkout_matches_committed(repo, view)
     exp = dict(expect_inputs or {})
+    exp["expected_entries"] = expected_entries_from_view(view)
     exp["pins"] = persistence_inputs
     exp["scored_day"] = date_str
     exp["pin_byte_lengths"] = {
@@ -972,10 +1096,20 @@ def publish_revision(repo, record, inputs_capsule, journal_snapshot,
 
 
 # ------------------------------------------------------------ selftest --
+FIXTURE_CODE = {rel: (f"# fixture committed {rel}\n").encode() for rel in CODE_PATHS}
+FIXTURE_CALIBRATION = {CALIBRATION_DIR_REL + "/x.json":
+                       b'{"region": "x", "valid_through": "2026-09-09"}\n'}
+
+
 def make_fake_git(csv_raw, record_blob_raw, *, csv_blob="c" * 40,
-                  rec_blob="b" * 40, head="1" * 40, capsule_add=None):
-    """A scripted git over ONE committed record (scored day from the blob)
-    and ONE committed legacy CSV blob at HEAD, for temp-store fixtures."""
+                  rec_blob="b" * 40, head="1" * 40, capsule_add=None,
+                  code=None, calibration=None):
+    """A scripted git over ONE committed record (scored day from the blob),
+    ONE committed legacy CSV blob, the three committed CODE_PATHS blobs and
+    the committed calibration set at HEAD, for temp-store fixtures."""
+    code = FIXTURE_CODE if code is None else code
+    calibration = FIXTURE_CALIBRATION if calibration is None else calibration
+
     def fake_git(_repo, *a):
         a = list(a)
         if a[:1] == ["log"]:
@@ -983,21 +1117,42 @@ def make_fake_git(csv_raw, record_blob_raw, *, csv_blob="c" * 40,
                 return (capsule_add or "").encode()
             return b"c1\n"                           # first-parent history
         if a[:1] == ["rev-parse"]:
-            if a[1] == "HEAD":
+            spec = a[1]
+            if spec in ("HEAD", "HEAD^{commit}", head, head + "^{commit}"):
                 return head.encode() + b"\n"
-            if a[1].endswith(":" + LATEST_REL):
+            if spec.endswith(":" + LATEST_REL):
                 return rec_blob.encode() + b"\n"
-            if a[1].endswith(":" + CSV_REL):
+            if spec.endswith(":" + CSV_REL):
                 return csv_blob.encode() + b"\n"
+            raise subprocess.CalledProcessError(128, a)
+        if a[:1] == ["ls-tree"]:
+            return ("\n".join(sorted(calibration)) + "\n").encode()
         if a[:2] == ["cat-file", "-e"]:
             return b""
         if a[:2] == ["cat-file", "blob"]:
-            if a[2] == rec_blob:
+            spec = a[2]
+            if spec == rec_blob:
                 return record_blob_raw
-            if a[2] == csv_blob:
+            if spec == csv_blob:
                 return csv_raw
+            if ":" in spec:
+                rel = spec.split(":", 1)[1]
+                if rel in code:
+                    return code[rel]
+                if rel in calibration:
+                    return calibration[rel]
+            raise subprocess.CalledProcessError(128, a)
         raise AssertionError(f"fake git: {a}")
     return fake_git
+
+
+def materialize_checkout(repo, code=None, calibration=None, eol=b"\n"):
+    """Write the fixture code + calibration files into a temp checkout with
+    the given end-of-line convention (LF or CRLF carriers)."""
+    code = FIXTURE_CODE if code is None else code
+    calibration = FIXTURE_CALIBRATION if calibration is None else calibration
+    for rel, raw in list(code.items()) + list(calibration.items()):
+        _write_atomic(_p(repo, rel), raw.replace(b"\n", eol))
 
 
 def _selftest():
@@ -1040,26 +1195,29 @@ def _selftest():
         view = prior_days_view(repo, snap, cap, "2026-09-02", 3, git=fg)
         assert [v[2]["kind"] for v in view] == ["hole", "legacy", "hole"]
         pins = [v[2] for v in view]
-        cal_raw = b'{"region": "x", "valid_through": "2026-09-09"}\n'
-        def inputs(tag, pins, day):
-            ents = [input_entry("code", p, None, None, raw_bytes=(tag + p).encode())
-                    for p in CODE_PATHS]
-            ents.append(input_entry("calibration_capsule",
-                                    CALIBRATION_DIR_REL + "/x.json", None,
-                                    ["region", "valid_through"], raw_bytes=cal_raw))
-            for pin in pins:
-                if pin["kind"] != "hole":
-                    ents.append(pin_input_entry(repo, cap, pin, git=fg))
-            ents.append(scored_day_entry(day))
-            return {"schema": INPUTS_SCHEMA, "entries": ents}
-        exp = {"calibration_paths": [CALIBRATION_DIR_REL + "/x.json"]}
+        # the checkout carries the committed code + calibration files (CRLF)
+        materialize_checkout(repo, eol=b"\r\n")
+        view = committed_inputs_view(repo, "HEAD", git=fg)
+        assert sorted(view["calibration"]) == [CALIBRATION_DIR_REL + "/x.json"]
+        assert view["calibration"][CALIBRATION_DIR_REL + "/x.json"]["keyset"] == ["region", "valid_through"]
+        assert checkout_matches_committed(repo, view) is True
+
+        def inputs(pins, day):
+            pe = [pin_input_entry(repo, cap, pin, git=fg) for pin in pins if pin["kind"] != "hole"]
+            return inputs_from_view(view, pe, day)
+        exp = {"expected_entries": expected_entries_from_view(view)}
         rec = {"date": "2026-09-02", "regions": {
             "a": {"tier": 1, "combined_risk": 0.3, "confidence": 0.5,
                   "methods_available": 1, "agreement": "single_method"}},
             "summary": {}}
         fired = datetime(2026, 9, 3, 6, 15, 1, 123456, tzinfo=timezone.utc)
-        cap1 = inputs("a", pins, "2026-09-02")
-        # F3 negatives, each one change from cap1
+        cap1 = inputs(pins, "2026-09-02")
+        cal_rel = CALIBRATION_DIR_REL + "/x.json"
+
+        def swap(kind, **kw):
+            return {"schema": INPUTS_SCHEMA,
+                    "entries": [dict(e, **kw) if e["kind"] == kind else e for e in cap1["entries"]]}
+        # F3 negatives, each one change from cap1 (codex 1755Z + 1831Z tables)
         bad_caps = [
             ({"schema": INPUTS_SCHEMA, "entries": []}, "empty"),
             ({"schema": INPUTS_SCHEMA, "entries": [dict(cap1["entries"][0], sha256=None)]}, "sha256"),
@@ -1069,6 +1227,14 @@ def _selftest():
             ({"schema": INPUTS_SCHEMA, "entries": [e for e in cap1["entries"] if e["kind"] != "calibration_capsule"]}, "calibration set"),
             ({"schema": INPUTS_SCHEMA, "entries": [e for e in cap1["entries"] if e["kind"] != "legacy_record"]}, "one-to-one"),
             ({"schema": INPUTS_SCHEMA, "entries": [dict(e, data_day="2026-01-01") if e["kind"] == "scored_day" else e for e in cap1["entries"]]}, "scored_day"),
+            (swap("code", sha256="0" * 64), "sha256 != committed"),
+            (swap("code", byte_length=1), "byte_length != committed"),
+            (swap("calibration_capsule", sha256="0" * 64), "sha256 != committed"),
+            (swap("calibration_capsule", byte_length=1), "byte_length != committed"),
+            (swap("calibration_capsule", keyset=["region"]), "keyset != committed"),
+            ({"schema": INPUTS_SCHEMA, "entries": cap1["entries"] + [input_entry(
+                "calibration_capsule", CALIBRATION_DIR_REL + "/untracked.json", None, ["probe"],
+                raw_bytes=b'{"probe": true}\n')]}, "calibration set"),
         ]
         for bc, needle in bad_caps:
             try:
@@ -1076,7 +1242,36 @@ def _selftest():
                 raise AssertionError(f"bad inputs accepted: {needle}")
             except RevisionRefusal as x:
                 assert "INPUTS_CAPSULE_SCHEMA" in str(x) and needle in str(x), (needle, x)
-        e1 = publish_revision(repo, rec, cap1, snap, pins, fired, expect_inputs=exp, git=fg)
+        # F3 preflight partners on the CHECKOUT (typed, before any publish)
+        probe = _p(repo, CALIBRATION_DIR_REL + "/codex_untracked_probe.json")
+        _write_atomic(probe, b'{"probe": true}\n')
+        try:
+            checkout_matches_committed(repo, view); raise AssertionError("untracked accepted")
+        except RevisionRefusal as x:
+            assert "INPUTS_CALIBRATION_UNTRACKED" in str(x)
+        os.remove(probe)
+        os.rename(_p(repo, cal_rel), _p(repo, cal_rel) + ".moved")
+        try:
+            checkout_matches_committed(repo, view); raise AssertionError("missing accepted")
+        except RevisionRefusal as x:
+            assert "INPUTS_CALIBRATION_MISSING" in str(x)
+        os.rename(_p(repo, cal_rel) + ".moved", _p(repo, cal_rel))
+        for rel, needle in ((CODE_PATHS[0], "INPUTS_CODE_DIRTY"), (cal_rel, "INPUTS_CALIBRATION_DIRTY")):
+            good = _read(_p(repo, rel))
+            _write_atomic(_p(repo, rel), good + b"# dirty\r\n")
+            try:
+                checkout_matches_committed(repo, view); raise AssertionError(f"dirty accepted: {rel}")
+            except RevisionRefusal as x:
+                assert needle in str(x), (needle, x)
+            _write_atomic(_p(repo, rel), good)
+        # a LF checkout of the same commit yields the SAME capsule bytes
+        repo_lf = tempfile.mkdtemp(prefix="ens-rev3-lf-")
+        try:
+            materialize_checkout(repo_lf, eol=b"\n")
+            assert checkout_matches_committed(repo_lf, view) is True
+        finally:
+            shutil.rmtree(repo_lf, ignore_errors=True)
+        e1 = publish_revision(repo, rec, cap1, snap, pins, fired, git=fg)
         assert _RUN_ID_RE.match(e1["run_id"]) and e1["supersedes"] is None
         j1 = journal_bytes(repo)
         csv1 = _read(_p(repo, CSV_REL))
@@ -1097,7 +1292,7 @@ def _selftest():
                 (lambda r: r["revision"].__setitem__("source_index", {"entry_count": -1, "prefix_sha256": "0" * 64}), "source_index"),
                 (lambda r: r["revision"]["persistence_inputs"].__setitem__(0, {"date": "2026-09-01", "kind": "hole", "run_id": "x", "sha256": None, "legacy": None}), "hole"),
                 (lambda r: r["revision"].__setitem__("scored_day_utc", "1999-01-01"), "scored_day_utc"),
-                (lambda r: r["revision"]["inputs"]["entries"].__setitem__(0, dict(r["revision"]["inputs"]["entries"][0], sha256="0" * 64)), "inputs_sha256")):
+                (lambda r: r["revision"]["inputs"]["entries"].__setitem__(0, dict(r["revision"]["inputs"]["entries"][0], sha256="0" * 64)), "sha256")):
             r, en = resealed(mut)
             try:
                 validate_revision_against_entry(r, en, expect_inputs=exp)
@@ -1113,7 +1308,7 @@ def _selftest():
         # duplicate / moved / rescore as before
         snap2 = journal_bytes(repo)
         try:
-            publish_revision(repo, rec, cap1, snap2, pins, fired, expect_inputs=exp, git=fg)
+            publish_revision(repo, rec, cap1, snap2, pins, fired, git=fg)
             raise AssertionError("duplicate accepted")
         except RevisionRefusal as x:
             assert "REVISION_EXISTS" in str(x)
@@ -1121,17 +1316,17 @@ def _selftest():
         view2 = prior_days_view(repo, snap2, cap, "2026-09-03", 3, git=fg)
         pins2 = [v[2] for v in view2]
         assert [p["kind"] for p in pins2] == ["revision", "hole", "legacy"]
-        cap2 = inputs("b", pins2, "2026-09-03")
+        cap2 = inputs(pins2, "2026-09-03")
         assert any(e["kind"] == "prior_revision" and e["byte_length"] == len(raw1) for e in cap2["entries"])
         try:
-            publish_revision(repo, dict(rec, date="2026-09-03"), cap2, snap, pins2, fired, expect_inputs=exp, git=fg)
+            publish_revision(repo, dict(rec, date="2026-09-03"), cap2, snap, pins2, fired, git=fg)
             raise AssertionError("moved journal accepted")
         except RevisionRefusal as x:
             assert "JOURNAL_MOVED" in str(x)
         rec2 = dict(rec, regions={"a": dict(rec["regions"]["a"], tier=2)})
-        e2 = publish_revision(repo, rec2, inputs("c", pins, "2026-09-02"), snap2, pins,
+        e2 = publish_revision(repo, rec2, inputs(pins, "2026-09-02"), snap2, pins,
                               fired + timedelta(hours=1), rescore_reason="fix",
-                              expect_inputs=exp, git=fg)
+                              git=fg)
         assert e2["supersedes"] == e1["run_id"] and e2["reason"] == "fix"
         j2 = journal_bytes(repo)
         assert journal_prefix_ok(j1, j2) and len(parse_journal(j2)) == 2

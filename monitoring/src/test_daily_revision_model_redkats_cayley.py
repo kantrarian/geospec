@@ -157,31 +157,35 @@ FAKE_GIT = REV.make_fake_git(LEGACY_CSV, LEGACY_0831_RAW)
 
 
 def _mkstore(eol=b"\r\n"):
-    """A temp store whose CHECKOUT csv carries `eol` (CRLF by default, the
-    Windows runner case) while git authority is the LF blob."""
+    """A temp store whose CHECKOUT (csv, code, calibration) carries `eol`
+    (CRLF by default, the Windows runner case) while git authority is the LF
+    blob set served by FAKE_GIT."""
     repo = tempfile.mkdtemp(prefix="rev-model-bar-")
     os.makedirs(_p(repo, "docs"))
     os.makedirs(_p(repo, "monitoring/dashboard"))
     with io.open(_p(repo, REV.CSV_REL), "wb") as f:
         f.write(LEGACY_CSV.replace(b"\n", eol))
+    REV.materialize_checkout(repo, eol=eol)
     cap = REV.build_legacy_baseline(repo, git=FAKE_GIT)
     REV.write_legacy_baseline(repo, cap, git=FAKE_GIT)
     return repo, REV.load_legacy_baseline(repo, git=FAKE_GIT)
 
 
-EXPECT = {"calibration_paths": [CAL_REL]}
+VIEW = None
+
+
+def _view(repo):
+    global VIEW
+    VIEW = REV.committed_inputs_view(repo, "HEAD", git=FAKE_GIT)
+    return VIEW
 
 
 def _inputs(repo, cap, pins, day, tag="a"):
-    ents = [REV.input_entry("code", p, None, None, raw_bytes=(tag + p).encode())
-            for p in REV.CODE_PATHS]
-    ents.append(REV.input_entry("calibration_capsule", CAL_REL, None,
-                                ["region", "valid_through"], raw_bytes=CAL_RAW))
-    for pin in pins:
-        if pin["kind"] != "hole":
-            ents.append(REV.pin_input_entry(repo, cap, pin, git=FAKE_GIT))
-    ents.append(REV.scored_day_entry(day))
-    return {"schema": REV.INPUTS_SCHEMA, "entries": ents}
+    """The capsule from the COMMITTED view (tag is kept for call-site
+    compatibility; code bytes are the committed fixture blobs)."""
+    view = _view(repo)
+    pe = [REV.pin_input_entry(repo, cap, pin, git=FAKE_GIT) for pin in pins if pin["kind"] != "hole"]
+    return REV.inputs_from_view(view, pe, day)
 
 
 def _pub(repo, cap, day, tiers, fired, reason=None, snap=None, pins=None, tag="a"):
@@ -189,13 +193,13 @@ def _pub(repo, cap, day, tiers, fired, reason=None, snap=None, pins=None, tag="a
     if pins is None:
         pins = [v[2] for v in REV.prior_days_view(repo, snap, cap, day, 3, git=FAKE_GIT)]
     e = REV.publish_revision(repo, _rec(day, tiers), _inputs(repo, cap, pins, day, tag),
-                             snap, pins, fired, rescore_reason=reason,
-                             expect_inputs=EXPECT, git=FAKE_GIT)
+                             snap, pins, fired, rescore_reason=reason, git=FAKE_GIT)
     return e, snap, pins
 
 
 def _exp(pins, day):
-    return dict(EXPECT, pins=pins, scored_day=day)
+    return {"expected_entries": REV.expected_entries_from_view(VIEW), "pins": pins,
+            "scored_day": day}
 
 
 def main():
@@ -363,12 +367,13 @@ def main():
         tampered = json.loads(json.dumps(capsule))
         tampered["entries"][0]["sha256"] = ("0" if tampered["entries"][0]["sha256"][0] != "0" else "1") \
             + tampered["entries"][0]["sha256"][1:]
-        d1 = REV.inputs_sha256(tampered, expect=exp3)
+        h_t, m_t = _refuses(lambda: REV.inputs_sha256(tampered, expect=exp3), "sha256 != committed")
         opened = json.loads(json.dumps(capsule))
         opened["entries"][0]["extra"] = 1
         h_open, m_open = _refuses(lambda: REV.inputs_sha256(opened), "INPUTS_CAPSULE_SCHEMA")
-        _check("R-7 INPUTS-CAPSULE", d0 == r3["revision"]["inputs_sha256"] and d1 != d0 and h_open,
-               "inputs_sha256 recomputes; one digit changed -> different digest; an open entry shape refuses")
+        _check("R-7 INPUTS-CAPSULE", d0 == r3["revision"]["inputs_sha256"] and h_t and h_open,
+               "inputs_sha256 recomputes; one digit changed in a code digest -> refused against the committed "
+               "view; an open entry shape refuses")
 
         # ---- R-8 B6 / C-11 / run-id
         src = io.open(os.path.join(HERE, "run_ensemble_daily.py"), encoding="utf-8").read()
@@ -417,26 +422,22 @@ def main():
             os.makedirs(_p(repo2, "docs")); os.makedirs(_p(repo2, "monitoring/dashboard"))
             with io.open(_p(repo2, REV.CSV_REL), "wb") as f:
                 f.write(LEGACY_CSV)
+            MUT.materialize_checkout(repo2)
             fg2 = MUT.make_fake_git(LEGACY_CSV, LEGACY_0831_RAW)
             cap2 = MUT.build_legacy_baseline(repo2, git=fg2); MUT.write_legacy_baseline(repo2, cap2, git=fg2)
             cap2 = MUT.load_legacy_baseline(repo2, git=fg2)
             s0 = MUT.journal_bytes(repo2)
             v0 = [v[2] for v in MUT.prior_days_view(repo2, s0, cap2, "2026-09-02", 3, git=fg2)]
+            view2 = MUT.committed_inputs_view(repo2, "HEAD", git=fg2)
 
             def inp(tag):
-                ents = [MUT.input_entry("code", p, None, None, raw_bytes=(tag + p).encode()) for p in MUT.CODE_PATHS]
-                ents.append(MUT.input_entry("calibration_capsule", CAL_REL, None, ["region", "valid_through"], raw_bytes=CAL_RAW))
-                for pin in v0:
-                    if pin["kind"] != "hole":
-                        ents.append(MUT.pin_input_entry(repo2, cap2, pin, git=fg2))
-                ents.append(MUT.scored_day_entry("2026-09-02"))
-                return {"schema": MUT.INPUTS_SCHEMA, "entries": ents}
-            MUT.publish_revision(repo2, _rec("2026-09-02", {"alpha": 1}), inp("a"), s0, v0, FIRED,
-                                 expect_inputs=EXPECT, git=fg2)
+                pe = [MUT.pin_input_entry(repo2, cap2, pin, git=fg2) for pin in v0 if pin["kind"] != "hole"]
+                return MUT.inputs_from_view(view2, pe, "2026-09-02")
+            MUT.publish_revision(repo2, _rec("2026-09-02", {"alpha": 1}), inp("a"), s0, v0, FIRED, git=fg2)
             s1 = MUT.journal_bytes(repo2)
             try:
                 MUT.publish_revision(repo2, _rec("2026-09-02", {"alpha": 2}), inp("a"), s1, v0,
-                                     FIRED.replace(hour=8), expect_inputs=EXPECT, git=fg2)
+                                     FIRED.replace(hour=8), git=fg2)
                 outcome = "ACCEPTED"
             except MUT.RevisionRefusal as e:
                 outcome = str(e)
@@ -458,6 +459,7 @@ def main():
 
     _codex_partners_1505()
     _codex_partners_1755()
+    _codex_partners_1831()
 
     if FAILS:
         print(f"DAILY REVISION MODEL: {len(FAILS)} FAIL -> {FAILS}")
@@ -526,7 +528,7 @@ def _codex_partners_1505():
         snap = REV.journal_bytes(repo)
         pins = [v[2] for v in REV.prior_days_view(repo, snap, cap, "2026-09-01", 3, git=FAKE_GIT)]
         h, m = _refuses(lambda: REV.publish_revision(repo, _rec("2026-09-01", {"alpha": 1}), {}, snap, pins, FIRED,
-                                                     expect_inputs=EXPECT, git=FAKE_GIT), "INPUTS_CAPSULE_SCHEMA")
+                                                     git=FAKE_GIT), "INPUTS_CAPSULE_SCHEMA")
         _check("CODEX-4 EMPTY-INPUTS", h and not os.path.isdir(_p(repo, "docs/ensemble/2026-09-01")),
                f"inputs={{}} -> {m.split(':')[0]}; nothing written")
     finally:
@@ -648,6 +650,14 @@ def _codex_partners_1755():
             ("wrong keyset", swap("calibration_capsule", keyset=[]), "keyset"),
             ("wrong hash", swap("legacy_record", sha256="0" * 64), "one-to-one"),
             ("wrong path", swap("calibration_capsule", identity="docs/x.json"), "calibration"),
+            ("forged code digest", swap("code", sha256="0" * 64), "sha256 != committed"),
+            ("forged code length", swap("code", byte_length=1), "byte_length != committed"),
+            ("forged calibration digest", swap("calibration_capsule", sha256="0" * 64), "sha256 != committed"),
+            ("forged calibration length", swap("calibration_capsule", byte_length=1), "byte_length != committed"),
+            ("forged calibration keyset", swap("calibration_capsule", keyset=["region"]), "keyset != committed"),
+            ("untracked extra calibration", {"schema": REV.INPUTS_SCHEMA, "entries": E + [REV.input_entry(
+                "calibration_capsule", REV.CALIBRATION_DIR_REL + "/codex_untracked_probe.json", None, ["probe"],
+                raw_bytes=b'{"probe": true}\n')]}, "calibration set"),
             ("omitted calibration", {"schema": REV.INPUTS_SCHEMA, "entries": [e for e in E if e["kind"] != "calibration_capsule"]}, "calibration set"),
             ("input/persistence mismatch", {"schema": REV.INPUTS_SCHEMA, "entries": [e for e in E if e["kind"] != "legacy_record"]}, "one-to-one"),
         ]
@@ -665,7 +675,7 @@ def _codex_partners_1755():
         e1, _s, pins = _pub(repo, cap, "2026-09-01", {"alpha": 1}, FIRED, tag="v1")
         e2, _s, _p2 = _pub(repo, cap, "2026-09-01", {"alpha": 2}, FIRED.replace(hour=7), reason="fix", tag="v2", pins=pins)
         r2, raw2 = REV.reopen_revision(repo, e2)
-        pos = REV.validate_revision_against_entry(r2, e2, expect_inputs=EXPECT) is True
+        pos = REV.validate_revision_against_entry(r2, e2) is True
 
         def resealed(mut):
             r = json.loads(raw2.decode("utf-8")); mut(r); d = REV.record_bytes(r)
@@ -683,7 +693,7 @@ def _codex_partners_1755():
         res = []
         for label, mut, needle in cases:
             r, en = resealed(mut)
-            h, m = _refuses(lambda r=r, en=en: REV.validate_revision_against_entry(r, en, expect_inputs=EXPECT), needle)
+            h, m = _refuses(lambda r=r, en=en: REV.validate_revision_against_entry(r, en), needle)
             res.append((label, h))
         # and the same through the store: a re-sealed reason mismatch must refuse on reopen
         r, en = resealed(lambda r: r["revision"].__setitem__("reason", "revision-only reason"))
@@ -695,6 +705,56 @@ def _codex_partners_1755():
                + "; re-sealed reason mismatch refuses on reopen")
     finally:
         shutil.rmtree(repo, ignore_errors=True)
+
+
+def _codex_partners_1831():
+    """codex 1831Z F3: committed-input authority -- the checkout preflight
+    refuses untracked / missing / dirty code or calibration, and clean LF and
+    CRLF checkouts of the same commit yield the SAME committed capsule."""
+    caps = {}
+    for label, eol in (("LF", b"\n"), ("CRLF", b"\r\n")):
+        repo, cap = _mkstore(eol=eol)
+        try:
+            view = REV.committed_inputs_view(repo, "HEAD", git=FAKE_GIT)
+            ok_clean = REV.checkout_matches_committed(repo, view) is True
+            snap = REV.journal_bytes(repo)
+            pins = [v[2] for v in REV.prior_days_view(repo, snap, cap, "2026-09-01", 3, git=FAKE_GIT)]
+            caps[label] = (ok_clean, REV.canonical_bytes(_inputs(repo, cap, pins, "2026-09-01")))
+            if label == "CRLF":
+                res = []
+                probe = _p(repo, REV.CALIBRATION_DIR_REL + "/codex_untracked_probe.json")
+                with io.open(probe, "wb") as f:
+                    f.write(b'{"probe": true}\n')
+                h, m = _refuses(lambda: REV.checkout_matches_committed(repo, view), "INPUTS_CALIBRATION_UNTRACKED")
+                res.append(("untracked extra calibration", h)); os.remove(probe)
+                os.rename(_p(repo, CAL_REL), _p(repo, CAL_REL) + ".moved")
+                h, m = _refuses(lambda: REV.checkout_matches_committed(repo, view), "INPUTS_CALIBRATION_MISSING")
+                res.append(("missing committed calibration", h))
+                os.rename(_p(repo, CAL_REL) + ".moved", _p(repo, CAL_REL))
+                for rel, needle, label2 in ((REV.CODE_PATHS[1], "INPUTS_CODE_DIRTY", "dirty tracked code"),
+                                            (CAL_REL, "INPUTS_CALIBRATION_DIRTY", "dirty tracked calibration")):
+                    good = _read(_p(repo, rel))
+                    with io.open(_p(repo, rel), "wb") as f:
+                        f.write(good + b"# dirty\r\n")
+                    h, m = _refuses(lambda: REV.checkout_matches_committed(repo, view), needle)
+                    res.append((label2, h))
+                    with io.open(_p(repo, rel), "wb") as f:
+                        f.write(good)
+                # a dirty checkout must also refuse at PUBLICATION, before any write
+                good = _read(_p(repo, REV.CODE_PATHS[0]))
+                with io.open(_p(repo, REV.CODE_PATHS[0]), "wb") as f:
+                    f.write(good + b"# dirty\r\n")
+                h_pub, m_pub = _refuses(lambda: _pub(repo, cap, "2026-09-01", {"alpha": 1}, FIRED), "INPUTS_CODE_DIRTY")
+                with io.open(_p(repo, REV.CODE_PATHS[0]), "wb") as f:
+                    f.write(good)
+                res.append(("dirty code at publication", h_pub and not os.path.isdir(_p(repo, "docs/ensemble/2026-09-01"))))
+        finally:
+            shutil.rmtree(repo, ignore_errors=True)
+    same = caps["LF"][1] == caps["CRLF"][1]
+    _check("CODEX-11 F3-COMMITTED-INPUT-AUTHORITY",
+           caps["LF"][0] and caps["CRLF"][0] and same and all(h for _l, h in res),
+           "clean LF and CRLF checkouts pass preflight and build the SAME committed capsule; "
+           + "; ".join(f"{l}->{'refused' if h else 'ACCEPTED'}" for l, h in res))
 
 
 if __name__ == "__main__":

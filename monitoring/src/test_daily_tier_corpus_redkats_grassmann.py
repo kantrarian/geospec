@@ -1,7 +1,22 @@
 #!/usr/bin/env python3
 """
-DAILY-TIER-CORPUS red-KAT bar -- grassmann, 2026-09-02 (REV 6: codex 1755Z findings F1-F4 on v2 + REV 5, over
-cayley's daily-path v3 5ffdd80d and its SHARED validators; on top of REV 5).
+DAILY-TIER-CORPUS red-KAT bar -- grassmann, 2026-09-02 (REV 6b: REV 6 re-ported onto cayley's daily-path v5
+ec7d10cb = v4 [codex 1831Z F3: committed inputs authority] + docs/ensemble/** -text; on top of REV 5/6).
+
+REV 6b -- WHAT CHANGED vs REV 6 (cayley 1901Z):
+  C-11  the inputs capsule of every revision is checked against the GIT view of the code + calibration
+        inputs AT THE COMMIT THAT ADDED THAT REVISION (committed_inputs_view -> expected_entries_from_view
+        -> validate_revision_against_entry(..., expect_inputs)): identity, byte length, sha256 (+ keyset)
+        of every code and calibration entry must equal the committed blobs, and the calibration set must
+        equal the committed set exactly. Strictly stronger than the runtime reopen (which cannot know a
+        historical revision's commit).
+  C-12  EOL-PIN: .gitattributes at the target must carry `docs/ensemble/** -text` -- the store is read as
+        raw bytes from the checkout, so a checkout must never translate it (REV 6 M-AE measured the
+        refusal that follows without the line; M-AE stays as the necessity evidence, M-AF is the lock's
+        partner).
+  Fixture: the temp store is built the way the runner now builds it -- materialize_checkout (CRLF
+        carrier), committed_inputs_view over the module's scripted git, inputs_from_view -- so the
+        positive and every partner go through the same seams as production.
 
 REV 6 -- WHAT CHANGED vs REV 5 (codex 1755Z, cayley 1814Z):
   F1  the cutover capsule is no longer trusted on its own claims: C-7 calls the committed module's
@@ -766,13 +781,15 @@ class StoreView:
     (and the committed module's own validators) run over a git commit (the bar) and over a temp
     filesystem store with a scripted git (the selftest partners)."""
 
-    def __init__(self, root, read, list_paths, read_blob, git, label: str):
+    def __init__(self, root, read, list_paths, read_blob, git, label: str, add_commit_of=None):
         self.root = root                  # the repo path handed to the module's validators
         self.read = read                  # rel -> bytes | None
         self.list_paths = list_paths      # () -> sorted rel paths under docs/ensemble/
         self.read_blob = read_blob        # git blob sha -> bytes (legacy records)
         self.git = git                    # (repo, *args) -> bytes, the module's git seam
         self.label = label
+        # rel -> the commit that ADDED that path (git view); None -> "HEAD" (temp store)
+        self.add_commit_of = add_commit_of or (lambda rel: "HEAD")
 
 
 _HEX40_RE = re.compile(r"^[0-9a-f]{40}$")
@@ -809,7 +826,12 @@ def git_store_view(repo: str, commit: str) -> StoreView:
 
     def read_blob(sha):
         return _git(repo, ["cat-file", "blob", sha], binary=True)
-    return StoreView(repo, read, list_paths, read_blob, _git_at(repo, commit), f"git {commit[:12]}")
+
+    def add_commit_of(rel):
+        out = _git(repo, ["log", "--diff-filter=A", "--format=%H", commit, "--", rel]).split()
+        return out[-1] if out else commit
+    return StoreView(repo, read, list_paths, read_blob, _git_at(repo, commit), f"git {commit[:12]}",
+                     add_commit_of=add_commit_of)
 
 
 def _no_git_authority(_repo, *a):
@@ -875,6 +897,10 @@ def lock_revision_store(view: StoreView, ens_mod, red_mod, REV, git_history=None
         return {"state": "ACTIVE", "problems": problems, "n_revisions": 0, "n_dates": 0}
     if any(p.startswith(REV.TXN_DIR_REL + "/") for p in paths):
         problems.append("STAGING_DIR_IN_STORE: docs/ensemble/.txn present")
+    # C-12 EOL-PIN (REV 6b): the store is read as raw checkout bytes, so the checkout must never translate it
+    ga = view.read(".gitattributes") or b""
+    if not any(ln.split() == ["docs/ensemble/**", "-text"] for ln in ga.decode("utf-8", "replace").splitlines()):
+        problems.append("C-12 EOL_PIN_MISSING: .gitattributes lacks `docs/ensemble/** -text`")
     journal_raw = view.read(REV.JOURNAL_REL) or b""
     try:
         entries = REV.parse_journal(journal_raw)
@@ -910,9 +936,16 @@ def lock_revision_store(view: StoreView, ens_mod, red_mod, REV, git_history=None
         # (schema, date/run_id/supersedes/REASON, canonical fired_utc == run-id prefix, closed
         # source_index, typed persistence entries, inputs per-kind rules + one-to-one pins + recompute)
         try:
-            REV.validate_revision_against_entry(rec, e)
+            # C-11 (REV 6b): the inputs are checked against the GIT view of code + calibration at the
+            # commit that added this revision -- identity, byte length, sha256, keyset, exact calibration set
+            iv = REV.committed_inputs_view(view.root, commit=view.add_commit_of(e["path"]), git=view.git)
+            REV.validate_revision_against_entry(rec, e, expect_inputs={
+                "expected_entries": REV.expected_entries_from_view(iv),
+                "calibration_paths": sorted(iv["calibration"])})
         except REV.RevisionRefusal as ex:
             problems.append(f"C-7 {ex}")
+        except subprocess.CalledProcessError as ex:
+            problems.append(f"C-11 INPUTS_VIEW_UNREADABLE: {e['path']}: {ex}")
         if not (rv["date"] == e["date"] == rec.get("date") and rv["run_id"] == e["run_id"]
                 and rv["supersedes"] == e["supersedes"]):
             problems.append(f"C-7 REVISION_IDENTITY_NE_JOURNAL: {e['path']}")
@@ -1514,22 +1547,15 @@ def revision_store_partners(ens_mod, red_mod, corpus: Corpus) -> int:
     legacy_csv = ("date,region,tier,risk,confidence,methods,agreement\n"
                   + "\n".join(",".join(r) for r in REV._csv_rows_for_record(legacy_rec)) + "\n").encode()
     blobs = {REC_BLOB: legacy_raw, CSV_BLOB: legacy_csv}
-    # the committed module's own scripted git: ONE committed legacy record + the LF legacy CSV blob at HEAD
+    # the committed module's own scripted git: ONE committed legacy record + the LF legacy CSV blob + the three
+    # CODE_PATHS blobs + the committed calibration set at HEAD (module fixtures FIXTURE_CODE / FIXTURE_CALIBRATION)
     fake_git = REV.make_fake_git(legacy_csv, legacy_raw, csv_blob=CSV_BLOB, rec_blob=REC_BLOB, head=HEAD)
-    code_raws = {p: (b"# kat " + p.encode() + b"\n") for p in REV.CODE_PATHS}
-    CAL_REL = REV.CALIBRATION_DIR_REL + "/kat.json"
-    CAL_RAW = b'{"region": "kat", "valid_through": "2026-09-09"}\n'
-    EXPECT = {"calibration_paths": [CAL_REL]}
 
     def inputs_for(repo, cap, day, pins):
-        ents = [REV.input_entry("code", p, None, None, raw_bytes=code_raws[p]) for p in REV.CODE_PATHS]
-        ents.append(REV.input_entry("calibration_capsule", CAL_REL, None, ["region", "valid_through"],
-                                    raw_bytes=CAL_RAW))
-        for pe in pins:
-            if pe["kind"] != "hole":
-                ents.append(REV.pin_input_entry(repo, cap, pe, git=fake_git))
-        ents.append(REV.scored_day_entry(day))
-        return {"schema": REV.INPUTS_SCHEMA, "entries": ents}
+        # exactly the runner's construction: committed view -> inputs_from_view (never checkout reads)
+        iv = REV.committed_inputs_view(repo, "HEAD", git=fake_git)
+        pin_entries = [REV.pin_input_entry(repo, cap, pe, git=fake_git) for pe in pins if pe["kind"] != "hole"]
+        return REV.inputs_from_view(iv, pin_entries, day), iv
 
     def publish(repo, cap, day, fired, bump=0, reason=None):
         snap = REV.journal_bytes(repo)
@@ -1541,24 +1567,23 @@ def revision_store_partners(ens_mod, red_mod, corpus: Corpus) -> int:
             pers = _persistence_replay(red_mod, ens_mod, td, rec, prior)
         for region in rec["regions"]:
             rec["regions"][region]["persistence"] = pers[region]
-        return REV.publish_revision(repo, rec, inputs_for(repo, cap, day, pins), snap, pins, fired,
-                                    rescore_reason=reason, expect_inputs=EXPECT, git=fake_git)
+        cap_in, iv = inputs_for(repo, cap, day, pins)
+        expect = {"expected_entries": REV.expected_entries_from_view(iv),
+                  "calibration_paths": sorted(iv["calibration"])}
+        return REV.publish_revision(repo, rec, cap_in, snap, pins, fired,
+                                    rescore_reason=reason, expect_inputs=expect, git=fake_git)
 
     def build_store() -> Tuple[str, dict]:
         repo = tempfile.mkdtemp(prefix="corpus-rev-store-")
         os.makedirs(os.path.join(repo, "docs"))
         os.makedirs(os.path.join(repo, "monitoring", "dashboard"))
-        os.makedirs(os.path.join(repo, REV.CALIBRATION_DIR_REL.replace("/", os.sep)))
         # the CHECKOUT csv is CRLF-translated (the Windows runner case); git authority is the LF blob
         with open(os.path.join(repo, "docs", "data.csv"), "wb") as f:
             f.write(legacy_csv.replace(b"\n", b"\r\n"))
-        for p, raw in code_raws.items():
-            fp = os.path.join(repo, p.replace("/", os.sep))
-            os.makedirs(os.path.dirname(fp), exist_ok=True)
-            with open(fp, "wb") as f:
-                f.write(raw)
-        with open(os.path.join(repo, CAL_REL.replace("/", os.sep)), "wb") as f:
-            f.write(CAL_RAW)
+        # the code + calibration checkout, CRLF carrier (the runner builds inputs from the committed view)
+        REV.materialize_checkout(repo, eol=b"\r\n")
+        with open(os.path.join(repo, ".gitattributes"), "wb") as f:
+            f.write(b"docs/ensemble/** -text\n")
         cap = REV.build_legacy_baseline(repo, git=fake_git)
         REV.write_legacy_baseline(repo, cap, git=fake_git)
         cap = REV.load_legacy_baseline(repo, git=fake_git)
@@ -1781,6 +1806,23 @@ def revision_store_partners(ens_mod, red_mod, corpus: Corpus) -> int:
         partner("M-AD2 an inputs prior_revision entry that no longer matches its persistence pin -> one-to-one refusal",
                 m_inputs_pin, "INPUTS_CAPSULE_SCHEMA")
 
+        # ---- REV 6b partners
+        def m_eol_pin(repo):
+            os.remove(os.path.join(repo, ".gitattributes"))
+        partner("M-AF .gitattributes without `docs/ensemble/** -text` -> C-12 EOL_PIN_MISSING",
+                m_eol_pin, "EOL_PIN_MISSING")
+
+        def m_code_input(repo):
+            # an inputs code entry whose digest is not the COMMITTED blob's (re-sealed): the committed view refuses
+            def mut(rec):
+                for ent in rec["revision"]["inputs"]["entries"]:
+                    if ent["kind"] == "code":
+                        ent["sha256"] = "e" * 64
+                        break
+            rewrite_last_revision(repo, mut)
+        partner("M-AG a code input's digest != the committed blob at the revision's commit (re-sealed) -> refused via the git view",
+                m_code_input, "INPUTS_CAPSULE_SCHEMA")
+
         # M-AE: MEASURE the CRLF-checkout residual (cayley's lane). core.autocrlf=true on this class of host
         # translates docs/ensemble/** on checkout/pull; the module compares raw bytes. This is reported, not
         # asserted, so the number is on the record until the daily path pins eol for the store.
@@ -1845,7 +1887,7 @@ def main(argv: List[str]) -> int:
     except RuntimeError as e:
         print(f"CORPUS_REVISION_UNRESOLVABLE: {e}")
         return 2
-    print(f"DAILY-TIER-CORPUS red-KAT bar (grassmann, REV 6) -- repo {repo} commit {a.commit}")
+    print(f"DAILY-TIER-CORPUS red-KAT bar (grassmann, REV 6b) -- repo {repo} commit {a.commit}")
     if a.write_ledger:
         print("  UNBOUND: --write-ledger authors the sidecar from the measured set; it emits NO verdict")
     else:

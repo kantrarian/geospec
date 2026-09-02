@@ -3116,8 +3116,21 @@ def w_selrun():
             smoke_ref={"commit": SC, "path": "kat/smoke_badrcpt.json"},
             effect_grids_ref=refs_adm["effect_grids_ref"])
 
+        # REV-25 (cayley 0803Z correction, partner 2): the final smoke
+        # carries the bad digest while the served results-stage
+        # authorities carry the TRUE one -- the join refuses FIRST, for
+        # divergence, before points_commit resolves or anything rebuilds
+        ok_run = ok_run and refuses(
+            lambda: WTS.verify_selector_admission(
+                _REPO, art_badrcpt, MC, blob_reader=rdr2,
+                git_resolve=lambda c: c,
+                geometry_loader=bar_geom_loader, is_ancestor=bar_anc),
+            "final smoke point-corpus receipt diverges from the "
+            "results-commit draft smoke")
+
         def rdr2_badrcpt(commit, path):
-            # REV-24: the chain is SELF-CONSISTENT about the bad digest
+            # REV-24 (= cayley 0803Z partner 3): the chain is
+            # SELF-CONSISTENT about the bad digest
             # (draft smoke + envelope at RC carry it too), so the only
             # thing wrong is that it does not recompute from the
             # carriers -- the refusal must be the recompute one, not the

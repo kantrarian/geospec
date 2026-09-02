@@ -2300,7 +2300,7 @@ def _selftest(real_repo):
         with open(rp, "w", encoding="utf-8", newline="") as f:
             f.write(r_live + " ")
         msg = cli_refuses("aggregate divergent member", "aggregate", repo,
-                          o_d, c_d)
+                          o_d, c_d, p_d)
         assert "RUNNER_TIER_S_AGGREGATE_DIVERGENT" in msg, msg[:200]
         with open(rp, "r", encoding="utf-8", newline="") as f:
             assert f.read() == r_live + " ", "D-13: divergent member rewritten"

@@ -367,7 +367,19 @@ def _rebuild_outcomes(fam, entry, holm_fn, loco_registry):
                 "SELECTOR_UNADMITTED: replicate p-vector not the "
                 "four families")
         for f, v in pv.items():
-            _valid_p(v, f"{f} p-value")
+            # codex 1912Z ruling: a None component is the REGISTERED
+            # untestable family (harness sec 5 replicate rule) -- a
+            # non-rejection with m held at 4, never a removed
+            # hypothesis and never a synthesized number; booleans,
+            # strings, NaN, infinities, negatives and >1 still refuse
+            _valid_p(v, f"{f} p-value", allow_none=True)
+        if pv[fam] is None:
+            # the entry's OWN family is untestable on this replicate:
+            # a non-recovery (False), not an unadmitted artifact
+            pre.append(False)
+            if fam == "B1B" and folds is not None:
+                post.append(False)
+            continue
         rej = holm_fn(pv)
         pre.append(fam in rej)
         if fam == "B1B" and folds is not None:
@@ -1168,15 +1180,25 @@ def _selftest():
 
     def mk_tier_s_capsule(smoke_families, grids_obj, grids_raw,
                           store_map, commit, man_pins, impl_path,
-                          geom_digest=GEOMD, mc_override=None):
+                          geom_digest=GEOMD, mc_override=None,
+                          pv_fn=None):
+        """pv_fn(fam, k, r_i, pv) -> pv: optional per-replicate
+        p-vector hook applied IDENTICALLY to the results carrier and
+        the point-corpus carriers (codex 1912Z: the None-rule chain
+        needs registered-None components in both, never in one)."""
         import hashlib as _h
         fams4 = ("B1B", "B2A", "B2B", "B3A")
         registry = FIX_GEOM["registries"]["cascadia"]
 
-        def reps_from(outcomes, fam):
-            return [{"p_values": {f: (0.001 if (o and f == fam)
-                                      else 0.9) for f in fams4}}
-                    for o in outcomes]
+        def reps_from(outcomes, fam, k):
+            out = []
+            for r_i, o in enumerate(outcomes):
+                pv = {f: (0.001 if (o and f == fam) else 0.9)
+                      for f in fams4}
+                if pv_fn is not None:
+                    pv = pv_fn(fam, k, r_i, pv)
+                out.append({"p_values": pv})
+            return out
 
         def folds_from(post):
             if post is None:
@@ -1214,11 +1236,11 @@ def _selftest():
             results["families"][fam] = [
                 {"point": dict(e["point"]),
                  "grid_index": det_pts.index(e["point"]),
-                 "replicates": reps_from(e["outcomes"], fam),
+                 "replicates": reps_from(e["outcomes"], fam, k_e),
                  "loco_folds": folds_from(
                      e.get("post_loco_outcomes"))
                  if fam == "B1B" else None}
-                for e in entries]
+                for k_e, e in enumerate(entries)]
         r_raw = json.dumps(results).encode()
         r_sha = _h.sha256(r_raw).hexdigest()
         store_map[(STAGE_RES, "ts_results.json")] = r_raw
@@ -1272,7 +1294,7 @@ def _selftest():
                          "pre_invocation_sha256": pre["invocation_sha256"],
                          "execution_sha256": ex_d,
                          "record": {"replicates": reps_from(e_c["outcomes"],
-                                                            fam_c),
+                                                            fam_c, k_c),
                                     "loco_folds": None,
                                     "certifiable": False}}
                 raw_c = json.dumps(cap_c).encode()
@@ -1282,7 +1304,8 @@ def _selftest():
                 if fam_c == "B1B" and \
                         e_c.get("post_loco_outcomes") is not None:
                     lcap_c = dict(cap_c, record={
-                        "replicates": reps_from(e_c["outcomes"], fam_c),
+                        "replicates": reps_from(e_c["outcomes"], fam_c,
+                                                k_c),
                         "loco_folds": folds_from(e_c["post_loco_outcomes"]),
                         "certifiable": False})
                     lraw_c = json.dumps(lcap_c).encode()
@@ -1651,8 +1674,243 @@ def _selftest():
             "to an admitted 40-hex lineage")
     assert arefuses(art_a, "does not resolve", resolve=bad_resolve)
 
-    print("w2_tier_selector selftest: ALL PASS (hand fixtures; "
-          "PRELIMINARY_SMOKE semantics; nothing certified)")
+    # --- codex 1912Z ruling: a registered None INSIDE the four-family
+    # p-vector is a NON-REJECTION with m held at 4 (the harness sec 5
+    # replicate rule), never a removed hypothesis and never a sentinel.
+    # The real class (run tip 03453fdd): every B1B component of the two
+    # B2B dropout points came back None (94 of 1,000 B2B p-values);
+    # the pre-ruling selector refused the whole chain at _rebuild.
+    import w2_power_harness_cayley as _PHt
+    _reg = FIX_GEOM["registries"]["cascadia"]
+    HAND_PV = {"B2B": 0.015, "B1B": None, "B2A": 0.5, "B3A": 0.7}
+    b2b_det = [p for p in grids["B2B"] if "gain" not in p]
+    B2B_DROP = [k for k, p in enumerate(b2b_det)
+                if p.get("dropout", 0.0) > 0]
+    assert B2B_DROP == [2, 3], B2B_DROP
+    # sm B2B counts [10, 30, 30, 20, 40]: k=3's first non-recovery
+    # replicate is index 20, k=2's is 30
+    first_false = {k: sum(1 for o in sm["families"]["B2B"][k]["outcomes"]
+                          if o) for k in B2B_DROP}
+    assert first_false == {2: 30, 3: 20}, first_false
+
+    def none_pv(fam, k, r_i, pv):
+        if fam != "B2B" or k not in B2B_DROP:
+            return pv
+        pv = dict(pv)
+        if k == 3:
+            # the dropout-0.25 class: B1B untestable on EVERY replicate
+            pv["B1B"] = None
+            if r_i == first_false[3]:
+                # own-family untestable on a non-recovery replicate
+                pv["B2B"] = None
+            elif r_i == first_false[3] + 1:
+                # the codex hand case on a non-recovery replicate
+                pv = dict(HAND_PV)
+        elif r_i % 2 == 0:
+            # the dropout-0.1 class: B1B untestable on many replicates
+            pv["B1B"] = None
+        return pv
+
+    store_n = dict(astore)
+    caps_n = mk_tier_s_capsule(sm["families"], grids, grids_raw,
+                               store_n, "a" * 40, man_pins, "impl.py",
+                               pv_fn=none_pv)
+    sm_n = dict(sm, schema="f2g-w2-tier-s-smoke-v1",
+                effect_grids_sha256=_digest(grids),
+                **caps_n["smoke_fields"])
+    store_n[(STAGE_SMOKE, "smoke_none.json")] = json.dumps(sm_n).encode()
+    art_n = select_candidates(
+        sm_n, grids,
+        smoke_ref={"commit": STAGE_SMOKE, "path": "smoke_none.json"},
+        effect_grids_ref=refs2["effect_grids_ref"])
+
+    def rdr_n(c, p):
+        if p.endswith("execution_manifest.json"):
+            return json.dumps(fix_man).encode()
+        return store_n[(c, p)]
+
+    def admit_n():
+        return verify_selector_admission(
+            ".", art_n, "a" * 40, blob_reader=rdr_n,
+            git_resolve=lambda c: c, geometry_loader=geom_loader,
+            is_ancestor=dag_ancestor)
+    res_n = json.loads(store_n[(STAGE_RES, "ts_results.json")].decode())
+    # anti-vacuity: the fixture CARRIES registered None -- in the results
+    # capsule AND in the committed point carriers, identically. k=3: 50
+    # B1B + 1 own-family; k=2: 25 B1B -> 76 None values.
+    n_none = sum(1 for e in res_n["families"]["B2B"]
+                 for rep in e["replicates"]
+                 for v in rep["p_values"].values() if v is None)
+    car_none = 0
+    for idx_c in range(3, 8):    # B2B carriers follow B2A's three
+        cap_c = json.loads(store_n[(STAGE_PTS,
+                                    f"smoke_point_{idx_c:03d}.json")]
+                           .decode())
+        assert cap_c["family"] == "B2B", cap_c["family"]
+        car_none += sum(1 for rep in cap_c["record"]["replicates"]
+                        for v in rep["p_values"].values() if v is None)
+    assert n_none == car_none == 76, (n_none, car_none)
+    assert res_n["families"]["B2B"][3]["replicates"][20]["p_values"] \
+        ["B2B"] is None
+    assert res_n["families"]["B2B"][3]["replicates"][21]["p_values"] \
+        == HAND_PV
+    # (a) the None chain is ADMITTED, and its rebuilt outcomes equal the
+    # harness's holm_rejects with the None passed through, replicate by
+    # replicate -- which is exactly the smoke the fixture declares
+    adm_n = admit_n()
+    assert isinstance(adm_n, dict) and adm_n["point_corpus"]["carriers"] \
+        == sum(1 for (c, _p) in store_n if c == STAGE_PTS) == 29
+    assert adm_n["smoke"]["pre_invocation_sha256"] == \
+        caps_n["pre"]["invocation_sha256"]
+    for k, e in enumerate(res_n["families"]["B2B"]):
+        pre_o, post_o = _rebuild_outcomes("B2B", e, _PHt.holm_rejects,
+                                          _reg)
+        assert post_o is None
+        assert pre_o == ["B2B" in _PHt.holm_rejects(rep["p_values"])
+                         for rep in e["replicates"]], k
+        assert pre_o == sm["families"]["B2B"][k]["outcomes"], k
+    # (c) own-family None -> that replicate is False; the chain admitted
+    pre_3, _ = _rebuild_outcomes("B2B", res_n["families"]["B2B"][3],
+                                 _PHt.holm_rejects, _reg)
+    assert pre_3[20] is False and pre_3[21] is False and \
+        pre_3[:20] == [True] * 20, pre_3
+    # (b) the hand case: own p 0.015 with ONE None component is NOT a
+    # recovery under m=4 (0.015 > 0.05/4 = 0.0125) ...
+    assert "B2B" not in _PHt.holm_rejects(HAND_PV)
+
+    def holm_reduced(pv):
+        """the REJECTED option 1: None removed from the Holm set."""
+        known = sorted((h for h in pv if pv[h] is not None),
+                       key=lambda h: pv[h])
+        m = len(known)
+        rej, still = set(), True
+        for i, h in enumerate(known):
+            if still and pv[h] <= 0.05 / (m - i):
+                rej.add(h)
+            else:
+                still = False
+        return rej
+    # ... and a reduced-set implementation (m=3, 0.015 <= 0.05/3) WOULD
+    # have rejected it: the control discriminates, at the rebuild seam
+    assert "B2B" in holm_reduced(HAND_PV)
+    hand_entry = {"replicates": [{"p_values": dict(HAND_PV)}],
+                  "loco_folds": None}
+    assert _rebuild_outcomes("B2B", hand_entry, _PHt.holm_rejects,
+                             _reg) == ([False], None)
+    assert _rebuild_outcomes("B2B", hand_entry, holm_reduced,
+                             _reg) == ([True], None)
+    # ... and at the CHAIN: with the harness rule swapped for the
+    # reduced set, the admitted None chain must REFUSE (replicate 21 of
+    # k=3 would flip True against the declared False)
+    _true_holm = _PHt.holm_rejects
+    _PHt.holm_rejects = holm_reduced
+    try:
+        try:
+            admit_n()
+            raise AssertionError(
+                "a reduced-set Holm must be DETECTED by the None chain")
+        except SelectorRefusal as e:
+            assert "do not DERIVE" in str(e), str(e)
+    finally:
+        _PHt.holm_rejects = _true_holm
+    assert _PHt.holm_rejects is _true_holm
+    assert isinstance(admit_n(), dict)   # restored: admits again
+    # (c') B1B with folds: an own-family None replicate is False in BOTH
+    # pre and post; a numeric neighbour is unaffected
+    fold_ok = {st: 0.001 for st in _reg}
+    b1b_none = {"replicates": [
+        {"p_values": {"B1B": None, "B2A": 0.9, "B2B": 0.9, "B3A": 0.9}},
+        {"p_values": {"B1B": 0.001, "B2A": 0.9, "B2B": 0.9,
+                      "B3A": 0.9}}],
+        "loco_folds": [dict(fold_ok), dict(fold_ok)]}
+    assert _rebuild_outcomes("B1B", b1b_none, _PHt.holm_rejects,
+                             _reg) == ([False, True], [False, True])
+    assert _rebuild_outcomes("B1B", dict(b1b_none, loco_folds=None),
+                             _PHt.holm_rejects, _reg) == \
+        ([False, True], None)
+    # (d) invalid classes in a component each refuse TYPED -- at the
+    # rebuild seam naming the component, and through the chain
+    for bad in (True, "0.5", float("nan"), float("inf"), -1.0, 1.1):
+        try:
+            _rebuild_outcomes(
+                "B2B", {"replicates": [{"p_values": dict(HAND_PV,
+                                                         B1B=bad)}],
+                        "loco_folds": None}, _PHt.holm_rejects, _reg)
+            raise AssertionError(f"{bad!r} must refuse")
+        except SelectorRefusal as e:
+            assert "B1B p-value" in str(e) and \
+                "not a finite numeric" in str(e), (bad, str(e))
+        msg = re_capsule(mut_results=lambda r, b=bad:
+                         r["families"]["B2B"][0]["replicates"][0]
+                         ["p_values"].update(B1B=b))
+        assert msg is not None and "SELECTOR_UNADMITTED" in msg and \
+            "not a finite numeric" in msg, (bad, msg)
+    # (e) a spy holm_fn: the None reaches Holm AS None inside the FULL
+    # four-key mapping -- no sentinel, no shrunk family, also through
+    # the B1B fold substitution
+    seen = []
+
+    def spy(pv):
+        seen.append(dict(pv))
+        return _PHt.holm_rejects(pv)
+    assert _rebuild_outcomes("B2B", hand_entry, spy, _reg) == \
+        ([False], None)
+    assert seen == [HAND_PV] and seen[0]["B1B"] is None and \
+        len(seen[0]) == 4 and not any(v == 1.0 for v in seen[0].values())
+    seen[:] = []
+    e_b1b = {"replicates": [{"p_values": {"B1B": 0.001, "B2A": None,
+                                          "B2B": 0.9, "B3A": 0.9}}],
+             "loco_folds": [dict(fold_ok)]}
+    assert _rebuild_outcomes("B1B", e_b1b, spy, _reg) == ([True], [True])
+    assert len(seen) == 1 + len(_reg) and \
+        all(d["B2A"] is None and len(d) == 4 for d in seen)
+    # (f) the all-numeric chain is UNCHANGED: every fixture entry
+    # rebuilds byte-equal under the pre-ruling rule (allow_none=False,
+    # reimplemented here verbatim) and the new one; the clean capsule
+    # still admits
+
+    def old_rebuild(fam, entry, holm_fn):
+        pre_o, post_o = [], []
+        folds = entry.get("loco_folds")
+        for r_i, rep in enumerate(entry["replicates"]):
+            pv = rep["p_values"]
+            for f, v in pv.items():
+                _valid_p(v, f"{f} p-value")
+            rej = holm_fn(pv)
+            pre_o.append(fam in rej)
+            if fam == "B1B" and folds is not None:
+                fr = folds[r_i]
+                if fr is None:
+                    post_o.append(False)
+                    continue
+                ok = "B1B" in rej
+                for st in sorted(fr):
+                    p_s = fr[st]
+                    _valid_p(p_s, f"loco:{st} fold p-value",
+                             allow_none=True)
+                    if p_s is None or "B1B" not in holm_fn(
+                            dict(pv, B1B=p_s)):
+                        ok = False
+                post_o.append(ok)
+        return pre_o, (post_o if fam == "B1B" and folds is not None
+                       else None)
+    res_num = json.loads(astore[(STAGE_RES, "ts_results.json")].decode())
+    n_entries = 0
+    for fam_x in FAMILIES_ORDER:
+        for e in res_num["families"][fam_x]:
+            assert all(v is not None for rep in e["replicates"]
+                       for v in rep["p_values"].values())
+            new_o = _rebuild_outcomes(fam_x, e, _PHt.holm_rejects, _reg)
+            assert json.dumps(new_o) == json.dumps(
+                old_rebuild(fam_x, e, _PHt.holm_rejects)), \
+                (fam_x, e["grid_index"])
+            n_entries += 1
+    assert n_entries == 21, n_entries
+    assert re_capsule() is None
+
+    print("w2_tier_selector selftest: ALL PASS (hand fixtures incl. the "
+          "codex 1912Z None-rule chain; PRELIMINARY_SMOKE semantics; "
+          "nothing certified)")
 
 
 if __name__ == "__main__":

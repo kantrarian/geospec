@@ -22,3 +22,5 @@ monitoring/src/fault_segments.py text eol=lf
 monitoring/src/w2_mf4_catalog_adapter_grassmann.py text eol=lf
 docs/f2g_window2_execution/key_disposition_capsule_v5.json -text
 docs/f2g_window2_execution/key_disposition_v4_to_v5_delta.json -text
+# codex 1912Z sec 2: Tier-S run artifacts are create-once BYTE carriers compared byte-for-byte to their blobs; never EOL-converted
+docs/f2g_window2_execution/tier_s_run_*/** -text

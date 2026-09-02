@@ -1018,9 +1018,19 @@ def _selftest_launch():
             with open(os.path.join(dst, name), "wb") as d:
                 d.write(body)
             n += 1
+        # codex 1912Z sec 2: the fixture repository also carries the
+        # real .gitattributes (LF-normalized), so its checkouts obey the
+        # same byte-carrier rules as production
+        ga = os.path.join(real_repo, ".gitattributes")
+        if os.path.exists(ga):
+            with open(ga, "rb") as s:
+                body = s.read().replace(b"\r\n", b"\n")
+            with open(os.path.join(repo, ".gitattributes"), "wb") as d:
+                d.write(body)
         print(f"  selftest: fixture repository carries {n} real source "
-              "files at their registered paths; the body runs from ITS "
-              "driver copy so the identity join holds as in production")
+              "files at their registered paths (+ .gitattributes); the "
+              "body runs from ITS driver copy so the identity join holds "
+              "as in production")
         p = subprocess.run(
             [sys.executable,
              os.path.join(dst, os.path.basename(__file__)),
@@ -2731,14 +2741,18 @@ def _selftest(real_repo):
         # over REAL pinned geometry, every command through main(argv)
         # in a REAL child process running the real checkout's own
         # driver:
-        #   fire -> commit -> phase1 (79 prepublished fixtures + ONE
-        #   real point) -> rank -> phase2 (validated LOCO carriers) ->
-        #   aggregate -> commit -> finalize -> commit -> select ->
-        #   commit -> verify-select == 0
+        #   fire -> commit -> phase1 (78 prepublished fixtures + TWO
+        #   real points: B2A {m:1} and the B2B dropout-0.25 point whose
+        #   B1B component is registered-None -- codex 1912Z) -> rank ->
+        #   phase2 (validated LOCO carriers) -> aggregate -> commit ->
+        #   finalize -> commit -> select -> commit -> verify-select == 0
+        #   -> a fresh core.autocrlf=true worktree reproduces the run
+        #   bytes and verify-select is ADMITTED there (D-11f)
         # plus the identity join's locks on the real tree. ~11 minutes;
         # that cost is the point.
         pbt = tempfile.mkdtemp(prefix="d11-process-boundary-")
         pwt = os.path.join(pbt, "t")
+        pwt2 = os.path.join(pbt, "t_autocrlf")
         try:
             add = subprocess.run(
                 ["git", "-C", real_repo, "worktree", "add", "--detach",
@@ -2748,7 +2762,9 @@ def _selftest(real_repo):
                     "D-11 could not materialise a detached worktree: "
                     + add.stderr.decode(errors="replace")[:200])
             pdrv = os.path.join(pwt, DRIVER_REL.replace("/", os.sep))
-            prel = "docs/f2g_window2_execution/d11_boundary"
+            # under the byte-carrier rule's glob (tier_s_run_*/** -text)
+            # so D-11f exercises the REAL attribute, not a fixture one
+            prel = "docs/f2g_window2_execution/tier_s_run_d11_boundary"
             pout = os.path.join(pwt, prel.replace("/", os.sep))
 
             def pg(*a):
@@ -2793,35 +2809,69 @@ def _selftest(real_repo):
                                          for _ in range(
                                              bpre["quality"]["R"])]
                 return rec
-            # (3) 79 structurally valid detection fixtures, point 0
-            # ABSENT -- each must pass the very validator the phase
-            # applies to a skip
+            # (3) 78 structurally valid detection fixtures; point 0 (the
+            # first B2A point) and the B2B dropout-0.25 point ABSENT --
+            # each fixture must pass the very validator the phase
+            # applies to a skip. codex 1912Z: the dropout point is the
+            # class a one-real-point control could not see -- at run tip
+            # 03453fdd its B1B component came back None (registered
+            # untestable) in 50/50 replicates and the pre-ruling
+            # selector refused the whole chain at the outcome rebuild.
+            i_drop = [i for i, (f, p) in enumerate(bpts)
+                      if f == "B2B" and p.get("dropout") == 0.25]
+            assert len(i_drop) == 1, i_drop
+            i_drop = i_drop[0]
             for i in range(1, len(bpts)):
+                if i == i_drop:
+                    continue
                 TSR.run_smoke_point(pwt, pout, i, bsha, preader,
                                     smoke_fn=bstub)
             for i in range(1, len(bpts)):
+                if i == i_drop:
+                    continue
                 _validate_published(pwt, pout, bpre, bpts, i, False)
-            # (4) phase1 through main(argv) in a real process: 79
-            # validated skips and ONE real point through
+            # (4) phase1 through main(argv) in a real process: 78
+            # validated skips and TWO real points through
             # main -> cmd_phase1 -> _drive -> child --worker ->
-            # cmd_worker -> _run_one -> run_smoke_point
+            # cmd_worker -> _run_one -> run_smoke_point (two workers)
             fam0, _pt0 = bpts[0]
-            print(f"  D-11 .... phase1 through the real CLI: 79 "
-                  f"fixtures to validate + ONE REAL point ({fam0}) "
-                  "through a real child process, ~10 min", flush=True)
+            print(f"  D-11 .... phase1 through the real CLI: 78 "
+                  f"fixtures to validate + TWO REAL points ({fam0} "
+                  f"{_pt0} and B2B {bpts[i_drop][1]}) through two real "
+                  "child processes, ~10 min", flush=True)
             t0 = time.time()
-            rc, blob = _cli([pdrv, "phase1", pwt, pout, "1", pc],
+            rc, blob = _cli([pdrv, "phase1", pwt, pout, "2", pc],
                             timeout=5400)
             el = time.time() - t0
             assert rc == 0, f"D-11 phase1 rc={rc}: {blob[-800:]}"
-            assert "resuming: 79 already published, 1 to go" in blob \
-                and "phase1 complete: 1 run, 79 already present" in \
+            assert "resuming: 78 already published, 2 to go" in blob \
+                and "phase1 complete: 2 run, 78 already present" in \
                 blob, blob[-600:]
             cap = _validate_published(pwt, pout, bpre, bpts, 0, False)
             assert len(cap["record"]["replicates"]) == \
                 bpre["quality"]["R"]
             assert cap["execution_sha256"] == \
                 TSR.execution_digest(bpre["execution"])
+            cap_d = _validate_published(pwt, pout, bpre, bpts, i_drop,
+                                        False)
+            assert cap_d["family"] == "B2B" and \
+                cap_d["point"] == bpts[i_drop][1] and \
+                len(cap_d["record"]["replicates"]) == \
+                bpre["quality"]["R"]
+            assert cap_d["execution_sha256"] == \
+                TSR.execution_digest(bpre["execution"])
+            # the real dropout carrier MUST exhibit the class (registered
+            # None in the B1B component); a carrier that did not would
+            # make D-11g below vacuous
+            n_none_d = sum(1 for rep in cap_d["record"]["replicates"]
+                           if rep["p_values"]["B1B"] is None)
+            assert n_none_d >= 1, (
+                "B2B dropout-0.25 carrier has no None B1B component -- "
+                "the None-rule control would be vacuous")
+            print(f"  D-11 .... real B2B dropout-0.25 carrier: "
+                  f"{n_none_d}/{bpre['quality']['R']} replicates carry a "
+                  "None (registered untestable) B1B component",
+                  flush=True)
             # (5) rank through main
             rc, blob = _cli([pdrv, "rank", pwt, pout, pc])
             assert rc == 0, f"D-11 rank rc={rc}: {blob[-400:]}"
@@ -3045,6 +3095,85 @@ def _selftest(real_repo):
                              bpre["manifest_commit"], prel, pc])
             assert rc == 0 and "selector ADMITTED" in blob, (
                 f"D-11 verify-select rc={rc}: {blob[-800:]}")
+            # ---- D-11g (codex 1912Z sec 1): the ADMITTED chain carries
+            # the real B2B dropout point. Its committed results entry
+            # rebuilds BYTE-EQUAL outcomes under the registered full-four
+            # Holm with every None passed through (m held at 4, never a
+            # removed hypothesis, never a sentinel) -- and those are the
+            # outcomes the final smoke declares.
+            import w2_tier_selector_cayley as _TSd
+            import w2_power_harness_cayley as _PHd
+            with open(os.path.join(pout, "tier_s_results.json"),
+                      "rb") as f:
+                d_res = json.loads(f.read().decode("utf-8"))
+            with open(os.path.join(pout, "tier_s_smoke_final.json"),
+                      "rb") as f:
+                d_smk = json.loads(f.read().decode("utf-8"))
+            k_d = [k for k, e in enumerate(d_res["families"]["B2B"])
+                   if e["point"] == bpts[i_drop][1]]
+            assert len(k_d) == 1, k_d
+            k_d = k_d[0]
+            e_d = d_res["families"]["B2B"][k_d]
+            assert sum(1 for rep in e_d["replicates"]
+                       if rep["p_values"]["B1B"] is None) == n_none_d
+            pre_d, post_d = _TSd._rebuild_outcomes(
+                "B2B", e_d, _PHd.holm_rejects, breg)
+            assert post_d is None
+            assert json.dumps(pre_d) == json.dumps(
+                d_smk["families"]["B2B"][k_d]["outcomes"]) == json.dumps(
+                ["B2B" in _PHd.holm_rejects(rep["p_values"])
+                 for rep in e_d["replicates"]])
+            print(f"  D-11g PASS  the real B2B dropout-0.25 carrier "
+                  f"({n_none_d}/{len(e_d['replicates'])} None B1B "
+                  "components) sits inside the ADMITTED chain; its "
+                  "outcomes rebuild byte-equal under the registered "
+                  f"full-four Holm (pre-LOCO recoveries: {sum(pre_d)})")
+            # ---- D-11f (codex 1912Z sec 2): the run BYTE-CARRIER rule.
+            # A fresh core.autocrlf=true checkout of the committed chain
+            # must reproduce the run artifacts byte-for-byte (this
+            # lineage's .gitattributes: docs/f2g_window2_execution/
+            # tier_s_run_*/** -text), so the driver's byte-for-byte gates
+            # and verify-select reach ADMITTED there too. Without the
+            # rule the same checkout of the real run refused at the
+            # committed-pre gate (i/lf w/crlf).
+            add2 = subprocess.run(
+                ["git", "-C", pwt, "-c", "core.autocrlf=true", "worktree",
+                 "add", "--detach", pwt2, c_sel_p], capture_output=True)
+            assert add2.returncode == 0, add2.stderr.decode(
+                errors="replace")[:300]
+            attr = subprocess.run(
+                ["git", "-C", pwt2, "check-attr", "text", "--",
+                 f"{prel}/{PRE_NAME}"], capture_output=True, text=True)
+            assert attr.stdout.strip().endswith("text: unset"), attr.stdout
+            # the conversion WAS live in that checkout: an uncovered LF
+            # text file of this very lineage comes out CRLF
+            with open(os.path.join(pwt2, "d11_alt_point_identity.txt"),
+                      "rb") as f:
+                assert f.read() == (b"same point-carrier bytes; distinct "
+                                    b"commit identity\r\n")
+            pout2 = os.path.join(pwt2, prel.replace("/", os.sep))
+            for name in (PRE_NAME, "tier_s_results.json",
+                         "tier_s_smoke_final.json", "selector.json"):
+                with open(os.path.join(pout2, name), "rb") as f:
+                    live2 = f.read()
+                blob2 = subprocess.run(
+                    ["git", "-C", pwt2, "cat-file", "blob",
+                     f"{c_sel_p}:{prel}/{name}"], capture_output=True)
+                assert blob2.returncode == 0 and live2 == blob2.stdout, (
+                    f"D-11f: {name} checked out under core.autocrlf=true "
+                    "differs from its git blob")
+            pdrv2 = os.path.join(pwt2, DRIVER_REL.replace("/", os.sep))
+            rc, blob = _cli([pdrv2, "verify-select", pwt2, pout2, c_sel_p,
+                             bpre["manifest_commit"], prel, pc])
+            assert rc == 0 and "selector ADMITTED" in blob, (
+                f"D-11f verify-select under core.autocrlf=true rc={rc}: "
+                f"{blob[-800:]}")
+            print("  D-11f PASS  byte-carrier rule: a fresh "
+                  "core.autocrlf=true worktree of the committed chain "
+                  "(conversion proven live on an uncovered file) "
+                  "reproduces pre/results/final smoke/selector byte-equal "
+                  "to their git blobs (tier_s_run_*/** -text) and "
+                  "verify-select is ADMITTED there")
             print("  D-11d PASS  on the REAL chain: an edited live draft "
                   "receipt is refused at finalize (committed draft is the "
                   "authority); a committed final smoke with a forged "
@@ -3102,13 +3231,18 @@ def _selftest(real_repo):
             print(f"  D-11 PASS  the FULL operator CLI works for real "
                   "over real pinned geometry, every command through "
                   "main(argv) in a real child process: fire -> phase1 "
-                  "(79 validated fixtures + ONE real point, child exit "
-                  f"0, {len(cap['record']['replicates'])} replicates "
-                  f"reopened, {el/60:.1f} min) -> rank -> phase2 -> "
+                  "(78 validated fixtures + TWO real points incl. the "
+                  f"B2B dropout-0.25 class, children exit 0, "
+                  f"{len(cap['record']['replicates'])} replicates "
+                  f"reopened each, {el/60:.1f} min) -> rank -> phase2 -> "
                   "aggregate -> finalize -> select -> verify-select "
-                  "ADMITTED (exit 0). Composition class closed: no "
-                  "wrapper handoff is untested")
+                  "ADMITTED (exit 0) -> byte-carrier checkout ADMITTED. "
+                  "Composition class closed: no wrapper handoff is "
+                  "untested")
         finally:
+            subprocess.run(["git", "-C", real_repo, "worktree",
+                            "remove", "--force", pwt2],
+                           capture_output=True)
             subprocess.run(["git", "-C", real_repo, "worktree",
                             "remove", "--force", pwt],
                            capture_output=True)
@@ -3120,11 +3254,13 @@ def _selftest(real_repo):
               "(driver behaviour only; stub smoke; nothing fired "
               "outside temp trees). D-11 drives the ENTIRE operator "
               "CLI through real child processes over real pinned "
-              "geometry with one real point; D-10b/D-10c/D-11b/D-11c "
-              "prove the identity join and the boundary are "
-              "falsifiable by measured forgeries, shadows and admitted "
-              "mutants; D-12 proves every create-once publisher exits "
-              "on its postcondition.")
+              "geometry with two real points (incl. the registered-None "
+              "B2B dropout class, D-11g) and re-admits the committed "
+              "chain from a core.autocrlf=true checkout (D-11f); "
+              "D-10b/D-10c/D-11b/D-11c prove the identity join and the "
+              "boundary are falsifiable by measured forgeries, shadows "
+              "and admitted mutants; D-12 proves every create-once "
+              "publisher exits on its postcondition.")
         return 0
     finally:
         pass   # the launcher owns and removes the fixture tree

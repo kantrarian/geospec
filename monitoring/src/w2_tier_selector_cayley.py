@@ -362,7 +362,8 @@ def _rebuild_outcomes(fam, entry, holm_fn, loco_registry):
                 "SELECTOR_UNADMITTED: result replicate schema not "
                 "closed")
         pv = rep["p_values"]
-        if set(pv) != {"B1B", "B2A", "B2B", "B3A"}:
+        if not isinstance(pv, dict) or \
+                set(pv) != {"B1B", "B2A", "B2B", "B3A"}:
             raise SelectorRefusal(
                 "SELECTOR_UNADMITTED: replicate p-vector not the "
                 "four families")
@@ -716,15 +717,19 @@ def verify_selector_admission(repo, art, manifest_commit, *,
             "the pre-invocation's bound identities")
     # codex 0432Z item 3: exact family set; grid_index equality;
     # non-B1B folds exactly null; B1B fold lists sized R
-    if set(results.get("families", {})) != set(FAMILIES_ORDER) or \
-            set(smoke.get("families", {})) != set(FAMILIES_ORDER):
+    results_families = results.get("families")
+    smoke_families = smoke.get("families")
+    if not isinstance(results_families, dict) or \
+            not isinstance(smoke_families, dict) or \
+            set(results_families) != set(FAMILIES_ORDER) or \
+            set(smoke_families) != set(FAMILIES_ORDER):
         raise SelectorRefusal(
             "SELECTOR_UNADMITTED: family set is not exactly the "
             "registered four")
     import w2_power_harness_cayley as _PH
     for fam in FAMILIES_ORDER:
-        rf = results["families"][fam]
-        sf = smoke["families"][fam]
+        rf = results_families[fam]
+        sf = smoke_families[fam]
         if not isinstance(rf, list) or not isinstance(sf, list) or \
                 len(rf) != len(sf):
             raise SelectorRefusal(
@@ -750,11 +755,14 @@ def verify_selector_admission(repo, art, manifest_commit, *,
                 raise SelectorRefusal(
                     f"SELECTOR_UNADMITTED: {fam}[{k}] carries LOCO "
                     "folds (B1B stage-2 only)")
-            if fam == "B1B" and folds is not None and \
-                    len(folds) != len(re_.get("replicates", ())):
-                raise SelectorRefusal(
-                    f"SELECTOR_UNADMITTED: B1B[{k}] fold list is "
-                    "not sized to the replicates")
+            if fam == "B1B" and folds is not None:
+                reps_for_folds = re_.get("replicates")
+                if not isinstance(folds, list) or \
+                        not isinstance(reps_for_folds, list) or \
+                        len(folds) != len(reps_for_folds):
+                    raise SelectorRefusal(
+                        f"SELECTOR_UNADMITTED: B1B[{k}] fold list is "
+                        "not sized to the replicates")
             pre_o, post_o = _rebuild_outcomes(
                 fam, re_, _PH.holm_rejects, loco_registry)
             if pre_o != se_.get("outcomes"):
@@ -1624,6 +1632,12 @@ def _selftest():
         (None, lambda r: r["families"]["B2A"][0].update(
             loco_folds=[{}] * 50), None),
         (None, lambda r: r["families"].update(B5X=[]), None),
+        (None, lambda r: r.update(
+            families=list(FAMILIES_ORDER)), None),
+        (None, lambda r: r["families"]["B2A"][0]["replicates"][0]
+            .update(p_values=list(FAMILIES_ORDER)), None),
+        (None, lambda r: r["families"]["B1B"][0].update(
+            loco_folds=7), None),
         (None, lambda r: r["families"]["B2A"][0]["replicates"][0]
             ["p_values"].update(B2A=0.9), None),
     ]

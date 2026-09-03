@@ -141,8 +141,14 @@ COMPONENT_STATUS = ("live", "frozen", "stale", "no_registry", "no_data")
 def component_status(c):
     if not isinstance(c, dict):
         return "no_data"
+    # `frozen` is an explicit disposition and takes precedence over
+    # availability. Real ensemble rows can be both unavailable and
+    # frozen; classifying those from their explanatory note loses the
+    # stronger state on the public surface.
+    if c.get("frozen"):
+        return "frozen"
     if c.get("available"):
-        return "frozen" if c.get("frozen") else "live"
+        return "live"
     notes = str(c.get("notes") or "").lower()
     if "stale" in notes or "valid_through" in notes:
         return "stale"
@@ -289,8 +295,8 @@ def validate_bundle(bundle):
             if key not in r:
                 bad(f"daily region {r['id']} lacks {key}")
         m = r["methods_available"]
-        if m is not None and (not isinstance(m, int)
-                              or isinstance(m, bool) or m < 0):
+        if not isinstance(m, int) or isinstance(m, bool) or \
+                not 0 <= m <= len(COMPONENTS):
             bad(f"daily region {r['id']} methods_available type")
         if not isinstance(r["agreement"], str):
             bad(f"daily region {r['id']} agreement type")
@@ -311,15 +317,24 @@ def validate_bundle(bundle):
         for k, v in w.items():
             if not _fin(v) or not 0 <= v <= 1:
                 bad(f"daily region {r['id']} weight {k}={v!r}")
-        if m is not None and m != len(live):
+        if m != len(live):
             bad(f"daily region {r['id']} methods_available={m} but "
                 f"{len(live)} live components {sorted(live)}")
-        if m is not None and set(w) != live:
+        if set(w) != live:
             bad(f"daily region {r['id']} weights carried by "
                 f"{sorted(w)} but live components are {sorted(live)}")
     cl = bundle["daily"].get("components_live")
     if not isinstance(cl, dict) or set(cl) != set(COMPONENTS):
         bad("components_live census absent or mis-keyed")
+    expected_cl = {}
+    for k in COMPONENTS:
+        counts = {s: 0 for s in COMPONENT_STATUS}
+        for r in bundle["daily"]["regions"]:
+            counts[r["components"][k]] += 1
+        counts["n"] = len(bundle["daily"]["regions"])
+        expected_cl[k] = counts
+    if cl != expected_cl:
+        bad("components_live census does not derive from daily rows")
     for ev in bundle["daily"]["events"]:
         if not _latlon_ok(ev["lat"], ev["lon"]) or \
                 not _fin(ev["mag"]):
@@ -367,9 +382,15 @@ def _refuse_eol_view(name, rel, path):
         "from its committed blob only in line endings, so its recorded "
         "digest would name no committed bytes. This checkout predates "
         "the -text pin; the pin does not rewrite files already on "
-        "disk. Normalise this checkout once, then regenerate:  "
-        "git -C <repo> rm --cached -r -q . && git -C <repo> reset "
-        "-q --hard")
+        "disk. First require an empty git status --porcelain, then "
+        "rewrite only the pinned inputs and regenerate: git -C <repo> "
+        "checkout-index --force -- monitoring/config/regions.yaml "
+        "monitoring/atlas_template.html docs/ensemble_latest.json "
+        "docs/f2g_window2_execution/mag_capsules/"
+        "mag_capsule_frn.json docs/f2g_window2_execution/mag_capsules/"
+        "mag_capsule_izn.json docs/f2g_window2_execution/mag_capsules/"
+        "mag_capsule_tuc.json docs/f2g_window2_execution/mag_capsules/"
+        "mag_capsule_vic.json")
 
 
 def _sha256_file(path):

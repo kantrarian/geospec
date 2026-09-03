@@ -294,7 +294,9 @@ def main():
                        "persistence": {"is_confirmed": False},
                        "components": {
                            "lambda_geo": comp(False),
-                           "fault_correlation": comp(True, frozen=True),
+                           # Real frozen FC rows are unavailable+frozen;
+                           # frozen must outrank note-derived darkness.
+                           "fault_correlation": comp(False, frozen=True),
                            "seismic_thd": comp(False)}}}}
         json.dump(fix, open(os.path.join(fdir, "docs",
                                          "ensemble_latest.json"), "w"))
@@ -340,6 +342,9 @@ def main():
             r = b["daily"]["regions"][0]
             r["methods_available"] = (r["methods_available"] or 0) + 1
 
+        def m_null_count(b):
+            b["daily"]["regions"][0]["methods_available"] = None
+
         def m_dark_weight(b):
             r = b["daily"]["regions"][0]
             r["components"]["lambda_geo"] = "stale"     # force one dark
@@ -355,12 +360,18 @@ def main():
 
         def m_census(b):
             del b["daily"]["components_live"]
+
+        def m_census_value(b):
+            b["daily"]["components_live"]["lambda_geo"]["live"] += 1
+
         qcases = [("methods_available disagrees with live count", m_count),
+                  ("methods_available is null", m_null_count),
                   ("weight carried by a dark component", m_dark_weight),
                   ("component status outside the closed vocabulary",
                    m_vocab),
                   ("qualifier field missing", m_missing),
-                  ("census absent", m_census)]
+                  ("census absent", m_census),
+                  ("census value diverges from rows", m_census_value)]
         for label, mut in qcases:
             GA.build_bundle = lambda m=mut: poisoned(m)
             try:
@@ -414,10 +425,21 @@ def main():
                   "typed (the state grassmann measured on devildog)",
                   False, "provenance() returned instead of refusing")
         except SystemExit as e:
+            msg = str(e)
             check("L7a a CRLF view of a pinned provenance input REFUSES "
                   "typed (the state grassmann measured on devildog)",
-                  str(e).startswith("ATLAS_PROVENANCE_EOL_VIEW:"),
-                  f"raised {str(e)[:90]}")
+                  msg.startswith("ATLAS_PROVENANCE_EOL_VIEW:"),
+                  f"raised {msg[:90]}")
+            check("L7a2 refusal gives a targeted clean-checkout repair, "
+                  "never a repository-wide reset",
+                  "git status --porcelain" in msg
+                  and "checkout-index --force" in msg
+                  and "reset" not in msg
+                  and all(name in msg for name in
+                          ("regions.yaml", "atlas_template.html",
+                           "ensemble_latest.json", "mag_capsule_frn.json",
+                           "mag_capsule_izn.json", "mag_capsule_tuc.json",
+                           "mag_capsule_vic.json")))
 
         # L7b anti-vacuity: restore and the SAME call must succeed, so
         # L7a is the CRLF view failing and not provenance() always

@@ -14,6 +14,7 @@ import json
 import os
 import re
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -562,10 +563,25 @@ def main():
               "checkout-index but targeted rm + checkout restores exact "
               "committed bytes and a clean tree", False, str(e))
 
-    # sandboxes live under the repo now (see _sandbox_base), so they
-    # are cleaned up rather than accumulating in the working tree
-    shutil.rmtree(os.path.join(GA.REPO, "monitoring", "data",
-                               "_atlas_test_tmp"), ignore_errors=True)
+    # sandboxes live under the repo now (see _sandbox_base), so they are
+    # cleaned up rather than accumulating in the working tree.
+    # grassmann's LOW on 2fc500ff: one survived. L7e builds real git
+    # repositories and git marks its object files read-only, so rmtree
+    # raised and `ignore_errors=True` swallowed it. Clear the bit, retry,
+    # and REPORT anything still standing -- a cleanup that fails silently
+    # is the shape this branch exists to remove.
+    def _drop_readonly(func, path, _exc):
+        os.chmod(path, stat.S_IWRITE)
+        func(path)
+
+    base = os.path.join(GA.REPO, "monitoring", "data", "_atlas_test_tmp")
+    if os.path.isdir(base):
+        shutil.rmtree(base, onexc=_drop_readonly)
+    check("L8 the test sandbox base is removed, not silently left behind",
+          not os.path.exists(base),
+          f"{base} still exists with "
+          f"{sum(len(f) for _, _, f in os.walk(base))} file(s)"
+          if os.path.exists(base) else "")
 
     print()
     if FAILS:

@@ -121,6 +121,14 @@
         .tier-1 .tier-badge { background: rgba(234, 179, 8, 0.2); color: var(--tier-1); }
         .tier-2 .tier-badge { background: rgba(249, 115, 22, 0.2); color: var(--tier-2); }
         .tier-3 .tier-badge { background: rgba(239, 68, 68, 0.2); color: var(--tier-3); }
+        /* qualifier badge (program review 2026-09-01 B2): a tier is never shown without
+           how many methods carried it; also labels the CSV-only fallback honestly */
+        .qualifier-badge {
+            display: inline-block; margin: 0.4rem 0 0; padding: 0.2rem 0.55rem;
+            border-radius: 5px; font-size: 0.72rem; font-weight: 600;
+            background: rgba(148, 163, 184, 0.15); color: #cbd5e1;
+            border: 1px solid rgba(148, 163, 184, 0.35);
+        }
 
         .metrics {
             display: grid;
@@ -769,6 +777,7 @@
         // Get tier description
         function getTierDesc(tier) {
             const descs = {
+                '-1': 'Degraded',
                 '0': 'Normal',
                 '1': 'Watch',
                 '2': 'Elevated',
@@ -869,6 +878,20 @@
                         else methodNames.push(abbr);
                     }
                     const methodsDisplay = methodNames.length > 0 ? methodNames.join(', ') : 'None';
+                    // CSV-only fallback carries NO ensemble metadata: say so, render nothing invented
+                    const fallback = ensembleData.fallback === true;
+                    const confirmed = !!(data.persistence && data.persistence.is_confirmed);
+                    let qualifierBadge = '';
+                    if (fallback) {
+                        qualifierBadge = `<div class="qualifier-badge">CSV FALLBACK &mdash; tier from data.csv;
+                                risk / confidence / methods / agreement not available</div>`;
+                    } else if (tier < 0 || methods === 0) {
+                        qualifierBadge = `<div class="qualifier-badge">DEGRADED &mdash; no live component</div>`;
+                    } else if (methods === 1) {
+                        qualifierBadge = `<div class="qualifier-badge">SINGLE-METHOD (${methodsDisplay}) &mdash;
+                                tier carried by one component${confirmed ? ', confirmed by persistence' : ''}</div>`;
+                    }
+                    const na = '&mdash;';
                     const frozenBadge = frozenNames.length > 0 ? `
                             <div style="background:#7c2d12; color:#fed7aa; border:1px solid #ea580c;
                                  padding:0.25rem 0.6rem; border-radius:5px; margin:0.4rem 0 0;
@@ -885,23 +908,24 @@
                                 <span>●</span>
                                 <span>TIER ${tier}: ${getTierDesc(String(tier))}</span>
                             </div>
+                            ${qualifierBadge}
                             ${frozenBadge}
                             <div class="metrics">
                                 <div class="metric">
                                     <div class="metric-label">Risk Score</div>
-                                    <div class="metric-value">${risk.toFixed(3)}</div>
+                                    <div class="metric-value">${fallback ? na : risk.toFixed(3)}</div>
                                 </div>
                                 <div class="metric">
                                     <div class="metric-label">Confidence</div>
-                                    <div class="metric-value">${(confidence * 100).toFixed(0)}%</div>
+                                    <div class="metric-value">${fallback ? na : (confidence * 100).toFixed(0) + '%'}</div>
                                 </div>
                                 <div class="metric">
                                     <div class="metric-label">Methods</div>
-                                    <div class="metric-value" style="font-size: 0.9rem">${methodsDisplay}</div>
+                                    <div class="metric-value" style="font-size: 0.9rem">${fallback ? na : methodsDisplay}</div>
                                 </div>
                                 <div class="metric">
                                     <div class="metric-label">Agreement</div>
-                                    <div class="metric-value" style="font-size: 0.9rem">${agreement.replace(/_/g, ' ')}</div>
+                                    <div class="metric-value" style="font-size: 0.9rem">${fallback ? na : agreement.replace(/_/g, ' ')}</div>
                                 </div>
                             </div>
                             ${renderEventsSection(region, eventsData)}
@@ -1411,15 +1435,16 @@
                             latest[region] = row;
                         }
                     });
+                    // CSV-only mode carries the tier and nothing else. It used to synthesise
+                    // confidence 0.5 / methods 1 / agreement 'single_method' / risk amp_72h/20
+                    // and render them as if measured (found 2026-09-01); renderCards now labels
+                    // the cards as a fallback and blanks those metrics.
                     const fakeEnsemble = {
+                        fallback: true,
                         date: Object.values(latest)[0]?.date || 'Unknown',
                         regions: Object.fromEntries(
                             Object.entries(latest).map(([r, d]) => [r, {
-                                tier: parseInt(d.tier) || 0,
-                                combined_risk: parseFloat(d.amp_72h) / 20 || 0,
-                                confidence: 0.5,
-                                methods_available: 1,
-                                agreement: 'single_method'
+                                tier: parseInt(d.tier) || 0
                             }])
                         )
                     };

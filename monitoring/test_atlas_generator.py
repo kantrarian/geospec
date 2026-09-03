@@ -205,6 +205,179 @@ def main():
         check("L5b the hard-coded two-day constant is gone from the "
               "template",
               "lags run date by 2 days" not in tpl)
+
+        # ---- B2/B4 (program review 2026-09-01): qualifier fields ----
+        rows = d["daily"]["regions"]
+        keys = ("methods_available", "agreement", "confirmed",
+                "components", "weights")
+        check("L6a every rendered daily row carries the five qualifier "
+              f"fields ({len(rows)} rows)",
+              rows and all(all(k in r for k in keys) for r in rows)
+              and all(set(r["components"]) == set(GA.COMPONENTS)
+                      and all(s in GA.COMPONENT_STATUS
+                              for s in r["components"].values())
+                      for r in rows))
+        check("L6b on the real record methods_available == live count "
+              "== weight carriers for every row",
+              all(r["methods_available"] is None or (
+                  r["methods_available"] == len(
+                      [k for k, s in r["components"].items()
+                       if s == "live"])
+                  and set(r["weights"]) == {
+                      k for k, s in r["components"].items()
+                      if s == "live"}) for r in rows))
+        check("L6c the daily census is present and sums to the row "
+              "count for every component",
+              set(d["daily"]["components_live"]) == set(GA.COMPONENTS)
+              and all(sum(c[s] for s in GA.COMPONENT_STATUS) == len(rows)
+                      == c["n"]
+                      for c in d["daily"]["components_live"].values()))
+        # constructed fixture: one single-method CONFIRMED WATCH with
+        # FC stale + LG no data, one two-method NORMAL with FC
+        # no-registry, one zero-method DEGRADED -- each status class
+        # is CONSTRUCTED so its derivation is tested, not assumed
+        fdir = tempfile.mkdtemp()
+        os.makedirs(os.path.join(fdir, "docs"))
+
+        def comp(avail, notes="", frozen=False):
+            return {"available": avail, "frozen": frozen, "notes": notes}
+        fix = {"date": "2026-08-30", "timestamp": "2026-09-01T07:05:19",
+               "summary": {}, "earthquake_events": {},
+               "regions": {
+                   "turkey_kahramanmaras": {
+                       "tier": 1, "tier_name": "WATCH",
+                       "combined_risk": 0.314, "methods_available": 1,
+                       "agreement": "single_method",
+                       "effective_weights": {"seismic_thd": 1.0},
+                       "persistence": {"is_confirmed": True},
+                       "components": {
+                           "lambda_geo": comp(False,
+                                              "No Lambda_geo data available"),
+                           "fault_correlation": comp(
+                               False, "calibration unavailable: scored day "
+                               "2026-08-30 past valid_through 2026-08-23 "
+                               "(STALE)"),
+                           "seismic_thd": comp(True, "z=1.76")}},
+                   "ridgecrest": {
+                       "tier": 0, "tier_name": "NORMAL",
+                       "combined_risk": 0.035, "methods_available": 2,
+                       "agreement": "all_normal",
+                       "effective_weights": {"lambda_geo": 0.5714,
+                                             "seismic_thd": 0.4286},
+                       "persistence": {"is_confirmed": False},
+                       "components": {
+                           "lambda_geo": comp(True),
+                           "fault_correlation": comp(
+                               False, "calibration unavailable: no "
+                               "registry entry for region ridgecrest"),
+                           "seismic_thd": comp(True)}},
+                   "hualien": {
+                       "tier": -1, "tier_name": "DEGRADED",
+                       "combined_risk": 0.0, "methods_available": 0,
+                       "agreement": "insufficient_data",
+                       "effective_weights": {},
+                       "persistence": {"is_confirmed": False},
+                       "components": {
+                           "lambda_geo": comp(False),
+                           "fault_correlation": comp(True, frozen=True),
+                           "seismic_thd": comp(False)}}}}
+        json.dump(fix, open(os.path.join(fdir, "docs",
+                                         "ensemble_latest.json"), "w"))
+        real_repo = GA.REPO
+        try:
+            GA.REPO = fdir
+            fd = GA.daily([])
+        finally:
+            GA.REPO = real_repo
+        by = {r["id"]: r for r in fd["regions"]}
+        tk, rc, hl = (by["turkey_kahramanmaras"], by["ridgecrest"],
+                      by["hualien"])
+        check("L6d fixture: single-method confirmed WATCH derives "
+              "LG no_data / FC stale / THD live, methods 1, confirmed",
+              tk["components"] == {"lambda_geo": "no_data",
+                                   "fault_correlation": "stale",
+                                   "seismic_thd": "live"}
+              and tk["methods_available"] == 1 and tk["confirmed"]
+              and tk["agreement"] == "single_method"
+              and tk["weights"] == {"seismic_thd": 1.0})
+        check("L6e fixture: two-method row derives FC no_registry and "
+              "two live carriers; degraded row derives frozen + zero",
+              rc["components"]["fault_correlation"] == "no_registry"
+              and rc["methods_available"] == 2 and not rc["confirmed"]
+              and hl["components"] == {"lambda_geo": "no_data",
+                                       "fault_correlation": "frozen",
+                                       "seismic_thd": "no_data"}
+              and hl["methods_available"] == 0 and hl["weights"] == {})
+        check("L6f fixture census: FC live 0 / stale 1 / no_registry 1 "
+              "/ frozen 1; THD live 2 / no_data 1; n=3 each",
+              fd["components_live"]["fault_correlation"] == {
+                  "live": 0, "frozen": 1, "stale": 1, "no_registry": 1,
+                  "no_data": 0, "n": 3}
+              and fd["components_live"]["seismic_thd"] == {
+                  "live": 2, "frozen": 0, "stale": 0, "no_registry": 0,
+                  "no_data": 1, "n": 3})
+        # anti-vacuity: the consistency lock REFUSES an inconsistent row
+        # and leaves the standing page byte-identical (fix-3 discipline)
+        # every mutation CONSTRUCTS its inconsistency on row 0 without
+        # depending on today's record (row 0 always has three
+        # components); the only accepted outcome is the TYPED refusal
+        def m_count(b):
+            r = b["daily"]["regions"][0]
+            r["methods_available"] = (r["methods_available"] or 0) + 1
+
+        def m_dark_weight(b):
+            r = b["daily"]["regions"][0]
+            r["components"]["lambda_geo"] = "stale"     # force one dark
+            r["weights"]["lambda_geo"] = 0.5            # ...and weight it
+            r["methods_available"] = len(               # keep the count
+                [s for s in r["components"].values() if s == "live"])
+
+        def m_vocab(b):
+            b["daily"]["regions"][0]["components"]["seismic_thd"] = "bogus"
+
+        def m_missing(b):
+            del b["daily"]["regions"][0]["agreement"]
+
+        def m_census(b):
+            del b["daily"]["components_live"]
+        qcases = [("methods_available disagrees with live count", m_count),
+                  ("weight carried by a dark component", m_dark_weight),
+                  ("component status outside the closed vocabulary",
+                   m_vocab),
+                  ("qualifier field missing", m_missing),
+                  ("census absent", m_census)]
+        for label, mut in qcases:
+            GA.build_bundle = lambda m=mut: poisoned(m)
+            try:
+                GA.main()
+                ok, why = False, "generation did not refuse"
+            except SystemExit as e:
+                ok = "ATLAS_VALIDATE_REFUSED" in str(e.code)
+                why = f"exit {e.code}"
+            except Exception as e:  # noqa: BLE001 -- any other path is a FAIL
+                ok, why = False, f"untyped {type(e).__name__}: {e}"
+            finally:
+                GA.build_bundle = real_build
+            check(f"L6g {label} refuses TYPED before replacement", ok, why)
+            check(f"L6g {label} leaves the old page byte-identical",
+                  sha(out) == gold_sha and not os.path.exists(out + ".tmp"))
+        # renderer hooks present (LIMIT: source-level check only; the
+        # qualifier string is composed in the browser, not verified by
+        # a JS engine here)
+        check("L6h the template composes the qualifier and the census "
+              "from the row fields (renderer hooks present)",
+              "r.methods_available === 1" in tpl
+              and "components live:" in tpl
+              and "qualifier(r)" in tpl and "compMarks(r)" in tpl
+              and 'row("qualifier"' in tpl)
+        # every rendered row on the REAL page carries a qualifier
+        # decision the browser can compose: fields present (L6a) and,
+        # for the real record, at least one single-method row exists
+        # today OR none does -- report which, assert nothing about it
+        n_single = sum(1 for r in rows if r["methods_available"] == 1)
+        print(f"  [INFO] real record: {n_single} single-method row(s) of "
+              f"{len(rows)}; census "
+              f"{ {k: v['live'] for k, v in d['daily']['components_live'].items()} }")
     finally:
         GA.OUT = real_out
     print()

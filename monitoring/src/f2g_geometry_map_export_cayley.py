@@ -8,8 +8,16 @@ claims-hygiene pass:
   1. calendar_metadata layer + Phase-B calendar input REMOVED from the
      public payload; private repo paths removed from the public manifest;
      public provenance receipt only (provider identity, query URL,
-     receipt sha, CRS, counts, typed absence, non-claims). Full private
-     byte receipts go to layers_manifest_private.json (NEVER published).
+     receipt sha, CRS, counts, typed absence, non-claims). Full byte
+     receipts go to layers_manifest_private.json under a GIT-IGNORED
+     runner-local directory (PRIVATE_OUT_DIR): not part of the
+     publication tree and not tracked. This repository is public, so no
+     TRACKED path can be "unpublished" -- the earlier tracked location
+     docs/geo2graph_map_private/ sat under the Pages root and was served
+     HTTP 200 (grassmann program review 2026-09-01, B1); it is removed.
+     The receipts hold digests of inputs that are themselves public, so
+     nothing non-public was exposed; the invariant was false, not the
+     data. Locked by KAT (dir outside docs/ AND git-ignored).
   2. fault_polygon layer DROPPED (its nine geometries were exact
      duplicates of the coarse segment boxes -- interpretive ambiguity,
      zero geometric content). Locked by KAT.
@@ -69,7 +77,9 @@ FORBIDDEN_TOKENS = ("registered_days", "absent_days", "calendar",
                     "evidence_phase_a", "phase_b", "amendment",
                     "docs/", "monitoring/", "data/phase_a", "f2g_phase")
 OUT_DIR = "docs/geo2graph_map"
-PRIVATE_OUT_DIR = "docs/geo2graph_map_private"
+# git-ignored by .gitignore `monitoring/data/*` -- a tracked path in a
+# public repository is published whatever it is named (2026-09-01 B1)
+PRIVATE_OUT_DIR = "monitoring/data/geo2graph_map_receipts"
 PUBLICATION_FILES = {
     "index.html", "geo2graph_geometry.geojson", "layers_manifest.json",
     "README.md", "LICENSE",
@@ -311,6 +321,16 @@ def main(repo):
                            hashlib.sha256(man_b).hexdigest(),
                            "html_sha256":
                            hashlib.sha256(html_b).hexdigest()}}
+    # 2026-09-01 B1 KAT: the receipts directory must sit OUTSIDE docs/
+    # (the Pages root) AND be git-ignored, checked against the live
+    # ignore rules of the repo being exported -- never by name alone
+    assert not PRIVATE_OUT_DIR.startswith("docs/"), \
+        ("PRIVATE_RECEIPTS_UNDER_PAGES_ROOT", PRIVATE_OUT_DIR)
+    ignored = subprocess.call(
+        ["git", "check-ignore", "-q",
+         PRIVATE_OUT_DIR + "/layers_manifest_private.json"], cwd=repo)
+    assert ignored == 0, \
+        ("PRIVATE_RECEIPTS_DIR_NOT_IGNORED", PRIVATE_OUT_DIR, ignored)
     private_outdir = os.path.join(repo, PRIVATE_OUT_DIR)
     os.makedirs(private_outdir, exist_ok=True)
     with open(os.path.join(private_outdir,

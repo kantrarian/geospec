@@ -29,3 +29,15 @@ docs/f2g_window2_execution/key_disposition_capsule_v5.json -text
 docs/f2g_window2_execution/key_disposition_v4_to_v5_delta.json -text
 # codex 1912Z sec 2: Tier-S run artifacts are create-once BYTE carriers compared byte-for-byte to their blobs; never EOL-converted
 docs/f2g_window2_execution/tier_s_run_*/** -text
+monitoring/docs_surface_bar_cayley.py text eol=lf
+# cayley 2026-09-03: every input whose sha256 generate_atlas.py records in the
+# published atlas provenance table must check out as its committed blob bytes.
+# Unpinned, autocrlf rewrote them per host and the table recorded whatever that
+# host read -- master's atlas.html records template sha256 4fe48cf4... which is
+# the CRLF expansion of the repo's template (14a570b7...) and matches no blob
+# ever committed here. Pinning makes the recorded digest == the blob digest on
+# every host. (candidate_pool.json and phase0_bundle.json were already -text.)
+monitoring/config/regions.yaml -text
+monitoring/atlas_template.html -text
+docs/ensemble_latest.json -text
+docs/f2g_window2_execution/mag_capsules/*.json -text

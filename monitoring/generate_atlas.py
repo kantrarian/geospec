@@ -127,6 +127,29 @@ NOMINAL = {"ridgecrest": [35.65, -117.65],
            "turkey_kahramanmaras": [37.60, 37.00]}
 
 
+# 2026-09-01 (grassmann program review B2/B4): the three ensemble
+# components and the CLOSED status vocabulary the page renders. "live"
+# is the ensemble's own definition of a counted method (available and
+# not frozen -- ensemble.py methods_available); the unavailable classes
+# are read from the component's own notes so the page says WHY a
+# component is dark instead of silently renormalising over the rest.
+COMPONENTS = ("lambda_geo", "fault_correlation", "seismic_thd")
+COMPONENT_STATUS = ("live", "frozen", "stale", "no_registry", "no_data")
+
+
+def component_status(c):
+    if not isinstance(c, dict):
+        return "no_data"
+    if c.get("available"):
+        return "frozen" if c.get("frozen") else "live"
+    notes = str(c.get("notes") or "").lower()
+    if "stale" in notes or "valid_through" in notes:
+        return "stale"
+    if "no registry entry" in notes:
+        return "no_registry"
+    return "no_data"
+
+
 def daily(regions):
     ens = json.load(open(os.path.join(REPO, "docs",
                                       "ensemble_latest.json"),
@@ -142,12 +165,33 @@ def daily(regions):
         c = reg_cent.get(rid) or NOMINAL.get(rid)
         if c is None:
             continue
+        comps = rv.get("components") or {}
+        status = {k: component_status(comps.get(k)) for k in COMPONENTS}
+        pers = rv.get("persistence") or {}
+        weights = rv.get("effective_weights") or {}
         d_regions.append({"id": rid, "tier": rv.get("tier"),
                           "tier_name": rv.get("tier_name", ""),
                           "risk": round(
                               rv.get("combined_risk") or 0, 3),
                           "lat": c[0], "lon": c[1],
-                          "nominal": rid not in reg_cent})
+                          "nominal": rid not in reg_cent,
+                          # qualifier fields (B2): a tier is never
+                          # rendered without how many methods carried it
+                          "methods_available": rv.get("methods_available"),
+                          "agreement": rv.get("agreement") or "",
+                          "confirmed": bool(pers.get("is_confirmed", False)),
+                          "components": status,
+                          "weights": {k: round(float(v), 3)
+                                      for k, v in weights.items()}})
+    # per-component live/dark census over the rendered regions (B4):
+    # derived from the SAME status field the rows carry
+    components_live = {}
+    for k in COMPONENTS:
+        counts = {s: 0 for s in COMPONENT_STATUS}
+        for r in d_regions:
+            counts[r["components"][k]] += 1
+        counts["n"] = len(d_regions)
+        components_live[k] = counts
     seen = {}
     for rid, ev in (ens.get("earthquake_events") or {}).items():
         le = (ev or {}).get("largest_event")
@@ -179,6 +223,7 @@ def daily(regions):
             "generated": ens.get("timestamp", "")[:16],
             "lag_days": lag_days,
             "summary": ens.get("summary", {}),
+            "components_live": components_live,
             "regions": sorted(
                 d_regions,
                 key=lambda r: (-(r["tier"] if r["tier"] is not None
@@ -232,6 +277,48 @@ def validate_bundle(bundle):
         if r["tier"] is not None and \
                 not isinstance(r["tier"], int):
             bad(f"daily region {r['id']} tier type")
+        # B2/B4 qualifier fields: present, closed vocabulary, and
+        # CONSISTENT -- methods_available must equal the number of
+        # live components and the effective weights must be carried
+        # by exactly those components (ensemble.py renormalises over
+        # available, non-frozen components; a divergence here is an
+        # ensemble inconsistency the page must not paper over)
+        for key in ("methods_available", "agreement", "confirmed",
+                    "components", "weights"):
+            if key not in r:
+                bad(f"daily region {r['id']} lacks {key}")
+        m = r["methods_available"]
+        if m is not None and (not isinstance(m, int)
+                              or isinstance(m, bool) or m < 0):
+            bad(f"daily region {r['id']} methods_available type")
+        if not isinstance(r["agreement"], str):
+            bad(f"daily region {r['id']} agreement type")
+        if not isinstance(r["confirmed"], bool):
+            bad(f"daily region {r['id']} confirmed type")
+        comps = r["components"]
+        if not isinstance(comps, dict) or \
+                set(comps) != set(COMPONENTS):
+            bad(f"daily region {r['id']} components keys")
+        for k, s in comps.items():
+            if s not in COMPONENT_STATUS:
+                bad(f"daily region {r['id']} component {k} "
+                    f"status {s!r}")
+        live = {k for k, s in comps.items() if s == "live"}
+        w = r["weights"]
+        if not isinstance(w, dict) or not set(w) <= set(COMPONENTS):
+            bad(f"daily region {r['id']} weights keys")
+        for k, v in w.items():
+            if not _fin(v) or not 0 <= v <= 1:
+                bad(f"daily region {r['id']} weight {k}={v!r}")
+        if m is not None and m != len(live):
+            bad(f"daily region {r['id']} methods_available={m} but "
+                f"{len(live)} live components {sorted(live)}")
+        if m is not None and set(w) != live:
+            bad(f"daily region {r['id']} weights carried by "
+                f"{sorted(w)} but live components are {sorted(live)}")
+    cl = bundle["daily"].get("components_live")
+    if not isinstance(cl, dict) or set(cl) != set(COMPONENTS):
+        bad("components_live census absent or mis-keyed")
     for ev in bundle["daily"]["events"]:
         if not _latlon_ok(ev["lat"], ev["lon"]) or \
                 not _fin(ev["mag"]):

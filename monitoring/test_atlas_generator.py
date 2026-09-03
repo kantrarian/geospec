@@ -24,6 +24,21 @@ import generate_atlas as GA  # noqa: E402
 FAILS = []
 
 
+def _sandbox_base():
+    """grassmann 1933Z LOW: the suite pointed sandboxes at %TEMP%, which
+    on a machine whose repo is on another drive made a provenance source
+    unnameable relative to REPO and crashed ntpath.relpath. Sandboxes go
+    on the repository's own drive (monitoring/data is gitignored), so the
+    suite no longer depends on where %TEMP% happens to live."""
+    base = os.path.join(GA.REPO, "monitoring", "data", "_atlas_test_tmp")
+    os.makedirs(base, exist_ok=True)
+    return base
+
+
+def _mkdtemp():
+    return tempfile.mkdtemp(dir=_sandbox_base())
+
+
 def check(name, ok, detail=""):
     print(f"  [{'PASS' if ok else 'FAIL'}] {name}"
           + (f"  -- {detail}" if detail and not ok else ""))
@@ -42,7 +57,7 @@ def extract(html, sid):
 
 
 def main():
-    sandbox = tempfile.mkdtemp()
+    sandbox = _mkdtemp()
     out = os.path.join(sandbox, "atlas.html")
     real_out = GA.OUT
     GA.OUT = out
@@ -148,7 +163,7 @@ def main():
         check("L4b the unrecomputable hand-written literal is gone",
               "dd386eda" not in tpl and "dd386eda" not in html)
         # mutation: a one-byte template change moves digest AND page
-        tdir = tempfile.mkdtemp()
+        tdir = _mkdtemp()
         tcopy = os.path.join(tdir, "atlas_template.html")
         shutil.copyfile(GA.TEMPLATE, tcopy)
         real_tpl = GA.TEMPLATE
@@ -179,7 +194,7 @@ def main():
         # ---- fix 5: lag is observed, never a constant -------------
         lag_ok = True
         for lag in (0, 1, 2, 3):
-            rdir = tempfile.mkdtemp()
+            rdir = _mkdtemp()
             os.makedirs(os.path.join(rdir, "docs"))
             import datetime as dt
             run_day = dt.date(2026, 8, 29)
@@ -236,7 +251,7 @@ def main():
         # FC stale + LG no data, one two-method NORMAL with FC
         # no-registry, one zero-method DEGRADED -- each status class
         # is CONSTRUCTED so its derivation is tested, not assumed
-        fdir = tempfile.mkdtemp()
+        fdir = _mkdtemp()
         os.makedirs(os.path.join(fdir, "docs"))
 
         def comp(avail, notes="", frozen=False):
@@ -380,6 +395,71 @@ def main():
               f"{ {k: v['live'] for k, v in d['daily']['components_live'].items()} }")
     finally:
         GA.OUT = real_out
+
+    # ---- L7 the EOL-view refusal (grassmann 1933Z MEDIUM) ---------
+    # The pin fixes the repository; it does NOT rewrite a checkout made
+    # before it. These two build the exact states that matter, because
+    # a check nothing constructs proves nothing.
+    cap_dir = os.path.join(GA.REPO, "docs", "f2g_window2_execution",
+                           "mag_capsules")
+    victim = os.path.join(cap_dir, sorted(
+        f for f in os.listdir(cap_dir) if f.endswith(".json"))[0])
+    original = open(victim, "rb").read()
+    try:
+        # L7a a CRLF view of a committed input REFUSES, typed
+        open(victim, "wb").write(original.replace(b"\n", b"\r\n"))
+        try:
+            GA.provenance()
+            check("L7a a CRLF view of a pinned provenance input REFUSES "
+                  "typed (the state grassmann measured on devildog)",
+                  False, "provenance() returned instead of refusing")
+        except SystemExit as e:
+            check("L7a a CRLF view of a pinned provenance input REFUSES "
+                  "typed (the state grassmann measured on devildog)",
+                  str(e).startswith("ATLAS_PROVENANCE_EOL_VIEW:"),
+                  f"raised {str(e)[:90]}")
+
+        # L7b anti-vacuity: restore and the SAME call must succeed, so
+        # L7a is the CRLF view failing and not provenance() always
+        # failing
+        open(victim, "wb").write(original)
+        try:
+            rows = GA.provenance()
+            check("L7b the same call passes once the file is restored "
+                  "(L7a is not a check that always fires)",
+                  any(r["name"].startswith("mag_capsule:") for r in rows))
+        except SystemExit as e:
+            check("L7b the same call passes once the file is restored "
+                  "(L7a is not a check that always fires)",
+                  False, f"refused on clean bytes: {str(e)[:90]}")
+
+        # L7c the daily path is NOT collateral: a genuine CONTENT change
+        # (what the runner does to docs/ensemble_latest.json before it
+        # regenerates) must pass, because normalising it does not
+        # reproduce the blob
+        obj = json.loads(original.decode("utf-8"))
+        obj["_atlas_lock_test_marker"] = "content change, not an EOL view"
+        open(victim, "wb").write(
+            json.dumps(obj, indent=1).encode("utf-8"))
+        try:
+            GA.provenance()
+            check("L7c an uncommitted CONTENT change is left alone (the "
+                  "daily runner rewrites an input before generating)",
+                  True)
+        except SystemExit as e:
+            check("L7c an uncommitted CONTENT change is left alone (the "
+                  "daily runner rewrites an input before generating)",
+                  False, f"refused a content change: {str(e)[:90]}")
+    finally:
+        open(victim, "wb").write(original)
+    check("L7d the victim file is restored byte-for-byte",
+          open(victim, "rb").read() == original)
+
+    # sandboxes live under the repo now (see _sandbox_base), so they
+    # are cleaned up rather than accumulating in the working tree
+    shutil.rmtree(os.path.join(GA.REPO, "monitoring", "data",
+                               "_atlas_test_tmp"), ignore_errors=True)
+
     print()
     if FAILS:
         print(f"ATLAS LOCK-TEST FAILURES ({len(FAILS)}): {FAILS}")

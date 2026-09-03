@@ -20,6 +20,7 @@ import json
 import math
 import os
 import re
+import subprocess
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -325,6 +326,52 @@ def validate_bundle(bundle):
             bad(f"event {ev['id']}")
 
 
+def _committed_blob(rel):
+    """The bytes git holds for `rel` at HEAD, or None when the path is
+    absent from HEAD (a new file) or git cannot be run. None means
+    "cannot compare", never "compared and matched"."""
+    try:
+        p = subprocess.run(["git", "-C", REPO, "cat-file", "blob",
+                            "HEAD:" + rel], capture_output=True)
+    except OSError:
+        return None
+    return p.stdout if p.returncode == 0 else None
+
+
+def _refuse_eol_view(name, rel, path):
+    """grassmann 1933Z MEDIUM. Pinning a path `-text` does NOT rewrite
+    a copy already on disk: a checkout made before the pin keeps its
+    CRLF bytes, git never re-smudges an unchanged file when attributes
+    change, and this table then publishes digests that name no
+    committed bytes -- which is exactly the defect on master today.
+
+    The pin fixes the repository; it does not fix a checkout. So the
+    check is here, where the digest is taken, and not only in a
+    landing recipe that has to be remembered.
+
+    REFUSE only when the live bytes differ from the committed blob
+    ONLY in line endings. A genuine content change is left alone --
+    the daily runner rewrites docs/ensemble_latest.json before this
+    runs, and normalising that does NOT reproduce the blob, so the
+    daily path is unaffected. A refusal leaves the old page standing.
+    """
+    blob = _committed_blob(rel)
+    if blob is None:
+        return
+    with open(path, "rb") as f:
+        live = f.read()
+    if live == blob or live.replace(b"\r\n", b"\n") != blob:
+        return
+    raise SystemExit(
+        "ATLAS_PROVENANCE_EOL_VIEW: " + rel + " (" + name + ") differs "
+        "from its committed blob only in line endings, so its recorded "
+        "digest would name no committed bytes. This checkout predates "
+        "the -text pin; the pin does not rewrite files already on "
+        "disk. Normalise this checkout once, then regenerate:  "
+        "git -C <repo> rm --cached -r -q . && git -C <repo> reset "
+        "-q --hard")
+
+
 def _sha256_file(path):
     h = hashlib.sha256()
     with open(path, "rb") as f:
@@ -357,9 +404,22 @@ def provenance():
                 srcs.append(("mag_capsule:" + f, fp))
     out = []
     for name, fp in srcs:
-        out.append({"name": name,
-                    "path": os.path.relpath(fp, REPO)
-                    .replace(os.sep, "/"),
+        try:
+            rel = os.path.relpath(fp, REPO).replace(os.sep, "/")
+        except ValueError:
+            # a source on another mount cannot be named relative to the
+            # repository. Refuse: publishing the absolute path instead
+            # would leak a local filesystem path onto a public page.
+            raise SystemExit(
+                "ATLAS_PROVENANCE_SOURCE_OUTSIDE_REPO: " + name +
+                " resolves to " + fp + ", which shares no mount with " +
+                REPO)
+        if rel.startswith("../"):
+            raise SystemExit(
+                "ATLAS_PROVENANCE_SOURCE_OUTSIDE_REPO: " + name +
+                " resolves outside the repository (" + rel + ")")
+        _refuse_eol_view(name, rel, fp)
+        out.append({"name": name, "path": rel,
                     "sha256": _sha256_file(fp)})
     out.append({"name": "coastline",
                 "path": "Natural Earth 110m land (public "

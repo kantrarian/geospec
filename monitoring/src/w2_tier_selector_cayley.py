@@ -1985,6 +1985,58 @@ def _selftest():
         NEEDLE_REG in msg_m, msg_m
     del _mut2, _mut2_src
     del _mut, _mut_src, _src
+    # (c''') the sibling refusal sites of the same region, driven TYPED
+    # (fourth-round verifier: four sites had zero selftest hits, so a
+    # typed->untyped mutation there was invisible; and the refusal
+    # class identity was pinned nowhere, so aliasing SelectorRefusal to
+    # ValueError passed every by-name check). The class is pinned by
+    # identity and each site is asserted to raise EXACTLY
+    # SelectorRefusal with its needle.
+    assert SelectorRefusal is not ValueError and \
+        SelectorRefusal.__bases__ == (ValueError,) and \
+        issubclass(SelectorRefusal, ValueError)
+
+    def typed(call):
+        """('TYPED' | 'SUB' | 'EXC' | None, message) for a direct call:
+        TYPED only when the raised class IS SelectorRefusal."""
+        try:
+            call()
+        except SelectorRefusal as e:
+            return ("TYPED" if type(e) is SelectorRefusal else "SUB"), \
+                str(e)
+        except Exception as e:                           # noqa: BLE001
+            return "EXC", repr(e)
+        return None, None
+    _four = {"B1B": 0.5, "B2A": 0.5, "B2B": 0.5, "B3A": 0.5}
+    SIBLING_SITES = (
+        ("p None where a value is required",
+         lambda: _valid_p(None, "B2A p-value"),
+         "B2A p-value is None where a value is required"),
+        ("results replicates missing",
+         lambda: _rebuild_outcomes("B2B", {"replicates": None},
+                                   _PHt.holm_rejects, _reg),
+         "results replicates missing"),
+        ("result replicate schema not closed",
+         lambda: _rebuild_outcomes(
+             "B2B", {"replicates": [{"p_values": dict(_four),
+                                     "extra": 1}]},
+             _PHt.holm_rejects, _reg),
+         "result replicate schema not closed"),
+        ("replicate p-vector not the four families",
+         lambda: _rebuild_outcomes(
+             "B2B", {"replicates": [{"p_values": {"B1B": 0.5, "B2A": 0.5,
+                                                  "B2B": 0.5}}]},
+             _PHt.holm_rejects, _reg),
+         "replicate p-vector not the four families"),
+    )
+    for label, call, needle in SIBLING_SITES:
+        kind, msg = typed(call)
+        assert kind == "TYPED" and "SELECTOR_UNADMITTED" in msg and \
+            needle in msg, (label, kind, msg)
+    # the same helper on the four-family positive control returns None
+    assert typed(lambda: _rebuild_outcomes(
+        "B2B", {"replicates": [{"p_values": dict(_four)}]},
+        _PHt.holm_rejects, _reg)) == (None, None)
     # (d) invalid classes in a component each refuse TYPED -- at the
     # rebuild seam naming the component, and through the chain
     for bad in (True, "0.5", float("nan"), float("inf"), -1.0, 1.1):

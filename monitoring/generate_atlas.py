@@ -135,6 +135,18 @@ NOMINAL = {"ridgecrest": [35.65, -117.65],
 # are read from the component's own notes so the page says WHY a
 # component is dark instead of silently renormalising over the rest.
 COMPONENTS = ("lambda_geo", "fault_correlation", "seismic_thd")
+PINNED_PROVENANCE_INPUTS = (
+    # Inputs whose published sha256 must equal committed bytes and whose
+    # checkout representation is therefore pinned -text. Keep this one
+    # source for refusal/preflight/operator repair paths.
+    "monitoring/config/regions.yaml",
+    "monitoring/atlas_template.html",
+    "docs/ensemble_latest.json",
+    "docs/f2g_window2_execution/mag_capsules/mag_capsule_frn.json",
+    "docs/f2g_window2_execution/mag_capsules/mag_capsule_izn.json",
+    "docs/f2g_window2_execution/mag_capsules/mag_capsule_tuc.json",
+    "docs/f2g_window2_execution/mag_capsules/mag_capsule_vic.json",
+)
 COMPONENT_STATUS = ("live", "frozen", "stale", "no_registry", "no_data")
 
 
@@ -353,6 +365,13 @@ def _committed_blob(rel):
     return p.stdout if p.returncode == 0 else None
 
 
+def _eol_repair_command(paths=PINNED_PROVENANCE_INPUTS):
+    """Targeted, git-native rewrite that defeats a stat-clean CRLF view."""
+    names = " ".join(paths)
+    return ("git -C <repo> rm -q -- " + names
+            + " && git -C <repo> checkout HEAD -- " + names)
+
+
 def _refuse_eol_view(name, rel, path):
     """grassmann 1933Z MEDIUM. Pinning a path `-text` does NOT rewrite
     a copy already on disk: a checkout made before the pin keeps its
@@ -382,21 +401,11 @@ def _refuse_eol_view(name, rel, path):
         "from its committed blob only in line endings, so its recorded "
         "digest would name no committed bytes. This checkout predates "
         "the -text pin; the pin does not rewrite files already on "
-        "disk. First require an empty git status --porcelain, then "
-        "remove and restore only the pinned inputs, then regenerate: "
-        "git -C <repo> rm -q -- monitoring/config/regions.yaml "
-        "monitoring/atlas_template.html docs/ensemble_latest.json "
-        "docs/f2g_window2_execution/mag_capsules/"
-        "mag_capsule_frn.json docs/f2g_window2_execution/mag_capsules/"
-        "mag_capsule_izn.json docs/f2g_window2_execution/mag_capsules/"
-        "mag_capsule_tuc.json docs/f2g_window2_execution/mag_capsules/"
-        "mag_capsule_vic.json && git -C <repo> checkout HEAD -- "
-        "monitoring/config/regions.yaml monitoring/atlas_template.html "
-        "docs/ensemble_latest.json docs/f2g_window2_execution/"
-        "mag_capsules/mag_capsule_frn.json docs/f2g_window2_execution/"
-        "mag_capsules/mag_capsule_izn.json docs/f2g_window2_execution/"
-        "mag_capsules/mag_capsule_tuc.json docs/f2g_window2_execution/"
-        "mag_capsules/mag_capsule_vic.json")
+        "disk. On a stat-clean file, checkout-index --force and a plain "
+        "checkout can both be no-ops because Git trusts the cached size "
+        "and mtime. First require an empty git status --porcelain, then "
+        "remove and restore only the pinned inputs and regenerate: "
+        + _eol_repair_command())
 
 
 def _sha256_file(path):

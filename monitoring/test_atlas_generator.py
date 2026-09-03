@@ -8,6 +8,7 @@ the repo's real docs/atlas.html is never touched (OUT is
 redirected for every generation in here).
 """
 import copy
+import contextlib
 import hashlib
 import io
 import json
@@ -58,11 +59,34 @@ def extract(html, sid):
     return json.loads(m.group(1).replace("<\\/", "</"))
 
 
+def _preflight():
+    """Name every inherited EOL view and stop before cascading tests."""
+    stale = []
+    for rel in GA.PINNED_PROVENANCE_INPUTS:
+        path = os.path.join(GA.REPO, rel.replace("/", os.sep))
+        blob = GA._committed_blob(rel)
+        if blob is None or not os.path.exists(path):
+            continue
+        live = open(path, "rb").read()
+        if live != blob and live.replace(b"\r\n", b"\n") == blob:
+            stale.append(rel)
+    if not stale:
+        return 0
+    print("PREFLIGHT: this checkout predates the -text pins; "
+          f"{len(stale)} provenance input(s) are CRLF views of their "
+          "committed blobs. This is checkout state, not a candidate "
+          "test failure.")
+    for rel in stale:
+        print("  " + rel)
+    print("After requiring an empty git status --porcelain, run:")
+    print("  " + GA._eol_repair_command(stale))
+    return 2
+
+
 def main():
-    print("Atlas lock tests read live provenance inputs. A typed "
-          "ATLAS_PROVENANCE_EOL_VIEW refusal means this checkout must "
-          "be normalised before its result is treated as a candidate "
-          "failure.")
+    preflight_rc = _preflight()
+    if preflight_rc:
+        return preflight_rc
     sandbox = _mkdtemp()
     out = os.path.join(sandbox, "atlas.html")
     real_out = GA.OUT
@@ -425,6 +449,16 @@ def main():
     try:
         # L7a a CRLF view of a committed input REFUSES, typed
         open(victim, "wb").write(original.replace(b"\n", b"\r\n"))
+        victim_rel = os.path.relpath(victim, GA.REPO).replace(os.sep, "/")
+        capture = io.StringIO()
+        with contextlib.redirect_stdout(capture):
+            preflight_rc = _preflight()
+        preflight_text = capture.getvalue()
+        check("L7a0 preflight names the inherited EOL view and exact "
+              "targeted repair before cascading tests",
+              preflight_rc == 2 and victim_rel in preflight_text
+              and GA._eol_repair_command((victim_rel,))
+              in preflight_text)
         try:
             GA.provenance()
             check("L7a a CRLF view of a pinned provenance input REFUSES "
@@ -436,18 +470,12 @@ def main():
                   "typed (the state grassmann measured on devildog)",
                   msg.startswith("ATLAS_PROVENANCE_EOL_VIEW:"),
                   f"raised {msg[:90]}")
-            check("L7a2 refusal gives a targeted clean-checkout repair, "
-                  "never a repository-wide reset",
-                  "git status --porcelain" in msg
-                  and "git -C <repo> rm -q --" in msg
-                  and "git -C <repo> checkout HEAD --" in msg
-                  and "checkout-index" not in msg
-                  and "reset" not in msg
-                  and all(name in msg for name in
-                          ("regions.yaml", "atlas_template.html",
-                           "ensemble_latest.json", "mag_capsule_frn.json",
-                           "mag_capsule_izn.json", "mag_capsule_tuc.json",
-                           "mag_capsule_vic.json")))
+            recommended = msg.split("regenerate: ", 1)[-1]
+            check("L7a2 refusal recommends the single-source targeted "
+                  "repair, never a repository-wide reset",
+                  recommended == GA._eol_repair_command()
+                  and "reset" not in recommended
+                  and "checkout-index" not in recommended)
 
         # L7b anti-vacuity: restore and the SAME call must succeed, so
         # L7a is the CRLF view failing and not provenance() always
@@ -571,12 +599,17 @@ def main():
     # and REPORT anything still standing -- a cleanup that fails silently
     # is the shape this branch exists to remove.
     def _drop_readonly(func, path, _exc):
-        os.chmod(path, stat.S_IWRITE)
+        os.chmod(path, stat.S_IRWXU)
         func(path)
 
     base = os.path.join(GA.REPO, "monitoring", "data", "_atlas_test_tmp")
     if os.path.isdir(base):
-        shutil.rmtree(base, onexc=_drop_readonly)
+        # `onexc` was added in Python 3.12; devildog's required 3.11
+        # runtime accepts only `onerror`.
+        if sys.version_info >= (3, 12):
+            shutil.rmtree(base, onexc=_drop_readonly)
+        else:
+            shutil.rmtree(base, onerror=_drop_readonly)
     check("L8 the test sandbox base is removed, not silently left behind",
           not os.path.exists(base),
           f"{base} still exists with "

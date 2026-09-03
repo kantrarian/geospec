@@ -383,14 +383,20 @@ def _refuse_eol_view(name, rel, path):
         "digest would name no committed bytes. This checkout predates "
         "the -text pin; the pin does not rewrite files already on "
         "disk. First require an empty git status --porcelain, then "
-        "rewrite only the pinned inputs and regenerate: git -C <repo> "
-        "checkout-index --force -- monitoring/config/regions.yaml "
+        "remove and restore only the pinned inputs, then regenerate: "
+        "git -C <repo> rm -q -- monitoring/config/regions.yaml "
         "monitoring/atlas_template.html docs/ensemble_latest.json "
         "docs/f2g_window2_execution/mag_capsules/"
         "mag_capsule_frn.json docs/f2g_window2_execution/mag_capsules/"
         "mag_capsule_izn.json docs/f2g_window2_execution/mag_capsules/"
         "mag_capsule_tuc.json docs/f2g_window2_execution/mag_capsules/"
-        "mag_capsule_vic.json")
+        "mag_capsule_vic.json && git -C <repo> checkout HEAD -- "
+        "monitoring/config/regions.yaml monitoring/atlas_template.html "
+        "docs/ensemble_latest.json docs/f2g_window2_execution/"
+        "mag_capsules/mag_capsule_frn.json docs/f2g_window2_execution/"
+        "mag_capsules/mag_capsule_izn.json docs/f2g_window2_execution/"
+        "mag_capsules/mag_capsule_tuc.json docs/f2g_window2_execution/"
+        "mag_capsules/mag_capsule_vic.json")
 
 
 def _sha256_file(path):

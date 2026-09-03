@@ -14,6 +14,7 @@ import json
 import os
 import re
 import shutil
+import subprocess
 import sys
 import tempfile
 
@@ -57,6 +58,10 @@ def extract(html, sid):
 
 
 def main():
+    print("Atlas lock tests read live provenance inputs. A typed "
+          "ATLAS_PROVENANCE_EOL_VIEW refusal means this checkout must "
+          "be normalised before its result is treated as a candidate "
+          "failure.")
     sandbox = _mkdtemp()
     out = os.path.join(sandbox, "atlas.html")
     real_out = GA.OUT
@@ -433,7 +438,9 @@ def main():
             check("L7a2 refusal gives a targeted clean-checkout repair, "
                   "never a repository-wide reset",
                   "git status --porcelain" in msg
-                  and "checkout-index --force" in msg
+                  and "git -C <repo> rm -q --" in msg
+                  and "git -C <repo> checkout HEAD --" in msg
+                  and "checkout-index" not in msg
                   and "reset" not in msg
                   and all(name in msg for name in
                           ("regions.yaml", "atlas_template.html",
@@ -476,6 +483,84 @@ def main():
         open(victim, "wb").write(original)
     check("L7d the victim file is restored byte-for-byte",
           open(victim, "rb").read() == original)
+
+    # L7e constructs the exact pre-pin state rather than merely checking
+    # recipe text: core.autocrlf writes CRLF, a later -text-only commit
+    # leaves that stat-clean view untouched, checkout-index --force is a
+    # no-op, while the prescribed targeted rm + checkout restores the
+    # committed LF bytes and a clean tree.
+    recipe_root = _mkdtemp()
+    author = os.path.join(recipe_root, "author")
+    rdir = os.path.join(recipe_root, "runner")
+    rel = "fixture.txt"
+    target = os.path.join(rdir, rel)
+
+    def git_at(repo, *args):
+        return subprocess.run(
+            ["git", "-C", repo, *args], check=True,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            text=True).stdout
+
+    def git(*args):
+        return git_at(rdir, *args)
+
+    try:
+        os.makedirs(author)
+        git_at(author, "init", "-q")
+        git_at(author, "config", "user.name", "atlas-lock-test")
+        git_at(author, "config", "user.email",
+               "atlas-lock-test@example.invalid")
+        git_at(author, "config", "core.autocrlf", "false")
+        open(os.path.join(author, ".gitattributes"), "wb").write(
+            b"fixture.txt text\n")
+        open(os.path.join(author, rel), "wb").write(b"alpha\nbeta\n")
+        git_at(author, "add", ".gitattributes", rel)
+        git_at(author, "commit", "-q", "-m", "pre-pin")
+
+        # Clone BEFORE the pin, and configure the runner checkout to
+        # write CRLF. The later candidate commit is authored elsewhere,
+        # exactly as a pull arrives from a remote repository.
+        subprocess.run(["git", "clone", "-q", "--no-checkout", author,
+                        rdir], check=True, stdout=subprocess.PIPE,
+                       stderr=subprocess.PIPE, text=True)
+        git("config", "core.autocrlf", "true")
+        git("checkout", "-q", "HEAD")
+        pre_pin_crlf = b"\r\n" in open(target, "rb").read()
+        # Keep the fixture out of Git's racy-clean window. Under the
+        # pre-pin text rule this CRLF view is equivalent to the LF blob,
+        # so refresh records its deliberately old stat tuple as clean.
+        os.utime(target, (946684800, 946684800))
+        git("update-index", "--refresh")
+
+        open(os.path.join(author, ".gitattributes"), "wb").write(
+            b"fixture.txt -text\n")
+        git_at(author, "add", ".gitattributes")
+        git_at(author, "commit", "-q", "-m",
+               "pin without rewriting input")
+        post_pin = git_at(author, "rev-parse", "HEAD").strip()
+        git("fetch", "-q", "origin")
+        git("checkout", "-q", "--detach", post_pin)
+        stat_clean = git("status", "--porcelain") == ""
+        git("checkout-index", "--force", "--", rel)
+        noop_crlf = b"\r\n" in open(target, "rb").read()
+        git("rm", "-q", "--", rel)
+        git("checkout", "HEAD", "--", rel)
+        repaired = (b"\r" not in open(target, "rb").read()
+                    and open(target, "rb").read() ==
+                    subprocess.check_output(
+                        ["git", "-C", rdir, "cat-file", "blob",
+                         "HEAD:" + rel])
+                    and git("status", "--porcelain") == "")
+        check("L7e constructed stat-clean pre-pin CRLF view survives "
+              "checkout-index but targeted rm + checkout restores exact "
+              "committed bytes and a clean tree",
+              pre_pin_crlf and stat_clean and noop_crlf and repaired,
+              f"pre_pin_crlf={pre_pin_crlf} stat_clean={stat_clean} "
+              f"noop_crlf={noop_crlf} repaired={repaired}")
+    except (OSError, subprocess.CalledProcessError) as e:
+        check("L7e constructed stat-clean pre-pin CRLF view survives "
+              "checkout-index but targeted rm + checkout restores exact "
+              "committed bytes and a clean tree", False, str(e))
 
     # sandboxes live under the repo now (see _sandbox_base), so they
     # are cleaned up rather than accumulating in the working tree

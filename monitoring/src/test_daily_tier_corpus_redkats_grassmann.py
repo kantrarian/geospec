@@ -1,7 +1,20 @@
 #!/usr/bin/env python3
 """
-DAILY-TIER-CORPUS red-KAT bar -- grassmann, 2026-09-02 (REV 6c: REV 6b re-based onto cayley's daily-path v6
-c592d236 = v5 + the production preflight BEFORE run_all_regions [codex 1912Z MAJOR]; on top of REV 5/6/6b).
+DAILY-TIER-CORPUS red-KAT bar -- grassmann, 2026-09-02 (REV 7: C-11 code-input identity from the record's
+ADDING commit only; REV 6c = REV 6b re-based onto cayley's daily-path v6 c592d236 = v5 + the production
+preflight BEFORE run_all_regions [codex 1912Z MAJOR]; on top of REV 5/6/6b).
+
+REV 7 -- WHAT CHANGED vs REV 6c (grassmann finding 2026-09-04 17:07Z, own defect):
+  C-11  the leftover REV 5 loop that reopened every revision's `code` inputs from the TARGET tree is REMOVED.
+        A revision pins the code it RAN WITH; the store is immutable and CODE_PATHS legitimately change after
+        it (the first such change, the 2026-09-04 D2 lift's comment edit to ensemble.py, turned the bar RED
+        at 315ea37f while both records reproduced exactly at their adding commits). Code-input identity is
+        proven ONLY by the REV 6b git view at the commit that ADDED the revision
+        (committed_inputs_view(add_commit_of(path)) -> validate_revision_against_entry(expected_entries)),
+        whose must-stay-red is M-AG. Proven both ways: M-AJ (a CODE_PATHS file changed in the target AFTER
+        the revisions were written -> 0 problems; the REV 6c loop RED on the real target, measured) and M-AG unchanged
+        (a code pin != the blob at the revision's own commit -> refused). Real-target regression: the REV 6c
+        bar FAILS at 315ea37f / a7a4f741, REV 7 passes there and stays PASS at 832ea730.
 
 REV 6c -- WHAT CHANGED vs REV 6b (codex 1912Z, cayley 2040Z):
   C-13  PREFLIGHT-ORDER: the COMMITTED run_ensemble_daily.py at the target is parsed (AST; never imported or
@@ -968,15 +981,13 @@ def lock_revision_store(view: StoreView, ens_mod, red_mod, REV, git_history=None
             problems.append(f"C-7 REVISION_IDENTITY_NE_JOURNAL: {e['path']}")
         if rv["scored_day_utc"] != rv["date"]:
             problems.append(f"C-11 SCORED_DAY_NE_DATE: {e['path']} {rv['scored_day_utc']} != {rv['date']}")
-        # inputs capsule recomputes; code entries reopen
+        # inputs capsule recomputes. REV 7: code-input identity is proven ONLY by the git view at the commit
+        # that ADDED this revision (above, `iv`; M-AG must-stay-red). The REV 5 loop that reopened code entries
+        # from the TARGET tree is removed: a revision pins the code it ran with, and CODE_PATHS legitimately
+        # change after it (M-AJ) -- comparing against the target asserted that no code may ever change again.
         try:
             if REV.inputs_sha256(rv["inputs"]) != rv["inputs_sha256"]:
                 problems.append(f"C-11 INPUTS_SHA256_MISMATCH: {e['path']}")
-            for ie in rv["inputs"]["entries"]:
-                if ie["kind"] == "code":
-                    blob = view.read(ie["identity"])
-                    if blob is None or _lf_sha(blob) != ie["sha256"] and _sha(blob) != ie["sha256"]:
-                        problems.append(f"C-11 INPUT_CODE_DIGEST_MISMATCH: {e['path']} {ie['identity']}")
         except REV.RevisionRefusal as ex:
             problems.append(f"C-11 {ex}")
         # source_index names an exact journal prefix
@@ -1909,6 +1920,27 @@ def revision_store_partners(ens_mod, red_mod, corpus: Corpus) -> int:
         partner("M-AG a code input's digest != the committed blob at the revision's commit (re-sealed) -> refused via the git view",
                 m_code_input, "INPUTS_CAPSULE_SCHEMA")
 
+        # ---- REV 7 partner: a CODE_PATHS file changes in the TARGET after the revisions were written (the
+        # 2026-09-04 lift case). The git view at each revision's adding commit (the scripted git's fixture
+        # blobs) is unchanged, so the store must stay ACTIVE with 0 problems; the REV 6c target-tree loop RED on this
+        # shape (measured on the real target 315ea37f / a7a4f741, 2026-09-04 17:0xZ).
+        def m_code_changed_later(repo):
+            p = os.path.join(repo, "monitoring", "src", "ensemble.py")
+            with open(p, "ab") as f:
+                f.write(b"# comment edit landed after these revisions were written (REV 7 M-AJ)\r\n")
+        repo_aj = tempfile.mkdtemp(prefix="corpus-rev-partner-")
+        shutil.rmtree(repo_aj)
+        shutil.copytree(base_repo, repo_aj)
+        try:
+            m_code_changed_later(repo_aj)
+            r_aj = lock(repo_aj)
+            check("M-AJ a CODE_PATHS file changed in the target AFTER the revisions (git view at the adding commit "
+                  "unchanged) -> ACTIVE, 0 problems (the REV 6c target-tree loop RED on the real target 315ea37f/a7a4f741 with INPUT_CODE_DIGEST_MISMATCH)",
+                  r_aj["state"] == "ACTIVE" and not r_aj["problems"],
+                  f"{r_aj['state']} problems={r_aj['problems'][:2]}")
+        finally:
+            shutil.rmtree(repo_aj, ignore_errors=True)
+
         # M-AE: MEASURE the CRLF-checkout residual (cayley's lane). core.autocrlf=true on this class of host
         # translates docs/ensemble/** on checkout/pull; the module compares raw bytes. This is reported, not
         # asserted, so the number is on the record until the daily path pins eol for the store.
@@ -2091,7 +2123,7 @@ def main(argv: List[str]) -> int:
     except RuntimeError as e:
         print(f"CORPUS_REVISION_UNRESOLVABLE: {e}")
         return 2
-    print(f"DAILY-TIER-CORPUS red-KAT bar (grassmann, REV 6c) -- repo {repo} commit {a.commit}")
+    print(f"DAILY-TIER-CORPUS red-KAT bar (grassmann, REV 7) -- repo {repo} commit {a.commit}")
     if a.write_ledger:
         print("  UNBOUND: --write-ledger authors the sidecar from the measured set; it emits NO verdict")
     else:

@@ -1,17 +1,17 @@
 {
   "istanbul_marmara": {
     "capsule_path": "C:/GeoSpec/geospec_sprint/monitoring/data/calibration/istanbul_marmara.json",
-    "expected_sha256": "301b2e7302585bcc2e11ac0e51a3869717d92a7c8fcef65d551049a322a3eb33",
+    "expected_sha256": "ce361ea57edbfed2e24fc9033e4dcfb3b3d158b8b98c20848e5e0cff668159fb",
     "topology_version": "t1"
   },
   "socal_coachella": {
     "capsule_path": "C:/GeoSpec/geospec_sprint/monitoring/data/calibration/socal_coachella.json",
-    "expected_sha256": "a89c306fd4e93b39c2f495d39eca389b852a938459a6385d7441038a62c97f1f",
+    "expected_sha256": "9f1d3fd917629e65421ae7302c590d17499d7549cd23595cd1148ec67a95db9d",
     "topology_version": "t1"
   },
   "turkey_kahramanmaras": {
     "capsule_path": "C:/GeoSpec/geospec_sprint/monitoring/data/calibration/turkey_kahramanmaras.json",
-    "expected_sha256": "8e5354f97bc7c694a805ec367ba8d40ffe87d3e798dd1955052cc808b9901172",
+    "expected_sha256": "6728d1e59366333cc65889cb8ef1041097259fd31ca15a74fcdc0b9f0f4f0188",
     "topology_version": "t1"
   }
 }

@@ -361,3 +361,35 @@ RIDGECREST_TIME_CONFOUND → T2 supplement required) **STAY FROZEN**.
   discipline.
 - **What the renewed state does NOT claim:** unchanged from the 2026-08-13 note — registry status only, no
   validated forecast, method remains INCONCLUSIVE, no publication/portfolio/outreach basis. — cayley
+
+## 2026-09-04 — D2 CALIBRATION RENEWAL (same 3 carriers; owner-authorized; not a freeze change)
+
+- **Authorization:** asylum registry-lift word, in-session utterance "d2 registery lifted.  proceed with hygein and
+  other recs" (2026-09-04T15:00:30.293897Z prompt, owner_quote_sha256 `49c01c1dd1b8cdd2aa384d5b8018c27d9e24ef229a624315a46bd681d178b4e3`,
+  grassmann session, devildog). Delivered after triple verification closed. **NO publication or public claim is
+  authorized.**
+- **Evidence:** renewal root `d2_renewal_campaign_20260902` (contract `codex-d2-campaign-v2-renewal-2026-08-16-v1`
+  reissued for A=2026-09-02; fire go 2026-09-02T19:20Z receipt `32c1f818…`; fire HEAD `b3051966`; final bundle
+  `0d1638c3…`; phase ledger `65286959…`; batch manifest `bb85553c…`; input manifest `bbe77e00…`; 4,719 files /
+  54,155,501,034 B; acquisition DONE 2026-09-03T08:12:42Z, one process, no resume; `verify_completed_root` TRUE).
+  Verified **three-for-three**: grassmann terminal packet + staged-root gate (1416Z/1435Z 2026-09-03, cayley bar
+  31/31), cayley first-hand RN-5g non-vacuous PASS (1442Z), codex independent root-bytes PASS 4,718/4,718 zero
+  mismatch (1909Z) and Phase-0.5 preimage + root **TECHNICAL PASS** (1916Z). Old (2026-08-18) capsules expired
+  honestly at valid_through 2026-08-23 and are superseded here.
+- **Wiring (this commit):** capsules copied **byte-identical** from the renewal root `capsules/` (shas == the
+  `registry_candidate.json` pins: istanbul `ce361ea5…`, socal
+  `9f1d3fd9…`, turkey `6728d1e5…`) to
+  `monitoring/data/calibration/<region>.json`; `capsule_registry.json` re-pinned to the new full-64 digests (paths +
+  topology t1 unchanged); thresholds are EXACTLY the renewal mint's (istanbul `0.21415369307903953`,
+  socal `0.14670888561808385`, turkey `0.19977325939415064`), calibration
+  window [2026-04-05, 2026-08-03). `FROZEN_COMPONENTS` is NOT touched — tokyo_kanto / japan_tohoku / ridgecrest
+  STAY FROZEN; this note lifts nothing new, it renews the already-lifted carriers' calibration. No other
+  methodology change rides along.
+- **Loader proof (pre-commit, real registry path):** ADMITS all three for scored days 2026-09-02 → 2026-09-09 at
+  exactly the renewal thresholds; REFUSES 2026-09-01 (< 30d embargo past window end) and 2026-09-10 (STALE past
+  valid_through) — 12/12 edges. The superseded capsule bytes refuse against the new registered pin.
+- **Honest expiry:** every renewal capsule carries `valid_through: 2026-09-09`; past it the loader fails closed
+  exactly as before — renewal past 2026-09-09 is a new owner ask under the standing contract discipline.
+- **What the renewed state does NOT claim:** unchanged from the 2026-08-13 note — registry status only, no
+  validated forecast, method remains INCONCLUSIVE (Λ_geo INCONCLUSIVE), no publication/portfolio/outreach basis.
+  — grassmann

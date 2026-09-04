@@ -20,6 +20,7 @@ import json
 import math
 import os
 import re
+import subprocess
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -127,6 +128,47 @@ NOMINAL = {"ridgecrest": [35.65, -117.65],
            "turkey_kahramanmaras": [37.60, 37.00]}
 
 
+# 2026-09-01 (grassmann program review B2/B4): the three ensemble
+# components and the CLOSED status vocabulary the page renders. "live"
+# is the ensemble's own definition of a counted method (available and
+# not frozen -- ensemble.py methods_available); the unavailable classes
+# are read from the component's own notes so the page says WHY a
+# component is dark instead of silently renormalising over the rest.
+COMPONENTS = ("lambda_geo", "fault_correlation", "seismic_thd")
+PINNED_PROVENANCE_INPUTS = (
+    # Inputs whose published sha256 must equal committed bytes and whose
+    # checkout representation is therefore pinned -text. Keep this one
+    # source for refusal/preflight/operator repair paths.
+    "monitoring/config/regions.yaml",
+    "monitoring/atlas_template.html",
+    "docs/ensemble_latest.json",
+    "docs/f2g_window2_execution/mag_capsules/mag_capsule_frn.json",
+    "docs/f2g_window2_execution/mag_capsules/mag_capsule_izn.json",
+    "docs/f2g_window2_execution/mag_capsules/mag_capsule_tuc.json",
+    "docs/f2g_window2_execution/mag_capsules/mag_capsule_vic.json",
+)
+COMPONENT_STATUS = ("live", "frozen", "stale", "no_registry", "no_data")
+
+
+def component_status(c):
+    if not isinstance(c, dict):
+        return "no_data"
+    # `frozen` is an explicit disposition and takes precedence over
+    # availability. Real ensemble rows can be both unavailable and
+    # frozen; classifying those from their explanatory note loses the
+    # stronger state on the public surface.
+    if c.get("frozen"):
+        return "frozen"
+    if c.get("available"):
+        return "live"
+    notes = str(c.get("notes") or "").lower()
+    if "stale" in notes or "valid_through" in notes:
+        return "stale"
+    if "no registry entry" in notes:
+        return "no_registry"
+    return "no_data"
+
+
 def daily(regions):
     ens = json.load(open(os.path.join(REPO, "docs",
                                       "ensemble_latest.json"),
@@ -142,12 +184,33 @@ def daily(regions):
         c = reg_cent.get(rid) or NOMINAL.get(rid)
         if c is None:
             continue
+        comps = rv.get("components") or {}
+        status = {k: component_status(comps.get(k)) for k in COMPONENTS}
+        pers = rv.get("persistence") or {}
+        weights = rv.get("effective_weights") or {}
         d_regions.append({"id": rid, "tier": rv.get("tier"),
                           "tier_name": rv.get("tier_name", ""),
                           "risk": round(
                               rv.get("combined_risk") or 0, 3),
                           "lat": c[0], "lon": c[1],
-                          "nominal": rid not in reg_cent})
+                          "nominal": rid not in reg_cent,
+                          # qualifier fields (B2): a tier is never
+                          # rendered without how many methods carried it
+                          "methods_available": rv.get("methods_available"),
+                          "agreement": rv.get("agreement") or "",
+                          "confirmed": bool(pers.get("is_confirmed", False)),
+                          "components": status,
+                          "weights": {k: round(float(v), 3)
+                                      for k, v in weights.items()}})
+    # per-component live/dark census over the rendered regions (B4):
+    # derived from the SAME status field the rows carry
+    components_live = {}
+    for k in COMPONENTS:
+        counts = {s: 0 for s in COMPONENT_STATUS}
+        for r in d_regions:
+            counts[r["components"][k]] += 1
+        counts["n"] = len(d_regions)
+        components_live[k] = counts
     seen = {}
     for rid, ev in (ens.get("earthquake_events") or {}).items():
         le = (ev or {}).get("largest_event")
@@ -179,6 +242,7 @@ def daily(regions):
             "generated": ens.get("timestamp", "")[:16],
             "lag_days": lag_days,
             "summary": ens.get("summary", {}),
+            "components_live": components_live,
             "regions": sorted(
                 d_regions,
                 key=lambda r: (-(r["tier"] if r["tier"] is not None
@@ -232,10 +296,116 @@ def validate_bundle(bundle):
         if r["tier"] is not None and \
                 not isinstance(r["tier"], int):
             bad(f"daily region {r['id']} tier type")
+        # B2/B4 qualifier fields: present, closed vocabulary, and
+        # CONSISTENT -- methods_available must equal the number of
+        # live components and the effective weights must be carried
+        # by exactly those components (ensemble.py renormalises over
+        # available, non-frozen components; a divergence here is an
+        # ensemble inconsistency the page must not paper over)
+        for key in ("methods_available", "agreement", "confirmed",
+                    "components", "weights"):
+            if key not in r:
+                bad(f"daily region {r['id']} lacks {key}")
+        m = r["methods_available"]
+        if not isinstance(m, int) or isinstance(m, bool) or \
+                not 0 <= m <= len(COMPONENTS):
+            bad(f"daily region {r['id']} methods_available type")
+        if not isinstance(r["agreement"], str):
+            bad(f"daily region {r['id']} agreement type")
+        if not isinstance(r["confirmed"], bool):
+            bad(f"daily region {r['id']} confirmed type")
+        comps = r["components"]
+        if not isinstance(comps, dict) or \
+                set(comps) != set(COMPONENTS):
+            bad(f"daily region {r['id']} components keys")
+        for k, s in comps.items():
+            if s not in COMPONENT_STATUS:
+                bad(f"daily region {r['id']} component {k} "
+                    f"status {s!r}")
+        live = {k for k, s in comps.items() if s == "live"}
+        w = r["weights"]
+        if not isinstance(w, dict) or not set(w) <= set(COMPONENTS):
+            bad(f"daily region {r['id']} weights keys")
+        for k, v in w.items():
+            if not _fin(v) or not 0 <= v <= 1:
+                bad(f"daily region {r['id']} weight {k}={v!r}")
+        if m != len(live):
+            bad(f"daily region {r['id']} methods_available={m} but "
+                f"{len(live)} live components {sorted(live)}")
+        if set(w) != live:
+            bad(f"daily region {r['id']} weights carried by "
+                f"{sorted(w)} but live components are {sorted(live)}")
+    cl = bundle["daily"].get("components_live")
+    if not isinstance(cl, dict) or set(cl) != set(COMPONENTS):
+        bad("components_live census absent or mis-keyed")
+    expected_cl = {}
+    for k in COMPONENTS:
+        counts = {s: 0 for s in COMPONENT_STATUS}
+        for r in bundle["daily"]["regions"]:
+            counts[r["components"][k]] += 1
+        counts["n"] = len(bundle["daily"]["regions"])
+        expected_cl[k] = counts
+    if cl != expected_cl:
+        bad("components_live census does not derive from daily rows")
     for ev in bundle["daily"]["events"]:
         if not _latlon_ok(ev["lat"], ev["lon"]) or \
                 not _fin(ev["mag"]):
             bad(f"event {ev['id']}")
+
+
+def _committed_blob(rel):
+    """The bytes git holds for `rel` at HEAD, or None when the path is
+    absent from HEAD (a new file) or git cannot be run. None means
+    "cannot compare", never "compared and matched"."""
+    try:
+        p = subprocess.run(["git", "-C", REPO, "cat-file", "blob",
+                            "HEAD:" + rel], capture_output=True)
+    except OSError:
+        return None
+    return p.stdout if p.returncode == 0 else None
+
+
+def _eol_repair_command(paths=PINNED_PROVENANCE_INPUTS):
+    """Targeted, git-native rewrite that defeats a stat-clean CRLF view."""
+    names = " ".join(paths)
+    return ("git -C <repo> rm -q -- " + names
+            + " && git -C <repo> checkout HEAD -- " + names)
+
+
+def _refuse_eol_view(name, rel, path):
+    """grassmann 1933Z MEDIUM. Pinning a path `-text` does NOT rewrite
+    a copy already on disk: a checkout made before the pin keeps its
+    CRLF bytes, git never re-smudges an unchanged file when attributes
+    change, and this table then publishes digests that name no
+    committed bytes -- which is exactly the defect on master today.
+
+    The pin fixes the repository; it does not fix a checkout. So the
+    check is here, where the digest is taken, and not only in a
+    landing recipe that has to be remembered.
+
+    REFUSE only when the live bytes differ from the committed blob
+    ONLY in line endings. A genuine content change is left alone --
+    the daily runner rewrites docs/ensemble_latest.json before this
+    runs, and normalising that does NOT reproduce the blob, so the
+    daily path is unaffected. A refusal leaves the old page standing.
+    """
+    blob = _committed_blob(rel)
+    if blob is None:
+        return
+    with open(path, "rb") as f:
+        live = f.read()
+    if live == blob or live.replace(b"\r\n", b"\n") != blob:
+        return
+    raise SystemExit(
+        "ATLAS_PROVENANCE_EOL_VIEW: " + rel + " (" + name + ") differs "
+        "from its committed blob only in line endings, so its recorded "
+        "digest would name no committed bytes. This checkout predates "
+        "the -text pin; the pin does not rewrite files already on "
+        "disk. On a stat-clean file, checkout-index --force and a plain "
+        "checkout can both be no-ops because Git trusts the cached size "
+        "and mtime. First require an empty git status --porcelain, then "
+        "remove and restore only the pinned inputs and regenerate: "
+        + _eol_repair_command())
 
 
 def _sha256_file(path):
@@ -270,9 +440,22 @@ def provenance():
                 srcs.append(("mag_capsule:" + f, fp))
     out = []
     for name, fp in srcs:
-        out.append({"name": name,
-                    "path": os.path.relpath(fp, REPO)
-                    .replace(os.sep, "/"),
+        try:
+            rel = os.path.relpath(fp, REPO).replace(os.sep, "/")
+        except ValueError:
+            # a source on another mount cannot be named relative to the
+            # repository. Refuse: publishing the absolute path instead
+            # would leak a local filesystem path onto a public page.
+            raise SystemExit(
+                "ATLAS_PROVENANCE_SOURCE_OUTSIDE_REPO: " + name +
+                " resolves to " + fp + ", which shares no mount with " +
+                REPO)
+        if rel.startswith("../"):
+            raise SystemExit(
+                "ATLAS_PROVENANCE_SOURCE_OUTSIDE_REPO: " + name +
+                " resolves outside the repository (" + rel + ")")
+        _refuse_eol_view(name, rel, fp)
+        out.append({"name": name, "path": rel,
                     "sha256": _sha256_file(fp)})
     out.append({"name": "coastline",
                 "path": "Natural Earth 110m land (public "

@@ -102,6 +102,9 @@
   .drow .dot{width:8px;height:8px;border-radius:50%;flex:none}
   .drow .rid{color:var(--ink)}
   .drow .tn{margin-left:auto;font-size:10px;letter-spacing:.06em}
+  .drow .cl{font-size:9.5px;color:var(--muted);letter-spacing:.02em;white-space:nowrap}
+  .drow .ql{font-size:9.5px;letter-spacing:.04em;color:var(--muted);
+    border:1px solid var(--line);border-radius:3px;padding:0 4px;white-space:nowrap}
   footer{
     border-top:1px solid var(--line); padding:8px 20px;
     font-family:var(--mono); font-size:10.5px; color:var(--spare);
@@ -515,6 +518,12 @@ function showReadout(h) {
       `<div class="kind" style="color:${tierColor(o.tier)}">daily region status</div>` +
       `<div class="id">${esc(o.id)}</div><dl>` +
       row("tier", (o.tier === null ? "n/a" : o.tier) + " — " + (o.tier_name || "")) +
+      row("qualifier", qualifier(o) || "n/a") +
+      row("methods live", o.methods_available === null || o.methods_available === undefined
+        ? "n/a" : String(o.methods_available)) +
+      row("agreement", o.agreement || "n/a") +
+      row("confirmed", o.confirmed ? "yes (persistence)" : "no") +
+      row("components", compWords(o)) +
       row("combined risk", o.risk) +
       row("marker", o.nominal
         ? "nominal locality (no registered polygon)"
@@ -617,6 +626,38 @@ document.getElementById("totals").innerHTML = totals.map(
       `${CEN.unlocated_codes.map(esc).join(", ")}</div>`
     : "");
 
+// ---- B2 qualifier (grassmann program review 2026-09-01): a tier is
+// never shown without how many methods carried it. A single-method
+// row names the component; a zero-method row says so; "confirmed" is
+// the persistence flag, not a claim. Defined BEFORE the daily panel
+// runs (const is not hoisted).
+const ABBR = { lambda_geo: "LG", fault_correlation: "FC", seismic_thd: "THD" };
+function liveOf(r) {
+  const c = (r && r.components) || {};
+  return Object.keys(ABBR).filter(k => c[k] === "live");
+}
+function qualifier(r) {
+  if (!r || r.methods_available === null || r.methods_available === undefined) return "";
+  const conf = r.confirmed ? " · confirmed" : "";
+  if (r.methods_available === 0) return "no live component";
+  if (r.methods_available === 1) {
+    return "single-method (" + (liveOf(r).map(k => ABBR[k]).join("+") || "?") + ")" + conf;
+  }
+  return r.methods_available + " methods" + conf;
+}
+function compMarks(r) {
+  const c = (r && r.components) || {};
+  return Object.keys(ABBR).map(k => {
+    const s = c[k] || "no_data";
+    const mark = s === "live" ? "●" : (s === "frozen" ? "❄" : "○");
+    return `<span title="${esc(k)}: ${esc(s.replace("_", " "))}">${ABBR[k]} ${mark}</span>`;
+  }).join(" ");
+}
+function compWords(r) {
+  const c = (r && r.components) || {};
+  return Object.keys(ABBR).map(k => `${ABBR[k]} ${(c[k] || "no_data").replace("_", " ")}`).join(" · ");
+}
+
 // ---- daily panel
 if (D.daily) {
   const dd = D.daily;
@@ -632,10 +673,24 @@ if (D.daily) {
     `<br>data ${esc(dd.date || "?")} · generated ` +
     `${esc(dd.generated || "?")}` +
     (dd.lag_days !== null && dd.lag_days !== undefined
-      ? ` · observed lag ${dd.lag_days}d` : "");
+      ? ` · observed lag ${dd.lag_days}d` : "") +
+    // B4: per-component live/dark census, derived at generation from
+    // the same status field every row carries -- a dark component is
+    // named on the page, never silently renormalised away
+    (dd.components_live
+      ? `<br>components live: ` + Object.keys(ABBR).map(k => {
+          const c = dd.components_live[k] || {};
+          const dark = ["stale", "no_registry", "frozen", "no_data"]
+            .filter(s => c[s]).map(s => `${s.replace("_", " ")} ${c[s]}`);
+          return `${ABBR[k]} <span style="color:var(--ink)">${c.live ?? 0}/${c.n ?? "?"}</span>` +
+            (dark.length ? ` <span title="${esc(k)}">(${dark.join(", ")})</span>` : "");
+        }).join(" · ")
+      : "");
   document.getElementById("dailyList").innerHTML = dd.regions.map(r =>
     `<div class="drow"><span class="dot" style="background:${tierColor(r.tier)}"></span>` +
     `<span class="rid">${esc(r.id)}</span>` +
+    `<span class="cl">${compMarks(r)}</span>` +
+    (qualifier(r) ? `<span class="ql">${esc(qualifier(r))}</span>` : "") +
     `<span class="tn" style="color:${tierColor(r.tier)}">${esc(r.tier_name || "")}</span></div>`
   ).join("");
 }

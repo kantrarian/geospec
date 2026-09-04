@@ -8,12 +8,15 @@ the repo's real docs/atlas.html is never touched (OUT is
 redirected for every generation in here).
 """
 import copy
+import contextlib
 import hashlib
 import io
 import json
 import os
 import re
 import shutil
+import stat
+import subprocess
 import sys
 import tempfile
 
@@ -22,6 +25,21 @@ sys.path.insert(0, HERE)
 import generate_atlas as GA  # noqa: E402
 
 FAILS = []
+
+
+def _sandbox_base():
+    """grassmann 1933Z LOW: the suite pointed sandboxes at %TEMP%, which
+    on a machine whose repo is on another drive made a provenance source
+    unnameable relative to REPO and crashed ntpath.relpath. Sandboxes go
+    on the repository's own drive (monitoring/data is gitignored), so the
+    suite no longer depends on where %TEMP% happens to live."""
+    base = os.path.join(GA.REPO, "monitoring", "data", "_atlas_test_tmp")
+    os.makedirs(base, exist_ok=True)
+    return base
+
+
+def _mkdtemp():
+    return tempfile.mkdtemp(dir=_sandbox_base())
 
 
 def check(name, ok, detail=""):
@@ -41,8 +59,35 @@ def extract(html, sid):
     return json.loads(m.group(1).replace("<\\/", "</"))
 
 
+def _preflight():
+    """Name every inherited EOL view and stop before cascading tests."""
+    stale = []
+    for rel in GA.PINNED_PROVENANCE_INPUTS:
+        path = os.path.join(GA.REPO, rel.replace("/", os.sep))
+        blob = GA._committed_blob(rel)
+        if blob is None or not os.path.exists(path):
+            continue
+        live = open(path, "rb").read()
+        if live != blob and live.replace(b"\r\n", b"\n") == blob:
+            stale.append(rel)
+    if not stale:
+        return 0
+    print("PREFLIGHT: this checkout predates the -text pins; "
+          f"{len(stale)} provenance input(s) are CRLF views of their "
+          "committed blobs. This is checkout state, not a candidate "
+          "test failure.")
+    for rel in stale:
+        print("  " + rel)
+    print("After requiring an empty git status --porcelain, run:")
+    print("  " + GA._eol_repair_command(stale))
+    return 2
+
+
 def main():
-    sandbox = tempfile.mkdtemp()
+    preflight_rc = _preflight()
+    if preflight_rc:
+        return preflight_rc
+    sandbox = _mkdtemp()
     out = os.path.join(sandbox, "atlas.html")
     real_out = GA.OUT
     GA.OUT = out
@@ -148,7 +193,7 @@ def main():
         check("L4b the unrecomputable hand-written literal is gone",
               "dd386eda" not in tpl and "dd386eda" not in html)
         # mutation: a one-byte template change moves digest AND page
-        tdir = tempfile.mkdtemp()
+        tdir = _mkdtemp()
         tcopy = os.path.join(tdir, "atlas_template.html")
         shutil.copyfile(GA.TEMPLATE, tcopy)
         real_tpl = GA.TEMPLATE
@@ -179,7 +224,7 @@ def main():
         # ---- fix 5: lag is observed, never a constant -------------
         lag_ok = True
         for lag in (0, 1, 2, 3):
-            rdir = tempfile.mkdtemp()
+            rdir = _mkdtemp()
             os.makedirs(os.path.join(rdir, "docs"))
             import datetime as dt
             run_day = dt.date(2026, 8, 29)
@@ -205,8 +250,372 @@ def main():
         check("L5b the hard-coded two-day constant is gone from the "
               "template",
               "lags run date by 2 days" not in tpl)
+
+        # ---- B2/B4 (program review 2026-09-01): qualifier fields ----
+        rows = d["daily"]["regions"]
+        keys = ("methods_available", "agreement", "confirmed",
+                "components", "weights")
+        check("L6a every rendered daily row carries the five qualifier "
+              f"fields ({len(rows)} rows)",
+              rows and all(all(k in r for k in keys) for r in rows)
+              and all(set(r["components"]) == set(GA.COMPONENTS)
+                      and all(s in GA.COMPONENT_STATUS
+                              for s in r["components"].values())
+                      for r in rows))
+        check("L6b on the real record methods_available == live count "
+              "== weight carriers for every row",
+              all(r["methods_available"] is None or (
+                  r["methods_available"] == len(
+                      [k for k, s in r["components"].items()
+                       if s == "live"])
+                  and set(r["weights"]) == {
+                      k for k, s in r["components"].items()
+                      if s == "live"}) for r in rows))
+        check("L6c the daily census is present and sums to the row "
+              "count for every component",
+              set(d["daily"]["components_live"]) == set(GA.COMPONENTS)
+              and all(sum(c[s] for s in GA.COMPONENT_STATUS) == len(rows)
+                      == c["n"]
+                      for c in d["daily"]["components_live"].values()))
+        # constructed fixture: one single-method CONFIRMED WATCH with
+        # FC stale + LG no data, one two-method NORMAL with FC
+        # no-registry, one zero-method DEGRADED -- each status class
+        # is CONSTRUCTED so its derivation is tested, not assumed
+        fdir = _mkdtemp()
+        os.makedirs(os.path.join(fdir, "docs"))
+
+        def comp(avail, notes="", frozen=False):
+            return {"available": avail, "frozen": frozen, "notes": notes}
+        fix = {"date": "2026-08-30", "timestamp": "2026-09-01T07:05:19",
+               "summary": {}, "earthquake_events": {},
+               "regions": {
+                   "turkey_kahramanmaras": {
+                       "tier": 1, "tier_name": "WATCH",
+                       "combined_risk": 0.314, "methods_available": 1,
+                       "agreement": "single_method",
+                       "effective_weights": {"seismic_thd": 1.0},
+                       "persistence": {"is_confirmed": True},
+                       "components": {
+                           "lambda_geo": comp(False,
+                                              "No Lambda_geo data available"),
+                           "fault_correlation": comp(
+                               False, "calibration unavailable: scored day "
+                               "2026-08-30 past valid_through 2026-08-23 "
+                               "(STALE)"),
+                           "seismic_thd": comp(True, "z=1.76")}},
+                   "ridgecrest": {
+                       "tier": 0, "tier_name": "NORMAL",
+                       "combined_risk": 0.035, "methods_available": 2,
+                       "agreement": "all_normal",
+                       "effective_weights": {"lambda_geo": 0.5714,
+                                             "seismic_thd": 0.4286},
+                       "persistence": {"is_confirmed": False},
+                       "components": {
+                           "lambda_geo": comp(True),
+                           "fault_correlation": comp(
+                               False, "calibration unavailable: no "
+                               "registry entry for region ridgecrest"),
+                           "seismic_thd": comp(True)}},
+                   "hualien": {
+                       "tier": -1, "tier_name": "DEGRADED",
+                       "combined_risk": 0.0, "methods_available": 0,
+                       "agreement": "insufficient_data",
+                       "effective_weights": {},
+                       "persistence": {"is_confirmed": False},
+                       "components": {
+                           "lambda_geo": comp(False),
+                           # Real frozen FC rows are unavailable+frozen;
+                           # frozen must outrank note-derived darkness.
+                           "fault_correlation": comp(False, frozen=True),
+                           "seismic_thd": comp(False)}}}}
+        json.dump(fix, open(os.path.join(fdir, "docs",
+                                         "ensemble_latest.json"), "w"))
+        real_repo = GA.REPO
+        try:
+            GA.REPO = fdir
+            fd = GA.daily([])
+        finally:
+            GA.REPO = real_repo
+        by = {r["id"]: r for r in fd["regions"]}
+        tk, rc, hl = (by["turkey_kahramanmaras"], by["ridgecrest"],
+                      by["hualien"])
+        check("L6d fixture: single-method confirmed WATCH derives "
+              "LG no_data / FC stale / THD live, methods 1, confirmed",
+              tk["components"] == {"lambda_geo": "no_data",
+                                   "fault_correlation": "stale",
+                                   "seismic_thd": "live"}
+              and tk["methods_available"] == 1 and tk["confirmed"]
+              and tk["agreement"] == "single_method"
+              and tk["weights"] == {"seismic_thd": 1.0})
+        check("L6e fixture: two-method row derives FC no_registry and "
+              "two live carriers; degraded row derives frozen + zero",
+              rc["components"]["fault_correlation"] == "no_registry"
+              and rc["methods_available"] == 2 and not rc["confirmed"]
+              and hl["components"] == {"lambda_geo": "no_data",
+                                       "fault_correlation": "frozen",
+                                       "seismic_thd": "no_data"}
+              and hl["methods_available"] == 0 and hl["weights"] == {})
+        check("L6f fixture census: FC live 0 / stale 1 / no_registry 1 "
+              "/ frozen 1; THD live 2 / no_data 1; n=3 each",
+              fd["components_live"]["fault_correlation"] == {
+                  "live": 0, "frozen": 1, "stale": 1, "no_registry": 1,
+                  "no_data": 0, "n": 3}
+              and fd["components_live"]["seismic_thd"] == {
+                  "live": 2, "frozen": 0, "stale": 0, "no_registry": 0,
+                  "no_data": 1, "n": 3})
+        # anti-vacuity: the consistency lock REFUSES an inconsistent row
+        # and leaves the standing page byte-identical (fix-3 discipline)
+        # every mutation CONSTRUCTS its inconsistency on row 0 without
+        # depending on today's record (row 0 always has three
+        # components); the only accepted outcome is the TYPED refusal
+        def m_count(b):
+            r = b["daily"]["regions"][0]
+            r["methods_available"] = (r["methods_available"] or 0) + 1
+
+        def m_null_count(b):
+            b["daily"]["regions"][0]["methods_available"] = None
+
+        def m_dark_weight(b):
+            r = b["daily"]["regions"][0]
+            r["components"]["lambda_geo"] = "stale"     # force one dark
+            r["weights"]["lambda_geo"] = 0.5            # ...and weight it
+            r["methods_available"] = len(               # keep the count
+                [s for s in r["components"].values() if s == "live"])
+
+        def m_vocab(b):
+            b["daily"]["regions"][0]["components"]["seismic_thd"] = "bogus"
+
+        def m_missing(b):
+            del b["daily"]["regions"][0]["agreement"]
+
+        def m_census(b):
+            del b["daily"]["components_live"]
+
+        def m_census_value(b):
+            b["daily"]["components_live"]["lambda_geo"]["live"] += 1
+
+        qcases = [("methods_available disagrees with live count", m_count),
+                  ("methods_available is null", m_null_count),
+                  ("weight carried by a dark component", m_dark_weight),
+                  ("component status outside the closed vocabulary",
+                   m_vocab),
+                  ("qualifier field missing", m_missing),
+                  ("census absent", m_census),
+                  ("census value diverges from rows", m_census_value)]
+        for label, mut in qcases:
+            GA.build_bundle = lambda m=mut: poisoned(m)
+            try:
+                GA.main()
+                ok, why = False, "generation did not refuse"
+            except SystemExit as e:
+                ok = "ATLAS_VALIDATE_REFUSED" in str(e.code)
+                why = f"exit {e.code}"
+            except Exception as e:  # noqa: BLE001 -- any other path is a FAIL
+                ok, why = False, f"untyped {type(e).__name__}: {e}"
+            finally:
+                GA.build_bundle = real_build
+            check(f"L6g {label} refuses TYPED before replacement", ok, why)
+            check(f"L6g {label} leaves the old page byte-identical",
+                  sha(out) == gold_sha and not os.path.exists(out + ".tmp"))
+        # renderer hooks present (LIMIT: source-level check only; the
+        # qualifier string is composed in the browser, not verified by
+        # a JS engine here)
+        check("L6h the template composes the qualifier and the census "
+              "from the row fields (renderer hooks present)",
+              "r.methods_available === 1" in tpl
+              and "components live:" in tpl
+              and "qualifier(r)" in tpl and "compMarks(r)" in tpl
+              and 'row("qualifier"' in tpl)
+        # every rendered row on the REAL page carries a qualifier
+        # decision the browser can compose: fields present (L6a) and,
+        # for the real record, at least one single-method row exists
+        # today OR none does -- report which, assert nothing about it
+        n_single = sum(1 for r in rows if r["methods_available"] == 1)
+        print(f"  [INFO] real record: {n_single} single-method row(s) of "
+              f"{len(rows)}; census "
+              f"{ {k: v['live'] for k, v in d['daily']['components_live'].items()} }")
     finally:
         GA.OUT = real_out
+
+    # ---- L7 the EOL-view refusal (grassmann 1933Z MEDIUM) ---------
+    # The pin fixes the repository; it does NOT rewrite a checkout made
+    # before it. These two build the exact states that matter, because
+    # a check nothing constructs proves nothing.
+    cap_dir = os.path.join(GA.REPO, "docs", "f2g_window2_execution",
+                           "mag_capsules")
+    victim = os.path.join(cap_dir, sorted(
+        f for f in os.listdir(cap_dir) if f.endswith(".json"))[0])
+    original = open(victim, "rb").read()
+    try:
+        # L7a a CRLF view of a committed input REFUSES, typed
+        open(victim, "wb").write(original.replace(b"\n", b"\r\n"))
+        victim_rel = os.path.relpath(victim, GA.REPO).replace(os.sep, "/")
+        capture = io.StringIO()
+        with contextlib.redirect_stdout(capture):
+            preflight_rc = _preflight()
+        preflight_text = capture.getvalue()
+        check("L7a0 preflight names the inherited EOL view and exact "
+              "targeted repair before cascading tests",
+              preflight_rc == 2 and victim_rel in preflight_text
+              and GA._eol_repair_command((victim_rel,))
+              in preflight_text)
+        try:
+            GA.provenance()
+            check("L7a a CRLF view of a pinned provenance input REFUSES "
+                  "typed (the state grassmann measured on devildog)",
+                  False, "provenance() returned instead of refusing")
+        except SystemExit as e:
+            msg = str(e)
+            check("L7a a CRLF view of a pinned provenance input REFUSES "
+                  "typed (the state grassmann measured on devildog)",
+                  msg.startswith("ATLAS_PROVENANCE_EOL_VIEW:"),
+                  f"raised {msg[:90]}")
+            recommended = msg.split("regenerate: ", 1)[-1]
+            check("L7a2 refusal recommends the single-source targeted "
+                  "repair, never a repository-wide reset",
+                  recommended == GA._eol_repair_command()
+                  and "reset" not in recommended
+                  and "checkout-index" not in recommended)
+
+        # L7b anti-vacuity: restore and the SAME call must succeed, so
+        # L7a is the CRLF view failing and not provenance() always
+        # failing
+        open(victim, "wb").write(original)
+        try:
+            rows = GA.provenance()
+            check("L7b the same call passes once the file is restored "
+                  "(L7a is not a check that always fires)",
+                  any(r["name"].startswith("mag_capsule:") for r in rows))
+        except SystemExit as e:
+            check("L7b the same call passes once the file is restored "
+                  "(L7a is not a check that always fires)",
+                  False, f"refused on clean bytes: {str(e)[:90]}")
+
+        # L7c the daily path is NOT collateral: a genuine CONTENT change
+        # (what the runner does to docs/ensemble_latest.json before it
+        # regenerates) must pass, because normalising it does not
+        # reproduce the blob
+        obj = json.loads(original.decode("utf-8"))
+        obj["_atlas_lock_test_marker"] = "content change, not an EOL view"
+        open(victim, "wb").write(
+            json.dumps(obj, indent=1).encode("utf-8"))
+        try:
+            GA.provenance()
+            check("L7c an uncommitted CONTENT change is left alone (the "
+                  "daily runner rewrites an input before generating)",
+                  True)
+        except SystemExit as e:
+            check("L7c an uncommitted CONTENT change is left alone (the "
+                  "daily runner rewrites an input before generating)",
+                  False, f"refused a content change: {str(e)[:90]}")
+    finally:
+        open(victim, "wb").write(original)
+    check("L7d the victim file is restored byte-for-byte",
+          open(victim, "rb").read() == original)
+
+    # L7e constructs the exact pre-pin state rather than merely checking
+    # recipe text: core.autocrlf writes CRLF, a later -text-only commit
+    # leaves that stat-clean view untouched, checkout-index --force is a
+    # no-op, while the prescribed targeted rm + checkout restores the
+    # committed LF bytes and a clean tree.
+    recipe_root = _mkdtemp()
+    author = os.path.join(recipe_root, "author")
+    rdir = os.path.join(recipe_root, "runner")
+    rel = "fixture.txt"
+    target = os.path.join(rdir, rel)
+
+    def git_at(repo, *args):
+        return subprocess.run(
+            ["git", "-C", repo, *args], check=True,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            text=True).stdout
+
+    def git(*args):
+        return git_at(rdir, *args)
+
+    try:
+        os.makedirs(author)
+        git_at(author, "init", "-q")
+        git_at(author, "config", "user.name", "atlas-lock-test")
+        git_at(author, "config", "user.email",
+               "atlas-lock-test@example.invalid")
+        git_at(author, "config", "core.autocrlf", "false")
+        open(os.path.join(author, ".gitattributes"), "wb").write(
+            b"fixture.txt text\n")
+        open(os.path.join(author, rel), "wb").write(b"alpha\nbeta\n")
+        git_at(author, "add", ".gitattributes", rel)
+        git_at(author, "commit", "-q", "-m", "pre-pin")
+
+        # Clone BEFORE the pin, and configure the runner checkout to
+        # write CRLF. The later candidate commit is authored elsewhere,
+        # exactly as a pull arrives from a remote repository.
+        subprocess.run(["git", "clone", "-q", "--no-checkout", author,
+                        rdir], check=True, stdout=subprocess.PIPE,
+                       stderr=subprocess.PIPE, text=True)
+        git("config", "core.autocrlf", "true")
+        git("checkout", "-q", "HEAD")
+        pre_pin_crlf = b"\r\n" in open(target, "rb").read()
+        # Keep the fixture out of Git's racy-clean window. Under the
+        # pre-pin text rule this CRLF view is equivalent to the LF blob,
+        # so refresh records its deliberately old stat tuple as clean.
+        os.utime(target, (946684800, 946684800))
+        git("update-index", "--refresh")
+
+        open(os.path.join(author, ".gitattributes"), "wb").write(
+            b"fixture.txt -text\n")
+        git_at(author, "add", ".gitattributes")
+        git_at(author, "commit", "-q", "-m",
+               "pin without rewriting input")
+        post_pin = git_at(author, "rev-parse", "HEAD").strip()
+        git("fetch", "-q", "origin")
+        git("checkout", "-q", "--detach", post_pin)
+        stat_clean = git("status", "--porcelain") == ""
+        git("checkout-index", "--force", "--", rel)
+        noop_crlf = b"\r\n" in open(target, "rb").read()
+        git("rm", "-q", "--", rel)
+        git("checkout", "HEAD", "--", rel)
+        repaired = (b"\r" not in open(target, "rb").read()
+                    and open(target, "rb").read() ==
+                    subprocess.check_output(
+                        ["git", "-C", rdir, "cat-file", "blob",
+                         "HEAD:" + rel])
+                    and git("status", "--porcelain") == "")
+        check("L7e constructed stat-clean pre-pin CRLF view survives "
+              "checkout-index but targeted rm + checkout restores exact "
+              "committed bytes and a clean tree",
+              pre_pin_crlf and stat_clean and noop_crlf and repaired,
+              f"pre_pin_crlf={pre_pin_crlf} stat_clean={stat_clean} "
+              f"noop_crlf={noop_crlf} repaired={repaired}")
+    except (OSError, subprocess.CalledProcessError) as e:
+        check("L7e constructed stat-clean pre-pin CRLF view survives "
+              "checkout-index but targeted rm + checkout restores exact "
+              "committed bytes and a clean tree", False, str(e))
+
+    # sandboxes live under the repo now (see _sandbox_base), so they are
+    # cleaned up rather than accumulating in the working tree.
+    # grassmann's LOW on 2fc500ff: one survived. L7e builds real git
+    # repositories and git marks its object files read-only, so rmtree
+    # raised and `ignore_errors=True` swallowed it. Clear the bit, retry,
+    # and REPORT anything still standing -- a cleanup that fails silently
+    # is the shape this branch exists to remove.
+    def _drop_readonly(func, path, _exc):
+        os.chmod(path, stat.S_IRWXU)
+        func(path)
+
+    base = os.path.join(GA.REPO, "monitoring", "data", "_atlas_test_tmp")
+    if os.path.isdir(base):
+        # `onexc` was added in Python 3.12; devildog's required 3.11
+        # runtime accepts only `onerror`.
+        if sys.version_info >= (3, 12):
+            shutil.rmtree(base, onexc=_drop_readonly)
+        else:
+            shutil.rmtree(base, onerror=_drop_readonly)
+    check("L8 the test sandbox base is removed, not silently left behind",
+          not os.path.exists(base),
+          f"{base} still exists with "
+          f"{sum(len(f) for _, _, f in os.walk(base))} file(s)"
+          if os.path.exists(base) else "")
+
     print()
     if FAILS:
         print(f"ATLAS LOCK-TEST FAILURES ({len(FAILS)}): {FAILS}")

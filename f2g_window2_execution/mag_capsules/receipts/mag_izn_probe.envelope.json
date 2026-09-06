@@ -1,0 +1,16 @@
+{
+ "body_path": "docs/f2g_window2_execution/mag_capsules/receipts/mag_izn_probe.json",
+ "body_sha256": "e3b5e0be9d2554549f3574d5ec1d88e9a949a366eaa49961458fc0501f4b9501",
+ "effective_url": "https://imag-data.bgs.ac.uk/GIN_V1/GINServices?Request=GetData&format=json&testObsys=0&observatoryIagaCode=IZN&samplesPerDay=minute&dataStartDate=2026-08-19&dataDuration=1&publicationState=adj-or-rep",
+ "fired_utc": "2026-08-22T04:26:34Z",
+ "http_status": 200,
+ "parser_version": "json keys datetime[] (INTERMAGNET GIN JSON)",
+ "recomputed_coverage_samples": 1440,
+ "requested_url": "https://imag-data.bgs.ac.uk/GIN_V1/GINServices?Request=GetData&format=json&testObsys=0&observatoryIagaCode=IZN&samplesPerDay=minute&dataStartDate=2026-08-19&dataDuration=1&publicationState=adj-or-rep",
+ "response_headers": {
+  "content-length": "91026",
+  "content-type": "application/json",
+  "date": "Sat, 22 Aug 2026 04:26:32 GMT"
+ },
+ "schema": "f2g-receipt-envelope-v1"
+}

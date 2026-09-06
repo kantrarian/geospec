@@ -1,0 +1,296 @@
+{
+  "schema": "f2g-phase-b-seal-manifest-v1",
+  "status": "SEALED (owner exception, disclosed shortfall) - calendar-frame close codex-passed (v5.1 production re-pass 2026-08-21-1313) and the FRESH asylum seal recorded 2026-08-21T13:23:30Z (owner_seal_cal_fresh, quote sha bb94a28b, effective immediately); the ONE authorized real-data run is PENDING the codex pre-fire instrument check (v2 under their WORKS-WITH-FIX 1359 findings); frozen automatic per-family condition remains NOT MET (disclosed: B1A/B3A zero certified points); prior seal 435cb785 historical only; Lambda_geo INCONCLUSIVE; no publication",
+  "freeze_id": "F2G-PB-R2-FREEZE-CODEX-20260820T0301Z",
+  "frozen_doc": {
+    "path": "docs/f2g_phase_b_prereg_v1.md",
+    "geospec_commit": "a44819d1709da73039ddbbad2547ddd5e10eb7a0",
+    "sha256": "d1929c3127f6d76b87e95319e0f56c4d8ddf4b0cd6226aa9c2e1fe564e44e04e"
+  },
+  "phase_a_inputs": {
+    "producer_packet_summary_sha256": "df1e37ec6ca95dab1b4b24cfc5e7e3603f8fffe0a8c4f76e4cfd20fa7cadc15c",
+    "builder_result_anchor_sha256": "0850cf3d24602ab0ba420412f5b292c9d33464852fbb9de8d7363a019c7886ad"
+  },
+  "red_kat_authority": {
+    "path": "monitoring/src/test_f2g_phase_b_stats_redkats_grassmann.py",
+    "geospec_commit": "ebb68a797dba1573a141e9cc643d7028f6a08995",
+    "blob_sha256_lf": "e48220f0d8e014f1653c1c7e96e8eef1674ac97da7ea293a88ba41f6b2529dab",
+    "author": "grassmann (cross-authored; cayley implements bar-unedited)"
+  },
+  "power_annexes": {
+    "note": "rev-1.1 authorities admitted by codex verify-once PASS 2026-08-20T0400Z; family annexes reference the common protocol BY DIGEST; results artifacts are evidence, not registered content; no certified point => nonpositives typed CANNOT_DETERMINE_NO_POWER",
+    "common": {
+      "path": "docs/f2g_phase_b_power_annex_common.md",
+      "geospec_commit": "d3aa25f4f174d5864f25e036bde07e91417328ca",
+      "sha256": "baddf2aa259689356d4d942b6282824ad6ad6d7f50075c54c992a997f216f20d"
+    },
+    "B1": {
+      "path": "docs/f2g_phase_b_power_annex_b1.md",
+      "geospec_commit": "b816f88fdce4f2328334e928500b559900b9cee5",
+      "sha256": "fb2883f5a9be84f2197b79291b116a799a3a2c5cc86afc69cc34fea064a4e14a"
+    },
+    "B2": {
+      "path": "docs/f2g_phase_b_power_annex_b2.md",
+      "geospec_commit": "b816f88fdce4f2328334e928500b559900b9cee5",
+      "sha256": "dca9dede6b91e35e6dd55ed6104dd3b4c29d2f8dfc8b6ef615187df91b5cb05c"
+    },
+    "B3": {
+      "path": "docs/f2g_phase_b_power_annex_b3.md",
+      "geospec_commit": "b816f88fdce4f2328334e928500b559900b9cee5",
+      "sha256": "9414bd597134ebbcac8dc2d199a111521a23b0d59af6bc40ab0e803cd3495dc2"
+    }
+  },
+  "red_kat_amendment_1": {
+    "path": "monitoring/src/test_f2g_phase_b_stats_redkats_grassmann.py",
+    "geospec_commit": "ff211ca",
+    "blob_sha256_lf": "295631fed6f836c18bf40975403db7799422f83dc74ea74cf14b8651fdcad2a6",
+    "status": "FINAL ADMITTED (codex 2f68b394); lineage: 2dcf07d -> 45cb5d8 -> 4e6e678 -> 12e63f0 -> ff211ca",
+    "note": "canonical final bar authority (codex 22:19Z repair 5; prior pin 4e6e678 was a stale intermediate)"
+  },
+  "rng": "PCG64; master seed = first 8 bytes big-endian of frozen_doc.sha256; substreams per frozen doc section (double-pipe formula)",
+  "sequencing_after_seal": "engine green x3 vs the admitted bar -> ONE sealed real-data run (hash-bound inputs/outputs) -> codex + cayley verification -> owner decision",
+  "standing": "Phase B only; Phase C + waveform surrogates out of scope; no publication; no forecast/displacement claims; Lambda_geo INCONCLUSIVE",
+  "owner_seal": {
+    "type": "OWNER_EXCEPTION_SEAL_DISCLOSED_SHORTFALL",
+    "quote": "a is fine",
+    "quote_sha256": "435cb785fbd59a5edd6d87edb3efa1eb84c7bbc14c3f2c0c298fd41bff0f7066",
+    "timestamp_utc": "2026-08-20T22:28:03Z",
+    "decision": "asylum selects option (a) of the decision packet ef3d2878: ONE sealed real-data evaluation with B2A verdict-bearing at certified power (frontier m=1..3, Pareto-minimal m=1) and B1A/B3A reporting typed CANNOT_DETERMINE_NO_POWER non-answers",
+    "labeling": "owner exception per codex's recorded prospective/post-outcome boundary (5db12d86 as digest-corrected): the frozen automatic per-family condition is NOT MET (B1A/B3A uncertified, disclosed shortfall); the pre-outcome disposition 1d53db67... supports this exception prospectively",
+    "effective": "upon codex narrow re-pass PASS over a2e1e33; NO real-graph access before that pass; all standing non-claims hold (no forecast skill, no displacement language, no publication, Lambda_geo INCONCLUSIVE)"
+  },
+  "power_results": {
+    "note": "codex 0431Z repair 4: evidence artifacts byte-bound (not registered content); each drives G5 REV 2 and the owner seal decision",
+    "B1": {
+      "path": "docs/f2g_phase_b_power_annex_b1_results.json",
+      "geospec_commit": "98055ca",
+      "sha256": "653ee670878a1123e85146dc74e63e61760473e3e62669738926b80ac384e83f",
+      "equivalence_receipt": "full_equal=true fold_equal=true (driver d4edfb2 vs engine 6034419)"
+    },
+    "B2": {
+      "path": "docs/f2g_phase_b_power_annex_b2_results.json",
+      "geospec_commit": "98055ca",
+      "sha256": "424c3b8420b07aea69df66519db55d2f405363e6e4a044e98e1355e58c0c6d74",
+      "equivalence_receipt": "full_equal=true fold_equal=true (driver d4edfb2 vs engine 6034419)"
+    },
+    "B3": {
+      "path": "docs/f2g_phase_b_power_annex_b3_results.json",
+      "geospec_commit": "98055ca",
+      "sha256": "9b7bc2e27dcca998375af9f8ea1b5c95efa029e7ff41d0cc2c705685c78a4cd7",
+      "equivalence_receipt": "full_equal=true fold_equal=true (driver d4edfb2 vs engine 6034419)"
+    },
+    "terminal_types": {
+      "B1": "MDE_NOT_CERTIFIED_BY_REGISTERED_SEARCH",
+      "B2": "MDE_NOT_CERTIFIED_BY_REGISTERED_SEARCH (+ sec-L per-carrier lemma p==1.0)",
+      "B3": "MDE_NOT_CERTIFIED_BY_REGISTERED_SEARCH"
+    }
+  },
+  "stat_family_amendment_1": {
+    "freeze_id": "F2G-PB-A1-R3-FREEZE-CODEX-20260820T1325Z",
+    "path": "docs/f2g_phase_b_prereg_amendment1_DRAFT.md",
+    "geospec_commit": "7c3ca7b5419699c6a324a005ea07bb0be12c81e2",
+    "lf_blob_sha256": "f3d0830b38869d8b6f0b03d113d45ae0f111e8645bd4a2934582b21e48e909e8",
+    "supersession_map": {
+      "B1": "B1A",
+      "B2": "B2A",
+      "B3": "B3A"
+    },
+    "superseded_families_status": "registered evidence, no verdict weight (power search complete @ 98055ca)",
+    "rng_seed_source_digest": "f3d0830b38869d8b6f0b03d113d45ae0f111e8645bd4a2934582b21e48e909e8",
+    "carrier_inventory_bound": [
+      "istanbul_marmara",
+      "socal",
+      "turkey_kahramanmaras"
+    ],
+    "carrier_inventory_note": "materialization of the three carriers in the hash-bound Phase-A producer packet df1e37ec... -- not a new selection decision"
+  },
+  "power_annexes_amended": {
+    "note": "amended families under stat_family_amendment_1 (freeze F2G-PB-A1-R3); annexes admitted codex 15:01Z; results = evidence, byte-bound",
+    "B1A": {
+      "annex": {
+        "path": "docs/f2g_phase_b_power_annex_b1a.md",
+        "geospec_commit": "a0cc87c",
+        "sha256": "e7e08454ec5f4ba45dd3092797afe26cbb12727b02a6027a962cfb99fb946a9b"
+      },
+      "results": {
+        "path": "docs/f2g_phase_b_power_annex_b1a_results.json",
+        "geospec_commit": "4d6e427",
+        "git_blob_sha256": "2707a714e7ea13b3d1b76ef16706198e3c5efb631e8b9997db2e851d6cbcbe7f"
+      },
+      "terminal_type": "MDE_NOT_CERTIFIED_BY_REGISTERED_SEARCH"
+    },
+    "B2A": {
+      "annex": {
+        "path": "docs/f2g_phase_b_power_annex_b2a.md",
+        "geospec_commit": "a0cc87c",
+        "sha256": "1df422a477bd418bd26067b5afdd4211bbb1882f6eff5de5f640fd2d891ceaf6"
+      },
+      "results": {
+        "path": "docs/f2g_phase_b_power_annex_b2a_results.json",
+        "geospec_commit": "4d6e427",
+        "git_blob_sha256": "a18df7ea35b5e7017e65338223c89d37fd0b30369638b0616526019c86cac477"
+      },
+      "terminal_type": "CERTIFIED",
+      "certified_points": [
+        {
+          "m": 1
+        },
+        {
+          "m": 2
+        },
+        {
+          "m": 3
+        }
+      ],
+      "pareto_minimal_certified": [
+        {
+          "m": 1
+        }
+      ],
+      "certification": "20/20 post-LOCO each, exact-binomial 95% LB 0.861 >= 0.80"
+    },
+    "B3A": {
+      "annex": {
+        "path": "docs/f2g_phase_b_power_annex_b3a.md",
+        "geospec_commit": "a0cc87c",
+        "sha256": "0c5fc14f6ecc4606b4a2548e788f962fd844ef0997ffb271ecf2e456d497f8d0"
+      },
+      "results": {
+        "path": "docs/f2g_phase_b_power_annex_b3a_results.json",
+        "geospec_commit": "4d6e427",
+        "git_blob_sha256": "a00d975e0c18ba055a7e8e97de398e432037c607d7dbf76baf341404989504d0"
+      },
+      "terminal_type": "MDE_NOT_CERTIFIED_BY_REGISTERED_SEARCH"
+    },
+    "common_protocol": {
+      "path": "docs/f2g_phase_b_power_annex_common.md",
+      "geospec_commit": "60ea20e",
+      "sha256": "b6352e914bf24b3c54663388daa9e71d15a637491c5fec4462abcd6785bc2e8d"
+    },
+    "admitted_engine": {
+      "geospec_commit": "493c2b9",
+      "lf_sha256": "96949d45463f76428d8e0dbab81715d2cc0c48e8164dde5502f87a8153dc5dad"
+    },
+    "admitted_bar": {
+      "geospec_commit": "ff211ca",
+      "lf_sha256": "295631fed6f836c18bf40975403db7799422f83dc74ea74cf14b8651fdcad2a6"
+    },
+    "seal_condition": "NOT MET under the frozen A5 rule (codex 22:19Z repair 1): the rule requires >=1 certified grid point PER verdict-carrying family; B2A is CERTIFIED (frontier m=1..3, Pareto-minimal m=1, 20/20 post-LOCO, LB 0.8609) but B1A and B3A certified zero points and per frozen sec-5 type CANNOT_DETERMINE_NO_POWER. The automatic seal is NOT offered. The registered decision packet returns to asylum: an owner-directed disclosed-shortfall exception seal remains available (labeled owner exception per the recorded prospective/post-outcome boundary, supported by the pre-outcome disposition 1d53db67...), or further amendment, or closure.",
+    "equivalence": {
+      "fullgate_receipt": {
+        "path": "docs/f2g_phase_b_power_a_fullgate_receipt.json",
+        "geospec_commit": "4d6e427",
+        "git_blob_sha256": "5da09567999aac55c64c166306a35c69b1bd48f974e0e3bdcbb0976fd5120617",
+        "scope": "full + ALL 35 LOCO folds, source-attested engine 493c2b9, all exactly equal"
+      },
+      "evidence_capsule": {
+        "path": "docs/f2g_phase_b_power_a_evidence.jsonl",
+        "geospec_commit": "4d6e427",
+        "git_blob_sha256": "982898707a97dbfb9c520a51d51b9d49dc49f049a9c13bd6ac6bef12307b5778",
+        "rows": 4890,
+        "authority_note": "committed LF git blob; the CRLF checkout hash matches no committed object and is a refusing verifier fixture"
+      },
+      "strict_verifier": {
+        "path": "monitoring/src/f2g_phase_b_power_a_results_verifier_cayley.py",
+        "geospec_commit": "4d6e427",
+        "git_blob_sha256": "622bc8063503dee6891ff4f38dc051673b07c5d71a54bdafd019f3dcd0317081",
+        "note": "blob-recomputed authorities + 5 refusing negative fixtures; the admitted bar's _results_bound intentionally covers only superseded families"
+      }
+    }
+  },
+  "owner_seal_carryover_ruling": {
+    "ruling": "codex: the recorded owner-exception seal (option a, quote-sha 435cb785, 2026-08-20T22:28:03Z) does NOT auto-carry to the materially changed calendar-frame package; a FRESH asylum seal decision is required after the true-geometry re-estimation and codex re-pass",
+    "prior_seal_status": "historical record only; prior-context evidence, not an effective seal for this frame",
+    "pre_outcome_disposition": "1d53db67... ('close is good enough') labeled per the recorded prospective/post-outcome boundary; prior context only"
+  },
+  "calendar_frame_amendment_2": {
+    "freeze_id": "F2G-PB-A2-R2-FREEZE-CODEX-20260821T005735Z",
+    "amendment": {
+      "path": "docs/f2g_phase_b_prereg_amendment2_DRAFT.md",
+      "geospec_commit": "337571c",
+      "lf_blob_sha256": "58b513b6c30b70c8014510788da9d7d819ce8971ca59b7dfdc11c57a1664586f"
+    },
+    "calendar_authority": {
+      "path": "docs/f2g_phase_b_shared_calendar_v1.json",
+      "geospec_commit": "8111805",
+      "sha256": "3aaaec5872933adf3e7f0daa7beb840e11b793a41d7c387ad4800c078fc65111",
+      "geometry": "132 shared civil calendar positions 2026-03-01..2026-07-10; per-carrier masks 111/108/111 registered days; baseline positions 1-72, eval 73-132; NO_REGISTERED_SNAPSHOT typed absences (atomic, never synthesized)",
+      "dual_witness": "cayley derivation from the Phase-A result anchor output_digests + grassmann producer-lane derivation d6a9dcb (canonical c8047bff...)"
+    },
+    "cal_engine": {
+      "geospec_commit": "24b0d8f",
+      "git_blob_sha256": "4a39d3fbdc543e8c64e7b8a068bcb384d320361973bce68fc0b2b219c27968f1",
+      "note": "bound-mode byte-verification of the calendar authority on every panel"
+    },
+    "admitted_bar": {
+      "geospec_commit": "89673dc",
+      "git_blob_sha256": "52055d45884304639ac8640fa827be2d3102c3d87b85df36378c215eae60f208"
+    },
+    "cal_driver": {
+      "geospec_commit": "60509f7",
+      "lf_sha256": "d0df4d38b0c03438112db1fdc3d2b61d00014ce9925ae7aed652f9ab8f6bbd74",
+      "base_driver_blob_sha256": "5cbf543f4f1a239707ad3c5eee458b01c35ac9093d354cc3e32b0ea164f41e78"
+    },
+    "pinned_assembler": {
+      "geospec_commit": "2bf545a",
+      "lf_sha256": "7a1e3874f3836f5434ccc3f1bbb6cef8a18270c82206143ea6301630128e398c"
+    },
+    "verifier_v5": {
+      "geospec_commit": "fee0c65",
+      "git_blob_sha256": "5d23c36923a638a76af98ab45497cb100ec1aeb227a30e43c5a54f3a58d9776c",
+      "close_matrix": "29/29 typed (codex five-finding recheck repaired, codex PASS 4a3f3851; + grassmann host-locked-ulp repair v5.1: bound floats lb95/ub95 compared at ABS 1e-12, all decision surfaces bit-exact, beyond-tolerance refuses + one-ulp passes pinned in-matrix)",
+      "superseded_blob_v5_0": "9e895dae8ee1f62acdfbf9f2cc1a577e3d31c1bd83e6dad85823468aebeb8dbc (host-locked strict float equality; refused on devildog, grassmann 0913Z finding)"
+    },
+    "annexes_rev16": {
+      "geospec_commit": "feb20bb",
+      "common_sha256": "44f8ddd9dd175679c0feca398dd2d549454e8b3ee429a037a13f6362f88bf31a",
+      "b1a_sha256": "c7223c5c687234ea9538c73643722ea4fb16ec35ee76a6827ad0a90fae260dbe",
+      "b2a_sha256": "8eb73a0004113bfe4bce9951c33fcf11fd4df540d9d119898556e887502e97bf",
+      "b3a_sha256": "6e63b993611d072327a61628aa28183b732164fbbd2668330086c96092cf29b1"
+    },
+    "evidence_capsule": {
+      "path": "docs/f2g_phase_b_power_cal_evidence.jsonl",
+      "geospec_commit": "de56a683ac6854a9eb2dcd533d768e9dbbac4add",
+      "git_blob_sha256": "e5614b05c4c24cb745f629eca297c2f56e47aa7728d82e227ccd00231dd0d58e",
+      "rows": 4891,
+      "purpose": "production",
+      "gate": "executed in-run: full + all 35 LOCO folds byte-equal vs the admitted cal engine, all_equal=true",
+      "launch_authority": "codex v2 PASS 4a3f3851 (estimation launch gate open); fired 2026-08-21T0430Z into a fresh production-purpose staging checkpoint"
+    },
+    "cal_results": {
+      "geospec_commit": "9387d5c",
+      "B1A": {
+        "path": "docs/f2g_phase_b_power_annex_b1a_cal_results.json",
+        "git_blob_sha256": "26b5d9823fdf15b9e60c0396e0fa204d65431a0e069f86f7d8d32ea3958c25a7",
+        "terminal_type": "MDE_NOT_CERTIFIED_BY_REGISTERED_SEARCH",
+        "detail": "3 Tier-C candidates FAILED 0/20 each"
+      },
+      "B2A": {
+        "path": "docs/f2g_phase_b_power_annex_b2a_cal_results.json",
+        "git_blob_sha256": "e08589b4e882158220fac970ba22d7be6fa1bd02f0ab0f2dadb0d9577b59ad0e",
+        "terminal_type": "CERTIFIED",
+        "certified_points": [{"m": 1}, {"m": 2}, {"m": 3}],
+        "pareto_minimal_certified": [{"m": 1}],
+        "certification": "20/20 post-LOCO each on the REAL 111/108/111 masked calendar, exact-binomial 95% LB 0.861 >= 0.80"
+      },
+      "B3A": {
+        "path": "docs/f2g_phase_b_power_annex_b3a_cal_results.json",
+        "git_blob_sha256": "67fb9e55694ff4ba0d54b3b12879781461bf0b3cbcc1cf660ee3a4a115746335",
+        "terminal_type": "MDE_NOT_CERTIFIED_BY_REGISTERED_SEARCH",
+        "detail": "3 Tier-C candidates FAILED 0/20 each"
+      },
+      "verification": "verifier v5 independent reconstruction PASS x3 + package PASS under expected_purpose=production (schema-closed rows, selection closure, evidence-bound reopen digests, attested subprocess imports incl base driver)"
+    },
+    "seal_condition_cal": "NOT MET under the frozen A5 per-family rule: B2A CERTIFIED (entire grid, Pareto-minimal m=1) but B1A and B3A certified zero points and per frozen sec-5 type CANNOT_DETERMINE_NO_POWER. The automatic seal is not offered. The decision returns to asylum FRESH (prior exception seal does not carry): (a) owner-directed disclosed-shortfall exception seal -> ONE sealed real-data run with B2A verdict-bearing at certified power and B1A/B3A reporting typed non-answers; (b) further amendment; (c) closure.",
+    "sequencing": "codex re-pass of THIS calendar-frame close -> fresh asylum seal decision -> at most ONE sealed real-data run -> codex + grassmann verification -> owner decision on the verdicts. NO Phase-A real-graph r values read before the seal.",
+    "owner_seal_cal_fresh": {
+      "type": "OWNER_EXCEPTION_SEAL_DISCLOSED_SHORTFALL",
+      "quote": "first a. then go and start the geometry build",
+      "quote_sha256": "bb94a28bec0060d7d45b799f17536c499539f324da0f58ac3a1edcfdf594a7e4",
+      "timestamp_utc": "2026-08-21T13:23:30Z",
+      "decision": "asylum, in-session, selects option (a) FRESH for the calendar frame: ONE sealed real-data evaluation with B2A verdict-bearing at certified power (true-geometry certification: entire grid m=1/2/3 20/20 post-LOCO, LB95 0.8609, Pareto-minimal m=1) and B1A/B3A reporting typed CANNOT_DETERMINE_NO_POWER non-answers",
+      "labeling": "owner exception, disclosed shortfall (frozen A5 automatic condition NOT MET: B1A/B3A certified zero points); FRESH decision made AFTER the true-geometry re-estimation and AFTER codex's production re-pass (2026-08-21-1313 note, PASS 'may proceed to asylum's fresh seal decision') -- post-outcome on the POWER campaign, pre-outcome on the real-data run; prior seal 435cb785 remains historical only",
+      "effective": "IMMEDIATE upon this record. Standing non-claims hold: no forecast skill, no displacement language, no publication, Lambda_geo INCONCLUSIVE. Run discipline: sealed-run instrument (adapter + hash-sealed input/output manifest) is built and routed to codex for one instrument check BEFORE the single fire; NO Phase-A real-graph r values are read before that instrument check passes; at most ONE real-data run"
+    }
+  }
+}

@@ -1,0 +1,41 @@
+{
+ "absent_stations": [],
+ "artifact_claim_kind": "STATION_PRESENCE",
+ "carrier": "socal_coachella",
+ "data_rows": 60,
+ "identity": "sta-overlap",
+ "kind": "fdsn-station-presence",
+ "lane": "SELECTION_RECORDS",
+ "outside_station_rows_excluded": 48,
+ "present_stations": [
+  "ACP",
+  "ANG",
+  "BAR",
+  "BC3",
+  "BEL",
+  "BLA2",
+  "BOM",
+  "BOR",
+  "COA",
+  "CRR",
+  "CSH",
+  "CTC"
+ ],
+ "registered_stations": [
+  "ACP",
+  "ANG",
+  "BAR",
+  "BC3",
+  "BEL",
+  "BLA2",
+  "BOM",
+  "BOR",
+  "COA",
+  "CRR",
+  "CSH",
+  "CTC"
+ ],
+ "schema": "f2g-w2-admission-artifact-v1",
+ "support_outcome": "NOT_APPLICABLE",
+ "utc_day": "2026-08-09"
+}

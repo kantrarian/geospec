@@ -1,0 +1,18 @@
+{
+ "built_utc": "2026-08-30T03:26:19.408360Z",
+ "capsule": {
+  "path": "docs/f2g_window2_execution/mf4_archive_capsule_v1.json",
+  "sha256": "4fe32158b3028a807f7903862a0d1d788ae49de7ca59f63b94ce8d47ca1e5cb3"
+ },
+ "days_malformed": 1,
+ "days_missing": 0,
+ "days_present": 306,
+ "refusals": [],
+ "rows_sha256": "7e359280a3220eca45bbcacb3f7cb019b7d57f1a81f4133a72f7536691e4b722",
+ "schema": "geospec-mf4-archive-receipt-v1",
+ "store_objects": 307,
+ "store_observation": {
+  "local_physical_root_at_build": "E:/GeoSpec/mf4_risk_store",
+  "note": "non-authoritative environment observation; the capsule identity binds only the logical store root + content-addressed inventory"
+ }
+}

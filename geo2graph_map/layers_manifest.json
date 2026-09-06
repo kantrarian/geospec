@@ -1,0 +1,72 @@
+{
+ "carrier_metric_crs": {
+  "istanbul_marmara": "EPSG:32635",
+  "socal_coachella": "EPSG:32611",
+  "turkey_kahramanmaras": "EPSG:32637"
+ },
+ "disclosure": "No measurement-valued source or measurement artifact is included in this publication. Source artifacts not included here cannot be independently reconstructed from these hashes alone.",
+ "distance_semantics": "near_edge distance_m is the projected Euclidean distance in metres in the listed per-carrier UTM CRS",
+ "generated_utc": "2026-08-21T16:56:56Z",
+ "layers": [
+  {
+   "claim_status": "geometry",
+   "count_plotted": 109,
+   "count_typed_absent": 1,
+   "id": "station"
+  },
+  {
+   "claim_status": "geometry",
+   "count": 206,
+   "id": "near_edge",
+   "note": "k=3 nearest-neighbor geometric proximity edges; NOT measurement edges"
+  },
+  {
+   "claim_status": "geometry",
+   "count": 9,
+   "id": "segment_box",
+   "note": "coarse station-grouping polygons, not fault traces"
+  }
+ ],
+ "non_claims": "seismic-network GEOMETRY only -- no measurement data; method validation status: INCONCLUSIVE; no earthquake forecast, precursor, or displacement claims; segment boxes are coarse station-grouping polygons, not fault traces",
+ "provenance": {
+  "attribution": "Station metadata: SCEDC (Caltech); KOERI/Bogazici University EIDA. Map tiles: (c) OpenStreetMap contributors. Leaflet (BSD-2-Clause), loaded from the pinned unpkg CDN at view time.",
+  "coordinate_source_vocabulary": {
+   "fdsn": "coordinate from the provider's FDSN station metadata (retrieval query + receipt hash above)",
+   "note": "the sole station without provider metadata (KO.KHMN) is published as a typed absence with NO coordinate -- every plotted coordinate is provider-confirmed",
+   "v1+fdsn": "legacy internal value confirmed by the provider's FDSN station metadata"
+  },
+  "coordinate_sources": {
+   "istanbul_marmara_KO": {
+    "fdsn_station_query_url": "http://eida.koeri.boun.edu.tr/fdsnws/station/1/query?net=KO&cha=HHZ&level=channel&format=text&minlatitude=40.1500&maxlatitude=41.2500&minlongitude=26.8500&maxlongitude=31.1500&starttime=2026-03-01T00:00:00&endtime=2026-07-11T00:00:00&nodata=404",
+    "http_status": 200,
+    "provider": "KOERI/Bogazici University EIDA FDSN station service (network KO)",
+    "receipt_sha256": "9bccbf5f013073b1510b41ecb0b5383c690e5713ea903dade8c75d386175ae72"
+   },
+   "socal_coachella_CI": {
+    "fdsn_station_query_url": "https://service.scedc.caltech.edu/fdsnws/station/1/query?net=CI&cha=HHZ&level=channel&format=text&minlatitude=32.6500&maxlatitude=34.1500&minlongitude=-116.9500&maxlongitude=-115.0500&starttime=2026-03-01T00:00:00&endtime=2026-07-11T00:00:00&nodata=404",
+    "http_status": 200,
+    "provider": "SCEDC (Caltech) FDSN station service (network CI)",
+    "receipt_sha256": "260fb7c440038a20703eb8d70b1571b8fa34fd8fa6a5bdf580b7bd8f2ffa3093"
+   },
+   "turkey_kahramanmaras_KO": {
+    "fdsn_station_query_url": "http://eida.koeri.boun.edu.tr/fdsnws/station/1/query?net=KO&cha=HHZ&level=channel&format=text&minlatitude=35.8500&maxlatitude=39.1500&minlongitude=34.8500&maxlongitude=40.1500&starttime=2026-03-01T00:00:00&endtime=2026-07-11T00:00:00&nodata=404",
+    "http_status": 200,
+    "provider": "KOERI/Bogazici University EIDA FDSN station service (network KO)",
+    "receipt_sha256": "6f62ebb68a9652f523c8491bd7bfa2d34605e3a1bc24de4271cc3097002abb2a"
+   }
+  }
+ },
+ "registry": {
+  "pool_stations": 110,
+  "selected_stations": 35
+ },
+ "schema": "geo2graph-map-public-v1",
+ "typed_absences": [
+  {
+   "carrier_key": "turkey_kahramanmaras",
+   "reason": "no published coordinate in the provider metadata (typed absence; never invented)",
+   "segment_name": "east_anatolian_central",
+   "station_id": "KO.KHMN"
+  }
+ ]
+}

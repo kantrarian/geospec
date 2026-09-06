@@ -1,0 +1,34 @@
+{
+ "artifact_sha256": "a5cc05f84d1fb2ac6db048b9151cdf974e5ad1f3d5b2e02e0fbf4f112ccc3293",
+ "claim": {
+  "artifact_claim_kind": "STATION_PRESENCE",
+  "support_outcome": "NOT_APPLICABLE"
+ },
+ "join_kind": "RESTAGED_LINEAGE",
+ "new_authority": {
+  "blob_sha256": "3c24182b042de1a14d2717610b8940acd93f44be8dc8fdc344cce771d28d4f66",
+  "commit": "0e248d28ae16affd38dc440042a81fc857a320c8",
+  "keys_sha256": "3e7a4779f95e6feb835331998ec4b270721fd54e5b36520af03b79e68cb920a9",
+  "path": "docs/f2g_window2_execution/staged_expected_contracts_v3.json"
+ },
+ "old_authority": {
+  "blob_sha256": "b5b0a61a4edcdac2bfcd8a819f2e118a81c492947a0b6167ffd07ef09338967e",
+  "commit": "332a98acd34797163413350dc4989fdb37ec87b2",
+  "keys_sha256": "9a2b5b6c5e0b0f456f4587e7eed63c561440685cae33bad59ac4b3d4ebc7cee9",
+  "path": "docs/f2g_window2_execution/staged_expected_contracts_v3.json"
+ },
+ "raw_body_bytes": 1916,
+ "raw_body_sha256": "cf9263516350b75d2c4d8a6c366f41044451022dda8976b4448d2981da24fdf2",
+ "s_v3_sha256": "cc2b1aee9738b4171b858ee77b9a745d2b4ec88de95f0be96c6e32d0ec2ddf08",
+ "s_v4_sha256": "cc2b1aee9738b4171b858ee77b9a745d2b4ec88de95f0be96c6e32d0ec2ddf08",
+ "schema": "f2g-w2-restage-lineage-v1",
+ "t_v3_sha256": "83b4da32a5a7b2b02b8b5f5ac678064aaad9f2d214671d75ec3978c0600f39f1",
+ "transform_identity": {
+  "artifact_schema": "f2g-w2-admission-artifact-v1",
+  "digest_domain": "UTF8_SOURCE_LF_V1",
+  "module": "w2_acquisition_capture_grassmann.py",
+  "source_sha256": "a48baa50530854d966e2a6947af7c9108a1ca1e7068364a59f21e6597f3cee7f"
+ },
+ "v3_key": "SELECTION_RECORDS/istanbul_marmara/2026-07-20",
+ "v4_key": "SELECTION_RECORDS/istanbul_marmara/2026-07-20"
+}

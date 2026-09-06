@@ -1,0 +1,66 @@
+{
+ "author": "cayley (successor packet w2r1)",
+ "claim_ceiling": "reuse attestation only; candidate status, not admission; no power value, no scientific claim; Lambda_geo INCONCLUSIVE",
+ "cutoff_proof": {
+  "fit_cutoff": "2026-08-20",
+  "strictly_pre_evaluation": true,
+  "successor_evaluation_start": "2026-09-04"
+ },
+ "drafted_utc": "2026-08-30T22:08Z",
+ "failure_rule": "any mismatch REFUSES reuse; replace/rebind explicitly, never silently refit",
+ "fit_identity": {
+  "amended_training_digest": "bbb193d0e008703ec764c08cf4471478a13ce33bb55ceaf9f558a28ce1160ffc",
+  "fit_cutoff": "2026-08-20",
+  "lane": "MF4_AMENDED",
+  "training_digest": "a3f94c23e1162c2aecfe4b54686edfdb5f35078dc72840b2344dd56a016d7dfd"
+ },
+ "ruling_basis": "codex Gate-2 2026-08-30T18:44Z reuse rule: 'M-F4's already-verified trust/fit artifacts should be reused as candidates, not rerun by default: the successor must show their model/rules are unchanged and their fit cutoff remains strictly pre-evaluation. If that proof fails, replace/rebind them explicitly rather than silently refitting.'",
+ "schema": "f2g-w2-mf4-reuse-attestation-v1",
+ "successor_readiness_record": {
+  "path": "docs/f2g_window2_execution/mf4_successor_readiness_record_v1.json",
+  "role": "codex cycle-2 finding 3: byte reuse proves fit identity only; prospective-producer standing through the successor maturity tail is bound by this record (renewal + producer identities + full-span no-refit emission proof); any divergence at landing refuses reuse; cycle-4 R4: the record now also binds the production-operation exercise of the registered run_mf4_daily_tick entrypoint (journaled prepare/store/accrue/receipt; fault+resume matrix; no barrier/store split); cycle-5 R1+R2 (codex cycle-4 items 1+2): the exercise now covers the durable-barrier crash boundaries (after_barrier_before_marker first+middle, after_store_write_before_STORED, partial-trailing-row recovery, divergent-bytes typed refusals; exactly one barrier event per region asserted) and the whole rebuild is carried by ONE resolved target commit -- fixtures materialized from committed bytes, never live paths; cycle-5 R1b (codex cycle-5 finding): the operation journal carries the same crash-tail recovery contract as the row store (closed phase shapes, typed corruption refusals, durable truncation + JOURNAL_TAIL_REPAIRED for an incomplete trailing append), exercised at the PREPARED/STORED/ACCRUED boundaries; cycle-5b R1c (codex cycle-5b finding): journal validation is of the OPERATION PROTOCOL, not only record shapes -- day identity, region/digest membership vs the PREPARED map, count ranges, PREPARED-before-side-effects, receipt-backed terminal COMMITTED -- locked by an 18-control relational matrix plus the legitimate mid-barrier STORED-repeat positive",
+  "sha256": "4f4a7dd41243965179ed5cbec2a539a856279933c8a8b86a0461198680a52e47",
+  "state": "READY_FOR_ACCRUAL"
+ },
+ "unchanged_model_rules_proof": {
+  "artifacts": [
+   {
+    "path": "docs/f2g_window2_execution/calibration/mf4_final_bind_record_v1.json",
+    "sha256_at_8cc564e7": "ddff627634e42eaa0b00b6e2beed54ee7fa7d099069100d95fcc924e7fd52768"
+   },
+   {
+    "path": "docs/f2g_window2_execution/calibration/mf4_input_feed_amended.json",
+    "sha256_at_8cc564e7": "c337b07f18a237155da2439e5ece57b8ad793301941edeb90d03e0286e185511"
+   },
+   {
+    "path": "docs/f2g_window2_execution/calibration/mf4_ledger_amended.json",
+    "sha256_at_8cc564e7": "3f07d9bb112b9d195cce1fd97e5f6f304ca1c2a28d6d66d65b3bf5a70e90623a"
+   },
+   {
+    "path": "docs/f2g_window2_execution/calibration/mf4_ledger_amended.receipt.json",
+    "sha256_at_8cc564e7": "251be9a46951e1ce77fda8d532b86f341c0351b092b2ec2462b6500920775c88"
+   },
+   {
+    "path": "docs/f2g_window2_execution/mf4_trust_anchor_v2_finalization_20260830.md",
+    "sha256_at_8cc564e7": "3a1544aac790998753ece14ee66ad09ce5d1510bfe7900c4d6a4bf728a8092d7"
+   },
+   {
+    "path": "docs/f2g_window2_execution/mf4_maturity_record_v4.json",
+    "sha256_at_8cc564e7": "74507258849d314255836e3552809ea116bb61b2357487ca627822e04a104507"
+   },
+   {
+    "path": "docs/f2g_window2_execution/mf4_archive_capsule_v1.json",
+    "sha256_at_8cc564e7": "4fe32158b3028a807f7903862a0d1d788ae49de7ca59f63b94ce8d47ca1e5cb3"
+   },
+   {
+    "path": "docs/f2g_window2_execution/mf4_archive_receipt_v1.json",
+    "sha256_at_8cc564e7": "7c11b8895fd702e032a5dfdbb4b756883e9bb6837fd2ca268a3169e39097aa5c"
+   },
+   {
+    "path": "docs/f2g_window2_execution/amendment_mf4_late_catalog_repair_20260829.md",
+    "sha256_at_8cc564e7": "74907450032cf1c4f9e71386872b8c40f5be5db7e87c1046977dd37404a3c72c"
+   }
+  ],
+  "method": "byte identity: every listed artifact's sha256 at the successor landing tip must equal sha256_at_8cc564e7 below; the verifier recomputes from git objects at the landing tip, never from a working tree"
+ }
+}

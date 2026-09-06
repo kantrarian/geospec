@@ -1,0 +1,161 @@
+{
+ "corpusA": {
+  "istanbul_marmara": {
+   "completeness_caveat": "ComCat completeness outside US is limited at M3.5 (TR boxes)",
+   "n_events_in_box": 0,
+   "n_test": 34,
+   "n_train": 77,
+   "pos_test": 0,
+   "pos_train": 0,
+   "status": "INSUFFICIENT_LABELS"
+  },
+  "socal_coachella": {
+   "auc_gbt": 0.375,
+   "auc_logistic": 0.443,
+   "auc_persistence": 0.464,
+   "completeness_caveat": "ComCat completeness outside US is limited at M3.5 (TR boxes)",
+   "gbt_top_features": [
+    {
+     "feature": "n_edges",
+     "perm_importance": 0.0
+    },
+    {
+     "feature": "frac_neg",
+     "perm_importance": 0.0
+    },
+    {
+     "feature": "fiedler",
+     "perm_importance": 0.0
+    },
+    {
+     "feature": "recent_event",
+     "perm_importance": 0.0
+    },
+    {
+     "feature": "mean_r",
+     "perm_importance": -0.012
+    },
+    {
+     "feature": "std_r",
+     "perm_importance": -0.0146
+    },
+    {
+     "feature": "frac_high",
+     "perm_importance": -0.0212
+    },
+    {
+     "feature": "eigengap",
+     "perm_importance": -0.0282
+    }
+   ],
+   "n_events_in_box": 6,
+   "n_test": 33,
+   "n_train": 75,
+   "pos_test": 5,
+   "pos_train": 6
+  },
+  "turkey_kahramanmaras": {
+   "auc_gbt": 0.415,
+   "auc_logistic": 0.628,
+   "auc_persistence": 0.668,
+   "completeness_caveat": "ComCat completeness outside US is limited at M3.5 (TR boxes)",
+   "gbt_top_features": [
+    {
+     "feature": "mean_r",
+     "perm_importance": 0.0513
+    },
+    {
+     "feature": "std_r",
+     "perm_importance": 0.0395
+    },
+    {
+     "feature": "n_edges",
+     "perm_importance": 0.0
+    },
+    {
+     "feature": "fiedler",
+     "perm_importance": 0.0
+    },
+    {
+     "feature": "recent_event",
+     "perm_importance": 0.0
+    },
+    {
+     "feature": "frac_high",
+     "perm_importance": -0.0182
+    },
+    {
+     "feature": "roll_z_mean_r",
+     "perm_importance": -0.03
+    },
+    {
+     "feature": "frac_neg",
+     "perm_importance": -0.0411
+    }
+   ],
+   "n_events_in_box": 10,
+   "n_test": 34,
+   "n_train": 77,
+   "pos_test": 11,
+   "pos_train": 18
+  }
+ },
+ "corpusB": {
+  "pooled_14region": {
+   "auc_gbt": 0.557,
+   "auc_logistic": 0.59,
+   "auc_persistence": 0.545,
+   "gbt_top_features": [
+    {
+     "feature": "recent_event",
+     "perm_importance": 0.0493
+    },
+    {
+     "feature": "confidence",
+     "perm_importance": 0.046
+    },
+    {
+     "feature": "drisk",
+     "perm_importance": 0.0356
+    },
+    {
+     "feature": "roll_z_risk",
+     "perm_importance": 0.0155
+    },
+    {
+     "feature": "xregion_mean_risk",
+     "perm_importance": 0.0012
+    },
+    {
+     "feature": "tier",
+     "perm_importance": 0.0002
+    },
+    {
+     "feature": "risk",
+     "perm_importance": -0.0177
+    }
+   ],
+   "n_test": 1061,
+   "n_train": 2475,
+   "pos_test": 135,
+   "pos_train": 478,
+   "regions_pooled": {
+    "anchorage": 6,
+    "campi_flegrei": 0,
+    "cascadia": 1,
+    "hualien": 77,
+    "istanbul_marmara": 1,
+    "kaikoura": 5,
+    "kumamoto": 39,
+    "mexico_guerrero": 40,
+    "norcal_hayward": 3,
+    "ridgecrest": 1,
+    "socal_saf_mojave": 5,
+    "turkey_kahramanmaras": 18
+   }
+  }
+ },
+ "generated_utc": "2026-08-21T19:14:52Z",
+ "lane": "EXPLORATORY -- zero claim weight; feature ranking for the window-2 prereg only; aftershock clustering means only LIFT OVER PERSISTENCE is interesting",
+ "schema": "f2g-f4-ml-mining-v1"
+}

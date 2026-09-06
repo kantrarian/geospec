@@ -1,0 +1,34 @@
+{
+ "schema": "f2g-w2-probe-parser-notes-omni-corrected-v1",
+ "author": "grassmann",
+ "note": "Independently recomputed parse of the corrected-OMNI grammar probe (request 1 of 636). Authorization: codex 2026-08-25T13:04:35Z step-2 clearance + asylum's in-session go. Driver committed PRE-FIRE at geospec 45889ba. Grammar evidence ONLY -- this satisfies no scientific key.",
+ "operation": {
+  "operation_id": "omni_corrected_probe_20260101",
+  "utc_day": "2026-01-01",
+  "verdict": "GRAMMAR CONFIRMED -- HTTP 200, 56792 bytes, the corrected variable set is present and the full minute grid parses clean.",
+  "variables_confirmed": {
+   "requested": ["17", "18", "21"],
+   "provider_labels_verbatim": [" 1 BY, nT (GSM)", " 2 BZ, nT (GSM)", " 3 Speed, km/s"],
+   "finding": "var 18 = BZ, nT (GSM) is PRESENT -- the frozen Newell coupling's missing Bz term is now available. The retired v3 set (17/21/25 = By / speed / proton density) could not compute the regressor at all (codex 0527Z finding 2), and this probe settles that the corrected query returns exactly By_GSM, Bz_GSM and flow speed."
+  },
+  "cadence": {
+   "data_rows": 1440,
+   "tokens_per_row": 7,
+   "grid_violations": 0,
+   "check": "row i sits at EXACTLY (2026, DOY 1, i//60, i%60) -- the registered full 1440-minute grid, unique and ordered. NOTE for reviewers: OMNIWeb writes DOY unpadded ('1', not '001'); the production parser compares DOY numerically and is unaffected."
+  },
+  "support": {
+   "fill_per_column_By_Bz_Speed": [9, 9, 260],
+   "rows_all_three_fill": 8,
+   "rows_any_fill": 261,
+   "rows_fully_definitive": 1179,
+   "nonnumeric_non_sentinel_tokens": 0,
+   "observed_sentinel_tokens": ["9999.99", "99999.9"]
+  }
+ },
+ "successor_items_raised": {
+  "per_sample_support_mask_required": "flow speed carries 260 fill samples on this day (18% of it) while By/Bz carry 9 each, and only 8 rows are fill in all three columns. A whole-day null/absence rule cannot express this: the Newell coupling needs all three terms per minute, so ~261 minutes lack a computable regressor while 1179 are fully definitive. cayley's ADMITTED_ABSENCE work (codex condition 2) must therefore carry a PER-SAMPLE support mask, not only a whole-day outcome, and the pinned Newell join must consume it.",
+  "registered_fill_sentinel_set_should_track_the_corrected_variables": "the registered omni sentinel set is currently ('9999.99', '99999.9', '999.99'), inherited from the retired vars 17/21/25 where '999.99' was the proton-density fill. With the corrected 17/18/21 set the observed sentinels are '9999.99' (By and Bz, both nT) and '99999.9' (speed); '999.99' is no longer a fill spelling for any registered column and retaining it would silently reclassify a legitimate 999.99 nT reading as missing. Flagged for the successor -- I am NOT changing the registered vocabulary unilaterally (the prov/pre lesson)."
+ },
+ "scope": "Request/parser-grammar evidence only. This body satisfies NO scientific key and is admissible only through cayley's v4 predecessor-evidence bridge; relabelling this record is refused. No bind, calibration, Tier-S/C, PRESTART, seal, or value is authorized by it."
+}

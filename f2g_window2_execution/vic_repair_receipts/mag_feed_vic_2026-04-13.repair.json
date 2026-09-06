@@ -1,0 +1,21 @@
+{
+ "capsule_path": "docs/f2g_window2_execution/mag_capsules/mag_capsule_vic.json",
+ "capsule_sha256": "f14333e87d4d3d9956373fdf14b2c646998ae071f45924374ef96e12f701d8d0",
+ "http_requests": 0,
+ "key": "MAG_FEED/vic/2026-04-13",
+ "original_refusal": "ADMISSION_TRANSFORM_REFUSED: GIN MAG: source orientation 'XYZS' is not a registered REPORTED convention and no committed frame capsule exists at docs/f2g_window2_execution/mag_capsules/mag_capsule_vic.json -- the canonical mask is never derived without the pinned frame",
+ "original_seq": 314,
+ "output_sha256": "0dbdcc298757f61af44a47b3ee0f49884ac0af8135433d444fe3073c135a610b",
+ "proof_kind": "NATIVE_V4_CAPTURE",
+ "raw_body_bytes": 96431,
+ "raw_body_sha256": "b0443e887363763ca3ded793a243d9f1ae4fa02a86f858e7b421f8b3be96fe62",
+ "repair": "vic-frame-capsule-registration-20260827",
+ "sensor_orientation": "XYZS",
+ "transcript_sha256": "8284b427c56146cf2e45b4de1fff0e319f965fc10a2ff2a9deb6b5a176c4953c",
+ "transform_identity": {
+  "artifact_schema": "f2g-w2-admission-artifact-v1",
+  "digest_domain": "UTF8_SOURCE_LF_V1",
+  "module": "w2_acquisition_capture_grassmann.py",
+  "source_sha256": "a48baa50530854d966e2a6947af7c9108a1ca1e7068364a59f21e6597f3cee7f"
+ }
+}

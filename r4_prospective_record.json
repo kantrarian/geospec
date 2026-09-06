@@ -1,0 +1,242 @@
+{
+ "generated": "2026-09-06T07:07:58.567343",
+ "config": {
+  "spec": "AMENDMENT_2026-07-29_prospective_arm (R4)",
+  "start_date": "2026-07-29",
+  "min_magnitude": 5.5,
+  "hit_window_days": 14,
+  "alarm_min_tier": 2,
+  "episode_gap_days": 3,
+  "alarm_reset_days": 14,
+  "exclusion_cap_days": 365,
+  "region_buffer_km": 100.0,
+  "min_mainshocks_for_skill": 10,
+  "stats_plan_amendment": null
+ },
+ "period": {
+  "start": "2026-07-29",
+  "end": "2026-09-06"
+ },
+ "molchan": {
+  "per_region": {
+   "ridgecrest": {
+    "scoreable_days": 38,
+    "alarm_days": 0,
+    "excluded_days": 0,
+    "tau": 0.0
+   },
+   "socal_saf_mojave": {
+    "scoreable_days": 38,
+    "alarm_days": 0,
+    "excluded_days": 0,
+    "tau": 0.0
+   },
+   "socal_saf_coachella": {
+    "scoreable_days": 38,
+    "alarm_days": 0,
+    "excluded_days": 0,
+    "tau": 0.0
+   },
+   "norcal_hayward": {
+    "scoreable_days": 38,
+    "alarm_days": 0,
+    "excluded_days": 0,
+    "tau": 0.0
+   },
+   "cascadia": {
+    "scoreable_days": 38,
+    "alarm_days": 0,
+    "excluded_days": 0,
+    "tau": 0.0
+   },
+   "tokyo_kanto": {
+    "scoreable_days": 0,
+    "alarm_days": 0,
+    "excluded_days": 38,
+    "tau": null
+   },
+   "istanbul_marmara": {
+    "scoreable_days": 38,
+    "alarm_days": 0,
+    "excluded_days": 0,
+    "tau": 0.0
+   },
+   "turkey_kahramanmaras": {
+    "scoreable_days": 38,
+    "alarm_days": 4,
+    "excluded_days": 0,
+    "tau": 0.10526315789473684
+   },
+   "campi_flegrei": {
+    "scoreable_days": 0,
+    "alarm_days": 0,
+    "excluded_days": 38,
+    "tau": null
+   },
+   "kaikoura": {
+    "scoreable_days": 38,
+    "alarm_days": 0,
+    "excluded_days": 0,
+    "tau": 0.0
+   },
+   "anchorage": {
+    "scoreable_days": 0,
+    "alarm_days": 0,
+    "excluded_days": 38,
+    "tau": null
+   },
+   "kumamoto": {
+    "scoreable_days": 0,
+    "alarm_days": 0,
+    "excluded_days": 38,
+    "tau": null
+   },
+   "hualien": {
+    "scoreable_days": 0,
+    "alarm_days": 0,
+    "excluded_days": 38,
+    "tau": null
+   },
+   "mexico_guerrero": {
+    "scoreable_days": 0,
+    "alarm_days": 0,
+    "excluded_days": 38,
+    "tau": null
+   }
+  },
+  "pooled": {
+   "scoreable_days": 304,
+   "alarm_days": 4,
+   "tau": 0.013157894736842105,
+   "admissible_mainshocks": 0,
+   "hits": 0,
+   "misses": 0,
+   "nu": null
+  },
+  "eligible_for_plan": false,
+  "descriptive_only": true
+ },
+ "episodes": [
+  {
+   "region": "kumamoto",
+   "onset": "2026-07-14",
+   "end": "2026-07-18",
+   "n_days": 5,
+   "fresh": false,
+   "alarm_dates": [
+    "2026-07-14",
+    "2026-07-15",
+    "2026-07-16",
+    "2026-07-17",
+    "2026-07-18"
+   ],
+   "excluded": false,
+   "left_censored": true,
+   "status": "left_censored",
+   "credited_event": ""
+  },
+  {
+   "region": "turkey_kahramanmaras",
+   "onset": "2026-08-22",
+   "end": "2026-08-23",
+   "n_days": 2,
+   "fresh": false,
+   "alarm_dates": [
+    "2026-08-22",
+    "2026-08-23"
+   ],
+   "excluded": false,
+   "left_censored": false,
+   "status": "pending",
+   "credited_event": ""
+  },
+  {
+   "region": "turkey_kahramanmaras",
+   "onset": "2026-09-03",
+   "end": "2026-09-04",
+   "n_days": 2,
+   "fresh": false,
+   "alarm_dates": [
+    "2026-09-03",
+    "2026-09-04"
+   ],
+   "excluded": false,
+   "left_censored": false,
+   "status": "pending",
+   "credited_event": ""
+  }
+ ],
+ "event_outcomes": [
+  {
+   "event": "us6000tmta",
+   "mag": 5.8,
+   "region": "tokyo_kanto",
+   "outcome": "excluded_unscored"
+  }
+ ],
+ "exclusions": [
+  {
+   "region": "anchorage",
+   "mainshock_id": "ak2025xjbvhj",
+   "mag": 6,
+   "lat": 61.56951904296875,
+   "lon": -150.75079345703125,
+   "start": "2025-11-27",
+   "end": "2026-11-27",
+   "origin_utc": "2025-11-27T17:11:29.059000+00:00"
+  },
+  {
+   "region": "hualien",
+   "mainshock_id": "us7000rl2n",
+   "mag": 6.6,
+   "lat": 24.6841,
+   "lon": 122.0354,
+   "start": "2025-12-27",
+   "end": "2026-12-27",
+   "origin_utc": "2025-12-27T15:05:55.388000+00:00"
+  },
+  {
+   "region": "mexico_guerrero",
+   "mainshock_id": "us7000rm3k",
+   "mag": 6.5,
+   "lat": 16.798,
+   "lon": -99.3939,
+   "start": "2026-01-02",
+   "end": "2027-01-02",
+   "origin_utc": "2026-01-02T13:58:15.741000+00:00"
+  },
+  {
+   "region": "campi_flegrei",
+   "mainshock_id": "us7000s39n",
+   "mag": 6,
+   "lat": 40.57,
+   "lon": 13.9841,
+   "start": "2026-03-09",
+   "end": "2027-03-09",
+   "origin_utc": "2026-03-09T23:03:54.034000+00:00"
+  },
+  {
+   "region": "tokyo_kanto",
+   "mainshock_id": "us6000t8cy",
+   "mag": 5.8,
+   "lat": 35.6907,
+   "lon": 140.5771,
+   "start": "2026-06-26",
+   "end": "2027-06-26",
+   "origin_utc": "2026-06-26T03:46:35.798000+00:00"
+  },
+  {
+   "region": "kumamoto",
+   "mainshock_id": "us6000tgb9",
+   "mag": 6.8,
+   "lat": 32.6043,
+   "lon": 130.6269,
+   "start": "2026-07-28",
+   "end": "2027-07-28",
+   "origin_utc": "2026-07-28T07:27:14.640000+00:00"
+  }
+ ],
+ "n_events_fetched": 40,
+ "n_clustered_removed": 7,
+ "note": "DESCRIPTIVE ONLY - no registered statistical-plan amendment (R6 \u00a75); eligible_for_plan=0>=10=False. No skill claim is made."
+}

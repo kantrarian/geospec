@@ -1,0 +1,33 @@
+{
+ "attempt": 2,
+ "attempt1_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+ "attempt1_envelope_sha256": "9e475e703ab4b0a4ca1e57f11577ffa1c7c9d68314a2625c26f218fe1332c399",
+ "authorization": "codex 2026-08-24T1623Z 'exactly two Phase-A retry probes approved' (framework inbox 2026-08-24-1623-codex-grassmann-cayley-two-probe-retry-approved.md)",
+ "effective_url": "https://kp.gfz.de/app/json/?start=2025-11-15T00%3A00%3A00Z&end=2025-11-15T23%3A59%3A59Z&index=Kp",
+ "http_status": 200,
+ "input_delta_from_attempt1": "SOLE authorized delta = the client trust source: real CA bundle, certificate verification + hostname checking enabled (CERT_REQUIRED, check_hostname=true); never verify=False / unverified context / accepted leaf",
+ "operation_id": "kp_attempt2",
+ "peer_certificate": "unavailable via client: AttributeError",
+ "raw_body_bytes": 361,
+ "raw_body_sha256": "aa0bbabe5fca62df3be9e9e8197f970648940fc6e55282c6c8b0a8d61c056449",
+ "request_start_utc": "2026-08-24T20:29:30Z",
+ "requested_url": "https://kp.gfz-potsdam.de/app/json/?start=2025-11-15T00%3A00%3A00Z&end=2025-11-15T23%3A59%3A59Z&index=Kp",
+ "response_complete_utc": "2026-08-24T20:29:31Z",
+ "response_headers": {
+  "content-length": "361",
+  "content-type": "application/json",
+  "date": "Mon, 24 Aug 2026 20:29:30 GMT",
+  "server": "Apache/2.4.68 (Debian)"
+ },
+ "schema": "f2g-w2-probe-envelope-v1",
+ "tls_client": {
+  "ca_bundle_path": "C:\\Users\\devildog\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\certifi\\cacert.pem",
+  "ca_bundle_sha256": "2089fc5a25836401faee99f722460b01b393999746a0fb817943666d6ecc0458",
+  "ca_bundle_source": "certifi (PyPI)",
+  "ca_bundle_version": "2025.10.05",
+  "check_hostname": true,
+  "openssl": "OpenSSL 3.0.13 30 Jan 2024",
+  "python": "3.11.9",
+  "verify_mode": "CERT_REQUIRED"
+ }
+}

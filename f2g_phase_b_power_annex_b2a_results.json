@@ -1,0 +1,196 @@
+{
+ "certified_points": [
+  {
+   "lb95": 0.8608916593317347,
+   "point": {
+    "m": 1
+   },
+   "post_loco": {
+    "replicates": 20,
+    "successes": 20
+   },
+   "ub95": 1.0
+  },
+  {
+   "lb95": 0.8608916593317347,
+   "point": {
+    "m": 2
+   },
+   "post_loco": {
+    "replicates": 20,
+    "successes": 20
+   },
+   "ub95": 1.0
+  },
+  {
+   "lb95": 0.8608916593317347,
+   "point": {
+    "m": 3
+   },
+   "post_loco": {
+    "replicates": 20,
+    "successes": 20
+   },
+   "ub95": 1.0
+  }
+ ],
+ "digests": {
+  "admitted_bar_lf_sha256": "295631fed6f836c18bf40975403db7799422f83dc74ea74cf14b8651fdcad2a6",
+  "annex_b1a_sha256": "e7e08454ec5f4ba45dd3092797afe26cbb12727b02a6027a962cfb99fb946a9b",
+  "annex_b2a_sha256": "1df422a477bd418bd26067b5afdd4211bbb1882f6eff5de5f640fd2d891ceaf6",
+  "annex_b3a_sha256": "0c5fc14f6ecc4606b4a2548e788f962fd844ef0997ffb271ecf2e456d497f8d0",
+  "annex_common_rev13_sha256": "b6352e914bf24b3c54663388daa9e71d15a637491c5fec4462abcd6785bc2e8d",
+  "engine": "d2_f2g_phase_b_stats.py @ 493c2b9",
+  "engine_lf_sha256": "96949d45463f76428d8e0dbab81715d2cc0c48e8164dde5502f87a8153dc5dad",
+  "estimation_driver_commit": "e384e2c (audit deltas inert to estimation)",
+  "frozen_amendment_sha256": "f3d0830b38869d8b6f0b03d113d45ae0f111e8645bd4a2934582b21e48e909e8"
+ },
+ "disclosures": [
+  "the evidence capsule's launch-time gate row carries a stale hardcoded label ('b4a7eee'); it is superseded by the SOURCE-ATTESTED full gate receipt bound below (codex repair 2): full + ALL 35 LOCO folds proven exactly equal against admitted engine 493c2b9 post-run.",
+  "the admitted bar's _results_bound checker binds the SUPERSEDED-family authorities by design and correctly returns False on these amended artifacts; conformance for the amended lane is established by the committed strict verifier (codex repair 3), not by that checker."
+ ],
+ "env": {
+  "machine": "AMD64",
+  "numpy": "2.5.2",
+  "python": "3.12.10"
+ },
+ "equivalence_receipt": {
+  "all_equal": true,
+  "driver_commit_bound": "e384e2c",
+  "driver_disk_sha256": "de19e162bb876344faa5b01f0fca8533647aeb56313ad600c37db6b608edff6e",
+  "engine_commit_bound": "493c2b9",
+  "engine_disk_sha256": "fd819da34fe0ec1fc64b44a9d07adc7c65b1e087883f4fa5319a96b1098a818f",
+  "fold_equal_all": true,
+  "folds_checked": 35,
+  "full_equal": true,
+  "receipt_path": "docs/f2g_phase_b_power_a_fullgate_receipt.json",
+  "receipt_sha256": "5da09567999aac55c64c166306a35c69b1bd48f974e0e3bdcbb0976fd5120617"
+ },
+ "evidence_capsule": {
+  "authority": "the committed LF git blob (git cat-file), never the checkout representation",
+  "git_blob_sha256": "982898707a97dbfb9c520a51d51b9d49dc49f049a9c13bd6ac6bef12307b5778",
+  "note": "immutable checkpoint capsule: every Tier-S/S2/C replicate row incl. all Tier-C full+post-LOCO outcomes and the launch gate row",
+  "path": "docs/f2g_phase_b_power_a_evidence.jsonl",
+  "rows": 4890
+ },
+ "family": "B2A",
+ "pareto_minimal_certified": [
+  {
+   "lb95": 0.8608916593317347,
+   "point": {
+    "m": 1
+   },
+   "post_loco": {
+    "replicates": 20,
+    "successes": 20
+   },
+   "ub95": 1.0
+  }
+ ],
+ "schema": "f2g-phase-b-power-results-v1",
+ "terminal_type": "CERTIFIED",
+ "tier_c": {
+  "candidates": [
+   {
+    "lb95": 0.8608916593317347,
+    "point": {
+     "m": 1
+    },
+    "post_loco": {
+     "replicates": 20,
+     "successes": 20
+    },
+    "stopping": "CERTIFIED@R=20",
+    "ub95": 1.0,
+    "verdict": "CERTIFIED"
+   },
+   {
+    "lb95": 0.8608916593317347,
+    "point": {
+     "m": 2
+    },
+    "post_loco": {
+     "replicates": 20,
+     "successes": 20
+    },
+    "stopping": "CERTIFIED@R=20",
+    "ub95": 1.0,
+    "verdict": "CERTIFIED"
+   },
+   {
+    "lb95": 0.8608916593317347,
+    "point": {
+     "m": 3
+    },
+    "post_loco": {
+     "replicates": 20,
+     "successes": 20
+    },
+    "stopping": "CERTIFIED@R=20",
+    "ub95": 1.0,
+    "verdict": "CERTIFIED"
+   }
+  ],
+  "label": "CERTIFICATION",
+  "n_draws": 9999
+ },
+ "tier_s1": {
+  "label": "PRELIMINARY_SMOKE",
+  "n_draws": 999,
+  "replicates": 50,
+  "table": [
+   {
+    "n": 50,
+    "point": {
+     "m": 1
+    },
+    "pre_loco_recovery": 1.0
+   },
+   {
+    "n": 50,
+    "point": {
+     "m": 2
+    },
+    "pre_loco_recovery": 1.0
+   },
+   {
+    "n": 50,
+    "point": {
+     "m": 3
+    },
+    "pre_loco_recovery": 1.0
+   }
+  ]
+ },
+ "tier_s2": {
+  "label": "PRELIMINARY_SMOKE",
+  "n_draws": 999,
+  "replicates": 50,
+  "table": [
+   {
+    "n": 50,
+    "point": {
+     "m": 1
+    },
+    "post_loco_recovery": 1.0,
+    "pre_loco_recovery": 1.0
+   },
+   {
+    "n": 50,
+    "point": {
+     "m": 2
+    },
+    "post_loco_recovery": 1.0,
+    "pre_loco_recovery": 1.0
+   },
+   {
+    "n": 50,
+    "point": {
+     "m": 3
+    },
+    "post_loco_recovery": 1.0,
+    "pre_loco_recovery": 1.0
+   }
+  ]
+ }
+}

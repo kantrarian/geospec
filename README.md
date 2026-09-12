@@ -1,13 +1,13 @@
 ﻿# GeoSpec Ensemble Monitoring
 
-**Last Update**: 2026-09-09
+**Last Update**: 2026-09-10
 
 ## Current Status
 
 | Metric | Value |
 |--------|-------|
-| Highest Risk Region | turkey_kahramanmaras |
-| Risk Score | 0.173 |
+| Highest Risk Region | anchorage |
+| Risk Score | 0.234 |
 | Regions Monitored | 14 |
 
 ### Tier Distribution

@@ -1,0 +1,48 @@
+{
+ "schema": "geospec-mf4-catalog-attempt1-refusal-capsule-v1",
+ "registered_utc": "2026-08-30T02:24:05Z",
+ "attempt": 1,
+ "outcome": "TYPED_REFUSAL",
+ "refusal_code": "MF4_CATALOG_COUNT_MISMATCH",
+ "refusal_detail": "anchorage: metadata.count None != 6 features -- live ComCat API 2.7.0 metadata carries limit/offset but no count field; the pinned parser encoded the 1.x shape",
+ "refusal_utc": "2026-08-30T02:12:16.263082Z",
+ "queries_fired": 1,
+ "queries_not_fired": 12,
+ "snapshot_published": false,
+ "owner_go_status": "SPENT",
+ "authority_chain": {
+  "public_head_commit": "58782d8e3b3272cf3a7e4f5578a2a505aad38c99",
+  "public_head_tree": "fd096a6b1d314d806323a84741002826c37ef419",
+  "codex_pass_framework_commit": "d9a394c0eadd7c8ab595020609e1867240877eb1",
+  "owner_go_framework_commit": "03ea9cce9897484c4984571ff3ad69d1021c88c1",
+  "auth_schema": "geospec-mf4-fire-authorization-v4",
+  "module_git_blob_sha256": "0afdd0950c3e8532f24c7a4fc78e765183605d30f8d1dcc4ccae1c2117c3c846"
+ },
+ "fired_query": {
+  "region": "anchorage",
+  "requested_url": "https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&starttime=2025-10-11T00%3A00%3A00&endtime=2026-08-28T00%3A00%3A00&minmagnitude=4.0&minlatitude=60.0&maxlatitude=62.0&minlongitude=-151.0&maxlongitude=-148.0&orderby=time-asc&limit=20000",
+  "http_status": 200,
+  "features": 6,
+  "api_observed": "2.7.0"
+ },
+ "sealed_files": {
+  "raw_anchorage.geojson": {
+   "sha256": "9ce8ff6ad271bb1c10cf38d5a762b9b81345857267d893ae2b15140bc4ed2233",
+   "bytes": 5246
+  },
+  "attempt_anchorage.json": {
+   "sha256": "08f4e4fae6630cb3dcfa1df55671582599eca2d1217a69b84a6dc96fd2561fd7",
+   "bytes": 2176
+  },
+  "REFUSAL_MANIFEST.json": {
+   "sha256": "857f161f1f6c8881b74fcac5fa5a92b0fcc46a95b901f2c72710efe90b5c772e",
+   "bytes": 4641
+  }
+ },
+ "provenance_note": "moved byte-unchanged from docs/f2g_window2_execution/mf4_catalog_snapshot.staging/ per codex 2026-08-30T02:19Z ruling item 2; the sealed bytes are immutable refusal evidence; attempt 2 is a fresh uniform transaction that must NOT reuse them",
+ "nonclaims": [
+  "no snapshot was published by attempt 1",
+  "no calibration or evidentiary use of the sealed response",
+  "Lambda_geo remains INCONCLUSIVE"
+ ]
+}

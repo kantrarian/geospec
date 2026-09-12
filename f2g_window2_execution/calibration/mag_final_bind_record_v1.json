@@ -1,0 +1,29 @@
+{
+ "schema": "f2g-w2-mag-final-bind-record-v1",
+ "registered_utc": "2026-08-30T14:11:06Z",
+ "status": "PRIVATE_CANDIDATE_PENDING_CODEX_REVIEW_AND_OWNER_LANDING",
+ "landed_lane_commit": "3798b5f0ec29b3ca8ae9f857b801714090f82041",
+ "composite_commit": "47bb2a38d031280f67fab1a90891b4cf36d8d091",
+ "expected_input_sha256": "3620d0c2dfcdb4f55f1efe797302b5063900697535b5ced279da7c22a9503ec2",
+ "expected_input_meaning": "carrier object sha256 == s4t content address <sha>.body under s4t://geospec/w2/mag_calibration_input_v1 (byte-equal to grassmann's pre-fit dry-pass compact-carrier digest)",
+ "expected_ledger_sha256": "0ca7110b966e78ea73db455855baa091a5436f270961a46e4488e05ff4ea966d",
+ "expected_ledger_meaning": "canonical digest of receipt.results (14 ledgers: 5 obs x X/Y + 4 M3 pairs)",
+ "verify_with_expected": "lane MAG, verified_ledgers 14, provenance_checked REBUILT_FROM_COMMITTED_BYTES, ledger_binding FINAL_BIND_EXPECTED_VERIFIED; doctored expected value refuses CALIBRATION_RECEIPT_MISMATCH (both run first-hand)",
+ "run_identity": {
+  "host": "devildog",
+  "interpreter": "Python 3.11.9 (MSC v.1938 64-bit)",
+  "entry": "run_mag_calibration('.') -- registered repo-only entry, ONE invocation",
+  "store_alias": "GEOSPEC_MAG_CALIBRATION_STORE=\\\\192.168.50.1\\s4t\\geospec_mag_calibration_input_v1",
+  "artifacts_written_utc": "2026-08-30T14:09:17Z",
+  "cutoff": "2026-07-31",
+  "observatories": ["FRN", "IZN", "NEW", "TUC", "VIC"],
+  "m3_pairs": ["FRN:TUC:X", "FRN:TUC:Y", "VIC:NEW:X", "VIC:NEW:Y"]
+ },
+ "authorization": "asylum's recorded one-run MAG authorization, proceeding without a fresh word per codex 0614Z ruling after MAG_STEP2_TECHNICAL_PASS and the landed codex-certified composite",
+ "nonclaims": [
+  "PRIVATE candidate; lands publicly only on asylum's exact-commit word after codex's post-run ledger review",
+  "no scientific admission, publication, promotion, or prospective-value access",
+  "producer_boundary and calibration_ledgers remain OPEN until the final gate",
+  "Lambda_geo remains INCONCLUSIVE"
+ ]
+}

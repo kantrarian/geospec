@@ -1,0 +1,17 @@
+{
+ "effective_url": "http://eida.koeri.boun.edu.tr/fdsnws/station/1/query?net=KO&sta=AKDG%2CARGN%2CBNN%2CGAZ%2CKARA%2CKBAN%2CKHMN%2CKOZT%2CMLTY%2CNURH%2CTAHT&cha=HHZ&level=channel&format=text&starttime=2025-11-15&endtime=2025-11-16&nodata=404",
+ "http_status": 200,
+ "key": "SELECTION_RECORDS/turkey_kahramanmaras",
+ "probe_day_utc": "2025-11-15",
+ "raw_body_bytes": 1631,
+ "raw_body_sha256": "cb93f1ddb73acb019679ebc45fc85eefd2ca5eb9696257faf38b61ca121cfc81",
+ "request_start_utc": "2026-08-24T18:50:48Z",
+ "requested_url": "http://eida.koeri.boun.edu.tr/fdsnws/station/1/query?net=KO&sta=AKDG%2CARGN%2CBNN%2CGAZ%2CKARA%2CKBAN%2CKHMN%2CKOZT%2CMLTY%2CNURH%2CTAHT&cha=HHZ&level=channel&format=text&starttime=2025-11-15&endtime=2025-11-16&nodata=404",
+ "response_complete_utc": "2026-08-24T18:50:50Z",
+ "response_headers": {
+  "content-type": "text/plain",
+  "date": "Mon, 24 Aug 2026 18:50:49 GMT",
+  "server": "SeisComP-FDSNWS/1.2.4"
+ },
+ "schema": "f2g-w2-probe-envelope-v1"
+}

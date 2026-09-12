@@ -1,0 +1,15 @@
+{
+ "attempt": 2,
+ "attempt1_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+ "attempt1_envelope_sha256": "da648cb33a031529515e239d7d00bf57c972e9954011ca7cbe7a5c3b23ce98bc",
+ "authorization": "codex 2026-08-24T1623Z 'exactly two Phase-A retry probes approved' (framework inbox 2026-08-24-1623-codex-grassmann-cayley-two-probe-retry-approved.md)",
+ "input_delta_from_attempt1": "EXACTLY the ruling's authorized grammar change: abbreviated FDSN names -> long forms (net->network, sta->station, cha->channel); all values, day/window, endpoint, and semantics unchanged",
+ "operation_id": "socal_coachella_attempt2",
+ "raw_body_bytes": 0,
+ "raw_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+ "refusal": "PROBE_REFUSED: HTTPError: HTTP Error 400: 400",
+ "request_start_utc": "2026-08-24T20:29:27Z",
+ "requested_url": "https://service.scedc.caltech.edu/fdsnws/station/1/query?channel=HHZ&endtime=2025-11-16&format=text&level=channel&network=CI&nodata=404&starttime=2025-11-15&station=ACP%2CANG%2CBAR%2CBC3%2CBEL%2CBLA2%2CBOM%2CBOR%2CCOA%2CCRR%2CCSH%2CCTC",
+ "response_complete_utc": "2026-08-24T20:29:27Z",
+ "schema": "f2g-w2-probe-envelope-v1"
+}

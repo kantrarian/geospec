@@ -1,0 +1,17 @@
+{
+ "effective_url": "https://omniweb.gsfc.nasa.gov/cgi/nx1.cgi?activity=retrieve&res=min&spacecraft=omni_min&start_date=20251115&end_date=20251115&vars=41",
+ "http_status": 200,
+ "key": "MF4_FEED/sym_h",
+ "probe_day_utc": "2025-11-15",
+ "raw_body_bytes": 30820,
+ "raw_body_sha256": "1516b560c7f2c083ca0a3f6d41e3bfd4d8b7461d8bc9c8cdc1dd8d663c79d28c",
+ "request_start_utc": "2026-08-24T18:50:52Z",
+ "requested_url": "https://omniweb.gsfc.nasa.gov/cgi/nx1.cgi?activity=retrieve&res=min&spacecraft=omni_min&start_date=20251115&end_date=20251115&vars=41",
+ "response_complete_utc": "2026-08-24T18:50:55Z",
+ "response_headers": {
+  "content-type": "text/html",
+  "date": "Mon, 24 Aug 2026 18:50:53 GMT",
+  "server": "Apache"
+ },
+ "schema": "f2g-w2-probe-envelope-v1"
+}

@@ -1,0 +1,16 @@
+Error 400: Unrecognized start time [YYYY-MM-DDTHH:MM:SS.ssssss]: '2025-11-15'
+Unrecognized end time [YYYY-MM-DDTHH:MM:SS.ssssss]: '2025-11-16'
+
+
+More Details:
+handler exited, code: 3  reason: Bad Request
+
+Request:
+https://service.scedc.caltech.edu/fdsnws/station/1/query?net=CI&cha=HHZ&level=channel&format=text&minlatitude=32.6500&maxlatitude=34.1500&minlongitude=-116.9500&maxlongitude=-115.0500&starttime=2025-11-15&endtime=2025-11-16&nodata=404
+
+Request Submitted:
+2026/08/24 21:00:35 UTC
+
+Service version:
+Service: fdsnws-station  version: 1.1.0
+

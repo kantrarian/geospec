@@ -1,0 +1,32 @@
+{
+ "carrier": "cascadia",
+ "cutoff": "2026-08-27",
+ "endpoint": "https://service.iris.edu/fdsnws/station/1/query",
+ "expected_keys": [
+  "2026-07-23"
+ ],
+ "lane": "SELECTION_RECORDS",
+ "operation_params": {
+  "carrier": "cascadia",
+  "day": "2026-07-23"
+ },
+ "request_params": {
+  "cha": "HHZ",
+  "endtime": "2026-07-24",
+  "format": "text",
+  "level": "channel",
+  "maxlatitude": "51.0",
+  "maxlongitude": "-121.5",
+  "minlatitude": "45.0",
+  "minlongitude": "-128.0",
+  "net": "UW,CC,CN",
+  "nodata": "404",
+  "starttime": "2026-07-23"
+ },
+ "schema": "f2g-w2-static-contract-v1",
+ "source": {
+  "kind": "fdsn-station-channel",
+  "ref": "https://service.iris.edu/fdsnws/station/1/query"
+ },
+ "utc_day": "2026-07-23"
+}

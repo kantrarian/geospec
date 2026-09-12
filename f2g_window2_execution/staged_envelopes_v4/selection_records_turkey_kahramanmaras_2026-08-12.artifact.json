@@ -1,0 +1,40 @@
+{
+ "absent_stations": [
+  "KHMN"
+ ],
+ "artifact_claim_kind": "STATION_PRESENCE",
+ "carrier": "turkey_kahramanmaras",
+ "data_rows": 10,
+ "identity": "sta-overlap",
+ "kind": "fdsn-station-presence",
+ "lane": "SELECTION_RECORDS",
+ "outside_station_rows_excluded": 0,
+ "present_stations": [
+  "AKDG",
+  "ARGN",
+  "BNN",
+  "GAZ",
+  "KARA",
+  "KBAN",
+  "KOZT",
+  "MLTY",
+  "NURH",
+  "TAHT"
+ ],
+ "registered_stations": [
+  "AKDG",
+  "ARGN",
+  "BNN",
+  "GAZ",
+  "KARA",
+  "KBAN",
+  "KHMN",
+  "KOZT",
+  "MLTY",
+  "NURH",
+  "TAHT"
+ ],
+ "schema": "f2g-w2-admission-artifact-v1",
+ "support_outcome": "NOT_APPLICABLE",
+ "utc_day": "2026-08-12"
+}

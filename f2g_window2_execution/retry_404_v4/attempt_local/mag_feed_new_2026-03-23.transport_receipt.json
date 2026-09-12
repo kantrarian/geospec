@@ -1,0 +1,19 @@
+{
+ "attempt_id": "3e99dd6af9bd54bbd318f882dacfa6a0",
+ "dispatch_sha256": "f780ea2f702b82ae5b82533894257a5bc28cdc1a3a696f60104652cc2eb60854",
+ "evidence": {
+  "body_bytes_seen": 95292,
+  "effective_url": "https://geomag.usgs.gov/ws/data/?endtime=2026-03-24T00%3A00%3A00Z&format=json&id=NEW&sampling_period=60&starttime=2026-03-23T00%3A00%3A00Z",
+  "headers": {
+   "content-type": "application/json",
+   "date": "Thu, 27 Aug 2026 21:52:12 GMT"
+  },
+  "request_start_utc": "2026-08-27T21:52:09Z",
+  "requested_url": "https://geomag.usgs.gov/ws/data/?endtime=2026-03-24T00%3A00%3A00Z&format=json&id=NEW&sampling_period=60&starttime=2026-03-23T00%3A00%3A00Z",
+  "response_complete_utc": "2026-08-27T21:52:13Z",
+  "status": 200
+ },
+ "kind": "response",
+ "receipt_sha256": "e12d13681ca4e5e46ec800d854450ceb449f4614ae591889f516ac6329c64ac2",
+ "schema": "f2g-w2-retry-transport-receipt-v1"
+}

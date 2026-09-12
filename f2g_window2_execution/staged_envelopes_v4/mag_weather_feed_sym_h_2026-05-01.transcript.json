@@ -1,0 +1,25 @@
+{
+ "authority": {
+  "blob_sha256": "b5b0a61a4edcdac2bfcd8a819f2e118a81c492947a0b6167ffd07ef09338967e",
+  "commit": "332a98acd34797163413350dc4989fdb37ec87b2",
+  "keys_sha256": "9a2b5b6c5e0b0f456f4587e7eed63c561440685cae33bad59ac4b3d4ebc7cee9",
+  "path": "docs/f2g_window2_execution/staged_expected_contracts_v3.json"
+ },
+ "carrier": "sym_h",
+ "effective_url": "https://omniweb.gsfc.nasa.gov/cgi/nx1.cgi?activity=retrieve&end_date=20260501&res=min&spacecraft=omni_min&start_date=20260501&vars=41",
+ "headers": {
+  "content-type": "text/html",
+  "date": "Tue, 25 Aug 2026 04:50:45 GMT",
+  "server": "Apache"
+ },
+ "http_status": 200,
+ "lane": "MF4_FEED",
+ "raw_body_bytes": 30820,
+ "raw_body_sha256": "bef20a1d8f54ee382bbdbf701a1eb41e429804786cfe90a859a0d0ceb7373c50",
+ "request_start_utc": "2026-08-25T04:50:45Z",
+ "requested_url": "https://omniweb.gsfc.nasa.gov/cgi/nx1.cgi?activity=retrieve&end_date=20260501&res=min&spacecraft=omni_min&start_date=20260501&vars=41",
+ "response_complete_utc": "2026-08-25T04:50:46Z",
+ "schema": "f2g-w2-capture-transcript-v1",
+ "static_contract_sha256": "bcf624657b5c00eef3e851d525bd8220fb9a204ff314869ee5ae9d501a2d7ddd",
+ "utc_day": "2026-05-01"
+}

@@ -1,0 +1,23 @@
+{
+ "coef": [
+  0.9571974003530302,
+  0.010737672884586914,
+  -0.07441499853337041,
+  -0.00010632923083202239,
+  0.017357652002740392
+ ],
+ "columns": [
+  "intercept",
+  "reference_residual",
+  "weather:kp",
+  "weather:newell",
+  "weather:sym_h"
+ ],
+ "digest": "ce52fd9069314d258d004fdee23e668cb9d3edb19ade21fe96e63a3988b14177",
+ "meta": {
+  "component": "Y",
+  "cutoff": "2026-07-31",
+  "local": "VIC",
+  "reference": "NEW"
+ }
+}

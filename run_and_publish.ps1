@@ -306,6 +306,10 @@ try {
         git push origin master 2>&1 | Write-Host
         if ($LASTEXITCODE -eq 0) {
             Write-Host "  Pushed to GitHub" -ForegroundColor Green
+            # 5a. Declare this published day's receipt target: the exact pushed commit (receipt-selector proposal,
+            # grassmann 2026-09-14). Step 5b receipts DECLARED targets from their own build, never pages/builds/latest.
+            $PushedCommit = (git rev-parse HEAD).Trim()
+            python src\build_daily_receipt.py --declare-target --scored-day $AssessmentDate --commit $PushedCommit 2>&1 | Write-Host
         } else {
             Write-Host "  Push failed (exit $LASTEXITCODE); the commit is local and will push on the next run's rebase" -ForegroundColor Red
         }

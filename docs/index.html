@@ -582,6 +582,13 @@
 <body>
     <div class="container">
         <header>
+            <div id="research-status" role="note" style="background:#78350f; color:#fef3c7; border:2px solid #f59e0b;
+                 padding:0.8rem 1rem; border-radius:6px; margin-bottom:0.8rem; line-height:1.5;">
+                <strong>Research status: INCONCLUSIVE. Not an earthquake warning or forecasting service.</strong><br>
+                Scores and tier labels are experimental outputs, not calibrated earthquake probabilities.
+                Region labels can share station data and are not independent confirmations.
+                <a href="INCIDENT_2026-09-17_shared_support_claims.md" style="color:#fef3c7; text-decoration:underline;">2026-09-17 shared-support claim correction</a>.
+            </div>
             <div id="staleness-banner" style="display:none; background:#7f1d1d; color:#fff;
                  padding:0.6rem 1rem; border-radius:6px; margin-bottom:0.8rem; font-weight:600;"></div>
             <div id="r4-exclusions" style="display:none; background:#78350f; color:#fde68a;
@@ -599,7 +606,7 @@
             <p class="subtitle">GPS + Fault Correlation + Seismic THD</p>
             <p class="last-update" id="last-update">Loading data...</p>
             <p class="subtitle" style="margin-top: 0.5rem; font-size: 0.75rem; color: var(--text-secondary);">
-                v1.7.0 &mdash; Recalibrated stress-release detector with trans-Pacific correlation groups
+                v1.7.0 &mdash; Experimental tier-drop display; source-aware validation pending
             </p>
         </header>
 
@@ -633,47 +640,45 @@
             </div>
             <div class="legend-item">
                 <span style="color: #eab308; font-size: 1rem; line-height: 12px;">◆╌╌○</span>
-                <span>Drop (pending)</span>
+                <span>Experimental drop (no event match)</span>
             </div>
             <div class="legend-item">
                 <span style="color: #f97316; font-size: 1rem; line-height: 12px;">◆——●</span>
-                <span>Drop (confirmed)</span>
+                <span>Experimental drop (retrospective event match)</span>
             </div>
         </div>
 
         <!-- Stress-Release Drop Detector -->
         <div class="chart-section drop-section">
-            <h2 class="chart-title">Stress-Release Drop Detector</h2>
+            <h2 class="chart-title">Experimental Tier-Drop Display &mdash; Not a Forecast</h2>
             <p style="color: var(--text-secondary); font-size: 0.82rem; margin-bottom: 1rem;">
-                Detects the pre-rupture quiescence signature: a sharp tier drop following sustained elevation.
-                Observed in 5 of 6 validated historical events, with 1&ndash;3 day lead time before mainshock.
+                Displays tier drops after sustained elevation. This display has not been recomputed using verified source support;
+                the number of independently supported detections is unknown. These markers are not validated precursors.
             </p>
             <div class="drop-grid" id="drop-grid">
                 <div class="drop-empty loading">Analyzing recent data...</div>
             </div>
             <div class="drop-explainer">
-                <strong>Physical basis:</strong> Strain eigenframe rotation completes as stress transfers to the locked asperity.
-                The surrounding crust relaxes (commutator &rarr; 0), but the fault is at maximum stress.
-                Pattern: elevation (WATCH+ for &ge;3 days) &rarr; abrupt drop to NORMAL &rarr; rupture within 1&ndash;3 days.<br>
-                <strong>On the chart:</strong> ◆ marks the drop. A <span style="color:#eab308">dotted line</span> extends 3 days into the watch window (pending).
-                If an M5+ event occurs, the line becomes <span style="color:#f97316">solid</span> and terminates at the event (● confirmed).
+                <strong>Interpretation limit:</strong> A tier change does not establish stress release, a locked asperity,
+                or impending rupture. No causal mechanism or forecast lead time is established by this display.<br>
+                <strong>On the chart:</strong> ◆ marks a tier drop. A <span style="color:#eab308">dotted line</span> spans a 3-day comparison window.
+                A <span style="color:#f97316">solid line</span> ending at an M5+ event (●) is a retrospective event match,
+                not confirmation of a precursor or prediction. Card badges describe the experimental heuristic, not forecast confidence.
             </div>
             <details style="margin-top: 0.8rem; font-size: 0.8rem; color: var(--text-secondary);">
                 <summary style="cursor: pointer; color: var(--accent); font-weight: 500;">
-                    Multi-region correlation evidence (trans-Pacific coupling)
+                    Shared station support and limits of region counting
                 </summary>
                 <div style="margin-top: 0.6rem; padding: 0.8rem; background: var(--bg-secondary); border-radius: 6px; border-left: 3px solid var(--accent); line-height: 1.6;">
-                    The detector requires <strong>&ge;2 regions</strong> dropping on the same date, grounded in
-                    empirical cross-Pacific THD correlations from 8 months of continuous monitoring:<br>
-                    <strong style="color: var(--text-primary);">Western Pacific cluster</strong>
-                    (Hualien, Tokyo Kanto, Kumamoto): r &gt; 0.92 same-day correlation &mdash; these move as one tectonic unit.<br>
-                    <strong style="color: var(--text-primary);">Cascadia&ndash;Tokyo coupling</strong>:
-                    r = 0.58 at zero lag (p &lt; 0.001), rising to r = 0.90 at lag = &minus;1 day (Tokyo leads).
-                    Tidal aliasing rejected (M2 phase 149&deg;, non-opposing).<br>
-                    <strong style="color: var(--text-primary);">Propagation sequence</strong>:
-                    W. Pacific &rarr; Cascadia (+1d) &rarr; NorCal (+2d) &rarr; SoCal (+3d).
-                    Implied velocity ~190 km/hr, consistent with LAIC or cascade triggering.<br>
-                    <em>This multi-region filter reduces false detections by 76% while preserving all validated precursor signals.</em>
+                    The existing filter counts <strong>region labels</strong>, not independent station sources.
+                    It retains same-date drops in &ge;2 labels and also solo drops after &ge;5 elevated samples
+                    or from prior tier &ge;2. These rules have not been changed by this correction.<br>
+                    <strong>Public THD station map:</strong> IU.MAJO supports Kumamoto and Tokyo Kanto when Tokyo uses its fallback;
+                    IU.TUC supports Ridgecrest and both SoCal SAF labels; IU.ANTO supports both Turkey labels.
+                    Shared source data cannot supply independent regional corroboration.<br>
+                    Earlier tectonic-unit, propagation-speed, false-detection-reduction and validated-precursor claims
+                    are withdrawn pending source-aware tests. See the
+                    <a href="INCIDENT_2026-09-17_shared_support_claims.md">dated correction and public code references</a>.
                 </div>
             </details>
         </div>
@@ -686,37 +691,40 @@
 
         <!-- Validation Metrics Section -->
         <div class="chart-section" id="validation-section">
-            <h2 class="chart-title">Backtest Validation Metrics (Real GPS Data)</h2>
+            <h2 class="chart-title">Calibration / Training Backtest (Not Out-of-Sample)</h2>
+            <p class="validation-note">The 5/5 result below is calibration-set performance, not prospective skill.
+                The historical report separately lists 2/5 on its unseen-event retrospective set; neither result
+                establishes operational forecasting performance. <a href="CALIBRATION_BACKTEST_REPORT.md#424-training-set-performance">Report and dataset distinction</a>.</p>
             <div class="validation-grid">
                 <div class="validation-card">
-                    <div class="validation-label">Hit Rate</div>
-                    <div class="validation-value pass">100%</div>
-                    <div class="validation-detail">5/5 events detected (≥WATCH)</div>
-                    <div class="validation-target">Target: ≥60%</div>
+                    <div class="validation-label">Training-set Detection Rate</div>
+                    <div class="validation-value neutral">100%</div>
+                    <div class="validation-detail">5/5 calibration events (≥WATCH)</div>
+                    <div class="validation-target">Not an out-of-sample result</div>
                 </div>
                 <div class="validation-card">
                     <div class="validation-label">ELEVATED+ Rate</div>
                     <div class="validation-value pass">40%</div>
                     <div class="validation-detail">2/5 events (Tohoku, Morocco)</div>
-                    <div class="validation-target">Higher confidence alerts</div>
+                    <div class="validation-target">Calibration-set tier count</div>
                 </div>
                 <div class="validation-card">
                     <div class="validation-label">CRITICAL Rate</div>
                     <div class="validation-value neutral">20%</div>
                     <div class="validation-detail">1/5 events (Tohoku M9.0)</div>
-                    <div class="validation-target">Highest tier alerts</div>
+                    <div class="validation-target">Calibration-set tier count</div>
                 </div>
                 <div class="validation-card">
                     <div class="validation-label">Mean Lead Time</div>
                     <div class="validation-value pass">8.1 days</div>
                     <div class="validation-detail">195 hours (range: 4-10 days)</div>
-                    <div class="validation-target">Target: ≥24 hours</div>
+                    <div class="validation-target">Retrospective calibration summary</div>
                 </div>
             </div>
             <div class="validation-note">
                 <strong>Data Integrity:</strong> All Lambda_geo ratios computed from real NGL GPS .tenv3 files (no synthetic data)<br>
-                <strong>Thresholds:</strong> Noise floor ≤1.5x | WATCH ~2.2x+ | ELEVATED ~3.1x+ | CRITICAL ~4.7x+ (recalibrated May 2026)<br>
-                <strong>95% CI:</strong> Hit rate [57%, 100%] (Wilson) — strong but n=5 is small sample
+                <strong>Scope:</strong> Historical calibration figures; current threshold/version equivalence has not been verified here.<br>
+                <strong>95% CI:</strong> Training-set proportion [57%, 100%] (Wilson); this interval does not establish prospective skill
             </div>
         </div>
 
@@ -1200,7 +1208,7 @@
             if (!container) return;
 
             if (!drops || drops.length === 0) {
-                container.innerHTML = '<div class="drop-empty">No stress-release drops detected in recent data.</div>';
+                container.innerHTML = '<div class="drop-empty">No experimental tier-drop markers in recent data. This is not an all-clear.</div>';
                 return;
             }
 
@@ -1210,7 +1218,7 @@
             const recentDrops = drops.filter(d => new Date(d.dropDate) >= cutoff);
 
             if (recentDrops.length === 0) {
-                container.innerHTML = '<div class="drop-empty">No stress-release drops in the last 7 days.</div>';
+                container.innerHTML = '<div class="drop-empty">No experimental tier-drop markers in the last 7 days. This is not an all-clear.</div>';
                 return;
             }
 
@@ -1218,7 +1226,7 @@
                 <div class="drop-card confidence-${d.confidence}">
                     <div class="drop-region">
                         ${d.region.replace(/_/g, ' ').toUpperCase()}
-                        <span class="drop-confidence ${d.confidence}">${d.confidence.toUpperCase()}</span>
+                        <span class="drop-confidence ${d.confidence}">EXPERIMENTAL ${d.confidence.toUpperCase()} HEURISTIC</span>
                     </div>
                     <div class="drop-detail">
                         <strong>${d.priorTierName}</strong> (tier ${d.priorTier}) &rarr; NORMAL on <strong>${d.dropDate}</strong><br>
@@ -1537,6 +1545,11 @@
 
         // Render Methods Legend
         function renderMethodsLegend(methodDescriptions) {
+            // Claim text only: also overrides older descriptions loaded from JSON.
+            const interpretation = {
+                FC: 'Waveform correlation and its singular-value summary describe the recorded signals. They do not by themselves establish tectonic stress transfer or earthquake prediction.',
+                THD: 'THD summarizes harmonic content in recorded seismic waveforms. Elevated values alone do not establish crustal stress accumulation or impending rupture; source and processing effects require separate controls.'
+            };
             const container = document.getElementById('methods-legend');
             if (!container) {
                 console.error('methods-legend container not found!');
@@ -1551,7 +1564,7 @@
                         <span class="method-name">${method.name}</span>
                     </div>
                     <div class="method-description">${method.description}</div>
-                    <div class="method-derivation">${method.derivation}</div>
+                    <div class="method-derivation">${interpretation[key] || method.derivation}</div>
                     <div class="method-thresholds">
                         ${method.threshold_watch ? `<span class="threshold-badge watch">WATCH: ${method.threshold_watch}</span>` : ''}
                         ${method.threshold_elevated ? `<span class="threshold-badge elevated">ELEVATED: ${method.threshold_elevated}</span>` : ''}
@@ -1787,7 +1800,7 @@
                     name: "Fault Correlation (L2/L1)",
                     abbreviation: "FC",
                     description: "Cross-correlation of seismic waveforms across fault segments",
-                    derivation: "Continuous seismic waveforms from stations straddling fault segments are cross-correlated. L2/L1 is the ratio of the second-largest to largest singular value from SVD of the correlation matrix. Low values (<0.2) indicate decorrelation suggesting stress transfer.",
+                    derivation: "Waveform correlation and its singular-value summary describe the recorded signals. They do not by themselves establish tectonic stress transfer or earthquake prediction.",
                     threshold_elevated: "L2/L1 < 0.15",
                     threshold_critical: "L2/L1 < 0.08"
                 },
@@ -1795,7 +1808,7 @@
                     name: "Total Harmonic Distortion",
                     abbreviation: "THD",
                     description: "Ratio of harmonic energy to fundamental in seismic waveforms",
-                    derivation: "Seismic waveforms are FFT-transformed. THD measures the ratio of energy in harmonic frequencies (2f, 3f, etc.) to the fundamental. Elevated THD indicates non-linear stress accumulation in the crust, often preceding rupture.",
+                    derivation: "THD summarizes harmonic content in recorded seismic waveforms. Elevated values alone do not establish crustal stress accumulation or impending rupture; source and processing effects require separate controls.",
                     threshold_elevated: "z-score > 1.5 above 30-day baseline",
                     threshold_critical: "z-score > 2.5 above 30-day baseline"
                 }

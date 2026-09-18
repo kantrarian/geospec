@@ -485,6 +485,13 @@
 <body>
     <div class="container">
         <header>
+            <div id="research-status" role="note" style="background:#78350f; color:#fef3c7; border:2px solid #f59e0b;
+                 padding:0.8rem 1rem; border-radius:6px; margin-bottom:0.8rem; line-height:1.5;">
+                <strong>Research status: INCONCLUSIVE. Not an earthquake warning or forecasting service.</strong><br>
+                Scores and tier labels are experimental outputs, not calibrated earthquake probabilities.
+                Region labels can share station data and are not independent confirmations.
+                <a href="../../docs/INCIDENT_2026-09-17_shared_support_claims.md" style="color:#fef3c7; text-decoration:underline;">2026-09-17 shared-support claim correction</a>.
+            </div>
             <h1><span class="lambda">Λ</span>_geo Three-Method Ensemble Monitor</h1>
             <p class="subtitle">GPS + Fault Correlation + Seismic THD</p>
             <p class="last-update" id="last-update">Loading data...</p>
@@ -533,37 +540,40 @@
 
         <!-- Validation Metrics Section -->
         <div class="chart-section" id="validation-section">
-            <h2 class="chart-title">Backtest Validation Metrics (Real GPS Data)</h2>
+            <h2 class="chart-title">Calibration / Training Backtest (Not Out-of-Sample)</h2>
+            <p class="validation-note">The 5/5 result below is calibration-set performance, not prospective skill.
+                The historical report separately lists 2/5 on its unseen-event retrospective set; neither result
+                establishes operational forecasting performance. <a href="../../docs/CALIBRATION_BACKTEST_REPORT.md#424-training-set-performance">Report and dataset distinction</a>.</p>
             <div class="validation-grid">
                 <div class="validation-card">
-                    <div class="validation-label">Hit Rate</div>
-                    <div class="validation-value pass">100%</div>
-                    <div class="validation-detail">5/5 events detected (≥WATCH)</div>
-                    <div class="validation-target">Target: ≥60%</div>
+                    <div class="validation-label">Training-set Detection Rate</div>
+                    <div class="validation-value neutral">100%</div>
+                    <div class="validation-detail">5/5 calibration events (≥WATCH)</div>
+                    <div class="validation-target">Not an out-of-sample result</div>
                 </div>
                 <div class="validation-card">
                     <div class="validation-label">ELEVATED+ Rate</div>
                     <div class="validation-value pass">40%</div>
                     <div class="validation-detail">2/5 events (Tohoku, Morocco)</div>
-                    <div class="validation-target">Higher confidence alerts</div>
+                    <div class="validation-target">Calibration-set tier count</div>
                 </div>
                 <div class="validation-card">
                     <div class="validation-label">CRITICAL Rate</div>
                     <div class="validation-value neutral">20%</div>
                     <div class="validation-detail">1/5 events (Tohoku M9.0)</div>
-                    <div class="validation-target">Highest tier alerts</div>
+                    <div class="validation-target">Calibration-set tier count</div>
                 </div>
                 <div class="validation-card">
                     <div class="validation-label">Mean Lead Time</div>
                     <div class="validation-value pass">8.1 days</div>
                     <div class="validation-detail">195 hours (range: 4-10 days)</div>
-                    <div class="validation-target">Target: ≥24 hours</div>
+                    <div class="validation-target">Retrospective calibration summary</div>
                 </div>
             </div>
             <div class="validation-note">
                 <strong>Data Integrity:</strong> All Lambda_geo ratios computed from real NGL GPS .tenv3 files (no synthetic data)<br>
-                <strong>Thresholds:</strong> Noise floor ≤1.5x | WATCH ~2.2x+ | ELEVATED ~3.1x+ | CRITICAL ~4.7x+ (recalibrated May 2026)<br>
-                <strong>95% CI:</strong> Hit rate [57%, 100%] (Wilson) — strong but n=5 is small sample
+                <strong>Scope:</strong> Historical calibration figures; current threshold/version equivalence has not been verified here.<br>
+                <strong>95% CI:</strong> Training-set proportion [57%, 100%] (Wilson); this interval does not establish prospective skill
             </div>
         </div>
 
@@ -1048,6 +1058,11 @@
 
         // Render Methods Legend
         function renderMethodsLegend(methodDescriptions) {
+            // Claim text only: also overrides older descriptions loaded from JSON.
+            const interpretation = {
+                FC: 'Waveform correlation and its singular-value summary describe the recorded signals. They do not by themselves establish tectonic stress transfer or earthquake prediction.',
+                THD: 'THD summarizes harmonic content in recorded seismic waveforms. Elevated values alone do not establish crustal stress accumulation or impending rupture; source and processing effects require separate controls.'
+            };
             const container = document.getElementById('methods-legend');
             if (!container) {
                 console.error('methods-legend container not found!');
@@ -1062,7 +1077,7 @@
                         <span class="method-name">${method.name}</span>
                     </div>
                     <div class="method-description">${method.description}</div>
-                    <div class="method-derivation">${method.derivation}</div>
+                    <div class="method-derivation">${interpretation[key] || method.derivation}</div>
                     <div class="method-thresholds">
                         ${method.threshold_watch ? `<span class="threshold-badge watch">WATCH: ${method.threshold_watch}</span>` : ''}
                         ${method.threshold_elevated ? `<span class="threshold-badge elevated">ELEVATED: ${method.threshold_elevated}</span>` : ''}
@@ -1298,7 +1313,7 @@
                     name: "Fault Correlation (L2/L1)",
                     abbreviation: "FC",
                     description: "Cross-correlation of seismic waveforms across fault segments",
-                    derivation: "Continuous seismic waveforms from stations straddling fault segments are cross-correlated. L2/L1 is the ratio of the second-largest to largest singular value from SVD of the correlation matrix. Low values (<0.2) indicate decorrelation suggesting stress transfer.",
+                    derivation: "Waveform correlation and its singular-value summary describe the recorded signals. They do not by themselves establish tectonic stress transfer or earthquake prediction.",
                     threshold_elevated: "L2/L1 < 0.15",
                     threshold_critical: "L2/L1 < 0.08"
                 },
@@ -1306,7 +1321,7 @@
                     name: "Total Harmonic Distortion",
                     abbreviation: "THD",
                     description: "Ratio of harmonic energy to fundamental in seismic waveforms",
-                    derivation: "Seismic waveforms are FFT-transformed. THD measures the ratio of energy in harmonic frequencies (2f, 3f, etc.) to the fundamental. Elevated THD indicates non-linear stress accumulation in the crust, often preceding rupture.",
+                    derivation: "THD summarizes harmonic content in recorded seismic waveforms. Elevated values alone do not establish crustal stress accumulation or impending rupture; source and processing effects require separate controls.",
                     threshold_elevated: "z-score > 1.5 above 30-day baseline",
                     threshold_critical: "z-score > 2.5 above 30-day baseline"
                 }

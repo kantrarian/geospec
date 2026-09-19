@@ -1,0 +1,17 @@
+{
+ "effective_url": "http://eida.koeri.boun.edu.tr/fdsnws/station/1/query?net=KO&sta=ADVT%2CBOTS%2CGAZK%2CGEML%2CGULT%2CHRTX%2CISK%2CKAVV%2CKRBG%2CMDNY%2CNMR2%2CNMR3&cha=HHZ&level=channel&format=text&starttime=2025-11-15&endtime=2025-11-16&nodata=404",
+ "http_status": 200,
+ "key": "SELECTION_RECORDS/istanbul_marmara",
+ "probe_day_utc": "2025-11-15",
+ "raw_body_bytes": 1916,
+ "raw_body_sha256": "cf9263516350b75d2c4d8a6c366f41044451022dda8976b4448d2981da24fdf2",
+ "request_start_utc": "2026-08-24T18:50:42Z",
+ "requested_url": "http://eida.koeri.boun.edu.tr/fdsnws/station/1/query?net=KO&sta=ADVT%2CBOTS%2CGAZK%2CGEML%2CGULT%2CHRTX%2CISK%2CKAVV%2CKRBG%2CMDNY%2CNMR2%2CNMR3&cha=HHZ&level=channel&format=text&starttime=2025-11-15&endtime=2025-11-16&nodata=404",
+ "response_complete_utc": "2026-08-24T18:50:44Z",
+ "response_headers": {
+  "content-type": "text/plain",
+  "date": "Mon, 24 Aug 2026 18:50:43 GMT",
+  "server": "SeisComP-FDSNWS/1.2.4"
+ },
+ "schema": "f2g-w2-probe-envelope-v1"
+}

@@ -1,0 +1,35 @@
+{
+ "completed_utc": "2026-08-27T21:52:13Z",
+ "dispatch_sha256": "f780ea2f702b82ae5b82533894257a5bc28cdc1a3a696f60104652cc2eb60854",
+ "key": "MAG_FEED/new/2026-03-23",
+ "opener_calls": 1,
+ "outcome": "CAPTURED_ADMITTED",
+ "refusal": null,
+ "result_sha256": "30eef6673a6ab9848a72185396adae18a6d250dcfdc24b59d562f192b32d3cee",
+ "schema": "f2g-w2-retry-404-result-v1",
+ "scientific": {
+  "classes_published": {
+   "artifact": "6eb4359e03a25aa2684b0722f64d6c7b8efff4c20f1a23439a75b0609859a8eb",
+   "contract": "544836eddd9effcd2a2c350bb49931613a0812899683706ca5ea04250127dd35",
+   "record": "b6a4fe79882a3d0d3e682513eeaa22ef1ec76a6fb4a08240d84fd5f532e030b0",
+   "transcript": "83c22e8c1610905ba4bded1962f592ff91620379aff714bfd54622079a227a4b"
+  },
+  "proof_kind": "NATIVE_V4_CAPTURE",
+  "raw_body_sha256": "00ffacb571a33fd463dbf22baa8a750f8f619b5d81b3c6fcf44b29f365131951",
+  "required_next": "store re-freeze + inventory rebuild (grassmann) before any boundary claim"
+ },
+ "terminal_ledger_sha256_recomputed": "a01bb3259aada3f9fee1d01998579f2e5f2e5280024382d9ac50d7c2d23956ad",
+ "terminal_ledger_unchanged": true,
+ "transport": {
+  "body_bytes_seen": 95292,
+  "effective_url": "https://geomag.usgs.gov/ws/data/?endtime=2026-03-24T00%3A00%3A00Z&format=json&id=NEW&sampling_period=60&starttime=2026-03-23T00%3A00%3A00Z",
+  "headers": {
+   "content-type": "application/json",
+   "date": "Thu, 27 Aug 2026 21:52:12 GMT"
+  },
+  "request_start_utc": "2026-08-27T21:52:09Z",
+  "requested_url": "https://geomag.usgs.gov/ws/data/?endtime=2026-03-24T00%3A00%3A00Z&format=json&id=NEW&sampling_period=60&starttime=2026-03-23T00%3A00%3A00Z",
+  "response_complete_utc": "2026-08-27T21:52:13Z",
+  "status": 200
+ }
+}

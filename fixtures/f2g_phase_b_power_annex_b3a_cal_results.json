@@ -1,0 +1,1266 @@
+{
+ "calendar_authority_mode": "bound",
+ "calendar_authority_sha256": "3aaaec5872933adf3e7f0daa7beb840e11b793a41d7c387ad4800c078fc65111",
+ "certified_points": [],
+ "digests": {
+  "admitted_bar_lf_sha256": "52055d45884304639ac8640fa827be2d3102c3d87b85df36378c215eae60f208",
+  "annex_b1a_sha256": "c7223c5c687234ea9538c73643722ea4fb16ec35ee76a6827ad0a90fae260dbe",
+  "annex_b2a_sha256": "8eb73a0004113bfe4bce9951c33fcf11fd4df540d9d119898556e887502e97bf",
+  "annex_b3a_sha256": "6e63b993611d072327a61628aa28183b732164fbbd2668330086c96092cf29b1",
+  "annex_common_rev16_sha256": "44f8ddd9dd175679c0feca398dd2d549454e8b3ee429a037a13f6362f88bf31a",
+  "assembler_lf_sha256": "7a1e3874f3836f5434ccc3f1bbb6cef8a18270c82206143ea6301630128e398c",
+  "base_driver_lf_sha256": "5cbf543f4f1a239707ad3c5eee458b01c35ac9093d354cc3e32b0ea164f41e78",
+  "driver_lf_sha256": "d0df4d38b0c03438112db1fdc3d2b61d00014ce9925ae7aed652f9ab8f6bbd74",
+  "engine_lf_sha256": "4a39d3fbdc543e8c64e7b8a068bcb384d320361973bce68fc0b2b219c27968f1",
+  "frozen_amendment2_sha256": "58b513b6c30b70c8014510788da9d7d819ce8971ca59b7dfdc11c57a1664586f"
+ },
+ "env": {
+  "numpy": "2.5.1",
+  "python": "3.14.0"
+ },
+ "equivalence_receipt": {
+  "all_equal": true,
+  "engine_commit_bound": "24b0d8f",
+  "fold_equal_all": true,
+  "folds_checked": 35,
+  "full_equal": true
+ },
+ "evidence_capsule": {
+  "geospec_commit": "06173301d9eeb6ce3a1e1c4d71867fe6a613eabc",
+  "git_blob_sha256": "a596f180b8c1812af27ff7e7a2cb536d0f388be9bed70aa89e1ed40bf6606bb1",
+  "path": "docs/fixtures/f2g_phase_b_power_cal_evidence_fixture.jsonl",
+  "purpose": "fixture",
+  "rows": 4891
+ },
+ "family": "B3A",
+ "induced_effect_report": {
+  "edges_with_robust_fit": 66,
+  "family": "B3A",
+  "injected_cells_changed": 247,
+  "registered_replicate": {
+   "point": {
+    "delta_lat": 2.4,
+    "k": 50,
+    "n_cross": 8
+   },
+   "rep": 0
+  },
+  "robust_z_shift": {
+   "max": 7.211454689319488,
+   "mean": 2.676715583826751,
+   "median": 2.4624718071807155,
+   "min": 0.6289943056957327,
+   "n": 247,
+   "q25": 1.8843340046449488,
+   "q75": 3.2583187851422633
+  },
+  "units": "robust_z"
+ },
+ "panel_reopen_sample": [
+  {
+   "family": "B3A",
+   "panel_sha256": "2f04fb75230e3c9130eba981502b3beb80076d890710f5202f9527fc8d0cf81f",
+   "point": {
+    "delta_lat": 0.3,
+    "k": 10,
+    "n_cross": 3
+   },
+   "rep": 0
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "dc6b5346479babf5da0c3d18c3bafbc52dcc6f044bcc95dacd18118cd4e15b5b",
+   "point": {
+    "delta_lat": 0.3,
+    "k": 25,
+    "n_cross": 3
+   },
+   "rep": 0
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "74dab2ca30e6c0f2ab31e02b1d4f484934a41cb2c4fab756bd4d030619f9483d",
+   "point": {
+    "delta_lat": 0.3,
+    "k": 50,
+    "n_cross": 3
+   },
+   "rep": 0
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "20ff47717c7f700624a8708cc29b62968aca4f36382ca71c01e765cf5afdec7a",
+   "point": {
+    "delta_lat": 0.3,
+    "k": 10,
+    "n_cross": 8
+   },
+   "rep": 0
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "df79482ad11f051ed6408166d402d5dc2e4a2b203074923b9a90bb9c2ffdfbd4",
+   "point": {
+    "delta_lat": 0.3,
+    "k": 25,
+    "n_cross": 8
+   },
+   "rep": 0
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "33dc5e7f64997ff5837edac1618184d044e1b964f6c7941564091518267e61de",
+   "point": {
+    "delta_lat": 0.3,
+    "k": 50,
+    "n_cross": 8
+   },
+   "rep": 0
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "389ad9925508fa6108d5b1a593f47ad3a493ddcd67dae7459c94ecf25f36d5f5",
+   "point": {
+    "delta_lat": 0.6,
+    "k": 10,
+    "n_cross": 3
+   },
+   "rep": 0
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "b04e5050518d81d54f15ec3b1136f5b0eeec3d874aec5ece6cc385a3b0fbc7e9",
+   "point": {
+    "delta_lat": 0.6,
+    "k": 25,
+    "n_cross": 3
+   },
+   "rep": 0
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "00915327fb87fc996ef0642f3b343ea1294a7a6cd71642417f9c14fc3fbba578",
+   "point": {
+    "delta_lat": 0.6,
+    "k": 50,
+    "n_cross": 3
+   },
+   "rep": 0
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "f194ea171e1eb984e67038897b33a988877ea21ee309a9e53bc767d0a89f7bfe",
+   "point": {
+    "delta_lat": 0.6,
+    "k": 10,
+    "n_cross": 8
+   },
+   "rep": 0
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "4399eae0589305df41c9c7d205208f35c0c27f31fd896639e8cd6c67173a61fb",
+   "point": {
+    "delta_lat": 0.6,
+    "k": 25,
+    "n_cross": 8
+   },
+   "rep": 0
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "448dcefd70a0cac5c5810fa4ddb10b343febe67568009454f44e62ca24c21d2f",
+   "point": {
+    "delta_lat": 0.6,
+    "k": 50,
+    "n_cross": 8
+   },
+   "rep": 0
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "035587d176df7d0f757937d414a6ccf7ca0b89a88dc08fdfcead396d21935f2a",
+   "point": {
+    "delta_lat": 1.2,
+    "k": 10,
+    "n_cross": 3
+   },
+   "rep": 0
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "0a9cde58dbf0ac5bd280e87f7c37b85e4946faf4698e2addabbd75f5bdede167",
+   "point": {
+    "delta_lat": 1.2,
+    "k": 25,
+    "n_cross": 3
+   },
+   "rep": 0
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "62813b46b43c170dd541d69eb106b25ca115a0e444ced834ab853bc352a56b2c",
+   "point": {
+    "delta_lat": 1.2,
+    "k": 50,
+    "n_cross": 3
+   },
+   "rep": 0
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "59e437ea8c886b3e2a63e6121f930f40b787f1baed41871f816c1692b1a05e72",
+   "point": {
+    "delta_lat": 1.2,
+    "k": 10,
+    "n_cross": 8
+   },
+   "rep": 0
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "67ff3d0fd73ce9082cc6141704f4d47063179d942741cd3208ba3dfef39a2534",
+   "point": {
+    "delta_lat": 1.2,
+    "k": 25,
+    "n_cross": 8
+   },
+   "rep": 0
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "4c05d5b6c92744b062f72ac3ea4a60ff7bb5879583c27c38585b70ad46d8f40c",
+   "point": {
+    "delta_lat": 1.2,
+    "k": 50,
+    "n_cross": 8
+   },
+   "rep": 0
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "ecbcbe2e20b34d2ab157bf5487d980dd2004df046b79564cbfb69184129287da",
+   "point": {
+    "delta_lat": 2.4,
+    "k": 10,
+    "n_cross": 3
+   },
+   "rep": 0
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "b9c621b09b17ab8cf668395afdcafeb0542176d8fe4f8f6150191d22f22dd652",
+   "point": {
+    "delta_lat": 2.4,
+    "k": 25,
+    "n_cross": 3
+   },
+   "rep": 0
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "3fdbede841a33b1380642d31bb25986f76217fdbea2b0d1e46d390329b933f04",
+   "point": {
+    "delta_lat": 2.4,
+    "k": 50,
+    "n_cross": 3
+   },
+   "rep": 0
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "a9df26db761a44fad379a2900ffc11caf2bc1f98f903bc6ffe9bf400756b0c36",
+   "point": {
+    "delta_lat": 2.4,
+    "k": 10,
+    "n_cross": 8
+   },
+   "rep": 0
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "d03270a2abcb1083192c8b216b4230b19958a56fcd4b97d7edf81bea8275fa3d",
+   "point": {
+    "delta_lat": 2.4,
+    "k": 25,
+    "n_cross": 8
+   },
+   "rep": 0
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "51ed2f8c10c98aa0547b96384f1563ed170cd36c292558ea9056408944b7fda4",
+   "point": {
+    "delta_lat": 2.4,
+    "k": 50,
+    "n_cross": 8
+   },
+   "rep": 0
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "2f04fb75230e3c9130eba981502b3beb80076d890710f5202f9527fc8d0cf81f",
+   "point": {
+    "delta_lat": 0.3,
+    "k": 10,
+    "n_cross": 3
+   },
+   "rep": 0
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "627cc5e3f6b66e70cc586be0aa8c66e626a1ce41763aa209a4ad1ee0a1115299",
+   "point": {
+    "delta_lat": 0.3,
+    "k": 10,
+    "n_cross": 3
+   },
+   "rep": 1
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "c1e9421e64d2c17464aff94fb02e63bd4580298a86d0f540bf1cdc9cc56551b8",
+   "point": {
+    "delta_lat": 0.3,
+    "k": 10,
+    "n_cross": 3
+   },
+   "rep": 2
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "e364909943c4e5275bfac46ebbcc7d60b33b133010a82234505c4620635d5e04",
+   "point": {
+    "delta_lat": 0.3,
+    "k": 10,
+    "n_cross": 3
+   },
+   "rep": 3
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "9617c938098618d4117a579cbdda148789a75a06762702885702c20db5508603",
+   "point": {
+    "delta_lat": 0.3,
+    "k": 10,
+    "n_cross": 3
+   },
+   "rep": 4
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "6a71908cb35d9d8dc112c333dbed8e5c8013ac6428fe7374b02035724f8d14e0",
+   "point": {
+    "delta_lat": 0.3,
+    "k": 10,
+    "n_cross": 3
+   },
+   "rep": 5
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "c02e966c0423f13115cb8a5512fc011d3036b21377bdeba07248932f1666a0ff",
+   "point": {
+    "delta_lat": 0.3,
+    "k": 10,
+    "n_cross": 3
+   },
+   "rep": 6
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "67b941a67f43587f30f1349593e60b673a6014ccfd5ad88893ee4423edf2c228",
+   "point": {
+    "delta_lat": 0.3,
+    "k": 10,
+    "n_cross": 3
+   },
+   "rep": 7
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "ebda905211580349da6c1ccecb368db7c1802e4522e75bbcba95c1e6be5735a8",
+   "point": {
+    "delta_lat": 0.3,
+    "k": 10,
+    "n_cross": 3
+   },
+   "rep": 8
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "c9fbe80fd0c10424f2a02e4ea12e6c92ccfb4b7bb0606f10251b8f715049156f",
+   "point": {
+    "delta_lat": 0.3,
+    "k": 10,
+    "n_cross": 3
+   },
+   "rep": 9
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "7e212ae08d84e9689c6fd6410e34156bde37c973fff646cb6c86e17121e8d65a",
+   "point": {
+    "delta_lat": 0.3,
+    "k": 10,
+    "n_cross": 3
+   },
+   "rep": 10
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "3134839aca20dd1fe0577f00d71eb2e4f508791ed2cce9c3ef0c5012065c6650",
+   "point": {
+    "delta_lat": 0.3,
+    "k": 10,
+    "n_cross": 3
+   },
+   "rep": 11
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "09af1514bd7ae8039242e89a05366d4495e07e7b984ea2d4618cf24c6735252b",
+   "point": {
+    "delta_lat": 0.3,
+    "k": 10,
+    "n_cross": 3
+   },
+   "rep": 12
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "0fcdea6005bc1ae0a336a043206a2d20848ecfa509f4e07c9f95a9a1737c5f29",
+   "point": {
+    "delta_lat": 0.3,
+    "k": 10,
+    "n_cross": 3
+   },
+   "rep": 13
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "0450ced096f155d43a3f54330521668b66ee1390ff2a87a1d0db7df0969c7375",
+   "point": {
+    "delta_lat": 0.3,
+    "k": 10,
+    "n_cross": 3
+   },
+   "rep": 14
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "05956d9c04a36d1c0bc6470b6f539400b8e7cfa0e476e7df9b4cdb477fd1463e",
+   "point": {
+    "delta_lat": 0.3,
+    "k": 10,
+    "n_cross": 3
+   },
+   "rep": 15
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "46cb84302451b263041b0d2706d2ab67a638070fc4023194d251a9920ba72a2d",
+   "point": {
+    "delta_lat": 0.3,
+    "k": 10,
+    "n_cross": 3
+   },
+   "rep": 16
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "be40835ea620949f665e53b799a52813245013222914f8546851d0c02f778cd5",
+   "point": {
+    "delta_lat": 0.3,
+    "k": 10,
+    "n_cross": 3
+   },
+   "rep": 17
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "7f0b5efbdd3fbd9b821d94453771887538b0a98dc0319ed1b04172e9ae3998a3",
+   "point": {
+    "delta_lat": 0.3,
+    "k": 10,
+    "n_cross": 3
+   },
+   "rep": 18
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "9c461864786452c4ba40407d13dcd1742950f97d424005019665355a0a35078e",
+   "point": {
+    "delta_lat": 0.3,
+    "k": 10,
+    "n_cross": 3
+   },
+   "rep": 19
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "dc6b5346479babf5da0c3d18c3bafbc52dcc6f044bcc95dacd18118cd4e15b5b",
+   "point": {
+    "delta_lat": 0.3,
+    "k": 25,
+    "n_cross": 3
+   },
+   "rep": 0
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "d92b4d32f29158a38cedfb4566b28c63c6faa51fc07fd7a1cbb6a576f6ef4d8f",
+   "point": {
+    "delta_lat": 0.3,
+    "k": 25,
+    "n_cross": 3
+   },
+   "rep": 1
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "5396a0fc0482a2cac584dba964d43b1d42d33690c49e0d23d03c07d5d7a72330",
+   "point": {
+    "delta_lat": 0.3,
+    "k": 25,
+    "n_cross": 3
+   },
+   "rep": 2
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "27efc06f9b1d4a4893d92e1d1ff65c2d6fa298921a21fb0c44f9a5abbbf5a657",
+   "point": {
+    "delta_lat": 0.3,
+    "k": 25,
+    "n_cross": 3
+   },
+   "rep": 3
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "698196a00d6190a0b8295eddcbed62cdb84192ccb3bf1b838fb1b36f5877b4bc",
+   "point": {
+    "delta_lat": 0.3,
+    "k": 25,
+    "n_cross": 3
+   },
+   "rep": 4
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "c7775c8b2625c71ba989b0fa434fafd4c0fd98def2ba78fb0d48daa5a57dd771",
+   "point": {
+    "delta_lat": 0.3,
+    "k": 25,
+    "n_cross": 3
+   },
+   "rep": 5
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "49e8d4f06353a572fceca7e9ad6ba2d36f667bf4a4de68280f1b6d802247e8c3",
+   "point": {
+    "delta_lat": 0.3,
+    "k": 25,
+    "n_cross": 3
+   },
+   "rep": 6
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "9a2c0b911b08acd35e74444c2f2637cd4f1750dbc1183ad34d1655fea13ccb8c",
+   "point": {
+    "delta_lat": 0.3,
+    "k": 25,
+    "n_cross": 3
+   },
+   "rep": 7
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "cb027ec02f84f6401d605c1337f17344c5a0ba26c4122d26beab588335537a77",
+   "point": {
+    "delta_lat": 0.3,
+    "k": 25,
+    "n_cross": 3
+   },
+   "rep": 8
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "1ef60c9bd36adbb75170dc1c871bdcfbd0b28e5f6f5e7bcaa282ae5da9839e5f",
+   "point": {
+    "delta_lat": 0.3,
+    "k": 25,
+    "n_cross": 3
+   },
+   "rep": 9
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "3fd03a847a5a60e5e7db8e84257689783cf9e81454946f42090fd6babe713fd9",
+   "point": {
+    "delta_lat": 0.3,
+    "k": 25,
+    "n_cross": 3
+   },
+   "rep": 10
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "6b5fe123ceb91139d86117e54550149e800885d9b039f5633a833d6d6e25eaaf",
+   "point": {
+    "delta_lat": 0.3,
+    "k": 25,
+    "n_cross": 3
+   },
+   "rep": 11
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "55cd6085513e20da029508c7536f21a26061ae8898c4c428b3af6c3ea32e1980",
+   "point": {
+    "delta_lat": 0.3,
+    "k": 25,
+    "n_cross": 3
+   },
+   "rep": 12
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "e4023629ef3106643c02d2b8af82f8f51babadf1db5baf3791544580eb066ccf",
+   "point": {
+    "delta_lat": 0.3,
+    "k": 25,
+    "n_cross": 3
+   },
+   "rep": 13
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "c9a7079f5a8489ad404848008c827e6474c304995903d188809a067b2d71d8dc",
+   "point": {
+    "delta_lat": 0.3,
+    "k": 25,
+    "n_cross": 3
+   },
+   "rep": 14
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "1493a0aa4c615847ef0297684bd6791a3f4b949910354b4b1407d51bb95ecbaf",
+   "point": {
+    "delta_lat": 0.3,
+    "k": 25,
+    "n_cross": 3
+   },
+   "rep": 15
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "1ff68be96c930e03e6898613cdc670726fc8ee6dbfe46de76279d69a64250be6",
+   "point": {
+    "delta_lat": 0.3,
+    "k": 25,
+    "n_cross": 3
+   },
+   "rep": 16
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "b79a9ada2a836a37611f65bf3b50970131355673a40781d6a02146196672704d",
+   "point": {
+    "delta_lat": 0.3,
+    "k": 25,
+    "n_cross": 3
+   },
+   "rep": 17
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "659adc0e6e65d223d0e506aaf7b88b1c5fb20a3b0c27d264b8f4ba330707cdf0",
+   "point": {
+    "delta_lat": 0.3,
+    "k": 25,
+    "n_cross": 3
+   },
+   "rep": 18
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "71214323dc18fc78debea1e283c1d1d779b7ce42d00982d6b0fdb91a19d713f3",
+   "point": {
+    "delta_lat": 0.3,
+    "k": 25,
+    "n_cross": 3
+   },
+   "rep": 19
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "74dab2ca30e6c0f2ab31e02b1d4f484934a41cb2c4fab756bd4d030619f9483d",
+   "point": {
+    "delta_lat": 0.3,
+    "k": 50,
+    "n_cross": 3
+   },
+   "rep": 0
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "6352c8bf7768481295c245e64e3c50b5cd118674ab5f9fe2a562b01d6c36b1f4",
+   "point": {
+    "delta_lat": 0.3,
+    "k": 50,
+    "n_cross": 3
+   },
+   "rep": 1
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "bce201beb72851f07d36dc076cc5048ef7dc2ea54f46d3ec3da1fd8d1bb73c4e",
+   "point": {
+    "delta_lat": 0.3,
+    "k": 50,
+    "n_cross": 3
+   },
+   "rep": 2
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "d5fd5e61e5cec946d27dacec97e1b1869756f5f62adb3b849b3a4f7020788cea",
+   "point": {
+    "delta_lat": 0.3,
+    "k": 50,
+    "n_cross": 3
+   },
+   "rep": 3
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "4551aded26f9615af532bb8ee95a895a3683dde4f4320b7ce992b616aa434e90",
+   "point": {
+    "delta_lat": 0.3,
+    "k": 50,
+    "n_cross": 3
+   },
+   "rep": 4
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "07c4ba1b1c94aeb7be0f43806d688bad9698ac90db1706a18579e8664e9acc7a",
+   "point": {
+    "delta_lat": 0.3,
+    "k": 50,
+    "n_cross": 3
+   },
+   "rep": 5
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "dbdbade066cd5e2931391e7b432fa021812f16192a83d293aa9c8c519cb779ce",
+   "point": {
+    "delta_lat": 0.3,
+    "k": 50,
+    "n_cross": 3
+   },
+   "rep": 6
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "327a42e048ef8ff7b1235d7908e714afeccf9f9a490755524e4bdde044b8b6e9",
+   "point": {
+    "delta_lat": 0.3,
+    "k": 50,
+    "n_cross": 3
+   },
+   "rep": 7
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "10741d30a5eb030d1a21ca6ddb0837cc2cafc0bbdb2c228b4a734c75f9a7ef40",
+   "point": {
+    "delta_lat": 0.3,
+    "k": 50,
+    "n_cross": 3
+   },
+   "rep": 8
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "9aa6b87c772de33850b268b3c48499582499b1f6d2473ffa73969eaac40b524e",
+   "point": {
+    "delta_lat": 0.3,
+    "k": 50,
+    "n_cross": 3
+   },
+   "rep": 9
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "4e43894d0d0370f9761abdcbcfc9465e5e81ff34d5aa6027def7810addefc7e1",
+   "point": {
+    "delta_lat": 0.3,
+    "k": 50,
+    "n_cross": 3
+   },
+   "rep": 10
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "f174e4d58dd82a44ab166bdee90ec9134f2220455da6cf7d4c8c8c9aaab6fa89",
+   "point": {
+    "delta_lat": 0.3,
+    "k": 50,
+    "n_cross": 3
+   },
+   "rep": 11
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "8dd550b9db75c49eb9904d8f39635bb10c1b37abc37bf0a227f29df8616463ae",
+   "point": {
+    "delta_lat": 0.3,
+    "k": 50,
+    "n_cross": 3
+   },
+   "rep": 12
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "e891da88895d7b488861010fc0f9f2203aa2d6c7a3795793ed7adeb47b46f86d",
+   "point": {
+    "delta_lat": 0.3,
+    "k": 50,
+    "n_cross": 3
+   },
+   "rep": 13
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "994176cb977bd7309d7544d3939f264f2542428e3c423fa7a1802c937b1beb6f",
+   "point": {
+    "delta_lat": 0.3,
+    "k": 50,
+    "n_cross": 3
+   },
+   "rep": 14
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "d2dd4c5b1e8e3c2e27e5b55c9655003938b0a431ba0667d7d9e0728648794501",
+   "point": {
+    "delta_lat": 0.3,
+    "k": 50,
+    "n_cross": 3
+   },
+   "rep": 15
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "0f72a7f147e2c4709fb0dba13f1e4701f032656aab48d2a4c87ab6ba12957cf1",
+   "point": {
+    "delta_lat": 0.3,
+    "k": 50,
+    "n_cross": 3
+   },
+   "rep": 16
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "fffaafe5037fa5ba637f2387197cffcb8b3f069baa78d2c0a7bb0ee000159307",
+   "point": {
+    "delta_lat": 0.3,
+    "k": 50,
+    "n_cross": 3
+   },
+   "rep": 17
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "0fce26a81f710f03f9bdb29525a9740106deaa7aa5e8e54554d5ab56c88d1a09",
+   "point": {
+    "delta_lat": 0.3,
+    "k": 50,
+    "n_cross": 3
+   },
+   "rep": 18
+  },
+  {
+   "family": "B3A",
+   "panel_sha256": "fc47f5d876f61f2b2aaf3d0ab98e35e9dc291c7f00ba496c8efcf5b0e3ddf7d4",
+   "point": {
+    "delta_lat": 0.3,
+    "k": 50,
+    "n_cross": 3
+   },
+   "rep": 19
+  }
+ ],
+ "pareto_lex_representative": null,
+ "pareto_minimal_certified": [],
+ "schema": "f2g-phase-b-power-cal-results-v1",
+ "terminal_type": "MDE_NOT_CERTIFIED_BY_REGISTERED_SEARCH",
+ "tier_c": {
+  "candidates": [
+   {
+    "lb95": 0.0,
+    "point": {
+     "delta_lat": 0.3,
+     "k": 10,
+     "n_cross": 3
+    },
+    "post_loco": {
+     "replicates": 20,
+     "successes": 0
+    },
+    "stopping": "FAILED@R=20",
+    "ub95": 0.13910834066826516,
+    "verdict": "FAILED"
+   },
+   {
+    "lb95": 0.0,
+    "point": {
+     "delta_lat": 0.3,
+     "k": 25,
+     "n_cross": 3
+    },
+    "post_loco": {
+     "replicates": 20,
+     "successes": 0
+    },
+    "stopping": "FAILED@R=20",
+    "ub95": 0.13910834066826516,
+    "verdict": "FAILED"
+   },
+   {
+    "lb95": 0.0,
+    "point": {
+     "delta_lat": 0.3,
+     "k": 50,
+     "n_cross": 3
+    },
+    "post_loco": {
+     "replicates": 20,
+     "successes": 0
+    },
+    "stopping": "FAILED@R=20",
+    "ub95": 0.13910834066826516,
+    "verdict": "FAILED"
+   }
+  ],
+  "label": "CERTIFICATION",
+  "n_draws": 9999
+ },
+ "tier_s1": {
+  "label": "PRELIMINARY_SMOKE",
+  "n_draws": 999,
+  "replicates": 50,
+  "table": [
+   {
+    "n": 50,
+    "point": {
+     "delta_lat": 0.3,
+     "k": 10,
+     "n_cross": 3
+    },
+    "pre_loco_recovery": 0.0
+   },
+   {
+    "n": 50,
+    "point": {
+     "delta_lat": 0.3,
+     "k": 25,
+     "n_cross": 3
+    },
+    "pre_loco_recovery": 0.0
+   },
+   {
+    "n": 50,
+    "point": {
+     "delta_lat": 0.3,
+     "k": 50,
+     "n_cross": 3
+    },
+    "pre_loco_recovery": 0.0
+   },
+   {
+    "n": 50,
+    "point": {
+     "delta_lat": 0.3,
+     "k": 10,
+     "n_cross": 8
+    },
+    "pre_loco_recovery": 0.0
+   },
+   {
+    "n": 50,
+    "point": {
+     "delta_lat": 0.3,
+     "k": 25,
+     "n_cross": 8
+    },
+    "pre_loco_recovery": 0.0
+   },
+   {
+    "n": 50,
+    "point": {
+     "delta_lat": 0.3,
+     "k": 50,
+     "n_cross": 8
+    },
+    "pre_loco_recovery": 0.0
+   },
+   {
+    "n": 50,
+    "point": {
+     "delta_lat": 0.6,
+     "k": 10,
+     "n_cross": 3
+    },
+    "pre_loco_recovery": 0.0
+   },
+   {
+    "n": 50,
+    "point": {
+     "delta_lat": 0.6,
+     "k": 25,
+     "n_cross": 3
+    },
+    "pre_loco_recovery": 0.0
+   },
+   {
+    "n": 50,
+    "point": {
+     "delta_lat": 0.6,
+     "k": 50,
+     "n_cross": 3
+    },
+    "pre_loco_recovery": 0.0
+   },
+   {
+    "n": 50,
+    "point": {
+     "delta_lat": 0.6,
+     "k": 10,
+     "n_cross": 8
+    },
+    "pre_loco_recovery": 0.0
+   },
+   {
+    "n": 50,
+    "point": {
+     "delta_lat": 0.6,
+     "k": 25,
+     "n_cross": 8
+    },
+    "pre_loco_recovery": 0.0
+   },
+   {
+    "n": 50,
+    "point": {
+     "delta_lat": 0.6,
+     "k": 50,
+     "n_cross": 8
+    },
+    "pre_loco_recovery": 0.0
+   },
+   {
+    "n": 50,
+    "point": {
+     "delta_lat": 1.2,
+     "k": 10,
+     "n_cross": 3
+    },
+    "pre_loco_recovery": 0.0
+   },
+   {
+    "n": 50,
+    "point": {
+     "delta_lat": 1.2,
+     "k": 25,
+     "n_cross": 3
+    },
+    "pre_loco_recovery": 0.0
+   },
+   {
+    "n": 50,
+    "point": {
+     "delta_lat": 1.2,
+     "k": 50,
+     "n_cross": 3
+    },
+    "pre_loco_recovery": 0.0
+   },
+   {
+    "n": 50,
+    "point": {
+     "delta_lat": 1.2,
+     "k": 10,
+     "n_cross": 8
+    },
+    "pre_loco_recovery": 0.0
+   },
+   {
+    "n": 50,
+    "point": {
+     "delta_lat": 1.2,
+     "k": 25,
+     "n_cross": 8
+    },
+    "pre_loco_recovery": 0.0
+   },
+   {
+    "n": 50,
+    "point": {
+     "delta_lat": 1.2,
+     "k": 50,
+     "n_cross": 8
+    },
+    "pre_loco_recovery": 0.0
+   },
+   {
+    "n": 50,
+    "point": {
+     "delta_lat": 2.4,
+     "k": 10,
+     "n_cross": 3
+    },
+    "pre_loco_recovery": 0.0
+   },
+   {
+    "n": 50,
+    "point": {
+     "delta_lat": 2.4,
+     "k": 25,
+     "n_cross": 3
+    },
+    "pre_loco_recovery": 0.0
+   },
+   {
+    "n": 50,
+    "point": {
+     "delta_lat": 2.4,
+     "k": 50,
+     "n_cross": 3
+    },
+    "pre_loco_recovery": 0.0
+   },
+   {
+    "n": 50,
+    "point": {
+     "delta_lat": 2.4,
+     "k": 10,
+     "n_cross": 8
+    },
+    "pre_loco_recovery": 0.0
+   },
+   {
+    "n": 50,
+    "point": {
+     "delta_lat": 2.4,
+     "k": 25,
+     "n_cross": 8
+    },
+    "pre_loco_recovery": 0.0
+   },
+   {
+    "n": 50,
+    "point": {
+     "delta_lat": 2.4,
+     "k": 50,
+     "n_cross": 8
+    },
+    "pre_loco_recovery": 0.0
+   }
+  ]
+ },
+ "tier_s2": {
+  "label": "PRELIMINARY_SMOKE",
+  "n_draws": 999,
+  "replicates": 50,
+  "table": [
+   {
+    "n": 50,
+    "point": {
+     "delta_lat": 0.3,
+     "k": 10,
+     "n_cross": 3
+    },
+    "post_loco_recovery": 0.0,
+    "pre_loco_recovery": 0.0
+   },
+   {
+    "n": 50,
+    "point": {
+     "delta_lat": 0.3,
+     "k": 25,
+     "n_cross": 3
+    },
+    "post_loco_recovery": 0.0,
+    "pre_loco_recovery": 0.0
+   },
+   {
+    "n": 50,
+    "point": {
+     "delta_lat": 0.3,
+     "k": 50,
+     "n_cross": 3
+    },
+    "post_loco_recovery": 0.0,
+    "pre_loco_recovery": 0.0
+   },
+   {
+    "n": 50,
+    "point": {
+     "delta_lat": 0.3,
+     "k": 10,
+     "n_cross": 8
+    },
+    "post_loco_recovery": 0.0,
+    "pre_loco_recovery": 0.0
+   },
+   {
+    "n": 50,
+    "point": {
+     "delta_lat": 0.3,
+     "k": 25,
+     "n_cross": 8
+    },
+    "post_loco_recovery": 0.0,
+    "pre_loco_recovery": 0.0
+   },
+   {
+    "n": 50,
+    "point": {
+     "delta_lat": 0.3,
+     "k": 50,
+     "n_cross": 8
+    },
+    "post_loco_recovery": 0.0,
+    "pre_loco_recovery": 0.0
+   },
+   {
+    "n": 50,
+    "point": {
+     "delta_lat": 0.6,
+     "k": 10,
+     "n_cross": 3
+    },
+    "post_loco_recovery": 0.0,
+    "pre_loco_recovery": 0.0
+   },
+   {
+    "n": 50,
+    "point": {
+     "delta_lat": 0.6,
+     "k": 25,
+     "n_cross": 3
+    },
+    "post_loco_recovery": 0.0,
+    "pre_loco_recovery": 0.0
+   }
+  ]
+ }
+}

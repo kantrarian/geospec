@@ -1,0 +1,257 @@
+{
+ "certified_points": [],
+ "defect_disclosures": [
+  "cp_upper wrong tail (driver v1): reported one-sided 95% upper bounds solved P(X<=k)=0.95 instead of 0.05 (0/20 -> 0.003 vs correct 0.139). All bounds in this artifact are recomputed with the corrected rule; no Tier-C verdict changes (all candidate counts were 0/20; correct UB 0.139 < 0.80 so every FAILED verdict stands).",
+  "B-2 sec-L lemma check fixture scope (driver v1): the 3-carrier panel let noise-carrier partition churn into the family max (p 0.55-0.99). The lemma's hypothesis is per-carrier; the corrected single-carrier exact check (stage B2lemma_rev2) returns p == 1.0 in 10/10 including the 9,999-draw run. v1 rows are retained in the checkpoint as the defect record."
+ ],
+ "digests": {
+  "annex_b1_rev11_sha256": "fb2883f5a9be84f2197b79291b116a799a3a2c5cc86afc69cc34fea064a4e14a",
+  "annex_b2_rev11_sha256": "dca9dede6b91e35e6dd55ed6104dd3b4c29d2f8dfc8b6ef615187df91b5cb05c",
+  "annex_b3_rev11_sha256": "9414bd597134ebbcac8dc2d199a111521a23b0d59af6bc40ab0e803cd3495dc2",
+  "annex_common_rev11_sha256": "baddf2aa259689356d4d942b6282824ad6ad6d7f50075c54c992a997f216f20d",
+  "bar_amendment1_blob_sha256": "06a94e64b8eedb05a5e4874792ca06754c5ac465733d0b9bc7fa0965866429ec",
+  "bounds_and_lemma_rev_driver_commit": "951eee9",
+  "engine": "d2_f2g_phase_b_stats.py @ 6034419 (+ G16b certified-flag acceptance)",
+  "estimation_run_driver_commit": "d4edfb2",
+  "frozen_doc_sha256": "d1929c3127f6d76b87e95319e0f56c4d8ddf4b0cd6226aa9c2e1fe564e44e04e"
+ },
+ "env": {
+  "machine": "AMD64",
+  "numpy": "2.5.2",
+  "python": "3.12.10"
+ },
+ "equivalence_receipt": {
+  "driver_fold_p": 0.215,
+  "driver_p": 0.23,
+  "engine_fold_p": 0.215,
+  "engine_p": 0.23,
+  "fold_equal": true,
+  "full_equal": true
+ },
+ "family": "B2",
+ "pareto_minimal_certified": [],
+ "schema": "f2g-phase-b-power-results-v1",
+ "sec_l_lemma": {
+  "conclusion": "per-carrier two-regime class: p == 1.0 identically (proof + 10/10 executable check incl 9,999-draw exact run)",
+  "corrected_single_carrier": [
+   {
+    "max_switches": 6,
+    "n_draws": 9999,
+    "p_value": 1.0,
+    "rep": 0
+   },
+   {
+    "max_switches": 6,
+    "n_draws": 999,
+    "p_value": 1.0,
+    "rep": 1
+   },
+   {
+    "max_switches": 6,
+    "n_draws": 999,
+    "p_value": 1.0,
+    "rep": 2
+   },
+   {
+    "max_switches": 6,
+    "n_draws": 999,
+    "p_value": 1.0,
+    "rep": 3
+   },
+   {
+    "max_switches": 6,
+    "n_draws": 999,
+    "p_value": 1.0,
+    "rep": 4
+   },
+   {
+    "max_switches": 6,
+    "n_draws": 999,
+    "p_value": 1.0,
+    "rep": 5
+   },
+   {
+    "max_switches": 6,
+    "n_draws": 999,
+    "p_value": 1.0,
+    "rep": 6
+   },
+   {
+    "max_switches": 6,
+    "n_draws": 999,
+    "p_value": 1.0,
+    "rep": 7
+   },
+   {
+    "max_switches": 6,
+    "n_draws": 999,
+    "p_value": 1.0,
+    "rep": 8
+   },
+   {
+    "max_switches": 6,
+    "n_draws": 999,
+    "p_value": 1.0,
+    "rep": 9
+   }
+  ],
+  "v1_wrong_scope_rows_retained": [
+   {
+    "n_draws": 9999,
+    "p_value": 0.56,
+    "rep": 0
+   },
+   {
+    "n_draws": 999,
+    "p_value": 0.99,
+    "rep": 1
+   },
+   {
+    "n_draws": 999,
+    "p_value": 0.807,
+    "rep": 2
+   },
+   {
+    "n_draws": 999,
+    "p_value": 0.866,
+    "rep": 3
+   },
+   {
+    "n_draws": 999,
+    "p_value": 0.717,
+    "rep": 4
+   },
+   {
+    "n_draws": 999,
+    "p_value": 0.677,
+    "rep": 5
+   },
+   {
+    "n_draws": 999,
+    "p_value": 0.553,
+    "rep": 6
+   },
+   {
+    "n_draws": 999,
+    "p_value": 0.655,
+    "rep": 7
+   },
+   {
+    "n_draws": 999,
+    "p_value": 0.988,
+    "rep": 8
+   },
+   {
+    "n_draws": 999,
+    "p_value": 0.977,
+    "rep": 9
+   }
+  ]
+ },
+ "terminal_type": "MDE_NOT_CERTIFIED_BY_REGISTERED_SEARCH",
+ "tier_c": {
+  "candidates": [
+   {
+    "lb95": 0.0,
+    "point": {
+     "m": 1
+    },
+    "post_loco": {
+     "replicates": 20,
+     "successes": 0
+    },
+    "stopping": "FAILED@R=20",
+    "ub95": 0.13910834066826516,
+    "verdict": "FAILED"
+   },
+   {
+    "lb95": 0.0,
+    "point": {
+     "m": 2
+    },
+    "post_loco": {
+     "replicates": 20,
+     "successes": 0
+    },
+    "stopping": "FAILED@R=20",
+    "ub95": 0.13910834066826516,
+    "verdict": "FAILED"
+   },
+   {
+    "lb95": 0.0,
+    "point": {
+     "m": 3
+    },
+    "post_loco": {
+     "replicates": 20,
+     "successes": 0
+    },
+    "stopping": "FAILED@R=20",
+    "ub95": 0.13910834066826516,
+    "verdict": "FAILED"
+   }
+  ],
+  "label": "CERTIFICATION",
+  "n_draws": 9999,
+  "replicate_rows": 60
+ },
+ "tier_s1": {
+  "label": "PRELIMINARY_SMOKE",
+  "n_draws": 999,
+  "replicates": 50,
+  "table": [
+   {
+    "n": 50,
+    "point": {
+     "m": 1
+    },
+    "pre_loco_recovery": 0.0
+   },
+   {
+    "n": 50,
+    "point": {
+     "m": 2
+    },
+    "pre_loco_recovery": 0.0
+   },
+   {
+    "n": 50,
+    "point": {
+     "m": 3
+    },
+    "pre_loco_recovery": 0.0
+   }
+  ]
+ },
+ "tier_s2": {
+  "label": "PRELIMINARY_SMOKE",
+  "n_draws": 999,
+  "replicates": 50,
+  "table": [
+   {
+    "n": 50,
+    "point": {
+     "m": 1
+    },
+    "post_loco_recovery": 0.0,
+    "pre_loco_recovery": 0.0
+   },
+   {
+    "n": 50,
+    "point": {
+     "m": 2
+    },
+    "post_loco_recovery": 0.0,
+    "pre_loco_recovery": 0.0
+   },
+   {
+    "n": 50,
+    "point": {
+     "m": 3
+    },
+    "post_loco_recovery": 0.0,
+    "pre_loco_recovery": 0.0
+   }
+  ]
+ }
+}

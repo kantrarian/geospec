@@ -1,0 +1,53 @@
+{
+ "bbox": {
+  "max_lat": 41.1,
+  "max_lon": 31.0,
+  "min_lat": 40.3,
+  "min_lon": 27.0
+ },
+ "carrier": "istanbul_marmara",
+ "effective_url": "https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&starttime=2025-10-11T00%3A00%3A00&endtime=2026-08-28T00%3A00%3A00&minmagnitude=4.0&minlatitude=40.3&maxlatitude=41.1&minlongitude=27.0&maxlongitude=31.0&orderby=time-asc&limit=20000",
+ "http_status": 200,
+ "params": {
+  "endtime": "2026-08-28T00:00:00",
+  "format": "geojson",
+  "limit": "20000",
+  "maxlatitude": "41.1",
+  "maxlongitude": "31.0",
+  "minlatitude": "40.3",
+  "minlongitude": "27.0",
+  "minmagnitude": "4.0",
+  "orderby": "time-asc",
+  "starttime": "2025-10-11T00:00:00"
+ },
+ "raw_bytes": 414,
+ "raw_file": "raw_istanbul_marmara.geojson",
+ "raw_sha256": "9ac2d144c693e0c7ee61c6d6f3c645946b9a58ddc23d2d5e54cf2ef64b116515",
+ "region": "istanbul_marmara",
+ "request_utc": "2026-08-30T02:39:51.431533Z",
+ "requested_url": "https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&starttime=2025-10-11T00%3A00%3A00&endtime=2026-08-28T00%3A00%3A00&minmagnitude=4.0&minlatitude=40.3&maxlatitude=41.1&minlongitude=27.0&maxlongitude=31.0&orderby=time-asc&limit=20000",
+ "response_headers": {
+  "Access-Control-Allow-Headers": "*",
+  "Access-Control-Allow-Methods": "GET, OPTIONS",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Max-Age": "86400",
+  "Cache-Control": "public, max-age=60",
+  "Connection": "close",
+  "Content-Length": "414",
+  "Content-Type": "application/json; charset=utf-8",
+  "Date": "Sun, 30 Aug 2026 02:39:51 GMT",
+  "Expires": "Sun, 30 Aug 2026 02:40:51 GMT",
+  "Last-Modified": "Sun, 30 Aug 2026 02:39:51 GMT",
+  "Server": "nginx",
+  "Strict-Transport-Security": "max-age=31536000; includeSubDomains; preload",
+  "Vary": "Accept-Encoding",
+  "Via": "1.1 ed4ce0240c41ad69d73d160831b6e026.cloudfront.net (CloudFront)",
+  "X-Amz-Cf-Id": "XDXA7_USvMSuNrxLX5Quwqg3kYRq8aGKV60Q2yklmll_9DEi5w9VhQ==",
+  "X-Amz-Cf-Pop": "ATL58-P11",
+  "X-Cache": "Miss from cloudfront",
+  "X-Content-Type-Options": "nosniff",
+  "X-Frame-Options": "SAMEORIGIN",
+  "X-XSS-Protection": "1; mode=block"
+ },
+ "response_utc": "2026-08-30T02:39:51.666904Z"
+}

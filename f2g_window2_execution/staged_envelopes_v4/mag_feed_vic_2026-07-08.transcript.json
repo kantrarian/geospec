@@ -1,0 +1,25 @@
+{
+ "authority": {
+  "blob_sha256": "3c24182b042de1a14d2717610b8940acd93f44be8dc8fdc344cce771d28d4f66",
+  "commit": "2f91143ec1b36a0b59558bdb0741987ef0fbba10",
+  "keys_sha256": "3e7a4779f95e6feb835331998ec4b270721fd54e5b36520af03b79e68cb920a9",
+  "path": "docs/f2g_window2_execution/staged_expected_contracts_v3.json"
+ },
+ "carrier": "vic",
+ "effective_url": "https://imag-data.bgs.ac.uk/GIN_V1/GINServices?Request=GetData&dataDuration=1&dataStartDate=2026-07-08&format=json&observatoryIagaCode=VIC&publicationState=adj-or-rep&samplesPerDay=minute&testObsys=0",
+ "headers": {
+  "content-length": "96467",
+  "content-type": "application/json",
+  "date": "Thu, 27 Aug 2026 04:42:08 GMT"
+ },
+ "http_status": 200,
+ "lane": "MAG_FEED",
+ "raw_body_bytes": 96467,
+ "raw_body_sha256": "4f68890a61157c447786df3d5f24f6a286aa16637546dd3a2090d498ba10d9a6",
+ "request_start_utc": "2026-08-27T04:42:07Z",
+ "requested_url": "https://imag-data.bgs.ac.uk/GIN_V1/GINServices?Request=GetData&dataDuration=1&dataStartDate=2026-07-08&format=json&observatoryIagaCode=VIC&publicationState=adj-or-rep&samplesPerDay=minute&testObsys=0",
+ "response_complete_utc": "2026-08-27T04:42:08Z",
+ "schema": "f2g-w2-capture-transcript-v1",
+ "static_contract_sha256": "dfb0e27821b703fc9562a3179c411aec76eb14c701217928dbbbae52bbc2cc6e",
+ "utc_day": "2026-07-08"
+}

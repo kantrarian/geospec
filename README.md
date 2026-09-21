@@ -5,22 +5,22 @@
 > Region labels can share station data and are not independent confirmations.
 > See the [2026-09-17 shared-support claim correction](docs/INCIDENT_2026-09-17_shared_support_claims.md).
 
-**Last Update**: 2026-09-18
+**Last Update**: 2026-09-19
 
 ## Current Status
 
 | Metric | Value |
 |--------|-------|
-| Highest Risk Region | turkey_kahramanmaras |
-| Risk Score | 0.768 |
+| Highest Risk Region | mexico_guerrero |
+| Risk Score | 0.194 |
 | Regions Monitored | 14 |
 
 ### Tier Distribution
 
 | Tier | Count |
 |------|-------|
-| NORMAL (0) | 12 |
-| WATCH (1) | 2 |
+| NORMAL (0) | 14 |
+| WATCH (1) | 0 |
 | ELEVATED (2) | 0 |
 | CRITICAL (3) | 0 |
 

@@ -5,14 +5,14 @@
 > Region labels can share station data and are not independent confirmations.
 > See the [2026-09-17 shared-support claim correction](docs/INCIDENT_2026-09-17_shared_support_claims.md).
 
-**Last Update**: 2026-09-22
+**Last Update**: 2026-09-23
 
 ## Current Status
 
 | Metric | Value |
 |--------|-------|
-| Highest Risk Region | norcal_hayward |
-| Risk Score | 0.192 |
+| Highest Risk Region | hualien |
+| Risk Score | 0.115 |
 | Regions Monitored | 14 |
 
 ### Tier Distribution

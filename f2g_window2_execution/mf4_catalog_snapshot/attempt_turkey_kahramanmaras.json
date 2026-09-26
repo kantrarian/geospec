@@ -1,0 +1,53 @@
+{
+ "bbox": {
+  "max_lat": 39.0,
+  "max_lon": 40.0,
+  "min_lat": 36.0,
+  "min_lon": 35.0
+ },
+ "carrier": "turkey_kahramanmaras",
+ "effective_url": "https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&starttime=2025-10-11T00%3A00%3A00&endtime=2026-08-28T00%3A00%3A00&minmagnitude=4.0&minlatitude=36.0&maxlatitude=39.0&minlongitude=35.0&maxlongitude=40.0&orderby=time-asc&limit=20000",
+ "http_status": 200,
+ "params": {
+  "endtime": "2026-08-28T00:00:00",
+  "format": "geojson",
+  "limit": "20000",
+  "maxlatitude": "39.0",
+  "maxlongitude": "40.0",
+  "minlatitude": "36.0",
+  "minlongitude": "35.0",
+  "minmagnitude": "4.0",
+  "orderby": "time-asc",
+  "starttime": "2025-10-11T00:00:00"
+ },
+ "raw_bytes": 13944,
+ "raw_file": "raw_turkey_kahramanmaras.geojson",
+ "raw_sha256": "47566ddd34483befcb0df9d5bfb51aaa76366e0b54475fe181cf4eac70038fef",
+ "region": "turkey_kahramanmaras",
+ "request_utc": "2026-08-30T02:39:54.310157Z",
+ "requested_url": "https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&starttime=2025-10-11T00%3A00%3A00&endtime=2026-08-28T00%3A00%3A00&minmagnitude=4.0&minlatitude=36.0&maxlatitude=39.0&minlongitude=35.0&maxlongitude=40.0&orderby=time-asc&limit=20000",
+ "response_headers": {
+  "Access-Control-Allow-Headers": "*",
+  "Access-Control-Allow-Methods": "GET, OPTIONS",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Max-Age": "86400",
+  "Cache-Control": "public, max-age=60",
+  "Connection": "close",
+  "Content-Type": "application/json; charset=utf-8",
+  "Date": "Sun, 30 Aug 2026 02:39:54 GMT",
+  "Expires": "Sun, 30 Aug 2026 02:40:54 GMT",
+  "Last-Modified": "Sun, 30 Aug 2026 02:39:54 GMT",
+  "Server": "nginx",
+  "Strict-Transport-Security": "max-age=31536000; includeSubDomains; preload",
+  "Transfer-Encoding": "chunked",
+  "Vary": "Accept-Encoding",
+  "Via": "1.1 d051e641dc83d96bdb21f8637ce0ae9c.cloudfront.net (CloudFront)",
+  "X-Amz-Cf-Id": "53CzhYBoedqPOQQ_SYDiTBenFv4DTKFk9Mdpd74VwdvefQpn4NYpSQ==",
+  "X-Amz-Cf-Pop": "ATL58-P11",
+  "X-Cache": "Miss from cloudfront",
+  "X-Content-Type-Options": "nosniff",
+  "X-Frame-Options": "SAMEORIGIN",
+  "X-XSS-Protection": "1; mode=block"
+ },
+ "response_utc": "2026-08-30T02:39:54.766619Z"
+}

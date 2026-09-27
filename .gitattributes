@@ -41,3 +41,6 @@ monitoring/config/regions.yaml -text
 monitoring/atlas_template.html -text
 docs/ensemble_latest.json -text
 docs/f2g_window2_execution/mag_capsules/*.json -text
+# cayley 2026-09-27: retained FDSN station responses are byte carriers -- sources.json records their sha256 and
+# monitoring/src/thd_station_map.py re-verifies it on every build, so they must check out as their committed bytes.
+monitoring/config/station_metadata/*.txt -text

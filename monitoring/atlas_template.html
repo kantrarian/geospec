@@ -524,7 +524,7 @@ function showReadout(h) {
       row("agreement", o.agreement || "n/a") +
       row("confirmed", o.confirmed ? "yes (persistence)" : "no") +
       row("components", compWords(o)) +
-      row("combined risk", o.risk) +
+      row("combined anomaly score", o.risk) +
       row("marker", o.nominal
         ? "nominal locality (no registered polygon)"
         : "registered polygon centroid") + "</dl>";
@@ -669,7 +669,7 @@ if (D.daily) {
     `${sm.total_regions || dd.regions.length} regions · ` +
     `watch ${sm.confirmed_watch_count ?? 0} · ` +
     `degraded ${sm.degraded_count ?? 0} · ` +
-    `max-risk <span style="color:var(--ink)">${esc(sm.max_risk_region || "—")}</span>` +
+    `max-score <span style="color:var(--ink)">${esc(sm.max_risk_region || "—")}</span>` +
     `<br>data ${esc(dd.date || "?")} · generated ` +
     `${esc(dd.generated || "?")}` +
     (dd.lag_days !== null && dd.lag_days !== undefined

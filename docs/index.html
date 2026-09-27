@@ -577,6 +577,15 @@
 
         .method-badge.available { color: var(--tier-0); border: 1px solid var(--tier-0); }
         .method-badge.unavailable { color: var(--text-secondary); border: 1px solid var(--border); opacity: 0.5; }
+
+        .station-map-lead, .station-map-note, .score-note { color: var(--text-secondary); font-size: 0.82rem; margin: 0.5rem 0; }
+        .score-note { margin: 0.8rem 0 1.5rem; line-height: 1.5; }
+        table.station-map { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+        table.station-map th, table.station-map td { text-align: left; padding: 0.35rem 0.5rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+        table.station-map th { color: var(--text-secondary); font-weight: 600; }
+        table.station-map td.num { text-align: right; white-space: nowrap; }
+        table.station-map tr.shared td.station { color: #f59e0b; }
+        table.station-map a { color: var(--accent, #4a9eff); }
     </style>
 </head>
 <body>
@@ -584,10 +593,20 @@
         <header>
             <div id="research-status" role="note" style="background:#78350f; color:#fef3c7; border:2px solid #f59e0b;
                  padding:0.8rem 1rem; border-radius:6px; margin-bottom:0.8rem; line-height:1.5;">
-                <strong>Research status: INCONCLUSIVE. Not an earthquake warning or forecasting service.</strong><br>
-                Scores and tier labels are experimental outputs, not calibrated earthquake probabilities.
-                Region labels can share station data and are not independent confirmations.
-                <a href="INCIDENT_2026-09-17_shared_support_claims.md" style="color:#fef3c7; text-decoration:underline;">2026-09-17 shared-support claim correction</a>.
+                <strong>Research watch-quality report &mdash; not an earthquake warning or forecast.</strong><br>
+                This page shows what our instruments recorded and how unusual it was against each station's own recent
+                baseline. No base rate or false-alarm rate has been established, and forecasting skill is unproven
+                (research status: INCONCLUSIVE). Scores are not probabilities, and several regions share one distant
+                station (see the station table below).
+                <a href="INCIDENT_2026-09-17_shared_support_claims.md" style="color:#fef3c7; text-decoration:underline;">2026-09-17 shared-support claim correction</a>.<br>
+                <strong>For official earthquake information:</strong>
+                <a href="https://earthquake.usgs.gov/earthquakes/map/" style="color:#fef3c7; text-decoration:underline;">USGS</a> (United States) &middot;
+                <a href="https://www.jma.go.jp/jma/indexe.html" style="color:#fef3c7; text-decoration:underline;">JMA</a> (Japan) &middot;
+                <a href="https://www.geonet.org.nz/" style="color:#fef3c7; text-decoration:underline;">GeoNet</a> (New Zealand) &middot;
+                <a href="https://deprem.afad.gov.tr/" style="color:#fef3c7; text-decoration:underline;">AFAD</a> (T&uuml;rkiye) &middot;
+                <a href="https://scweb.cwa.gov.tw/en-US" style="color:#fef3c7; text-decoration:underline;">CWA</a> (Taiwan) &middot;
+                <a href="https://www.ov.ingv.it/" style="color:#fef3c7; text-decoration:underline;">INGV</a> (Italy) &middot;
+                <a href="http://www.ssn.unam.mx/" style="color:#fef3c7; text-decoration:underline;">SSN</a> (Mexico).
             </div>
             <div id="staleness-banner" style="display:none; background:#7f1d1d; color:#fff;
                  padding:0.6rem 1rem; border-radius:6px; margin-bottom:0.8rem; font-weight:600;"></div>
@@ -610,6 +629,19 @@
             </p>
         </header>
 
+        <div class="chart-section" id="station-map-section">
+            <h2 class="chart-title">THD Stations Behind Each Region</h2>
+            <p class="station-map-lead" id="station-map-lead">Loading station map...</p>
+            <div style="overflow-x:auto;"><table class="station-map" id="station-map-table"></table></div>
+            <p class="station-map-note">
+                Distances are measured to the centre of each region's monitoring box and to the nearest edge of that box
+                (0 = the station is inside the box); neither is a distance to a fault. Station coordinates come from the
+                FDSN station services (EarthScope, NCEDC, INGV), retained with their hashes in
+                <code>monitoring/config/station_metadata/</code>; the map is built by <code>monitoring/src/thd_station_map.py</code>.
+                Baseline days = the number of days in the station's current baseline (0 = an uncalibrated default).
+            </p>
+        </div>
+
         <div class="status-grid" id="status-grid">
             <div class="region-card loading">
                 <p>Loading monitoring data...</p>
@@ -617,7 +649,7 @@
         </div>
 
         <div class="chart-section">
-            <h2 class="chart-title">Risk History</h2>
+            <h2 class="chart-title">Combined Anomaly Score History <span style="font-size:0.75rem; font-weight:400;">(0&ndash;1, not a probability)</span></h2>
             <div id="history-chart"></div>
         </div>
 
@@ -647,6 +679,16 @@
                 <span>Experimental drop (retrospective event match)</span>
             </div>
         </div>
+
+        <p class="score-note">
+            <strong>How to read the score.</strong> THD is scored as z = (today's THD &minus; the station's baseline mean)
+            / baseline spread (standard deviation, floored at 20% of the mean), then mapped onto 0&ndash;1: about 0.25
+            at z&nbsp;=&nbsp;1.5, 0.50 at z&nbsp;=&nbsp;2.5, 0.75 at z&nbsp;=&nbsp;3.5, reaching 1.0 near
+            z&nbsp;&asymp;&nbsp;6.6. The combined anomaly score is a weighted mean of the methods that are available and
+            not frozen (LG&nbsp;0.4, FC&nbsp;0.3, THD&nbsp;0.3, renormalised), so an available LG value near zero dilutes
+            THD. Tier names are thresholds on this score (0.25 / 0.50 / 0.75), not hazard levels, and a region with only
+            one method is capped at WATCH. None of these numbers is a probability.
+        </p>
 
         <!-- Stress-Release Drop Detector -->
         <div class="chart-section drop-section">
@@ -740,7 +782,7 @@
         <div class="chart-section event-timeline-section">
             <h2 class="chart-title">Historical Event Time-Series</h2>
             <p style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 1.5rem;">
-                Each chart shows the progression from quiet baseline state to the earthquake event, with risk scores and tier classifications over time.
+                Each chart shows the progression from quiet baseline state to the earthquake event, with anomaly scores and tier classifications over time.
             </p>
             <div class="event-grid" id="event-grid">
                 <!-- Populated by JavaScript -->
@@ -760,11 +802,14 @@
                 <strong>⚠️ Research System</strong><br>
                 This is an experimental monitoring system for research purposes only.
                 It is NOT an official earthquake warning system and should NOT be used
-                for emergency planning or public alerts.
+                for emergency planning or public alerts. For official earthquake information use USGS, JMA, GeoNet,
+                AFAD, CWA, INGV or SSN (links at the top of the page).
             </p>
             <p>GeoSpec Λ_geo Monitoring System v1.6.0</p>
             <p style="font-size: 0.7rem; margin-top: 0.5rem;">
-                Backtest validation: 5 events (M6.8-9.0) | Real GPS data | 100% hit rate | January 2026
+                Withdrawn (2026-09-27): the January 2026 backtest (5 events, M6.8&ndash;9.0, reported as a 100% hit rate)
+                used the same five events the LG score mapping was calibrated on, so it is a training result, not
+                evidence of forecasting skill. Research status: INCONCLUSIVE.
             </p>
         </footer>
     </div>
@@ -892,7 +937,7 @@
                     let qualifierBadge = '';
                     if (fallback) {
                         qualifierBadge = `<div class="qualifier-badge">CSV FALLBACK &mdash; tier from data.csv;
-                                risk / confidence / methods / agreement not available</div>`;
+                                score / confidence / methods / agreement not available</div>`;
                     } else if (tier < 0 || methods === 0) {
                         qualifierBadge = `<div class="qualifier-badge">DEGRADED &mdash; no live component</div>`;
                     } else if (methods === 1) {
@@ -920,7 +965,7 @@
                             ${frozenBadge}
                             <div class="metrics">
                                 <div class="metric">
-                                    <div class="metric-label">Risk Score</div>
+                                    <div class="metric-label" title="Weighted mean of the available, non-frozen method scores (0-1). Not a probability.">Anomaly Score</div>
                                     <div class="metric-value">${fallback ? na : risk.toFixed(3)}</div>
                                 </div>
                                 <div class="metric">
@@ -1096,7 +1141,7 @@
                 },
                 yaxis: {
                     gridcolor: '#2a2a3a',
-                    title: 'Risk Score',
+                    title: 'Combined anomaly score (0-1)',
                     range: [0, 1.15]
                 },
                 legend: {
@@ -1230,7 +1275,7 @@
                     </div>
                     <div class="drop-detail">
                         <strong>${d.priorTierName}</strong> (tier ${d.priorTier}) &rarr; NORMAL on <strong>${d.dropDate}</strong><br>
-                        Risk: ${d.priorRisk.toFixed(3)} &rarr; ${d.currRisk.toFixed(3)}<br>
+                        Score: ${d.priorRisk.toFixed(3)} &rarr; ${d.currRisk.toFixed(3)}<br>
                         Elevated for <strong>${d.consecutive}</strong> consecutive day${d.consecutive > 1 ? 's' : ''} before drop
                     </div>
                 </div>
@@ -1398,6 +1443,58 @@
             } catch (e) { /* never break the page */ }
         }
 
+        // THD station map (owner-approved 2026-09-27). Today's station per region comes from the live report's THD
+        // notes ('sta=NET.STA'; 'from NET.STA' = attempted, no value); coordinates and distances come from
+        // thd_station_map.json, built from retained FDSN metadata by monitoring/src/thd_station_map.py.
+        async function renderStationMap(ensembleData) {
+            const lead = document.getElementById('station-map-lead');
+            const table = document.getElementById('station-map-table');
+            const esc = s => String(s).replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
+            let map;
+            try {
+                const resp = await fetch('thd_station_map.json');
+                if (!resp.ok) throw new Error('HTTP ' + resp.status);
+                map = await resp.json();
+            } catch (e) {
+                lead.textContent = 'Station map unavailable (' + e.message + ').';
+                return;
+            }
+            const live = (ensembleData && ensembleData.regions) || {};
+            const rows = map.regions.map(m => {
+                const notes = (((live[m.region] || {}).components || {}).seismic_thd || {}).notes || '';
+                const sta = notes.match(/\bsta=([A-Z0-9]+\.[A-Z0-9]+)\b/);
+                const att = sta ? null : notes.match(/\bfrom ([A-Z0-9]+\.[A-Z0-9]+)\b/);
+                const n = notes.match(/\bn=(\d+)\b/);
+                return { m: m, station: sta ? sta[1] : (att ? att[1] : null), measured: !!sta,
+                         n: sta && n ? parseInt(n[1], 10) : null };
+            });
+            const groups = {};
+            rows.forEach(r => { if (r.measured) (groups[r.station] = groups[r.station] || []).push(r.m.region); });
+            const measured = rows.filter(r => r.measured).length;
+            lead.innerHTML = `Report ${esc(ensembleData && ensembleData.date ? ensembleData.date : '?')}: ` +
+                `${measured} of ${rows.length} regions have a THD value today, from <strong>${Object.keys(groups).length}</strong> ` +
+                `distinct stations. Regions that share a station (highlighted) show the same measurement, not independent confirmations.`;
+            rows.sort((a, b) => ((a.station || '~') + a.m.region).localeCompare((b.station || '~') + b.m.region));
+            const km = v => (typeof v === 'number') ? v.toFixed(0) + ' km' : '&mdash;';
+            const head = '<tr><th>Region</th><th>THD station today</th><th>Station site</th><th>To region centre</th>' +
+                         '<th>To region box</th><th>Baseline days</th><th>Same station as</th><th>Official source</th></tr>';
+            table.innerHTML = head + rows.map(r => {
+                const d = r.station ? (r.m.distances[r.station] || {status: 'COORDINATES_NOT_ON_FILE'}) : null;
+                const site = r.station && map.stations[r.station] ? map.stations[r.station].site : '';
+                const peers = r.measured ? groups[r.station].filter(x => x !== r.m.region) : [];
+                const stationCell = r.station ? esc(r.station) + (r.measured ? '' : ' <em>(no value today)</em>') : '&mdash;';
+                const dist = d && !d.status ? [km(d.centre_km), km(d.box_km)] :
+                             (d ? ['coordinates not on file', '&mdash;'] : ['&mdash;', '&mdash;']);
+                const base = r.n === null ? '&mdash;' : (r.n === 0 ? '0 (uncalibrated default)' : String(r.n));
+                const src = r.m.official_source ?
+                    `<a href="${esc(r.m.official_source.url)}">${esc(r.m.official_source.name)}</a>` : '&mdash;';
+                return `<tr class="${peers.length ? 'shared' : ''}"><td>${esc(r.m.region.replace(/_/g, ' '))}</td>` +
+                       `<td class="station">${stationCell}</td><td>${esc(site)}</td>` +
+                       `<td class="num">${dist[0]}</td><td class="num">${dist[1]}</td><td class="num">${base}</td>` +
+                       `<td>${peers.length ? esc(peers.map(p => p.replace(/_/g, ' ')).join(', ')) : '&mdash;'}</td><td>${src}</td></tr>`;
+            }).join('');
+        }
+
         async function loadData() {
             try {
                 // Try ensemble JSON first (includes earthquake events)
@@ -1407,6 +1504,7 @@
                     checkStaleness(ensembleData.date);
                     renderR4Exclusions();
                     renderCards(ensembleData);
+                    renderStationMap(ensembleData);
 
                     // Extract M6.5+ events from ensemble JSON (single source of truth)
                     const cardEvents = extractCardEvents(ensembleData.earthquake_events);
@@ -1585,7 +1683,7 @@
             const riskTrace = {
                 x: dates,
                 y: ts.map(d => d.risk),
-                name: 'Risk Score',
+                name: 'Combined anomaly score',
                 type: 'scatter',
                 mode: 'lines+markers',
                 line: { color: '#4a9eff', width: 2 },
@@ -1693,7 +1791,7 @@
                 },
                 yaxis: {
                     gridcolor: '#2a2a3a',
-                    title: 'Risk / FC / THD',
+                    title: 'Score / FC / THD',
                     range: [-1, 1.1],
                     side: 'left'
                 },

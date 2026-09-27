@@ -594,8 +594,9 @@
             <div id="research-status" role="note" style="background:#78350f; color:#fef3c7; border:2px solid #f59e0b;
                  padding:0.8rem 1rem; border-radius:6px; margin-bottom:0.8rem; line-height:1.5;">
                 <strong>Research watch-quality report &mdash; not an earthquake warning or forecast.</strong><br>
-                This page shows what our instruments recorded and how unusual it was against each station's own recent
-                baseline. No base rate or false-alarm rate has been established, and forecasting skill is unproven
+                This page shows retained reports derived from external observations. THD uses a station baseline where
+                available; uncalibrated defaults or absolute-threshold fallbacks are not measured local baselines.
+                No calibrated earthquake probability or validated forecasting skill has been established
                 (research status: INCONCLUSIVE). Scores are not probabilities, and several regions share one distant
                 station (see the station table below).
                 <a href="INCIDENT_2026-09-17_shared_support_claims.md" style="color:#fef3c7; text-decoration:underline;">2026-09-17 shared-support claim correction</a>.<br>
@@ -634,8 +635,8 @@
             <p class="station-map-lead" id="station-map-lead">Loading station map...</p>
             <div style="overflow-x:auto;"><table class="station-map" id="station-map-table"></table></div>
             <p class="station-map-note">
-                Distances are measured to the centre of each region's monitoring box and to the nearest edge of that box
-                (0 = the station is inside the box); neither is a distance to a fault. Station coordinates come from the
+                Distances are measured to the centre of each region's monitoring box and to its lat/lon-clamped point
+                (0 = inside the box). The latter is not a geodesic minimum; neither is a distance to a fault. Station coordinates come from the
                 FDSN station services (EarthScope, NCEDC, INGV), retained with their hashes in
                 <code>monitoring/config/station_metadata/</code>; the map is built by <code>monitoring/src/thd_station_map.py</code>.
                 Baseline days = the number of days in the station's current baseline (0 = an uncalibrated default).
@@ -681,10 +682,12 @@
         </div>
 
         <p class="score-note">
-            <strong>How to read the score.</strong> THD is scored as z = (today's THD &minus; the station's baseline mean)
+            <strong>How to read the score.</strong> With a usable baseline, THD is scored as z = (the report's THD &minus; the station's baseline mean)
             / baseline spread (standard deviation, floored at 20% of the mean), then mapped onto 0&ndash;1: about 0.25
             at z&nbsp;=&nbsp;1.5, 0.50 at z&nbsp;=&nbsp;2.5, 0.75 at z&nbsp;=&nbsp;3.5, reaching 1.0 near
-            z&nbsp;&asymp;&nbsp;6.6. The combined anomaly score is a weighted mean of the methods that are available and
+            z&nbsp;&asymp;&nbsp;6.6. A baseline with n=0 is an uncalibrated default; missing or rejected baselines use
+            absolute THD thresholds instead of this z mapping. Consult the report's retained baseline notes.
+            The combined anomaly score is a weighted mean of the methods that are available and
             not frozen (LG&nbsp;0.4, FC&nbsp;0.3, THD&nbsp;0.3, renormalised), so an available LG value near zero dilutes
             THD. Tier names are thresholds on this score (0.25 / 0.50 / 0.75), not hazard levels, and a region with only
             one method is capped at WATCH. None of these numbers is a probability.
@@ -1461,28 +1464,31 @@
             }
             const live = (ensembleData && ensembleData.regions) || {};
             const rows = map.regions.map(m => {
-                const notes = (((live[m.region] || {}).components || {}).seismic_thd || {}).notes || '';
+                const component = (((live[m.region] || {}).components || {}).seismic_thd || {});
+                const notes = component.notes || '';
                 const sta = notes.match(/\bsta=([A-Z0-9]+\.[A-Z0-9]+)\b/);
                 const att = sta ? null : notes.match(/\bfrom ([A-Z0-9]+\.[A-Z0-9]+)\b/);
                 const n = notes.match(/\bn=(\d+)\b/);
-                return { m: m, station: sta ? sta[1] : (att ? att[1] : null), measured: !!sta,
+                const measured = !!sta && component.available === true &&
+                    typeof component.raw_value === 'number' && Number.isFinite(component.raw_value);
+                return { m: m, station: sta ? sta[1] : (att ? att[1] : null), measured: measured,
                          n: sta && n ? parseInt(n[1], 10) : null };
             });
             const groups = {};
             rows.forEach(r => { if (r.measured) (groups[r.station] = groups[r.station] || []).push(r.m.region); });
             const measured = rows.filter(r => r.measured).length;
             lead.innerHTML = `Report ${esc(ensembleData && ensembleData.date ? ensembleData.date : '?')}: ` +
-                `${measured} of ${rows.length} regions have a THD value today, from <strong>${Object.keys(groups).length}</strong> ` +
-                `distinct stations. Regions that share a station (highlighted) show the same measurement, not independent confirmations.`;
+                `${measured} of ${rows.length} regions have an available numeric THD value in this report, from <strong>${Object.keys(groups).length}</strong> ` +
+                `distinct stations. Regions that share a station (highlighted) share measurement support, not independent confirmations.`;
             rows.sort((a, b) => ((a.station || '~') + a.m.region).localeCompare((b.station || '~') + b.m.region));
             const km = v => (typeof v === 'number') ? v.toFixed(0) + ' km' : '&mdash;';
             const head = '<tr><th>Region</th><th>THD station today</th><th>Station site</th><th>To region centre</th>' +
-                         '<th>To region box</th><th>Baseline days</th><th>Same station as</th><th>Official source</th></tr>';
+                         '<th>To clamped box point</th><th>Baseline days</th><th>Same station as</th><th>Official source</th></tr>';
             table.innerHTML = head + rows.map(r => {
                 const d = r.station ? (r.m.distances[r.station] || {status: 'COORDINATES_NOT_ON_FILE'}) : null;
                 const site = r.station && map.stations[r.station] ? map.stations[r.station].site : '';
                 const peers = r.measured ? groups[r.station].filter(x => x !== r.m.region) : [];
-                const stationCell = r.station ? esc(r.station) + (r.measured ? '' : ' <em>(no value today)</em>') : '&mdash;';
+                const stationCell = r.station ? esc(r.station) + (r.measured ? '' : ' <em>(no available numeric value in report)</em>') : '&mdash;';
                 const dist = d && !d.status ? [km(d.centre_km), km(d.box_km)] :
                              (d ? ['coordinates not on file', '&mdash;'] : ['&mdash;', '&mdash;']);
                 const base = r.n === null ? '&mdash;' : (r.n === 0 ? '0 (uncalibrated default)' : String(r.n));

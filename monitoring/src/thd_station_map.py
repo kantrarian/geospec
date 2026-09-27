@@ -10,7 +10,7 @@ official-agency links:
 
 Distances are declared, never implied:
   centre_km  great-circle km from the station to the midpoint of the region's REGION_BOUNDS box
-  box_km     great-circle km from the station to the nearest point of that box (lat/lon clamped); 0 = inside
+  box_km     great-circle km to the lat/lon-clamped point of that box; 0 = inside, not a geodesic minimum
 Neither is a distance to a fault trace.
 
     python monitoring/src/thd_station_map.py            # rebuild docs/thd_station_map.json from retained inputs
@@ -126,11 +126,15 @@ def _epoch_for(epochs, day):
 
 def recorded_station(region_report):
     """(NET.STA or None, basis, baseline_n or None) from the latest report's THD notes."""
-    notes = (((region_report or {}).get("components") or {}).get("seismic_thd") or {}).get("notes") or ""
+    component = (((region_report or {}).get("components") or {}).get("seismic_thd") or {})
+    notes = component.get("notes") or ""
     m = STA_RE.search(notes)
     if m:
         n = N_RE.search(notes)
-        return "%s.%s" % m.groups(), "LATEST_REPORT_NOTES_STA", int(n.group(1)) if n else None
+        raw = component.get("raw_value")
+        measured = component.get("available") is True and type(raw) in (int, float) and math.isfinite(raw)
+        basis = "LATEST_REPORT_NOTES_STA" if measured else "NOTES_STATION_WITHOUT_AVAILABLE_NUMERIC_VALUE"
+        return "%s.%s" % m.groups(), basis, int(n.group(1)) if n else None
     m = ATTEMPT_RE.search(notes)
     if m:
         return "%s.%s" % m.groups(), "LATEST_REPORT_NOTES_ATTEMPTED_NO_VALUE", None
@@ -188,7 +192,7 @@ def build(repo=REPO):
                     station_metadata=sources["files"]),
         distance_basis=dict(
             centre_km="great-circle km from the station to the midpoint of the region's REGION_BOUNDS lat/lon box",
-            box_km="great-circle km from the station to the nearest point of that box (lat/lon clamped); 0 = inside",
+            box_km="great-circle km to the lat/lon-clamped point of that box; 0 = inside, not a geodesic minimum",
             note="neither is a distance to a fault trace"),
         stations=dict(sorted(stations.items())), regions=rows)
 

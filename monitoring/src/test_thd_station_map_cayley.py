@@ -59,13 +59,23 @@ class Parsing(unittest.TestCase):
             M.parse_fdsn_text("XX|A|1|2\n", "t")
 
     def test_recorded_station_from_notes(self):
-        rep = lambda notes: {"components": {"seismic_thd": {"notes": notes}}}
+        rep = lambda notes: {"components": {"seismic_thd": {"notes": notes, "available": True, "raw_value": 0.4}}}
         self.assertEqual(M.recorded_station(rep("sta=IU.TUC, THD=0.40, z=0.57, n=91, rate=40Hz")),
                          ("IU.TUC", "LATEST_REPORT_NOTES_STA", 91))
         self.assertEqual(M.recorded_station(rep("Insufficient data from IV.CAFE")),
                          ("IV.CAFE", "LATEST_REPORT_NOTES_ATTEMPTED_NO_VALUE", None))
         self.assertEqual(M.recorded_station(rep("")), (None, "NOT_RECORDED", None))
         self.assertEqual(M.recorded_station(None), (None, "NOT_RECORDED", None))
+
+    def test_notes_do_not_create_available_numeric_measurements(self):
+        for available, raw in [(False, 0.4), (True, None), (True, "0.4"), (True, False), (True, float('nan'))]:
+            with self.subTest(available=available, raw=raw):
+                rep = {"components": {"seismic_thd": {"notes": "sta=IU.TUC, n=91", "available": available, "raw_value": raw}}}
+                self.assertEqual(M.recorded_station(rep)[1], "NOTES_STATION_WITHOUT_AVAILABLE_NUMERIC_VALUE")
+
+    def test_a_genuine_numeric_zero_remains_available(self):
+        rep = {"components": {"seismic_thd": {"notes": "sta=IU.TUC, n=91", "available": True, "raw_value": 0}}}
+        self.assertEqual(M.recorded_station(rep), ("IU.TUC", "LATEST_REPORT_NOTES_STA", 91))
 
 
 class Build(unittest.TestCase):

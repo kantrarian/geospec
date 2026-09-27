@@ -1,6 +1,6 @@
 {
  "distance_basis": {
-  "box_km": "great-circle km from the station to the nearest point of that box (lat/lon clamped); 0 = inside",
+  "box_km": "great-circle km to the lat/lon-clamped point of that box; 0 = inside, not a geodesic minimum",
   "centre_km": "great-circle km from the station to the midpoint of the region's REGION_BOUNDS lat/lon box",
   "note": "neither is a distance to a fault trace"
  },

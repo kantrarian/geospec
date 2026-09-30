@@ -38,6 +38,8 @@ from fault_segments import get_segments_for_region, FAULT_SEGMENTS
 from seismic_thd import SeismicTHDAnalyzer, THDResult, fetch_continuous_data_for_thd
 import seismic_data as SD
 import fault_correlation as FC
+# calibration-eligibility-v1 (codex a7d0533d item 1, 2026-09-30): PROSPECTIVE rule, OFF by default; see the module.
+import calibration_eligibility as CE
 
 
 # =============================================================================
@@ -373,6 +375,13 @@ class MethodResult:
     z_score: float = 0.0           # Standard deviations above baseline
     sample_rate_hz: float = 0.0    # Native sample rate of station
     frozen: bool = False           # INCIDENT freeze: computed but EXCLUDED from tier (visible + annotated)
+    # calibration-eligibility-v1 (prospective; populated ONLY when the rule is active, so inactive output is
+    # byte-identical): the observation's calibration status, the rule version that judged it, and whether it may
+    # count toward the tier. None = not judged (unknown qualification -- never treated as qualified).
+    calibration_status: Optional[str] = None
+    eligibility_rule_version: Optional[str] = None
+    eligible_for_tiering: Optional[bool] = None
+    eligibility_reason: Optional[str] = None
 
     def to_dict(self) -> Dict:
         result = {
@@ -397,6 +406,15 @@ class MethodResult:
             }
             result['z_score'] = float(self.z_score)
             result['sample_rate_hz'] = float(self.sample_rate_hz)
+        # Emitted ONLY when the eligibility rule judged this observation (rule active); raw values, scores and
+        # notes above are untouched either way.
+        if self.eligibility_rule_version is not None:
+            result['calibration'] = {
+                'status': self.calibration_status,
+                'eligible_for_tiering': bool(self.eligible_for_tiering),
+                'rule_version': self.eligibility_rule_version,
+                'reason': self.eligibility_reason,
+            }
         return result
 
 
@@ -464,6 +482,8 @@ class GeoSpecEnsemble:
         weights: Optional[Dict[str, float]] = None,
         thd_window_hours: int = 24,
         corr_window_hours: int = 24,
+        eligibility_rule_active: Optional[bool] = None,
+        station_regions: Optional[Dict[str, List[str]]] = None,
     ):
         """
         Initialize the ensemble.
@@ -473,9 +493,14 @@ class GeoSpecEnsemble:
             weights: Custom weights dict, or use defaults
             thd_window_hours: Window size for THD analysis
             corr_window_hours: Window size for correlation analysis
+            eligibility_rule_active: calibration-eligibility-v1 override; None = the module flag (OFF)
+            station_regions: 'NET.STA' -> regions the station serves this run (shared-support disclosure)
         """
         self.region = region
         self.weights = weights or WEIGHTS.copy()
+        # calibration-eligibility-v1: OFF unless the module flag or an explicit override says otherwise.
+        self.eligibility_rule_active = CE.rule_active(eligibility_rule_active)
+        self.station_regions: Dict[str, List[str]] = dict(station_regions or {})
 
         # Initialize seismic analyzers
         self.fault_corr_monitor = FaultCorrelationMonitor(
@@ -488,6 +513,8 @@ class GeoSpecEnsemble:
 
         # Cache for Lambda_geo results (loaded from external source)
         self._lambda_geo_cache: Dict[str, float] = {}
+        # calibration-eligibility-v1: the baseline provenance a ratio was derived under (None = unknown).
+        self._lambda_geo_provenance: Dict[str, Optional[dict]] = {}
 
         # D2 rev-2 calibration seams. `capsule_loader` is an injectable override (tests /
         # bespoke wiring); when None, compute_fault_correlation_risk builds the PRODUCTION
@@ -502,15 +529,20 @@ class GeoSpecEnsemble:
         logger.info(f"GeoSpecEnsemble initialized for {region}")
         logger.info(f"  Weights: {self.weights}")
 
-    def set_lambda_geo(self, date: datetime, ratio: float):
+    def set_lambda_geo(self, date: datetime, ratio: float, provenance: Optional[dict] = None):
         """
         Set Lambda_geo value for a specific date.
 
         In production, this would come from the GPS pipeline.
         For validation, we inject historical values.
+
+        `provenance` (calibration-eligibility-v1, optional): the baseline record the ratio was derived under --
+        {'source': ..., 'n_days': int, 'window_end': 'YYYY-MM-DD'}. None = unknown, which the active rule
+        classifies as `missing` (not eligible). Ignored while the rule is off.
         """
         key = date.strftime('%Y-%m-%d')
         self._lambda_geo_cache[key] = ratio
+        self._lambda_geo_provenance[key] = provenance
 
     def get_lambda_geo(self, date: datetime) -> Optional[float]:
         """Get Lambda_geo ratio for date."""
@@ -532,7 +564,7 @@ class GeoSpecEnsemble:
 
         risk = lambda_geo_to_risk(ratio)
 
-        return MethodResult(
+        result = MethodResult(
             name='lambda_geo',
             available=True,
             raw_value=ratio,
@@ -541,6 +573,11 @@ class GeoSpecEnsemble:
             is_critical=risk >= 0.75,
             notes=f'ratio={ratio:.1f}x'
         )
+        if self.eligibility_rule_active:
+            CE.attach(result, CE.classify_lambda_geo(
+                self._lambda_geo_provenance.get(date.strftime('%Y-%m-%d')), date,
+                max_age_days=MAX_BASELINE_AGE_DAYS))
+        return result
 
     def _resolve_calibration_capsule(self, region, date):
         """Resolve the calibration capsule for (region, date). An injected `capsule_loader`
@@ -602,13 +639,13 @@ class GeoSpecEnsemble:
         try:
             calibration = self._resolve_calibration_capsule(fc_region, date_utc)
         except FC.CalibrationUnavailable as e:
-            return (
-                MethodResult(
-                    name='fault_correlation', available=False, raw_value=0.0,
-                    notes=f'calibration unavailable: '
-                          f'{"; ".join(getattr(e, "reasons", [str(e)]))}'),
-                segments_defined, 0, []
-            )
+            reasons = getattr(e, "reasons", [str(e)])
+            unavailable = MethodResult(
+                name='fault_correlation', available=False, raw_value=0.0,
+                notes=f'calibration unavailable: {"; ".join(reasons)}')
+            if self.eligibility_rule_active:
+                CE.attach(unavailable, CE.classify_fc_calibration('unavailable', reasons))
+            return (unavailable, segments_defined, 0, [])
 
         # (b) run the analysis with the capsule threshold; gate on data quality
         try:
@@ -638,14 +675,14 @@ class GeoSpecEnsemble:
         risk = fault_correlation_to_risk(l2_l1, pr)
         coverage_note = f'{segments_working}/{segments_defined} segments'
 
-        return (
-            MethodResult(
-                name='fault_correlation', available=True, raw_value=l2_l1,
-                raw_secondary=pr, risk_score=risk, is_elevated=risk >= 0.5,
-                is_critical=risk >= 0.75,
-                notes=f'L2/L1={l2_l1:.4f}, PR={pr:.2f}, {coverage_note}'),
-            segments_defined, segments_working, segment_names
-        )
+        scored = MethodResult(
+            name='fault_correlation', available=True, raw_value=l2_l1,
+            raw_secondary=pr, risk_score=risk, is_elevated=risk >= 0.5,
+            is_critical=risk >= 0.75,
+            notes=f'L2/L1={l2_l1:.4f}, PR={pr:.2f}, {coverage_note}')
+        if self.eligibility_rule_active:
+            CE.attach(scored, CE.classify_fc_calibration('admitted'))
+        return (scored, segments_defined, segments_working, segment_names)
 
     def compute_thd_risk(
         self,
@@ -712,6 +749,15 @@ class GeoSpecEnsemble:
             # Get station baseline if available
             baseline = get_baseline(station_code, station_network) if get_baseline else None
 
+            # calibration-eligibility-v1: judge the baseline AS LOOKED UP (before the staleness guard below
+            # replaces a stale one with None), from its structured fields only. Bound to the result at the end;
+            # a no-op while the rule is off.
+            eligibility = None
+            if self.eligibility_rule_active:
+                eligibility = CE.classify_thd_baseline(
+                    baseline, date, max_age_days=MAX_BASELINE_AGE_DAYS,
+                    shared_regions=self.station_regions.get(f'{station_network}.{station_code}', ()))
+
             # INCIDENT 2026-07-31 (D1): baseline STALENESS fail-safe. If the baseline window ends more than
             # MAX_BASELINE_AGE_DAYS before the scored date, do NOT z-score against it -- drop to absolute
             # thresholds and flag 'stale' (prevents the IU.COLA z=26-on-noise recurrence).
@@ -771,7 +817,7 @@ class GeoSpecEnsemble:
                 else:
                     notes = f'sta={station_network}.{station_code}, THD={thd_result.thd_value:.4f}, rate={native_sample_rate:.0f}Hz (no baseline)'
 
-            return MethodResult(
+            result = MethodResult(
                 name='seismic_thd',
                 available=True,
                 raw_value=thd_result.thd_value,
@@ -789,6 +835,9 @@ class GeoSpecEnsemble:
                 z_score=z_score,
                 sample_rate_hz=native_sample_rate,
             )
+            if eligibility is not None:
+                CE.attach(result, eligibility)
+            return result
 
         except Exception as e:
             logger.warning(f"THD analysis failed: {e}")
@@ -806,7 +855,8 @@ class GeoSpecEnsemble:
         Returns:
             Tuple of (confidence, agreement_type)
         """
-        available = [c for c in components.values() if c.available and not c.frozen]  # frozen excluded (incident 2026-07-31)
+        # frozen excluded (incident 2026-07-31); with calibration-eligibility-v1 active, ineligible excluded too
+        available = [c for c in components.values() if CE.counts_for_tier(c, self.eligibility_rule_active)]
         n_available = len(available)
 
         if n_available == 0:
@@ -888,7 +938,7 @@ class GeoSpecEnsemble:
         effective_weights = {}
 
         for name, result in components.items():
-            if result.available and not result.frozen:
+            if CE.counts_for_tier(result, self.eligibility_rule_active):
                 weight = self.weights.get(name, 0.0)
                 weighted_risk += weight * result.risk_score
                 total_weight += weight
@@ -907,18 +957,28 @@ class GeoSpecEnsemble:
         # Get tier
         tier, tier_name = self.get_tier(combined_risk)
 
-        methods_available = sum(1 for c in components.values() if c.available and not c.frozen)  # frozen excluded (incident 2026-07-31)
+        # frozen excluded (incident 2026-07-31); with calibration-eligibility-v1 active, ineligible excluded too
+        methods_available = sum(1 for c in components.values() if CE.counts_for_tier(c, self.eligibility_rule_active))
 
         # DEGRADED STATE: No methods available = cannot assess
         # This prevents "NORMAL" being displayed when we actually have no data
         tier_downgraded = False
         original_tier = tier
         notes = ""
+        if self.eligibility_rule_active:
+            # Name what the rule kept out of the tier (raw values and scores stay in `components` as before).
+            excluded = [f"{n}={c.calibration_status}" for n, c in components.items()
+                        if c.available and not c.frozen and not CE.counts_for_tier(c, True)]
+            if excluded:
+                notes = f"{CE.ELIGIBILITY_RULE_VERSION}: excluded from tier {', '.join(excluded)}"
 
         if methods_available < MIN_METHODS_FOR_OPERATIONAL:
             tier = -1
             tier_name = 'DEGRADED'
-            notes = f"Insufficient data: {methods_available} methods available, need >={MIN_METHODS_FOR_OPERATIONAL}"
+            # `notes` is "" unless the eligibility rule (active) already named an exclusion; the pre-rule text
+            # is preserved verbatim in the inactive case.
+            notes = (notes + " | " if notes else "") + \
+                f"Insufficient data: {methods_available} methods available, need >={MIN_METHODS_FOR_OPERATIONAL}"
             logger.warning(f"Region {self.region} in DEGRADED state: no methods available")
 
         # TIER GATING: Require >=2 methods for Tier >=2 (ELEVATED/CRITICAL)
@@ -929,7 +989,8 @@ class GeoSpecEnsemble:
             tier_downgraded = True
             logger.warning(f"Tier downgraded from {original_tier} to 1 (WATCH): "
                           f"only {methods_available} method(s) available, need >=2 for ELEVATED/CRITICAL")
-            notes = f"Tier capped at WATCH (was {RISK_TIERS[original_tier]['name']}): need >=2 methods for ELEVATED+"
+            notes = (notes + " | " if notes else "") + \
+                f"Tier capped at WATCH (was {RISK_TIERS[original_tier]['name']}): need >=2 methods for ELEVATED+"
 
         result = EnsembleResult(
             region=self.region,

@@ -8,6 +8,7 @@ The runner-vs-base comparison needs the base commit's monitoring/src (e9b10680) 
 CALIBRATION_ELIGIBILITY_BASE_SRC; without it that one class is SKIPPED by name. It runs the real runner of each tree
 in a separate process through calibration_eligibility_runner_parity.py.
 """
+import hashlib
 import json
 import os
 import shutil
@@ -189,7 +190,7 @@ class RunnerWiring(unittest.TestCase):
                 key = "%s.%s" % (config.get("thd_network", "CI"), config["thd_station"])
                 self.assertIn(region, RD.THD_STATION_REGIONS[key])
 
-    def test_provenance_helper_reads_the_file_and_never_raises(self):
+    def test_single_read_derives_regions_and_provenance_from_one_object(self):
         RD = self.RD
         tmp = tempfile.mkdtemp(prefix="lg_baselines_test_")
         try:
@@ -200,21 +201,77 @@ class RunnerWiring(unittest.TestCase):
                           "calibration_period": "2026-05-29 to 2026-08-27"},
                     "b": {"available": False},
                     "c": {"available": True, "n_samples": 12, "calibration_period": "garbled"}}}, fh)
-            got = RD.lambda_geo_baseline_provenance(baseline_file=good)
+            read = RD.read_lambda_geo_calibration(baseline_file=good)
+            with open(good, "rb") as fh:
+                digest = hashlib.sha256(fh.read()).hexdigest()
+            self.assertEqual((read["status"], read["sha256"]), ("READ", digest))
+            self.assertEqual(sorted(read["regions"]), ["a", "b", "c"])     # exactly as load_lambda_geo_baselines
+            got = read["provenance"]
             self.assertEqual(sorted(got), ["a", "c"])
             self.assertEqual(got["a"], {"source": "lambda_geo_baselines.json:a", "n_days": 85,
                                         "window_start": "2026-05-29", "window_end": "2026-08-27",
-                                        "calibrated_on": "2026-09-26", "quality": "good"})
+                                        "calibrated_on": "2026-09-26", "quality": "good",
+                                        "calibration_sha256": digest})
             self.assertIsNone(got["c"]["window_end"])
             e = CE.classify_lambda_geo(got["c"], FX.SCORED_DAY, max_age_days=50, min_lag_days=30)
             self.assertEqual(e.code, "WINDOW_UNREADABLE")
             bad = os.path.join(tmp, "bad.json")
             with open(bad, "x", encoding="utf-8") as fh:
                 fh.write("{not json")
-            self.assertEqual(RD.lambda_geo_baseline_provenance(baseline_file=bad), {})
-            self.assertEqual(RD.lambda_geo_baseline_provenance(baseline_file=os.path.join(tmp, "absent.json")), {})
+            bad_read = RD.read_lambda_geo_calibration(baseline_file=bad)
+            self.assertEqual((bad_read["regions"], bad_read["provenance"], bad_read["status"]), ({}, {}, "UNREADABLE"))
+            absent = RD.read_lambda_geo_calibration(baseline_file=os.path.join(tmp, "absent.json"))
+            self.assertEqual((absent["regions"], absent["provenance"], absent["status"]), ({}, {}, "ABSENT"))
         finally:
             shutil.rmtree(tmp)
+
+    def test_a_file_swap_between_reads_cannot_combine_versions(self):
+        """codex a2a5cfe0 repair 1: the real fetch reads the calibration ONCE; a second version offered on any
+        later read is never used, so the ratio and the attached provenance always share one version."""
+        import calibration_eligibility_runner_parity as P
+        import copy
+        import io
+        from unittest.mock import patch
+        RD = self.RD
+        old = copy.deepcopy(P.LG_BASELINE_FILE)
+        new = copy.deepcopy(old)
+        old["regions"]["ridgecrest"]["mean_lambda_geo"] = 0.01
+        new["regions"]["ridgecrest"]["mean_lambda_geo"] = 0.02
+        new["regions"]["ridgecrest"]["n_samples"] = 777
+        new["calibration_timestamp"] = "2026-09-27T06:10:00"
+        versions = [json.dumps(old).encode("utf-8"), json.dumps(new).encode("utf-8")]
+        reads = []
+        real_open = open
+
+        def swapped_open(path, mode="r", *a, **k):
+            if Path(str(path)).name != "lambda_geo_baselines.json":
+                return real_open(path, mode, *a, **k)
+            blob = versions[min(len(reads), 1)]
+            reads.append(blob)
+            return io.BytesIO(blob) if "b" in mode else io.StringIO(blob.decode("utf-8"))
+
+        planted = {"NGL_LAMBDA_GEO_AVAILABLE": True, "NGLLiveAcquisition": P._StubNGL,
+                   "GeoNetLiveAcquisition": P._StubNGL, "acquire_region_data": P._stub_acquire,
+                   "FAULT_POLYGONS": {"ridgecrest": True}}
+        absent = object()
+        saved = {name: getattr(RD, name, absent) for name in planted}
+        provenance = {}
+        try:
+            for name, value in planted.items():
+                setattr(RD, name, value)
+            with patch("builtins.open", swapped_open):
+                ratios = RD.fetch_ngl_lambda_geo(["ridgecrest"], P.TARGET, provenance_out=provenance)
+        finally:
+            for name, value in saved.items():
+                if value is absent:
+                    delattr(RD, name)
+                else:
+                    setattr(RD, name, value)
+        self.assertEqual(len(reads), 1)
+        self.assertAlmostEqual(ratios["ridgecrest"], P.LG_MAX["ridgecrest"] / 0.01)
+        rec = provenance["ridgecrest"]
+        self.assertEqual((rec["n_days"], rec["calibrated_on"]), (85, "2026-09-26"))
+        self.assertEqual(rec["calibration_sha256"], hashlib.sha256(versions[0]).hexdigest())
 
     def test_run_all_regions_passes_the_provenance_of_the_ratio_it_uses(self):
         RD = self.RD

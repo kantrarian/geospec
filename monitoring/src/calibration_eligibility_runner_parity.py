@@ -10,8 +10,9 @@ to the base commit with the rule OFF, and show what it carries with the rule ON.
 Offline only: no network, no obspy, no data acquisition, no file written inside either tree. The seismic fetch,
 THD analyzer and fault-correlation monitor are stubbed at the ensemble module boundary; Lambda_geo acquisition is
 stubbed at the runner module boundary (station catalog, GPS solution); the R5 / pilot / event / validation modules
-are blocked so their fail-open paths run. The Lambda_geo baseline record is a synthetic file written to a fresh
-temporary directory and read by the candidate's own provenance helper. The inputs are the same for both trees.
+are blocked so their fail-open paths run. The Lambda_geo calibration is a synthetic file written to a fresh
+temporary directory and read ONCE by the candidate's own reader (the base tree's loader is given the same
+regions). The inputs are the same for both trees.
 """
 import argparse
 import functools
@@ -185,11 +186,12 @@ def run(src, rule_on, workdir):
     RD.GeoNetLiveAcquisition = _StubNGL
     RD.acquire_region_data = _stub_acquire
     RD.load_lambda_geo_baselines = lambda: json.loads(json.dumps(LG_BASELINE_FILE["regions"]))
-    if hasattr(RD, "lambda_geo_baseline_provenance"):
+    if hasattr(RD, "read_lambda_geo_calibration"):
+        # v4: the candidate reads denominators AND provenance from ONE read of this file (its own reader).
         path = os.path.join(workdir, "lambda_geo_baselines.json")
         with open(path, "x", encoding="utf-8") as handle:
             json.dump(LG_BASELINE_FILE, handle)
-        RD.lambda_geo_baseline_provenance = functools.partial(RD.lambda_geo_baseline_provenance, baseline_file=path)
+        RD.read_lambda_geo_calibration = functools.partial(RD.read_lambda_geo_calibration, baseline_file=path)
     results, _ = RD.run_all_regions(target_date=TARGET, regions=list(REGION_LIST),
                                     lambda_geo_data=dict(CALLER_SUPPLIED_LG), use_seismic=True, fetch_events=False)
     return {region: results[region].to_dict() for region in sorted(results)}

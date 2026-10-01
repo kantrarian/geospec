@@ -434,40 +434,56 @@ def load_lambda_geo_baselines() -> Dict:
         return {}
 
 
-def lambda_geo_baseline_provenance(baseline_file: Optional[Path] = None) -> Dict[str, dict]:
-    """calibration-eligibility-v3 wiring: per-region baseline provenance from the SAME calibration file the ratio
-    divides by (calibrate_lambda_geo_baselines.py writes it): region -> {source, n_days, window_start,
-    window_end, calibrated_on, quality}. Fields are passed as written; the eligibility rule validates them
-    (an unreadable window or date is refused there, never repaired here). Regions without an available
-    baseline are absent. Never raises: on any read error the map is empty, which the active rule classifies
-    as missing provenance. Read only to annotate; the ratio computation does not use it.
+def read_lambda_geo_calibration(baseline_file: Optional[Path] = None) -> Dict:
+    """calibration-eligibility-v4 (codex a2a5cfe0 repair 1): ONE immutable read of the Lambda_geo calibration file.
+
+    The ratio denominators AND every region's provenance are derived from the same bytes, and each provenance
+    record carries their sha256, so a file replaced between two reads can never pair one version's denominator
+    with another version's record (v3 read the file twice). Returns
+        {'regions': ..., 'provenance': {region: record}, 'sha256': hex | None, 'status': READ | ABSENT | UNREADABLE}
+    `regions` is exactly what load_lambda_geo_baselines() returns for the same bytes (missing or unreadable -> {};
+    a JSON object -> its 'regions' value as written; anything else -> {}), so the ratio path is unchanged.
+    A provenance record exists only for a region with an available baseline in that same object; its fields are
+    passed as written and validated by the eligibility rule, never repaired here. Never raises.
     `baseline_file` overrides the path for tests only; production passes nothing."""
     if baseline_file is None:
         baseline_file = Path(__file__).parent.parent / 'data' / 'baselines' / 'lambda_geo_baselines.json'
     try:
-        with open(baseline_file) as f:
-            data = json.load(f)
-    except Exception:
-        return {}
-    if not isinstance(data, dict) or not isinstance(data.get('regions'), dict):
-        return {}
-    stamp = data.get('calibration_timestamp')
-    calibrated_on = stamp[:10] if isinstance(stamp, str) else None
-    out = {}
-    for region, info in data['regions'].items():
-        if not isinstance(info, dict) or not info.get('available', False):
-            continue
-        period = info.get('calibration_period')
-        start, sep, end = period.partition(' to ') if isinstance(period, str) else ('', '', '')
-        out[region] = {
-            'source': f'lambda_geo_baselines.json:{region}',
-            'n_days': info.get('n_samples'),
-            'window_start': start if sep else None,
-            'window_end': end if sep else None,
-            'calibrated_on': calibrated_on,
-            'quality': info.get('quality'),
-        }
-    return out
+        with open(baseline_file, 'rb') as f:
+            raw = f.read()
+    except FileNotFoundError:
+        logger.warning(f"Lambda_geo baselines file not found: {baseline_file}")
+        logger.warning("Run calibrate_lambda_geo_baselines.py to generate baselines")
+        return {'regions': {}, 'provenance': {}, 'sha256': None, 'status': 'ABSENT'}
+    except Exception as e:
+        logger.error(f"Failed to load Lambda_geo baselines: {e}")
+        return {'regions': {}, 'provenance': {}, 'sha256': None, 'status': 'UNREADABLE'}
+    digest = hashlib.sha256(raw).hexdigest()
+    try:
+        data = json.loads(raw.decode('utf-8'))
+    except Exception as e:
+        logger.error(f"Failed to load Lambda_geo baselines: {e}")
+        return {'regions': {}, 'provenance': {}, 'sha256': digest, 'status': 'UNREADABLE'}
+    regions = data.get('regions', {}) if isinstance(data, dict) else {}
+    provenance = {}
+    if isinstance(regions, dict):
+        stamp = data.get('calibration_timestamp')
+        calibrated_on = stamp[:10] if isinstance(stamp, str) else None
+        for region, info in regions.items():
+            if not isinstance(info, dict) or not info.get('available', False):
+                continue
+            period = info.get('calibration_period')
+            start, sep, end = period.partition(' to ') if isinstance(period, str) else ('', '', '')
+            provenance[region] = {
+                'source': f'lambda_geo_baselines.json:{region}',
+                'n_days': info.get('n_samples'),
+                'window_start': start if sep else None,
+                'window_end': end if sep else None,
+                'calibrated_on': calibrated_on,
+                'quality': info.get('quality'),
+                'calibration_sha256': digest,
+            }
+    return {'regions': regions, 'provenance': provenance, 'sha256': digest, 'status': 'READ'}
 
 
 # Global cache for Lambda_geo baselines (loaded once per session)
@@ -532,13 +548,15 @@ def fetch_ngl_lambda_geo(
     logger.info("Loading NGL station catalog for Lambda_geo computation...")
     ngl.load_station_catalog()
 
-    # Load region-specific baselines
-    baselines = load_lambda_geo_baselines()
+    # Load region-specific baselines -- calibration-eligibility-v4: ONE read; the denominators below and the
+    # provenance attached to each ratio come from the same bytes (codex a2a5cfe0 repair 1).
+    _calibration = read_lambda_geo_calibration()
+    baselines = _calibration['regions']
     if not baselines:
         logger.warning("No Lambda_geo baselines available - ratios will be unreliable")
 
     _r5_dual = {}   # Amendment R5 dual-publication collector
-    _own_provenance = lambda_geo_baseline_provenance() if provenance_out is not None else {}
+    _own_provenance = _calibration['provenance']
 
     for region in regions:
         # Skip regions without polygon definitions

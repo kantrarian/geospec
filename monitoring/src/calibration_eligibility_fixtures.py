@@ -1,5 +1,5 @@
 """
-calibration_eligibility_fixtures.py -- offline fixtures + harness for calibration-eligibility-v1.
+calibration_eligibility_fixtures.py -- offline fixtures + harness for the calibration-eligibility rule (v2).
 
 Drives the REAL `GeoSpecEnsemble.compute_risk` / `compute_thd_risk` / `compute_fault_correlation_risk` /
 `compute_lambda_geo_risk` paths with synthetic inputs: the seismic fetch and THD analyzer are stubbed (no obspy,
@@ -68,6 +68,73 @@ class _CalibrationUnavailable(Exception):
         self.reasons = list(reasons)
 
 
+# ---------------------------------------------------------------------------------------------------------------
+# Writer-derived facts about fault_correlation.load_calibration_capsule, read from its SOURCE (the module itself
+# needs obspy and may not import here): the registered `embargo_days` default, the exact capsule key set, and the
+# loader's own refusal text. Fixtures are built from these, never from wording the loader does not write.
+# ---------------------------------------------------------------------------------------------------------------
+
+FAULT_CORRELATION_PY = os.path.join(HERE, "fault_correlation.py")
+
+
+def _loader_def():
+    import ast
+    with open(FAULT_CORRELATION_PY, "r", encoding="utf-8") as fh:
+        source = fh.read()
+    tree = ast.parse(source)
+    for node in ast.walk(tree):
+        if isinstance(node, ast.FunctionDef) and node.name == "load_calibration_capsule":
+            return source, node
+    raise LookupError("load_calibration_capsule not found in %s" % FAULT_CORRELATION_PY)
+
+
+def fc_registered_embargo_days() -> int:
+    """The loader's registered keyword-only default for `embargo_days`."""
+    import ast
+    _, node = _loader_def()
+    for arg, default in zip(node.args.kwonlyargs, node.args.kw_defaults):
+        if arg.arg == "embargo_days" and default is not None:
+            return ast.literal_eval(default)
+    raise LookupError("embargo_days default not found")
+
+
+def fc_capsule_keys() -> set:
+    """The exact key set the loader requires (its `expected_keys` set literal)."""
+    import ast
+    _, node = _loader_def()
+    for sub in ast.walk(node):
+        if (isinstance(sub, ast.Assign) and len(sub.targets) == 1 and isinstance(sub.targets[0], ast.Name)
+                and sub.targets[0].id == "expected_keys"):
+            return set(ast.literal_eval(sub.value))
+    raise LookupError("expected_keys not found")
+
+
+def fc_loader_source_text() -> str:
+    import ast
+    source, node = _loader_def()
+    return ast.get_source_segment(source, node) or ""
+
+
+def fc_capsule(region: str, *, start: str, end: str, valid_through: str) -> dict:
+    """A capsule with exactly the loader's key set; content values are synthetic and labelled so."""
+    values = dict(schema="SYNTHETIC_FIXTURE", region=region, band_tag="1-10Hz", processing_version="offline-harness",
+                  topology_version="fixture", threshold=0.5, calibration_window={"start": start, "end": end},
+                  source_commit="0" * 40, input_manifest_sha256="0" * 64, replay_output_sha256="0" * 64,
+                  issued_utc="2026-08-25T00:00:00Z", valid_through=valid_through)
+    keys = fc_capsule_keys()
+    if set(values) != keys:
+        raise AssertionError("fixture capsule keys %s != loader keys %s" % (sorted(values), sorted(keys)))
+    return values
+
+
+def _stub_load_calibration_capsule(region, scored_day, *, band_tag=None, processing_version=None,
+                                   topology_version=None, capsule_dir=None, expected_sha256=None,
+                                   embargo_days=fc_registered_embargo_days()):
+    # The stub carries the REAL registered default (read from source above) so the ensemble reads the same policy
+    # through inspect.signature here as it does against the real module.
+    raise _CalibrationUnavailable(["capsule load not available in the offline harness"])
+
+
 def _stub_fetch(station_network, station_code, start, end):
     # >= 12 h of 1 Hz samples so compute_thd_risk does not refuse for insufficiency; no resampling at 1 Hz.
     return [0.0] * (3600 * 13), 1.0
@@ -90,8 +157,7 @@ def install_stubs() -> List[str]:
             mod.CalibrationUnavailable = _CalibrationUnavailable
             mod.capsule_registry_entry = lambda region, registry_path=None: (_ for _ in ()).throw(
                 _CalibrationUnavailable(["registry entry for %s missing" % region]))
-            mod.load_calibration_capsule = lambda *a, **k: (_ for _ in ()).throw(
-                _CalibrationUnavailable(["capsule load not available in the offline harness"]))
+            mod.load_calibration_capsule = _stub_load_calibration_capsule
         elif name == "fault_segments":
             mod.get_segments_for_region = lambda region: ["seg-a", "seg-b", "seg-c"]
             mod.FAULT_SEGMENTS = {}
@@ -160,18 +226,98 @@ def fixture_baselines() -> Dict[str, dict]:
     }
 
 
-FC_FIXTURES = {
-    "fc_missing_capsule": dict(state="unavailable", reasons=["registry entry for kaikoura missing"], expected="missing"),
-    "fc_expired_capsule": dict(state="unavailable", reasons=["capsule for kaikoura expired 2026-08-01"], expected="expired"),
-    "fc_admitted": dict(state="admitted", reasons=[], expected="calibrated"),
+def fc_fixtures() -> Dict[str, dict]:
+    """Fault-correlation fixtures. The refusal texts are the loader's own wording ("no registry entry for region
+    ...", "scored day ... past valid_through ... (STALE)"); admitted capsules carry the loader's exact key set and
+    are re-checked against valid_through and the REGISTERED embargo read from the loader source."""
+    embargo = fc_registered_embargo_days()
+    fresh = fc_capsule("kaikoura", start="2026-05-01", end="2026-08-24", valid_through="2026-10-31")
+    return {
+        "fc_missing_capsule": dict(state="unavailable", reasons=["no registry entry for region kaikoura"],
+                                   expected="missing", code="NO_ADMISSIBLE_CAPSULE"),
+        "fc_expired_capsule": dict(state="unavailable",
+                                   reasons=["scored day 2026-09-28 past valid_through 2026-09-09 (STALE)"],
+                                   expected="expired", code="CAPSULE_PAST_VALID_THROUGH"),
+        "fc_admitted": dict(state="admitted", reasons=[], capsule=fresh, embargo=embargo,
+                            expected="calibrated", code="CALIBRATED"),
+        "fc_admitted_no_capsule": dict(state="admitted", reasons=[], capsule=None, embargo=embargo,
+                                       expected="missing", code="CAPSULE_NOT_SUPPLIED"),
+        "fc_admitted_embargo_unreadable": dict(state="admitted", reasons=[], capsule=fresh, embargo=None,
+                                               expected="missing", code="EMBARGO_POLICY_UNREADABLE"),
+        "fc_admitted_past_valid_through": dict(
+            state="admitted", reasons=[], embargo=embargo, expected="expired", code="CAPSULE_PAST_VALID_THROUGH",
+            capsule=fc_capsule("kaikoura", start="2026-04-05", end="2026-08-03", valid_through="2026-09-09")),
+        "fc_admitted_future_window": dict(
+            state="admitted", reasons=[], embargo=embargo, expected="missing", code="FUTURE_WINDOW_END",
+            capsule=fc_capsule("kaikoura", start="2026-07-01", end="2026-10-10", valid_through="2026-10-31")),
+        "fc_admitted_reversed_window": dict(
+            state="admitted", reasons=[], embargo=embargo, expected="missing", code="WINDOW_REVERSED",
+            capsule=fc_capsule("kaikoura", start="2026-08-24", end="2026-05-01", valid_through="2026-10-31")),
+        "fc_admitted_inside_embargo": dict(
+            state="admitted", reasons=[], embargo=embargo, expected="missing", code="CAPSULE_INSIDE_EMBARGO",
+            capsule=fc_capsule("kaikoura", start="2026-06-01", end="2026-09-10", valid_through="2026-10-31")),
+    }
+
+
+# Classifier-level Lambda_geo fixtures. `max_age` is an EXPLICIT test policy (the runner registers none -- see
+# ensemble.LAMBDA_GEO_BASELINE_MAX_AGE_DAYS); `lg_unregistered_policy` is what the runner itself would produce.
+LG_FIXTURES = {
+    "lg_no_provenance": dict(provenance=None, max_age=MAX_AGE, expected="missing", code="NO_PROVENANCE"),
+    "lg_n0": dict(provenance={"source": "ngl-baseline", "n_days": 0, "window_end": "2026-09-27"}, max_age=MAX_AGE,
+                  expected="n0_default", code="ZERO_SAMPLE_DEFAULT"),
+    "lg_stale": dict(provenance={"source": "ngl-baseline", "n_days": 90, "window_end": "2026-08-08"}, max_age=MAX_AGE,
+                     expected="stale", code="WINDOW_STALE"),
+    "lg_calibrated_under_explicit_test_policy": dict(
+        provenance={"source": "ngl-baseline", "n_days": 90, "window_start": "2026-05-26", "window_end": "2026-08-24"},
+        max_age=MAX_AGE, expected="calibrated", code="CALIBRATED"),
+    "lg_unregistered_policy": dict(
+        provenance={"source": "ngl-baseline", "n_days": 90, "window_start": "2026-05-26", "window_end": "2026-08-24"},
+        max_age=None, expected="missing", code="NO_REGISTERED_FRESHNESS_POLICY"),
+    "lg_future_window": dict(provenance={"source": "ngl-baseline", "n_days": 90, "window_end": "2026-10-10"},
+                             max_age=MAX_AGE, expected="missing", code="FUTURE_WINDOW_END"),
+    "lg_reversed_window": dict(provenance={"source": "ngl-baseline", "n_days": 90, "window_start": "2026-08-24",
+                                           "window_end": "2026-05-26"},
+                               max_age=MAX_AGE, expected="missing", code="WINDOW_REVERSED"),
+    "lg_boolean_count": dict(provenance={"source": "ngl-baseline", "n_days": True, "window_end": "2026-08-24"},
+                             max_age=MAX_AGE, expected="missing", code="INVALID_SAMPLE_COUNT"),
+    "lg_fractional_count": dict(provenance={"source": "ngl-baseline", "n_days": 89.5, "window_end": "2026-08-24"},
+                                max_age=MAX_AGE, expected="missing", code="INVALID_SAMPLE_COUNT"),
 }
 
-LG_FIXTURES = {
-    "lg_no_provenance": dict(provenance=None, expected="missing"),
-    "lg_n0": dict(provenance={"source": "ngl-baseline", "n_days": 0, "window_end": "2026-09-27"}, expected="n0_default"),
-    "lg_stale": dict(provenance={"source": "ngl-baseline", "n_days": 90, "window_end": "2026-08-08"}, expected="stale"),
-    "lg_calibrated": dict(provenance={"source": "ngl-baseline", "n_days": 90, "window_end": "2026-08-29"}, expected="calibrated"),
-}
+
+def input_validation_fixtures() -> Dict[str, dict]:
+    """THD input-validation fixtures (codex 638dd6e9 finding 1): n_samples 90, window 2026-05-26 to 2026-08-24
+    (35 d before the scored day) unless the fixture varies it. Each EXPECTS a typed refusal except the controls."""
+    period = "2026-05-26 to 2026-08-24"
+    nan, inf = float("nan"), float("inf")
+    return {
+        "control_nominal": dict(baseline=baseline("IU.T", 0.30, 0.07, 90, period), expected="calibrated", code="CALIBRATED"),
+        "control_integral_float_count": dict(baseline=baseline("IU.T", 0.30, 0.07, 90.0, period),
+                                             expected="calibrated", code="CALIBRATED"),
+        "mean_nan": dict(baseline=baseline("IU.T", nan, 0.07, 90, period), expected="missing", code="NON_FINITE_STATISTIC"),
+        "std_pos_inf": dict(baseline=baseline("IU.T", 0.30, inf, 90, period), expected="missing", code="NON_FINITE_STATISTIC"),
+        "mean_neg_inf": dict(baseline=baseline("IU.T", -inf, 0.07, 90, period), expected="missing", code="NON_FINITE_STATISTIC"),
+        "std_nan": dict(baseline=baseline("IU.T", 0.30, nan, 90, period), expected="missing", code="NON_FINITE_STATISTIC"),
+        "mean_boolean": dict(baseline=baseline("IU.T", True, 0.07, 90, period), expected="missing", code="STATISTIC_UNREADABLE"),
+        "mean_text": dict(baseline=baseline("IU.T", "0.30", 0.07, 90, period), expected="missing", code="STATISTIC_UNREADABLE"),
+        "count_boolean_true": dict(baseline=baseline("IU.T", 0.30, 0.07, True, period), expected="missing", code="INVALID_SAMPLE_COUNT"),
+        "count_boolean_false": dict(baseline=baseline("IU.T", 0.30, 0.07, False, period), expected="missing", code="INVALID_SAMPLE_COUNT"),
+        "count_fractional": dict(baseline=baseline("IU.T", 0.30, 0.07, 90.5, period), expected="missing", code="INVALID_SAMPLE_COUNT"),
+        "count_negative": dict(baseline=baseline("IU.T", 0.30, 0.07, -3, period), expected="missing", code="INVALID_SAMPLE_COUNT"),
+        "count_nan": dict(baseline=baseline("IU.T", 0.30, 0.07, nan, period), expected="missing", code="INVALID_SAMPLE_COUNT"),
+        "window_future": dict(baseline=baseline("IU.T", 0.30, 0.07, 90, "2026-10-01 to 2026-10-10"),
+                              expected="missing", code="FUTURE_WINDOW_END"),
+        "window_end_tomorrow": dict(baseline=baseline("IU.T", 0.30, 0.07, 90, "2026-07-01 to 2026-09-29"),
+                                    expected="missing", code="FUTURE_WINDOW_END"),
+        "window_end_on_scored_day": dict(baseline=baseline("IU.T", 0.30, 0.07, 90, "2026-07-01 to 2026-09-28"),
+                                         expected="calibrated", code="CALIBRATED"),
+        "window_reversed": dict(baseline=baseline("IU.T", 0.30, 0.07, 90, "2026-08-24 to 2026-05-26"),
+                                expected="missing", code="WINDOW_REVERSED"),
+        "window_end_only": dict(baseline=baseline("IU.T", 0.30, 0.07, 90, "2026-08-24"),
+                                expected="missing", code="WINDOW_INCOMPLETE"),
+        "window_garbled_start": dict(baseline=baseline("IU.T", 0.30, 0.07, 90, "2026-13-01 to 2026-08-24"),
+                                     expected="missing", code="WINDOW_UNREADABLE"),
+    }
 
 
 # ---------------------------------------------------------------------------------------------------------------
@@ -211,7 +357,9 @@ def build(module, *, region: str, network: str, station: str, thd_baseline, thd_
         # Fault correlation through the existing capsule_loader seam.
         fc = fc or dict(state="unavailable", reasons=["registry entry for %s missing" % region])
         if fc["state"] == "admitted":
-            ens.capsule_loader = lambda r, d: {"capsule": "admitted"}
+            admitted = fc.get("capsule") or fc_capsule(region, start="2026-05-01", end="2026-08-24",
+                                                         valid_through="2026-10-31")
+            ens.capsule_loader = lambda r, d, _capsule=admitted: dict(_capsule)
             _StubFCMonitor.planted = (True, ["seg-a", "seg-b"], fc.get("l2_l1", 1.2), fc.get("pr", 0.5))
         else:
             exc_type = sys.modules["fault_correlation"].CalibrationUnavailable

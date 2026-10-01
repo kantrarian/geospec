@@ -1,5 +1,5 @@
 """
-calibration_eligibility_report.py -- the before/after report for calibration-eligibility-v1 (generated, never
+calibration_eligibility_report.py -- the before/after report for the calibration-eligibility rule (generated, never
 hand-written): for every fixture, the status, eligibility, the CURRENT score and the tier with the rule OFF vs ON,
 plus (optionally) a read-only projection over a served display database's retained THD notes.
 
@@ -51,15 +51,28 @@ def fixture_rows(base_module):
             flag_off_equals_base=(None if base is None else
                                   json.dumps(FX.result_dict(base), sort_keys=True) == json.dumps(FX.result_dict(off), sort_keys=True)),
         ))
-    for name, fx in FX.FC_FIXTURES.items():
-        e = CE.classify_fc_calibration(fx["state"], fx["reasons"])
+    for name, fx in FX.fc_fixtures().items():
+        e = CE.classify_fc_calibration(fx["state"], fx["reasons"], capsule=fx.get("capsule"),
+                                       scored_day=FX.SCORED_DAY, embargo_days=fx.get("embargo"))
         rows.append(dict(fixture=name, family="fault_correlation", status=e.status, eligible=e.eligible_for_tiering,
-                         reason=e.reason, expected_status=fx["expected"],
-                         note="unavailable capsules are already available=False in the runner; the rule records why"))
+                         code=e.code, reason=e.reason, expected_status=fx["expected"], expected_code=fx["code"],
+                         note="unavailable capsules are already available=False in the runner; the rule records why; "
+                              "admitted capsules are re-checked against valid_through and the registered embargo"))
     for name, fx in FX.LG_FIXTURES.items():
-        e = CE.classify_lambda_geo(fx["provenance"], FX.SCORED_DAY, max_age_days=FX.MAX_AGE)
+        e = CE.classify_lambda_geo(fx["provenance"], FX.SCORED_DAY, max_age_days=fx["max_age"])
         rows.append(dict(fixture=name, family="lambda_geo", status=e.status, eligible=e.eligible_for_tiering,
-                         reason=e.reason, expected_status=fx["expected"], provenance=fx["provenance"]))
+                         code=e.code, reason=e.reason, expected_status=fx["expected"], expected_code=fx["code"],
+                         provenance=fx["provenance"], max_age_days_policy=fx["max_age"],
+                         policy_basis=("EXPLICIT_TEST_POLICY_NOT_REGISTERED" if fx["max_age"] is not None
+                                       else "RUNNER_REGISTERS_NONE")))
+    for name, fx in FX.input_validation_fixtures().items():
+        b = fx["baseline"]
+        e = CE.classify_thd_baseline(b, FX.SCORED_DAY, max_age_days=FX.MAX_AGE)
+        rows.append(dict(fixture=name, family="seismic_thd_input_validation", status=e.status,
+                         eligible=e.eligible_for_tiering, code=e.code, reason=e.reason, expected_status=fx["expected"],
+                         expected_code=fx["code"], inputs=dict(mean_thd=repr(b.mean_thd), std_thd=repr(b.std_thd),
+                                                               n_samples=repr(b.n_samples),
+                                                               calibration_period=b.calibration_period)))
     return rows
 
 
@@ -108,19 +121,25 @@ def served_projection(db_path):
 
 
 def markdown(report):
-    lines = ["# calibration-eligibility-v1 -- before/after report (NOT ACTIVATED)", "",
+    lines = ["# %s -- before/after report (NOT ACTIVATED)" % report["rule_version"], "",
              "Generated %s from fixtures; rule flag OFF in the runner. `tier_rule_on` is the harness activating the rule; "
              "saved historical scores are untouched." % report["generated_utc"], "",
              "| fixture | family | status | eligible | current score | z | n | tier OFF | tier ON | tier changes | flag-off == base |",
              "|---|---|---|---|---|---|---|---|---|---|---|"]
     for r in report["fixtures"]:
         if r["family"] != "seismic_thd":
-            lines.append("| %s | %s | %s | %s | - | - | - | - | - | - | - |" % (r["fixture"], r["family"], r["status"], r["eligible"]))
             continue
         lines.append("| %s | %s | %s | %s | %.7f | %.2f | %s | %s (%s) | %s (%s) | %s | %s |" % (
             r["fixture"], r["family"], r["status"], r["eligible"], r["current_score"], r["z_score"], r["baseline_n"],
             r["tier_rule_off"]["tier"], r["tier_rule_off"]["name"], r["tier_rule_on"]["tier"], r["tier_rule_on"]["name"],
             r["tier_changes"], r["flag_off_equals_base"]))
+    others = [r for r in report["fixtures"] if r["family"] != "seismic_thd"]
+    if others:
+        lines += ["", "## Classifier fixtures (typed codes; v2 input validation and registered policies)", "",
+                  "| fixture | family | status | eligible | code | expected | reason |", "|---|---|---|---|---|---|---|"]
+        lines += ["| %s | %s | %s | %s | %s | %s/%s | %s |" % (
+            r["fixture"], r["family"], r["status"], r["eligible"], r.get("code"), r["expected_status"],
+            r.get("expected_code"), str(r.get("reason")).replace("|", "/")) for r in others]
     proj = report.get("served_projection")
     if proj:
         lines += ["", "## Served-record projection (read-only, notes-derived; basis %s)" % proj["basis"], "",
@@ -146,7 +165,10 @@ def main(argv=None):
     report = dict(schema="geospec-calibration-eligibility-before-after-v1", rule_version=CE.ELIGIBILITY_RULE_VERSION,
                   rule_active_in_runner=CE.ELIGIBILITY_RULE_ACTIVE, generated_utc=now.strftime("%Y-%m-%dT%H:%M:%SZ"),
                   base_commit=args.base_sha, scored_day_fixture=FX.SCORED_DAY.strftime("%Y-%m-%d"),
-                  max_baseline_age_days=ensemble.MAX_BASELINE_AGE_DAYS, stubbed_modules=list(FX.STUBBED),
+                  max_baseline_age_days=ensemble.MAX_BASELINE_AGE_DAYS,
+                  lambda_geo_baseline_max_age_days=ensemble.LAMBDA_GEO_BASELINE_MAX_AGE_DAYS,
+                  fault_correlation_registered_embargo_days=FX.fc_registered_embargo_days(),
+                  stubbed_modules=list(FX.STUBBED),
                   fixtures=fixture_rows(base))
     if args.served_db:
         report["served_projection"] = served_projection(args.served_db)
@@ -159,7 +181,10 @@ def main(argv=None):
         fh.write(markdown(report))
     print(json.dumps(dict(json=stem + ".json", md=stem + ".md", fixtures=len(report["fixtures"]),
                           tier_changes=[r["fixture"] for r in report["fixtures"] if r.get("tier_changes")],
-                          flag_off_equals_base=[r.get("flag_off_equals_base") for r in report["fixtures"] if r["family"] == "seismic_thd"]),
+                          flag_off_equals_base=[r.get("flag_off_equals_base") for r in report["fixtures"] if r["family"] == "seismic_thd"],
+                          expectation_mismatches=[r["fixture"] for r in report["fixtures"]
+                                                  if r.get("expected_status") != r.get("status")
+                                                  or (r.get("expected_code") and r.get("expected_code") != r.get("code"))]),
                      indent=1))
     return 0
 

@@ -175,6 +175,14 @@ def component_frozen(region: str, component: str) -> bool:
 # is set well above that (50 d) yet far below the 201 d that produced the artifact. Recal: run_thd_recal.py.
 MAX_BASELINE_AGE_DAYS = 50
 
+# calibration-eligibility-v2 (codex 638dd6e9): lambda_geo has NO registered baseline-age bound. The R3 rolling recal
+# (run_and_publish.ps1 [2a]; docs/AMENDMENT_2026-07-29_rolling_baseline.md: 90-day window ending today-30d,
+# refreshed weekly) registers a recalibration CADENCE, not an eligibility bound, and MAX_BASELINE_AGE_DAYS above is
+# registered for seismic_thd only. None = unregistered: with the eligibility rule active, a lambda_geo ratio is NOT
+# eligible (NO_REGISTERED_FRESHNESS_POLICY) until a dated amendment registers a bound here. Unused while the rule
+# is off.
+LAMBDA_GEO_BASELINE_MAX_AGE_DAYS = None
+
 
 def _baseline_age_days(calibration_period, target_date):
     """Age in days of a THD baseline's window END vs target_date. `calibration_period` is
@@ -536,9 +544,11 @@ class GeoSpecEnsemble:
         In production, this would come from the GPS pipeline.
         For validation, we inject historical values.
 
-        `provenance` (calibration-eligibility-v1, optional): the baseline record the ratio was derived under --
-        {'source': ..., 'n_days': int, 'window_end': 'YYYY-MM-DD'}. None = unknown, which the active rule
-        classifies as `missing` (not eligible). Ignored while the rule is off.
+        `provenance` (calibration-eligibility rule, optional): the baseline record the ratio was derived under --
+        {'source': ..., 'n_days': int, 'window_end': 'YYYY-MM-DD'[, 'window_start': 'YYYY-MM-DD']}. None =
+        unknown, which the active rule classifies as `missing` (not eligible); while
+        LAMBDA_GEO_BASELINE_MAX_AGE_DAYS is unregistered (None) a validated provenance is still not eligible.
+        Ignored while the rule is off.
         """
         key = date.strftime('%Y-%m-%d')
         self._lambda_geo_cache[key] = ratio
@@ -576,7 +586,7 @@ class GeoSpecEnsemble:
         if self.eligibility_rule_active:
             CE.attach(result, CE.classify_lambda_geo(
                 self._lambda_geo_provenance.get(date.strftime('%Y-%m-%d')), date,
-                max_age_days=MAX_BASELINE_AGE_DAYS))
+                max_age_days=LAMBDA_GEO_BASELINE_MAX_AGE_DAYS))
         return result
 
     def _resolve_calibration_capsule(self, region, date):
@@ -681,7 +691,11 @@ class GeoSpecEnsemble:
             is_critical=risk >= 0.75,
             notes=f'L2/L1={l2_l1:.4f}, PR={pr:.2f}, {coverage_note}')
         if self.eligibility_rule_active:
-            CE.attach(scored, CE.classify_fc_calibration('admitted'))
+            # v2: re-check the admitted capsule against its own valid_through and the loader's REGISTERED embargo
+            # (read from load_calibration_capsule's signature, not restated here).
+            CE.attach(scored, CE.classify_fc_calibration(
+                'admitted', capsule=calibration, scored_day=date_utc,
+                embargo_days=CE.registered_default(FC.load_calibration_capsule, 'embargo_days')))
         return (scored, segments_defined, segments_working, segment_names)
 
     def compute_thd_risk(

@@ -44,15 +44,16 @@ class StatusClasses(unittest.TestCase):
                 self.assertEqual(e.rule_version, CE.ELIGIBILITY_RULE_VERSION)
 
     def test_fc_and_lg_fixtures(self):
-        for name, fx in FX.FC_FIXTURES.items():
+        for name, fx in FX.fc_fixtures().items():
             with self.subTest(fixture=name):
-                e = CE.classify_fc_calibration(fx["state"], fx["reasons"])
-                self.assertEqual(e.status, fx["expected"])
+                e = CE.classify_fc_calibration(fx["state"], fx["reasons"], capsule=fx.get("capsule"),
+                                               scored_day=FX.SCORED_DAY, embargo_days=fx.get("embargo"))
+                self.assertEqual((e.status, e.code), (fx["expected"], fx["code"]))
                 self.assertEqual(e.eligible_for_tiering, fx["expected"] == "calibrated")
         for name, fx in FX.LG_FIXTURES.items():
             with self.subTest(fixture=name):
-                e = CE.classify_lambda_geo(fx["provenance"], FX.SCORED_DAY, max_age_days=FX.MAX_AGE)
-                self.assertEqual(e.status, fx["expected"])
+                e = CE.classify_lambda_geo(fx["provenance"], FX.SCORED_DAY, max_age_days=fx["max_age"])
+                self.assertEqual((e.status, e.code), (fx["expected"], fx["code"]))
                 self.assertEqual(e.eligible_for_tiering, fx["expected"] == "calibrated")
 
     def test_status_set_is_closed(self):
@@ -96,6 +97,78 @@ class StatusClasses(unittest.TestCase):
         self.assertEqual(CE.classify_thd_baseline(old, FX.SCORED_DAY, max_age_days=FX.MAX_AGE).status, "stale")
         self.assertEqual(CE.baseline_age_days("2026-06-30 to 2026-09-27", FX.SCORED_DAY), 1)
         self.assertIsNone(CE.baseline_age_days("UNCALIBRATED", FX.SCORED_DAY))
+
+
+class InputValidation(unittest.TestCase):
+    """codex 638dd6e9 finding 1: invalid numbers, counts and windows refuse TYPED; nominal controls still qualify."""
+
+    def test_every_input_validation_fixture(self):
+        for name, fx in FX.input_validation_fixtures().items():
+            with self.subTest(fixture=name):
+                e = CE.classify_thd_baseline(fx["baseline"], FX.SCORED_DAY, max_age_days=FX.MAX_AGE)
+                self.assertEqual((e.status, e.code), (fx["expected"], fx["code"]))
+                self.assertEqual(e.eligible_for_tiering, fx["expected"] == "calibrated")
+                self.assertTrue(e.reason.startswith(e.code))
+                self.assertEqual(e.to_dict()["code"], e.code)
+
+    def test_codex_probes_verbatim(self):
+        target = datetime(2026, 9, 28)
+        period = "2026-05-26 to 2026-08-24"
+        probes = [
+            (FX.baseline("IU.T", float("nan"), 0.07, 90, period), "NON_FINITE_STATISTIC"),
+            (FX.baseline("IU.T", 0.30, float("inf"), 90, period), "NON_FINITE_STATISTIC"),
+            (FX.baseline("IU.T", 0.30, 0.07, 90, "2026-10-01 to 2026-10-10"), "FUTURE_WINDOW_END"),
+        ]
+        for b, code in probes:
+            with self.subTest(code=code, mean=b.mean_thd, std=b.std_thd, period=b.calibration_period):
+                e = CE.classify_thd_baseline(b, target, max_age_days=50)
+                self.assertEqual((e.status, e.eligible_for_tiering, e.code), ("missing", False, code))
+        e = CE.classify_lambda_geo({"n_days": 90, "window_end": "2026-10-10"}, target, max_age_days=50)
+        self.assertEqual((e.status, e.eligible_for_tiering, e.code), ("missing", False, "FUTURE_WINDOW_END"))
+
+    def test_registered_policies_are_carried_not_invented(self):
+        # THD: the caller's registered bound is required and validated; a malformed policy is a caller defect.
+        b = FX.baseline("IU.T", 0.30, 0.07, 90, "2026-05-26 to 2026-08-24")
+        for bad in (None, True, -1, 50.0, "50"):
+            with self.subTest(policy=bad):
+                with self.assertRaises(ValueError):
+                    CE.classify_thd_baseline(b, FX.SCORED_DAY, max_age_days=bad)
+        self.assertEqual(ensemble.MAX_BASELINE_AGE_DAYS, FX.MAX_AGE)
+        # LG: the runner registers no bound, and says so.
+        self.assertIsNone(ensemble.LAMBDA_GEO_BASELINE_MAX_AGE_DAYS)
+        with self.assertRaises(ValueError):
+            CE.classify_lambda_geo({"n_days": 90, "window_end": "2026-08-24"}, FX.SCORED_DAY, max_age_days=True)
+        # FC: the embargo the rule uses IS the loader's registered default, read from its signature/source.
+        import fault_correlation
+        self.assertEqual(CE.registered_default(fault_correlation.load_calibration_capsule, "embargo_days"),
+                         FX.fc_registered_embargo_days())
+        self.assertIsNone(CE.registered_default(lambda *a, **k: None, "embargo_days"))
+        self.assertIsNone(CE.registered_default(42, "embargo_days"))
+
+    def test_fc_fixtures_come_from_the_writer(self):
+        # The past-valid_through refusal the classifier keys on is the loader's own text ...
+        self.assertIn(CE.FC_PAST_VALID_THROUGH_PHRASE, FX.fc_loader_source_text())
+        # ... the word v1 keyed on is not written by the loader at all ...
+        self.assertNotIn("expired", FX.fc_loader_source_text().lower())
+        # ... and the fixture capsules carry exactly the loader's key set.
+        for name, fx in FX.fc_fixtures().items():
+            if isinstance(fx.get("capsule"), dict):
+                with self.subTest(fixture=name):
+                    self.assertEqual(set(fx["capsule"]), FX.fc_capsule_keys())
+
+    def test_age_boundaries_unchanged_and_non_future_bound(self):
+        end = FX.SCORED_DAY - timedelta(days=FX.MAX_AGE)
+        for offset, expected in ((0, "calibrated"), (-1, "stale")):
+            day = (end + timedelta(days=offset)).strftime("%Y-%m-%d")
+            b = FX.baseline("IU.X", 0.3, 0.05, 40, "2026-01-01 to %s" % day)
+            with self.subTest(end=day):
+                self.assertEqual(CE.classify_thd_baseline(b, FX.SCORED_DAY, max_age_days=FX.MAX_AGE).status, expected)
+        # Aware and naive scored datetimes keep their own calendar day (the label, like ensemble._baseline_age_days).
+        from datetime import timezone
+        b = FX.baseline("IU.X", 0.3, 0.05, 40, "2026-07-01 to 2026-09-28")
+        self.assertEqual(CE.classify_thd_baseline(b, FX.SCORED_DAY.replace(tzinfo=timezone.utc),
+                                                  max_age_days=FX.MAX_AGE).code, "CALIBRATED")
+        self.assertEqual(CE.classify_thd_baseline(b, "2026-09-27", max_age_days=FX.MAX_AGE).code, "FUTURE_WINDOW_END")
 
 
 class KaikouraReproduction(unittest.TestCase):
@@ -165,21 +238,45 @@ class RuleOnTierEffects(unittest.TestCase):
 
     def test_fc_expired_and_lg_provenance(self):
         fx = FX.fixture_baselines()["calibrated_fresh"]
+        # The loader's own refusal wording for a capsule past valid_through (v1 matched "expired", never written).
         r = FX.build(ensemble, region="norcal_hayward", network="BK", station="BKS", thd_baseline=fx["baseline"],
                      thd_value=fx["thd"], active=True,
-                     fc=dict(state="unavailable", reasons=["capsule for norcal_hayward expired 2026-08-01"]),
+                     fc=dict(state="unavailable", reasons=["scored day 2026-09-28 past valid_through 2026-09-09 (STALE)"]),
                      lg_ratio=3.0, lg_provenance=None)
         fcr, lg = r.components["fault_correlation"], r.components["lambda_geo"]
         self.assertEqual((fcr.available, fcr.calibration_status), (False, "expired"))
         self.assertEqual((lg.available, lg.calibration_status, lg.eligible_for_tiering), (True, "missing", False))
         self.assertEqual(r.methods_available, 1)                 # only the calibrated THD counts
         self.assertIn("lambda_geo=missing", r.notes)
+        # A validated LG provenance is STILL not eligible in the runner: lambda_geo has no registered age bound.
         r2 = FX.build(ensemble, region="norcal_hayward", network="BK", station="BKS", thd_baseline=fx["baseline"],
                       thd_value=fx["thd"], active=True, fc=dict(state="admitted"),
-                      lg_ratio=3.0, lg_provenance={"source": "ngl-baseline", "n_days": 90, "window_end": "2026-08-29"})
+                      lg_ratio=3.0, lg_provenance={"source": "ngl-baseline", "n_days": 90, "window_start": "2026-05-26",
+                                                   "window_end": "2026-08-24"})
+        self.assertIsNone(ensemble.LAMBDA_GEO_BASELINE_MAX_AGE_DAYS)
         self.assertEqual(r2.components["fault_correlation"].calibration_status, "calibrated")
-        self.assertEqual(r2.components["lambda_geo"].calibration_status, "calibrated")
-        self.assertEqual(r2.methods_available, 3)
+        lg2 = r2.components["lambda_geo"]
+        self.assertEqual(lg2.calibration_status, "missing")
+        self.assertTrue(lg2.eligibility_reason.startswith("NO_REGISTERED_FRESHNESS_POLICY"))
+        self.assertEqual(r2.methods_available, 2)
+
+    def test_fc_admitted_capsule_is_rechecked_against_its_registered_policy(self):
+        fx = FX.fixture_baselines()["calibrated_fresh"]
+        cases = {"fc_admitted_past_valid_through": ("expired", "CAPSULE_PAST_VALID_THROUGH"),
+                 "fc_admitted_inside_embargo": ("missing", "CAPSULE_INSIDE_EMBARGO"),
+                 "fc_admitted_future_window": ("missing", "FUTURE_WINDOW_END"),
+                 "fc_admitted": ("calibrated", "CALIBRATED")}
+        fixtures = FX.fc_fixtures()
+        for name, (status, code) in cases.items():
+            with self.subTest(fixture=name):
+                r = FX.build(ensemble, region="norcal_hayward", network="BK", station="BKS",
+                             thd_baseline=fx["baseline"], thd_value=fx["thd"], active=True,
+                             fc=dict(state="admitted", capsule=fixtures[name]["capsule"]))
+                fcr = r.components["fault_correlation"]
+                self.assertTrue(fcr.available)                    # numeric availability unchanged
+                self.assertEqual(fcr.calibration_status, status)
+                self.assertTrue(fcr.eligibility_reason.startswith(code))
+                self.assertEqual(r.methods_available, 2 if status == "calibrated" else 1)
 
     def test_rule_off_by_default(self):
         self.assertFalse(CE.ELIGIBILITY_RULE_ACTIVE)

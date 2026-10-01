@@ -38,8 +38,10 @@ class StatusClasses(unittest.TestCase):
         for name, fx in FX.fixture_baselines().items():
             with self.subTest(fixture=name):
                 e = CE.classify_thd_baseline(fx["baseline"], FX.SCORED_DAY, max_age_days=FX.MAX_AGE,
-                                             shared_regions=fx["regions"])
+                                             min_lag_days=FX.MIN_LAG, shared_regions=fx["regions"])
                 self.assertEqual(e.status, fx["expected"])
+                if "code" in fx:
+                    self.assertEqual(e.code, fx["code"])
                 self.assertEqual(e.eligible_for_tiering, fx["expected"] in ("calibrated", "shared_station"))
                 self.assertEqual(e.rule_version, CE.ELIGIBILITY_RULE_VERSION)
 
@@ -52,7 +54,8 @@ class StatusClasses(unittest.TestCase):
                 self.assertEqual(e.eligible_for_tiering, fx["expected"] == "calibrated")
         for name, fx in FX.LG_FIXTURES.items():
             with self.subTest(fixture=name):
-                e = CE.classify_lambda_geo(fx["provenance"], FX.SCORED_DAY, max_age_days=fx["max_age"])
+                e = CE.classify_lambda_geo(fx["provenance"], FX.SCORED_DAY, max_age_days=fx["max_age"],
+                                           min_lag_days=fx["min_lag"])
                 self.assertEqual((e.status, e.code), (fx["expected"], fx["code"]))
                 self.assertEqual(e.eligible_for_tiering, fx["expected"] == "calibrated")
 
@@ -66,11 +69,11 @@ class StatusClasses(unittest.TestCase):
     def test_unknown_qualification_never_qualifies(self):
         # Unreadable window with n > 0: age unknown -> missing, not calibrated.
         b = FX.baseline("IU.X", 0.3, 0.05, 40, "unknown")
-        e = CE.classify_thd_baseline(b, FX.SCORED_DAY, max_age_days=FX.MAX_AGE)
+        e = CE.classify_thd_baseline(b, FX.SCORED_DAY, max_age_days=FX.MAX_AGE, min_lag_days=FX.MIN_LAG)
         self.assertEqual((e.status, e.eligible_for_tiering), ("missing", False))
         # No target date -> age unknown -> missing.
         e = CE.classify_thd_baseline(FX.baseline("IU.X", 0.3, 0.05, 40, "2026-06-30 to 2026-09-27"), None,
-                                     max_age_days=FX.MAX_AGE)
+                                     max_age_days=FX.MAX_AGE, min_lag_days=FX.MIN_LAG)
         self.assertEqual((e.status, e.eligible_for_tiering), ("missing", False))
         # An unclassified result (None) never counts while the rule is active.
         r = ensemble.MethodResult(name="seismic_thd", available=True, raw_value=0.4)
@@ -79,22 +82,28 @@ class StatusClasses(unittest.TestCase):
 
     def test_rule_reads_n_not_notes(self):
         # Mutation 1: the same default relabelled n>0 with a dated window becomes eligible on its DATA...
-        relabelled = FX.baseline("IU.SNZO", 0.30, 0.07, 31, "2026-06-30 to 2026-09-27",
-                                 "UNCALIBRATED. estimate based on similar IU broadband")
-        e = CE.classify_thd_baseline(relabelled, FX.SCORED_DAY, max_age_days=FX.MAX_AGE)
+        # (v3: R3-shaped window and calibration day, so only n and the notes differ between the two cases.)
+        relabelled = FX.baseline("IU.SNZO", 0.30, 0.07, 31, "2026-05-29 to 2026-08-27",
+                                 "UNCALIBRATED. estimate based on similar IU broadband", calibration_date="2026-09-26")
+        e = CE.classify_thd_baseline(relabelled, FX.SCORED_DAY, max_age_days=FX.MAX_AGE, min_lag_days=FX.MIN_LAG)
         self.assertEqual((e.status, e.eligible_for_tiering), ("calibrated", True))
         # ...and a calibrated baseline whose NOTES say 'Auto-calibrated' but whose n is 0 is still n0_default.
-        noted = FX.baseline("IU.SNZO", 0.30, 0.07, 0, "2026-06-30 to 2026-09-27", "Auto-calibrated. QA=acceptable.")
-        e = CE.classify_thd_baseline(noted, FX.SCORED_DAY, max_age_days=FX.MAX_AGE)
+        noted = FX.baseline("IU.SNZO", 0.30, 0.07, 0, "2026-05-29 to 2026-08-27", "Auto-calibrated. QA=acceptable.",
+                            calibration_date="2026-09-26")
+        e = CE.classify_thd_baseline(noted, FX.SCORED_DAY, max_age_days=FX.MAX_AGE, min_lag_days=FX.MIN_LAG)
         self.assertEqual((e.status, e.eligible_for_tiering), ("n0_default", False))
 
     def test_age_limit_boundary(self):
         # Mutation 2: window end exactly MAX_AGE days before -> calibrated; one day older -> stale.
         end = FX.SCORED_DAY - timedelta(days=FX.MAX_AGE)
-        ok = FX.baseline("IU.X", 0.3, 0.05, 40, "2026-01-01 to %s" % end.strftime("%Y-%m-%d"))
-        old = FX.baseline("IU.X", 0.3, 0.05, 40, "2026-01-01 to %s" % (end - timedelta(days=1)).strftime("%Y-%m-%d"))
-        self.assertEqual(CE.classify_thd_baseline(ok, FX.SCORED_DAY, max_age_days=FX.MAX_AGE).status, "calibrated")
-        self.assertEqual(CE.classify_thd_baseline(old, FX.SCORED_DAY, max_age_days=FX.MAX_AGE).status, "stale")
+        cal = (end + timedelta(days=FX.MIN_LAG)).strftime("%Y-%m-%d")   # v3: R3-shaped calibration day
+        ok = FX.baseline("IU.X", 0.3, 0.05, 40, "2026-01-01 to %s" % end.strftime("%Y-%m-%d"), calibration_date=cal)
+        old = FX.baseline("IU.X", 0.3, 0.05, 40, "2026-01-01 to %s" % (end - timedelta(days=1)).strftime("%Y-%m-%d"),
+                          calibration_date=cal)
+        self.assertEqual(CE.classify_thd_baseline(ok, FX.SCORED_DAY, max_age_days=FX.MAX_AGE,
+                                                  min_lag_days=FX.MIN_LAG).status, "calibrated")
+        self.assertEqual(CE.classify_thd_baseline(old, FX.SCORED_DAY, max_age_days=FX.MAX_AGE,
+                                                  min_lag_days=FX.MIN_LAG).status, "stale")
         self.assertEqual(CE.baseline_age_days("2026-06-30 to 2026-09-27", FX.SCORED_DAY), 1)
         self.assertIsNone(CE.baseline_age_days("UNCALIBRATED", FX.SCORED_DAY))
 
@@ -105,7 +114,8 @@ class InputValidation(unittest.TestCase):
     def test_every_input_validation_fixture(self):
         for name, fx in FX.input_validation_fixtures().items():
             with self.subTest(fixture=name):
-                e = CE.classify_thd_baseline(fx["baseline"], FX.SCORED_DAY, max_age_days=FX.MAX_AGE)
+                e = CE.classify_thd_baseline(fx["baseline"], FX.SCORED_DAY, max_age_days=FX.MAX_AGE,
+                                             min_lag_days=FX.MIN_LAG)
                 self.assertEqual((e.status, e.code), (fx["expected"], fx["code"]))
                 self.assertEqual(e.eligible_for_tiering, fx["expected"] == "calibrated")
                 self.assertTrue(e.reason.startswith(e.code))
@@ -121,9 +131,10 @@ class InputValidation(unittest.TestCase):
         ]
         for b, code in probes:
             with self.subTest(code=code, mean=b.mean_thd, std=b.std_thd, period=b.calibration_period):
-                e = CE.classify_thd_baseline(b, target, max_age_days=50)
+                e = CE.classify_thd_baseline(b, target, max_age_days=50, min_lag_days=30)
                 self.assertEqual((e.status, e.eligible_for_tiering, e.code), ("missing", False, code))
-        e = CE.classify_lambda_geo({"n_days": 90, "window_end": "2026-10-10"}, target, max_age_days=50)
+        e = CE.classify_lambda_geo({"n_days": 90, "window_end": "2026-10-10"}, target, max_age_days=50,
+                                   min_lag_days=30)
         self.assertEqual((e.status, e.eligible_for_tiering, e.code), ("missing", False, "FUTURE_WINDOW_END"))
 
     def test_registered_policies_are_carried_not_invented(self):
@@ -132,12 +143,27 @@ class InputValidation(unittest.TestCase):
         for bad in (None, True, -1, 50.0, "50"):
             with self.subTest(policy=bad):
                 with self.assertRaises(ValueError):
-                    CE.classify_thd_baseline(b, FX.SCORED_DAY, max_age_days=bad)
+                    CE.classify_thd_baseline(b, FX.SCORED_DAY, max_age_days=bad, min_lag_days=FX.MIN_LAG)
         self.assertEqual(ensemble.MAX_BASELINE_AGE_DAYS, FX.MAX_AGE)
+        # v3: the lag is required and validated the same way, and is the one run_thd_recal registers.
+        for bad in (None, True, -1, 30.0, "30"):
+            with self.subTest(lag_policy=bad):
+                with self.assertRaises(ValueError):
+                    CE.classify_thd_baseline(b, FX.SCORED_DAY, max_age_days=FX.MAX_AGE, min_lag_days=bad)
+        import run_thd_recal
+        self.assertEqual(run_thd_recal.EXCLUDE_RECENT_DAYS, FX.MIN_LAG)
+        self.assertEqual(CE.registered_constant("run_thd_recal", "EXCLUDE_RECENT_DAYS"), FX.MIN_LAG)
+        with self.assertRaises(ValueError):
+            CE.registered_constant("run_thd_recal", "NO_SUCH_CONSTANT")
+        self.assertIsNone(ensemble.LAMBDA_GEO_BASELINE_MIN_LAG_DAYS)
         # LG: the runner registers no bound, and says so.
         self.assertIsNone(ensemble.LAMBDA_GEO_BASELINE_MAX_AGE_DAYS)
         with self.assertRaises(ValueError):
-            CE.classify_lambda_geo({"n_days": 90, "window_end": "2026-08-24"}, FX.SCORED_DAY, max_age_days=True)
+            CE.classify_lambda_geo({"n_days": 90, "window_end": "2026-08-24"}, FX.SCORED_DAY, max_age_days=True,
+                                   min_lag_days=None)
+        with self.assertRaises(ValueError):
+            CE.classify_lambda_geo({"n_days": 90, "window_end": "2026-08-24"}, FX.SCORED_DAY, max_age_days=None,
+                                   min_lag_days=True)
         # FC: the embargo the rule uses IS the loader's registered default, read from its signature/source.
         import fault_correlation
         self.assertEqual(CE.registered_default(fault_correlation.load_calibration_capsule, "embargo_days"),
@@ -160,15 +186,21 @@ class InputValidation(unittest.TestCase):
         end = FX.SCORED_DAY - timedelta(days=FX.MAX_AGE)
         for offset, expected in ((0, "calibrated"), (-1, "stale")):
             day = (end + timedelta(days=offset)).strftime("%Y-%m-%d")
-            b = FX.baseline("IU.X", 0.3, 0.05, 40, "2026-01-01 to %s" % day)
+            b = FX.baseline("IU.X", 0.3, 0.05, 40, "2026-01-01 to %s" % day,
+                            calibration_date=(end + timedelta(days=FX.MIN_LAG)).strftime("%Y-%m-%d"))
             with self.subTest(end=day):
-                self.assertEqual(CE.classify_thd_baseline(b, FX.SCORED_DAY, max_age_days=FX.MAX_AGE).status, expected)
+                self.assertEqual(CE.classify_thd_baseline(b, FX.SCORED_DAY, max_age_days=FX.MAX_AGE,
+                                                          min_lag_days=FX.MIN_LAG).status, expected)
         # Aware and naive scored datetimes keep their own calendar day (the label, like ensemble._baseline_age_days).
         from datetime import timezone
-        b = FX.baseline("IU.X", 0.3, 0.05, 40, "2026-07-01 to 2026-09-28")
+        # v3: the window ending ON the scored day passes the non-future bound (it reaches the lag check, which then
+        # refuses it); one day earlier the same window is FUTURE_WINDOW_END.
+        b = FX.baseline("IU.X", 0.3, 0.05, 40, "2026-07-01 to 2026-09-28", calibration_date="2026-09-28")
         self.assertEqual(CE.classify_thd_baseline(b, FX.SCORED_DAY.replace(tzinfo=timezone.utc),
-                                                  max_age_days=FX.MAX_AGE).code, "CALIBRATED")
-        self.assertEqual(CE.classify_thd_baseline(b, "2026-09-27", max_age_days=FX.MAX_AGE).code, "FUTURE_WINDOW_END")
+                                                  max_age_days=FX.MAX_AGE, min_lag_days=FX.MIN_LAG).code,
+                         "LAG_NOT_HONORED")
+        self.assertEqual(CE.classify_thd_baseline(b, "2026-09-27", max_age_days=FX.MAX_AGE,
+                                                  min_lag_days=FX.MIN_LAG).code, "FUTURE_WINDOW_END")
 
 
 class KaikouraReproduction(unittest.TestCase):

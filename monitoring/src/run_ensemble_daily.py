@@ -240,6 +240,27 @@ REGIONS = {
 }
 
 
+def configured_thd_station_regions(regions_map: Dict[str, Dict]) -> Dict[str, List[str]]:
+    """calibration-eligibility-v3 wiring: 'NET.STA' -> every region CONFIGURED to read that THD station, as
+    primary or fallback, with the same network defaults run_region_assessment uses ('CI' primary, 'IU'
+    fallbacks). These are CONFIGURED roles, not the station a region actually recorded on a given day: a region
+    whose primary answered never read its fallback. The eligibility rule uses the map only to DISCLOSE shared
+    support (calibrated -> shared_station, both eligible), so the configured superset can over-disclose sharing
+    but cannot change a tier. Read only while the rule is active."""
+    served: Dict[str, set] = {}
+    for region, config in regions_map.items():
+        slots = ((config.get('thd_station'), config.get('thd_network', 'CI')),
+                 (config.get('fallback_station'), config.get('fallback_network', 'IU')),
+                 (config.get('fallback2_station'), config.get('fallback2_network', 'IU')))
+        for station, network in slots:
+            if station:
+                served.setdefault(f'{network}.{station}', set()).add(region)
+    return {key: sorted(regions) for key, regions in sorted(served.items())}
+
+
+THD_STATION_REGIONS = configured_thd_station_regions(REGIONS)
+
+
 # =============================================================================
 # DAILY RUNNER
 # =============================================================================
@@ -255,6 +276,8 @@ def run_region_assessment(
     target_date: datetime,
     lambda_geo_ratio: Optional[float] = None,
     use_seismic: bool = True,
+    lambda_geo_provenance: Optional[dict] = None,
+    station_regions: Optional[Dict[str, List[str]]] = None,
 ) -> Optional[EnsembleResult]:
     """
     Run ensemble assessment for a single region.
@@ -264,6 +287,9 @@ def run_region_assessment(
         target_date: Date to assess
         lambda_geo_ratio: Optional Lambda_geo ratio (from live data)
         use_seismic: Whether to use seismic methods
+        lambda_geo_provenance: calibration-eligibility-v3 -- the baseline record the ratio was derived under
+            (None = unknown); read only while the eligibility rule is active
+        station_regions: calibration-eligibility-v3 -- configured 'NET.STA' -> regions map; read only while active
 
     Returns:
         EnsembleResult or None if failed
@@ -276,11 +302,11 @@ def run_region_assessment(
     logger.info(f"Assessing {config['name']} for {target_date.date()}")
 
     try:
-        ensemble = GeoSpecEnsemble(region=region)
+        ensemble = GeoSpecEnsemble(region=region, station_regions=station_regions)
 
         # Set Lambda_geo if provided
         if lambda_geo_ratio is not None:
-            ensemble.set_lambda_geo(target_date, lambda_geo_ratio)
+            ensemble.set_lambda_geo(target_date, lambda_geo_ratio, provenance=lambda_geo_provenance)
 
         # Determine if seismic should be used
         seismic_ok = use_seismic and config['seismic_available']
@@ -408,6 +434,42 @@ def load_lambda_geo_baselines() -> Dict:
         return {}
 
 
+def lambda_geo_baseline_provenance(baseline_file: Optional[Path] = None) -> Dict[str, dict]:
+    """calibration-eligibility-v3 wiring: per-region baseline provenance from the SAME calibration file the ratio
+    divides by (calibrate_lambda_geo_baselines.py writes it): region -> {source, n_days, window_start,
+    window_end, calibrated_on, quality}. Fields are passed as written; the eligibility rule validates them
+    (an unreadable window or date is refused there, never repaired here). Regions without an available
+    baseline are absent. Never raises: on any read error the map is empty, which the active rule classifies
+    as missing provenance. Read only to annotate; the ratio computation does not use it.
+    `baseline_file` overrides the path for tests only; production passes nothing."""
+    if baseline_file is None:
+        baseline_file = Path(__file__).parent.parent / 'data' / 'baselines' / 'lambda_geo_baselines.json'
+    try:
+        with open(baseline_file) as f:
+            data = json.load(f)
+    except Exception:
+        return {}
+    if not isinstance(data, dict) or not isinstance(data.get('regions'), dict):
+        return {}
+    stamp = data.get('calibration_timestamp')
+    calibrated_on = stamp[:10] if isinstance(stamp, str) else None
+    out = {}
+    for region, info in data['regions'].items():
+        if not isinstance(info, dict) or not info.get('available', False):
+            continue
+        period = info.get('calibration_period')
+        start, sep, end = period.partition(' to ') if isinstance(period, str) else ('', '', '')
+        out[region] = {
+            'source': f'lambda_geo_baselines.json:{region}',
+            'n_days': info.get('n_samples'),
+            'window_start': start if sep else None,
+            'window_end': end if sep else None,
+            'calibrated_on': calibrated_on,
+            'quality': info.get('quality'),
+        }
+    return out
+
+
 # Global cache for Lambda_geo baselines (loaded once per session)
 _LAMBDA_GEO_BASELINES = None
 
@@ -433,6 +495,7 @@ def fetch_ngl_lambda_geo(
     regions: List[str],
     target_date: datetime,
     days_back: int = 120,
+    provenance_out: Optional[Dict[str, Optional[dict]]] = None,
 ) -> Dict[str, float]:
     """
     Fetch Lambda_geo ratios from NGL GPS data for all regions with polygon definitions.
@@ -445,6 +508,9 @@ def fetch_ngl_lambda_geo(
         regions: List of region keys to process
         target_date: Target date for assessment
         days_back: Number of days of GPS data to use (default 120)
+        provenance_out: calibration-eligibility-v3 -- when a dict is given, filled with region -> the baseline
+            provenance of each ratio returned (None when a fallback median or hardcoded baseline was used: that
+            is not the region's own calibration). The returned ratios are unchanged.
 
     Returns:
         Dict mapping region to Lambda_geo ratio (baseline multiplier)
@@ -472,6 +538,7 @@ def fetch_ngl_lambda_geo(
         logger.warning("No Lambda_geo baselines available - ratios will be unreliable")
 
     _r5_dual = {}   # Amendment R5 dual-publication collector
+    _own_provenance = lambda_geo_baseline_provenance() if provenance_out is not None else {}
 
     for region in regions:
         # Skip regions without polygon definitions
@@ -537,6 +604,9 @@ def fetch_ngl_lambda_geo(
                 # convention) lands and activation is registered at a pre-fixed timestamp.
                 # This is the R5-5/A-5 shadow-first discipline.
                 lambda_geo_data[region] = ratio
+                if provenance_out is not None:
+                    provenance_out[region] = (_own_provenance.get(region)
+                                              if baseline_info.get('available', False) else None)
                 if r5:
                     logger.info(f"  {region}: R5 SHADOW residual=p{100*r5['residual_percentile']:.0f} "
                                 f"stat={r5['stat']:.2f}x (raw {ratio:.2f}x, fit n={r5['n_fit']}) "
@@ -591,6 +661,9 @@ def run_all_regions(
 
     if lambda_geo_data is None:
         lambda_geo_data = {}
+    # calibration-eligibility-v3: provenance of the ratio each region actually uses. Pilot and caller-supplied
+    # ratios carry none (unknown); an NGL ratio carries its baseline record. Read only while the rule is active.
+    lambda_geo_provenance: Dict[str, Optional[dict]] = {}
 
     # Check for Lambda_geo pilot data (real-time RTCM)
     if LAMBDA_GEO_PILOT_AVAILABLE:
@@ -611,11 +684,13 @@ def run_all_regions(
     # Fetch Lambda_geo from NGL for all regions with polygon definitions
     # This supplements pilot data with historical GPS data (2-14 day latency)
     if NGL_LAMBDA_GEO_AVAILABLE:
-        ngl_lambda_geo = fetch_ngl_lambda_geo(regions, target_date)
+        ngl_provenance: Dict[str, Optional[dict]] = {}
+        ngl_lambda_geo = fetch_ngl_lambda_geo(regions, target_date, provenance_out=ngl_provenance)
         # Merge NGL data, but don't override pilot data if available
         for region, ratio in ngl_lambda_geo.items():
             if region not in lambda_geo_data:
                 lambda_geo_data[region] = ratio
+                lambda_geo_provenance[region] = ngl_provenance.get(region)
         logger.info(f"Lambda_geo available for {len(lambda_geo_data)} regions via NGL/pilot data")
 
     results = {}
@@ -627,6 +702,8 @@ def run_all_regions(
             target_date=target_date,
             lambda_geo_ratio=lg_ratio,
             use_seismic=use_seismic,
+            lambda_geo_provenance=lambda_geo_provenance.get(region),
+            station_regions=THD_STATION_REGIONS,
         )
         if result:
             results[region] = result

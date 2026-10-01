@@ -31,6 +31,10 @@ class StationBaseline:
     n_samples: int  # Number of days in baseline
     calibration_period: str  # e.g., "2025-06-01 to 2025-12-31"
     notes: str = ""
+    # calibration-eligibility-v3 (prospective; read only by the eligibility rule, which is OFF): the day the
+    # baseline was CALIBRATED, as a structured field, so the R3 30-day lag can be re-checked without reading notes.
+    # None = unknown (the built-in 2026-01 defaults). Set by _load_newest_baseline_file from the dated file name.
+    calibration_date: Optional[str] = None
 
 
 # Auto-calibrated station baselines (January 2026)
@@ -156,15 +160,34 @@ STATION_BASELINES: Dict[str, StationBaseline] = {
 }
 
 
-def _load_newest_baseline_file() -> Optional[str]:
+def calibration_date_from_name(name: str) -> Optional[str]:
+    """calibration-eligibility-v3: the calibration day encoded in a run_thd_recal file name
+    (`thd_baselines_<YYYYMMDD>.json`, named by the recal's end date), as 'YYYY-MM-DD'; None when the name does not
+    carry a valid calendar date. Never guesses."""
+    from datetime import datetime as _dt
+    stem = Path(name).stem
+    if not stem.startswith('thd_baselines_'):
+        return None
+    digits = stem[len('thd_baselines_'):][:8]
+    if len(digits) != 8 or not digits.isdigit():
+        return None
+    try:
+        return _dt.strptime(digits, '%Y%m%d').strftime('%Y-%m-%d')
+    except ValueError:
+        return None
+
+
+def _load_newest_baseline_file(bdir: Optional[Path] = None) -> Optional[str]:
     """INCIDENT 2026-07-31 (D1) newest-first load: override the hardcoded (2026-01) defaults above with the
     freshest dated rolling-recal file `data/baselines/thd_baselines_*.json`, so the weekly R3 recal is picked
     up automatically without editing this module. Fully defensive: tries files newest-first, accepts either
     the flat `{key:{...}}` or the calibration `{baselines:[{station,...}]}` format, skips malformed/None
     entries, and if nothing loads it leaves the built-in defaults in place (the ensemble staleness guard then
-    catches those). Never raises. Returns the filename used, or None."""
+    catches those). Never raises. Returns the filename used, or None.
+    `bdir` (calibration-eligibility-v3) overrides the directory for tests only; production passes nothing."""
     try:
-        bdir = Path(__file__).resolve().parent.parent / 'data' / 'baselines'
+        if bdir is None:
+            bdir = Path(__file__).resolve().parent.parent / 'data' / 'baselines'
         files = sorted(bdir.glob('thd_baselines_*.json'), key=lambda p: p.name, reverse=True)  # newest name first
     except Exception:
         return None
@@ -191,7 +214,8 @@ def _load_newest_baseline_file() -> Optional[str]:
                     station=key, mean_thd=float(e['mean_thd']), std_thd=float(e['std_thd']),
                     n_samples=int(e.get('n_samples') or e.get('n_days_valid') or 0),
                     calibration_period=e.get('calibration_period', 'unknown'),
-                    notes=f"Rolling recal, loaded newest-first from {f.name}")
+                    notes=f"Rolling recal, loaded newest-first from {f.name}",
+                    calibration_date=calibration_date_from_name(f.name))
                 loaded += 1
             except Exception:
                 continue

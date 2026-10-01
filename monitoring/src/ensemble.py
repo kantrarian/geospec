@@ -182,6 +182,11 @@ MAX_BASELINE_AGE_DAYS = 50
 # eligible (NO_REGISTERED_FRESHNESS_POLICY) until a dated amendment registers a bound here. Unused while the rule
 # is off.
 LAMBDA_GEO_BASELINE_MAX_AGE_DAYS = None
+# calibration-eligibility-v3: nor does lambda_geo have a registered CALIBRATION LAG in Python. The R3 recal's
+# "--end-date today-30d" is an argument in run_and_publish.ps1, not a registration this module can read, so the
+# lag the rule re-checks for lambda_geo stays unregistered (None) until the same dated amendment that registers
+# a freshness bound registers it. Unused while the rule is off.
+LAMBDA_GEO_BASELINE_MIN_LAG_DAYS = None
 
 
 def _baseline_age_days(calibration_period, target_date):
@@ -586,7 +591,8 @@ class GeoSpecEnsemble:
         if self.eligibility_rule_active:
             CE.attach(result, CE.classify_lambda_geo(
                 self._lambda_geo_provenance.get(date.strftime('%Y-%m-%d')), date,
-                max_age_days=LAMBDA_GEO_BASELINE_MAX_AGE_DAYS))
+                max_age_days=LAMBDA_GEO_BASELINE_MAX_AGE_DAYS,
+                min_lag_days=LAMBDA_GEO_BASELINE_MIN_LAG_DAYS))
         return result
 
     def _resolve_calibration_capsule(self, region, date):
@@ -770,6 +776,8 @@ class GeoSpecEnsemble:
             if self.eligibility_rule_active:
                 eligibility = CE.classify_thd_baseline(
                     baseline, date, max_age_days=MAX_BASELINE_AGE_DAYS,
+                    # v3: the R3 lag, read from the module that registers it (imported only while active)
+                    min_lag_days=CE.registered_constant('run_thd_recal', 'EXCLUDE_RECENT_DAYS'),
                     shared_regions=self.station_regions.get(f'{station_network}.{station_code}', ()))
 
             # INCIDENT 2026-07-31 (D1): baseline STALENESS fail-safe. If the baseline window ends more than

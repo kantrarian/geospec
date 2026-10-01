@@ -1,5 +1,5 @@
 """
-calibration_eligibility.py -- PROSPECTIVE, VERSIONED calibration-eligibility rule (calibration-eligibility-v2).
+calibration_eligibility.py -- PROSPECTIVE, VERSIONED calibration-eligibility rule (calibration-eligibility-v3).
 
 NOT ACTIVATED. `ELIGIBILITY_RULE_ACTIVE` is False and stays False until a dated amendment / owner decision flips
 it; with the flag off every ordinary-run output is byte-identical to the pre-rule runner (proved by
@@ -27,6 +27,20 @@ inputs before it qualifies anything:
                         "unregistered" and the observation is NOT eligible (NO_REGISTERED_FRESHNESS_POLICY) until a
                         dated amendment registers one. v1 borrowed seismic_thd's 50 d for lambda_geo; v2 does not.
 Every refusal carries a typed code ("CODE: detail"); an unreadable, unverifiable or missing input is never eligible.
+
+v3 (codex 0106 / be9c2a19 activation prerequisites, 2026-10-01): the R3 30-day lag is RE-CHECKED from a
+structured calibration date instead of being assumed. A baseline that is otherwise fresh must also carry the day
+it was calibrated, and its window must end at least the REGISTERED lag before that day:
+  seismic_thd   StationBaseline.calibration_date (set from the dated recal file name) against
+                run_thd_recal.EXCLUDE_RECENT_DAYS, read from that module, not restated here;
+  lambda_geo    provenance["calibrated_on"] against a lag the caller registers; the runner registers none
+                (ensemble.LAMBDA_GEO_BASELINE_MIN_LAG_DAYS = None), so after a future freshness bound the ratio
+                would still be NOT eligible (NO_REGISTERED_LAG_POLICY) until a dated amendment registers both.
+The calibration day must also not be after the scored day (a later recal cannot qualify an earlier score), so
+together the two checks guarantee the window ends at least the registered lag before the scored day.
+Precedence is unchanged for every v2 outcome: unreadable / future / stale are decided first, and the lag check
+can only move an otherwise calibrated baseline to `missing` (CALIBRATION_DATE_UNKNOWN,
+CALIBRATED_AFTER_SCORED_DAY or LAG_NOT_HONORED).
 
 What the rule does when ACTIVE: every method observation carries `calibration_status`,
 `eligibility_rule_version` and `eligible_for_tiering`; raw values, scores and notes stay visible exactly as
@@ -57,7 +71,7 @@ from dataclasses import dataclass
 from datetime import date, datetime
 from typing import Iterable, Optional, Sequence, Tuple
 
-ELIGIBILITY_RULE_VERSION = "calibration-eligibility-v2"
+ELIGIBILITY_RULE_VERSION = "calibration-eligibility-v3"
 # Prospective rule: OFF until a dated amendment / owner decision. Nothing in the ordinary run flips this.
 ELIGIBILITY_RULE_ACTIVE = False
 
@@ -93,6 +107,10 @@ CAPSULE_NOT_SUPPLIED = "CAPSULE_NOT_SUPPLIED"
 CAPSULE_FIELDS_UNREADABLE = "CAPSULE_FIELDS_UNREADABLE"
 CAPSULE_INSIDE_EMBARGO = "CAPSULE_INSIDE_EMBARGO"
 EMBARGO_POLICY_UNREADABLE = "EMBARGO_POLICY_UNREADABLE"
+CALIBRATION_DATE_UNKNOWN = "CALIBRATION_DATE_UNKNOWN"
+LAG_NOT_HONORED = "LAG_NOT_HONORED"
+CALIBRATED_AFTER_SCORED_DAY = "CALIBRATED_AFTER_SCORED_DAY"
+NO_REGISTERED_LAG_POLICY = "NO_REGISTERED_LAG_POLICY"
 CALIBRATED = "CALIBRATED"
 SHARED_SUPPORT = "SHARED_SUPPORT"
 
@@ -228,6 +246,38 @@ def registered_default(func, parameter: str):
 # Helpers kept from v1 (read by tests and callers)
 # ---------------------------------------------------------------------------------------------------------------
 
+def registered_constant(module_name: str, attribute: str) -> int:
+    """A day count a module REGISTERS as a constant (e.g. run_thd_recal.EXCLUDE_RECENT_DAYS, the R3 lag), read from
+    the module itself rather than restated. Imported only when the rule is active. A missing or malformed value
+    is a wiring defect and raises."""
+    import importlib
+    module = importlib.import_module(module_name)
+    if not hasattr(module, attribute):
+        raise ValueError("%s registers no %s" % (module_name, attribute))
+    return _registered_policy(getattr(module, attribute), "%s.%s" % (module_name, attribute), allow_none=False)
+
+
+def _lag_check(window_end_day: date, calibrated_on, target_day: date, min_lag: int,
+               label: str) -> Optional[Eligibility]:
+    """None when the baseline was calibrated on or before the scored day AND its window ends at least `min_lag`
+    days before that calibration day; else the typed refusal."""
+    calibrated = _parse_day(calibrated_on)
+    if calibrated is None:
+        return _make(STATUS_MISSING, CALIBRATION_DATE_UNKNOWN,
+                     "%scalibration date %r unknown: the registered %d d lag cannot be re-checked"
+                     % (label, calibrated_on, min_lag))
+    if calibrated > target_day:
+        return _make(STATUS_MISSING, CALIBRATED_AFTER_SCORED_DAY,
+                     "%scalibrated %s, %d d after the scored day %s" % (label, calibrated,
+                                                                      (calibrated - target_day).days, target_day))
+    lag = (calibrated - window_end_day).days
+    if lag < min_lag:
+        return _make(STATUS_MISSING, LAG_NOT_HONORED,
+                     "%swindow ends %s, %d d before calibration on %s (< registered lag %d d)"
+                     % (label, window_end_day, lag, calibrated, min_lag))
+    return None
+
+
 def window_end(calibration_period) -> Optional[datetime]:
     """The END of a 'YYYY-MM-DD to YYYY-MM-DD' calibration window as a naive datetime, or None when unreadable
     (e.g. 'UNCALIBRATED', 'unknown', ''). Same reading as ensemble._baseline_age_days; the classifier itself uses
@@ -253,14 +303,17 @@ def baseline_age_days(calibration_period, target_date) -> Optional[int]:
 # Classifiers
 # ---------------------------------------------------------------------------------------------------------------
 
-def classify_thd_baseline(baseline, target_date, *, max_age_days: int,
+def classify_thd_baseline(baseline, target_date, *, max_age_days: int, min_lag_days: int,
                           shared_regions: Sequence[str] = ()) -> Eligibility:
     """Classify a station THD baseline (station_baselines.StationBaseline or None) for `target_date`.
 
-    `max_age_days` is the REGISTERED seismic_thd policy (ensemble.MAX_BASELINE_AGE_DAYS). `shared_regions` names
+    `max_age_days` is the REGISTERED seismic_thd policy (ensemble.MAX_BASELINE_AGE_DAYS); `min_lag_days` the
+    REGISTERED R3 lag (run_thd_recal.EXCLUDE_RECENT_DAYS), re-checked against `baseline.calibration_date` (v3).
+    `shared_regions` names
     every region the station serves on this run (from the runner's REGIONS map); a calibrated baseline serving more
     than one region is `shared_station` (eligible, disclosed)."""
     max_age = _registered_policy(max_age_days, "max_age_days", allow_none=False)
+    min_lag = _registered_policy(min_lag_days, "min_lag_days", allow_none=False)
     if baseline is None:
         return _make(STATUS_MISSING, NO_BASELINE, "no station baseline")
     mean, mean_problem = _statistic(getattr(baseline, "mean_thd", None))
@@ -290,6 +343,9 @@ def classify_thd_baseline(baseline, target_date, *, max_age_days: int,
                      "window ends %s, %d d after the scored day %s" % (end, -age, target))
     if age > max_age:
         return _make(STATUS_STALE, WINDOW_STALE, "window ended %d d before the scored day (> %d d)" % (age, max_age))
+    lag_refusal = _lag_check(end, getattr(baseline, "calibration_date", None), target, min_lag, "")
+    if lag_refusal is not None:
+        return lag_refusal
     regions = sorted({str(r) for r in (shared_regions or ()) if r})
     if len(regions) > 1:
         return _make(STATUS_SHARED_STATION, SHARED_SUPPORT, "calibrated (n=%d, window %s..%s, end %d d) shared by %s"
@@ -346,15 +402,19 @@ def classify_fc_calibration(state: str, reasons: Iterable[str] = (), *, capsule=
                  % (start, end, valid_through, lag, int(embargo_days)))
 
 
-def classify_lambda_geo(provenance, target_date, *, max_age_days: Optional[int]) -> Eligibility:
+def classify_lambda_geo(provenance, target_date, *, max_age_days: Optional[int],
+                        min_lag_days: Optional[int]) -> Eligibility:
     """Classify a Lambda_geo ratio's baseline provenance: a dict with `n_days` (baseline sample days) and
     `window_end` ('YYYY-MM-DD'), optionally `window_start` (checked complete and ordered when supplied) and
     `source`. None means the runner supplied a ratio with no baseline record (qualification unknown).
 
     `max_age_days` is the REGISTERED lambda_geo baseline-age bound; the runner registers none, so the ensemble
     passes None and a ratio whose inputs otherwise validate is `missing` (NO_REGISTERED_FRESHNESS_POLICY). The
-    argument is keyword-only and has no default: a caller states the policy or states that there is none."""
+    argument is keyword-only and has no default: a caller states the policy or states that there is none.
+    v3: `min_lag_days` is the REGISTERED lag between the window end and `provenance["calibrated_on"]`; None means
+    unregistered, and a ratio that passes freshness is then still `missing` (NO_REGISTERED_LAG_POLICY)."""
     max_age = _registered_policy(max_age_days, "max_age_days", allow_none=True)
+    min_lag = _registered_policy(min_lag_days, "min_lag_days", allow_none=True)
     if not isinstance(provenance, dict):
         return _make(STATUS_MISSING, NO_PROVENANCE, "no Lambda_geo baseline provenance")
     source = str(provenance.get("source") or "unnamed source")
@@ -388,7 +448,14 @@ def classify_lambda_geo(provenance, target_date, *, max_age_days: Optional[int])
     if age > max_age:
         return _make(STATUS_STALE, WINDOW_STALE,
                      "%s: window ended %d d before the scored day (> %d d)" % (source, age, max_age))
-    return _make(STATUS_CALIBRATED, CALIBRATED, "%s: n_days=%d, window end %d d before the scored day" % (source, n, age))
+    if min_lag is None:
+        return _make(STATUS_MISSING, NO_REGISTERED_LAG_POLICY,
+                     "%s: lambda_geo has no registered calibration lag; qualification unknown" % source)
+    lag_refusal = _lag_check(end, provenance.get("calibrated_on"), target, min_lag, "%s: " % source)
+    if lag_refusal is not None:
+        return lag_refusal
+    return _make(STATUS_CALIBRATED, CALIBRATED, "%s: n_days=%d, window end %d d before the scored day, calibrated %s"
+                 % (source, n, age, provenance.get("calibrated_on")))
 
 
 def attach(method_result, eligibility: Eligibility):

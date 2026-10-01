@@ -59,15 +59,17 @@ def fixture_rows(base_module):
                          note="unavailable capsules are already available=False in the runner; the rule records why; "
                               "admitted capsules are re-checked against valid_through and the registered embargo"))
     for name, fx in FX.LG_FIXTURES.items():
-        e = CE.classify_lambda_geo(fx["provenance"], FX.SCORED_DAY, max_age_days=fx["max_age"])
+        e = CE.classify_lambda_geo(fx["provenance"], FX.SCORED_DAY, max_age_days=fx["max_age"],
+                                   min_lag_days=fx["min_lag"])
         rows.append(dict(fixture=name, family="lambda_geo", status=e.status, eligible=e.eligible_for_tiering,
                          code=e.code, reason=e.reason, expected_status=fx["expected"], expected_code=fx["code"],
                          provenance=fx["provenance"], max_age_days_policy=fx["max_age"],
+                         min_lag_days_policy=fx["min_lag"],
                          policy_basis=("EXPLICIT_TEST_POLICY_NOT_REGISTERED" if fx["max_age"] is not None
                                        else "RUNNER_REGISTERS_NONE")))
     for name, fx in FX.input_validation_fixtures().items():
         b = fx["baseline"]
-        e = CE.classify_thd_baseline(b, FX.SCORED_DAY, max_age_days=FX.MAX_AGE)
+        e = CE.classify_thd_baseline(b, FX.SCORED_DAY, max_age_days=FX.MAX_AGE, min_lag_days=FX.MIN_LAG)
         rows.append(dict(fixture=name, family="seismic_thd_input_validation", status=e.status,
                          eligible=e.eligible_for_tiering, code=e.code, reason=e.reason, expected_status=fx["expected"],
                          expected_code=fx["code"], inputs=dict(mean_thd=repr(b.mean_thd), std_thd=repr(b.std_thd),
@@ -167,6 +169,8 @@ def main(argv=None):
                   base_commit=args.base_sha, scored_day_fixture=FX.SCORED_DAY.strftime("%Y-%m-%d"),
                   max_baseline_age_days=ensemble.MAX_BASELINE_AGE_DAYS,
                   lambda_geo_baseline_max_age_days=ensemble.LAMBDA_GEO_BASELINE_MAX_AGE_DAYS,
+                  thd_registered_min_lag_days=CE.registered_constant("run_thd_recal", "EXCLUDE_RECENT_DAYS"),
+                  lambda_geo_baseline_min_lag_days=ensemble.LAMBDA_GEO_BASELINE_MIN_LAG_DAYS,
                   fault_correlation_registered_embargo_days=FX.fc_registered_embargo_days(),
                   stubbed_modules=list(FX.STUBBED),
                   fixtures=fixture_rows(base))

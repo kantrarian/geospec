@@ -1,5 +1,5 @@
 """
-calibration_eligibility_fixtures.py -- offline fixtures + harness for the calibration-eligibility rule (v2).
+calibration_eligibility_fixtures.py -- offline fixtures + harness for the calibration-eligibility rule (v3).
 
 Drives the REAL `GeoSpecEnsemble.compute_risk` / `compute_thd_risk` / `compute_fault_correlation_risk` /
 `compute_lambda_geo_risk` paths with synthetic inputs: the seismic fetch and THD analyzer are stubbed (no obspy,
@@ -190,19 +190,27 @@ def load_module_from_file(path: str, module_name: str):
 SCORED_DAY = datetime(2026, 9, 28)          # the measured Kaikoura example (codex a7d0533d)
 KAIKOURA_THD = 0.4497223                    # -> score 0.4097225 under the current mapping (z 2.14, n 0)
 MAX_AGE = 50                                # ensemble.MAX_BASELINE_AGE_DAYS at the base commit
+MIN_LAG = 30                                # run_thd_recal.EXCLUDE_RECENT_DAYS (the R3 lag); a test pins both
 
 
-def baseline(station: str, mean: float, std: float, n: int, period: str, notes: str = ""):
+def baseline(station: str, mean: float, std: float, n: int, period: str, notes: str = "",
+             calibration_date: Optional[str] = None):
+    """v3: `calibration_date` is explicit per fixture (None = unknown); it matters only to a baseline that is
+    otherwise calibrated, because every earlier refusal is decided first."""
     from station_baselines import StationBaseline
     return StationBaseline(station=station, mean_thd=mean, std_thd=std, n_samples=n, calibration_period=period,
-                           notes=notes)
+                           notes=notes, calibration_date=calibration_date)
 
 
 def fixture_baselines() -> Dict[str, dict]:
     """Each fixture: the baseline (or None), the station/network, the regions it serves, the THD value, and the
-    status the rule is EXPECTED to assign. Windows are relative to SCORED_DAY (2026-09-28)."""
-    fresh = "2026-06-30 to 2026-09-27"      # window end 1 d before the scored day
-    at_limit = "2026-05-10 to 2026-08-09"   # window end exactly MAX_AGE (50) d before
+    status the rule is EXPECTED to assign. Windows are relative to SCORED_DAY (2026-09-28).
+    v3: a calibrated fixture is R3-shaped -- its window ends MIN_LAG (30) d before the day it was calibrated,
+    and that day is not after the scored day (v2's "fresh" window ended 1 d before the scored day, which no
+    calibration on or before the scored day can produce under the registered lag)."""
+    fresh = "2026-05-29 to 2026-08-27"      # window end 32 d before the scored day; calibrated 2026-09-26
+    fresh_cal = "2026-09-26"
+    at_limit = "2026-05-10 to 2026-08-09"   # window end exactly MAX_AGE (50) d before; calibrated 2026-09-08
     past_limit = "2026-05-09 to 2026-08-08" # window end 51 d before -> stale
     return {
         "missing_no_baseline": dict(baseline=None, station="CAFE", network="IV", regions=["campi_flegrei"],
@@ -215,14 +223,28 @@ def fixture_baselines() -> Dict[str, dict]:
                                     expected="n0_default"),
         "stale_window": dict(baseline=baseline("IU.COLA", 0.183849, 0.039561, 32, past_limit), station="COLA",
                              network="IU", regions=["anchorage"], thd=0.4497223, expected="stale"),
-        "calibrated_at_age_limit": dict(baseline=baseline("MX.TLIG", 0.135859, 0.04906, 87, at_limit),
+        "calibrated_at_age_limit": dict(baseline=baseline("MX.TLIG", 0.135859, 0.04906, 87, at_limit,
+                                                          calibration_date="2026-09-08"),
                                         station="TLIG", network="MX", regions=["mexico_guerrero"], thd=0.2500,
                                         expected="calibrated"),
-        "calibrated_fresh": dict(baseline=baseline("BK.BKS", 0.305512, 0.049728, 31, fresh), station="BKS",
+        "calibrated_fresh": dict(baseline=baseline("BK.BKS", 0.305512, 0.049728, 31, fresh,
+                                                   calibration_date=fresh_cal), station="BKS",
                                  network="BK", regions=["norcal_hayward"], thd=0.4497223, expected="calibrated"),
-        "shared_station_tuc": dict(baseline=baseline("IU.TUC", 0.340665, 0.039952, 31, fresh), station="TUC",
+        "shared_station_tuc": dict(baseline=baseline("IU.TUC", 0.340665, 0.039952, 31, fresh,
+                                                     calibration_date=fresh_cal), station="TUC",
                                    network="IU", regions=["ridgecrest", "socal_saf_mojave", "socal_saf_coachella"],
                                    thd=0.4497223, expected="shared_station"),
+        # v3 lag re-check: otherwise calibrated baselines that cannot show the registered lag.
+        "lag_calibration_date_unknown": dict(baseline=baseline("IU.TATO", 0.30, 0.05, 88, fresh),
+                                             station="TATO", network="IU", regions=["hualien"], thd=0.4497223,
+                                             expected="missing", code="CALIBRATION_DATE_UNKNOWN"),
+        "lag_not_honored": dict(baseline=baseline("IU.COR", 0.30, 0.05, 88, fresh, calibration_date="2026-09-25"),
+                                station="COR", network="IU", regions=["cascadia"], thd=0.4497223,
+                                expected="missing", code="LAG_NOT_HONORED"),
+        "lag_calibrated_after_scored_day": dict(
+            baseline=baseline("IU.ANTO", 0.30, 0.05, 88, fresh, calibration_date="2026-09-29"), station="ANTO",
+            network="IU", regions=["istanbul_marmara"], thd=0.4497223, expected="missing",
+            code="CALIBRATED_AFTER_SCORED_DAY"),
     }
 
 
@@ -259,40 +281,62 @@ def fc_fixtures() -> Dict[str, dict]:
     }
 
 
-# Classifier-level Lambda_geo fixtures. `max_age` is an EXPLICIT test policy (the runner registers none -- see
-# ensemble.LAMBDA_GEO_BASELINE_MAX_AGE_DAYS); `lg_unregistered_policy` is what the runner itself would produce.
+# Classifier-level Lambda_geo fixtures. `max_age` / `min_lag` are EXPLICIT test policies (the runner registers
+# neither -- see ensemble.LAMBDA_GEO_BASELINE_MAX_AGE_DAYS / _MIN_LAG_DAYS); `lg_unregistered_policy` is what the
+# runner itself would produce. Every fixture states both policies (no default).
 LG_FIXTURES = {
-    "lg_no_provenance": dict(provenance=None, max_age=MAX_AGE, expected="missing", code="NO_PROVENANCE"),
+    "lg_no_provenance": dict(provenance=None, max_age=MAX_AGE, min_lag=MIN_LAG, expected="missing", code="NO_PROVENANCE"),
     "lg_n0": dict(provenance={"source": "ngl-baseline", "n_days": 0, "window_end": "2026-09-27"}, max_age=MAX_AGE,
-                  expected="n0_default", code="ZERO_SAMPLE_DEFAULT"),
+                  min_lag=MIN_LAG, expected="n0_default", code="ZERO_SAMPLE_DEFAULT"),
     "lg_stale": dict(provenance={"source": "ngl-baseline", "n_days": 90, "window_end": "2026-08-08"}, max_age=MAX_AGE,
-                     expected="stale", code="WINDOW_STALE"),
+                     min_lag=MIN_LAG, expected="stale", code="WINDOW_STALE"),
     "lg_calibrated_under_explicit_test_policy": dict(
-        provenance={"source": "ngl-baseline", "n_days": 90, "window_start": "2026-05-26", "window_end": "2026-08-24"},
-        max_age=MAX_AGE, expected="calibrated", code="CALIBRATED"),
+        provenance={"source": "ngl-baseline", "n_days": 90, "window_start": "2026-05-26", "window_end": "2026-08-24",
+                    "calibrated_on": "2026-09-23"},
+        max_age=MAX_AGE, min_lag=MIN_LAG, expected="calibrated", code="CALIBRATED"),
     "lg_unregistered_policy": dict(
+        provenance={"source": "ngl-baseline", "n_days": 90, "window_start": "2026-05-26", "window_end": "2026-08-24",
+                    "calibrated_on": "2026-09-23"},
+        max_age=None, min_lag=None, expected="missing", code="NO_REGISTERED_FRESHNESS_POLICY"),
+    # v3: a registered freshness bound alone is not enough -- the lag must be registered too.
+    "lg_unregistered_lag": dict(
+        provenance={"source": "ngl-baseline", "n_days": 90, "window_start": "2026-05-26", "window_end": "2026-08-24",
+                    "calibrated_on": "2026-09-23"},
+        max_age=MAX_AGE, min_lag=None, expected="missing", code="NO_REGISTERED_LAG_POLICY"),
+    "lg_calibration_date_unknown": dict(
         provenance={"source": "ngl-baseline", "n_days": 90, "window_start": "2026-05-26", "window_end": "2026-08-24"},
-        max_age=None, expected="missing", code="NO_REGISTERED_FRESHNESS_POLICY"),
+        max_age=MAX_AGE, min_lag=MIN_LAG, expected="missing", code="CALIBRATION_DATE_UNKNOWN"),
+    "lg_lag_not_honored": dict(
+        provenance={"source": "ngl-baseline", "n_days": 90, "window_start": "2026-05-26", "window_end": "2026-08-24",
+                    "calibrated_on": "2026-09-22"},
+        max_age=MAX_AGE, min_lag=MIN_LAG, expected="missing", code="LAG_NOT_HONORED"),
+    "lg_calibrated_after_scored_day": dict(
+        provenance={"source": "ngl-baseline", "n_days": 90, "window_start": "2026-05-26", "window_end": "2026-08-24",
+                    "calibrated_on": "2026-09-30"},
+        max_age=MAX_AGE, min_lag=MIN_LAG, expected="missing", code="CALIBRATED_AFTER_SCORED_DAY"),
     "lg_future_window": dict(provenance={"source": "ngl-baseline", "n_days": 90, "window_end": "2026-10-10"},
-                             max_age=MAX_AGE, expected="missing", code="FUTURE_WINDOW_END"),
+                             max_age=MAX_AGE, min_lag=MIN_LAG, expected="missing", code="FUTURE_WINDOW_END"),
     "lg_reversed_window": dict(provenance={"source": "ngl-baseline", "n_days": 90, "window_start": "2026-08-24",
                                            "window_end": "2026-05-26"},
-                               max_age=MAX_AGE, expected="missing", code="WINDOW_REVERSED"),
+                               max_age=MAX_AGE, min_lag=MIN_LAG, expected="missing", code="WINDOW_REVERSED"),
     "lg_boolean_count": dict(provenance={"source": "ngl-baseline", "n_days": True, "window_end": "2026-08-24"},
-                             max_age=MAX_AGE, expected="missing", code="INVALID_SAMPLE_COUNT"),
+                             max_age=MAX_AGE, min_lag=MIN_LAG, expected="missing", code="INVALID_SAMPLE_COUNT"),
     "lg_fractional_count": dict(provenance={"source": "ngl-baseline", "n_days": 89.5, "window_end": "2026-08-24"},
-                                max_age=MAX_AGE, expected="missing", code="INVALID_SAMPLE_COUNT"),
+                                max_age=MAX_AGE, min_lag=MIN_LAG, expected="missing", code="INVALID_SAMPLE_COUNT"),
 }
 
 
 def input_validation_fixtures() -> Dict[str, dict]:
     """THD input-validation fixtures (codex 638dd6e9 finding 1): n_samples 90, window 2026-05-26 to 2026-08-24
-    (35 d before the scored day) unless the fixture varies it. Each EXPECTS a typed refusal except the controls."""
+    (35 d before the scored day) unless the fixture varies it. Each EXPECTS a typed refusal except the controls.
+    v3: the controls are calibrated 2026-09-23 (exactly the registered 30 d lag after the window end)."""
     period = "2026-05-26 to 2026-08-24"
+    cal = "2026-09-23"
     nan, inf = float("nan"), float("inf")
     return {
-        "control_nominal": dict(baseline=baseline("IU.T", 0.30, 0.07, 90, period), expected="calibrated", code="CALIBRATED"),
-        "control_integral_float_count": dict(baseline=baseline("IU.T", 0.30, 0.07, 90.0, period),
+        "control_nominal": dict(baseline=baseline("IU.T", 0.30, 0.07, 90, period, calibration_date=cal),
+                                expected="calibrated", code="CALIBRATED"),
+        "control_integral_float_count": dict(baseline=baseline("IU.T", 0.30, 0.07, 90.0, period, calibration_date=cal),
                                              expected="calibrated", code="CALIBRATED"),
         "mean_nan": dict(baseline=baseline("IU.T", nan, 0.07, 90, period), expected="missing", code="NON_FINITE_STATISTIC"),
         "std_pos_inf": dict(baseline=baseline("IU.T", 0.30, inf, 90, period), expected="missing", code="NON_FINITE_STATISTIC"),
@@ -309,8 +353,12 @@ def input_validation_fixtures() -> Dict[str, dict]:
                               expected="missing", code="FUTURE_WINDOW_END"),
         "window_end_tomorrow": dict(baseline=baseline("IU.T", 0.30, 0.07, 90, "2026-07-01 to 2026-09-29"),
                                     expected="missing", code="FUTURE_WINDOW_END"),
-        "window_end_on_scored_day": dict(baseline=baseline("IU.T", 0.30, 0.07, 90, "2026-07-01 to 2026-09-28"),
-                                         expected="calibrated", code="CALIBRATED"),
+        # v2 expected CALIBRATED (the non-future bound admits age 0). v3: it still passes that bound and is then
+        # refused at the lag -- a window ending on the scored day cannot end 30 d before a calibration on or
+        # before that day.
+        "window_end_on_scored_day": dict(baseline=baseline("IU.T", 0.30, 0.07, 90, "2026-07-01 to 2026-09-28",
+                                                           calibration_date="2026-09-28"),
+                                         expected="missing", code="LAG_NOT_HONORED"),
         "window_reversed": dict(baseline=baseline("IU.T", 0.30, 0.07, 90, "2026-08-24 to 2026-05-26"),
                                 expected="missing", code="WINDOW_REVERSED"),
         "window_end_only": dict(baseline=baseline("IU.T", 0.30, 0.07, 90, "2026-08-24"),

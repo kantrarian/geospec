@@ -753,12 +753,46 @@
                 }).join('');
 
             // Update timestamp
-            document.getElementById('last-update').textContent =
-                `Last update: ${ensembleData.date || 'Unknown'}`;
+            document.getElementById('last-update').textContent = formatReportTimes(ensembleData);
         }
 
         // Extract events shown on region cards (largest + most recent)
         // This matches what's displayed on each region card for consistency
+        // REPORT-TIMES-LABEL-BEGIN (cayley 2026-10-01, codex a2a5cfe0). The report's scored day and the time the
+        // report was generated are different facts, and neither is the time any sensor measured anything. An
+        // absent or unreadable value is shown as unknown, never guessed.
+        function formatReportTimes(data) {
+            const d = data || {};
+            let scored = 'unknown';
+            const day = typeof d.date === 'string' ? /^(\d{4})-(\d{2})-(\d{2})$/.exec(d.date) : null;
+            if (day) {
+                const t = new Date(Date.UTC(+day[1], +day[2] - 1, +day[3]));
+                if (t.getUTCFullYear() === +day[1] && t.getUTCMonth() === +day[2] - 1 && t.getUTCDate() === +day[3]) {
+                    scored = d.date;
+                }
+            }
+            let generated = 'unknown (no timestamp in the report)';
+            if (d.timestamp !== undefined && d.timestamp !== null && d.timestamp !== '') {
+                generated = 'unknown (timestamp unreadable or without a UTC offset)';
+                const ts = typeof d.timestamp === 'string'
+                    ? /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(\.\d+)?(Z|[+-]\d{2}:\d{2})$/.exec(d.timestamp)
+                    : null;
+                if (ts) {
+                    const off = ts[8];
+                    const offOk = off === 'Z' || (+off.slice(1, 3) <= 14 && +off.slice(4, 6) <= 59);
+                    const t = new Date(Date.UTC(+ts[1], +ts[2] - 1, +ts[3], +ts[4], +ts[5], +ts[6]));
+                    const same = t.getUTCFullYear() === +ts[1] && t.getUTCMonth() === +ts[2] - 1 &&
+                        t.getUTCDate() === +ts[3] && t.getUTCHours() === +ts[4] && t.getUTCMinutes() === +ts[5] &&
+                        t.getUTCSeconds() === +ts[6];
+                    if (offOk && same) {
+                        generated = `${ts[1]}-${ts[2]}-${ts[3]} ${ts[4]}:${ts[5]}:${ts[6]} ${off === 'Z' ? '+00:00' : off}`;
+                    }
+                }
+            }
+            return `Latest scored day: ${scored} \u00b7 Report generated: ${generated}`;
+        }
+        // REPORT-TIMES-LABEL-END
+
         function extractCardEvents(earthquakeEvents) {
             const events = [];
             if (!earthquakeEvents) return events;

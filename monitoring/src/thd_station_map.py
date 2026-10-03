@@ -63,8 +63,10 @@ REGION_AGENCY = {
     "mexico_guerrero": "SSN",
 }
 
-STA_RE = re.compile(r"\bsta=([A-Z0-9]+)\.([A-Z0-9]+)\b")
-ATTEMPT_RE = re.compile(r"\bfrom ([A-Z0-9]+)\.([A-Z0-9]+)\b")
+# A station key is NET.STA, or a three-part key such as HINET.N.KI2H (network 'HINET.N'); the first group may hold
+# one dot so the whole key is kept (cayley b1765426 defect: the two-part pattern truncated three-part codes).
+STA_RE = re.compile(r"\bsta=([A-Z0-9]+(?:\.[A-Z0-9]+)?)\.([A-Z0-9]+)\b")
+ATTEMPT_RE = re.compile(r"\bfrom ([A-Z0-9]+(?:\.[A-Z0-9]+)?)\.([A-Z0-9]+)\b")
 N_RE = re.compile(r"\bn=(\d+)\b")
 
 
@@ -164,9 +166,12 @@ def build(repo=REPO):
         primary = "%s.%s" % (cfg.get("thd_network", "CI"), cfg["thd_station"]) if cfg.get("thd_station") else None
         fallback = ("%s.%s" % (cfg.get("fallback_network", "IU"), cfg["fallback_station"])
                     if cfg.get("fallback_station") else None)
+        # second configured fallback (run_ensemble_daily reads fallback2_* the same way; cayley b1765426 defect)
+        fallback2 = ("%s.%s" % (cfg.get("fallback2_network", "IU"), cfg["fallback2_station"])
+                     if cfg.get("fallback2_station") else None)
         rec, basis, n_days = recorded_station((report.get("regions") or {}).get(region))
         distances = {}
-        for key in [k for k in (primary, fallback, rec) if k]:
+        for key in [k for k in (primary, fallback, fallback2, rec) if k]:
             epochs = stations_all.get(key)
             epoch = _epoch_for(epochs, day) if epochs else None
             if epoch is None:
@@ -176,7 +181,8 @@ def build(repo=REPO):
             distances[key] = region_distances(epoch["lat"], epoch["lon"], bounds[region])
         agency = REGION_AGENCY.get(region)
         rows.append(dict(region=region, name=cfg.get("name", region), configured_primary=primary,
-                         configured_fallback=fallback, recorded_station=rec, recorded_basis=basis,
+                         configured_fallback=fallback, configured_fallback2=fallback2,
+                         recorded_station=rec, recorded_basis=basis,
                          baseline_n_days=n_days, distances=distances,
                          official_source=dict(name=agency, url=AGENCIES[agency]) if agency else None))
     by_station = {}

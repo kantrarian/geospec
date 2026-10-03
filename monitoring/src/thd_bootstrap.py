@@ -44,6 +44,7 @@ import json
 import math
 import os
 import pickle
+import re
 import sys
 from dataclasses import asdict, dataclass, field
 from datetime import date, datetime, timedelta, timezone
@@ -56,7 +57,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from baseline_qa import QA_THRESHOLDS, compute_baseline_qa  # noqa: E402
 from run_thd_recal import BASELINE_DIR, EXCLUDE_RECENT_DAYS, LOOKBACK_DAYS  # noqa: E402
-from station_baselines import calibration_date_from_name  # noqa: E402
+from station_baselines import calibration_date_from_name, _baseline_from_entry  # noqa: E402
 
 SCHEMA = "geospec.thd-bootstrap.v2"
 EXPECTED_CHANNEL = "BHZ"
@@ -76,7 +77,8 @@ OPERATOR_DAILY = dict(
 REFUSAL_CODES = ("NSLC_MISMATCH", "LOCATION_MISMATCH", "CHANNEL_MISMATCH", "TIMESTAMPS_INVALID", "WINDOW_MISMATCH",
                  "SUPPORT_OUTSIDE_WINDOW", "DAY_OUTSIDE_WINDOW", "DAY_TOO_RECENT", "EPOCH_MISMATCH", "RATE_INVALID",
                  "RATE_MISMATCH", "NPTS_SPAN_INCONSISTENT", "NO_DATA", "COVERAGE_SHORT", "GAP_FILLED",
-                 "SUPPORT_INCOMPLETE", "RESPONSE_MISSING", "DUPLICATE_DAY", "DUPLICATE_SUPPORT", "ESTIMATOR_ZERO")
+                 "SUPPORT_INCOMPLETE", "RESPONSE_MISSING", "DUPLICATE_DAY", "DUPLICATE_SUPPORT", "ESTIMATOR_ZERO",
+                 "OPERATOR_MISMATCH", "SUPPORT_HASH_MISSING_OR_INVALID")
 ELIGIBILITY_CODES = ("INSUFFICIENT_DAYS", "NONFINITE_VALUES", "ZERO_DISPERSION", "QA_FAIL")
 
 
@@ -172,17 +174,32 @@ def qualify(obs: DayObservation, window: Tuple[date, date], *, today: date, stat
         reasons.append("TIMESTAMPS_INVALID")
     if parse_utc(obs.window_start_utc) != ws or parse_utc(obs.window_end_utc) != we:
         reasons.append("WINDOW_MISMATCH")
+    if obs.operator != OPERATOR_WEEKLY["name"]:
+        reasons.append("OPERATOR_MISMATCH")
+    if not isinstance(obs.support_sha256, str) or re.fullmatch(r"[0-9a-f]{64}", obs.support_sha256) is None:
+        reasons.append("SUPPORT_HASH_MISSING_OR_INVALID")
+    # A full target window must itself fit the lag, including when no bytes exist yet.
+    # This prevents proposing a fetch which could never qualify on this as-of date.
+    cutoff = today - timedelta(days=EXCLUDE_RECENT_DAYS)
+    if (we - timedelta(microseconds=1)).date() > cutoff:
+        reasons.append("DAY_TOO_RECENT")
     if start is not None and end is not None and rate_ok:
         dt = timedelta(seconds=1.0 / obs.sampling_rate)
         if start < ws - dt / 2 or end > we + dt / 2 or end <= start:
             reasons.append("SUPPORT_OUTSIDE_WINDOW")
-        if end.date() > today - timedelta(days=EXCLUDE_RECENT_DAYS):
+        if end.date() > cutoff and "DAY_TOO_RECENT" not in reasons:
             reasons.append("DAY_TOO_RECENT")        # on the bytes' own clock, not the label
+        # Derive completeness from the samples, not just a caller-supplied missing list.
+        # One sub-sample phase offset is allowed at either edge, not a whole missing sample.
+        tol = timedelta(microseconds=1)
+        if start < ws - tol or start >= ws + dt + tol or end < we - dt - tol or end >= we + tol:
+            reasons.append("SUPPORT_INCOMPLETE")
     if not (window[0] <= d <= window[1]):
         reasons.append("DAY_OUTSIDE_WINDOW")
     if epoch is not None:
         e0, e1 = epoch
-        if (e0 is not None and d < e0) or (e1 is not None and d > e1):
+        if ((e0 is not None and (d < e0 or (start is not None and start.date() < e0)))
+                or (e1 is not None and (d > e1 or (end is not None and end.date() > e1)))):
             reasons.append("EPOCH_MISMATCH")
     if not rate_ok:
         reasons.append("RATE_INVALID")
@@ -198,7 +215,7 @@ def qualify(obs: DayObservation, window: Tuple[date, date], *, today: date, stat
         reasons.append("COVERAGE_SHORT")
     if obs.filled_samples > 0 or obs.gap_seconds != 0:
         reasons.append("GAP_FILLED")
-    if obs.missing_support:
+    if obs.missing_support and "SUPPORT_INCOMPLETE" not in reasons:
         reasons.append("SUPPORT_INCOMPLETE")   # the declared window is not fully covered by retained bytes
     if require_response and not obs.response_available:
         reasons.append("RESPONSE_MISSING")
@@ -339,7 +356,23 @@ def _stitch_pieces(pieces, locs_seen, refs, day: str, station: str, location: st
     if not pieces:
         base.missing_support = [[iso(ws), iso(we)]]
         return base
+    # This validation belongs at the common assembly boundary, for cache AND fetched pieces.
+    # Neither a cache key nor a filename establishes the actual trace identity/sample grid.
+    for tr in pieces:
+        if f"{tr.stats.network}.{tr.stats.station}" != station:
+            raise BootstrapRefused("NSLC_MISMATCH: actual trace differs from requested station")
+        if tr.stats.location != location:
+            raise BootstrapRefused("LOCATION_MISMATCH: selected trace differs from bound location")
+        if tr.stats.channel != EXPECTED_CHANNEL:
+            raise BootstrapRefused("CHANNEL_MISMATCH: selected trace is not BHZ")
+        piece_rate = float(tr.stats.sampling_rate)
+        if not math.isfinite(piece_rate) or piece_rate <= 0:
+            raise BootstrapRefused("RATE_INVALID: selected trace has invalid sampling rate")
     rate = float(pieces[0].stats.sampling_rate)
+    if any(abs(float(tr.stats.sampling_rate) - rate) > 1e-6 for tr in pieces):
+        raise BootstrapRefused("RATE_MISMATCH: selected pieces use different sample grids")
+    base.network, base.station_code, base.location = (pieces[0].stats.network, pieces[0].stats.station,
+                                                     pieces[0].stats.location)
     base.channel = pieces[0].stats.channel
     base.sampling_rate = rate
     dt = 1.0 / rate
@@ -435,10 +468,14 @@ def acquisition_spec(observations: Iterable[DayObservation], per_day_reasons: Di
     did not qualify (one contiguous fetch per window; no splicing with cached bytes); MINIMAL = only the absent edges
     and the join discontinuities (splicing newly fetched bytes into cached bytes, which must then be re-validated by
     the same contiguity rules). Both are sized in int32 samples with a miniSEED estimate."""
-    strict, minimal = [], []
+    strict, minimal, ineligible = [], [], []
     for o in observations:
         reasons = per_day_reasons.get(o.day, [])
         if not reasons:
+            continue
+        cannot_fetch_away = sorted(set(reasons) & {"DAY_TOO_RECENT", "DAY_OUTSIDE_WINDOW", "EPOCH_MISMATCH"})
+        if cannot_fetch_away:
+            ineligible.append(dict(day=o.day, reasons=cannot_fetch_away))
             continue
         ws, we = target_window(o.day)
         strict.append((ws, we))
@@ -448,6 +485,7 @@ def acquisition_spec(observations: Iterable[DayObservation], per_day_reasons: Di
             minimal.append((parse_utc(a), parse_utc(b)))
     return dict(strict_full_windows=_sized(_merge_intervals(strict), rate),
                 minimal_splice=_sized(_merge_intervals(minimal), rate),
+                excluded_ineligible_days=ineligible,
                 estimate_basis="Steim2 ~1.2-1.6 bytes/sample for broadband counts; an estimate, not a measurement",
                 note="STRICT is the complete specification for one bounded fetch; MINIMAL assumes sample-exact splicing "
                      "into the retained cache and re-qualification afterwards")
@@ -585,7 +623,14 @@ def snapshot_effective_base(bdir) -> Dict:
             continue
         entries = data["baselines"] if isinstance(data, dict) and isinstance(data.get("baselines"), list) else \
             ([v for v in data.values() if isinstance(v, dict) and "station" in v] if isinstance(data, dict) else [])
-        loaded = {e["station"]: dict(e) for e in entries if e.get("mean_thd") is not None and e.get("std_thd") is not None}
+        loaded = {}
+        for e in entries:
+            try:
+                parsed = _baseline_from_entry(e, f.name)
+            except (ValueError, TypeError, KeyError, AttributeError, OverflowError):
+                continue
+            # Same parser as the runtime loader, including per-entry effective dates.
+            loaded[parsed.station] = dict(e, calibration_date=parsed.calibration_date)
         if loaded:
             return dict(path=str(f), name=f.name, sha256=hashlib.sha256(raw).hexdigest(),
                         calibration_date=calibration_date_from_name(f.name), entries=loaded)
@@ -604,6 +649,9 @@ def compose_candidate_file(result: Dict, base_snapshot: Dict, out_path: str, *, 
     raw = Path(base_snapshot["path"]).read_bytes() if Path(base_snapshot["path"]).exists() else b""
     if hashlib.sha256(raw).hexdigest() != base_snapshot["sha256"]:
         raise BootstrapRefused("BASE_SNAPSHOT_STALE: %s changed since the snapshot" % base_snapshot["name"])
+    current = snapshot_effective_base(Path(base_snapshot["path"]).parent)
+    if any(current[k] != base_snapshot[k] for k in ("name", "sha256", "entries")):
+        raise BootstrapRefused("BASE_SNAPSHOT_STALE: effective loader selection changed")
     out = Path(out_path)
     if out.name.startswith(LOADER_PREFIX):
         raise BootstrapRefused("CANDIDATE_NAME_MATCHES_LOADER_GLOB: rename happens only at the reviewed landing")

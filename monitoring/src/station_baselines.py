@@ -215,7 +215,10 @@ def _load_newest_baseline_file(bdir: Optional[Path] = None) -> Optional[str]:
                     n_samples=int(e.get('n_samples') or e.get('n_days_valid') or 0),
                     calibration_period=e.get('calibration_period', 'unknown'),
                     notes=f"Rolling recal, loaded newest-first from {f.name}",
-                    calibration_date=calibration_date_from_name(f.name))
+                    # grassmann 2026-10-03 (codex review finding 2): an entry carried forward unchanged into a newer
+                    # container keeps its own effective calibration_date; legacy entries fall back to the file name.
+                    calibration_date=(e.get('calibration_date') if isinstance(e.get('calibration_date'), str)
+                                      and len(e.get('calibration_date')) == 10 else calibration_date_from_name(f.name)))
                 loaded += 1
             except Exception:
                 continue

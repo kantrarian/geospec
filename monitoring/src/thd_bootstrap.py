@@ -1,44 +1,54 @@
 #!/usr/bin/env python3
-"""thd_bootstrap.py - explicit, isolated bootstrap of a THD station baseline (grassmann 2026-10-03; codex
-MEASUREMENT_SUPPORT_AND_CONTEXT_PLAN_CODEX_20261003.md section 2).
+"""thd_bootstrap.py - explicit, isolated bootstrap of a THD station baseline (grassmann 2026-10-03, v2 after codex
+MEASUREMENT_SUPPORT_PACKET_REVIEW_CODEX_20261003 findings 1-3; codex plan section 2).
 
-The deadlock: run_thd_recal._calibratable_stations() skips every station whose calibration_period is
-'UNCALIBRATED' (IU.SNZO, AK.SSL), so the weekly rolling recalibration can never commission such a station, and the
-ensemble keeps scoring it against a hand-typed default (n_samples=0). This module is the one explicit way out:
+The deadlock: run_thd_recal._calibratable_stations() skips every station whose calibration_period is 'UNCALIBRATED'
+(IU.SNZO, AK.SSL), so the weekly rolling recalibration can never commission such a station. This module is the one
+explicit way out, and it never installs anything:
 
-  * it takes DAY OBSERVATIONS (one per UTC day) that carry what the ordinary fetch path discards -- location code,
-    trace count, gap seconds, filled samples, native rate, coverage, response availability, source and digest;
-  * it QUALIFIES each day against the registered R3 window (run_thd_recal.LOOKBACK_DAYS / EXCLUDE_RECENT_DAYS),
-    the expected channel/rate/epoch, a contiguity requirement (no interpolated or filled samples count as a valid
-    day), an optional response requirement, and exact-day de-duplication (a repeated report is not a new day);
-  * it ESTIMATES THD with the production SeismicTHDAnalyzer on demeaned/linearly-detrended samples, exactly as
-    calibrate_thd_baselines.compute_daily_thd does for the weekly recal;
-  * it refuses honestly below QA_THRESHOLDS['min_days'] qualifying days (60; stricter than calibrate_station's 10,
-    because a bootstrap has no prior window to fall back on), and otherwise returns the same robust statistics the
-    weekly recal writes (median as mean_thd, MAD*1.4826 as std_thd) plus baseline_qa, with full provenance;
-  * it composes a CANDIDATE dated baseline file whose name deliberately does NOT match the production loader's
-    glob (`thd_baselines_*.json`), and refuses to write inside the production baselines directory. Landing the
-    candidate (rename + place on the host) is a reviewed host action, never a side effect of running this tool.
+  * DECLARED OPERATOR. A bootstrap sample reproduces the WEEKLY RECAL operator (calibrate_thd_baselines.compute_daily_thd
+    -> fetch_continuous_data_for_thd -> SeismicTHDAnalyzer.compute_thd): the UTC day D 00:00:00 to D+1 01:00:00 (25 h)
+    at the NATIVE rate, demeaned and linearly detrended, five harmonics, tolerance 0.1, 24 h window. The daily ensemble
+    operator ([target - 25 h, target], resample_poly to 1 Hz, compute_thd_with_noise) is DIFFERENT; the same bytes are
+    also pushed through it and retained as a diagnostic (thd_daily_1hz), never as the sample. Neither operator is changed.
+  * BOUND SUPPORT. Every DayObservation carries the actual NSLC and location, timezone-aware start/end of the samples
+    actually used, npts, native rate, trace pieces, gap seconds, filled samples, the declared target window, the source
+    and a sha256 of the support bytes. qualify() refuses by name when any of these disagree: a label whose bytes lie
+    outside its window, empty or naive clocks, a non-finite rate, an npts/rate/span inconsistency, a location other
+    than the one bound for the bootstrap (no silent fallback), a station or channel mismatch, an epoch mismatch, any
+    gap/overlap/fill, a repeated day label, the same support bytes under two labels, and support newer than the
+    registered 30-day exclusion (checked on the bytes' own timestamps, never on a directory name).
+  * STITCHED, NOT INTERPOLATED. Retained fault-correlation cache days (24 h, 07:00 to 07:00 UTC) are stitched into the
+    declared 25 h window from adjacent days. Pieces must abut exactly (one sample apart); an exact duplicate boundary
+    sample is dropped only when its values are identical; any gap or non-identical overlap is a discontinuity, and the
+    day refuses. Missing support is reported as exact raw intervals so a bounded acquisition can be sized precisely.
+  * DIAGNOSTIC != ELIGIBLE. bootstrap() always returns diagnostics (counts, robust statistics, per-day manifest) and
+    separately decides candidate_eligible: the registered floor (QA_THRESHOLDS min_days = 60) cannot be lowered, every
+    value must be finite, dispersion must be finite and positive, and a QA grade of 'fail' refuses. Coverage below the
+    QA threshold is a retained warning, not silently equated with the day count. A candidate entry retains its QA, its
+    operator and a sha256-bound per-day manifest.
+  * PRESERVED SIBLINGS. A candidate file is composed only from a hash-bound snapshot of the effective base set (the
+    newest loadable dated file, exactly as station_baselines loads it); every untouched entry keeps its numbers, its
+    window AND its effective calibration_date as an explicit per-entry field. station_baselines must honour that field
+    (one-line backward-compatible change in the same branch; the loader falls back to the file-name date for legacy
+    entries). A stale or empty base snapshot refuses. The candidate file name cannot match the loader's glob, cannot sit
+    in the production baselines directory, is created exclusively, and is strict JSON (allow_nan=False).
 
-Once a dated file carrying a real calibration_period for the station is loaded newest-first by station_baselines,
-_calibratable_stations() includes the station with NO code change, and the ordinary weekly recal takes over.
-
-Nothing here fetches from the network. Retained raw waveforms come from the fault-correlation seismic cache
-(monitoring/data/seismic_cache/<region>/<YYYYMMDD>/*_waveforms.pkl, a dict {'NET.STA': obspy.Stream}); a bounded
-FDSN acquisition for missing days is a separate, named request.
+Nothing here fetches from the network, and nothing is written into the production baselines directory.
 """
 from __future__ import annotations
 
 import argparse
 import hashlib
 import json
+import math
 import os
 import pickle
 import sys
-from dataclasses import dataclass, asdict
-from datetime import date, datetime, timedelta
+from dataclasses import asdict, dataclass, field
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
-from typing import Callable, Dict, Iterable, List, Optional, Tuple
+from typing import Dict, Iterable, List, Optional, Tuple
 
 import numpy as np
 
@@ -46,43 +56,59 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from baseline_qa import QA_THRESHOLDS, compute_baseline_qa  # noqa: E402
 from run_thd_recal import BASELINE_DIR, EXCLUDE_RECENT_DAYS, LOOKBACK_DAYS  # noqa: E402
+from station_baselines import calibration_date_from_name  # noqa: E402
 
-SCHEMA = "geospec.thd-bootstrap.v1"
+SCHEMA = "geospec.thd-bootstrap.v2"
 EXPECTED_CHANNEL = "BHZ"
-MIN_HOURS = 12.0                                  # the analyzer's own floor (SeismicTHDAnalyzer.compute_thd)
-MIN_BOOTSTRAP_DAYS = int(QA_THRESHOLDS["min_days"])  # 60
-REFUSAL_CODES = ("DAY_OUTSIDE_WINDOW", "DAY_TOO_RECENT", "CHANNEL_MISMATCH", "EPOCH_MISMATCH", "RATE_MISMATCH",
-                 "NO_DATA", "COVERAGE_SHORT", "GAP_FILLED", "RESPONSE_MISSING", "DUPLICATE_DAY", "ESTIMATOR_ZERO")
+MIN_HOURS = 12.0                                      # the analyzer's own floor
+MIN_BOOTSTRAP_DAYS = int(QA_THRESHOLDS["min_days"])   # 60: the registered floor; cannot be lowered here
+WINDOW_HOURS = 25                                     # compute_daily_thd: day 00:00 + 25 h
+LOADER_PREFIX = "thd_baselines_"                      # station_baselines globs thd_baselines_*.json
+OPERATOR_WEEKLY = dict(
+    name="weekly_recal", source="calibrate_thd_baselines.compute_daily_thd -> fetch_continuous_data_for_thd",
+    window="UTC day D 00:00:00 to D+1 01:00:00 (25 h)", rate="native (no resampling)",
+    preprocessing="demean + linear detrend", estimator="SeismicTHDAnalyzer(n_harmonics=5, freq_tolerance=0.1, "
+    "window_hours=24).compute_thd", statistics="median -> mean_thd; MAD*1.4826 -> std_thd (calibrate_station)")
+OPERATOR_DAILY = dict(
+    name="daily_ensemble", source="ensemble.compute_thd_risk", window="[target - 25 h, target]",
+    rate="resample_poly to 1 Hz", preprocessing="demean + linear detrend", estimator="compute_thd_with_noise",
+    role="DIAGNOSTIC_ONLY: not the bootstrap sample")
+REFUSAL_CODES = ("NSLC_MISMATCH", "LOCATION_MISMATCH", "CHANNEL_MISMATCH", "TIMESTAMPS_INVALID", "WINDOW_MISMATCH",
+                 "SUPPORT_OUTSIDE_WINDOW", "DAY_OUTSIDE_WINDOW", "DAY_TOO_RECENT", "EPOCH_MISMATCH", "RATE_INVALID",
+                 "RATE_MISMATCH", "NPTS_SPAN_INCONSISTENT", "NO_DATA", "COVERAGE_SHORT", "GAP_FILLED",
+                 "RESPONSE_MISSING", "DUPLICATE_DAY", "DUPLICATE_SUPPORT", "ESTIMATOR_ZERO")
+ELIGIBILITY_CODES = ("INSUFFICIENT_DAYS", "NONFINITE_VALUES", "ZERO_DISPERSION", "QA_FAIL")
 
 
 class BootstrapRefused(Exception):
     """Named refusal; the message starts with the code."""
 
 
-@dataclass
-class DayObservation:
-    """One UTC day of one station, with the acquisition facts the ordinary path throws away."""
-    day: str                       # 'YYYY-MM-DD'
-    station: str                   # 'NET.STA'
-    location: str                  # location code actually used ('' allowed)
-    channel: str
-    sampling_rate: float
-    start_utc: str
-    end_utc: str
-    npts: int                      # samples actually present (not counting fills)
-    n_traces: int                  # traces for this location before any merge
-    gap_seconds: float             # total gap duration inside [start, end]
-    filled_samples: int            # samples that are/would be interpolated or filled
-    response_available: Optional[bool]   # None = not measured
-    source: str                    # 'seismic_cache' | 'fdsn' | 'fixture'
-    source_ref: str                # path / URL / fixture name
-    source_sha256: Optional[str] = None
-    thd: Optional[float] = None
-    p1: Optional[float] = None
-    f1: Optional[float] = None
+# ----------------------------------------------------------------------------- time helpers
+def parse_utc(s: str) -> Optional[datetime]:
+    """Aware UTC datetime from an ISO string ('Z' or an explicit offset); None for empty/naive/unparseable."""
+    if not isinstance(s, str) or not s.strip():
+        return None
+    t = s.strip()
+    if t.endswith("Z"):
+        t = t[:-1] + "+00:00"
+    try:
+        d = datetime.fromisoformat(t)
+    except ValueError:
+        return None
+    if d.tzinfo is None:
+        return None
+    return d.astimezone(timezone.utc)
 
-    def coverage_hours(self) -> float:
-        return (self.npts / self.sampling_rate) / 3600.0 if self.sampling_rate else 0.0
+
+def iso(d: datetime) -> str:
+    return d.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+
+
+def target_window(day: str) -> Tuple[datetime, datetime]:
+    """The weekly operator's support for day D: [D 00:00:00Z, D+1 01:00:00Z)."""
+    d0 = datetime.combine(date.fromisoformat(day), datetime.min.time(), tzinfo=timezone.utc)
+    return d0, d0 + timedelta(hours=WINDOW_HOURS)
 
 
 def registered_window(today: date) -> Tuple[date, date]:
@@ -91,31 +117,86 @@ def registered_window(today: date) -> Tuple[date, date]:
     return end - timedelta(days=LOOKBACK_DAYS), end
 
 
-def qualify(obs: DayObservation, window: Tuple[date, date], *, today: date, expected_rate: Optional[float] = None,
-            epoch: Optional[Tuple[Optional[date], Optional[date]]] = None, require_response: bool = False,
-            seen_days: Optional[set] = None) -> List[str]:
+# ----------------------------------------------------------------------------- the observation
+@dataclass
+class DayObservation:
+    """One target day of one station, with the support facts the ordinary fetch throws away."""
+    day: str                       # label 'YYYY-MM-DD'; the declared window is target_window(day)
+    station: str                   # 'NET.STA' the bootstrap is for
+    network: str                   # NSLC actually read
+    station_code: str
+    location: str
+    channel: str
+    sampling_rate: float
+    start_utc: str                 # first sample actually used (aware UTC ISO)
+    end_utc: str                   # last sample actually used
+    npts: int
+    n_traces: int                  # trace pieces stitched (1 = single contiguous trace)
+    gap_seconds: float             # total |gap or overlap| seconds inside the support (0 required)
+    filled_samples: int            # samples filled/interpolated (0 required)
+    response_available: Optional[bool]
+    source: str                    # 'seismic_cache' | 'fdsn' | 'fixture'
+    source_ref: str
+    support_sha256: Optional[str] = None     # sha256 of the int32 support bytes actually used
+    window_start_utc: str = ""     # declared operator window (must equal target_window(day))
+    window_end_utc: str = ""
+    operator: str = OPERATOR_WEEKLY["name"]
+    thd: Optional[float] = None
+    p1: Optional[float] = None
+    f1: Optional[float] = None
+    thd_daily_1hz: Optional[float] = None    # diagnostic: same bytes through the daily 1-Hz operator
+    missing_support: List[List[str]] = field(default_factory=list)   # raw [start, end) intervals not available
+
+    def coverage_hours(self) -> float:
+        return (self.npts / self.sampling_rate) / 3600.0 if self.sampling_rate and self.sampling_rate > 0 else 0.0
+
+
+def qualify(obs: DayObservation, window: Tuple[date, date], *, today: date, station: str, expected_location: str,
+            expected_rate: Optional[float] = None, epoch: Optional[Tuple[Optional[date], Optional[date]]] = None,
+            require_response: bool = False, seen_days: Optional[set] = None,
+            seen_support: Optional[dict] = None) -> List[str]:
     """Every reason this observation is NOT a valid bootstrap day (empty list = qualifies). Order is fixed."""
     reasons: List[str] = []
-    d = date.fromisoformat(obs.day)
-    if not (window[0] <= d <= window[1]):
-        reasons.append("DAY_OUTSIDE_WINDOW")
-    if d > today - timedelta(days=EXCLUDE_RECENT_DAYS):
-        reasons.append("DAY_TOO_RECENT")
+    if obs.station != station or f"{obs.network}.{obs.station_code}" != station:
+        reasons.append("NSLC_MISMATCH")
+    if obs.location != expected_location:
+        reasons.append("LOCATION_MISMATCH")
     if obs.channel != EXPECTED_CHANNEL:
         reasons.append("CHANNEL_MISMATCH")
+    d = date.fromisoformat(obs.day)
+    ws, we = target_window(obs.day)
+    start, end = parse_utc(obs.start_utc), parse_utc(obs.end_utc)
+    rate_ok = isinstance(obs.sampling_rate, (int, float)) and math.isfinite(obs.sampling_rate) and obs.sampling_rate > 0
+    if start is None or end is None or end <= start:
+        reasons.append("TIMESTAMPS_INVALID")
+    if parse_utc(obs.window_start_utc) != ws or parse_utc(obs.window_end_utc) != we:
+        reasons.append("WINDOW_MISMATCH")
+    if start is not None and end is not None and rate_ok:
+        dt = timedelta(seconds=1.0 / obs.sampling_rate)
+        if start < ws - dt / 2 or end > we + dt / 2 or end <= start:
+            reasons.append("SUPPORT_OUTSIDE_WINDOW")
+        if end.date() > today - timedelta(days=EXCLUDE_RECENT_DAYS):
+            reasons.append("DAY_TOO_RECENT")        # on the bytes' own clock, not the label
+    if not (window[0] <= d <= window[1]):
+        reasons.append("DAY_OUTSIDE_WINDOW")
     if epoch is not None:
         e0, e1 = epoch
         if (e0 is not None and d < e0) or (e1 is not None and d > e1):
             reasons.append("EPOCH_MISMATCH")
-    if expected_rate is not None and abs(float(obs.sampling_rate) - float(expected_rate)) > 1e-6:
+    if not rate_ok:
+        reasons.append("RATE_INVALID")
+    elif expected_rate is not None and abs(float(obs.sampling_rate) - float(expected_rate)) > 1e-6:
         reasons.append("RATE_MISMATCH")
-    if obs.npts <= 0 or obs.sampling_rate <= 0:
+    if rate_ok and start is not None and end is not None and end > start:
+        expected_npts = int(round((end - start).total_seconds() * obs.sampling_rate)) + 1
+        if abs(int(obs.npts) - expected_npts) > 1:
+            reasons.append("NPTS_SPAN_INCONSISTENT")
+    if obs.npts <= 0 or not rate_ok:
         reasons.append("NO_DATA")
     elif obs.coverage_hours() < MIN_HOURS:
         reasons.append("COVERAGE_SHORT")
     if obs.filled_samples > 0 or obs.gap_seconds != 0:
-        reasons.append("GAP_FILLED")      # a gap, an overlap or any filled sample never makes a valid day;
-                                          # abutting traces (gap_seconds == 0) merge without interpolation
+        reasons.append("GAP_FILLED")
     if require_response and not obs.response_available:
         reasons.append("RESPONSE_MISSING")
     if seen_days is not None:
@@ -123,11 +204,18 @@ def qualify(obs: DayObservation, window: Tuple[date, date], *, today: date, expe
             reasons.append("DUPLICATE_DAY")
         else:
             seen_days.add(obs.day)
+    if seen_support is not None and obs.support_sha256:
+        prior = seen_support.get(obs.support_sha256)
+        if prior is not None and prior != obs.day:
+            reasons.append("DUPLICATE_SUPPORT")
+        else:
+            seen_support.setdefault(obs.support_sha256, obs.day)
     return reasons
 
 
+# ----------------------------------------------------------------------------- operators
 def _detrend(x: np.ndarray) -> np.ndarray:
-    """demean + linear detrend, as fetch_continuous_data_for_thd does before compute_thd."""
+    """demean + linear detrend, as fetch_continuous_data_for_thd does (obspy detrend('demean'), detrend('linear'))."""
     x = np.asarray(x, dtype=np.float64)
     x = x - x.mean()
     t = np.arange(x.size, dtype=np.float64)
@@ -135,147 +223,316 @@ def _detrend(x: np.ndarray) -> np.ndarray:
     return x - (a * t + b)
 
 
-def estimate(obs: DayObservation, data: np.ndarray, analyzer=None) -> DayObservation:
-    """Production estimator on one day: SeismicTHDAnalyzer(n_harmonics=5, freq_tolerance=0.1, window_hours=24)."""
-    if analyzer is None:
-        from seismic_thd import SeismicTHDAnalyzer
-        analyzer = SeismicTHDAnalyzer(n_harmonics=5, freq_tolerance=0.1, window_hours=24)
-    thd, p1, _harm, f1 = analyzer.compute_thd(_detrend(data), float(obs.sampling_rate))
-    obs.thd, obs.p1, obs.f1 = float(thd), float(p1), float(f1)
+def _analyzer(analyzer=None):
+    if analyzer is not None:
+        return analyzer
+    from seismic_thd import SeismicTHDAnalyzer
+    return SeismicTHDAnalyzer(n_harmonics=5, freq_tolerance=0.1, window_hours=24)
+
+
+def weekly_operator(data: np.ndarray, rate: float, analyzer=None) -> Tuple[float, float, float]:
+    """The declared operator on prepared support: (thd, p1, f1)."""
+    thd, p1, _harm, f1 = _analyzer(analyzer).compute_thd(_detrend(data), float(rate))
+    return float(thd), float(p1), float(f1)
+
+
+def daily_operator_1hz(data: np.ndarray, rate: float, analyzer=None) -> Optional[float]:
+    """DIAGNOSTIC: the daily ensemble path on the same bytes (resample_poly to 1 Hz, compute_thd_with_noise)."""
+    try:
+        from math import gcd
+        from scipy.signal import resample_poly
+    except ImportError:
+        return None
+    x = _detrend(data)
+    if rate > 1.5:
+        up, down = 100, int(rate * 100)
+        g = gcd(up, down)
+        x = resample_poly(x, up // g, down // g)
+        rate = 1.0
+    out = _analyzer(analyzer).compute_thd_with_noise(x, float(rate))
+    return float(out[0])
+
+
+def estimate(obs: DayObservation, data: np.ndarray, analyzer=None, *, daily_diagnostic: bool = True) -> DayObservation:
+    obs.thd, obs.p1, obs.f1 = weekly_operator(data, obs.sampling_rate, analyzer)
+    if daily_diagnostic:
+        obs.thd_daily_1hz = daily_operator_1hz(data, obs.sampling_rate, analyzer)
     return obs
 
 
-def observe_cached_day(path: str, station: str, day: str, *, prefer_location: str = "00",
-                       analyzer=None, estimate_now: bool = True) -> DayObservation:
-    """Build a DayObservation from one retained fault-correlation cache pickle ({'NET.STA': Stream}).
+# ----------------------------------------------------------------------------- retained cache -> stitched window
+def _cache_file(cache_dir: str, day: date, suffix: str = "_waveforms.pkl") -> Optional[str]:
+    d = os.path.join(cache_dir, day.strftime("%Y%m%d"))
+    if not os.path.isdir(d):
+        return None
+    files = sorted(f for f in os.listdir(d) if f.endswith(suffix))
+    return os.path.join(d, files[0]) if files else None
 
-    One location code is used per day (prefer_location, else the lexically first present); both are recorded in
-    source_ref. Contiguity is measured on the chosen location's traces before any merge: n_traces, get_gaps(),
-    masked (filled) samples. Nothing is written."""
+
+def _load_traces(path: str, station: str, location: str):
+    """Traces of one station+location from a cache pickle ({'NET.STA': Stream}); [] when absent. No fallback."""
     with open(path, "rb") as fh:
-        blob = fh.read()
-    obj = pickle.loads(blob)
+        obj = pickle.load(fh)
     st = obj.get(station) if isinstance(obj, dict) else None
-    if st is None or len(st) == 0:
-        return DayObservation(day, station, "", "", 0.0, "", "", 0, 0, 0.0, 0, None, "seismic_cache", path,
-                              hashlib.sha256(blob).hexdigest())
-    from obspy import Stream
-    locs = sorted({tr.stats.location for tr in st})
-    loc = prefer_location if prefer_location in locs else locs[0]
-    sub = Stream(sorted([tr for tr in st if tr.stats.location == loc], key=lambda t: t.stats.starttime))
-    gaps = sub.get_gaps()
-    gap_seconds = float(sum(abs(g[6]) for g in gaps))      # gaps AND overlaps (negative) both count
-    filled = int(sum(int(np.ma.count_masked(tr.data)) if np.ma.isMaskedArray(tr.data) else 0 for tr in sub))
-    first, last = sub[0], sub[-1]
-    data = None
-    if filled == 0 and gap_seconds == 0:
-        if len(sub) == 1:
-            data = np.asarray(first.data)
-        else:   # abutting traces: merge WITHOUT a fill value; any masked sample after the merge is a fill
-            merged = sub.copy().merge(method=1, fill_value=None)
-            if len(merged) == 1 and not np.ma.isMaskedArray(merged[0].data):
-                data = np.asarray(merged[0].data)
-            else:
-                filled = int(np.ma.count_masked(merged[0].data)) if np.ma.isMaskedArray(merged[0].data) else -1
-    obs = DayObservation(day=day, station=station, location=loc, channel=first.stats.channel,
-                         sampling_rate=float(first.stats.sampling_rate), start_utc=str(first.stats.starttime),
-                         end_utc=str(last.stats.endtime), npts=int(sum(tr.stats.npts for tr in sub)),
-                         n_traces=len(sub), gap_seconds=gap_seconds, filled_samples=filled, response_available=None,
-                         source="seismic_cache", source_ref=f"{path}#{station}#loc={loc}#locs_present={','.join(locs)}",
-                         source_sha256=hashlib.sha256(blob).hexdigest())
-    if filled != 0:
-        obs.filled_samples = abs(filled)
-    if estimate_now and data is not None:
-        estimate(obs, data, analyzer=analyzer)
-    return obs
+    if st is None:
+        return [], set()
+    locs = {tr.stats.location for tr in st}
+    return sorted([tr for tr in st if tr.stats.location == location], key=lambda t: t.stats.starttime), locs
 
 
-def cache_days(cache_dir: str, pattern_suffix: str = "_waveforms.pkl") -> List[Tuple[str, str]]:
-    """(day, path) for every YYYYMMDD subdirectory with a waveform pickle; the three segment files per day are
-    byte-identical in the kaikoura cache, so the lexically first one is used."""
-    out = []
-    for name in sorted(os.listdir(cache_dir)):
-        d = os.path.join(cache_dir, name)
-        if not (os.path.isdir(d) and len(name) == 8 and name.isdigit()):
-            continue
-        files = sorted(f for f in os.listdir(d) if f.endswith(pattern_suffix))
-        if files:
-            out.append((f"{name[:4]}-{name[4:6]}-{name[6:]}", os.path.join(d, files[0])))
-    return out
+def stitch_cached_window(cache_dir: str, day: str, station: str, location: str, *, analyzer=None,
+                         estimate_now: bool = True) -> DayObservation:
+    """Build the declared 25 h support for `day` from the retained cache days D-1 and D (each 07:00->07:00 UTC).
+
+    Pieces are joined only where they abut exactly (one sample apart) or where a single boundary sample is an exact
+    duplicate (same time, identical value; the duplicate is dropped). Any other gap or overlap is a discontinuity: the
+    observation records it (gap_seconds > 0, n_traces > 1) and qualify() refuses it. Samples outside the window are
+    discarded. Missing support is recorded as exact raw intervals. Nothing is written."""
+    ws, we = target_window(day)
+    d = date.fromisoformat(day)
+    net, sta = station.split(".", 1)
+    paths = [p for p in (_cache_file(cache_dir, d - timedelta(days=1)), _cache_file(cache_dir, d)) if p]
+    pieces, locs_seen, refs = [], set(), []
+    for p in paths:
+        trs, locs = _load_traces(p, station, location)
+        locs_seen |= locs
+        refs.append(os.path.basename(os.path.dirname(p)) + "/" + os.path.basename(p))
+        pieces.extend(trs)
+    pieces.sort(key=lambda t: t.stats.starttime)
+    base = DayObservation(day=day, station=station, network=net, station_code=sta, location=location,
+                          channel=EXPECTED_CHANNEL, sampling_rate=0.0, start_utc="", end_utc="", npts=0, n_traces=0,
+                          gap_seconds=0.0, filled_samples=0, response_available=None, source="seismic_cache",
+                          source_ref="%s#%s#loc=%s#locs_present=%s" % ("+".join(refs) or "NONE", station, location,
+                                                                      ",".join(sorted(locs_seen)) or "NONE"),
+                          window_start_utc=iso(ws), window_end_utc=iso(we))
+    if not pieces:
+        base.missing_support = [[iso(ws), iso(we)]]
+        return base
+    rate = float(pieces[0].stats.sampling_rate)
+    base.channel = pieces[0].stats.channel
+    base.sampling_rate = rate
+    dt = 1.0 / rate
+    # walk the pieces: build (t0, data) chunks that are exactly contiguous
+    chunks = []          # list of [t0 (UTCDateTime), np.ndarray]
+    gap_total = 0.0
+    for tr in pieces:
+        data = np.asarray(tr.data)
+        if np.ma.isMaskedArray(tr.data):
+            base.filled_samples += int(np.ma.count_masked(tr.data))
+            data = np.asarray(np.ma.filled(tr.data, 0))
+        if not chunks:
+            chunks.append([tr.stats.starttime, data]); continue
+        t0_prev, d_prev = chunks[-1]
+        prev_end = t0_prev + (d_prev.size - 1) * dt
+        delta = float(tr.stats.starttime - prev_end)
+        if abs(delta - dt) <= dt / 4:                                  # exact abut
+            chunks[-1][1] = np.concatenate([d_prev, data])
+        elif abs(delta) <= dt / 4 and data.size and d_prev.size and data[0] == d_prev[-1]:   # identical duplicate sample
+            chunks[-1][1] = np.concatenate([d_prev, data[1:]])
+        else:                                                          # gap, overlap or non-identical duplicate
+            gap_total += abs(delta - dt)
+            chunks.append([tr.stats.starttime, data])
+    # choose the single chunk that covers the window best; cut it to [ws, we)
+    from obspy import UTCDateTime
+    uws, uwe = UTCDateTime(ws), UTCDateTime(we)
+    best, best_cov = chunks[0], -math.inf
+    for t0, data in chunks:
+        t1 = t0 + (data.size - 1) * dt
+        cov = float(min(t1, uwe) - max(t0, uws))
+        if cov > best_cov:
+            best, best_cov = (t0, data), cov
+    t0, data = best
+    i0 = max(0, int(math.ceil(float(uws - t0) * rate - 1e-6)))
+    i1 = min(data.size, int(math.floor(float(uwe - t0) * rate - 1e-6)) + 1)   # last sample strictly before `we`
+    sel = data[i0:i1] if i1 > i0 else data[:0]
+    s0 = t0 + i0 * dt
+    base.n_traces = len(chunks)
+    base.gap_seconds = round(gap_total, 6) if len(chunks) > 1 else 0.0
+    if sel.size == 0:
+        base.missing_support = [[iso(ws), iso(we)]]
+        return base
+    s1 = s0 + (sel.size - 1) * dt
+    base.start_utc, base.end_utc, base.npts = iso(s0.datetime.replace(tzinfo=timezone.utc)), \
+        iso(s1.datetime.replace(tzinfo=timezone.utc)), int(sel.size)
+    base.support_sha256 = hashlib.sha256(np.ascontiguousarray(sel.astype(np.int32)).tobytes()).hexdigest()
+    missing = []       # a sub-sample phase offset at either edge is not missing support; a whole sample or more is
+    if float(s0 - uws) >= dt:
+        missing.append([iso(ws), base.start_utc])
+    if float(uwe - s1) > 2 * dt:
+        missing.append([base.end_utc, iso(we)])
+    base.missing_support = missing
+    if estimate_now and base.gap_seconds == 0 and base.filled_samples == 0 and not missing:
+        estimate(base, sel, analyzer=analyzer)
+    return base
 
 
-def bootstrap(station: str, observations: Iterable[DayObservation], *, today: date,
-              min_days: int = MIN_BOOTSTRAP_DAYS, expected_rate: Optional[float] = None,
-              epoch: Optional[Tuple[Optional[date], Optional[date]]] = None,
-              require_response: bool = False) -> Dict:
-    """Qualify, then either refuse (ok=False, refusal=INSUFFICIENT_DAYS, every refusal counted) or return the
-    baseline entry with provenance and QA. Statistics mirror calibrate_thd_baselines.calibrate_station."""
-    window = registered_window(today)
-    seen: set = set()
-    qualified: List[DayObservation] = []
-    per_day: List[Dict] = []
-    refused: Dict[str, int] = {}
-    for obs in observations:
-        if obs.station != station:
-            raise BootstrapRefused(f"STATION_MISMATCH: observation for {obs.station}, bootstrap for {station}")
-        reasons = qualify(obs, window, today=today, expected_rate=expected_rate, epoch=epoch,
-                          require_response=require_response, seen_days=seen)
-        if not reasons and not (obs.thd is not None and obs.thd > 0 and obs.p1 is not None and obs.p1 > 0):
-            reasons = ["ESTIMATOR_ZERO"]
-        per_day.append(dict(day=obs.day, reasons=reasons, thd=obs.thd, location=obs.location,
-                            coverage_hours=round(obs.coverage_hours(), 3), n_traces=obs.n_traces,
-                            gap_seconds=obs.gap_seconds, filled_samples=obs.filled_samples, source=obs.source,
-                            source_sha256=obs.source_sha256))
-        if reasons:
-            for r in reasons:
-                refused[r] = refused.get(r, 0) + 1
+def missing_support_report(observations: Iterable[DayObservation], rate: float) -> Dict:
+    """Exact raw intervals still needed (merged), with a size estimate: int32 samples and a miniSEED estimate."""
+    iv = []
+    for o in observations:
+        for a, b in o.missing_support:
+            iv.append((parse_utc(a), parse_utc(b)))
+    iv = sorted(x for x in iv if x[0] and x[1] and x[1] > x[0])
+    merged: List[List[datetime]] = []
+    for a, b in iv:
+        if merged and a <= merged[-1][1]:
+            merged[-1][1] = max(merged[-1][1], b)
         else:
+            merged.append([a, b])
+    seconds = sum((b - a).total_seconds() for a, b in merged)
+    samples = int(round(seconds * rate))
+    return dict(intervals=[[iso(a), iso(b)] for a, b in merged], total_seconds=seconds, total_days=round(seconds / 86400, 3),
+                samples_at_rate=samples, bytes_raw_int32=samples * 4,
+                miniseed_estimate_bytes=[int(samples * 1.2), int(samples * 1.6)],
+                estimate_basis="Steim2 ~1.2-1.6 bytes/sample for broadband counts; an estimate, not a measurement")
+
+
+# ----------------------------------------------------------------------------- bootstrap
+def _finite(x) -> bool:
+    return isinstance(x, (int, float)) and math.isfinite(x)
+
+
+def _jsonable(o):
+    """Plain-Python copy (numpy scalars -> Python scalars) so strict JSON (allow_nan=False) can judge every value."""
+    if isinstance(o, dict):
+        return {k: _jsonable(v) for k, v in o.items()}
+    if isinstance(o, (list, tuple)):
+        return [_jsonable(v) for v in o]
+    if isinstance(o, (np.bool_,)):
+        return bool(o)
+    if isinstance(o, np.integer):
+        return int(o)
+    if isinstance(o, np.floating):
+        return float(o)
+    return o
+
+
+def bootstrap(station: str, observations: Iterable[DayObservation], *, today: date, expected_location: str,
+              expected_rate: Optional[float] = None, epoch: Optional[Tuple[Optional[date], Optional[date]]] = None,
+              require_response: bool = False, min_days: Optional[int] = None) -> Dict:
+    """Qualify every observation, compute diagnostics ALWAYS, and decide candidate eligibility SEPARATELY.
+    `min_days` can only raise the registered floor; it can never lower it."""
+    window = registered_window(today)
+    floor = MIN_BOOTSTRAP_DAYS
+    eff_min = max(floor, int(min_days or 0))
+    seen_days: set = set(); seen_support: dict = {}
+    qualified: List[DayObservation] = []; per_day: List[Dict] = []; refused: Dict[str, int] = {}
+    for obs in observations:
+        reasons = qualify(obs, window, today=today, station=station, expected_location=expected_location,
+                          expected_rate=expected_rate, epoch=epoch, require_response=require_response,
+                          seen_days=seen_days, seen_support=seen_support)
+        if not reasons and not (_finite(obs.thd) and obs.thd > 0 and _finite(obs.p1) and obs.p1 > 0):
+            reasons = ["ESTIMATOR_ZERO"]
+        per_day.append(dict(day=obs.day, reasons=reasons, thd=obs.thd, thd_daily_1hz=obs.thd_daily_1hz,
+                            nslc=f"{obs.network}.{obs.station_code}.{obs.location}.{obs.channel}",
+                            sampling_rate=obs.sampling_rate, start_utc=obs.start_utc, end_utc=obs.end_utc,
+                            npts=obs.npts, coverage_hours=round(obs.coverage_hours(), 3), n_traces=obs.n_traces,
+                            gap_seconds=obs.gap_seconds, filled_samples=obs.filled_samples, source=obs.source,
+                            source_ref=obs.source_ref, support_sha256=obs.support_sha256,
+                            missing_support=obs.missing_support))
+        for r in reasons:
+            refused[r] = refused.get(r, 0) + 1
+        if not reasons:
             qualified.append(obs)
     n_requested = (window[1] - window[0]).days + 1
-    base = dict(schema=SCHEMA, station=station, today=today.isoformat(),
-                window_registered=dict(start=window[0].isoformat(), end=window[1].isoformat(),
-                                       lookback_days=LOOKBACK_DAYS, exclude_recent_days=EXCLUDE_RECENT_DAYS,
-                                       days_requested=n_requested),
-                n_observations=len(per_day), n_qualified=len(qualified), min_days=min_days, refused=refused,
-                per_day=per_day)
-    if len(qualified) < min_days:
-        return dict(base, ok=False, refusal="INSUFFICIENT_DAYS",
-                    detail=f"{len(qualified)} qualifying days < {min_days}")
     values = sorted((o.day, float(o.thd)) for o in qualified)
-    thd = np.array([v for _, v in values])
-    median = float(np.median(thd))
-    mad = float(np.median(np.abs(thd - median)))
-    rate = int(round(float(np.median([o.sampling_rate for o in qualified]))))
-    qa = compute_baseline_qa(station, values, n_requested, sample_rate_hz=rate)
-    sources = sorted({o.source for o in qualified})
-    entry = {
+    thd = np.array([v for _, v in values], dtype=np.float64)
+    finite_mask = np.isfinite(thd) if thd.size else np.array([], dtype=bool)
+    diag: Dict = dict(n_qualified=len(values), n_nonfinite=int((~finite_mask).sum()) if thd.size else 0)
+    if thd.size and finite_mask.all():
+        med = float(np.median(thd)); mad = float(np.median(np.abs(thd - med)))
+        diag.update(median=round(med, 6), mad_sigma=round(mad * 1.4826, 6), mean=round(float(np.mean(thd)), 6),
+                    std=round(float(np.std(thd)), 6), min=round(float(thd.min()), 6), max=round(float(thd.max()), 6),
+                    first_day=values[0][0], last_day=values[-1][0])
+    manifest = [dict(day=o.day, nslc=f"{o.network}.{o.station_code}.{o.location}.{o.channel}", rate=o.sampling_rate,
+                     start_utc=o.start_utc, end_utc=o.end_utc, npts=o.npts, source=o.source, source_ref=o.source_ref,
+                     support_sha256=o.support_sha256, thd=o.thd, thd_daily_1hz=o.thd_daily_1hz) for o in qualified]
+    manifest_bytes = json.dumps(manifest, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()
+    manifest_sha = hashlib.sha256(manifest_bytes).hexdigest()
+    rate = int(round(float(np.median([o.sampling_rate for o in qualified])))) if qualified else None
+    qa = compute_baseline_qa(station, values, n_requested, sample_rate_hz=rate or 0) if values and finite_mask.all() \
+        else None
+    elig: List[str] = []
+    if len(values) < eff_min:
+        elig.append("INSUFFICIENT_DAYS")
+    if not thd.size or not finite_mask.all():
+        elig.append("NONFINITE_VALUES") if thd.size else None
+    if thd.size and finite_mask.all() and (diag["mad_sigma"] <= 0 or diag["std"] <= 0 or not math.isfinite(diag["std"])):
+        elig.append("ZERO_DISPERSION")
+    if qa is not None and qa.quality_grade == "fail":
+        elig.append("QA_FAIL")
+    coverage = dict(days_qualified=len(values), days_requested=n_requested,
+                    coverage_pct=round(100.0 * len(values) / n_requested, 2),
+                    qa_min_coverage_pct=QA_THRESHOLDS["min_coverage_pct"],
+                    below_qa_threshold=100.0 * len(values) / n_requested < QA_THRESHOLDS["min_coverage_pct"],
+                    policy="coverage below the QA threshold is retained as a QA warning on the entry; it does not by "
+                           "itself refuse; a QA grade of 'fail' refuses; the registered day floor is separate")
+    result: Dict = dict(schema=SCHEMA, station=station, today=today.isoformat(), expected_location=expected_location,
+                        operator=OPERATOR_WEEKLY, daily_operator_diagnostic=OPERATOR_DAILY,
+                        window_registered=dict(start=window[0].isoformat(), end=window[1].isoformat(),
+                                               lookback_days=LOOKBACK_DAYS, exclude_recent_days=EXCLUDE_RECENT_DAYS,
+                                               days_requested=n_requested),
+                        min_days_registered=floor, min_days_effective=eff_min, n_observations=len(per_day),
+                        n_qualified=len(values), refused=refused, per_day=per_day,
+                        diagnostic_complete=True, diagnostics=diag, coverage_policy=coverage,
+                        qa=qa.to_dict() if qa else None, manifest=manifest, manifest_sha256=manifest_sha,
+                        candidate_eligible=not elig, eligibility_refusals=elig)
+    result = _jsonable(result)
+    if elig:
+        result["detail"] = "; ".join(elig)
+        return result
+    result["entry"] = {
         "station": station,
-        "mean_thd": round(median, 6),               # median, as calibrate_station writes it
-        "std_thd": round(mad * 1.4826, 6),          # MAD-sigma, as calibrate_station writes it
+        "mean_thd": diag["median"],                 # median, as calibrate_station writes it
+        "std_thd": diag["mad_sigma"],               # MAD-sigma, as calibrate_station writes it
         "n_samples": len(values),
-        "calibration_period": f"{values[0][0]} to {values[-1][0]}",   # the days actually used, not the request
-        "notes": (f"BOOTSTRAP (thd_bootstrap.py, grassmann 2026-10-03): {len(values)} contiguous days from "
-                  f"{'/'.join(sources)} inside the registered window {window[0]}..{window[1]}; QA {qa.quality_grade}"),
-        "mean_thd_classic": round(float(np.mean(thd)), 6),
-        "std_thd_classic": round(float(np.std(thd)), 6),
-        "bootstrap": dict(method="thd_bootstrap.v1", window_registered=base["window_registered"],
-                          days_qualified=len(values), days_refused=refused, sources=sources,
-                          locations=sorted({o.location for o in qualified}), channel=EXPECTED_CHANNEL,
-                          sampling_rate_hz=rate, response_measured=any(o.response_available is not None
-                                                                        for o in qualified),
-                          generated_utc=datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")),
-        "qa": qa.to_dict(),
+        "calibration_period": f"{values[0][0]} to {values[-1][0]}",   # the days actually used
+        "calibration_date": today.isoformat(),
+        "notes": (f"BOOTSTRAP (thd_bootstrap v2, grassmann): {len(values)} contiguous {WINDOW_HOURS} h days via the "
+                  f"weekly_recal operator inside the registered window {window[0]}..{window[1]}; QA {qa.quality_grade}"),
+        "mean_thd_classic": diag["mean"], "std_thd_classic": diag["std"],
+        "operator": OPERATOR_WEEKLY, "coverage_policy": coverage, "qa": qa.to_dict(),
+        "manifest_sha256": manifest_sha, "manifest": manifest,
+        "bootstrap": dict(method=SCHEMA, window_registered=result["window_registered"], days_qualified=len(values),
+                          days_refused=refused, location=expected_location, channel=EXPECTED_CHANNEL,
+                          sampling_rate_hz=rate, generated_utc=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")),
     }
-    return dict(base, ok=True, entry=entry, daily_values=values)
+    return _jsonable(result)
 
 
-LOADER_PREFIX = "thd_baselines_"     # station_baselines._load_newest_baseline_file globs thd_baselines_*.json
+# ----------------------------------------------------------------------------- base snapshot + candidate file
+def snapshot_effective_base(bdir) -> Dict:
+    """The newest LOADABLE dated file, selected exactly as station_baselines._load_newest_baseline_file does, hash-bound.
+    Refuses when no file yields entries (EMPTY_BASE_SNAPSHOT)."""
+    bdir = Path(bdir)
+    files = sorted(bdir.glob(LOADER_PREFIX + "*.json"), key=lambda p: p.name, reverse=True)
+    for f in files:
+        raw = f.read_bytes()
+        try:
+            data = json.loads(raw.decode("utf-8"))
+        except Exception:
+            continue
+        entries = data["baselines"] if isinstance(data, dict) and isinstance(data.get("baselines"), list) else \
+            ([v for v in data.values() if isinstance(v, dict) and "station" in v] if isinstance(data, dict) else [])
+        loaded = {e["station"]: dict(e) for e in entries if e.get("mean_thd") is not None and e.get("std_thd") is not None}
+        if loaded:
+            return dict(path=str(f), name=f.name, sha256=hashlib.sha256(raw).hexdigest(),
+                        calibration_date=calibration_date_from_name(f.name), entries=loaded)
+    raise BootstrapRefused("EMPTY_BASE_SNAPSHOT: no loadable dated baseline file in %s" % bdir)
 
 
-def compose_candidate_file(entry: Dict, base_entries: Dict[str, Dict], out_path: str,
-                           *, forbid_dir: Path = BASELINE_DIR) -> str:
-    """Write base_entries + the bootstrap entry as a CANDIDATE file. Refuses: a name the production loader would
-    pick up, a location inside the production baselines directory, or an existing file."""
+def compose_candidate_file(result: Dict, base_snapshot: Dict, out_path: str, *, forbid_dir: Path = BASELINE_DIR) -> str:
+    """Write base entries (numbers, windows AND effective calibration_date preserved per entry) + the eligible bootstrap
+    entry as a CANDIDATE file. Refuses: an ineligible result, a stale/empty base, a name the loader would pick up, a
+    location inside the production baselines directory, an existing file. Strict JSON, exclusive creation."""
+    if not result.get("candidate_eligible") or "entry" not in result:
+        raise BootstrapRefused("CANDIDATE_NOT_ELIGIBLE: " + "; ".join(result.get("eligibility_refusals") or ["no entry"]))
+    entry = result["entry"]
+    if not base_snapshot or not base_snapshot.get("entries"):
+        raise BootstrapRefused("EMPTY_BASE_SNAPSHOT")
+    raw = Path(base_snapshot["path"]).read_bytes() if Path(base_snapshot["path"]).exists() else b""
+    if hashlib.sha256(raw).hexdigest() != base_snapshot["sha256"]:
+        raise BootstrapRefused("BASE_SNAPSHOT_STALE: %s changed since the snapshot" % base_snapshot["name"])
     out = Path(out_path)
     if out.name.startswith(LOADER_PREFIX):
         raise BootstrapRefused("CANDIDATE_NAME_MATCHES_LOADER_GLOB: rename happens only at the reviewed landing")
@@ -285,79 +542,76 @@ def compose_candidate_file(entry: Dict, base_entries: Dict[str, Dict], out_path:
         inside = False
     if inside:
         raise BootstrapRefused("CANDIDATE_MUST_NOT_LAND_IN_PRODUCTION_BASELINES")
+    merged: Dict[str, Dict] = {}
+    for st, e in base_snapshot["entries"].items():
+        if st == entry["station"]:
+            continue
+        keep = dict(e)
+        keep["calibration_date"] = e.get("calibration_date") or base_snapshot["calibration_date"]
+        keep["carried_from"] = dict(file=base_snapshot["name"], sha256=base_snapshot["sha256"])
+        merged[st] = keep
+    merged[entry["station"]] = dict(entry)
+    merged["_bootstrap_candidate"] = dict(schema=SCHEMA, station=entry["station"], base_snapshot=dict(
+        name=base_snapshot["name"], sha256=base_snapshot["sha256"], calibration_date=base_snapshot["calibration_date"]),
+        requires="station_baselines loader honouring per-entry calibration_date (branch change); landing = reviewed "
+                 "rename to %s<YYYYMMDD>.json on the host" % LOADER_PREFIX)
+    body = json.dumps(_jsonable(merged), indent=2, sort_keys=True, allow_nan=False) + "\n"
     if out.exists():
-        raise BootstrapRefused("CANDIDATE_EXISTS: refusing to overwrite")
-    merged = {k: dict(v) for k, v in base_entries.items()}
-    merged[entry["station"]] = {k: entry[k] for k in ("station", "mean_thd", "std_thd", "n_samples",
-                                                       "calibration_period", "notes")}
-    merged[entry["station"]]["bootstrap"] = entry["bootstrap"]
+        raise BootstrapRefused("CANDIDATE_EXISTS: refusing to overwrite %s" % out)
     out.parent.mkdir(parents=True, exist_ok=True)
-    with open(out, "w", encoding="utf-8", newline="\n") as fh:
-        json.dump(merged, fh, indent=2, sort_keys=True)
-        fh.write("\n")
+    try:
+        with open(out, "x", encoding="utf-8", newline="\n") as fh:     # exclusive: never overwrite, even on a race
+            fh.write(body)
+    except FileExistsError:
+        raise BootstrapRefused("CANDIDATE_EXISTS: refusing to overwrite %s" % out)
     return str(out)
 
 
+# ----------------------------------------------------------------------------- CLI
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--station", required=True, help="e.g. IU.SNZO")
-    ap.add_argument("--cache-dir", required=True, help="seismic_cache/<region> directory with YYYYMMDD subdirs")
-    ap.add_argument("--today", default=None, help="YYYY-MM-DD clock read; default = UTC today")
+    ap.add_argument("--station", required=True)
+    ap.add_argument("--cache-dir", required=True, help="seismic_cache/<region> with YYYYMMDD subdirs (read-only)")
+    ap.add_argument("--location", required=True, help="bound location code, e.g. 00 (no fallback)")
+    ap.add_argument("--today", default=None)
     ap.add_argument("--out-dir", required=True, help="evidence directory OUTSIDE the production baselines dir")
-    ap.add_argument("--base-file", default=None, help="existing dated thd_baselines file whose entries the "
-                                                    "candidate carries forward (read-only)")
+    ap.add_argument("--base-dir", default=str(BASELINE_DIR), help="directory holding the effective dated baselines "
+                                                                  "(read-only snapshot source)")
     ap.add_argument("--expected-rate", type=float, default=None)
     ap.add_argument("--epoch-start", default=None)
-    ap.add_argument("--prefer-location", default="00")
     ap.add_argument("--require-response", action="store_true")
     args = ap.parse_args(argv)
-    today = date.fromisoformat(args.today) if args.today else datetime.utcnow().date()
+    today = date.fromisoformat(args.today) if args.today else datetime.now(timezone.utc).date()
     window = registered_window(today)
     obs = []
-    outside = []           # cached days outside the registered window: counted, never opened, never scored
-    for day, path in cache_days(args.cache_dir):
-        d = date.fromisoformat(day)
-        if window[0] <= d <= window[1]:
-            obs.append(observe_cached_day(path, args.station, day, prefer_location=args.prefer_location))
-        else:
-            outside.append(day)
-    epoch = (date.fromisoformat(args.epoch_start), None) if args.epoch_start else None
-    res = bootstrap(args.station, obs, today=today, expected_rate=args.expected_rate, epoch=epoch,
-                    require_response=args.require_response)
-    missing = []
-    present = {o.day for o in obs}
     d = window[0]
     while d <= window[1]:
-        if d.isoformat() not in present:
-            missing.append(d.isoformat())
+        obs.append(stitch_cached_window(args.cache_dir, d.isoformat(), args.station, args.location))
         d += timedelta(days=1)
-    res["cache"] = dict(cache_dir=os.path.abspath(args.cache_dir), days_cached_total=len(obs) + len(outside),
-                        days_cached_in_window=len(obs), days_cached_outside_window=len(outside),
-                        outside_window_range=[outside[0], outside[-1]] if outside else None,
-                        window_days_missing_from_cache=missing)
+    epoch = (date.fromisoformat(args.epoch_start), None) if args.epoch_start else None
+    res = bootstrap(args.station, obs, today=today, expected_location=args.location,
+                    expected_rate=args.expected_rate, epoch=epoch, require_response=args.require_response)
+    rate = args.expected_rate or next((o.sampling_rate for o in obs if o.sampling_rate), 40.0)
+    res["missing_support"] = missing_support_report(obs, rate)
+    res["cache"] = dict(cache_dir=os.path.abspath(args.cache_dir), target_days=len(obs))
     os.makedirs(args.out_dir, exist_ok=True)
     rpath = os.path.join(args.out_dir, f"thd_bootstrap_{args.station}_{today.strftime('%Y%m%d')}.json")
     with open(rpath, "w", encoding="utf-8", newline="\n") as fh:
-        json.dump(res, fh, indent=1, sort_keys=True, default=str)
+        json.dump(res, fh, indent=1, sort_keys=True, allow_nan=False)
         fh.write("\n")
-    print("THD_BOOTSTRAP", "OK" if res["ok"] else "REFUSED", args.station, "qualified=%d/%d refused=%s" %
-          (res["n_qualified"], res["n_observations"], json.dumps(res["refused"], sort_keys=True)))
-    if not res["ok"]:
-        print("  ", res["refusal"], res["detail"])
+    print("THD_BOOTSTRAP", "ELIGIBLE" if res["candidate_eligible"] else "NOT_ELIGIBLE", args.station,
+          "qualified=%d/%d refused=%s" % (res["n_qualified"], res["n_observations"],
+                                          json.dumps(res["refused"], sort_keys=True)))
+    print("   diagnostics:", json.dumps(res["diagnostics"], sort_keys=True))
+    print("   missing support:", json.dumps({k: v for k, v in res["missing_support"].items() if k != "intervals"}),
+          "intervals:", len(res["missing_support"]["intervals"]))
+    if not res["candidate_eligible"]:
+        print("   eligibility refusals:", res["eligibility_refusals"])
         return 2
-    e = res["entry"]
-    print("   entry: mean_thd=%s std_thd=%s n=%s period=%s qa=%s issues=%s" % (
-        e["mean_thd"], e["std_thd"], e["n_samples"], e["calibration_period"], e["qa"]["quality_grade"],
-        e["qa"]["issues"]))
-    base_entries = {}
-    if args.base_file:
-        with open(args.base_file, encoding="utf-8") as fh:
-            data = json.load(fh)
-        base_entries = {k: v for k, v in data.items() if isinstance(v, dict) and "station" in v}
-    cpath = compose_candidate_file(e, base_entries, os.path.join(
+    base = snapshot_effective_base(args.base_dir)
+    cpath = compose_candidate_file(res, base, os.path.join(
         args.out_dir, f"CANDIDATE_{LOADER_PREFIX}{today.strftime('%Y%m%d')}.json"))
-    print("   candidate:", cpath, "(rename to %s%s.json and place in data/baselines ONLY at the reviewed landing)"
-          % (LOADER_PREFIX, today.strftime('%Y%m%d')))
+    print("   candidate:", cpath, "(base snapshot %s %s)" % (base["name"], base["sha256"][:12]))
     return 0
 
 

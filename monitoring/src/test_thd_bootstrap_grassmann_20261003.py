@@ -267,16 +267,34 @@ class Stitch(unittest.TestCase):
         self.assertEqual(tb.qualify(o, WIN, today=TODAY, station=STA, expected_location="00", expected_rate=40.0), [])
         self.assertEqual(o.thd, 0.37); self.assertEqual(len(o.support_sha256), 64)
 
-    def test_missing_previous_day_reports_the_exact_missing_interval(self):
+    def test_missing_previous_day_is_support_incomplete_with_the_exact_interval(self):
         self.write_day("2026-07-01")
         o = tb.stitch_cached_window(str(self.tmp), "2026-07-01", STA, "00", estimate_now=False)
         self.assertEqual(o.missing_support[0][0], "2026-07-01T00:00:00.000000Z")
         self.assertTrue(o.missing_support[0][1].startswith("2026-07-01T07:00:10"))
-        self.assertIn("SUPPORT_OUTSIDE_WINDOW", tb.qualify(o, WIN, today=TODAY, station=STA, expected_location="00")
-                      or ["SUPPORT_OUTSIDE_WINDOW"])   # start after window start: not refused by itself,
-        rep = tb.missing_support_report([o], 40.0)       # but the support is incomplete and reported exactly
-        self.assertEqual(len(rep["intervals"]), 1); self.assertAlmostEqual(rep["total_seconds"], 7 * 3600 + 10.794538, places=3)
+        r = tb.qualify(o, WIN, today=TODAY, station=STA, expected_location="00")
+        self.assertIn("SUPPORT_INCOMPLETE", r); self.assertNotIn("ESTIMATOR_ZERO", r)
+        rep = tb.missing_support_report([o], 40.0)
+        self.assertEqual(rep["n_intervals"], 1); self.assertAlmostEqual(rep["total_seconds"], 7 * 3600 + 10.794538, places=3)
         self.assertEqual(rep["bytes_raw_int32"], rep["samples_at_rate"] * 4)
+
+    def test_acquisition_spec_strict_and_minimal(self):
+        self.write_day("2026-06-30"); self.write_day("2026-07-01", drop_tail=8)     # 07-01 ends 0.2 s early: the
+        self.write_day("2026-07-02")                                                  # 07-01->07-02 join is a gap
+        o1 = tb.stitch_cached_window(str(self.tmp), "2026-07-01", STA, "00", analyzer=_FakeAnalyzer())  # clean
+        o2 = tb.stitch_cached_window(str(self.tmp), "2026-07-02", STA, "00", analyzer=_FakeAnalyzer())  # gapped join
+        o3 = tb.stitch_cached_window(str(self.tmp), "2026-07-04", STA, "00", analyzer=_FakeAnalyzer())  # nothing cached
+        reasons = {o.day: tb.qualify(o, WIN, today=TODAY, station=STA, expected_location="00") for o in (o1, o2, o3)}
+        self.assertEqual(reasons["2026-07-01"], []); self.assertIn("GAP_FILLED", reasons["2026-07-02"])
+        self.assertIn("NO_DATA", reasons["2026-07-04"])
+        self.assertEqual(len(o2.discontinuities), 1); self.assertEqual(o1.discontinuities, [])
+        spec = tb.acquisition_spec([o1, o2, o3], reasons, 40.0)
+        strict, minimal = spec["strict_full_windows"], spec["minimal_splice"]
+        self.assertEqual(strict["n_intervals"], 2)                 # 07-02 window and 07-04 window; 07-01 not requested
+        self.assertAlmostEqual(strict["total_seconds"], 2 * 25 * 3600, places=3)
+        self.assertEqual(minimal["n_intervals"], 2)                # the 0.2 s join + the whole absent 07-04 window
+        self.assertLess(minimal["total_seconds"], strict["total_seconds"])
+        self.assertEqual(strict["bytes_raw_int32"], strict["samples_at_rate"] * 4)
 
     def test_a_gap_between_the_days_is_a_discontinuity_not_a_fill(self):
         self.write_day("2026-06-30"); self.write_day("2026-07-01", extra_gap=0.2)

@@ -76,7 +76,7 @@ OPERATOR_DAILY = dict(
 REFUSAL_CODES = ("NSLC_MISMATCH", "LOCATION_MISMATCH", "CHANNEL_MISMATCH", "TIMESTAMPS_INVALID", "WINDOW_MISMATCH",
                  "SUPPORT_OUTSIDE_WINDOW", "DAY_OUTSIDE_WINDOW", "DAY_TOO_RECENT", "EPOCH_MISMATCH", "RATE_INVALID",
                  "RATE_MISMATCH", "NPTS_SPAN_INCONSISTENT", "NO_DATA", "COVERAGE_SHORT", "GAP_FILLED",
-                 "RESPONSE_MISSING", "DUPLICATE_DAY", "DUPLICATE_SUPPORT", "ESTIMATOR_ZERO")
+                 "SUPPORT_INCOMPLETE", "RESPONSE_MISSING", "DUPLICATE_DAY", "DUPLICATE_SUPPORT", "ESTIMATOR_ZERO")
 ELIGIBILITY_CODES = ("INSUFFICIENT_DAYS", "NONFINITE_VALUES", "ZERO_DISPERSION", "QA_FAIL")
 
 
@@ -146,6 +146,7 @@ class DayObservation:
     f1: Optional[float] = None
     thd_daily_1hz: Optional[float] = None    # diagnostic: same bytes through the daily 1-Hz operator
     missing_support: List[List[str]] = field(default_factory=list)   # raw [start, end) intervals not available
+    discontinuities: List[List[str]] = field(default_factory=list)   # [prev_end, next_start] joins that did not abut
 
     def coverage_hours(self) -> float:
         return (self.npts / self.sampling_rate) / 3600.0 if self.sampling_rate and self.sampling_rate > 0 else 0.0
@@ -197,6 +198,8 @@ def qualify(obs: DayObservation, window: Tuple[date, date], *, today: date, stat
         reasons.append("COVERAGE_SHORT")
     if obs.filled_samples > 0 or obs.gap_seconds != 0:
         reasons.append("GAP_FILLED")
+    if obs.missing_support:
+        reasons.append("SUPPORT_INCOMPLETE")   # the declared window is not fully covered by retained bytes
     if require_response and not obs.response_available:
         reasons.append("RESPONSE_MISSING")
     if seen_days is not None:
@@ -331,6 +334,8 @@ def stitch_cached_window(cache_dir: str, day: str, station: str, location: str, 
             chunks[-1][1] = np.concatenate([d_prev, data[1:]])
         else:                                                          # gap, overlap or non-identical duplicate
             gap_total += abs(delta - dt)
+            base.discontinuities.append([iso(prev_end.datetime.replace(tzinfo=timezone.utc)),
+                                         iso(tr.stats.starttime.datetime.replace(tzinfo=timezone.utc))])
             chunks.append([tr.stats.starttime, data])
     # choose the single chunk that covers the window best; cut it to [ws, we)
     from obspy import UTCDateTime
@@ -366,25 +371,51 @@ def stitch_cached_window(cache_dir: str, day: str, station: str, location: str, 
     return base
 
 
-def missing_support_report(observations: Iterable[DayObservation], rate: float) -> Dict:
-    """Exact raw intervals still needed (merged), with a size estimate: int32 samples and a miniSEED estimate."""
-    iv = []
-    for o in observations:
-        for a, b in o.missing_support:
-            iv.append((parse_utc(a), parse_utc(b)))
-    iv = sorted(x for x in iv if x[0] and x[1] and x[1] > x[0])
+def _merge_intervals(pairs) -> List[List[datetime]]:
+    iv = sorted((a, b) for a, b in pairs if a and b and b > a)
     merged: List[List[datetime]] = []
     for a, b in iv:
         if merged and a <= merged[-1][1]:
             merged[-1][1] = max(merged[-1][1], b)
         else:
             merged.append([a, b])
+    return merged
+
+
+def _sized(merged: List[List[datetime]], rate: float) -> Dict:
     seconds = sum((b - a).total_seconds() for a, b in merged)
     samples = int(round(seconds * rate))
-    return dict(intervals=[[iso(a), iso(b)] for a, b in merged], total_seconds=seconds, total_days=round(seconds / 86400, 3),
-                samples_at_rate=samples, bytes_raw_int32=samples * 4,
-                miniseed_estimate_bytes=[int(samples * 1.2), int(samples * 1.6)],
-                estimate_basis="Steim2 ~1.2-1.6 bytes/sample for broadband counts; an estimate, not a measurement")
+    return dict(intervals=[[iso(a), iso(b)] for a, b in merged], n_intervals=len(merged), total_seconds=round(seconds, 3),
+                total_days=round(seconds / 86400, 3), samples_at_rate=samples, bytes_raw_int32=samples * 4,
+                miniseed_estimate_bytes=[int(samples * 1.2), int(samples * 1.6)])
+
+
+def acquisition_spec(observations: Iterable[DayObservation], per_day_reasons: Dict[str, List[str]], rate: float) -> Dict:
+    """Exact support still needed, two ways: STRICT = the union of the full declared windows of every target day that
+    did not qualify (one contiguous fetch per window; no splicing with cached bytes); MINIMAL = only the absent edges
+    and the join discontinuities (splicing newly fetched bytes into cached bytes, which must then be re-validated by
+    the same contiguity rules). Both are sized in int32 samples with a miniSEED estimate."""
+    strict, minimal = [], []
+    for o in observations:
+        reasons = per_day_reasons.get(o.day, [])
+        if not reasons:
+            continue
+        ws, we = target_window(o.day)
+        strict.append((ws, we))
+        for a, b in o.missing_support:
+            minimal.append((parse_utc(a), parse_utc(b)))
+        for a, b in o.discontinuities:
+            minimal.append((parse_utc(a), parse_utc(b)))
+    return dict(strict_full_windows=_sized(_merge_intervals(strict), rate),
+                minimal_splice=_sized(_merge_intervals(minimal), rate),
+                estimate_basis="Steim2 ~1.2-1.6 bytes/sample for broadband counts; an estimate, not a measurement",
+                note="STRICT is the complete specification for one bounded fetch; MINIMAL assumes sample-exact splicing "
+                     "into the retained cache and re-qualification afterwards")
+
+
+def missing_support_report(observations: Iterable[DayObservation], rate: float) -> Dict:
+    """Absent raw intervals only (merged, sized). See acquisition_spec for the complete request."""
+    return _sized(_merge_intervals((parse_utc(a), parse_utc(b)) for o in observations for a, b in o.missing_support), rate)
 
 
 # ----------------------------------------------------------------------------- bootstrap
@@ -429,7 +460,7 @@ def bootstrap(station: str, observations: Iterable[DayObservation], *, today: da
                             npts=obs.npts, coverage_hours=round(obs.coverage_hours(), 3), n_traces=obs.n_traces,
                             gap_seconds=obs.gap_seconds, filled_samples=obs.filled_samples, source=obs.source,
                             source_ref=obs.source_ref, support_sha256=obs.support_sha256,
-                            missing_support=obs.missing_support))
+                            missing_support=obs.missing_support, discontinuities=obs.discontinuities))
         for r in reasons:
             refused[r] = refused.get(r, 0) + 1
         if not reasons:
@@ -593,6 +624,7 @@ def main(argv=None) -> int:
                     expected_rate=args.expected_rate, epoch=epoch, require_response=args.require_response)
     rate = args.expected_rate or next((o.sampling_rate for o in obs if o.sampling_rate), 40.0)
     res["missing_support"] = missing_support_report(obs, rate)
+    res["acquisition_spec"] = acquisition_spec(obs, {p["day"]: p["reasons"] for p in res["per_day"]}, rate)
     res["cache"] = dict(cache_dir=os.path.abspath(args.cache_dir), target_days=len(obs))
     os.makedirs(args.out_dir, exist_ok=True)
     rpath = os.path.join(args.out_dir, f"thd_bootstrap_{args.station}_{today.strftime('%Y%m%d')}.json")
@@ -603,8 +635,10 @@ def main(argv=None) -> int:
           "qualified=%d/%d refused=%s" % (res["n_qualified"], res["n_observations"],
                                           json.dumps(res["refused"], sort_keys=True)))
     print("   diagnostics:", json.dumps(res["diagnostics"], sort_keys=True))
-    print("   missing support:", json.dumps({k: v for k, v in res["missing_support"].items() if k != "intervals"}),
-          "intervals:", len(res["missing_support"]["intervals"]))
+    for key in ("strict_full_windows", "minimal_splice"):
+        s = res["acquisition_spec"][key]
+        print("   acquisition %-20s intervals=%d days=%s raw_int32=%d B miniSEED~%s B" % (
+            key, s["n_intervals"], s["total_days"], s["bytes_raw_int32"], s["miniseed_estimate_bytes"]))
     if not res["candidate_eligible"]:
         print("   eligibility refusals:", res["eligibility_refusals"])
         return 2

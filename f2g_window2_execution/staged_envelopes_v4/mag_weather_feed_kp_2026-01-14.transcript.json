@@ -1,0 +1,26 @@
+{
+ "authority": {
+  "blob_sha256": "b5b0a61a4edcdac2bfcd8a819f2e118a81c492947a0b6167ffd07ef09338967e",
+  "commit": "332a98acd34797163413350dc4989fdb37ec87b2",
+  "keys_sha256": "9a2b5b6c5e0b0f456f4587e7eed63c561440685cae33bad59ac4b3d4ebc7cee9",
+  "path": "docs/f2g_window2_execution/staged_expected_contracts_v3.json"
+ },
+ "carrier": "kp",
+ "effective_url": "https://kp.gfz.de/app/json/?end=2026-01-14T23%3A59%3A59Z&index=Kp&start=2026-01-14T00%3A00%3A00Z",
+ "headers": {
+  "content-length": "363",
+  "content-type": "application/json",
+  "date": "Tue, 25 Aug 2026 04:35:55 GMT",
+  "server": "Apache/2.4.68 (Debian)"
+ },
+ "http_status": 200,
+ "lane": "MF4_FEED",
+ "raw_body_bytes": 363,
+ "raw_body_sha256": "416c165f836235e0173835fa1a30386958ea5e118fc7e5e1c6369ca01dc12276",
+ "request_start_utc": "2026-08-25T04:35:55Z",
+ "requested_url": "https://kp.gfz-potsdam.de/app/json/?end=2026-01-14T23%3A59%3A59Z&index=Kp&start=2026-01-14T00%3A00%3A00Z",
+ "response_complete_utc": "2026-08-25T04:35:56Z",
+ "schema": "f2g-w2-capture-transcript-v1",
+ "static_contract_sha256": "791ccbe0852f0c40ae82b81e5f1145a1a11e6e4ef13bf9b4d978dff2ab982f2b",
+ "utc_day": "2026-01-14"
+}

@@ -1,0 +1,582 @@
+{
+ "design_manifest_blob_sha256": "d6decbd6ab5814bc005ce69c538311ff1b11cb1d13c19e2999e03a92bc7cca1f",
+ "design_manifest_commit": "5fba5446cd96722fb86021df5065a46b8a1a78f5",
+ "design_target_commit": "12161f6cf2000b2d4aa86fe659f834839ac0d27b",
+ "execution_target_commit": "1426d513b5e3d9a867eaabe4f7a27b7e192c8987",
+ "generated_utc": "2026-09-03T03:05:25Z",
+ "manifest_state": "OPEN",
+ "repository_url": "https://github.com/kantrarian/geospec",
+ "schema": "f2g-window2-execution-manifest-v1.2",
+ "slots": {
+  "accrual_impl": {
+   "note": "barrier state machine + production instrument (core + 3 seam layers) + accrual-lane engines (W-BARRIER/W-MF4/W-MAG green) + the FROZEN v3 static-contract authority and its generator (codex 2205Z item 1: capture admission requires the authority as a pin of THIS slot; producer_boundary additionally binds it at final boundary bind)",
+   "owner": "cayley",
+   "pins": [
+    {
+     "blob_sha256": "2dec76d9e4db9c3e426807ddb224dc7bd4b9cb8a25742fb63f4ef08a2e865b69",
+     "commit": "5fd7af6cf80f08f0b793a21b1fa3efc84b64d6d9",
+     "path": "monitoring/src/w2_barrier.py"
+    },
+    {
+     "blob_sha256": "7e2ce675fcf8506d017ed7a3a9d1175b255eaa13c3c684d283017281d728895b",
+     "commit": "5bc4d887c93589afa39b86eb53ec1ca68c1269c9",
+     "path": "monitoring/src/w2_accrual_instrument_cayley.py"
+    },
+    {
+     "blob_sha256": "f9ea9b33d0c9819f78b40782c3c3880e193c017ff749671c392a25f3e004ccef",
+     "commit": "c56065b9b02720e0b33731c1c9dc136e0c918971",
+     "path": "monitoring/src/w2_mf4.py"
+    },
+    {
+     "blob_sha256": "d3fd1cadb568f26dd86d9f09e5d9633091c489b2429aabe1e1dd00ae45d4a168",
+     "commit": "6f73445244493813b02caa761aebc3ab39bab7ed",
+     "path": "monitoring/src/w2_mag1.py"
+    },
+    {
+     "blob_sha256": "9729103686afce58498a5cc706a2b5f62098e686688d1225e8d9587577ebfef3",
+     "commit": "67a2dd7d6ec8598a7fe45d2b2f096e2f43a88add",
+     "path": "monitoring/src/w2_expected_contracts_gen_v4_cayley.py"
+    },
+    {
+     "blob_sha256": "c4a156974845422048508ba9bca5f366bfb86f0e76dc7cd6db872adc8d70829d",
+     "commit": "f4e27f979083ee86c487344af4f251c02a30f3f9",
+     "path": "docs/f2g_window2_execution/calendar_authority_w2_v4.json"
+    },
+    {
+     "blob_sha256": "dc3917743270cb15ccaf0a30c95cd70a6a92f96c6c9ca755273b11a9190f119b",
+     "commit": "f4e27f979083ee86c487344af4f251c02a30f3f9",
+     "path": "monitoring/src/w2_calendar_authority_gen_v4_cayley.py"
+    },
+    {
+     "blob_sha256": "20e1bacc76d9fe71363cde9c737986859ae40f352b19271e48139e9dc09b511a",
+     "commit": "bd0410d7908678b26bb1385c669cb6a21107da73",
+     "path": "monitoring/src/w2_expected_contracts_gen_cayley.py"
+    },
+    {
+     "blob_sha256": "e42041443fb130ce5800d2470739e71c8929d7f322209c33db3d7ad57529d369",
+     "commit": "67a2dd7d6ec8598a7fe45d2b2f096e2f43a88add",
+     "path": "docs/f2g_window2_execution/staged_expected_contracts_v4.json"
+    },
+    {
+     "blob_sha256": "704a23ecc582fb2271ce060168520daea200a4697cf2a39f5cd78dd23a6e0928",
+     "commit": "1dfcb7245f3399b2ae64df8f7cac478333845f4c",
+     "path": "monitoring/src/w2_disposition_capsule_grassmann.py"
+    },
+    {
+     "blob_sha256": "a2b6a206cb1e975e579e1d15a91e477bd9df07e5f2b33b35a698b515c43531f9",
+     "commit": "5bc4d887c93589afa39b86eb53ec1ca68c1269c9",
+     "path": "docs/f2g_window2_execution/key_disposition_capsule_v5.json"
+    },
+    {
+     "blob_sha256": "9cb977ed70d7ce90efbc3c8fc3f3cba48e22771d6ace1d092bf66db4a80b9fb6",
+     "commit": "5bc4d887c93589afa39b86eb53ec1ca68c1269c9",
+     "path": "docs/f2g_window2_execution/key_disposition_v4_to_v5_delta.json"
+    },
+    {
+     "blob_sha256": "aab0f649e5a97dc6bc23f7b4246deac804d23fadf8ec8e7271a3905126239ecc",
+     "commit": "cd6893d47c84a7a14673713418993363a0e25edb",
+     "path": "monitoring/src/w2_restage_lineage_grassmann.py"
+    },
+    {
+     "blob_sha256": "bb76575ed6ba5f471ab153e218a49f1dae7eb622dabd494f5689c1d5e526f978",
+     "commit": "cd6893d47c84a7a14673713418993363a0e25edb",
+     "path": "monitoring/src/w2_restage_v4_grassmann.py"
+    },
+    {
+     "blob_sha256": "cbe2e38d00c45fe0f16434c7d04d124028b4e7778ea58b46ee4a879372fa0fb4",
+     "commit": "e28c29ae5fa0e75e9b14b3d8ee5ef48f12b933da",
+     "path": "monitoring/src/w2_restage_verify_batch_grassmann.py"
+    },
+    {
+     "blob_sha256": "493af794d99011d219b28830942ebc52164611a62f39165dc611826da30a6560",
+     "commit": "a0322f032300f32b2ab4eb15bf4824f01408270b",
+     "path": "monitoring/src/w2_verification_run_summary_grassmann.py"
+    },
+    {
+     "blob_sha256": "eceafc49c57fd0ff765732c1935c168c60235494f26dfafa6c7485538fcbbfa8",
+     "commit": "66b1d4bd3e757df5af70d37996ed9c73e3eca1b9",
+     "path": "monitoring/src/w2_no_network_grassmann.py"
+    },
+    {
+     "blob_sha256": "b460a8d1a24343d12d6893a215ca184b3215d1f60aeed338a5e81b585924e2b6",
+     "commit": "9c122360a31e821e681005fcf1c75662fa1f9305",
+     "path": "monitoring/src/w2_producer_grassmann.py"
+    },
+    {
+     "blob_sha256": "b624df2cd94d710a952ada32872d8908320b76e7f11096d68031f907f89cf674",
+     "commit": "bd0410d7908678b26bb1385c669cb6a21107da73",
+     "path": "monitoring/src/w2_capture_run_v4_grassmann.py"
+    },
+    {
+     "blob_sha256": "a48baa50530854d966e2a6947af7c9108a1ca1e7068364a59f21e6597f3cee7f",
+     "commit": "a201083934d186f803d2d3ce8ab6046acff2e124",
+     "path": "monitoring/src/w2_acquisition_capture_grassmann.py"
+    },
+    {
+     "blob_sha256": "64140fc01132d0e190dd96d029d3539c2fdd71b3a979de9277cf61a8ac766220",
+     "commit": "f636c234e0957ea7719091072bc91591f3fe9570",
+     "path": "monitoring/src/w2_mf4_catalog_acquire_grassmann.py"
+    },
+    {
+     "blob_sha256": "524cafec44c465c2dcd2880000b903e47a1d670c89beec0c8d66222fba898426",
+     "commit": "dc21f5b91650839e48903c2f0016240f721241c6",
+     "path": "monitoring/src/w2_capture_repair_v4_vic_cayley.py"
+    },
+    {
+     "blob_sha256": "e9f6ac47823c09cd164e78c0902fce7421cb17e5914e586ffbbe41e079a8729e",
+     "commit": "dc21f5b91650839e48903c2f0016240f721241c6",
+     "path": "monitoring/src/w2_capture_retry_404_v4_cayley.py"
+    },
+    {
+     "blob_sha256": "2b41a2de2445e41b876eba87ff6724d31befca584335596800fe55c5e85c5056",
+     "commit": "39b0a350ecbaf3688e17165d26e0fdb8aa88a95f",
+     "path": "monitoring/src/w2_zero_http_finalizer_cayley.py"
+    },
+    {
+     "blob_sha256": "379d482e019b397cbbab4757bb2851ad0a02863c6e38d40c6581bbf784de88d5",
+     "commit": "2b458fd24bf91f10789040e69e603505909a5ca4",
+     "path": "monitoring/src/w2_predecessor_bridge_cayley.py"
+    }
+   ],
+   "status": "BOUND"
+  },
+  "adapter_impl": {
+   "note": "family engines + registry resolution (W-CAS/W-B2B/W-B1B green; panel assembly pinned under accrual)",
+   "owner": "cayley",
+   "pins": [
+    {
+     "blob_sha256": "ed9b5a0e41cadb1bc89f9a627746af40ad35a306388001358887173e3dc67c93",
+     "commit": "6a610b49f6804102cdc85cd4414af3ee010b922e",
+     "path": "monitoring/src/w2_cascadia.py"
+    },
+    {
+     "blob_sha256": "837342e707ae2602c52b1d80b7687b0b0583226b850e78b28d65b432cb08e69a",
+     "commit": "7b4d09731cb35471b124fd7235c1fbc75197b500",
+     "path": "monitoring/src/w2_b2b.py"
+    },
+    {
+     "blob_sha256": "65ab21bfa7fb89942b8297032ae5360f99bebab3c16c1e6fd3e04ed3392f1273",
+     "commit": "3f8b467cf3893d516c93fdc0dfeb85cb55957164",
+     "path": "monitoring/src/w2_b1b.py"
+    }
+   ],
+   "status": "BOUND"
+  },
+  "bars": {
+   "families": [
+    "W-SEL",
+    "W-CAS",
+    "W-B2B",
+    "W-B1B",
+    "W-MF4",
+    "W-MAG",
+    "W-BARRIER",
+    "W-PIN"
+   ],
+   "note": "Window-2 verification surfaces. The shared bar's W2-ADMIT group is STRUCTURAL_KAT_ONLY, not closure-4 PASS; it carries admission_eligible=false and no production boundary digest or proof kinds. Closure-4 635/1420/1 and capsule pin binding are established by separately pinned locks. Other separately pinned locks cover the admitted partition, ADMITTED_ABSENCE, whole-authority serving, the frozen carrier set, and fixture/production schema separation. Interpreter identities and PRE-MANIFEST execution outcomes live only in the pinned compact run summary. Manifest-owned admission verification cannot appear in that summary at all: it can only run against the finished manifest commit, so a summary pinned inside that same manifest could never honestly contain its own post-manifest result. Those outcomes exist solely in the separate downstream post-manifest verification receipt, whose authority is the manifest it names rather than a pin the manifest recursively holds.",
+   "owner": "grassmann",
+   "pins": [
+    {
+     "blob_sha256": "5253286f7c8100e9df3e33fc72e5aae453aadee129a155308544a43a3511c121",
+     "commit": "913d4cbddac83b6838e509075dc7c25011d70af6",
+     "path": "monitoring/src/test_w2_geometry_admission_redkats_cayley.py"
+    },
+    {
+     "blob_sha256": "7ee6abaa046a6ebee2b0179f7b3ec4ff9de6135bddc64f87e3776a1efdbaed28",
+     "commit": "86c3eeb316738b94c36bdf92d819d048787e04b3",
+     "path": "monitoring/src/test_w2_tier_s_open_slot_redkats_codex.py"
+    },
+    {
+     "blob_sha256": "5c8ab593a8dd709004ddb5fa769046bfc0a7e40517118a05ccb8c8b8c1847331",
+     "commit": "4e892590b937fe8d2710c06b1720f93845a34323",
+     "path": "monitoring/src/w2_tier_s_static_audit_grassmann.py"
+    },
+    {
+     "blob_sha256": "64311a9a87e4b7252ddb52c4e16e46868fa0c77af907817cef69f94721e252ef",
+     "commit": "31f618da9c08c2960ca5299b393659e85e51aa31",
+     "path": "monitoring/src/test_f2g_window2_redkats_grassmann.py"
+    },
+    {
+     "blob_sha256": "2ae81946f757f2e1b838a4fd33ba38629955c0cdefebd4298c8dae02d59a97e6",
+     "commit": "57c5b1c542afd54965784e20fb9b177d3ea5dfab",
+     "path": "monitoring/src/test_w2_capsule_pin_bind_redkats_cayley.py"
+    },
+    {
+     "blob_sha256": "e93d738b1314f4d337d11f4f277acb0088910b9d1e075f149fe4982b344a51fb",
+     "commit": "9f763bba158ce9b721c36bcfa749f0f9a1f65d8a",
+     "path": "monitoring/src/test_w2_report_proof_kinds_redkats_cayley.py"
+    },
+    {
+     "blob_sha256": "19bca292977ce43cdfc0aef6013d86227cb2a3410fb349f3c52283ba6f5fb883",
+     "commit": "ea4870f317bc18ee1af81f271d3a3dfa1bfb95f4",
+     "path": "monitoring/src/test_w2_boundary_admitted_partition_redkats_cayley.py"
+    },
+    {
+     "blob_sha256": "05d8020d9de50645e06bb2752d1ef25b28c8cff7939d0bae39d87c9557ae6e7e",
+     "commit": "94492c790ec5ec9e961498ff4d7b5305d1c87c9e",
+     "path": "monitoring/src/test_w2_admitted_absence_redkats_cayley.py"
+    },
+    {
+     "blob_sha256": "3977d7f9917d6ba48956b71e20d16305e592232774f64d80a30cf8f0f6464a49",
+     "commit": "2f91143ec1b36a0b59558bdb0741987ef0fbba10",
+     "path": "monitoring/src/test_w2_authority_serves_every_key_redkats_cayley.py"
+    },
+    {
+     "blob_sha256": "087f26a632194cadce43ae790b295fdd8af5486511fd91325a0c9d40c3167a3e",
+     "commit": "58e4fb57e8d756a6d3224a112d0e7ca363205cab",
+     "path": "monitoring/src/test_w2_frozen_carrier_set_redkats_cayley.py"
+    },
+    {
+     "blob_sha256": "64065f16829e1f63f1479b291b693e4a82ee1a20356d65de23de98e6789f151e",
+     "commit": "a201083934d186f803d2d3ce8ab6046acff2e124",
+     "path": "monitoring/src/test_w2_fixture_schema_redkats_grassmann.py"
+    },
+    {
+     "blob_sha256": "3154d8fb24390655a964656aa6121d74f50a0cf2cab68599f6c95b042b8690ef",
+     "commit": "e14f82b4c8d51b2a18dc5acbd070232d92870124",
+     "path": "docs/f2g_window2_execution/w2_verification_run_summary_v1.json"
+    }
+   ],
+   "status": "BOUND"
+  },
+  "calibration_ledgers": {
+   "note": "MF4/MAG subtraction coefficients + diagnostics -- PRODUCED at the availability cutoff, pre-evaluation only",
+   "owner": "cayley",
+   "pins": [],
+   "status": "OPEN"
+  },
+  "calibration_runner": {
+   "note": "calibration-ledger production runner (temporal boundary + M3 index equality + provenance-verifying receipts; codex items 3+4 repaired + canonical-UTC frame)",
+   "owner": "cayley",
+   "pins": [
+    {
+     "blob_sha256": "0e89691c02dd24a46bf2552e81cfd280ad5701f2250f03b14879a4b95870bad6",
+     "commit": "47bb2a38d031280f67fab1a90891b4cf36d8d091",
+     "path": "monitoring/src/w2_calibration_runner_cayley.py"
+    },
+    {
+     "blob_sha256": "26151f450c717bba5a7108b27d8c278fa7ef1f7399186a5a22c689b07738bf3a",
+     "commit": "3921407b5a2638e6f13538f16ddd1a78746799e1",
+     "path": "monitoring/src/w2_mf4_successor_readiness_gen_cayley.py"
+    },
+    {
+     "blob_sha256": "4f4a7dd41243965179ed5cbec2a539a856279933c8a8b86a0461198680a52e47",
+     "commit": "3921407b5a2638e6f13538f16ddd1a78746799e1",
+     "path": "docs/f2g_window2_execution/mf4_successor_readiness_record_v1.json"
+    },
+    {
+     "blob_sha256": "20c965c9b20fbbc24e13fdd47d41371ea5830d976b6693abc756d77b19b0c539",
+     "commit": "3921407b5a2638e6f13538f16ddd1a78746799e1",
+     "path": "docs/f2g_window2_execution/mf4_reuse_attestation_v1.json"
+    },
+    {
+     "blob_sha256": "01887a593ddb11de57342da4ea666789952b30f0451ddadef560f106136c3b51",
+     "commit": "47bb2a38d031280f67fab1a90891b4cf36d8d091",
+     "path": "monitoring/src/w2_calibration_feed_producer_cayley.py"
+    },
+    {
+     "blob_sha256": "ecb29c4df93b063f6f204f8c57a605052f36d2bb06d8533d2af4891d89b8c305",
+     "commit": "47bb2a38d031280f67fab1a90891b4cf36d8d091",
+     "path": "monitoring/src/w2_calibration_feed_producer_kats_cayley.py"
+    },
+    {
+     "blob_sha256": "4a25b8d441a22e351222a489c8509dec2310d3b1e387a914c85c12e846b9784d",
+     "commit": "6ac6b6718339c5965b09e29f0044f28dc52c4e29",
+     "path": "monitoring/src/w2_mf4_catalog_adapter_grassmann.py"
+    },
+    {
+     "blob_sha256": "84a4245b10324de843164facc541558009a8729ee6a710552a2bc8202e708bc4",
+     "commit": "6ac6b6718339c5965b09e29f0044f28dc52c4e29",
+     "path": "monitoring/src/w2_mf4_archive_capsule_gen_grassmann.py"
+    },
+    {
+     "blob_sha256": "1317a40392b6a35e7129ee1dc73047cd49202f775498971e64f730b9401704b7",
+     "commit": "6ac6b6718339c5965b09e29f0044f28dc52c4e29",
+     "path": "monitoring/src/w2_mf4_archive_kats_grassmann.py"
+    },
+    {
+     "blob_sha256": "4fe32158b3028a807f7903862a0d1d788ae49de7ca59f63b94ce8d47ca1e5cb3",
+     "commit": "6ac6b6718339c5965b09e29f0044f28dc52c4e29",
+     "path": "docs/f2g_window2_execution/mf4_archive_capsule_v1.json"
+    },
+    {
+     "blob_sha256": "7c11b8895fd702e032a5dfdbb4b756883e9bb6837fd2ca268a3169e39097aa5c",
+     "commit": "6ac6b6718339c5965b09e29f0044f28dc52c4e29",
+     "path": "docs/f2g_window2_execution/mf4_archive_receipt_v1.json"
+    },
+    {
+     "blob_sha256": "7e359280a3220eca45bbcacb3f7cb019b7d57f1a81f4133a72f7536691e4b722",
+     "commit": "967f4e4d324127ba0695452105fa821afa21c254",
+     "path": "docs/f2g_window2_execution/mf4_archive/daily_risk_rows_v1.jsonl"
+    },
+    {
+     "blob_sha256": "490c407796209a513995a9012911a1e3764825622d4e33d355c983a13dbbb7f3",
+     "commit": "4893e63281e52d5a8e9d5047fe2aa2f445cd0dc4",
+     "path": "docs/f2g_window2_execution/mf4_catalog_snapshot/catalog_snapshot_v1.json"
+    },
+    {
+     "blob_sha256": "054002dd617b174e859645fce5c34a9adbc5b5c8024a0eed54f55757ae29c9ff",
+     "commit": "4893e63281e52d5a8e9d5047fe2aa2f445cd0dc4",
+     "path": "docs/f2g_window2_execution/mf4_catalog_snapshot/acquisition_receipt_v1.json"
+    }
+   ],
+   "status": "BOUND"
+  },
+  "design_pin_verifier": {
+   "note": "design-pin walk executable (landed b755ce1)",
+   "owner": "cayley",
+   "pins": [
+    {
+     "blob_sha256": "a010044f4365983e439605c7605d608963a81a1ee389439c90a7864ca9a21ac6",
+     "commit": "b755ce1a4cc7d8dbd937828fa7a403f7f9aa216e",
+     "path": "monitoring/src/f2g_design_pin_verifier_cayley.py"
+    }
+   ],
+   "status": "BOUND"
+  },
+  "execution_generator": {
+   "note": "this generator",
+   "owner": "cayley",
+   "pins": [
+    {
+     "blob_sha256": "ad039753298d22c7067384ef84465c140d6715ee340110dff44f689d8aec3809",
+     "commit": "81a5dc0ad239a71c29d6a9b3e4a6fb09c569281b",
+     "path": "monitoring/src/f2g_execution_manifest_gen_cayley.py"
+    }
+   ],
+   "status": "BOUND"
+  },
+  "execution_verifier": {
+   "note": "executable verifier (design linkage + slot/pin walk + prestart gate) and the post-regeneration gate. codex 0445Z item 5: verification CODE is its own authority, distinct from production operation bytes and from the execution records -- the gate must be pinned by the manifest it audits, or the check that certifies the pin set is itself unbound",
+   "owner": "cayley",
+   "pins": [
+    {
+     "blob_sha256": "5b96db37bea71f46330f5a79d01d5ca3cd61b382c6cb2a4beebbcd9527f31a86",
+     "commit": "7a9ab79e400eef450ce5a606afd650a43c265115",
+     "path": "monitoring/src/f2g_execution_manifest_verifier_cayley.py"
+    },
+    {
+     "blob_sha256": "746556f4fedf73b37898e7cf6aa38e95206d899f7c94811e48b66dd080442a74",
+     "commit": "b0a4312a8339a158d93f2e43d5e05eb955c00d56",
+     "path": "monitoring/src/w2_regeneration_gate_cayley.py"
+    },
+    {
+     "blob_sha256": "c1e86eab25b9034bfda0d244b8be7e2e833944765d26cd19d5faedc500954a54",
+     "commit": "b0a4312a8339a158d93f2e43d5e05eb955c00d56",
+     "path": "monitoring/src/w2_power_cert_result_verifier_cayley.py"
+    },
+    {
+     "blob_sha256": "5cfd410004d1fbdea5a45ad239ca329e6b51e8bf040a4a28352588dfa3260ac6",
+     "commit": "bd0410d7908678b26bb1385c669cb6a21107da73",
+     "path": "monitoring/src/w2_frame_readiness_doctor_cayley.py"
+    }
+   ],
+   "status": "BOUND"
+  },
+  "mag_capsules": {
+   "note": "FOUR capsules at the execution tree -- IZN/FRN/TUC relocated under codex 0451Z with their probe receipts, plus VIC registered under codex 0532Z as an exact-byte copy of the preserved freeze capsule. VIC carries NO probe receipts here: its three historical receipts stay at the freeze path, and this slot must not imply otherwise. Loaded via load_execution_capsule under the dynamic manifest authority; W-MAG-EXEC green",
+   "owner": "cayley",
+   "pins": [
+    {
+     "blob_sha256": "d9c4630c6232636f89880839e30aff320319036060fcc20d845bf8582b63a3c5",
+     "commit": "f2955cd5f3600f57e9a78a9f4f1e6286b8b966d0",
+     "path": "docs/f2g_window2_execution/mag_capsules/mag_capsule_izn.json"
+    },
+    {
+     "blob_sha256": "fb6e14341adfe8613e5a728839c0b6031b9097f7948ba7e7251336b39156904d",
+     "commit": "f2955cd5f3600f57e9a78a9f4f1e6286b8b966d0",
+     "path": "docs/f2g_window2_execution/mag_capsules/mag_capsule_frn.json"
+    },
+    {
+     "blob_sha256": "83a272062e38060b30791ad0b237e6823178dcca444784bebc0623d3656442b5",
+     "commit": "f2955cd5f3600f57e9a78a9f4f1e6286b8b966d0",
+     "path": "docs/f2g_window2_execution/mag_capsules/mag_capsule_tuc.json"
+    },
+    {
+     "blob_sha256": "54564d5d97cadba5070dd169a06ba313583dd23322deaee0fa14c8fe67bf2e9e",
+     "commit": "bd0410d7908678b26bb1385c669cb6a21107da73",
+     "path": "docs/f2g_window2_execution/mag_capsules/mag_capsule_vic.json"
+    },
+    {
+     "blob_sha256": "e3b5e0be9d2554549f3574d5ec1d88e9a949a366eaa49961458fc0501f4b9501",
+     "commit": "f2955cd5f3600f57e9a78a9f4f1e6286b8b966d0",
+     "path": "docs/f2g_window2_execution/mag_capsules/receipts/mag_izn_probe.json"
+    },
+    {
+     "blob_sha256": "0f3e377571bfafca2daef621dcdc4128b59e85aed24b3474e596320b2702cd4f",
+     "commit": "f2955cd5f3600f57e9a78a9f4f1e6286b8b966d0",
+     "path": "docs/f2g_window2_execution/mag_capsules/receipts/mag_izn_probe.envelope.json"
+    },
+    {
+     "blob_sha256": "6176a3baad14f028e047202a01f6f86483948742dd1e25841229a921d5e8df52",
+     "commit": "f2955cd5f3600f57e9a78a9f4f1e6286b8b966d0",
+     "path": "docs/f2g_window2_execution/mag_capsules/receipts/mag_frn_probe.json"
+    },
+    {
+     "blob_sha256": "2aace5fc4421f5a8be7f28a29c27ec4cc3db7006cd6400192c94329a813ca295",
+     "commit": "f2955cd5f3600f57e9a78a9f4f1e6286b8b966d0",
+     "path": "docs/f2g_window2_execution/mag_capsules/receipts/mag_frn_probe.envelope.json"
+    },
+    {
+     "blob_sha256": "0eace370136741958f622ab88cc3fa2f0a2131375cd4109c2b277435924663bc",
+     "commit": "f2955cd5f3600f57e9a78a9f4f1e6286b8b966d0",
+     "path": "docs/f2g_window2_execution/mag_capsules/receipts/mag_tuc_probe.json"
+    },
+    {
+     "blob_sha256": "d1d0124c6295f2dcf5a89050cc209e1cff7b3bf3d2846eb7bf74482f0b50ac63",
+     "commit": "f2955cd5f3600f57e9a78a9f4f1e6286b8b966d0",
+     "path": "docs/f2g_window2_execution/mag_capsules/receipts/mag_tuc_probe.envelope.json"
+    }
+   ],
+   "status": "BOUND"
+  },
+  "power_certification_result": {
+   "note": "anticipated-mask power certification RESULT package + receipts + committed campaign bytes; OPEN until produced under the successor calendar and bound to exact output bytes",
+   "owner": "cayley",
+   "pins": [],
+   "status": "OPEN"
+  },
+  "power_harness": {
+   "note": "sec-6 power machinery (certification path constructs its own config; bound-geometry gate; codex items 1+2 repaired) + the campaign runner REV 2 and Tier-C selector with their registered amendments (codex 1909Z items 1-4)",
+   "owner": "cayley",
+   "pins": [
+    {
+     "blob_sha256": "ebae7eb21567fe28a9196cc711e3aa2342789e2bf49b5c64845673715b2cb8c2",
+     "commit": "3bf28050947e1dab6158b37b87b2903dca3a0156",
+     "path": "monitoring/src/w2_power_harness_cayley.py"
+    },
+    {
+     "blob_sha256": "691fe2952a192f4bfa1498529f35aedbeb53db2f0642121456ac9ddbc0ab5c68",
+     "commit": "e365c78d842c77ff95ef95d43cacf1f78b530c0b",
+     "path": "docs/f2g_window2_execution/power_seed_authority_w2_v1.json"
+    },
+    {
+     "blob_sha256": "17e68dc2e871f0115be3aa45441303921d4e25155231875bd821027dcf4dd7cd",
+     "commit": "a230280896e3e9fabae9a8cde219d495e197a3a0",
+     "path": "monitoring/src/w2_power_seed_authority_gen_cayley.py"
+    },
+    {
+     "blob_sha256": "cec154bd4b2e638af5be0349f3383a4fe2b3ae449d4542fbcdd6b3cd3a9a6a35",
+     "commit": "3bf28050947e1dab6158b37b87b2903dca3a0156",
+     "path": "monitoring/src/w2_geometry_capsule_gen_cayley.py"
+    },
+    {
+     "blob_sha256": "cd15a8b097f018e7ee8873b38f8ad111f1d6e6fcf4f31334bd563c8b410a6410",
+     "commit": "b3a70ebdc71e32208ea29a60b34be7148c37d605",
+     "path": "docs/f2g_window2_execution/power_geometry_inputs_w2_v1.json"
+    },
+    {
+     "blob_sha256": "124c08643155df36358d1b66bc4b5186acdd2e1bb2818197188bcbf7e7b57ce1",
+     "commit": "fceedecaf17fb73c913ee6cd61e9435e2e2f51a2",
+     "path": "monitoring/src/w2_power_geometry_inputs_gen_cayley.py"
+    },
+    {
+     "blob_sha256": "859b6d47bb498523c6705b91b1001168b9c6e91d92a74d381beb58d8d6973fae",
+     "commit": "79efad088726c4fb4f7a07c03a34c0f0d28a4d24",
+     "path": "docs/f2g_window2_execution/cascadia_overlap_tie_amendment_v1.md"
+    },
+    {
+     "blob_sha256": "064e0f44bf90780f93f7301d453347df51364f7f676b4502e00ed64462f3aea7",
+     "commit": "9d6eb860818229dd9e2ca1e61f5397c9ad6e045b",
+     "path": "monitoring/src/w2_geometry_bind_comparator_cayley.py"
+    },
+    {
+     "blob_sha256": "cbb00bd23e6a9a9e9e5da337201f2b6708b3702c94907954f2e4715907ad2350",
+     "commit": "5cbab90db706f730b33385c11e12256501adebff",
+     "path": "docs/f2g_window2_execution/mask_envelope_policy_w2_v1.json"
+    },
+    {
+     "blob_sha256": "e82e3fde01bd8bee584e56bcb459b1007fcada686f2442057de3c109d8742f81",
+     "commit": "b77e0c29ccabb0a831b54a63f5c1badd3612c709",
+     "path": "monitoring/src/w2_target_identity_cayley.py"
+    },
+    {
+     "blob_sha256": "131fd52cf478e2bee0636d8582500bc62536f0bde3af7db20edb032deebe41bc",
+     "commit": "ffddc4d30567e1188d39800df374ca2bc5b494da",
+     "path": "docs/f2g_window2_execution/bound_geometry_capsule_v2.json"
+    },
+    {
+     "blob_sha256": "eedf666710391b34912be8ba479cbe7f9e8490f0b7348bf246ed1d7fb673f7b8",
+     "commit": "46e7167939c1eaafc85ee84365fb35568c6dd854",
+     "path": "monitoring/src/w2_tier_s_runner_cayley.py"
+    },
+    {
+     "blob_sha256": "9719b8b47f7312ae9b62ace7437e2158ab42cc9326c71391ce44d8ef0d323d37",
+     "commit": "fc9405c4d5c168a2e8180f9026561e74fd38daeb",
+     "path": "monitoring/src/w2_tier_s_driver_cayley.py"
+    },
+    {
+     "blob_sha256": "39ceb931c10939b4992b19cd11053779ec5cb5de398d07f0cac062017d5308d5",
+     "commit": "7a9ab79e400eef450ce5a606afd650a43c265115",
+     "path": "monitoring/src/w2_power_cert_results_assembly_cayley.py"
+    },
+    {
+     "blob_sha256": "5cbf543f4f1a239707ad3c5eee458b01c35ac9093d354cc3e32b0ea164f41e78",
+     "commit": "951eee9d4e22e4f2c5a1cfab2556586dd6fdceb0",
+     "path": "monitoring/src/f2g_phase_b_power_estimation_cayley.py"
+    },
+    {
+     "blob_sha256": "d0df4d38b0c03438112db1fdc3d2b61d00014ce9925ae7aed652f9ab8f6bbd74",
+     "commit": "60509f715e82aa38c230e5bf3339c60f143fbe4a",
+     "path": "monitoring/src/f2g_phase_b_power_estimation_cal_cayley.py"
+    },
+    {
+     "blob_sha256": "354fbfb3d628ce12efa82d19b69adc8b601f8d3702d7c1414fdf56bc21bb74e9",
+     "commit": "db489c7cb37a9ed21e15330c726a949765b7c79e",
+     "path": "docs/f2g_window2_execution/loco_composition_amendment_v1.md"
+    },
+    {
+     "blob_sha256": "4a39d3fbdc543e8c64e7b8a068bcb384d320361973bce68fc0b2b219c27968f1",
+     "commit": "24b0d8f647d089d0bcdb70ea3dd4879c67b49b98",
+     "path": "monitoring/src/d2_f2g_phase_b_stats.py"
+    },
+    {
+     "blob_sha256": "70d3e226923ec539055ee75efdd7db042e5063ce5e630125fe2fc12318853f4c",
+     "commit": "877cec40313e2cbee5d0699a71aa93c7dd3e9d46",
+     "path": "monitoring/src/w2_cert_runner_cayley.py"
+    },
+    {
+     "blob_sha256": "f26a6dbe3db89284f1aeb4b0f3795088c26c3030bed3c9852411b41aa7b26eeb",
+     "commit": "1426d513b5e3d9a867eaabe4f7a27b7e192c8987",
+     "path": "monitoring/src/w2_tier_selector_cayley.py"
+    },
+    {
+     "blob_sha256": "a01fb01fa0fc3a94ac75236a8285d740575087a4419d9a1d90833a09a70695de",
+     "commit": "291349bf4a1f9125133296711ccf60194bdb4bd7",
+     "path": "docs/f2g_window2_execution/tier_selector_amendment_w2_v1.md"
+    },
+    {
+     "blob_sha256": "50308771eb79c14a105a4f9d4bddcccc3480466b49b343a4ad78d5acb688da43",
+     "commit": "9563450a3673f9afc261ba15d0b0512fbe76c8b7",
+     "path": "docs/f2g_window2_execution/effect_grids_w2_v1.json"
+    },
+    {
+     "blob_sha256": "3985d860930a360f3b6a5d89bfdecefe0487199d28864a352c18316a1c86f88a",
+     "commit": "9563450a3673f9afc261ba15d0b0512fbe76c8b7",
+     "path": "monitoring/src/w2_effect_grids_gen_cayley.py"
+    }
+   ],
+   "status": "BOUND"
+  },
+  "producer_boundary": {
+   "boundary_mode": "staged_envelope",
+   "note": "staged-envelope boundary (amendment v1); OPEN until grassmann ratifies the mode and stages: BOUND requires the amendment doc + envelope verifier + transform code + envelope records; acquisition before the staged bytes is receipt-attested, never source-code-attested",
+   "owner": "grassmann",
+   "pins": [],
+   "status": "OPEN"
+  },
+  "selection_impl": {
+   "note": "cutoff-stable selection REV 2 (codex 3xP1 repaired; W-SEL-b green incl production locks)",
+   "owner": "cayley",
+   "pins": [
+    {
+     "blob_sha256": "7d1b89d3e3f3a98eb73edd1258bee80adb5dab1ee51bf95a15584657d6170718",
+     "commit": "03242f843b5164c16f7f8e97b417f9e940155d1b",
+     "path": "monitoring/src/w2_selection.py"
+    }
+   ],
+   "status": "BOUND"
+  }
+ },
+ "target_ref": "origin/master"
+}

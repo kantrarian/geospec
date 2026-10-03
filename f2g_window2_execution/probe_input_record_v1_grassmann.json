@@ -1,0 +1,46 @@
+{
+ "schema": "f2g-w2-probe-input-record-v1",
+ "author": "grassmann",
+ "authorization": "codex 2026-08-24T1434Z six-probe ruling (WORKS-WITH-FIX note, 'Explicit six-probe ruling': YES with five binding limits). This record is limit 1: committed BEFORE the first call; one fixed historical UTC day per key, all earlier than 2026-01-01 and outside every v3 expected-key set; selection parameters from the REGISTERED monitor definitions (phase-A anchor registries 12/12/11 + the registered network endpoints).",
+ "rules": {
+  "requests_total": 6,
+  "one_request_per_key": true,
+  "no_retry_no_fallback_no_second_request": true,
+  "failure_semantics": "non-200 / empty or ambiguous body / unexpected redirect / parser uncertainty = typed probe refusal pinned in the envelope; blocks that template pending a new ruling",
+  "evidence_scope": "endpoint/request + parser grammar ONLY; probe bodies never enter staged_envelopes, the 1794-key tree, any calibration/selection value, cutoff derivation, geometry, Tier-S/Tier-C, or any claim"
+ },
+ "probe_day_utc": "2025-11-15",
+ "keys": {
+  "SELECTION_RECORDS/istanbul_marmara": {
+   "registered_definition": "phase-A anchor registry (12 stations, KO network, KOERI eida endpoint per the registered monitor ENDPOINTS map)",
+   "endpoint": "http://eida.koeri.boun.edu.tr/fdsnws/station/1/query",
+   "request_params": {"net": "KO", "sta": "ADVT,BOTS,GAZK,GEML,GULT,HRTX,ISK,KAVV,KRBG,MDNY,NMR2,NMR3", "cha": "HHZ", "level": "channel", "format": "text", "starttime": "2025-11-15", "endtime": "2025-11-16", "nodata": "404"}
+  },
+  "SELECTION_RECORDS/socal_coachella": {
+   "registered_definition": "phase-A anchor registry (12 stations, CI network, SCEDC endpoint per the registered monitor ENDPOINTS map)",
+   "endpoint": "https://service.scedc.caltech.edu/fdsnws/station/1/query",
+   "request_params": {"net": "CI", "sta": "ACP,ANG,BAR,BC3,BEL,BLA2,BOM,BOR,COA,CRR,CSH,CTC", "cha": "HHZ", "level": "channel", "format": "text", "starttime": "2025-11-15", "endtime": "2025-11-16", "nodata": "404"}
+  },
+  "SELECTION_RECORDS/turkey_kahramanmaras": {
+   "registered_definition": "phase-A anchor registry (11 stations, KO network, KOERI eida endpoint per the registered monitor ENDPOINTS map)",
+   "endpoint": "http://eida.koeri.boun.edu.tr/fdsnws/station/1/query",
+   "request_params": {"net": "KO", "sta": "AKDG,ARGN,BNN,GAZ,KARA,KBAN,KHMN,KOZT,MLTY,NURH,TAHT", "cha": "HHZ", "level": "channel", "format": "text", "starttime": "2025-11-15", "endtime": "2025-11-16", "nodata": "404"}
+  },
+  "MF4_FEED/sym_h": {
+   "registered_definition": "candidate: NASA OMNIWeb high-res retrieval CGI, SYM/H variable (high-res var index 41)",
+   "endpoint": "https://omniweb.gsfc.nasa.gov/cgi/nx1.cgi",
+   "request_params": {"activity": "retrieve", "res": "min", "spacecraft": "omni_min", "start_date": "20251115", "end_date": "20251115", "vars": "41"}
+  },
+  "MF4_FEED/kp": {
+   "registered_definition": "candidate: GFZ Potsdam Kp JSON service (documented public API)",
+   "endpoint": "https://kp.gfz-potsdam.de/app/json/",
+   "request_params": {"start": "2025-11-15T00:00:00Z", "end": "2025-11-15T23:59:59Z", "index": "Kp"}
+  },
+  "MF4_FEED/omni": {
+   "registered_definition": "candidate: NASA OMNIWeb high-res retrieval CGI, IMF BZ GSM + flow speed + proton density (high-res var indices 17, 21, 25)",
+   "endpoint": "https://omniweb.gsfc.nasa.gov/cgi/nx1.cgi",
+   "request_params": {"activity": "retrieve", "res": "min", "spacecraft": "omni_min", "start_date": "20251115", "end_date": "20251115", "vars": ["17", "21", "25"]}
+  }
+ },
+ "evidence_tree": "docs/f2g_window2_execution/probe_evidence/ (create-once raw bodies <key>.body + envelopes <key>.envelope.json per ruling limit 3)"
+}

@@ -1,0 +1,2023 @@
+{
+  "date": "2026-09-30",
+  "earthquake_events": {
+    "anchorage": {
+      "bounds": {
+        "maxlat": 63.0,
+        "maxlon": -147.0,
+        "minlat": 59.0,
+        "minlon": -152.0
+      },
+      "event_count": 2,
+      "events": [
+        {
+          "depth_km": 27.2,
+          "event_id": "aka2026rzvwxv",
+          "latitude": 62.17,
+          "longitude": -147.835,
+          "mag_type": "ml",
+          "magnitude": 4,
+          "place": "41 km NNW of Glacier View, Alaska",
+          "time": "2026-09-11T07:10:22.460000",
+          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/aka2026rzvwxv"
+        },
+        {
+          "depth_km": 15.8,
+          "event_id": "aka2026rxwdbw",
+          "latitude": 62.506,
+          "longitude": -147.742,
+          "mag_type": "ml",
+          "magnitude": 4.2,
+          "place": "66 km WNW of Lake Louise, Alaska",
+          "time": "2026-09-10T05:18:08.805000",
+          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/aka2026rxwdbw"
+        }
+      ],
+      "largest_event": {
+        "depth_km": 15.8,
+        "event_id": "aka2026rxwdbw",
+        "latitude": 62.506,
+        "longitude": -147.742,
+        "mag_type": "ml",
+        "magnitude": 4.2,
+        "place": "66 km WNW of Lake Louise, Alaska",
+        "time": "2026-09-10T05:18:08.805000",
+        "url": "https://earthquake.usgs.gov/earthquakes/eventpage/aka2026rxwdbw"
+      },
+      "last_updated": "2026-10-02T11:04:25.050482",
+      "m65_plus_events": [],
+      "most_recent_event": {
+        "depth_km": 27.2,
+        "event_id": "aka2026rzvwxv",
+        "latitude": 62.17,
+        "longitude": -147.835,
+        "mag_type": "ml",
+        "magnitude": 4,
+        "place": "41 km NNW of Glacier View, Alaska",
+        "time": "2026-09-11T07:10:22.460000",
+        "url": "https://earthquake.usgs.gov/earthquakes/eventpage/aka2026rzvwxv"
+      },
+      "region": "anchorage"
+    },
+    "campi_flegrei": {
+      "bounds": {
+        "maxlat": 41.0,
+        "maxlon": 14.5,
+        "minlat": 40.5,
+        "minlon": 13.8
+      },
+      "event_count": 1,
+      "events": [
+        {
+          "depth_km": 5,
+          "event_id": "us6000th99",
+          "latitude": 40.8722,
+          "longitude": 14.1714,
+          "mag_type": "mww",
+          "magnitude": 4.5,
+          "place": "0 km WSW of Torre Caracciolo, Italy",
+          "time": "2026-07-31T17:46:43.780000",
+          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us6000th99"
+        }
+      ],
+      "largest_event": {
+        "depth_km": 5,
+        "event_id": "us6000th99",
+        "latitude": 40.8722,
+        "longitude": 14.1714,
+        "mag_type": "mww",
+        "magnitude": 4.5,
+        "place": "0 km WSW of Torre Caracciolo, Italy",
+        "time": "2026-07-31T17:46:43.780000",
+        "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us6000th99"
+      },
+      "last_updated": "2026-10-02T11:04:24.555235",
+      "m65_plus_events": [],
+      "most_recent_event": {
+        "depth_km": 5,
+        "event_id": "us6000th99",
+        "latitude": 40.8722,
+        "longitude": 14.1714,
+        "mag_type": "mww",
+        "magnitude": 4.5,
+        "place": "0 km WSW of Torre Caracciolo, Italy",
+        "time": "2026-07-31T17:46:43.780000",
+        "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us6000th99"
+      },
+      "region": "campi_flegrei"
+    },
+    "cascadia": {
+      "bounds": {
+        "maxlat": 49.0,
+        "maxlon": -122.0,
+        "minlat": 42.0,
+        "minlon": -130.0
+      },
+      "event_count": 9,
+      "events": [
+        {
+          "depth_km": 27.92,
+          "event_id": "uw714111952",
+          "latitude": 47.4003333333333,
+          "longitude": -122.722,
+          "mag_type": "ml",
+          "magnitude": 4.15,
+          "place": "6 km WNW of Wauna, Washington",
+          "time": "2026-09-29T21:05:56.370000",
+          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/uw714111952"
+        },
+        {
+          "depth_km": 10,
+          "event_id": "us7000tesi",
+          "latitude": 43.8953,
+          "longitude": -128.2806,
+          "mag_type": "mww",
+          "magnitude": 5.3,
+          "place": "off the coast of Oregon",
+          "time": "2026-09-07T01:30:24.425000",
+          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us7000tesi"
+        },
+        {
+          "depth_km": 10,
+          "event_id": "us7000te9b",
+          "latitude": 43.798,
+          "longitude": -128.1778,
+          "mag_type": "mb",
+          "magnitude": 4,
+          "place": "off the coast of Oregon",
+          "time": "2026-09-04T09:25:41.296000",
+          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us7000te9b"
+        },
+        {
+          "depth_km": 10,
+          "event_id": "us6000tj53",
+          "latitude": 42.3679,
+          "longitude": -125.8371,
+          "mag_type": "mb",
+          "magnitude": 4.1,
+          "place": "116 km W of Gold Beach, Oregon",
+          "time": "2026-08-08T00:01:39.808000",
+          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us6000tj53"
+        },
+        {
+          "depth_km": 10,
+          "event_id": "us6000tij5",
+          "latitude": 42.4093,
+          "longitude": -125.961,
+          "mag_type": "mww",
+          "magnitude": 4.9,
+          "place": "125 km WSW of Port Orford, Oregon",
+          "time": "2026-08-06T09:55:40.691000",
+          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us6000tij5"
+        }
+      ],
+      "largest_event": {
+        "depth_km": 10,
+        "event_id": "us7000tesi",
+        "latitude": 43.8953,
+        "longitude": -128.2806,
+        "mag_type": "mww",
+        "magnitude": 5.3,
+        "place": "off the coast of Oregon",
+        "time": "2026-09-07T01:30:24.425000",
+        "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us7000tesi"
+      },
+      "last_updated": "2026-10-02T11:04:23.175054",
+      "m65_plus_events": [],
+      "most_recent_event": {
+        "depth_km": 27.92,
+        "event_id": "uw714111952",
+        "latitude": 47.4003333333333,
+        "longitude": -122.722,
+        "mag_type": "ml",
+        "magnitude": 4.15,
+        "place": "6 km WNW of Wauna, Washington",
+        "time": "2026-09-29T21:05:56.370000",
+        "url": "https://earthquake.usgs.gov/earthquakes/eventpage/uw714111952"
+      },
+      "region": "cascadia"
+    },
+    "hualien": {
+      "bounds": {
+        "maxlat": 25.5,
+        "maxlon": 122.5,
+        "minlat": 23.0,
+        "minlon": 120.5
+      },
+      "event_count": 10,
+      "events": [
+        {
+          "depth_km": 19.011,
+          "event_id": "us6000ty73",
+          "latitude": 23.702,
+          "longitude": 121.8063,
+          "mag_type": "mwr",
+          "magnitude": 4.6,
+          "place": "36 km SE of Hualien City, Taiwan",
+          "time": "2026-09-28T18:20:44.330000",
+          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us6000ty73"
+        },
+        {
+          "depth_km": 12.661,
+          "event_id": "us7000th7w",
+          "latitude": 23.5578,
+          "longitude": 121.4213,
+          "mag_type": "mwr",
+          "magnitude": 4.2,
+          "place": "50 km SSW of Hualien City, Taiwan",
+          "time": "2026-09-13T19:21:35.024000",
+          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us7000th7w"
+        },
+        {
+          "depth_km": 47.263,
+          "event_id": "us7000tfxp",
+          "latitude": 24.3809,
+          "longitude": 122.4356,
+          "mag_type": "mwr",
+          "magnitude": 4.3,
+          "place": "58 km W of Yonakuni, Japan",
+          "time": "2026-09-08T22:32:49.165000",
+          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us7000tfxp"
+        },
+        {
+          "depth_km": 39.805,
+          "event_id": "us6000tmqf",
+          "latitude": 24.4404,
+          "longitude": 122.0921,
+          "mag_type": "mwr",
+          "magnitude": 4.4,
+          "place": "49 km SE of Yilan, Taiwan",
+          "time": "2026-08-22T03:40:14.622000",
+          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us6000tmqf"
+        },
+        {
+          "depth_km": 65.242,
+          "event_id": "us6000tl0a",
+          "latitude": 24.486,
+          "longitude": 122.2948,
+          "mag_type": "mb",
+          "magnitude": 4.9,
+          "place": "62 km ESE of Yilan, Taiwan",
+          "time": "2026-08-15T11:30:15.229000",
+          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us6000tl0a"
+        }
+      ],
+      "largest_event": {
+        "depth_km": 65.242,
+        "event_id": "us6000tl0a",
+        "latitude": 24.486,
+        "longitude": 122.2948,
+        "mag_type": "mb",
+        "magnitude": 4.9,
+        "place": "62 km ESE of Yilan, Taiwan",
+        "time": "2026-08-15T11:30:15.229000",
+        "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us6000tl0a"
+      },
+      "last_updated": "2026-10-02T11:04:25.781793",
+      "m65_plus_events": [],
+      "most_recent_event": {
+        "depth_km": 19.011,
+        "event_id": "us6000ty73",
+        "latitude": 23.702,
+        "longitude": 121.8063,
+        "mag_type": "mwr",
+        "magnitude": 4.6,
+        "place": "36 km SE of Hualien City, Taiwan",
+        "time": "2026-09-28T18:20:44.330000",
+        "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us6000ty73"
+      },
+      "region": "hualien"
+    },
+    "istanbul_marmara": {
+      "bounds": {
+        "maxlat": 41.5,
+        "maxlon": 30.5,
+        "minlat": 40.0,
+        "minlon": 27.5
+      },
+      "event_count": 0,
+      "events": [],
+      "largest_event": null,
+      "last_updated": "2026-10-02T11:04:23.992639",
+      "m65_plus_events": [],
+      "most_recent_event": null,
+      "region": "istanbul_marmara"
+    },
+    "kaikoura": {
+      "bounds": {
+        "maxlat": -41.5,
+        "maxlon": 175.0,
+        "minlat": -43.5,
+        "minlon": 172.0
+      },
+      "event_count": 1,
+      "events": [
+        {
+          "depth_km": 29.038,
+          "event_id": "us7000szwc",
+          "latitude": -42.5934,
+          "longitude": 173.4742,
+          "mag_type": "mwr",
+          "magnitude": 4.2,
+          "place": "54 km E of Hanmer Springs, New Zealand",
+          "time": "2026-07-12T16:31:08.668000",
+          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us7000szwc"
+        }
+      ],
+      "largest_event": {
+        "depth_km": 29.038,
+        "event_id": "us7000szwc",
+        "latitude": -42.5934,
+        "longitude": 173.4742,
+        "mag_type": "mwr",
+        "magnitude": 4.2,
+        "place": "54 km E of Hanmer Springs, New Zealand",
+        "time": "2026-07-12T16:31:08.668000",
+        "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us7000szwc"
+      },
+      "last_updated": "2026-10-02T11:04:24.734692",
+      "m65_plus_events": [],
+      "most_recent_event": {
+        "depth_km": 29.038,
+        "event_id": "us7000szwc",
+        "latitude": -42.5934,
+        "longitude": 173.4742,
+        "mag_type": "mwr",
+        "magnitude": 4.2,
+        "place": "54 km E of Hanmer Springs, New Zealand",
+        "time": "2026-07-12T16:31:08.668000",
+        "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us7000szwc"
+      },
+      "region": "kaikoura"
+    },
+    "kumamoto": {
+      "bounds": {
+        "maxlat": 34.0,
+        "maxlon": 132.0,
+        "minlat": 31.5,
+        "minlon": 129.5
+      },
+      "event_count": 44,
+      "events": [
+        {
+          "depth_km": 10,
+          "event_id": "us6000txqv",
+          "latitude": 32.7187,
+          "longitude": 130.6922,
+          "mag_type": "mwr",
+          "magnitude": 4.4,
+          "place": "4 km NNE of Uto, Japan",
+          "time": "2026-09-26T01:31:19.592000",
+          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us6000txqv"
+        },
+        {
+          "depth_km": 10,
+          "event_id": "us7000tijd",
+          "latitude": 32.4073,
+          "longitude": 129.8761,
+          "mag_type": "mb",
+          "magnitude": 4.7,
+          "place": "26 km NNW of Ushibukamachi, Japan",
+          "time": "2026-09-19T12:07:12.229000",
+          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us7000tijd"
+        },
+        {
+          "depth_km": 53.945,
+          "event_id": "us7000ti70",
+          "latitude": 32.1616,
+          "longitude": 131.754,
+          "mag_type": "mb",
+          "magnitude": 4.6,
+          "place": "20 km ESE of Tsun\u014d, Japan",
+          "time": "2026-09-18T01:07:30.435000",
+          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us7000ti70"
+        },
+        {
+          "depth_km": 10,
+          "event_id": "us7000tiz0",
+          "latitude": 32.162,
+          "longitude": 130.289,
+          "mag_type": "mb",
+          "magnitude": 4.2,
+          "place": "11 km NW of Izumi, Japan",
+          "time": "2026-09-15T21:09:38.606000",
+          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us7000tiz0"
+        },
+        {
+          "depth_km": 56.116,
+          "event_id": "us7000tdhc",
+          "latitude": 31.8902,
+          "longitude": 131.6582,
+          "mag_type": "mb",
+          "magnitude": 4.2,
+          "place": "23 km E of Miyazaki, Japan",
+          "time": "2026-09-01T23:24:38.936000",
+          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us7000tdhc"
+        }
+      ],
+      "largest_event": {
+        "depth_km": 8,
+        "event_id": "us6000tgb9",
+        "latitude": 32.6177,
+        "longitude": 130.6601,
+        "mag_type": "mww",
+        "magnitude": 6.8,
+        "place": "The 2026 Kumamoto Region, Japan Earthquake",
+        "time": "2026-07-28T07:27:14.658000",
+        "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us6000tgb9"
+      },
+      "last_updated": "2026-10-02T11:04:25.358440",
+      "m65_plus_events": [],
+      "most_recent_event": {
+        "depth_km": 10,
+        "event_id": "us6000txqv",
+        "latitude": 32.7187,
+        "longitude": 130.6922,
+        "mag_type": "mwr",
+        "magnitude": 4.4,
+        "place": "4 km NNE of Uto, Japan",
+        "time": "2026-09-26T01:31:19.592000",
+        "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us6000txqv"
+      },
+      "region": "kumamoto"
+    },
+    "mexico_guerrero": {
+      "bounds": {
+        "maxlat": 18.5,
+        "maxlon": -97.0,
+        "minlat": 15.5,
+        "minlon": -101.0
+      },
+      "event_count": 2,
+      "events": [
+        {
+          "depth_km": 10,
+          "event_id": "us7000terb",
+          "latitude": 16.3468,
+          "longitude": -99.2958,
+          "mag_type": "mww",
+          "magnitude": 4.8,
+          "place": "44 km SW of Copala, Mexico",
+          "time": "2026-09-06T18:46:18.374000",
+          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us7000terb"
+        },
+        {
+          "depth_km": 35,
+          "event_id": "us6000tiuc",
+          "latitude": 17.2609,
+          "longitude": -99.914,
+          "mag_type": "mb",
+          "magnitude": 4.2,
+          "place": "3 km ESE of San Crist\u00f3bal, Mexico",
+          "time": "2026-07-31T09:41:24.570000",
+          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us6000tiuc"
+        }
+      ],
+      "largest_event": {
+        "depth_km": 10,
+        "event_id": "us7000terb",
+        "latitude": 16.3468,
+        "longitude": -99.2958,
+        "mag_type": "mww",
+        "magnitude": 4.8,
+        "place": "44 km SW of Copala, Mexico",
+        "time": "2026-09-06T18:46:18.374000",
+        "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us7000terb"
+      },
+      "last_updated": "2026-10-02T11:04:26.132742",
+      "m65_plus_events": [],
+      "most_recent_event": {
+        "depth_km": 10,
+        "event_id": "us7000terb",
+        "latitude": 16.3468,
+        "longitude": -99.2958,
+        "mag_type": "mww",
+        "magnitude": 4.8,
+        "place": "44 km SW of Copala, Mexico",
+        "time": "2026-09-06T18:46:18.374000",
+        "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us7000terb"
+      },
+      "region": "mexico_guerrero"
+    },
+    "norcal_hayward": {
+      "bounds": {
+        "maxlat": 38.5,
+        "maxlon": -121.5,
+        "minlat": 37.0,
+        "minlon": -123.0
+      },
+      "event_count": 0,
+      "events": [],
+      "largest_event": null,
+      "last_updated": "2026-10-02T11:04:23.001021",
+      "m65_plus_events": [],
+      "most_recent_event": null,
+      "region": "norcal_hayward"
+    },
+    "ridgecrest": {
+      "bounds": {
+        "maxlat": 36.5,
+        "maxlon": -116.5,
+        "minlat": 35.0,
+        "minlon": -118.5
+      },
+      "event_count": 1,
+      "events": [
+        {
+          "depth_km": 7.55,
+          "event_id": "ci41292687",
+          "latitude": 35.3121666666667,
+          "longitude": -117.814833333333,
+          "mag_type": "mw",
+          "magnitude": 4.31762677888687,
+          "place": "18 km WSW of Johannesburg, CA",
+          "time": "2026-07-13T16:40:55.170000",
+          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/ci41292687"
+        }
+      ],
+      "largest_event": {
+        "depth_km": 7.55,
+        "event_id": "ci41292687",
+        "latitude": 35.3121666666667,
+        "longitude": -117.814833333333,
+        "mag_type": "mw",
+        "magnitude": 4.31762677888687,
+        "place": "18 km WSW of Johannesburg, CA",
+        "time": "2026-07-13T16:40:55.170000",
+        "url": "https://earthquake.usgs.gov/earthquakes/eventpage/ci41292687"
+      },
+      "last_updated": "2026-10-02T11:04:22.212901",
+      "m65_plus_events": [],
+      "most_recent_event": {
+        "depth_km": 7.55,
+        "event_id": "ci41292687",
+        "latitude": 35.3121666666667,
+        "longitude": -117.814833333333,
+        "mag_type": "mw",
+        "magnitude": 4.31762677888687,
+        "place": "18 km WSW of Johannesburg, CA",
+        "time": "2026-07-13T16:40:55.170000",
+        "url": "https://earthquake.usgs.gov/earthquakes/eventpage/ci41292687"
+      },
+      "region": "ridgecrest"
+    },
+    "socal_saf_coachella": {
+      "bounds": {
+        "maxlat": 34.5,
+        "maxlon": -115.0,
+        "minlat": 33.0,
+        "minlon": -117.0
+      },
+      "event_count": 0,
+      "events": [],
+      "largest_event": null,
+      "last_updated": "2026-10-02T11:04:22.642483",
+      "m65_plus_events": [],
+      "most_recent_event": null,
+      "region": "socal_saf_coachella"
+    },
+    "socal_saf_mojave": {
+      "bounds": {
+        "maxlat": 36.5,
+        "maxlon": -115.5,
+        "minlat": 34.0,
+        "minlon": -118.5
+      },
+      "event_count": 1,
+      "events": [
+        {
+          "depth_km": 7.55,
+          "event_id": "ci41292687",
+          "latitude": 35.3121666666667,
+          "longitude": -117.814833333333,
+          "mag_type": "mw",
+          "magnitude": 4.31762677888687,
+          "place": "18 km WSW of Johannesburg, CA",
+          "time": "2026-07-13T16:40:55.170000",
+          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/ci41292687"
+        }
+      ],
+      "largest_event": {
+        "depth_km": 7.55,
+        "event_id": "ci41292687",
+        "latitude": 35.3121666666667,
+        "longitude": -117.814833333333,
+        "mag_type": "mw",
+        "magnitude": 4.31762677888687,
+        "place": "18 km WSW of Johannesburg, CA",
+        "time": "2026-07-13T16:40:55.170000",
+        "url": "https://earthquake.usgs.gov/earthquakes/eventpage/ci41292687"
+      },
+      "last_updated": "2026-10-02T11:04:22.429961",
+      "m65_plus_events": [],
+      "most_recent_event": {
+        "depth_km": 7.55,
+        "event_id": "ci41292687",
+        "latitude": 35.3121666666667,
+        "longitude": -117.814833333333,
+        "mag_type": "mw",
+        "magnitude": 4.31762677888687,
+        "place": "18 km WSW of Johannesburg, CA",
+        "time": "2026-07-13T16:40:55.170000",
+        "url": "https://earthquake.usgs.gov/earthquakes/eventpage/ci41292687"
+      },
+      "region": "socal_saf_mojave"
+    },
+    "tokyo_kanto": {
+      "bounds": {
+        "maxlat": 37.0,
+        "maxlon": 141.5,
+        "minlat": 34.5,
+        "minlon": 138.5
+      },
+      "event_count": 18,
+      "events": [
+        {
+          "depth_km": 65.032,
+          "event_id": "us6000tyxk",
+          "latitude": 36.0904,
+          "longitude": 139.7487,
+          "mag_type": "mb",
+          "magnitude": 4.5,
+          "place": "2 km NE of Satte, Japan",
+          "time": "2026-10-01T21:01:41.707000",
+          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us6000tyxk"
+        },
+        {
+          "depth_km": 41.649,
+          "event_id": "us6000tytg",
+          "latitude": 35.7025,
+          "longitude": 140.5507,
+          "mag_type": "mww",
+          "magnitude": 5.3,
+          "place": "0 km NNE of Y\u014dkaichiba, Japan",
+          "time": "2026-10-01T12:27:11.864000",
+          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us6000tytg"
+        },
+        {
+          "depth_km": 35,
+          "event_id": "us6000tyn1",
+          "latitude": 35.6288,
+          "longitude": 140.8791,
+          "mag_type": "mb",
+          "magnitude": 4.4,
+          "place": "12 km SSE of Hasaki, Japan",
+          "time": "2026-09-30T21:16:53.322000",
+          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us6000tyn1"
+        },
+        {
+          "depth_km": 70.972,
+          "event_id": "us6000ty7u",
+          "latitude": 36.0809,
+          "longitude": 139.7782,
+          "mag_type": "mww",
+          "magnitude": 4.9,
+          "place": "2 km SW of Sakai, Japan",
+          "time": "2026-09-28T19:45:07.515000",
+          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us6000ty7u"
+        },
+        {
+          "depth_km": 76.46,
+          "event_id": "us6000txvq",
+          "latitude": 35.8881,
+          "longitude": 140.3909,
+          "mag_type": "mb",
+          "magnitude": 4.3,
+          "place": "1 km SSW of K\u014dzaki, Japan",
+          "time": "2026-09-27T00:45:22.364000",
+          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us6000txvq"
+        }
+      ],
+      "largest_event": {
+        "depth_km": 61,
+        "event_id": "us6000tmta",
+        "latitude": 35.9175,
+        "longitude": 140.1526,
+        "mag_type": "mww",
+        "magnitude": 5.8,
+        "place": "3 km E of Fujishiro, Japan",
+        "time": "2026-08-22T17:00:39.373000",
+        "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us6000tmta"
+      },
+      "last_updated": "2026-10-02T11:04:23.621177",
+      "m65_plus_events": [],
+      "most_recent_event": {
+        "depth_km": 65.032,
+        "event_id": "us6000tyxk",
+        "latitude": 36.0904,
+        "longitude": 139.7487,
+        "mag_type": "mb",
+        "magnitude": 4.5,
+        "place": "2 km NE of Satte, Japan",
+        "time": "2026-10-01T21:01:41.707000",
+        "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us6000tyxk"
+      },
+      "region": "tokyo_kanto"
+    },
+    "turkey_kahramanmaras": {
+      "bounds": {
+        "maxlat": 38.5,
+        "maxlon": 38.5,
+        "minlat": 36.5,
+        "minlon": 36.0
+      },
+      "event_count": 3,
+      "events": [
+        {
+          "depth_km": 10,
+          "event_id": "us7000tiui",
+          "latitude": 37.8136,
+          "longitude": 36.2994,
+          "mag_type": "mww",
+          "magnitude": 4.9,
+          "place": "26 km SE of Saimbeyli, Turkey",
+          "time": "2026-09-21T01:02:04.529000",
+          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us7000tiui"
+        },
+        {
+          "depth_km": 10,
+          "event_id": "us7000tbta",
+          "latitude": 38.1317,
+          "longitude": 38.365,
+          "mag_type": "mwr",
+          "magnitude": 4.1,
+          "place": "16 km NE of \u00c7elikhan, Turkey",
+          "time": "2026-08-25T18:43:52.910000",
+          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us7000tbta"
+        },
+        {
+          "depth_km": 10,
+          "event_id": "us6000tjc0",
+          "latitude": 37.1701,
+          "longitude": 36.8996,
+          "mag_type": "mb",
+          "magnitude": 4.4,
+          "place": "14 km E of Nurda\u011f\u0131, Turkey",
+          "time": "2026-08-09T00:42:18.775000",
+          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us6000tjc0"
+        }
+      ],
+      "largest_event": {
+        "depth_km": 10,
+        "event_id": "us7000tiui",
+        "latitude": 37.8136,
+        "longitude": 36.2994,
+        "mag_type": "mww",
+        "magnitude": 4.9,
+        "place": "26 km SE of Saimbeyli, Turkey",
+        "time": "2026-09-21T01:02:04.529000",
+        "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us7000tiui"
+      },
+      "last_updated": "2026-10-02T11:04:24.366587",
+      "m65_plus_events": [],
+      "most_recent_event": {
+        "depth_km": 10,
+        "event_id": "us7000tiui",
+        "latitude": 37.8136,
+        "longitude": 36.2994,
+        "mag_type": "mww",
+        "magnitude": 4.9,
+        "place": "26 km SE of Saimbeyli, Turkey",
+        "time": "2026-09-21T01:02:04.529000",
+        "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us7000tiui"
+      },
+      "region": "turkey_kahramanmaras"
+    }
+  },
+  "regions": {
+    "anchorage": {
+      "agreement": "all_normal",
+      "combined_risk": 0.018478929419706896,
+      "components": {
+        "fault_correlation": {
+          "available": false,
+          "frozen": false,
+          "is_critical": false,
+          "is_elevated": false,
+          "name": "fault_correlation",
+          "notes": "calibration unavailable: no registry entry for region anchorage",
+          "raw_secondary": null,
+          "raw_value": 0.0,
+          "risk_score": 0.0
+        },
+        "lambda_geo": {
+          "available": true,
+          "frozen": false,
+          "is_critical": false,
+          "is_elevated": false,
+          "name": "lambda_geo",
+          "notes": "ratio=0.2x",
+          "raw_secondary": null,
+          "raw_value": 0.20275778710878833,
+          "risk_score": 0.0
+        },
+        "seismic_thd": {
+          "available": true,
+          "baseline": {
+            "mean": 0.284404,
+            "n_samples": 91,
+            "quality": "good",
+            "std": 0.179171,
+            "window": "2026-06-03 to 2026-09-01"
+          },
+          "frozen": false,
+          "is_critical": false,
+          "is_elevated": false,
+          "name": "seismic_thd",
+          "notes": "sta=IU.COLA, THD=0.2433, z=-0.23, baseline_mean=0.2844, baseline_std=0.1792, n=91, rate=40Hz",
+          "raw_secondary": 49224.78637496596,
+          "raw_value": 0.24329919823786808,
+          "risk_score": 0.04311750197931609,
+          "sample_rate_hz": 40.0,
+          "z_score": -0.22941660068946376
+        }
+      },
+      "confidence": 0.8,
+      "coverage": {
+        "coverage_pct": 0.0,
+        "segment_names": [],
+        "segments_defined": 1,
+        "segments_working": 0
+      },
+      "date": "2026-09-30T00:00:00",
+      "effective_weights": {
+        "lambda_geo": 0.5714285714285715,
+        "seismic_thd": 0.4285714285714286
+      },
+      "methods_available": 2,
+      "notes": "",
+      "persistence": {
+        "consecutive_days": 0,
+        "current_tier": 0,
+        "is_confirmed": false,
+        "tier_history": [
+          null,
+          0,
+          0,
+          0
+        ]
+      },
+      "region": "anchorage",
+      "tier": 0,
+      "tier_name": "NORMAL"
+    },
+    "campi_flegrei": {
+      "agreement": "single_method",
+      "combined_risk": 0.0,
+      "components": {
+        "fault_correlation": {
+          "available": false,
+          "frozen": false,
+          "is_critical": false,
+          "is_elevated": false,
+          "name": "fault_correlation",
+          "notes": "calibration unavailable: no registry entry for region campi_flegrei",
+          "raw_secondary": null,
+          "raw_value": 0.0,
+          "risk_score": 0.0
+        },
+        "lambda_geo": {
+          "available": true,
+          "frozen": false,
+          "is_critical": false,
+          "is_elevated": false,
+          "name": "lambda_geo",
+          "notes": "ratio=0.1x",
+          "raw_secondary": null,
+          "raw_value": 0.1,
+          "risk_score": 0.0
+        },
+        "seismic_thd": {
+          "available": false,
+          "frozen": false,
+          "is_critical": false,
+          "is_elevated": false,
+          "name": "seismic_thd",
+          "notes": "Insufficient data from IV.CAFE",
+          "raw_secondary": null,
+          "raw_value": 0.0,
+          "risk_score": 0.0
+        }
+      },
+      "confidence": 0.5,
+      "coverage": {
+        "coverage_pct": 0.0,
+        "segment_names": [],
+        "segments_defined": 4,
+        "segments_working": 0
+      },
+      "date": "2026-09-30T00:00:00",
+      "effective_weights": {
+        "lambda_geo": 1.0
+      },
+      "methods_available": 1,
+      "notes": "",
+      "persistence": {
+        "consecutive_days": 0,
+        "current_tier": 0,
+        "is_confirmed": false,
+        "tier_history": [
+          null,
+          0,
+          0,
+          0
+        ]
+      },
+      "region": "campi_flegrei",
+      "tier": 0,
+      "tier_name": "NORMAL"
+    },
+    "cascadia": {
+      "agreement": "all_normal",
+      "combined_risk": 0.019366779593579162,
+      "components": {
+        "fault_correlation": {
+          "available": false,
+          "frozen": false,
+          "is_critical": false,
+          "is_elevated": false,
+          "name": "fault_correlation",
+          "notes": "calibration unavailable: no registry entry for region cascadia",
+          "raw_secondary": null,
+          "raw_value": 0.0,
+          "risk_score": 0.0
+        },
+        "lambda_geo": {
+          "available": true,
+          "frozen": false,
+          "is_critical": false,
+          "is_elevated": false,
+          "name": "lambda_geo",
+          "notes": "ratio=0.1x",
+          "raw_secondary": null,
+          "raw_value": 0.1,
+          "risk_score": 0.0
+        },
+        "seismic_thd": {
+          "available": true,
+          "baseline": {
+            "mean": 0.350262,
+            "n_samples": 91,
+            "quality": "good",
+            "std": 0.156005,
+            "window": "2026-06-03 to 2026-09-01"
+          },
+          "frozen": false,
+          "is_critical": false,
+          "is_elevated": false,
+          "name": "seismic_thd",
+          "notes": "sta=IU.COR, THD=0.3252, z=-0.16, baseline_mean=0.3503, baseline_std=0.1560, n=91, rate=40Hz",
+          "raw_secondary": 13448.352947717396,
+          "raw_value": 0.325244790594158,
+          "risk_score": 0.04518915238501805,
+          "sample_rate_hz": 40.0,
+          "z_score": -0.16036158716606524
+        }
+      },
+      "confidence": 0.8,
+      "coverage": {
+        "coverage_pct": 0.0,
+        "segment_names": [],
+        "segments_defined": 4,
+        "segments_working": 0
+      },
+      "date": "2026-09-30T00:00:00",
+      "effective_weights": {
+        "lambda_geo": 0.5714285714285715,
+        "seismic_thd": 0.4285714285714286
+      },
+      "methods_available": 2,
+      "notes": "",
+      "persistence": {
+        "consecutive_days": 0,
+        "current_tier": 0,
+        "is_confirmed": false,
+        "tier_history": [
+          null,
+          0,
+          0,
+          0
+        ]
+      },
+      "region": "cascadia",
+      "tier": 0,
+      "tier_name": "NORMAL"
+    },
+    "hualien": {
+      "agreement": "single_method",
+      "combined_risk": 0.025565338128642274,
+      "components": {
+        "fault_correlation": {
+          "available": false,
+          "frozen": false,
+          "is_critical": false,
+          "is_elevated": false,
+          "name": "fault_correlation",
+          "notes": "calibration unavailable: no registry entry for region hualien",
+          "raw_secondary": null,
+          "raw_value": 0.0,
+          "risk_score": 0.0
+        },
+        "lambda_geo": {
+          "available": false,
+          "frozen": false,
+          "is_critical": false,
+          "is_elevated": false,
+          "name": "lambda_geo",
+          "notes": "No Lambda_geo data available",
+          "raw_secondary": null,
+          "raw_value": 0.0,
+          "risk_score": 0.0
+        },
+        "seismic_thd": {
+          "available": true,
+          "baseline": {
+            "mean": 0.416786,
+            "n_samples": 89,
+            "quality": "good",
+            "std": 0.092051,
+            "window": "2026-06-03 to 2026-09-01"
+          },
+          "frozen": false,
+          "is_critical": false,
+          "is_elevated": false,
+          "name": "seismic_thd",
+          "notes": "sta=IU.TATO, THD=0.3418, z=-0.81, baseline_mean=0.4168, baseline_std=0.0921, n=89, rate=40Hz",
+          "raw_secondary": 116567.8980500654,
+          "raw_value": 0.341811498002655,
+          "risk_score": 0.025565338128642274,
+          "sample_rate_hz": 40.0,
+          "z_score": -0.8144887290452577
+        }
+      },
+      "confidence": 0.5,
+      "coverage": {
+        "coverage_pct": 0.0,
+        "segment_names": [],
+        "segments_defined": 1,
+        "segments_working": 0
+      },
+      "date": "2026-09-30T00:00:00",
+      "effective_weights": {
+        "seismic_thd": 1.0
+      },
+      "methods_available": 1,
+      "notes": "",
+      "persistence": {
+        "consecutive_days": 0,
+        "current_tier": 0,
+        "is_confirmed": false,
+        "tier_history": [
+          null,
+          0,
+          0,
+          0
+        ]
+      },
+      "region": "hualien",
+      "tier": 0,
+      "tier_name": "NORMAL"
+    },
+    "istanbul_marmara": {
+      "agreement": "all_normal",
+      "combined_risk": 0.16351937313326284,
+      "components": {
+        "fault_correlation": {
+          "available": false,
+          "frozen": false,
+          "is_critical": false,
+          "is_elevated": false,
+          "name": "fault_correlation",
+          "notes": "calibration unavailable: scored day 2026-09-30 past valid_through 2026-09-09 (STALE)",
+          "raw_secondary": null,
+          "raw_value": 0.0,
+          "risk_score": 0.0
+        },
+        "lambda_geo": {
+          "available": true,
+          "frozen": false,
+          "is_critical": false,
+          "is_elevated": false,
+          "name": "lambda_geo",
+          "notes": "ratio=0.1x",
+          "raw_secondary": null,
+          "raw_value": 0.1,
+          "risk_score": 0.0
+        },
+        "seismic_thd": {
+          "available": true,
+          "baseline": {
+            "mean": 0.3186,
+            "n_samples": 91,
+            "quality": "good",
+            "std": 0.063816,
+            "window": "2026-06-03 to 2026-09-01"
+          },
+          "frozen": false,
+          "is_critical": false,
+          "is_elevated": false,
+          "name": "seismic_thd",
+          "notes": "sta=IU.ANTO, THD=0.4479, z=2.03, baseline_mean=0.3186, baseline_std=0.0638, n=91, rate=40Hz",
+          "raw_secondary": 110558.59999127177,
+          "raw_value": 0.44790275494814147,
+          "risk_score": 0.38154520397761327,
+          "sample_rate_hz": 40.0,
+          "z_score": 2.026180815910453
+        }
+      },
+      "confidence": 0.8,
+      "coverage": {
+        "coverage_pct": 0.0,
+        "segment_names": [],
+        "segments_defined": 3,
+        "segments_working": 0
+      },
+      "date": "2026-09-30T00:00:00",
+      "effective_weights": {
+        "lambda_geo": 0.5714285714285715,
+        "seismic_thd": 0.4285714285714286
+      },
+      "methods_available": 2,
+      "notes": "",
+      "persistence": {
+        "consecutive_days": 0,
+        "current_tier": 0,
+        "is_confirmed": false,
+        "tier_history": [
+          null,
+          0,
+          0,
+          0
+        ]
+      },
+      "region": "istanbul_marmara",
+      "tier": 0,
+      "tier_name": "NORMAL"
+    },
+    "kaikoura": {
+      "agreement": "mostly_elevated",
+      "combined_risk": 0.3222156526441599,
+      "components": {
+        "fault_correlation": {
+          "available": false,
+          "frozen": false,
+          "is_critical": false,
+          "is_elevated": false,
+          "name": "fault_correlation",
+          "notes": "calibration unavailable: no registry entry for region kaikoura",
+          "raw_secondary": null,
+          "raw_value": 0.0,
+          "risk_score": 0.0
+        },
+        "lambda_geo": {
+          "available": true,
+          "frozen": false,
+          "is_critical": false,
+          "is_elevated": false,
+          "name": "lambda_geo",
+          "notes": "ratio=0.1x",
+          "raw_secondary": null,
+          "raw_value": 0.1,
+          "risk_score": 0.0
+        },
+        "seismic_thd": {
+          "available": true,
+          "baseline": {
+            "mean": 0.3,
+            "n_samples": 0,
+            "quality": "poor",
+            "std": 0.07,
+            "window": "UNCALIBRATED"
+          },
+          "frozen": false,
+          "is_critical": true,
+          "is_elevated": true,
+          "name": "seismic_thd",
+          "notes": "sta=IU.SNZO, THD=0.5466, z=3.52, baseline_mean=0.3000, baseline_std=0.0700, n=0, rate=40Hz",
+          "raw_secondary": 1783.2692706200744,
+          "raw_value": 0.5466069574818265,
+          "risk_score": 0.7518365228363731,
+          "sample_rate_hz": 40.0,
+          "z_score": 3.5229565354546644
+        }
+      },
+      "confidence": 0.75,
+      "coverage": {
+        "coverage_pct": 0.0,
+        "segment_names": [],
+        "segments_defined": 3,
+        "segments_working": 0
+      },
+      "date": "2026-09-30T00:00:00",
+      "effective_weights": {
+        "lambda_geo": 0.5714285714285715,
+        "seismic_thd": 0.4285714285714286
+      },
+      "methods_available": 2,
+      "notes": "",
+      "persistence": {
+        "consecutive_days": 1,
+        "current_tier": 1,
+        "is_confirmed": false,
+        "tier_history": [
+          null,
+          0,
+          0,
+          1
+        ]
+      },
+      "region": "kaikoura",
+      "tier": 1,
+      "tier_name": "WATCH"
+    },
+    "kumamoto": {
+      "agreement": "all_normal",
+      "combined_risk": 0.007099278866422767,
+      "components": {
+        "fault_correlation": {
+          "available": false,
+          "frozen": false,
+          "is_critical": false,
+          "is_elevated": false,
+          "name": "fault_correlation",
+          "notes": "calibration unavailable: no registry entry for region kumamoto",
+          "raw_secondary": null,
+          "raw_value": 0.0,
+          "risk_score": 0.0
+        },
+        "lambda_geo": {
+          "available": true,
+          "frozen": false,
+          "is_critical": false,
+          "is_elevated": false,
+          "name": "lambda_geo",
+          "notes": "ratio=0.1x",
+          "raw_secondary": null,
+          "raw_value": 0.1,
+          "risk_score": 0.0
+        },
+        "seismic_thd": {
+          "available": true,
+          "baseline": {
+            "mean": 0.467928,
+            "n_samples": 91,
+            "quality": "good",
+            "std": 0.121275,
+            "window": "2026-06-03 to 2026-09-01"
+          },
+          "frozen": false,
+          "is_critical": false,
+          "is_elevated": false,
+          "name": "seismic_thd",
+          "notes": "sta=IU.MAJO, THD=0.3328, z=-1.11, baseline_mean=0.4679, baseline_std=0.1213, n=91, rate=40Hz",
+          "raw_secondary": 152843.54087467282,
+          "raw_value": 0.33276694790753275,
+          "risk_score": 0.01656498402165312,
+          "sample_rate_hz": 40.0,
+          "z_score": -1.1145005326115627
+        }
+      },
+      "confidence": 0.8,
+      "coverage": {
+        "coverage_pct": 0.0,
+        "segment_names": [],
+        "segments_defined": 1,
+        "segments_working": 0
+      },
+      "date": "2026-09-30T00:00:00",
+      "effective_weights": {
+        "lambda_geo": 0.5714285714285715,
+        "seismic_thd": 0.4285714285714286
+      },
+      "methods_available": 2,
+      "notes": "",
+      "persistence": {
+        "consecutive_days": 0,
+        "current_tier": 0,
+        "is_confirmed": false,
+        "tier_history": [
+          null,
+          0,
+          0,
+          0
+        ]
+      },
+      "region": "kumamoto",
+      "tier": 0,
+      "tier_name": "NORMAL"
+    },
+    "mexico_guerrero": {
+      "agreement": "all_normal",
+      "combined_risk": 0.04039606633187316,
+      "components": {
+        "fault_correlation": {
+          "available": false,
+          "frozen": false,
+          "is_critical": false,
+          "is_elevated": false,
+          "name": "fault_correlation",
+          "notes": "calibration unavailable: no registry entry for region mexico_guerrero",
+          "raw_secondary": null,
+          "raw_value": 0.0,
+          "risk_score": 0.0
+        },
+        "lambda_geo": {
+          "available": true,
+          "frozen": false,
+          "is_critical": false,
+          "is_elevated": false,
+          "name": "lambda_geo",
+          "notes": "ratio=0.1x",
+          "raw_secondary": null,
+          "raw_value": 0.1,
+          "risk_score": 0.0
+        },
+        "seismic_thd": {
+          "available": true,
+          "baseline": {
+            "mean": 0.134622,
+            "n_samples": 46,
+            "quality": "acceptable",
+            "std": 0.044351,
+            "window": "2026-06-03 to 2026-09-01"
+          },
+          "frozen": false,
+          "is_critical": false,
+          "is_elevated": false,
+          "name": "seismic_thd",
+          "notes": "sta=MX.TLIG, THD=0.1493, z=0.33, baseline_mean=0.1346, baseline_std=0.0444, n=46, rate=20Hz",
+          "raw_secondary": 10272.581206183588,
+          "raw_value": 0.14934347891298586,
+          "risk_score": 0.09425748810770404,
+          "sample_rate_hz": 20.0,
+          "z_score": 0.3319311608077803
+        }
+      },
+      "confidence": 0.8,
+      "coverage": {
+        "coverage_pct": 0.0,
+        "segment_names": [],
+        "segments_defined": 1,
+        "segments_working": 0
+      },
+      "date": "2026-09-30T00:00:00",
+      "effective_weights": {
+        "lambda_geo": 0.5714285714285715,
+        "seismic_thd": 0.4285714285714286
+      },
+      "methods_available": 2,
+      "notes": "",
+      "persistence": {
+        "consecutive_days": 0,
+        "current_tier": 0,
+        "is_confirmed": false,
+        "tier_history": [
+          null,
+          0,
+          0,
+          0
+        ]
+      },
+      "region": "mexico_guerrero",
+      "tier": 0,
+      "tier_name": "NORMAL"
+    },
+    "norcal_hayward": {
+      "agreement": "all_normal",
+      "combined_risk": 0.0151335819689622,
+      "components": {
+        "fault_correlation": {
+          "available": false,
+          "frozen": false,
+          "is_critical": false,
+          "is_elevated": false,
+          "name": "fault_correlation",
+          "notes": "calibration unavailable: no registry entry for region norcal_hayward",
+          "raw_secondary": null,
+          "raw_value": 0.0,
+          "risk_score": 0.0
+        },
+        "lambda_geo": {
+          "available": true,
+          "frozen": false,
+          "is_critical": false,
+          "is_elevated": false,
+          "name": "lambda_geo",
+          "notes": "ratio=0.3x",
+          "raw_secondary": null,
+          "raw_value": 0.26825482171058346,
+          "risk_score": 0.0
+        },
+        "seismic_thd": {
+          "available": true,
+          "baseline": {
+            "mean": 0.372086,
+            "n_samples": 91,
+            "quality": "good",
+            "std": 0.136103,
+            "window": "2026-06-03 to 2026-09-01"
+          },
+          "frozen": false,
+          "is_critical": false,
+          "is_elevated": false,
+          "name": "seismic_thd",
+          "notes": "sta=BK.BKS, THD=0.3054, z=-0.49, baseline_mean=0.3721, baseline_std=0.1361, n=91, rate=40Hz",
+          "raw_secondary": 18051.30787551232,
+          "raw_value": 0.3054485705227959,
+          "risk_score": 0.0353116912609118,
+          "sample_rate_hz": 40.0,
+          "z_score": -0.48961029130294026
+        }
+      },
+      "confidence": 0.8,
+      "coverage": {
+        "coverage_pct": 0.0,
+        "segment_names": [],
+        "segments_defined": 4,
+        "segments_working": 0
+      },
+      "date": "2026-09-30T00:00:00",
+      "effective_weights": {
+        "lambda_geo": 0.5714285714285715,
+        "seismic_thd": 0.4285714285714286
+      },
+      "methods_available": 2,
+      "notes": "",
+      "persistence": {
+        "consecutive_days": 0,
+        "current_tier": 0,
+        "is_confirmed": false,
+        "tier_history": [
+          null,
+          0,
+          0,
+          0
+        ]
+      },
+      "region": "norcal_hayward",
+      "tier": 0,
+      "tier_name": "NORMAL"
+    },
+    "ridgecrest": {
+      "agreement": "all_normal",
+      "combined_risk": 0.022455800825133827,
+      "components": {
+        "fault_correlation": {
+          "available": false,
+          "frozen": true,
+          "is_critical": false,
+          "is_elevated": false,
+          "name": "fault_correlation",
+          "notes": "calibration unavailable: no registry entry for region ridgecrest | FROZEN (incident 2026-07-31): excluded from tier pending fix",
+          "raw_secondary": null,
+          "raw_value": 0.0,
+          "risk_score": 0.0
+        },
+        "lambda_geo": {
+          "available": true,
+          "frozen": false,
+          "is_critical": false,
+          "is_elevated": false,
+          "name": "lambda_geo",
+          "notes": "ratio=0.4x",
+          "raw_secondary": null,
+          "raw_value": 0.4479890450225479,
+          "risk_score": 0.0
+        },
+        "seismic_thd": {
+          "available": true,
+          "baseline": {
+            "mean": 0.372277,
+            "n_samples": 91,
+            "quality": "good",
+            "std": 0.11271,
+            "window": "2026-06-03 to 2026-09-01"
+          },
+          "frozen": false,
+          "is_critical": false,
+          "is_elevated": false,
+          "name": "seismic_thd",
+          "notes": "sta=IU.TUC, THD=0.3743, z=0.02, baseline_mean=0.3723, baseline_std=0.1127, n=91, rate=40Hz",
+          "raw_secondary": 403941.37556333723,
+          "raw_value": 0.3743031329425146,
+          "risk_score": 0.05239686859197892,
+          "sample_rate_hz": 40.0,
+          "z_score": 0.017976514439841895
+        }
+      },
+      "confidence": 0.8,
+      "coverage": {
+        "coverage_pct": 0.0,
+        "segment_names": [],
+        "segments_defined": 3,
+        "segments_working": 0
+      },
+      "date": "2026-09-30T00:00:00",
+      "effective_weights": {
+        "lambda_geo": 0.5714285714285715,
+        "seismic_thd": 0.4285714285714286
+      },
+      "methods_available": 2,
+      "notes": "",
+      "persistence": {
+        "consecutive_days": 0,
+        "current_tier": 0,
+        "is_confirmed": false,
+        "tier_history": [
+          null,
+          0,
+          0,
+          0
+        ]
+      },
+      "region": "ridgecrest",
+      "tier": 0,
+      "tier_name": "NORMAL"
+    },
+    "socal_saf_coachella": {
+      "agreement": "all_normal",
+      "combined_risk": 0.022455800825133827,
+      "components": {
+        "fault_correlation": {
+          "available": false,
+          "frozen": false,
+          "is_critical": false,
+          "is_elevated": false,
+          "name": "fault_correlation",
+          "notes": "calibration unavailable: scored day 2026-09-30 past valid_through 2026-09-09 (STALE)",
+          "raw_secondary": null,
+          "raw_value": 0.0,
+          "risk_score": 0.0
+        },
+        "lambda_geo": {
+          "available": true,
+          "frozen": false,
+          "is_critical": false,
+          "is_elevated": false,
+          "name": "lambda_geo",
+          "notes": "ratio=0.1x",
+          "raw_secondary": null,
+          "raw_value": 0.1490068892964143,
+          "risk_score": 0.0
+        },
+        "seismic_thd": {
+          "available": true,
+          "baseline": {
+            "mean": 0.372277,
+            "n_samples": 91,
+            "quality": "good",
+            "std": 0.11271,
+            "window": "2026-06-03 to 2026-09-01"
+          },
+          "frozen": false,
+          "is_critical": false,
+          "is_elevated": false,
+          "name": "seismic_thd",
+          "notes": "sta=IU.TUC, THD=0.3743, z=0.02, baseline_mean=0.3723, baseline_std=0.1127, n=91, rate=40Hz",
+          "raw_secondary": 403941.37556333723,
+          "raw_value": 0.3743031329425146,
+          "risk_score": 0.05239686859197892,
+          "sample_rate_hz": 40.0,
+          "z_score": 0.017976514439841895
+        }
+      },
+      "confidence": 0.8,
+      "coverage": {
+        "coverage_pct": 0.0,
+        "segment_names": [],
+        "segments_defined": 3,
+        "segments_working": 0
+      },
+      "date": "2026-09-30T00:00:00",
+      "effective_weights": {
+        "lambda_geo": 0.5714285714285715,
+        "seismic_thd": 0.4285714285714286
+      },
+      "methods_available": 2,
+      "notes": "",
+      "persistence": {
+        "consecutive_days": 0,
+        "current_tier": 0,
+        "is_confirmed": false,
+        "tier_history": [
+          null,
+          0,
+          0,
+          0
+        ]
+      },
+      "region": "socal_saf_coachella",
+      "tier": 0,
+      "tier_name": "NORMAL"
+    },
+    "socal_saf_mojave": {
+      "agreement": "all_normal",
+      "combined_risk": 0.022455800825133827,
+      "components": {
+        "fault_correlation": {
+          "available": false,
+          "frozen": false,
+          "is_critical": false,
+          "is_elevated": false,
+          "name": "fault_correlation",
+          "notes": "calibration unavailable: no registry entry for region socal_saf_mojave",
+          "raw_secondary": null,
+          "raw_value": 0.0,
+          "risk_score": 0.0
+        },
+        "lambda_geo": {
+          "available": true,
+          "frozen": false,
+          "is_critical": false,
+          "is_elevated": false,
+          "name": "lambda_geo",
+          "notes": "ratio=0.3x",
+          "raw_secondary": null,
+          "raw_value": 0.2951890955807927,
+          "risk_score": 0.0
+        },
+        "seismic_thd": {
+          "available": true,
+          "baseline": {
+            "mean": 0.372277,
+            "n_samples": 91,
+            "quality": "good",
+            "std": 0.11271,
+            "window": "2026-06-03 to 2026-09-01"
+          },
+          "frozen": false,
+          "is_critical": false,
+          "is_elevated": false,
+          "name": "seismic_thd",
+          "notes": "sta=IU.TUC, THD=0.3743, z=0.02, baseline_mean=0.3723, baseline_std=0.1127, n=91, rate=40Hz",
+          "raw_secondary": 403941.37556333723,
+          "raw_value": 0.3743031329425146,
+          "risk_score": 0.05239686859197892,
+          "sample_rate_hz": 40.0,
+          "z_score": 0.017976514439841895
+        }
+      },
+      "confidence": 0.8,
+      "coverage": {
+        "coverage_pct": 0.0,
+        "segment_names": [],
+        "segments_defined": 4,
+        "segments_working": 0
+      },
+      "date": "2026-09-30T00:00:00",
+      "effective_weights": {
+        "lambda_geo": 0.5714285714285715,
+        "seismic_thd": 0.4285714285714286
+      },
+      "methods_available": 2,
+      "notes": "",
+      "persistence": {
+        "consecutive_days": 0,
+        "current_tier": 0,
+        "is_confirmed": false,
+        "tier_history": [
+          null,
+          0,
+          0,
+          0
+        ]
+      },
+      "region": "socal_saf_mojave",
+      "tier": 0,
+      "tier_name": "NORMAL"
+    },
+    "tokyo_kanto": {
+      "agreement": "all_normal",
+      "combined_risk": 0.007099278866422767,
+      "components": {
+        "fault_correlation": {
+          "available": false,
+          "frozen": true,
+          "is_critical": false,
+          "is_elevated": false,
+          "name": "fault_correlation",
+          "notes": "calibration unavailable: no registry entry for region tokyo_kanto | FROZEN (incident 2026-07-31): excluded from tier pending fix",
+          "raw_secondary": null,
+          "raw_value": 0.0,
+          "risk_score": 0.0
+        },
+        "lambda_geo": {
+          "available": true,
+          "frozen": false,
+          "is_critical": false,
+          "is_elevated": false,
+          "name": "lambda_geo",
+          "notes": "ratio=0.3x",
+          "raw_secondary": null,
+          "raw_value": 0.33437566797874096,
+          "risk_score": 0.0
+        },
+        "seismic_thd": {
+          "available": true,
+          "baseline": {
+            "mean": 0.467928,
+            "n_samples": 91,
+            "quality": "good",
+            "std": 0.121275,
+            "window": "2026-06-03 to 2026-09-01"
+          },
+          "frozen": false,
+          "is_critical": false,
+          "is_elevated": false,
+          "name": "seismic_thd",
+          "notes": "sta=IU.MAJO, THD=0.3328, z=-1.11, baseline_mean=0.4679, baseline_std=0.1213, n=91, rate=40Hz",
+          "raw_secondary": 152843.54087467282,
+          "raw_value": 0.33276694790753275,
+          "risk_score": 0.01656498402165312,
+          "sample_rate_hz": 40.0,
+          "z_score": -1.1145005326115627
+        }
+      },
+      "confidence": 0.8,
+      "coverage": {
+        "coverage_pct": 0.0,
+        "segment_names": [],
+        "segments_defined": 0,
+        "segments_working": 0
+      },
+      "date": "2026-09-30T00:00:00",
+      "effective_weights": {
+        "lambda_geo": 0.5714285714285715,
+        "seismic_thd": 0.4285714285714286
+      },
+      "methods_available": 2,
+      "notes": "",
+      "persistence": {
+        "consecutive_days": 0,
+        "current_tier": 0,
+        "is_confirmed": false,
+        "tier_history": [
+          null,
+          0,
+          0,
+          0
+        ]
+      },
+      "region": "tokyo_kanto",
+      "tier": 0,
+      "tier_name": "NORMAL"
+    },
+    "turkey_kahramanmaras": {
+      "agreement": "single_method",
+      "combined_risk": 0.38154520397761327,
+      "components": {
+        "fault_correlation": {
+          "available": false,
+          "frozen": false,
+          "is_critical": false,
+          "is_elevated": false,
+          "name": "fault_correlation",
+          "notes": "calibration unavailable: scored day 2026-09-30 past valid_through 2026-09-09 (STALE)",
+          "raw_secondary": null,
+          "raw_value": 0.0,
+          "risk_score": 0.0
+        },
+        "lambda_geo": {
+          "available": false,
+          "frozen": false,
+          "is_critical": false,
+          "is_elevated": false,
+          "name": "lambda_geo",
+          "notes": "No Lambda_geo data available",
+          "raw_secondary": null,
+          "raw_value": 0.0,
+          "risk_score": 0.0
+        },
+        "seismic_thd": {
+          "available": true,
+          "baseline": {
+            "mean": 0.3186,
+            "n_samples": 91,
+            "quality": "good",
+            "std": 0.063816,
+            "window": "2026-06-03 to 2026-09-01"
+          },
+          "frozen": false,
+          "is_critical": false,
+          "is_elevated": false,
+          "name": "seismic_thd",
+          "notes": "sta=IU.ANTO, THD=0.4479, z=2.03, baseline_mean=0.3186, baseline_std=0.0638, n=91, rate=40Hz",
+          "raw_secondary": 110558.59999127177,
+          "raw_value": 0.44790275494814147,
+          "risk_score": 0.38154520397761327,
+          "sample_rate_hz": 40.0,
+          "z_score": 2.026180815910453
+        }
+      },
+      "confidence": 0.5,
+      "coverage": {
+        "coverage_pct": 0.0,
+        "segment_names": [],
+        "segments_defined": 3,
+        "segments_working": 0
+      },
+      "date": "2026-09-30T00:00:00",
+      "effective_weights": {
+        "seismic_thd": 1.0
+      },
+      "methods_available": 1,
+      "notes": "",
+      "persistence": {
+        "consecutive_days": 3,
+        "current_tier": 1,
+        "is_confirmed": true,
+        "tier_history": [
+          null,
+          1,
+          1,
+          1
+        ]
+      },
+      "region": "turkey_kahramanmaras",
+      "tier": 1,
+      "tier_name": "WATCH"
+    }
+  },
+  "revision": {
+    "date": "2026-09-30",
+    "fired_utc": "2026-10-02T11:04:47.028679Z",
+    "inputs": {
+      "entries": [
+        {
+          "byte_length": 55679,
+          "data_day": null,
+          "identity": "monitoring/src/run_ensemble_daily.py",
+          "keyset": null,
+          "kind": "code",
+          "sha256": "940b1603ea6663007af6671f41d893bbb45d3e9fc69ba0792dfe556e947da153"
+        },
+        {
+          "byte_length": 43226,
+          "data_day": null,
+          "identity": "monitoring/src/ensemble.py",
+          "keyset": null,
+          "kind": "code",
+          "sha256": "8fb0b7cd0b59822a6c904f2aed9540f5e8a7d5c45f6d9c3c6904b77b8d71cee4"
+        },
+        {
+          "byte_length": 67343,
+          "data_day": null,
+          "identity": "monitoring/src/ensemble_revisions_cayley.py",
+          "keyset": null,
+          "kind": "code",
+          "sha256": "76ad0e83b60f0ed933b47b97ab28f3df6632b8dbcdb7da08b764739dbaccf8c0"
+        },
+        {
+          "byte_length": 753,
+          "data_day": null,
+          "identity": "monitoring/data/calibration/capsule_registry.json",
+          "keyset": [
+            "istanbul_marmara",
+            "socal_coachella",
+            "turkey_kahramanmaras"
+          ],
+          "kind": "calibration_capsule",
+          "sha256": "a84c96a6d36b98053d5802a95041a2a0eb5ecd9e12613063ef4b7be1237d2157"
+        },
+        {
+          "byte_length": 554,
+          "data_day": null,
+          "identity": "monitoring/data/calibration/istanbul_marmara.json",
+          "keyset": [
+            "band_tag",
+            "calibration_window",
+            "input_manifest_sha256",
+            "issued_utc",
+            "processing_version",
+            "region",
+            "replay_output_sha256",
+            "schema",
+            "source_commit",
+            "threshold",
+            "topology_version",
+            "valid_through"
+          ],
+          "kind": "calibration_capsule",
+          "sha256": "ce361ea57edbfed2e24fc9033e4dcfb3b3d158b8b98c20848e5e0cff668159fb"
+        },
+        {
+          "byte_length": 553,
+          "data_day": null,
+          "identity": "monitoring/data/calibration/socal_coachella.json",
+          "keyset": [
+            "band_tag",
+            "calibration_window",
+            "input_manifest_sha256",
+            "issued_utc",
+            "processing_version",
+            "region",
+            "replay_output_sha256",
+            "schema",
+            "source_commit",
+            "threshold",
+            "topology_version",
+            "valid_through"
+          ],
+          "kind": "calibration_capsule",
+          "sha256": "9f1d3fd917629e65421ae7302c590d17499d7549cd23595cd1148ec67a95db9d"
+        },
+        {
+          "byte_length": 558,
+          "data_day": null,
+          "identity": "monitoring/data/calibration/turkey_kahramanmaras.json",
+          "keyset": [
+            "band_tag",
+            "calibration_window",
+            "input_manifest_sha256",
+            "issued_utc",
+            "processing_version",
+            "region",
+            "replay_output_sha256",
+            "schema",
+            "source_commit",
+            "threshold",
+            "topology_version",
+            "valid_through"
+          ],
+          "kind": "calibration_capsule",
+          "sha256": "6728d1e59366333cc65889cb8ef1041097259fd31ca15a74fcdc0b9f0f4f0188"
+        },
+        {
+          "byte_length": 61730,
+          "data_day": "2026-09-29",
+          "identity": "20261001T115305258096Z-83b3af54",
+          "keyset": null,
+          "kind": "prior_revision",
+          "sha256": "0fcef3c43b1b0239d5b0352a9348e006290ec52b9c503428697b228a25024488"
+        },
+        {
+          "byte_length": 61731,
+          "data_day": "2026-09-28",
+          "identity": "20260930T110744826718Z-c6114f51",
+          "keyset": null,
+          "kind": "prior_revision",
+          "sha256": "bcc7aace803512101429b754010d718f4a2f5da7787b3269d8f4edafcb420961"
+        },
+        {
+          "byte_length": 42,
+          "data_day": "2026-09-30",
+          "identity": "2026-09-30",
+          "keyset": null,
+          "kind": "scored_day",
+          "sha256": "38ca22bf612b4e23859b4d0a80a6a91e05bd231f157667686f814c7d400c41f2"
+        }
+      ],
+      "schema": "geospec-ensemble-inputs-capsule-v1"
+    },
+    "inputs_sha256": "6a194c2c8b435ed311dfdb6f0add5ce75e921c830aeaa657d0da8e907cdd9419",
+    "persistence_inputs": [
+      {
+        "date": "2026-09-29",
+        "kind": "revision",
+        "legacy": null,
+        "run_id": "20261001T115305258096Z-83b3af54",
+        "sha256": "0fcef3c43b1b0239d5b0352a9348e006290ec52b9c503428697b228a25024488"
+      },
+      {
+        "date": "2026-09-28",
+        "kind": "revision",
+        "legacy": null,
+        "run_id": "20260930T110744826718Z-c6114f51",
+        "sha256": "bcc7aace803512101429b754010d718f4a2f5da7787b3269d8f4edafcb420961"
+      },
+      {
+        "date": "2026-09-27",
+        "kind": "hole",
+        "legacy": null,
+        "run_id": null,
+        "sha256": null
+      }
+    ],
+    "reason": null,
+    "run_id": "20261002T110447028679Z-cb0cb400",
+    "schema": "geospec-ensemble-revision-v1",
+    "scored_day_utc": "2026-09-30",
+    "source_index": {
+      "entry_count": 28,
+      "prefix_sha256": "3f94924f8d054bcd28217fe992d5aeb20a711392163aed14b483ccd97b0fde51"
+    },
+    "supersedes": null
+  },
+  "stress_release_drops": [],
+  "summary": {
+    "confirmed_watch_count": 1,
+    "degraded_count": 0,
+    "max_risk": 0.38154520397761327,
+    "max_risk_region": "turkey_kahramanmaras",
+    "preliminary_watch_count": 1,
+    "tier_counts": {
+      "-1": 0,
+      "0": 12,
+      "1": 2,
+      "2": 0,
+      "3": 0
+    },
+    "total_regions": 14
+  },
+  "timestamp": "2026-10-02T11:04:26.133743+00:00"
+}

@@ -1,0 +1,24 @@
+{
+ "authority": {
+  "blob_sha256": "3c24182b042de1a14d2717610b8940acd93f44be8dc8fdc344cce771d28d4f66",
+  "commit": "2f91143ec1b36a0b59558bdb0741987ef0fbba10",
+  "keys_sha256": "3e7a4779f95e6feb835331998ec4b270721fd54e5b36520af03b79e68cb920a9",
+  "path": "docs/f2g_window2_execution/staged_expected_contracts_v3.json"
+ },
+ "carrier": "new",
+ "effective_url": "https://geomag.usgs.gov/ws/data/?endtime=2026-05-09T00%3A00%3A00Z&format=json&id=NEW&sampling_period=60&starttime=2026-05-08T00%3A00%3A00Z",
+ "headers": {
+  "content-type": "application/json",
+  "date": "Thu, 27 Aug 2026 04:29:36 GMT"
+ },
+ "http_status": 200,
+ "lane": "MAG_FEED",
+ "raw_body_bytes": 95303,
+ "raw_body_sha256": "43db553009b723f178eb84c58fcd15d4d7a0d4f5f91bb07500798177269826cf",
+ "request_start_utc": "2026-08-27T04:29:28Z",
+ "requested_url": "https://geomag.usgs.gov/ws/data/?endtime=2026-05-09T00%3A00%3A00Z&format=json&id=NEW&sampling_period=60&starttime=2026-05-08T00%3A00%3A00Z",
+ "response_complete_utc": "2026-08-27T04:29:36Z",
+ "schema": "f2g-w2-capture-transcript-v1",
+ "static_contract_sha256": "5a8eb05fe021eb9b77080bf8403d521bec66457371894e83050e401ad466ceb6",
+ "utc_day": "2026-05-08"
+}

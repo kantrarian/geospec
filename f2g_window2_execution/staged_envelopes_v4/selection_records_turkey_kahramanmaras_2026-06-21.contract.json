@@ -1,0 +1,29 @@
+{
+ "carrier": "turkey_kahramanmaras",
+ "cutoff": "2026-08-27",
+ "endpoint": "http://eida.koeri.boun.edu.tr/fdsnws/station/1/query",
+ "expected_keys": [
+  "2026-06-21"
+ ],
+ "lane": "SELECTION_RECORDS",
+ "operation_params": {
+  "carrier": "turkey_kahramanmaras",
+  "day": "2026-06-21"
+ },
+ "request_params": {
+  "cha": "HHZ",
+  "endtime": "2026-06-22",
+  "format": "text",
+  "level": "channel",
+  "net": "KO",
+  "nodata": "404",
+  "sta": "AKDG,ARGN,BNN,GAZ,KARA,KBAN,KHMN,KOZT,MLTY,NURH,TAHT",
+  "starttime": "2026-06-21"
+ },
+ "schema": "f2g-w2-static-contract-v1",
+ "source": {
+  "kind": "fdsn-station-channel",
+  "ref": "http://eida.koeri.boun.edu.tr/fdsnws/station/1/query"
+ },
+ "utc_day": "2026-06-21"
+}

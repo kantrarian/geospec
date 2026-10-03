@@ -662,10 +662,12 @@ def main(argv=None) -> int:
         o = None
         if args.fetch_dir:
             o = stitch_fetched_window(args.fetch_dir, d.isoformat(), args.station, args.location)
-            if o.npts == 0 or o.missing_support:
-                o = None                       # not fully covered by fetched bytes: fall back to the retained cache
-        if o is None:
-            o = stitch_cached_window(args.cache_dir, d.isoformat(), args.station, args.location)
+        if o is None or o.npts == 0 or o.missing_support or o.gap_seconds:
+            c = stitch_cached_window(args.cache_dir, d.isoformat(), args.station, args.location)
+            # keep whichever source actually supports the window better; an empty cache day never replaces a
+            # fetched day that at least has bytes (its gaps are reported as what they are)
+            if o is None or (c.npts > 0 and (o.npts == 0 or (not c.missing_support and not c.gap_seconds))):
+                o = c
         obs.append(o)
         d += timedelta(days=1)
     epoch = (date.fromisoformat(args.epoch_start), None) if args.epoch_start else None

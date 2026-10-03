@@ -360,11 +360,23 @@ def stitch_cached_window(cache_dir: str, day: str, station: str, location: str, 
     base.start_utc, base.end_utc, base.npts = iso(s0.datetime.replace(tzinfo=timezone.utc)), \
         iso(s1.datetime.replace(tzinfo=timezone.utc)), int(sel.size)
     base.support_sha256 = hashlib.sha256(np.ascontiguousarray(sel.astype(np.int32)).tobytes()).hexdigest()
-    missing = []       # a sub-sample phase offset at either edge is not missing support; a whole sample or more is
-    if float(s0 - uws) >= dt:
-        missing.append([iso(ws), base.start_utc])
-    if float(uwe - s1) > 2 * dt:
-        missing.append([base.end_utc, iso(we)])
+    # missing support = the window minus the UNION of every chunk's span (not just the chunk used for estimation), so
+    # a failed join reports only the uncovered edges; the join itself is listed under discontinuities. A sub-sample
+    # phase offset at an edge is not missing support; a whole sample or more is.
+    spans = []
+    for ct0, cdata in chunks:
+        ct1 = ct0 + (cdata.size - 1) * dt
+        a, b = max(float(ct0 - uws), 0.0), min(float(ct1 - uws) + dt, float(uwe - uws))
+        if b > a:
+            spans.append((a, b))
+    spans.sort()
+    missing, cursor = [], 0.0
+    for a, b in spans:
+        if a - cursor >= dt:
+            missing.append([iso(ws + timedelta(seconds=cursor)), iso(ws + timedelta(seconds=a))])
+        cursor = max(cursor, b)
+    if float(uwe - uws) - cursor > 2 * dt:
+        missing.append([iso(ws + timedelta(seconds=cursor)), iso(we)])
     base.missing_support = missing
     if estimate_now and base.gap_seconds == 0 and base.filled_samples == 0 and not missing:
         estimate(base, sel, analyzer=analyzer)

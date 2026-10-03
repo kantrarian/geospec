@@ -291,9 +291,7 @@ def stitch_cached_window(cache_dir: str, day: str, station: str, location: str, 
     duplicate (same time, identical value; the duplicate is dropped). Any other gap or overlap is a discontinuity: the
     observation records it (gap_seconds > 0, n_traces > 1) and qualify() refuses it. Samples outside the window are
     discarded. Missing support is recorded as exact raw intervals. Nothing is written."""
-    ws, we = target_window(day)
     d = date.fromisoformat(day)
-    net, sta = station.split(".", 1)
     paths = [p for p in (_cache_file(cache_dir, d - timedelta(days=1)), _cache_file(cache_dir, d)) if p]
     pieces, locs_seen, refs = [], set(), []
     for p in paths:
@@ -301,10 +299,40 @@ def stitch_cached_window(cache_dir: str, day: str, station: str, location: str, 
         locs_seen |= locs
         refs.append(os.path.basename(os.path.dirname(p)) + "/" + os.path.basename(p))
         pieces.extend(trs)
-    pieces.sort(key=lambda t: t.stats.starttime)
+    return _stitch_pieces(pieces, locs_seen, refs, day, station, location, "seismic_cache", analyzer=analyzer,
+                          estimate_now=estimate_now)
+
+
+def stitch_fetched_window(fetch_dir: str, day: str, station: str, location: str, *, analyzer=None,
+                          estimate_now: bool = True) -> DayObservation:
+    """Same join rules on RAW miniSEED day files written by thd_bootstrap_fetch (`NET.STA.LOC.BHZ.<YYYYMMDDTHHMMSS>.mseed`,
+    one UTC day each): the declared window D 00:00 -> D+1 01:00 needs the files of D and D+1. Traces are read as
+    stored (no merge); only the bound location is used."""
+    from obspy import read
+    d = date.fromisoformat(day)
+    net, sta = station.split(".", 1)
+    pieces, locs_seen, refs = [], set(), []
+    for dd in (d, d + timedelta(days=1)):
+        prefix = f"{net}.{sta}.{location}.{EXPECTED_CHANNEL}.{dd.strftime('%Y%m%d')}"
+        for name in sorted(os.listdir(fetch_dir)) if os.path.isdir(fetch_dir) else []:
+            if name.startswith(prefix) and name.endswith(".mseed"):
+                st = read(os.path.join(fetch_dir, name))
+                locs_seen |= {tr.stats.location for tr in st}
+                refs.append(name)
+                pieces.extend(tr for tr in st if tr.stats.location == location and tr.stats.station == sta
+                              and tr.stats.network == net)
+    return _stitch_pieces(pieces, locs_seen, refs, day, station, location, "fdsn", analyzer=analyzer,
+                          estimate_now=estimate_now)
+
+
+def _stitch_pieces(pieces, locs_seen, refs, day: str, station: str, location: str, source: str, *, analyzer=None,
+                   estimate_now: bool = True) -> DayObservation:
+    ws, we = target_window(day)
+    net, sta = station.split(".", 1)
+    pieces = sorted(pieces, key=lambda t: t.stats.starttime)
     base = DayObservation(day=day, station=station, network=net, station_code=sta, location=location,
                           channel=EXPECTED_CHANNEL, sampling_rate=0.0, start_utc="", end_utc="", npts=0, n_traces=0,
-                          gap_seconds=0.0, filled_samples=0, response_available=None, source="seismic_cache",
+                          gap_seconds=0.0, filled_samples=0, response_available=None, source=source,
                           source_ref="%s#%s#loc=%s#locs_present=%s" % ("+".join(refs) or "NONE", station, location,
                                                                       ",".join(sorted(locs_seen)) or "NONE"),
                           window_start_utc=iso(ws), window_end_utc=iso(we))
@@ -623,13 +651,22 @@ def main(argv=None) -> int:
     ap.add_argument("--expected-rate", type=float, default=None)
     ap.add_argument("--epoch-start", default=None)
     ap.add_argument("--require-response", action="store_true")
+    ap.add_argument("--fetch-dir", default=None, help="raw miniSEED day files from thd_bootstrap_fetch; a day whose "
+                                                    "window is fully covered there is taken from the fetch, else from the cache")
     args = ap.parse_args(argv)
     today = date.fromisoformat(args.today) if args.today else datetime.now(timezone.utc).date()
     window = registered_window(today)
     obs = []
     d = window[0]
     while d <= window[1]:
-        obs.append(stitch_cached_window(args.cache_dir, d.isoformat(), args.station, args.location))
+        o = None
+        if args.fetch_dir:
+            o = stitch_fetched_window(args.fetch_dir, d.isoformat(), args.station, args.location)
+            if o.npts == 0 or o.missing_support:
+                o = None                       # not fully covered by fetched bytes: fall back to the retained cache
+        if o is None:
+            o = stitch_cached_window(args.cache_dir, d.isoformat(), args.station, args.location)
+        obs.append(o)
         d += timedelta(days=1)
     epoch = (date.fromisoformat(args.epoch_start), None) if args.epoch_start else None
     res = bootstrap(args.station, obs, today=today, expected_location=args.location,
@@ -637,7 +674,10 @@ def main(argv=None) -> int:
     rate = args.expected_rate or next((o.sampling_rate for o in obs if o.sampling_rate), 40.0)
     res["missing_support"] = missing_support_report(obs, rate)
     res["acquisition_spec"] = acquisition_spec(obs, {p["day"]: p["reasons"] for p in res["per_day"]}, rate)
-    res["cache"] = dict(cache_dir=os.path.abspath(args.cache_dir), target_days=len(obs))
+    res["cache"] = dict(cache_dir=os.path.abspath(args.cache_dir), target_days=len(obs),
+                        fetch_dir=os.path.abspath(args.fetch_dir) if args.fetch_dir else None,
+                        days_from_fetch=sum(1 for o in obs if o.source == "fdsn"),
+                        days_from_cache=sum(1 for o in obs if o.source == "seismic_cache"))
     os.makedirs(args.out_dir, exist_ok=True)
     rpath = os.path.join(args.out_dir, f"thd_bootstrap_{args.station}_{today.strftime('%Y%m%d')}.json")
     with open(rpath, "w", encoding="utf-8", newline="\n") as fh:

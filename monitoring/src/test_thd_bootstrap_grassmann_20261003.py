@@ -411,6 +411,52 @@ class BaseAndCandidate(unittest.TestCase):
         self.assertIn("IU.SNZO", json.loads(out.stdout.strip().splitlines()[-1])["cal"])
 
 
+class FetchedFiles(unittest.TestCase):
+    """RAW miniSEED day files as thd_bootstrap_fetch writes them (one UTC day each, 00:00-aligned)."""
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp())
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def write_mseed_day(self, day, *, drop_tail=0, location="00"):
+        from obspy import Stream, Trace, UTCDateTime
+        d = date.fromisoformat(day); n = int(24 * 3600 * 40) - drop_tail
+        data = (np.arange(n) % 500 + 50 * np.sin(2 * np.pi * 2.236e-5 * np.arange(n) / 40.0)).astype(np.int32)
+        tr = Trace(data); tr.stats.network, tr.stats.station, tr.stats.location, tr.stats.channel = "IU", "SNZO", location, "BHZ"
+        tr.stats.sampling_rate = 40.0; tr.stats.starttime = UTCDateTime(d.year, d.month, d.day, 0, 0, 0, 19538)
+        Stream([tr]).write(str(self.tmp / f"IU.SNZO.{location}.BHZ.{d.strftime('%Y%m%d')}T000000.mseed"), format="MSEED")
+
+    def test_two_fetched_days_make_the_window_and_the_source_is_fdsn(self):
+        self.write_mseed_day("2026-08-10"); self.write_mseed_day("2026-08-11")
+        o = tb.stitch_fetched_window(str(self.tmp), "2026-08-10", STA, "00", analyzer=_FakeAnalyzer())
+        self.assertEqual(o.source, "fdsn"); self.assertEqual(o.npts, int(25 * 3600 * 40))
+        self.assertEqual((o.n_traces, o.gap_seconds, o.missing_support), (1, 0.0, []))
+        self.assertEqual(tb.qualify(o, WIN, today=TODAY, station=STA, expected_location="00", expected_rate=40.0), [])
+        self.assertIn("IU.SNZO.00.BHZ.20260810T000000.mseed+IU.SNZO.00.BHZ.20260811T000000.mseed", o.source_ref)
+
+    def test_a_missing_next_day_is_support_incomplete(self):
+        self.write_mseed_day("2026-08-10")
+        o = tb.stitch_fetched_window(str(self.tmp), "2026-08-10", STA, "00", estimate_now=False)
+        self.assertEqual(o.missing_support[0][0][:19], "2026-08-11T00:00:00"); self.assertEqual(o.missing_support[0][1], "2026-08-11T01:00:00.000000Z")
+        self.assertIn("SUPPORT_INCOMPLETE", tb.qualify(o, WIN, today=TODAY, station=STA, expected_location="00"))
+
+    def test_other_location_files_are_never_used(self):
+        self.write_mseed_day("2026-08-10", location="10"); self.write_mseed_day("2026-08-11", location="10")
+        o = tb.stitch_fetched_window(str(self.tmp), "2026-08-10", STA, "00", estimate_now=False)
+        self.assertEqual(o.npts, 0)
+
+    def test_fetch_tool_splits_intervals_into_utc_days_without_exceeding_them(self):
+        import thd_bootstrap_fetch as tf
+        reqs = tf.day_requests([["2026-07-20T00:00:00.000000Z", "2026-07-22T01:00:00.000000Z"]])
+        self.assertEqual([(tb.iso(a), tb.iso(b)) for a, b in reqs],
+                         [("2026-07-20T00:00:00.000000Z", "2026-07-21T00:00:00.000000Z"),
+                          ("2026-07-21T00:00:00.000000Z", "2026-07-22T00:00:00.000000Z"),
+                          ("2026-07-22T00:00:00.000000Z", "2026-07-22T01:00:00.000000Z")])
+        self.assertEqual(tf.day_requests([["2026-07-20T06:00:00.000000Z", "2026-07-20T09:00:00.000000Z"]]),
+                         [(tb.parse_utc("2026-07-20T06:00:00Z"), tb.parse_utc("2026-07-20T09:00:00Z"))])
+
+
 CACHE = Path("C:/GeoSpec/geospec_runner/monitoring/data/seismic_cache/kaikoura")
 
 

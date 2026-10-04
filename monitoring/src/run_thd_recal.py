@@ -23,12 +23,13 @@ import argparse
 import json
 import logging
 import sys
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from station_baselines import STATION_BASELINES  # noqa: E402
+from station_baselines import _baseline_from_entry  # noqa: E402 (shared loader parser)
 
 logger = logging.getLogger(__name__)
 
@@ -60,10 +61,49 @@ def _newest_baseline_age_days():
     return None
 
 
+def _prior_effective_entries():
+    """The station entries of the newest loadable dated baseline file (the file the runtime loader would select),
+    parsed with the loader's own parser so a malformed row never counts. {} when none."""
+    import json as _json
+    for f in sorted(BASELINE_DIR.glob("thd_baselines_*.json"), key=lambda p: p.name, reverse=True):
+        try:
+            data = _json.load(open(f, encoding="utf-8"))
+        except Exception:
+            continue
+        if isinstance(data, dict) and isinstance(data.get("baselines"), list):
+            entries = data["baselines"]
+        elif isinstance(data, dict):
+            entries = [v for v in data.values() if isinstance(v, dict) and "station" in v]
+        else:
+            entries = []
+        out = {}
+        for e in entries:
+            try:
+                parsed = _baseline_from_entry(e, f.name)
+            except Exception:
+                continue
+            out[parsed.station] = dict(e, calibration_date=parsed.calibration_date)
+        if out:
+            return out
+    return {}
+
+
 def run_recal(stations, end_date=None, dry_run=False):
     """Recalibrate `stations` on the R3 rolling window and write a dated flat baseline file. Returns the
-    output path (or None on dry-run)."""
+    output path (or None on dry-run).
+
+    thd-bound-station-operator-v1 (grassmann 2026-10-04; codex review db9a28ff finding 3): (a) a BOUND station's entry
+    carries the operator record (identity + bound channel/location/response/rate/gap/estimator/normalization) so a reader
+    can tell which operator produced it; every entry carries an explicit `calibration_date`; (b) a station whose recal
+    FAILS or is EMPTY is no longer dropped from the new file: its prior effective record is PRESERVED unchanged (its own
+    calibration_date / period / identity) and the failed attempt is recorded under `_recal_attempts`, so the ordinary
+    eligibility age/QA rules expire it instead of a silent reversion to the n=0 default. With no prior record an
+    explicit unavailable attempt is recorded and nothing is fabricated."""
     from calibrate_thd_baselines import calibrate_station
+    try:
+        from thd_bound_station_operator import is_bound, operator_record
+    except ImportError:
+        is_bound, operator_record = (lambda n, s: False), None
     end_date = end_date or datetime.now().replace(tzinfo=None)
     window_end = end_date - timedelta(days=EXCLUDE_RECENT_DAYS)
     window_start = window_end - timedelta(days=LOOKBACK_DAYS)
@@ -75,6 +115,23 @@ def run_recal(stations, end_date=None, dry_run=False):
         return None
 
     out = {}
+    prior = _prior_effective_entries()
+    attempts = []
+    attempted_utc = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    def _preserve(key, outcome, reason):
+        if key in prior:
+            kept = dict(prior[key])
+            kept.setdefault("calibration_date", None)
+            kept["notes"] = (kept.get("notes") or "") + " | PRESERVED unchanged after failed recal %s (%s)" % (attempted_utc, outcome)
+            out[key] = kept
+            attempts.append(dict(station=key, attempted_utc=attempted_utc, outcome=outcome, reason=reason,
+                                 disposition="PRIOR_RECORD_PRESERVED", preserved_calibration_date=kept.get("calibration_date"),
+                                 preserved_period=kept.get("calibration_period")))
+        else:
+            attempts.append(dict(station=key, attempted_utc=attempted_utc, outcome=outcome, reason=reason,
+                                 disposition="UNAVAILABLE_NO_PRIOR_RECORD"))
+
     for key in stations:
         net, sta = key.split(".", 1)
         try:
@@ -86,21 +143,29 @@ def run_recal(stations, end_date=None, dry_run=False):
                                   exclude_recent_days=EXCLUDE_RECENT_DAYS, end_date=window_end)
         except Exception as e:
             logger.error(f"recal {key} failed: {e}")
+            _preserve(key, "ERROR", f"{type(e).__name__}: {e}"[:200])
             continue
         if r.get("mean_thd") is None:
-            logger.warning(f"recal {key} produced no baseline ({r.get('error', 'n/a')}); skipping")
+            logger.warning(f"recal {key} produced no baseline ({r.get('error', 'n/a')}); preserving prior record if any")
+            _preserve(key, "EMPTY", str(r.get("error", "n/a"))[:200])
             continue
-        out[key] = {
+        entry = {
             "station": key,
             "mean_thd": r["mean_thd"],
             "std_thd": r["std_thd"],
             "n_samples": r.get("n_samples", 0),
             "calibration_period": r["calibration_period"],
+            "calibration_date": end_date.strftime("%Y-%m-%d"),
             "notes": f"Rolling recal {LOOKBACK_DAYS}d/{EXCLUDE_RECENT_DAYS}d (incident 2026-07-31)",
         }
-    if not out:
+        if is_bound(net, sta) and operator_record is not None:
+            entry["operator"] = operator_record(key)
+        out[key] = entry
+        attempts.append(dict(station=key, attempted_utc=attempted_utc, outcome="VALUE", disposition="RECALIBRATED"))
+    if not any(a.get("disposition") == "RECALIBRATED" for a in attempts):
         logger.error("recal produced no station baselines; NOT writing (keeping prior file)")
         return None
+    out["_recal_attempts"] = attempts
     path = BASELINE_DIR / f"thd_baselines_{end_date.strftime('%Y%m%d')}.json"
     with open(path, "w") as f:
         json.dump(out, f, indent=2)

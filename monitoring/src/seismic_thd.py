@@ -506,6 +506,22 @@ def fetch_continuous_data_for_thd(
     from obspy.clients.fdsn import Client
 
     # Select appropriate data centers based on network
+    # thd-bound-station-operator-v1 (grassmann 2026-10-04; codex review db9a28ff finding 3): a BOUND station
+    # (today only IU.SNZO) is fetched location/channel-bound, joined without any fill and refused by name on
+    # gaps/overlaps/rate mismatch, for BOTH the daily THD path and the weekly recal (both call this function).
+    # Every other station keeps the wildcard-location, merge-interpolate path below unchanged.
+    try:
+        from thd_bound_station_operator import is_bound, fetch_bound
+    except ImportError:
+        is_bound = None
+    if is_bound is not None and is_bound(station_network, station_code):
+        data, sample_rate, rec = fetch_bound(station_network, station_code, start, end, channel)
+        if data is None:
+            logger.error(f"Bound fetch refused for {station_network}.{station_code}: {rec.get('refusal')}")
+            return None, 0.0
+        logger.info(f"Retrieved {len(data)} samples via bound operator {rec['operator_identity'][:12]} "
+                    f"({len(data)/sample_rate/3600:.1f} hours, loc {rec['location']})")
+        return data, sample_rate
     clients_to_try = []
     if station_network == 'CI':
         clients_to_try = ['SCEDC', 'IRIS']

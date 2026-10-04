@@ -30,7 +30,8 @@ class Boundary(unittest.TestCase):
         with mock.patch.object(CE, "ELIGIBILITY_RULE_ACTIVE", True), mock.patch.object(CE, "EFFECTIVE_SCORED_DAY", None):
             with self.assertRaises(ValueError) as raised:
                 CE.rule_active_for_scored_day(datetime(2026, 10, 12))
-            self.assertIn("EFFECTIVE_SCORED_DAY", str(raised.exception))
+            # UNSET is named as such, distinct from a malformed boundary
+            self.assertIn("must declare its effective scored-day boundary", str(raised.exception))
 
     def test_the_boundary_is_inclusive_and_earlier_days_keep_the_legacy_behaviour(self):
         with mock.patch.object(CE, "ELIGIBILITY_RULE_ACTIVE", True), \

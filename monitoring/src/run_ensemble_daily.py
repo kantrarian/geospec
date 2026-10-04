@@ -262,6 +262,27 @@ def configured_thd_station_regions(regions_map: Dict[str, Dict]) -> Dict[str, Li
 
 THD_STATION_REGIONS = configured_thd_station_regions(REGIONS)
 
+# thd-station-attempts-v1 (METHOD_QUALIFICATION_DELIVERY_PLAN M4, 2026-10-04): PROSPECTIVE, OFF. When on, each
+# region's record carries `thd_attempts`: every CONFIGURED THD station (primary, fallback, fallback2) with what
+# happened to it on this run -- the value it supplied, the reason it supplied none, or that it was not attempted
+# because an earlier station answered -- and, per station, the provider records of its fetch. Off, every output is
+# byte-identical to the issued reports (legacy reports retained no attempt detail: NOT_RETAINED).
+RECORD_THD_ATTEMPTS = False
+THD_ATTEMPTS_SCHEMA = 'thd-station-attempts-v1'
+THD_ROLES = ('CONFIGURED_PRIMARY', 'CONFIGURED_FALLBACK', 'CONFIGURED_FALLBACK2')
+
+
+def thd_station_outcome(component, provider_records):
+    """The outcome of one configured station's attempt, from the THD component and its provider records."""
+    if component is not None and component.available:
+        return 'VALUE', component.notes
+    notes = component.notes if component is not None else 'no THD component'
+    if notes.startswith('Insufficient data from'):
+        if any(r.get('outcome') == 'DATA_RETURNED' for r in provider_records or ()):
+            return 'INSUFFICIENT_SAMPLES', notes + ' (data returned, shorter than the 12 h minimum)'
+        return 'NO_DATA', notes
+    return 'ERROR', notes
+
 
 # =============================================================================
 # DAILY RUNNER
@@ -304,7 +325,8 @@ def run_region_assessment(
     logger.info(f"Assessing {config['name']} for {target_date.date()}")
 
     try:
-        ensemble = GeoSpecEnsemble(region=region, station_regions=station_regions)
+        ensemble = GeoSpecEnsemble(region=region, station_regions=station_regions,
+                                   record_thd_attempts=RECORD_THD_ATTEMPTS)
 
         # Set Lambda_geo if provided
         if lambda_geo_ratio is not None:
@@ -318,15 +340,19 @@ def run_region_assessment(
             stations_to_try = [
                 (config['thd_station'], config.get('thd_network', 'CI'))
             ]
+            roles = [THD_ROLES[0]]
             # Add fallback stations if defined
             if config.get('fallback_station'):
                 stations_to_try.append(
                     (config['fallback_station'], config.get('fallback_network', 'IU'))
                 )
+                roles.append(THD_ROLES[1])
             if config.get('fallback2_station'):
                 stations_to_try.append(
                     (config['fallback2_station'], config.get('fallback2_network', 'IU'))
                 )
+                roles.append(THD_ROLES[2])
+            station_records = []
 
             # Try each station until we get THD data
             result = None
@@ -339,12 +365,27 @@ def run_region_assessment(
                 )
                 # Check if THD was successful
                 thd_component = result.components.get('seismic_thd')
+                if RECORD_THD_ATTEMPTS:
+                    providers = list(ensemble.last_thd_fetch_attempts or [])
+                    outcome, reason = thd_station_outcome(thd_component, providers)
+                    station_records.append({
+                        'role': roles[len(station_records)], 'station': f'{network_code}.{station_code}',
+                        'attempted': True, 'outcome': outcome, 'reason': reason,
+                        'selected': outcome == 'VALUE', 'providers': providers})
                 if thd_component and thd_component.available:
                     logger.info(f"  THD data obtained from {network_code}.{station_code}")
                     break
                 else:
                     logger.debug(f"  {network_code}.{station_code} returned no data, trying next...")
 
+            if RECORD_THD_ATTEMPTS and result is not None:
+                for (code, net), role in list(zip(stations_to_try, roles))[len(station_records):]:
+                    station_records.append({
+                        'role': role, 'station': f'{net}.{code}', 'attempted': False,
+                        'outcome': 'NOT_ATTEMPTED', 'reason': 'an earlier configured station supplied the value',
+                        'selected': False, 'providers': []})
+                result.thd_attempts = {'schema': THD_ATTEMPTS_SCHEMA, 'scored_day': target_date.strftime('%Y-%m-%d'),
+                                       'stations': station_records}
             # Return best result we got (even if THD failed on all stations)
             return result
         else:

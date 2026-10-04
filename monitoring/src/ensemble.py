@@ -457,6 +457,9 @@ class EnsembleResult:
     effective_weights: Dict[str, float] = field(default_factory=dict)  # Weights after renorm
     # method-comparability-v1: the region's method-set block; None (not emitted) unless the rule is active
     method_set: Optional[Dict] = None
+    # thd-station-attempts-v1 (M4): every configured THD station and what happened to it; None (not emitted)
+    # unless run_ensemble_daily.RECORD_THD_ATTEMPTS is on
+    thd_attempts: Optional[Dict] = None
 
     def to_dict(self) -> Dict:
         out = {
@@ -481,6 +484,8 @@ class EnsembleResult:
         }
         if self.method_set is not None:
             out['method_set'] = self.method_set
+        if self.thd_attempts is not None:
+            out['thd_attempts'] = self.thd_attempts
         return out
 
 
@@ -508,6 +513,7 @@ class GeoSpecEnsemble:
         corr_window_hours: int = 24,
         eligibility_rule_active: Optional[bool] = None,
         station_regions: Optional[Dict[str, List[str]]] = None,
+        record_thd_attempts: bool = False,
     ):
         """
         Initialize the ensemble.
@@ -525,6 +531,10 @@ class GeoSpecEnsemble:
         # calibration-eligibility-v1: OFF unless the module flag or an explicit override says otherwise.
         self.eligibility_rule_active = CE.rule_active(eligibility_rule_active)
         self.station_regions: Dict[str, List[str]] = dict(station_regions or {})
+        # thd-station-attempts-v1 (M4, prospective): when True, each compute_thd_risk leaves the provider records
+        # of its fetch in `last_thd_fetch_attempts` (None while not recording; nothing is emitted by to_dict).
+        self.record_thd_attempts = bool(record_thd_attempts)
+        self.last_thd_fetch_attempts: Optional[list] = None
 
         # Initialize seismic analyzers
         self.fault_corr_monitor = FaultCorrelationMonitor(
@@ -750,11 +760,17 @@ class GeoSpecEnsemble:
             end_time = date
             start_time = date - timedelta(hours=self.thd_analyzer.window_hours + 1)
 
+            fetch_kwargs = {}
+            self.last_thd_fetch_attempts = None
+            if self.record_thd_attempts:
+                self.last_thd_fetch_attempts = []
+                fetch_kwargs['attempts'] = self.last_thd_fetch_attempts
             data, sample_rate = fetch_continuous_data_for_thd(
                 station_network=station_network,
                 station_code=station_code,
                 start=start_time,
-                end=end_time
+                end=end_time,
+                **fetch_kwargs
             )
 
             if data is None or len(data) < sample_rate * 3600 * 12:

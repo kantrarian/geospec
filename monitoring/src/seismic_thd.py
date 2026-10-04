@@ -487,7 +487,8 @@ def fetch_continuous_data_for_thd(
     station_code: str,
     start: datetime,
     end: datetime,
-    channel: str = 'BHZ'
+    channel: str = 'BHZ',
+    attempts: Optional[list] = None,
 ) -> Tuple[Optional[np.ndarray], float]:
     """
     Fetch continuous waveform data for THD analysis.
@@ -498,6 +499,10 @@ def fetch_continuous_data_for_thd(
         start: Start datetime
         end: End datetime
         channel: Channel code (default 'BHZ')
+        attempts: optional list (thd-station-attempts-v1, METHOD_QUALIFICATION_DELIVERY_PLAN M4): when given,
+            one record per provider tried is APPENDED -- provider, requested NSLC, outcome and reason, and for the
+            trace used: its id, location, channel, epoch, rate and sample count. None (the default) records
+            nothing and changes nothing.
 
     Returns:
         Tuple of (data_array, sample_rate) or (None, 0) on failure
@@ -520,6 +525,12 @@ def fetch_continuous_data_for_thd(
         clients_to_try = ['IRIS', 'GEOFON', 'SCEDC', 'NCEDC']  # Try all
 
     for client_name in clients_to_try:
+        record = None
+        if attempts is not None:
+            record = {'provider': client_name,
+                      'nslc_requested': '%s.%s.*.%s' % (station_network, station_code, channel),
+                      'window_requested': [start.isoformat(), end.isoformat()]}
+            attempts.append(record)
         try:
             client = Client(client_name, timeout=120)
 
@@ -533,6 +544,7 @@ def fetch_continuous_data_for_thd(
             )
 
             if len(st) > 0:
+                traces_before_merge = len(st)
                 # Merge traces
                 st.merge(method=1, fill_value='interpolate')
 
@@ -546,10 +558,23 @@ def fetch_continuous_data_for_thd(
                 logger.info(f"Retrieved {len(data)} samples from {client_name} "
                            f"({len(data)/sample_rate/3600:.1f} hours)")
 
+                if record is not None:
+                    stats = st[0].stats
+                    record.update(outcome='DATA_RETURNED', reason=None, trace_id=st[0].id,
+                                  location=stats.location, channel=stats.channel,
+                                  epoch=[str(stats.starttime), str(stats.endtime)],
+                                  sampling_rate=float(sample_rate), n_samples=int(len(data)),
+                                  traces_before_merge=int(traces_before_merge), traces_after_merge=len(st),
+                                  selection='st[0] after merge(method=1, fill_value=interpolate)',
+                                  response='NOT_REMOVED (raw counts; demean and linear detrend only)')
                 return data, sample_rate
+            if record is not None:
+                record.update(outcome='NO_TRACES', reason='provider returned an empty stream')
 
         except Exception as e:
             logger.debug(f"{client_name} failed for {station_network}.{station_code}: {e}")
+            if record is not None:
+                record.update(outcome='PROVIDER_ERROR', reason='%s: %s' % (type(e).__name__, str(e)[:240]))
             continue
 
     logger.error(f"Could not retrieve data for {station_network}.{station_code}")

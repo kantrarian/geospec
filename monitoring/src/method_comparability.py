@@ -26,8 +26,8 @@ Contract:
      same calibration class per method. A cross-region maximum is reported per comparability group; a single
      maximum across groups is withheld (save_results).
   5. Persistence counts only prior days issued under the same REGIME (rule version + contract version). A regime
-     change is recorded as a transition and is not carried across. A method-set change is recorded and, by
-     default, does not reset persistence (PERSISTENCE_RESETS_ON_METHOD_SET_CHANGE; an owner decision).
+     change is recorded as a transition and is not carried across. Method-set and measurement-support changes
+     start a new confirmation sequence. This remains an offline prospective candidate.
 """
 from __future__ import annotations
 
@@ -65,8 +65,8 @@ NO_METHODS_LABEL = "NONE"
 PRE_CONTRACT_REGIME = "PRE_CONTRACT"
 
 # Decision D-1 (owner): whether a change of comparability key between consecutive days resets persistence.
-# Default False: the change is RECORDED (method_set_changed / method_set_history) and persistence is not reset.
-PERSISTENCE_RESETS_ON_METHOD_SET_CHANGE = False
+# Codex D-1 recommendation: confirmation belongs to the same evidence basis, not only the same rule version.
+PERSISTENCE_RESETS_ON_METHOD_SET_CHANGE = True
 
 
 class ContractViolation(RuntimeError):
@@ -143,7 +143,7 @@ def method_set(components: Mapping, weights: Mapping[str, float], rule_active: b
         klass = row.get("calibration_class") or "UNIDENTIFIED"
         shared = sorted(set(row.get("shared_with") or ()))
         support_rows[n] = {"identity": identity, "calibration_class": klass, "shared_with": shared,
-                           "independent_of_other_regions": len(shared) <= 1}
+                           "independent_of_other_regions": (len(shared) == 1 if shared else None)}
         classes.append("%s:%s" % (METHOD_LABELS[n], klass))
     label = label_for(included)
     key = "%s|%s|%s" % (label, regime_id(), ",".join(classes) or NO_METHODS_LABEL)
@@ -162,7 +162,9 @@ def method_set(components: Mapping, weights: Mapping[str, float], rule_active: b
         "weighted_coverage": coverage,
         "support": support_rows,
         "comparability_key": key,
-        "comparability_complete": all(r["calibration_class"] != "UNIDENTIFIED" for r in support_rows.values()),
+        "comparability_complete": bool(included) and all(
+            r["calibration_class"] != "UNIDENTIFIED" and r["identity"] != "UNIDENTIFIED"
+            for r in support_rows.values()),
         "risk_basis": RISK_BASIS,
     }
 
@@ -175,7 +177,7 @@ def comparison_groups(region_rows: Mapping[str, Mapping]) -> Dict[str, Dict]:
     for region in sorted(region_rows):
         row = region_rows[region]
         ms = row.get("method_set")
-        if not ms or not ms.get("included"):
+        if not ms or not ms.get("included") or not ms.get("comparability_complete"):
             continue
         g = groups.setdefault(ms["comparability_key"], {"label": ms["label"], "regions": [],
                                                          "max_risk_region": None, "max_risk": None,
@@ -209,6 +211,20 @@ def prior_key(prior_region_row: Optional[Mapping]) -> Optional[str]:
     return ms.get("comparability_key") if ms else None
 
 
+def persistence_basis(ms: Mapping):
+    """Station/carrier replacement must not inherit confirmation, even within a descriptive comparison group.
+    Derive from retained fields rather than trusting a possibly stale precomputed key in an issued row.
+    """
+    if not ms.get("comparability_complete"):
+        return None
+    included = ms.get("included") or []
+    support = ms.get("support") or {}
+    identities = tuple((name, (support.get(name) or {}).get("identity")) for name in included)
+    if not included or any(not identity or identity == "UNIDENTIFIED" for _, identity in identities):
+        return None
+    return (ms.get("comparability_key"), identities, tuple(sorted((ms.get("effective_weights") or {}).items())))
+
+
 def regime_persistence(current_tier: int, current_ms: Mapping, prior_rows: Sequence[Optional[Mapping]],
                        required_consecutive: int) -> Dict:
     """Persistence under the contract. `prior_rows` are the ISSUED prior-day rows, nearest first (index 0 = one day
@@ -226,6 +242,10 @@ def regime_persistence(current_tier: int, current_ms: Mapping, prior_rows: Seque
         if PERSISTENCE_RESETS_ON_METHOD_SET_CHANGE and prior_key(row) != current_ms["comparability_key"]:
             transition = {"from": prior_key(row), "to": current_ms["comparability_key"], "days_back": back,
                           "kind": "METHOD_SET"}
+            break
+        if persistence_basis(current_ms) is None or persistence_basis(row.get("method_set") or {}) != persistence_basis(current_ms):
+            transition = {"kind": "MEASUREMENT_SUPPORT", "days_back": back,
+                          "reason": "support unknown or changed; start a new confirmation sequence"}
             break
         tier = row.get("tier", 0)
         if tier is not None and tier >= 1 and current_tier >= 1:

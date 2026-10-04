@@ -999,13 +999,23 @@ def save_results(
     with_method_set = sorted(r for r, d in output_data['regions'].items() if d.get('method_set'))
     if with_method_set:
         groups = MC.comparison_groups(output_data['regions'])
+        incomplete = sorted(r for r, d in output_data['regions'].items()
+                            if (d.get('method_set') or {}).get('included')
+                            and not d['method_set'].get('comparability_complete'))
+        missing = sorted(set(output_data['regions']) - set(with_method_set))
         output_data['summary']['comparison'] = {
             'contract_version': MC.COMPARISON_CONTRACT_VERSION,
             'risk_basis': MC.RISK_BASIS,
             'groups': groups,
-            'regions_without_method_set': sorted(set(output_data['regions']) - set(with_method_set)),
+            'regions_without_method_set': missing,
+            'regions_with_incomplete_support': incomplete,
         }
-        if len(groups) > 1:
+        if missing or incomplete or not groups:
+            output_data['summary']['max_risk_region'] = None
+            output_data['summary']['max_risk'] = None
+            output_data['summary']['max_risk_withheld'] = (
+                'mixed legacy rows, incomplete support, or no qualified comparison group; inspect summary.comparison')
+        elif len(groups) > 1:
             output_data['summary']['max_risk_region'] = None
             output_data['summary']['max_risk'] = None
             output_data['summary']['max_risk_withheld'] = (
@@ -1013,6 +1023,8 @@ def save_results(
                 f'(summary.comparison.groups)')
         elif len(groups) == 1:
             only = next(iter(groups.values()))
+            output_data['summary']['max_risk_region'] = only['max_risk_region']
+            output_data['summary']['max_risk'] = only['max_risk']
             if len(only['max_risk_regions']) > 1:
                 # an exact tie (e.g. two regions on one shared station) is reported, not broken by order
                 output_data['summary']['max_risk_region'] = None

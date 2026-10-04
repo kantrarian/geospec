@@ -251,15 +251,15 @@ class PersistenceUnderRegimes(unittest.TestCase):
         self.assertIsNone(p["regime"]["regime_transition"])
         self.assertFalse(p["regime"]["method_set_changed"])
 
-    def test_method_set_change_is_recorded_not_reset_by_default(self):
+    def test_method_set_change_is_recorded_and_resets_confirmation(self):
         cur = thd_only("turkey_kahramanmaras", 0.8114640273239097)
         other = copy.deepcopy(cur.method_set)
         other["label"], other["comparability_key"] = "LG+THD", "LG+THD|" + other["regime"] + "|x"
         p = self.persistence(cur, [self.issued(1, other), self.issued(0, other)])
-        self.assertEqual((p["consecutive_days"], p["is_confirmed"]), (2, True))
+        self.assertEqual((p["consecutive_days"], p["is_confirmed"]), (1, False))
         self.assertTrue(p["regime"]["method_set_changed"])
         self.assertEqual(p["regime"]["method_set_history"][-2:], ["LG+THD", "THD"])
-        self.assertFalse(p["regime"]["resets_on_method_set_change"])
+        self.assertTrue(p["regime"]["resets_on_method_set_change"])
 
     def test_a_hole_breaks_the_count(self):
         cur = thd_only("turkey_kahramanmaras", 0.8114640273239097)

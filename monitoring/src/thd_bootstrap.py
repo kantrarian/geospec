@@ -619,8 +619,9 @@ def bootstrap(station: str, observations: Iterable[DayObservation], *, today: da
         "n_samples": len(values),
         "calibration_period": f"{values[0][0]} to {values[-1][0]}",   # the days actually used
         "calibration_date": today.isoformat(),
-        "notes": (f"BOOTSTRAP (thd_bootstrap v2, grassmann): {len(values)} contiguous {WINDOW_HOURS} h days via the "
-                  f"weekly_recal operator inside the registered window {window[0]}..{window[1]}; QA {qa.quality_grade}"),
+        "notes": (f"BOOTSTRAP (thd_bootstrap v2, grassmann): {len(values)} individually contiguous {WINDOW_HOURS} h windows via "
+                  f"the {ACTIVE_OPERATOR['name']} operator inside the registered window {window[0]}..{window[1]} "
+                  f"(not an uninterrupted run of days); QA {qa.quality_grade}"),
         "mean_thd_classic": diag["mean"], "std_thd_classic": diag["std"],
         "operator": ACTIVE_OPERATOR, "coverage_policy": coverage, "qa": qa.to_dict(),
         "manifest_sha256": manifest_sha, "manifest": manifest,

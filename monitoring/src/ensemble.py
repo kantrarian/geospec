@@ -43,6 +43,9 @@ import calibration_eligibility as CE
 # method-comparability-v1 (METHOD_QUALIFICATION_DELIVERY_PLAN M1, 2026-10-04): PROSPECTIVE; emitted only while the
 # eligibility rule is active; see the module.
 import method_comparability as MC
+# Exception text reaches the report notes, the export and the hosted bundle: credential-shaped material is
+# removed first (codex db9a28ff finding 4). Ordinary messages are unchanged and not truncated here.
+import evidence_redaction as ER
 
 
 # =============================================================================
@@ -706,7 +709,7 @@ class GeoSpecEnsemble:
             logger.warning(f"Fault correlation failed: {e}")
             return (
                 MethodResult(name='fault_correlation', available=False, raw_value=0.0,
-                             notes=f'Error: {str(e)}'),
+                             notes=f'Error: {ER.redact(str(e), limit=None)}'),
                 segments_defined, 0, []
             )
 
@@ -932,7 +935,7 @@ class GeoSpecEnsemble:
                 name='seismic_thd',
                 available=False,
                 raw_value=0.0,
-                notes=f'Error: {str(e)}'
+                notes=f'Error: {ER.redact(str(e), limit=None)}'
             )
 
     def compute_confidence(self, components: Dict[str, MethodResult]) -> Tuple[float, str]:

@@ -109,6 +109,32 @@ class BoundStationComparisonKey(unittest.TestCase):
             self.assertEqual(MC.compose_identity(*parts), MC.UNIDENTIFIED, parts)
 
 
+class StationOutcomeNamesTheOperatorRefusal(unittest.TestCase):
+    """run_ensemble_daily.thd_station_outcome: a provider that answered while the bound operator refused the window is
+    OPERATOR_REFUSED with the operator's code, never NO_DATA; the other outcomes are unchanged."""
+    def outcome(self, records, available=False, notes="Insufficient data from IU.SNZO"):
+        import run_ensemble_daily as RD
+        comp = E.MethodResult(name="seismic_thd", available=available, raw_value=0.0, notes=notes)
+        return RD.thd_station_outcome(comp, records)
+
+    def test_an_operator_refusal_is_named(self):
+        out, reason = self.outcome([{"provider": "IRIS", "outcome": "OPERATOR_REFUSED", "reason": "GAP_OR_OVERLAP"}])
+        self.assertEqual(out, "OPERATOR_REFUSED")
+        self.assertIn("GAP_OR_OVERLAP", reason)
+
+    def test_the_refusal_detail_stays_redacted(self):
+        out, reason = self.outcome([{"provider": "IRIS", "outcome": "OPERATOR_REFUSED",
+                                     "reason": "PROVIDER_ERROR (token=AbCdEf123456)"}])
+        self.assertEqual(out, "OPERATOR_REFUSED")
+        self.assertNotIn("AbCdEf123456", reason)
+
+    def test_the_other_outcomes_are_unchanged(self):
+        self.assertEqual(self.outcome([{"provider": "IRIS", "outcome": "NO_TRACES"}])[0], "NO_DATA")
+        self.assertEqual(self.outcome([{"provider": "IRIS", "outcome": "DATA_RETURNED"}])[0], "INSUFFICIENT_SAMPLES")
+        self.assertEqual(self.outcome([], available=True, notes="ok")[0], "VALUE")
+        self.assertEqual(self.outcome([], notes="Error: x")[0], "ERROR")
+
+
 class FaultCorrelationKeySibling(unittest.TestCase):
     """The FC estimator is a composite (code | processing | topology): an unreadable code part must make the whole
     key UNIDENTIFIED rather than hide inside the string. Driven through the REAL compute_risk with the eligibility

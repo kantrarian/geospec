@@ -62,6 +62,10 @@ class RealChainAttempts(unittest.TestCase):
         (att,) = ens.last_thd_fetch_attempts
         self.assertEqual(att["outcome"], "OPERATOR_REFUSED")
         self.assertTrue(att["reason"].startswith("GAP_OR_OVERLAP"), att["reason"])
+        import run_ensemble_daily as RD
+        outcome, reason = RD.thd_station_outcome(r, ens.last_thd_fetch_attempts)
+        self.assertEqual(outcome, "OPERATOR_REFUSED")
+        self.assertIn("GAP_OR_OVERLAP", reason)
 
 
 if __name__ == "__main__":

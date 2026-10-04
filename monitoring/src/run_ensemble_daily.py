@@ -280,6 +280,12 @@ def thd_station_outcome(component, provider_records):
         return 'VALUE', ER.redact(component.notes)
     notes = component.notes if component is not None else 'no THD component'
     if notes.startswith('Insufficient data from'):
+        # a BOUND station (thd_bound_station_operator): the provider answered but the operator refused the window by
+        # name (gap/overlap, rate, coverage ...) -- not "no data"; the operator's own code is carried, redacted.
+        refused = [r for r in provider_records or () if r.get('outcome') == 'OPERATOR_REFUSED']
+        if refused and not any(r.get('outcome') == 'DATA_RETURNED' for r in provider_records or ()):
+            return 'OPERATOR_REFUSED', ER.redact('%s (bound operator refused: %s)' % (
+                notes, '; '.join(str(r.get('reason')) for r in refused)))
         if any(r.get('outcome') == 'DATA_RETURNED' for r in provider_records or ()):
             return 'INSUFFICIENT_SAMPLES', ER.redact(notes + ' (data returned, shorter than the 12 h minimum)')
         return 'NO_DATA', ER.redact(notes)

@@ -521,6 +521,27 @@ def fetch_continuous_data_for_thd(
         is_bound = None
     if is_bound is not None and is_bound(station_network, station_code):
         data, sample_rate, rec = fetch_bound(station_network, station_code, start, end, channel)
+        if attempts is not None:
+            # thd-station-attempts-v1 composed with the bound operator (cayley, integration of b92e7087): the bound
+            # path records its attempt too, with the operator identity; a refusal is the operator's own code.
+            from evidence_redaction import redact
+            loc, cha = rec.get('location'), rec.get('channel')
+            record = {'provider': rec.get('client'),
+                      'nslc_requested': '%s.%s.%s.%s' % (station_network, station_code, loc, cha),
+                      'window_requested': rec.get('requested'), 'operator_identity': rec.get('operator_identity')}
+            if data is None:
+                detail = rec.get('refusal') or 'UNKNOWN_REFUSAL'
+                record.update(outcome='OPERATOR_REFUSED',
+                              reason=redact(detail + (' (%s)' % rec['error'] if rec.get('error') else '')))
+            else:
+                record.update(outcome='DATA_RETURNED', reason=None,
+                              trace_id='%s.%s.%s.%s' % (station_network, station_code, loc, cha),
+                              location=loc, channel=cha, epoch=[rec.get('start'), rec.get('end')],
+                              sampling_rate=float(sample_rate), n_samples=int(len(data)),
+                              traces_before_merge=rec.get('n_traces'), traces_after_merge=1,
+                              selection='bound operator: exact-abut join, no fill, native-grid window',
+                              response='NOT_REMOVED (raw counts; demean and linear detrend only)')
+            attempts.append(record)
         if data is None:
             logger.error(f"Bound fetch refused for {station_network}.{station_code}: {rec.get('refusal')}")
             return None, 0.0

@@ -109,5 +109,31 @@ class BoundStationComparisonKey(unittest.TestCase):
             self.assertEqual(MC.compose_identity(*parts), MC.UNIDENTIFIED, parts)
 
 
+class FaultCorrelationKeySibling(unittest.TestCase):
+    """The FC estimator is a composite (code | processing | topology): an unreadable code part must make the whole
+    key UNIDENTIFIED rather than hide inside the string. Driven through the REAL compute_risk with the eligibility
+    fixtures' admitted capsule (synthetic, labelled)."""
+    def fc_support(self):
+        import calibration_eligibility_fixtures as FX
+        fx = FX.fixture_baselines()["calibrated_fresh"]
+        r = FX.build(E, region="norcal_hayward", network="BK", station="BKS", thd_baseline=fx["baseline"],
+                     thd_value=fx["thd"], active=True,
+                     fc=dict(state="admitted", capsule=FX.fc_fixtures()["fc_admitted"]["capsule"]))
+        return r.components["fault_correlation"].support
+
+    def test_the_fc_key_is_code_processing_topology(self):
+        est = self.fc_support()["estimator"]
+        self.assertTrue(est.startswith(MC.code_identity(E.fault_correlation_to_risk) + "|processing="), est)
+        self.assertIn("|topology=", est)
+
+    def test_an_unreadable_fc_code_part_makes_the_key_unidentified(self):
+        original = MC.code_identity
+
+        def unreadable(*objs):
+            return MC.UNIDENTIFIED if E.fault_correlation_to_risk in objs else original(*objs)
+        with mock.patch.object(MC, "code_identity", side_effect=unreadable):
+            self.assertEqual(self.fc_support()["estimator"], MC.UNIDENTIFIED)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

@@ -168,6 +168,20 @@ def compute_daily_thd(
         Tuple of (thd_value, sample_rate) or (None, None) on failure
     """
     try:
+        # thd-bound-station-daily-operator-v1 (grassmann 2026-10-04; codex eb83ad47 finding 1): a BOUND station is
+        # calibrated with the SAME daily measurement the ensemble issues (same target-day convention: the value for
+        # scored day D is the window [D - 25 h, D]; resample to 1 Hz; analyze_window). Other stations unchanged.
+        try:
+            from thd_bound_station_operator import is_bound as _is_bound, daily_measurement as _daily_measurement
+        except ImportError:
+            _is_bound = None
+        if _is_bound is not None and _is_bound(network, station):
+            _an = SeismicTHDAnalyzer(n_harmonics=5, freq_tolerance=0.1, window_hours=24)
+            _m = _daily_measurement(network, station, date.replace(hour=0, minute=0, second=0, microsecond=0),
+                                    analyzer=_an, fetch=fetch_continuous_data_for_thd)
+            if _m['thd'] is None or not (_m['thd'] > 0 and _m['p1'] > 0):
+                return None, None
+            return _m['thd'], _m['native_rate_hz']
         # Fetch 25 hours of data (same as production)
         start = date.replace(hour=0, minute=0, second=0, microsecond=0)
         end = start + timedelta(hours=25)

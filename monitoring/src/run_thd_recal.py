@@ -67,7 +67,8 @@ def _prior_effective_entries():
     import json as _json
     for f in sorted(BASELINE_DIR.glob("thd_baselines_*.json"), key=lambda p: p.name, reverse=True):
         try:
-            data = _json.load(open(f, encoding="utf-8"))
+            with open(f, encoding="utf-8") as fh:
+                data = _json.load(fh)
         except Exception:
             continue
         if isinstance(data, dict) and isinstance(data.get("baselines"), list):

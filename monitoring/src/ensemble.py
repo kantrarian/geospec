@@ -747,8 +747,9 @@ class GeoSpecEnsemble:
                 'identity': 'capsule %s %s issued %s' % (_cap('region'), _cap('processing_version'),
                                                          _cap('issued_utc')),
                 'calibration_class': 'FC_CAPSULE:%s/%s' % (_cap('processing_version'), _cap('band_tag')),
-                'estimator': '%s|processing=%s|topology=%s' % (
-                    MC.code_identity(fault_correlation_to_risk), _cap('processing_version'), _cap('topology_version')),
+                'estimator': MC.compose_identity(
+                    MC.code_identity(fault_correlation_to_risk), 'processing=%s' % _cap('processing_version'),
+                    'topology=%s' % _cap('topology_version')),
                 'shared_with': [self.region]}
         return (scored, segments_defined, segments_working, segment_names)
 
@@ -760,8 +761,22 @@ class GeoSpecEnsemble:
             'identity': station_id,
             'calibration_class': 'THD_STATION_BASELINE:max_age=%s,min_lag=%s' % (
                 MAX_BASELINE_AGE_DAYS, CE.registered_constant('run_thd_recal', 'EXCLUDE_RECENT_DAYS')),
-            'estimator': MC.code_identity(type(self.thd_analyzer).analyze_window, thd_to_risk_with_baseline),
+            'estimator': self._thd_estimator_identity(station_id),
             'shared_with': list(self.station_regions.get(station_id, ()))}
+
+    def _thd_estimator_identity(self, station_id: str) -> str:
+        """The analyzer + baseline mapping; for a BOUND station also the shared daily operator that measures it
+        (grassmann thd-bound-station-daily-operator-v1: its descriptor identity and its producing code), so a change of
+        that operator changes the comparison key. UNIDENTIFIED when any part is."""
+        parts = [MC.code_identity(type(self.thd_analyzer).analyze_window, thd_to_risk_with_baseline)]
+        try:
+            import thd_bound_station_operator as OP
+        except ImportError:
+            OP = None
+        if OP is not None and station_id in OP.BOUND_STATIONS:
+            parts += ['daily_operator=' + OP.daily_operator_identity(station_id),
+                      MC.code_identity(OP.daily_measurement, OP.fetch_bound, OP.stitch_window)]
+        return MC.compose_identity(*parts)
 
     def compute_thd_risk(
         self,
@@ -777,24 +792,54 @@ class GeoSpecEnsemble:
             except ImportError:
                 get_baseline = None
 
-            # Need 24+ hours of data ending at target date
-            end_time = date
-            start_time = date - timedelta(hours=self.thd_analyzer.window_hours + 1)
-
+            # thd-station-attempts-v1: the sink exists before the bound dispatch so both paths record their attempts.
             fetch_kwargs = {}
             self.last_thd_fetch_attempts = None
             if self.record_thd_attempts:
                 self.last_thd_fetch_attempts = []
                 fetch_kwargs['attempts'] = self.last_thd_fetch_attempts
-            data, sample_rate = fetch_continuous_data_for_thd(
-                station_network=station_network,
-                station_code=station_code,
-                start=start_time,
-                end=end_time,
-                **fetch_kwargs
-            )
 
-            if data is None or len(data) < sample_rate * 3600 * 12:
+            # thd-bound-station-daily-operator-v1 (grassmann 2026-10-04; codex eb83ad47 finding 1): a BOUND station's
+            # daily measurement is ONE shared function (thd_bound_station_operator.daily_measurement) that the weekly
+            # recal also calls, so both paths measure the same operator. Other stations: unchanged code below.
+            _bound = None
+            try:
+                from thd_bound_station_operator import is_bound as _is_bound, daily_measurement as _daily_measurement
+                _bound = _is_bound(station_network, station_code)
+            except ImportError:
+                _bound = False
+            if _bound:
+                _fetch = fetch_continuous_data_for_thd
+                if fetch_kwargs:
+                    from functools import partial
+                    _fetch = partial(fetch_continuous_data_for_thd, **fetch_kwargs)
+                _m = _daily_measurement(station_network, station_code, date, analyzer=self.thd_analyzer,
+                                        fetch=_fetch)
+                if _m['thd'] is None:
+                    return MethodResult(
+                        name='seismic_thd',
+                        available=False,
+                        raw_value=0.0,
+                        notes=f'Insufficient data from {station_network}.{station_code}'
+                    )
+                thd_result = _m['result']
+                native_sample_rate = _m['native_rate_hz']
+                sample_rate = _m['estimator_rate_hz']
+                data = None
+            # Need 24+ hours of data ending at target date
+            end_time = date
+            start_time = date - timedelta(hours=self.thd_analyzer.window_hours + 1)
+
+            if not _bound:
+                data, sample_rate = fetch_continuous_data_for_thd(
+                    station_network=station_network,
+                    station_code=station_code,
+                    start=start_time,
+                    end=end_time,
+                    **fetch_kwargs
+                )
+
+            if not _bound and (data is None or len(data) < sample_rate * 3600 * 12):
                 return MethodResult(
                     name='seismic_thd',
                     available=False,
@@ -803,12 +848,13 @@ class GeoSpecEnsemble:
                 )
 
             # Store native sample rate for logging
-            native_sample_rate = sample_rate
+            if not _bound:
+                native_sample_rate = sample_rate
 
             # Resample to target rate (1 Hz) for consistent THD computation
             # Using resample_poly for predictable filtering regardless of input rate
             TARGET_THD_RATE = 1.0  # Hz - sufficient for tidal frequencies (~1e-5 Hz)
-            if sample_rate > TARGET_THD_RATE * 1.5:
+            if not _bound and sample_rate > TARGET_THD_RATE * 1.5:
                 from scipy.signal import resample_poly
                 from math import gcd
                 # Compute rational resampling factors
@@ -824,12 +870,13 @@ class GeoSpecEnsemble:
                 sample_rate = TARGET_THD_RATE
 
             # Compute THD
-            thd_result = self.thd_analyzer.analyze_window(
-                data=data,
-                sample_rate=sample_rate,
-                station=f'{station_network}.{station_code}',
-                window_time=date
-            )
+            if not _bound:
+                thd_result = self.thd_analyzer.analyze_window(
+                    data=data,
+                    sample_rate=sample_rate,
+                    station=f'{station_network}.{station_code}',
+                    window_time=date
+                )
 
             # Get station baseline if available
             baseline = get_baseline(station_code, station_network) if get_baseline else None

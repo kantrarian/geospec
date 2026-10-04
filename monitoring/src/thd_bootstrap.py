@@ -74,6 +74,28 @@ OPERATOR_DAILY = dict(
     name="daily_ensemble", source="ensemble.compute_thd_risk", window="[target - 25 h, target]",
     rate="resample_poly to 1 Hz", preprocessing="demean + linear detrend", estimator="compute_thd_with_noise",
     role="DIAGNOSTIC_ONLY: not the bootstrap sample")
+
+
+def daily_window(day: str) -> Tuple[datetime, datetime]:
+    """The DAILY operator's window for scored day D: [D 00:00 - 25 h, D 00:00) (ensemble.compute_thd_risk)."""
+    d = datetime.combine(date.fromisoformat(day), datetime.min.time()).replace(tzinfo=timezone.utc)
+    return d - timedelta(hours=WINDOW_HOURS), d
+
+
+# thd-bound-station-daily-operator-v1 (grassmann 2026-10-04; codex eb83ad47 finding 1): the operator a bootstrap
+# qualifies against, and the per-day window, are selectable. Defaults are the reviewed weekly operator + target_window.
+ACTIVE_OPERATOR = OPERATOR_WEEKLY
+ACTIVE_WINDOW_FN = None          # None -> target_window (bound below, after target_window is defined)
+
+
+def use_operator(operator: Dict, window_fn):
+    """Select the operator descriptor (must carry 'name') and the per-day window function for qualify/bootstrap."""
+    global ACTIVE_OPERATOR, ACTIVE_WINDOW_FN
+    ACTIVE_OPERATOR, ACTIVE_WINDOW_FN = operator, window_fn
+
+
+def _active_window(day: str) -> Tuple[datetime, datetime]:
+    return (ACTIVE_WINDOW_FN or target_window)(day)
 REFUSAL_CODES = ("NSLC_MISMATCH", "LOCATION_MISMATCH", "CHANNEL_MISMATCH", "TIMESTAMPS_INVALID", "WINDOW_MISMATCH",
                  "SUPPORT_OUTSIDE_WINDOW", "DAY_OUTSIDE_WINDOW", "DAY_TOO_RECENT", "EPOCH_MISMATCH", "RATE_INVALID",
                  "RATE_MISMATCH", "NPTS_SPAN_INCONSISTENT", "NO_DATA", "COVERAGE_SHORT", "GAP_FILLED",
@@ -142,7 +164,7 @@ class DayObservation:
     support_sha256: Optional[str] = None     # sha256 of the int32 support bytes actually used
     window_start_utc: str = ""     # declared operator window (must equal target_window(day))
     window_end_utc: str = ""
-    operator: str = OPERATOR_WEEKLY["name"]
+    operator: str = ACTIVE_OPERATOR["name"]
     thd: Optional[float] = None
     p1: Optional[float] = None
     f1: Optional[float] = None
@@ -167,14 +189,14 @@ def qualify(obs: DayObservation, window: Tuple[date, date], *, today: date, stat
     if obs.channel != EXPECTED_CHANNEL:
         reasons.append("CHANNEL_MISMATCH")
     d = date.fromisoformat(obs.day)
-    ws, we = target_window(obs.day)
+    ws, we = _active_window(obs.day)
     start, end = parse_utc(obs.start_utc), parse_utc(obs.end_utc)
     rate_ok = isinstance(obs.sampling_rate, (int, float)) and math.isfinite(obs.sampling_rate) and obs.sampling_rate > 0
     if start is None or end is None or end <= start:
         reasons.append("TIMESTAMPS_INVALID")
     if parse_utc(obs.window_start_utc) != ws or parse_utc(obs.window_end_utc) != we:
         reasons.append("WINDOW_MISMATCH")
-    if obs.operator != OPERATOR_WEEKLY["name"]:
+    if obs.operator != ACTIVE_OPERATOR["name"]:
         reasons.append("OPERATOR_MISMATCH")
     if not isinstance(obs.support_sha256, str) or re.fullmatch(r"[0-9a-f]{64}", obs.support_sha256) is None:
         reasons.append("SUPPORT_HASH_MISSING_OR_INVALID")
@@ -577,7 +599,7 @@ def bootstrap(station: str, observations: Iterable[DayObservation], *, today: da
                     policy="coverage below the QA threshold is retained as a QA warning on the entry; it does not by "
                            "itself refuse; a QA grade of 'fail' refuses; the registered day floor is separate")
     result: Dict = dict(schema=SCHEMA, station=station, today=today.isoformat(), expected_location=expected_location,
-                        operator=OPERATOR_WEEKLY, daily_operator_diagnostic=OPERATOR_DAILY,
+                        operator=ACTIVE_OPERATOR, daily_operator_diagnostic=OPERATOR_DAILY,
                         window_registered=dict(start=window[0].isoformat(), end=window[1].isoformat(),
                                                lookback_days=LOOKBACK_DAYS, exclude_recent_days=EXCLUDE_RECENT_DAYS,
                                                days_requested=n_requested),
@@ -600,7 +622,7 @@ def bootstrap(station: str, observations: Iterable[DayObservation], *, today: da
         "notes": (f"BOOTSTRAP (thd_bootstrap v2, grassmann): {len(values)} contiguous {WINDOW_HOURS} h days via the "
                   f"weekly_recal operator inside the registered window {window[0]}..{window[1]}; QA {qa.quality_grade}"),
         "mean_thd_classic": diag["mean"], "std_thd_classic": diag["std"],
-        "operator": OPERATOR_WEEKLY, "coverage_policy": coverage, "qa": qa.to_dict(),
+        "operator": ACTIVE_OPERATOR, "coverage_policy": coverage, "qa": qa.to_dict(),
         "manifest_sha256": manifest_sha, "manifest": manifest,
         "bootstrap": dict(method=SCHEMA, window_registered=result["window_registered"], days_qualified=len(values),
                           days_refused=refused, location=expected_location, channel=EXPECTED_CHANNEL,

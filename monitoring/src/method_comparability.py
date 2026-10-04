@@ -83,6 +83,14 @@ def code_identity(*objects) -> str:
         name = getattr(target, "__qualname__", getattr(target, "__name__", type(target).__name__))
         parts.append("%s@%s" % (name, hashlib.sha256(source.encode("utf-8")).hexdigest()[:12]))
     return "+".join(parts) or UNIDENTIFIED
+
+
+def compose_identity(*parts) -> str:
+    """Join identity parts with '|'; UNIDENTIFIED when any part is empty or UNIDENTIFIED, so an unreadable source
+    never hides inside a composite key."""
+    if not parts or any(not p or p == UNIDENTIFIED for p in parts):
+        return UNIDENTIFIED
+    return "|".join(parts)
 NO_METHODS_LABEL = "NONE"
 PRE_CONTRACT_REGIME = "PRE_CONTRACT"
 

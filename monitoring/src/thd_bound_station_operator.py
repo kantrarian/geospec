@@ -154,3 +154,50 @@ def fetch_bound(network: str, station: str, start: datetime, end: datetime, chan
         logger.warning(f"bound fetch {key}: refused {rec['refusal']}")
         return None, 0.0, rec
     return _detrend(data), rate, rec
+
+
+# --------------------------------------------------------------------------------------------------- daily operator
+TARGET_THD_RATE = 1.0        # Hz, the production daily estimator rate (ensemble.compute_thd_risk)
+DAILY_OPERATOR = dict(name="daily_ensemble", window="[target - (window_hours + 1) h, target]",
+                      native_rate_hz=40.0, estimator_rate_hz=TARGET_THD_RATE,
+                      resampling="scipy.signal.resample_poly(up, down) with gcd-reduced integer factors when native > 1.5x target",
+                      preprocessing="demean + linear detrend (bound fetch)", minimum_samples="12 h at the native rate",
+                      estimator="SeismicTHDAnalyzer(n_harmonics=5, freq_tolerance=0.1, window_hours=24).analyze_window -> compute_thd_with_noise",
+                      operator_version="thd-bound-station-daily-operator-v1")
+
+
+def daily_operator_identity(key: str) -> str:
+    payload = dict(station=key, fetch=operator_identity(key), **DAILY_OPERATOR)
+    return hashlib.sha256(json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+
+
+def daily_operator_record(key: str) -> Dict:
+    return dict(identity=daily_operator_identity(key), fetch=operator_record(key), **DAILY_OPERATOR)
+
+
+def daily_measurement(network: str, station: str, target: datetime, *, analyzer, fetch) -> Dict:
+    """The PRODUCTION daily THD measurement for a bound station, as one function used by ensemble.compute_thd_risk and
+    by calibrate_thd_baselines.compute_daily_thd: requested window = [target - (analyzer.window_hours + 1) h, target],
+    `fetch` = the caller's fetch_continuous_data_for_thd (which dispatches bound stations to fetch_bound), the daily
+    12-hour floor, resample_poly to TARGET_THD_RATE, then analyzer.analyze_window. Returns a record with thd (None when
+    unavailable), the requested window, native and estimator rates, processed sample count and the operator identity."""
+    from datetime import timedelta
+    key = f"{network}.{station}"
+    start = target - timedelta(hours=analyzer.window_hours + 1)
+    rec: Dict = dict(station=key, operator_identity=daily_operator_identity(key), requested_window=[start.isoformat(), target.isoformat()],
+                     thd=None, native_rate_hz=None, estimator_rate_hz=None, n_native_samples=None, n_processed_samples=None, reason=None)
+    data, sample_rate = fetch(station_network=network, station_code=station, start=start, end=target)
+    if data is None or len(data) < sample_rate * 3600 * 12:
+        rec["reason"] = "INSUFFICIENT_DATA"; return rec
+    rec["native_rate_hz"] = float(sample_rate); rec["n_native_samples"] = int(len(data))
+    if sample_rate > TARGET_THD_RATE * 1.5:
+        from scipy.signal import resample_poly
+        from math import gcd
+        up = int(TARGET_THD_RATE * 100); down = int(sample_rate * 100)
+        common = gcd(up, down); up //= common; down //= common
+        data = resample_poly(data, up, down); sample_rate = TARGET_THD_RATE
+    rec["estimator_rate_hz"] = float(sample_rate); rec["n_processed_samples"] = int(len(data))
+    result = analyzer.analyze_window(data=data, sample_rate=sample_rate, station=key, window_time=target)
+    rec.update(thd=float(result.thd_value), p1=float(result.fundamental_power), f1=float(result.dominant_frequency),
+               snr=(float(result.snr) if result.snr is not None else None), result=result)
+    return rec

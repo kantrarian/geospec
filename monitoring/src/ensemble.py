@@ -718,18 +718,42 @@ class GeoSpecEnsemble:
             except ImportError:
                 get_baseline = None
 
+            # thd-bound-station-daily-operator-v1 (grassmann 2026-10-04; codex eb83ad47 finding 1): a BOUND station's
+            # daily measurement is ONE shared function (thd_bound_station_operator.daily_measurement) that the weekly
+            # recal also calls, so both paths measure the same operator. Other stations: unchanged code below.
+            _bound = None
+            try:
+                from thd_bound_station_operator import is_bound as _is_bound, daily_measurement as _daily_measurement
+                _bound = _is_bound(station_network, station_code)
+            except ImportError:
+                _bound = False
+            if _bound:
+                _m = _daily_measurement(station_network, station_code, date, analyzer=self.thd_analyzer,
+                                        fetch=fetch_continuous_data_for_thd)
+                if _m['thd'] is None:
+                    return MethodResult(
+                        name='seismic_thd',
+                        available=False,
+                        raw_value=0.0,
+                        notes=f'Insufficient data from {station_network}.{station_code}'
+                    )
+                thd_result = _m['result']
+                native_sample_rate = _m['native_rate_hz']
+                sample_rate = _m['estimator_rate_hz']
+                data = None
             # Need 24+ hours of data ending at target date
             end_time = date
             start_time = date - timedelta(hours=self.thd_analyzer.window_hours + 1)
 
-            data, sample_rate = fetch_continuous_data_for_thd(
-                station_network=station_network,
-                station_code=station_code,
-                start=start_time,
-                end=end_time
-            )
+            if not _bound:
+                data, sample_rate = fetch_continuous_data_for_thd(
+                    station_network=station_network,
+                    station_code=station_code,
+                    start=start_time,
+                    end=end_time
+                )
 
-            if data is None or len(data) < sample_rate * 3600 * 12:
+            if not _bound and (data is None or len(data) < sample_rate * 3600 * 12):
                 return MethodResult(
                     name='seismic_thd',
                     available=False,
@@ -738,12 +762,13 @@ class GeoSpecEnsemble:
                 )
 
             # Store native sample rate for logging
-            native_sample_rate = sample_rate
+            if not _bound:
+                native_sample_rate = sample_rate
 
             # Resample to target rate (1 Hz) for consistent THD computation
             # Using resample_poly for predictable filtering regardless of input rate
             TARGET_THD_RATE = 1.0  # Hz - sufficient for tidal frequencies (~1e-5 Hz)
-            if sample_rate > TARGET_THD_RATE * 1.5:
+            if not _bound and sample_rate > TARGET_THD_RATE * 1.5:
                 from scipy.signal import resample_poly
                 from math import gcd
                 # Compute rational resampling factors
@@ -759,12 +784,13 @@ class GeoSpecEnsemble:
                 sample_rate = TARGET_THD_RATE
 
             # Compute THD
-            thd_result = self.thd_analyzer.analyze_window(
-                data=data,
-                sample_rate=sample_rate,
-                station=f'{station_network}.{station_code}',
-                window_time=date
-            )
+            if not _bound:
+                thd_result = self.thd_analyzer.analyze_window(
+                    data=data,
+                    sample_rate=sample_rate,
+                    station=f'{station_network}.{station_code}',
+                    window_time=date
+                )
 
             # Get station baseline if available
             baseline = get_baseline(station_code, station_network) if get_baseline else None

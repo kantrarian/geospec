@@ -66,8 +66,11 @@ CALLER_SUPPLIED_LG = {"hualien": 3.0}
 
 
 class _THDResult:
+    # The fields the producers read, named as seismic_thd.THDResult names them (thd_bound_station_operator.daily_measurement
+    # reads fundamental_power and dominant_frequency); values are SYNTHETIC and never reach the scored output.
     def __init__(self, thd_value, snr=10.0):
         self.thd_value, self.snr = float(thd_value), float(snr)
+        self.fundamental_power, self.dominant_frequency = 1.0, 2.24e-05
 
 
 class _StubAnalyzer:

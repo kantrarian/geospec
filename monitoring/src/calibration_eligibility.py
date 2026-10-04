@@ -74,6 +74,11 @@ from typing import Iterable, Optional, Sequence, Tuple
 ELIGIBILITY_RULE_VERSION = "calibration-eligibility-v3"
 # Prospective rule: OFF until a dated amendment / owner decision. Nothing in the ordinary run flips this.
 ELIGIBILITY_RULE_ACTIVE = False
+# The amendment's effective scored-day boundary (ISO date, e.g. "2026-10-12"). None = UNSET. The production daily path
+# applies the rule to scored day D only when ELIGIBILITY_RULE_ACTIVE AND D >= this boundary, so a replay of an earlier
+# day keeps the rule-off behaviour and never rescores issued history. An ACTIVE rule with an UNSET boundary refuses.
+# Both constants change together, in ONE reviewed commit.
+EFFECTIVE_SCORED_DAY = None
 
 STATUS_MISSING = "missing"
 STATUS_ZERO = "zero"
@@ -136,6 +141,34 @@ class Eligibility:
 def rule_active(override: Optional[bool] = None) -> bool:
     """The flag, or an explicit per-instance override (tests / a dated amendment's run configuration)."""
     return bool(ELIGIBILITY_RULE_ACTIVE if override is None else override)
+
+
+def _iso_day(value, name: str) -> date:
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    if isinstance(value, str):
+        try:
+            parsed = date.fromisoformat(value)
+        except ValueError:
+            parsed = None
+        if parsed is not None and parsed.isoformat() == value:
+            return parsed
+    raise ValueError("%s must be an ISO calendar date (YYYY-MM-DD), a date or a datetime, got %r" % (name, value))
+
+
+def rule_active_for_scored_day(scored_day) -> bool:
+    """The rule for ONE scored day on the production daily path: on only when ELIGIBILITY_RULE_ACTIVE and the day is
+    on or after EFFECTIVE_SCORED_DAY. Before the boundary the legacy (rule-off) behaviour holds, so replaying an issued
+    day cannot rescore it. An active rule without a declared boundary refuses rather than guessing one."""
+    day = _iso_day(scored_day, "scored_day")
+    if not ELIGIBILITY_RULE_ACTIVE:
+        return False
+    if EFFECTIVE_SCORED_DAY is None:
+        raise ValueError("ELIGIBILITY_RULE_ACTIVE requires EFFECTIVE_SCORED_DAY: an active rule must declare its "
+                         "effective scored-day boundary")
+    return day >= _iso_day(EFFECTIVE_SCORED_DAY, "EFFECTIVE_SCORED_DAY")
 
 
 def _make(status: str, code: str, detail: str = "") -> Eligibility:

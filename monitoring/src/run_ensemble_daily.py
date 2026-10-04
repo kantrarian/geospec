@@ -49,6 +49,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 from ensemble import GeoSpecEnsemble, EnsembleResult, RISK_TIERS
 # method-comparability-v1 (prospective; only rows that carry a method set are affected)
 import method_comparability as MC
+import calibration_eligibility as CE
 import evidence_redaction as ER
 # Immutable public revision store (asylum 2026-09-02: "use immutable
 # revision"; codex's model). The runner's production path publishes
@@ -332,9 +333,14 @@ def run_region_assessment(
 
     logger.info(f"Assessing {config['name']} for {target_date.date()}")
 
+    # calibration-eligibility: the rule for THIS scored day (OFF before the amendment's effective boundary). Evaluated
+    # OUTSIDE the per-region try: a misconfigured rule (active with no boundary) must stop the run, not turn every
+    # region into a logged failure.
+    rule_for_day = CE.rule_active_for_scored_day(target_date)
     try:
         ensemble = GeoSpecEnsemble(region=region, station_regions=station_regions,
-                                   record_thd_attempts=RECORD_THD_ATTEMPTS)
+                                   record_thd_attempts=RECORD_THD_ATTEMPTS,
+                                   eligibility_rule_active=rule_for_day)
 
         # Set Lambda_geo if provided
         if lambda_geo_ratio is not None:

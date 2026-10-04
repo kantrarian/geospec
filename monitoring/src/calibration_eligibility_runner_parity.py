@@ -172,6 +172,9 @@ def run(src, rule_on, workdir):
         if not has_rule:
             raise SystemExit("REFUSED: --rule-on needs a tree with the eligibility rule")
         ensemble.CE.ELIGIBILITY_RULE_ACTIVE = True
+        if hasattr(ensemble.CE, "EFFECTIVE_SCORED_DAY"):
+            # an activation declares its boundary; the parity day is the first day the rule applies (inclusive)
+            ensemble.CE.EFFECTIVE_SCORED_DAY = TARGET.date().isoformat()
     ensemble.SeismicTHDAnalyzer = _StubAnalyzer
     ensemble.FaultCorrelationMonitor = _StubFCMonitor
     ensemble.fetch_continuous_data_for_thd = _stub_fetch

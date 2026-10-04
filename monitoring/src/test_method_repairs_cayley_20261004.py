@@ -87,11 +87,12 @@ class LambdaGeoOnlyPath(unittest.TestCase):
         self.saved = dict(RD.REGIONS["anchorage"])
         self.addCleanup(RD.REGIONS.__setitem__, "anchorage", self.saved)
         RD.REGIONS["anchorage"] = dict(self.saved, seismic_available=False)
-        flag = CE.ELIGIBILITY_RULE_ACTIVE
+        flag, boundary = CE.ELIGIBILITY_RULE_ACTIVE, CE.EFFECTIVE_SCORED_DAY
         self.addCleanup(setattr, CE, "ELIGIBILITY_RULE_ACTIVE", flag)
+        self.addCleanup(setattr, CE, "EFFECTIVE_SCORED_DAY", boundary)
 
     def test_rule_on_goes_through_the_qualified_combiner(self):
-        CE.ELIGIBILITY_RULE_ACTIVE = True
+        CE.ELIGIBILITY_RULE_ACTIVE, CE.EFFECTIVE_SCORED_DAY = True, DAY.date().isoformat()   # an activation declares both
         res = RD.run_region_assessment("anchorage", DAY, lambda_geo_ratio=2.0, lambda_geo_provenance=None)
         self.assertIsNotNone(res.method_set, "the bypass would carry no method set")
         self.assertEqual(list(res.components), ["lambda_geo"])

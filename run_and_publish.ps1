@@ -150,6 +150,18 @@ if ($LatestFile) {
     $AssessmentDate = $EnsembleData.date
     $MaxRisk = $EnsembleData.summary.max_risk
     $MaxRegion = $EnsembleData.summary.max_risk_region
+    # method-comparability-v1 (prospective; only when the summary carries a comparison block): the maximum is
+    # withheld across comparability groups, or tied; say so instead of printing an empty region and 0.
+    $MaxRegionText = $MaxRegion
+    $MaxRiskText = [math]::Round($MaxRisk, 3)
+    if ($EnsembleData.summary.comparison -and -not $MaxRegion) {
+        if ($EnsembleData.summary.max_risk_tied_regions) {
+            $MaxRegionText = "tied: " + ($EnsembleData.summary.max_risk_tied_regions -join ", ")
+        } else {
+            $MaxRegionText = "withheld (regions span different method sets; see summary.comparison)"
+            $MaxRiskText = "n/a"
+        }
+    }
     if ($EnsembleData.revision) {
         Write-Host "  Published revision: $($EnsembleData.revision.date)/$($EnsembleData.revision.run_id)" -ForegroundColor Green
     } else {
@@ -235,8 +247,8 @@ $ReadmeContent = @"
 
 | Metric | Value |
 |--------|-------|
-| Highest Risk Region | $MaxRegion |
-| Risk Score | $([math]::Round($MaxRisk, 3)) |
+| Highest Risk Region | $MaxRegionText |
+| Risk Score | $MaxRiskText |
 | Regions Monitored | $($EnsembleData.summary.total_regions) |
 
 ### Tier Distribution

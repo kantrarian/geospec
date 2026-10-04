@@ -40,6 +40,9 @@ import seismic_data as SD
 import fault_correlation as FC
 # calibration-eligibility-v1 (codex a7d0533d item 1, 2026-09-30): PROSPECTIVE rule, OFF by default; see the module.
 import calibration_eligibility as CE
+# method-comparability-v1 (METHOD_QUALIFICATION_DELIVERY_PLAN M1, 2026-10-04): PROSPECTIVE; emitted only while the
+# eligibility rule is active; see the module.
+import method_comparability as MC
 
 
 # =============================================================================
@@ -395,6 +398,9 @@ class MethodResult:
     eligibility_rule_version: Optional[str] = None
     eligible_for_tiering: Optional[bool] = None
     eligibility_reason: Optional[str] = None
+    # method-comparability-v1 (prospective; set ONLY while the eligibility rule is active and never emitted by
+    # to_dict): the support the observation rests on, read by the region's method-set block.
+    support: Optional[Dict] = None
 
     def to_dict(self) -> Dict:
         result = {
@@ -449,9 +455,11 @@ class EnsembleResult:
     segments_working: int = 0  # Segments with sufficient data
     segment_names: List[str] = field(default_factory=list)  # Names of working segments
     effective_weights: Dict[str, float] = field(default_factory=dict)  # Weights after renorm
+    # method-comparability-v1: the region's method-set block; None (not emitted) unless the rule is active
+    method_set: Optional[Dict] = None
 
     def to_dict(self) -> Dict:
-        return {
+        out = {
             'region': self.region,
             'date': self.date.isoformat(),
             'combined_risk': float(self.combined_risk),
@@ -471,6 +479,9 @@ class EnsembleResult:
             },
             'effective_weights': self.effective_weights,
         }
+        if self.method_set is not None:
+            out['method_set'] = self.method_set
+        return out
 
 
 # =============================================================================
@@ -593,6 +604,15 @@ class GeoSpecEnsemble:
                 self._lambda_geo_provenance.get(date.strftime('%Y-%m-%d')), date,
                 max_age_days=LAMBDA_GEO_BASELINE_MAX_AGE_DAYS,
                 min_lag_days=LAMBDA_GEO_BASELINE_MIN_LAG_DAYS))
+            # method-comparability-v1: the provenance the ratio rests on, and the registered policy class.
+            prov = self._lambda_geo_provenance.get(date.strftime('%Y-%m-%d'))
+            result.support = {
+                'identity': ('lambda_geo provenance %s window_end %s calibrated_on %s'
+                             % (prov.get('source'), prov.get('window_end'), prov.get('calibrated_on'))
+                             if isinstance(prov, dict) else None),
+                'calibration_class': 'LG_BASELINE_RATIO:max_age=%s,min_lag=%s' % (
+                    LAMBDA_GEO_BASELINE_MAX_AGE_DAYS, LAMBDA_GEO_BASELINE_MIN_LAG_DAYS),
+                'shared_with': [self.region]}
         return result
 
     def _resolve_calibration_capsule(self, region, date):
@@ -702,6 +722,14 @@ class GeoSpecEnsemble:
             CE.attach(scored, CE.classify_fc_calibration(
                 'admitted', capsule=calibration, scored_day=date_utc,
                 embargo_days=CE.registered_default(FC.load_calibration_capsule, 'embargo_days')))
+            # method-comparability-v1: the admitted capsule the threshold came from.
+            def _cap(key):
+                return calibration.get(key) if isinstance(calibration, dict) else getattr(calibration, key, None)
+            scored.support = {
+                'identity': 'capsule %s %s issued %s' % (_cap('region'), _cap('processing_version'),
+                                                         _cap('issued_utc')),
+                'calibration_class': 'FC_CAPSULE:%s/%s' % (_cap('processing_version'), _cap('band_tag')),
+                'shared_with': [self.region]}
         return (scored, segments_defined, segments_working, segment_names)
 
     def compute_thd_risk(
@@ -859,6 +887,14 @@ class GeoSpecEnsemble:
             )
             if eligibility is not None:
                 CE.attach(result, eligibility)
+                # method-comparability-v1: the station the value rests on and every region it serves (shared
+                # support is not independent regional confirmation).
+                station_id = f'{station_network}.{station_code}'
+                result.support = {
+                    'identity': station_id,
+                    'calibration_class': 'THD_STATION_BASELINE:max_age=%s,min_lag=%s' % (
+                        MAX_BASELINE_AGE_DAYS, CE.registered_constant('run_thd_recal', 'EXCLUDE_RECENT_DAYS')),
+                    'shared_with': list(self.station_regions.get(station_id, ()))}
             return result
 
         except Exception as e:
@@ -1031,6 +1067,18 @@ class GeoSpecEnsemble:
             segment_names=segment_names,
             effective_weights=effective_weights,
         )
+
+        if self.eligibility_rule_active:
+            # method-comparability-v1: the method-set block, derived from the SAME predicate as the tier; refuse
+            # rather than emit a block that disagrees with the computation above.
+            result.method_set = MC.method_set(
+                components, self.weights, True,
+                support={n: c.support for n, c in components.items() if c.support})
+            ms = result.method_set
+            if (ms['included'] != [n for n in MC.METHOD_ORDER if n in effective_weights]
+                    or len(ms['included']) != methods_available
+                    or any(abs(ms['effective_weights'][n] - w) > 1e-12 for n, w in effective_weights.items())):
+                raise MC.ContractViolation(f'{self.region}: method set disagrees with the tier computation')
 
         logger.info(f"  Combined risk: {combined_risk:.3f} ({tier_name})")
         if tier_downgraded:

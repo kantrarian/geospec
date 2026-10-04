@@ -47,6 +47,8 @@ from typing import Dict, List, Optional
 sys.path.insert(0, os.path.dirname(__file__))
 
 from ensemble import GeoSpecEnsemble, EnsembleResult, RISK_TIERS
+# method-comparability-v1 (prospective; only rows that carry a method set are affected)
+import method_comparability as MC
 # Immutable public revision store (asylum 2026-09-02: "use immutable
 # revision"; codex's model). The runner's production path publishes
 # every scored day create-once under docs/ensemble/<date>/<run_id>.json
@@ -800,6 +802,7 @@ def check_persistence(
     for region, result in current_results.items():
         tier_history = [result.tier]
         current_tier = result.tier
+        prior_rows = []  # method-comparability-v1: the issued prior-day rows, nearest first (None = hole)
 
         # Look back for consecutive days at same or higher tier
         for days_back in range(1, required_consecutive + 2):
@@ -813,8 +816,10 @@ def check_persistence(
             if prev_data and region in prev_data.get('regions', {}):
                 prev_tier = prev_data['regions'][region].get('tier', 0)
                 tier_history.insert(0, prev_tier)
+                prior_rows.append(prev_data['regions'][region])
             else:
                 tier_history.insert(0, None)
+                prior_rows.append(None)
 
         # Count consecutive days at current tier level or above (WATCH = 1)
         consecutive = 1
@@ -833,6 +838,16 @@ def check_persistence(
             'is_confirmed': is_confirmed,
             'tier_history': tier_history,
         }
+        # method-comparability-v1 (rule active only): count only prior days issued under the SAME regime; a
+        # regime change is recorded, never carried across. Issued tiers in tier_history stay as issued.
+        method_set = getattr(result, 'method_set', None)
+        if method_set is not None:
+            regime = MC.regime_persistence(current_tier, method_set, prior_rows, required_consecutive)
+            consecutive = max(1, regime.pop('consecutive_days'))
+            is_confirmed = regime.pop('is_confirmed')
+            persistence[region]['consecutive_days'] = consecutive if current_tier >= 1 else 0
+            persistence[region]['is_confirmed'] = is_confirmed
+            persistence[region]['regime'] = regime
 
         if current_tier >= 1:
             status = 'CONFIRMED' if is_confirmed else 'PRELIMINARY'
@@ -937,6 +952,30 @@ def save_results(
         'max_risk_region': max_risk_region,
         'max_risk': max_risk,
     }
+    # method-comparability-v1 (rule active only): combined_risk is a conditional mean over each region's
+    # included methods, so the cross-region maximum is reported per comparability group, and a single
+    # maximum across different groups is withheld. Rows without a method set leave the summary as before.
+    with_method_set = sorted(r for r, d in output_data['regions'].items() if d.get('method_set'))
+    if with_method_set:
+        groups = MC.comparison_groups(output_data['regions'])
+        output_data['summary']['comparison'] = {
+            'contract_version': MC.COMPARISON_CONTRACT_VERSION,
+            'risk_basis': MC.RISK_BASIS,
+            'groups': groups,
+            'regions_without_method_set': sorted(set(output_data['regions']) - set(with_method_set)),
+        }
+        if len(groups) > 1:
+            output_data['summary']['max_risk_region'] = None
+            output_data['summary']['max_risk'] = None
+            output_data['summary']['max_risk_withheld'] = (
+                f'regions span {len(groups)} comparability groups; the maximum is reported per group '
+                f'(summary.comparison.groups)')
+        elif len(groups) == 1:
+            only = next(iter(groups.values()))
+            if len(only['max_risk_regions']) > 1:
+                # an exact tie (e.g. two regions on one shared station) is reported, not broken by order
+                output_data['summary']['max_risk_region'] = None
+                output_data['summary']['max_risk_tied_regions'] = list(only['max_risk_regions'])
 
     with open(output_file, 'w') as f:
         json.dump(output_data, f, indent=2)

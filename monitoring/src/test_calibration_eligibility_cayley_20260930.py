@@ -352,6 +352,15 @@ class FlagOffIsByteIdentical(unittest.TestCase):
         self.assertEqual(judged, ["fault_correlation", "seismic_thd"])   # lambda_geo was not supplied -> not judged
         for comp in cand["components"].values():
             comp.pop("calibration", None)
+        # method-comparability-v1 (M1, 2026-10-04): the rule-on region also carries its method-set block. Its
+        # content is asserted here, then it is removed like the other rule-on additions.
+        ms = cand.pop("method_set")
+        self.assertEqual((ms["label"], ms["included"], ms["effective_weights"]), ("NONE", [], {}))
+        self.assertEqual(ms["states"], {"lambda_geo": "UNAVAILABLE", "fault_correlation": "UNAVAILABLE",
+                                       "seismic_thd": "INVALID_DEFAULT"})
+        self.assertEqual(ms["excluded"]["seismic_thd"]["code"], "ZERO_SAMPLE_DEFAULT")
+        self.assertEqual(ms["excluded"]["fault_correlation"]["code"], "NO_ADMISSIBLE_CAPSULE")
+        self.assertNotIn("method_set", base)
         for key in ("tier", "tier_name", "methods_available", "combined_risk", "confidence", "agreement", "notes", "effective_weights"):
             cand.pop(key), base.pop(key)
         self.maxDiff = None

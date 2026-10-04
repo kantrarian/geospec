@@ -49,6 +49,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 from ensemble import GeoSpecEnsemble, EnsembleResult, RISK_TIERS
 # method-comparability-v1 (prospective; only rows that carry a method set are affected)
 import method_comparability as MC
+import evidence_redaction as ER
 # Immutable public revision store (asylum 2026-09-02: "use immutable
 # revision"; codex's model). The runner's production path publishes
 # every scored day create-once under docs/ensemble/<date>/<run_id>.json
@@ -273,15 +274,16 @@ THD_ROLES = ('CONFIGURED_PRIMARY', 'CONFIGURED_FALLBACK', 'CONFIGURED_FALLBACK2'
 
 
 def thd_station_outcome(component, provider_records):
-    """The outcome of one configured station's attempt, from the THD component and its provider records."""
+    """The outcome of one configured station's attempt, from the THD component and its provider records. The reason
+    is redacted (evidence_redaction): an ERROR note carries exception text, which must not reach evidence raw."""
     if component is not None and component.available:
-        return 'VALUE', component.notes
+        return 'VALUE', ER.redact(component.notes)
     notes = component.notes if component is not None else 'no THD component'
     if notes.startswith('Insufficient data from'):
         if any(r.get('outcome') == 'DATA_RETURNED' for r in provider_records or ()):
-            return 'INSUFFICIENT_SAMPLES', notes + ' (data returned, shorter than the 12 h minimum)'
-        return 'NO_DATA', notes
-    return 'ERROR', notes
+            return 'INSUFFICIENT_SAMPLES', ER.redact(notes + ' (data returned, shorter than the 12 h minimum)')
+        return 'NO_DATA', ER.redact(notes)
+    return 'ERROR', ER.redact(notes)
 
 
 # =============================================================================
@@ -389,6 +391,10 @@ def run_region_assessment(
             # Return best result we got (even if THD failed on all stations)
             return result
         else:
+            if ensemble.eligibility_rule_active:
+                # method-comparability-v1 (codex db9a28ff finding 2): with the rule on, the Lambda_geo-only path goes
+                # through the qualified combiner; the legacy construction below would bypass qualification.
+                return ensemble.compute_risk(target_date, methods=('lambda_geo',))
             # Lambda_geo only
             lg_result = ensemble.compute_lambda_geo_risk(target_date)
             risk = lg_result.risk_score

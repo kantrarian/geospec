@@ -31,6 +31,8 @@ Contract:
 """
 from __future__ import annotations
 
+import hashlib
+import inspect
 from typing import Dict, Iterable, List, Mapping, Optional, Sequence
 
 import calibration_eligibility as CE
@@ -61,6 +63,26 @@ _REFUSED_STATUS_STATE = {
 }
 
 RISK_BASIS = "CONDITIONAL_MEAN_OVER_INCLUDED_METHODS"
+# A cross-region maximum is a DESCRIPTIVE method-score statistic within one comparable group, never a calibrated
+# regional risk or a ranking of hazard (codex db9a28ff finding 2).
+MAXIMUM_BASIS = "DESCRIPTIVE_METHOD_SCORE_WITHIN_ONE_COMPARABLE_GROUP_NOT_CALIBRATED_REGIONAL_RISK"
+UNIDENTIFIED = "UNIDENTIFIED"
+
+
+def code_identity(*objects) -> str:
+    """The estimator / normalization identity of the code that produced a value: each object's qualified name and
+    the sha256 of its source, so a change of the code changes the identity (derived, never a hand-kept version).
+    UNIDENTIFIED when any source cannot be read."""
+    parts = []
+    for obj in objects:
+        target = getattr(obj, "__func__", obj)
+        try:
+            source = inspect.getsource(target)
+        except (OSError, TypeError):
+            return UNIDENTIFIED
+        name = getattr(target, "__qualname__", getattr(target, "__name__", type(target).__name__))
+        parts.append("%s@%s" % (name, hashlib.sha256(source.encode("utf-8")).hexdigest()[:12]))
+    return "+".join(parts) or UNIDENTIFIED
 NO_METHODS_LABEL = "NONE"
 PRE_CONTRACT_REGIME = "PRE_CONTRACT"
 
@@ -141,12 +163,20 @@ def method_set(components: Mapping, weights: Mapping[str, float], rule_active: b
         row = dict(support.get(n) or {})
         identity = row.get("identity") or "UNIDENTIFIED"
         klass = row.get("calibration_class") or "UNIDENTIFIED"
+        estimator = row.get("estimator") or UNIDENTIFIED
         shared = sorted(set(row.get("shared_with") or ()))
-        support_rows[n] = {"identity": identity, "calibration_class": klass, "shared_with": shared,
+        support_rows[n] = {"identity": identity, "calibration_class": klass, "estimator": estimator,
+                           "shared_with": shared,
                            "independent_of_other_regions": (len(shared) == 1 if shared else None)}
         classes.append("%s:%s" % (METHOD_LABELS[n], klass))
     label = label_for(included)
-    key = "%s|%s|%s" % (label, regime_id(), ",".join(classes) or NO_METHODS_LABEL)
+    # Comparison identity: the method set, the rule/contract regime, the calibration class, the ESTIMATOR /
+    # normalization code identity and the EFFECTIVE WEIGHTS of each included method (codex db9a28ff finding 2):
+    # identical method names under different weights or operator versions never share a group.
+    estimators = ",".join("%s:%s" % (METHOD_LABELS[n], support_rows[n]["estimator"]) for n in included)
+    weights_key = ",".join("%s=%r" % (METHOD_LABELS[n], effective[n]) for n in included)
+    key = "%s|%s|%s|%s|%s" % (label, regime_id(), ",".join(classes) or NO_METHODS_LABEL,
+                             estimators or NO_METHODS_LABEL, weights_key or NO_METHODS_LABEL)
     return {
         "contract_version": COMPARISON_CONTRACT_VERSION,
         "rule_version": CE.ELIGIBILITY_RULE_VERSION,
@@ -164,6 +194,7 @@ def method_set(components: Mapping, weights: Mapping[str, float], rule_active: b
         "comparability_key": key,
         "comparability_complete": bool(included) and all(
             r["calibration_class"] != "UNIDENTIFIED" and r["identity"] != "UNIDENTIFIED"
+            and r["estimator"] != UNIDENTIFIED
             for r in support_rows.values()),
         "risk_basis": RISK_BASIS,
     }
@@ -179,7 +210,8 @@ def comparison_groups(region_rows: Mapping[str, Mapping]) -> Dict[str, Dict]:
         ms = row.get("method_set")
         if not ms or not ms.get("included") or not ms.get("comparability_complete"):
             continue
-        g = groups.setdefault(ms["comparability_key"], {"label": ms["label"], "regions": [],
+        g = groups.setdefault(ms["comparability_key"], {"label": ms["label"], "maximum_basis": MAXIMUM_BASIS,
+                                                         "regions": [],
                                                          "max_risk_region": None, "max_risk": None,
                                                          "max_risk_regions": []})
         g["regions"].append(region)

@@ -574,7 +574,9 @@ def fetch_continuous_data_for_thd(
         except Exception as e:
             logger.debug(f"{client_name} failed for {station_network}.{station_code}: {e}")
             if record is not None:
-                record.update(outcome='PROVIDER_ERROR', reason='%s: %s' % (type(e).__name__, str(e)[:240]))
+                # the exception text is redacted before it becomes evidence (credential-shaped material removed)
+                from evidence_redaction import redact
+                record.update(outcome='PROVIDER_ERROR', reason=redact('%s: %s' % (type(e).__name__, e)))
             continue
 
     logger.error(f"Could not retrieve data for {station_network}.{station_code}")

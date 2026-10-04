@@ -614,9 +614,14 @@ class GeoSpecEnsemble:
                 self._lambda_geo_provenance.get(date.strftime('%Y-%m-%d')), date,
                 max_age_days=LAMBDA_GEO_BASELINE_MAX_AGE_DAYS,
                 min_lag_days=LAMBDA_GEO_BASELINE_MIN_LAG_DAYS))
-            # method-comparability-v1: the provenance the ratio rests on, and the registered policy class.
+            # method-comparability-v1: the provenance the ratio rests on, and the registered policy class. The
+            # numerator estimator is identified only by the provenance's bound operator identity; without one the
+            # estimator is UNIDENTIFIED and the region cannot join a comparable group.
             prov = self._lambda_geo_provenance.get(date.strftime('%Y-%m-%d'))
+            operator = prov.get('operator_identity') if isinstance(prov, dict) else None
             result.support = {
+                'estimator': ((MC.code_identity(lambda_geo_to_risk) + '|operator=' + str(operator))
+                              if operator else MC.UNIDENTIFIED),
                 'identity': ('lambda_geo provenance %s window_end %s calibrated_on %s'
                              % (prov.get('source'), prov.get('window_end'), prov.get('calibrated_on'))
                              if isinstance(prov, dict) else None),
@@ -739,8 +744,21 @@ class GeoSpecEnsemble:
                 'identity': 'capsule %s %s issued %s' % (_cap('region'), _cap('processing_version'),
                                                          _cap('issued_utc')),
                 'calibration_class': 'FC_CAPSULE:%s/%s' % (_cap('processing_version'), _cap('band_tag')),
+                'estimator': '%s|processing=%s|topology=%s' % (
+                    MC.code_identity(fault_correlation_to_risk), _cap('processing_version'), _cap('topology_version')),
                 'shared_with': [self.region]}
         return (scored, segments_defined, segments_working, segment_names)
+
+    def thd_support(self, station_id: str) -> Dict:
+        """method-comparability-v1: the support of a THD value -- its station, the registered calibration class, the
+        estimator/normalization code identity (analyzer + baseline mapping) and every configured region the station
+        serves. One definition for the compute path and for any replay of a retained report."""
+        return {
+            'identity': station_id,
+            'calibration_class': 'THD_STATION_BASELINE:max_age=%s,min_lag=%s' % (
+                MAX_BASELINE_AGE_DAYS, CE.registered_constant('run_thd_recal', 'EXCLUDE_RECENT_DAYS')),
+            'estimator': MC.code_identity(type(self.thd_analyzer).analyze_window, thd_to_risk_with_baseline),
+            'shared_with': list(self.station_regions.get(station_id, ()))}
 
     def compute_thd_risk(
         self,
@@ -905,12 +923,7 @@ class GeoSpecEnsemble:
                 CE.attach(result, eligibility)
                 # method-comparability-v1: the station the value rests on and every region it serves (shared
                 # support is not independent regional confirmation).
-                station_id = f'{station_network}.{station_code}'
-                result.support = {
-                    'identity': station_id,
-                    'calibration_class': 'THD_STATION_BASELINE:max_age=%s,min_lag=%s' % (
-                        MAX_BASELINE_AGE_DAYS, CE.registered_constant('run_thd_recal', 'EXCLUDE_RECENT_DAYS')),
-                    'shared_with': list(self.station_regions.get(station_id, ()))}
+                result.support = self.thd_support(f'{station_network}.{station_code}')
             return result
 
         except Exception as e:
@@ -965,7 +978,8 @@ class GeoSpecEnsemble:
         self,
         target_date: datetime,
         thd_station: str = 'CCC',
-        thd_network: str = 'CI'
+        thd_network: str = 'CI',
+        methods: Optional[Tuple[str, ...]] = None,
     ) -> EnsembleResult:
         """
         Compute combined risk assessment.
@@ -983,20 +997,28 @@ class GeoSpecEnsemble:
         # Compute each method
         components = {}
 
+        # `methods` (method-comparability-v1): None computes all three as always; a subset is used ONLY by the
+        # rule-on Lambda_geo-only path so it goes through this combiner instead of bypassing qualification.
+        wanted = MC.METHOD_ORDER if methods is None else tuple(methods)
+        segments_defined, segments_working, segment_names = 0, 0, []
+
         # Lambda_geo
-        components['lambda_geo'] = self.compute_lambda_geo_risk(target_date)
+        if 'lambda_geo' in wanted:
+            components['lambda_geo'] = self.compute_lambda_geo_risk(target_date)
 
         # Fault Correlation (with coverage tracking)
-        fc_result, segments_defined, segments_working, segment_names = \
-            self.compute_fault_correlation_risk(target_date)
-        components['fault_correlation'] = fc_result
+        if 'fault_correlation' in wanted:
+            fc_result, segments_defined, segments_working, segment_names = \
+                self.compute_fault_correlation_risk(target_date)
+            components['fault_correlation'] = fc_result
 
         # THD
-        components['seismic_thd'] = self.compute_thd_risk(
-            target_date,
-            station_network=thd_network,
-            station_code=thd_station
-        )
+        if 'seismic_thd' in wanted:
+            components['seismic_thd'] = self.compute_thd_risk(
+                target_date,
+                station_network=thd_network,
+                station_code=thd_station
+            )
 
         # INCIDENT 2026-07-31 freeze: mark registered artifact-driven components EXCLUDED from tier computation
         # (still emitted + annotated for transparency; lifts only with a dated fix note). See FROZEN_COMPONENTS.

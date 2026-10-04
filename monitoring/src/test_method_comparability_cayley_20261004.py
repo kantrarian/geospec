@@ -33,8 +33,11 @@ THD_CLASS = "THD_STATION_BASELINE:max_age=%s,min_lag=%s" % (
     E.MAX_BASELINE_AGE_DAYS, CE.registered_constant("run_thd_recal", "EXCLUDE_RECENT_DAYS"))
 
 
+SYNTHETIC_ESTIMATOR = "SYNTHETIC_ESTIMATOR_v1"
+
+
 def comp(name, score=0.0, *, available=True, status=CE.STATUS_CALIBRATED, frozen=False, judged=True, code=None,
-         station=None, shared=()):
+         station=None, shared=(), estimator=SYNTHETIC_ESTIMATOR):
     """A synthetic MethodResult; `judged` attaches a verdict exactly as CE.attach does."""
     r = E.MethodResult(name=name, available=available, raw_value=score, risk_score=score,
                        is_elevated=score >= 0.5, is_critical=score >= 0.75, notes=SYNTHETIC)
@@ -43,13 +46,14 @@ def comp(name, score=0.0, *, available=True, status=CE.STATUS_CALIBRATED, frozen
         CE.attach(r, CE.Eligibility(status=status, eligible_for_tiering=status in CE.ELIGIBLE_STATUSES,
                                     reason=reason, code=reason.split(":")[0]))
     if name == "seismic_thd" and station:
-        r.support = {"identity": station, "calibration_class": THD_CLASS, "shared_with": list(shared)}
+        r.support = {"identity": station, "calibration_class": THD_CLASS, "estimator": estimator,
+                     "shared_with": list(shared)}
     elif name == "lambda_geo" and judged and status in CE.ELIGIBLE_STATUSES:
         r.support = {"identity": "synthetic provenance", "calibration_class": "LG_BASELINE_RATIO:synthetic",
-                     "shared_with": []}
+                     "estimator": estimator, "shared_with": []}
     elif name == "fault_correlation" and judged and status in CE.ELIGIBLE_STATUSES:
         r.support = {"identity": "synthetic capsule", "calibration_class": "FC_CAPSULE:synthetic",
-                     "shared_with": []}
+                     "estimator": estimator, "shared_with": []}
     return r
 
 

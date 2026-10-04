@@ -177,6 +177,20 @@ def calibration_date_from_name(name: str) -> Optional[str]:
         return None
 
 
+def _baseline_from_entry(e, filename):
+    """Shared loader/snapshot parser; a malformed row never selects a newer file."""
+    if e.get('mean_thd') is None or e.get('std_thd') is None:
+        raise ValueError('missing baseline moments')
+    effective_date = e.get('calibration_date')
+    if not isinstance(effective_date, str) or len(effective_date) != 10:
+        effective_date = calibration_date_from_name(filename)
+    return StationBaseline(
+        station=e['station'], mean_thd=float(e['mean_thd']), std_thd=float(e['std_thd']),
+        n_samples=int(e.get('n_samples') or e.get('n_days_valid') or 0),
+        calibration_period=e.get('calibration_period', 'unknown'),
+        notes=f"Rolling recal, loaded newest-first from {filename}", calibration_date=effective_date)
+
+
 def _load_newest_baseline_file(bdir: Optional[Path] = None) -> Optional[str]:
     """INCIDENT 2026-07-31 (D1) newest-first load: override the hardcoded (2026-01) defaults above with the
     freshest dated rolling-recal file `data/baselines/thd_baselines_*.json`, so the weekly R3 recal is picked
@@ -207,15 +221,8 @@ def _load_newest_baseline_file(bdir: Optional[Path] = None) -> Optional[str]:
         loaded = 0
         for e in entries:
             try:
-                if e.get('mean_thd') is None or e.get('std_thd') is None:
-                    continue
-                key = e['station']
-                STATION_BASELINES[key] = StationBaseline(
-                    station=key, mean_thd=float(e['mean_thd']), std_thd=float(e['std_thd']),
-                    n_samples=int(e.get('n_samples') or e.get('n_days_valid') or 0),
-                    calibration_period=e.get('calibration_period', 'unknown'),
-                    notes=f"Rolling recal, loaded newest-first from {f.name}",
-                    calibration_date=calibration_date_from_name(f.name))
+                parsed = _baseline_from_entry(e, f.name)
+                STATION_BASELINES[parsed.station] = parsed
                 loaded += 1
             except Exception:
                 continue

@@ -67,6 +67,24 @@ class Parsing(unittest.TestCase):
         self.assertEqual(M.recorded_station(rep("")), (None, "NOT_RECORDED", None))
         self.assertEqual(M.recorded_station(None), (None, "NOT_RECORDED", None))
 
+    def test_three_part_station_codes_are_kept_whole(self):
+        """grassmann 2026-10-03 (cayley b1765426 defect): HINET.N.KI2H must not be truncated to N.KI2H / HINET.N."""
+        rep = lambda notes: {"components": {"seismic_thd": {"notes": notes, "available": True, "raw_value": 0.3}}}
+        self.assertEqual(M.recorded_station(rep("sta=HINET.N.KI2H, THD=0.30, z=0.1, n=12, rate=100Hz")),
+                         ("HINET.N.KI2H", "LATEST_REPORT_NOTES_STA", 12))
+        self.assertEqual(M.recorded_station(rep("Insufficient data from HINET.N.KI2H")),
+                         ("HINET.N.KI2H", "LATEST_REPORT_NOTES_ATTEMPTED_NO_VALUE", None))
+        self.assertEqual(M.recorded_station(rep("sta=IU.TUC, THD=0.40, z=0.57, n=91, rate=40Hz"))[0], "IU.TUC")
+
+    def test_second_configured_fallback_is_a_row_role_with_a_distance_entry(self):
+        """grassmann 2026-10-03 (cayley b1765426 defect): anchorage's fallback2 AK.BMR was omitted from the map."""
+        rows = {r["region"]: r for r in M.build()["regions"]}
+        self.assertEqual(rows["anchorage"]["configured_fallback2"], "AK.BMR")
+        self.assertIn("AK.BMR", rows["anchorage"]["distances"])
+        self.assertIsNone(rows["kaikoura"]["configured_fallback2"])
+        for row in rows.values():
+            self.assertIn("configured_fallback2", row)
+
     def test_notes_do_not_create_available_numeric_measurements(self):
         for available, raw in [(False, 0.4), (True, None), (True, "0.4"), (True, False), (True, float('nan'))]:
             with self.subTest(available=available, raw=raw):

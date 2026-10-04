@@ -36,8 +36,12 @@
   {
    "baseline_n_days": 91,
    "configured_fallback": "IU.COLA",
+   "configured_fallback2": "AK.BMR",
    "configured_primary": "AK.SSL",
    "distances": {
+    "AK.BMR": {
+     "status": "COORDINATES_NOT_ON_FILE"
+    },
     "AK.SSL": {
      "status": "COORDINATES_NOT_ON_FILE"
     },
@@ -59,6 +63,7 @@
   {
    "baseline_n_days": null,
    "configured_fallback": null,
+   "configured_fallback2": null,
    "configured_primary": "IV.CAFE",
    "distances": {
     "IV.CAFE": {
@@ -79,6 +84,7 @@
   {
    "baseline_n_days": 91,
    "configured_fallback": null,
+   "configured_fallback2": null,
    "configured_primary": "IU.COR",
    "distances": {
     "IU.COR": {
@@ -97,8 +103,9 @@
    "shares_recorded_station_with": []
   },
   {
-   "baseline_n_days": 85,
+   "baseline_n_days": 89,
    "configured_fallback": null,
+   "configured_fallback2": null,
    "configured_primary": "IU.TATO",
    "distances": {
     "IU.TATO": {
@@ -119,6 +126,7 @@
   {
    "baseline_n_days": 91,
    "configured_fallback": null,
+   "configured_fallback2": null,
    "configured_primary": "IU.ANTO",
    "distances": {
     "IU.ANTO": {
@@ -141,6 +149,7 @@
   {
    "baseline_n_days": 0,
    "configured_fallback": null,
+   "configured_fallback2": null,
    "configured_primary": "IU.SNZO",
    "distances": {
     "IU.SNZO": {
@@ -161,6 +170,7 @@
   {
    "baseline_n_days": 91,
    "configured_fallback": null,
+   "configured_fallback2": null,
    "configured_primary": "IU.MAJO",
    "distances": {
     "IU.MAJO": {
@@ -183,6 +193,7 @@
   {
    "baseline_n_days": 46,
    "configured_fallback": "G.UNM",
+   "configured_fallback2": null,
    "configured_primary": "MX.TLIG",
    "distances": {
     "G.UNM": {
@@ -207,6 +218,7 @@
   {
    "baseline_n_days": 91,
    "configured_fallback": null,
+   "configured_fallback2": null,
    "configured_primary": "BK.BKS",
    "distances": {
     "BK.BKS": {
@@ -227,6 +239,7 @@
   {
    "baseline_n_days": 91,
    "configured_fallback": null,
+   "configured_fallback2": null,
    "configured_primary": "IU.TUC",
    "distances": {
     "IU.TUC": {
@@ -250,6 +263,7 @@
   {
    "baseline_n_days": 91,
    "configured_fallback": null,
+   "configured_fallback2": null,
    "configured_primary": "IU.TUC",
    "distances": {
     "IU.TUC": {
@@ -273,6 +287,7 @@
   {
    "baseline_n_days": 91,
    "configured_fallback": null,
+   "configured_fallback2": null,
    "configured_primary": "IU.TUC",
    "distances": {
     "IU.TUC": {
@@ -296,6 +311,7 @@
   {
    "baseline_n_days": 91,
    "configured_fallback": "IU.MAJO",
+   "configured_fallback2": null,
    "configured_primary": "HINET.N.KI2H",
    "distances": {
     "HINET.N.KI2H": {
@@ -321,6 +337,7 @@
   {
    "baseline_n_days": 91,
    "configured_fallback": null,
+   "configured_fallback2": null,
    "configured_primary": "IU.ANTO",
    "distances": {
     "IU.ANTO": {
@@ -341,7 +358,7 @@
    ]
   }
  ],
- "report_date": "2026-09-25",
+ "report_date": "2026-10-01",
  "schema": "geospec.thd-station-map.v1",
  "stations": {
   "BK.BKS": {

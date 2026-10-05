@@ -269,7 +269,7 @@ THD_STATION_REGIONS = configured_thd_station_regions(REGIONS)
 # happened to it on this run -- the value it supplied, the reason it supplied none, or that it was not attempted
 # because an earlier station answered -- and, per station, the provider records of its fetch. Off, every output is
 # byte-identical to the issued reports (legacy reports retained no attempt detail: NOT_RETAINED).
-RECORD_THD_ATTEMPTS = False
+RECORD_THD_ATTEMPTS = True
 THD_ATTEMPTS_SCHEMA = 'thd-station-attempts-v1'
 THD_ROLES = ('CONFIGURED_PRIMARY', 'CONFIGURED_FALLBACK', 'CONFIGURED_FALLBACK2')
 

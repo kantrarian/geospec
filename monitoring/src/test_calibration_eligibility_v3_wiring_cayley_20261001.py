@@ -97,7 +97,8 @@ class LagRecheck(unittest.TestCase):
 
     def test_rule_version(self):
         self.assertEqual(CE.ELIGIBILITY_RULE_VERSION, "calibration-eligibility-v3")
-        self.assertFalse(CE.ELIGIBILITY_RULE_ACTIVE)
+        self.assertTrue(CE.ELIGIBILITY_RULE_ACTIVE)            # activation commit; boundary 2026-10-07
+        self.assertEqual(CE.EFFECTIVE_SCORED_DAY, "2026-10-07")
 
 
 class StructuredCalibrationDate(unittest.TestCase):

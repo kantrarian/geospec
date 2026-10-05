@@ -73,12 +73,12 @@ from typing import Iterable, Optional, Sequence, Tuple
 
 ELIGIBILITY_RULE_VERSION = "calibration-eligibility-v3"
 # Prospective rule: OFF until a dated amendment / owner decision. Nothing in the ordinary run flips this.
-ELIGIBILITY_RULE_ACTIVE = False
+ELIGIBILITY_RULE_ACTIVE = True
 # The amendment's effective scored-day boundary (ISO date, e.g. "2026-10-12"). None = UNSET. The production daily path
 # applies the rule to scored day D only when ELIGIBILITY_RULE_ACTIVE AND D >= this boundary, so a replay of an earlier
 # day keeps the rule-off behaviour and never rescores issued history. An ACTIVE rule with an UNSET boundary refuses.
 # Both constants change together, in ONE reviewed commit.
-EFFECTIVE_SCORED_DAY = None
+EFFECTIVE_SCORED_DAY = "2026-10-07"
 
 STATUS_MISSING = "missing"
 STATUS_ZERO = "zero"

@@ -310,9 +310,11 @@ class RuleOnTierEffects(unittest.TestCase):
                 self.assertTrue(fcr.eligibility_reason.startswith(code))
                 self.assertEqual(r.methods_available, 2 if status == "calibrated" else 1)
 
-    def test_rule_off_by_default(self):
-        self.assertFalse(CE.ELIGIBILITY_RULE_ACTIVE)
-        self.assertFalse(ensemble.GeoSpecEnsemble("kaikoura").eligibility_rule_active)
+    def test_shipped_rule_state(self):
+        # Activation commit: the module flag ships ON with its boundary. An ensemble built WITHOUT a scored day follows
+        # the module flag; the production daily path decides per scored day (rule_active_for_scored_day).
+        self.assertTrue(CE.ELIGIBILITY_RULE_ACTIVE)
+        self.assertTrue(ensemble.GeoSpecEnsemble("kaikoura").eligibility_rule_active)
 
 
 @unittest.skipIf(BASE_ENSEMBLE_PY is None, "base-commit ensemble.py copy not present (CALIBRATION_ELIGIBILITY_BASE_ENSEMBLE)")

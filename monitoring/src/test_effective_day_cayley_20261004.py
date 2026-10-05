@@ -20,11 +20,15 @@ import run_ensemble_daily as RD  # noqa: E402
 
 
 class Boundary(unittest.TestCase):
-    def test_shipped_constants_are_off_and_unset(self):
-        self.assertIs(CE.ELIGIBILITY_RULE_ACTIVE, False)
-        self.assertIsNone(CE.EFFECTIVE_SCORED_DAY)
-        for day in (datetime(2026, 10, 2), date(2030, 1, 1), "2026-10-12"):
-            self.assertIs(CE.rule_active_for_scored_day(day), False)
+    def test_shipped_constants_activate_on_2026_10_07(self):
+        # The activation commit (owner go, effective scored day 2026-10-07 UTC; AMENDMENT_2026-10-05_method_qualification).
+        self.assertIs(CE.ELIGIBILITY_RULE_ACTIVE, True)
+        self.assertEqual(CE.EFFECTIVE_SCORED_DAY, "2026-10-07")
+        self.assertIs(RD.RECORD_THD_ATTEMPTS, True)
+        for day in (datetime(2026, 10, 2), date(2026, 10, 6), "2026-10-06"):
+            self.assertIs(CE.rule_active_for_scored_day(day), False, day)
+        for day in (datetime(2026, 10, 7), date(2026, 10, 8), "2030-01-01"):
+            self.assertIs(CE.rule_active_for_scored_day(day), True, day)
 
     def test_an_active_rule_without_a_boundary_refuses(self):
         with mock.patch.object(CE, "ELIGIBILITY_RULE_ACTIVE", True), mock.patch.object(CE, "EFFECTIVE_SCORED_DAY", None):

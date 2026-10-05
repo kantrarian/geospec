@@ -548,26 +548,34 @@ def fetch_continuous_data_for_thd(
         logger.info(f"Retrieved {len(data)} samples via bound operator {rec['operator_identity'][:12]} "
                     f"({len(data)/sample_rate/3600:.1f} hours, loc {rec['location']})")
         return data, sample_rate
-    clients_to_try = []
-    if station_network == 'CI':
-        clients_to_try = ['SCEDC', 'IRIS']
-    elif station_network in ('BK', 'NC'):
-        clients_to_try = ['NCEDC', 'IRIS']
-    elif station_network == 'GE':
-        # GEOFON network - use GEOFON data center (better availability than IRIS)
-        clients_to_try = ['GEOFON', 'GFZ', 'IRIS']
-    elif station_network in ('IU', 'II', 'CN', 'UW'):
-        clients_to_try = ['IRIS']
-    else:
-        clients_to_try = ['IRIS', 'GEOFON', 'SCEDC', 'NCEDC']  # Try all
+    # thd-provider-routing-v1 (codex 70ec9745 section 3): an explicit network -> adapter map replaces the if/elif
+    # ladder; an unmapped network is refused by name instead of being sent through four generic providers.
+    import thd_provider_routing as TPR
+    adapters = TPR.route(station_network)
+    nslc_requested = '%s.%s.*.%s' % (station_network, station_code, channel)
+    if adapters is None:
+        if attempts is not None:
+            attempts.append({'provider': None, 'adapter': None, 'routing': TPR.ROUTING_VERSION,
+                             'nslc_requested': nslc_requested, 'window_requested': [start.isoformat(), end.isoformat()],
+                             'outcome': 'NOT_REQUESTED', 'typed_outcome': 'NETWORK_NOT_ROUTED',
+                             'reason': 'network %s has no adapter in %s' % (station_network, TPR.ROUTING_VERSION)})
+        logger.error(f"No provider route for network {station_network} ({TPR.ROUTING_VERSION})")
+        return None, 0.0
 
-    for client_name in clients_to_try:
+    for adapter, client_name in adapters:
         record = None
         if attempts is not None:
-            record = {'provider': client_name,
-                      'nslc_requested': '%s.%s.*.%s' % (station_network, station_code, channel),
+            record = {'provider': client_name, 'adapter': adapter, 'routing': TPR.ROUTING_VERSION,
+                      'nslc_requested': nslc_requested,
                       'window_requested': [start.isoformat(), end.isoformat()]}
             attempts.append(record)
+        if adapter != TPR.FDSN:
+            # NIED Hi-net: registered access only; no request is made and no credential is read here.
+            if record is not None:
+                record.update(outcome='NOT_REQUESTED', typed_outcome='AUTH_REQUIRED', exception_class=None,
+                              http_status=None, reason='%s access is registered (owner-handled); no request made'
+                              % adapter)
+            continue
         try:
             client = Client(client_name, timeout=120)
 
@@ -597,7 +605,7 @@ def fetch_continuous_data_for_thd(
 
                 if record is not None:
                     stats = st[0].stats
-                    record.update(outcome='DATA_RETURNED', reason=None, trace_id=st[0].id,
+                    record.update(outcome='DATA_RETURNED', typed_outcome='DATA_RETURNED', reason=None, trace_id=st[0].id,
                                   location=stats.location, channel=stats.channel,
                                   epoch=[str(stats.starttime), str(stats.endtime)],
                                   sampling_rate=float(sample_rate), n_samples=int(len(data)),
@@ -606,14 +614,18 @@ def fetch_continuous_data_for_thd(
                                   response='NOT_REMOVED (raw counts; demean and linear detrend only)')
                 return data, sample_rate
             if record is not None:
-                record.update(outcome='NO_TRACES', reason='provider returned an empty stream')
+                record.update(outcome='NO_TRACES', typed_outcome='NO_DATA', exception_class=None, http_status=None,
+                              reason='provider returned an empty stream')
 
         except Exception as e:
             logger.debug(f"{client_name} failed for {station_network}.{station_code}: {e}")
             if record is not None:
-                # the exception text is redacted before it becomes evidence (credential-shaped material removed)
+                # the exception text is redacted before it becomes evidence (credential-shaped material removed); the
+                # class and HTTP status are kept as separate fields and give the typed outcome (thd-provider-routing-v1)
                 from evidence_redaction import redact
-                record.update(outcome='PROVIDER_ERROR', reason=redact('%s: %s' % (type(e).__name__, e)))
+                typed, exception_class, http_status = TPR.classify_exception(e)
+                record.update(outcome='PROVIDER_ERROR', typed_outcome=typed, exception_class=exception_class,
+                              http_status=http_status, reason=redact('%s: %s' % (type(e).__name__, e)))
             continue
 
     logger.error(f"Could not retrieve data for {station_network}.{station_code}")

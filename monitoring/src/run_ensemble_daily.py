@@ -270,7 +270,9 @@ THD_STATION_REGIONS = configured_thd_station_regions(REGIONS)
 # because an earlier station answered -- and, per station, the provider records of its fetch. Off, every output is
 # byte-identical to the issued reports (legacy reports retained no attempt detail: NOT_RETAINED).
 RECORD_THD_ATTEMPTS = True
-THD_ATTEMPTS_SCHEMA = 'thd-station-attempts-v1'
+# v2 = v1 provider records plus adapter, routing, typed_outcome, exception_class and http_status
+# (thd-provider-routing-v1); same label would carry content the identity omits.
+THD_ATTEMPTS_SCHEMA = 'thd-station-attempts-v2'
 THD_ROLES = ('CONFIGURED_PRIMARY', 'CONFIGURED_FALLBACK', 'CONFIGURED_FALLBACK2')
 
 

@@ -112,23 +112,25 @@ class FetchRecordsProviders(unittest.TestCase):
         self.saved = _install_fake_obspy()
         self.addCleanup(_restore, self.saved)
 
-    def fetch(self, attempts=None, net="XX"):
+    def fetch(self, attempts=None, net="BK"):
         kwargs = {} if attempts is None else {"attempts": attempts}
         return self.ST.fetch_continuous_data_for_thd(net, "STA", datetime(2026, 10, 1), datetime(2026, 10, 2),
                                                     **kwargs)
 
     def test_each_provider_tried_is_recorded_until_one_returns(self):
-        _Client.BEHAVIOUR = {"IRIS": "raise", "GEOFON": "empty", "SCEDC": 20 * 3600 * 24, "NCEDC": "raise"}
+        # thd-provider-routing-v1: BK routes NCEDC then IRIS (an unmapped network is refused, see
+        # test_thd_provider_routing_cayley_20261005); the recording contract is unchanged.
+        _Client.BEHAVIOUR = {"NCEDC": "raise", "IRIS": 20 * 3600 * 24, "GEOFON": "raise", "SCEDC": "raise"}
         attempts = []
         data, rate = self.fetch(attempts)
         self.assertEqual((len(data), rate), (20 * 3600 * 24, 20.0))
-        self.assertEqual([a["provider"] for a in attempts], ["IRIS", "GEOFON", "SCEDC"])   # NCEDC never tried
-        self.assertEqual([a["outcome"] for a in attempts], ["PROVIDER_ERROR", "NO_TRACES", "DATA_RETURNED"])
-        self.assertIn("synthetic IRIS refusal", attempts[0]["reason"])
-        used = attempts[2]
-        self.assertEqual((used["trace_id"], used["location"], used["channel"]), ("XX.STA.00.BHZ", "00", "BHZ"))
+        self.assertEqual([a["provider"] for a in attempts], ["NCEDC", "IRIS"])
+        self.assertEqual([a["outcome"] for a in attempts], ["PROVIDER_ERROR", "DATA_RETURNED"])
+        self.assertIn("synthetic NCEDC refusal", attempts[0]["reason"])
+        used = attempts[1]
+        self.assertEqual((used["trace_id"], used["location"], used["channel"]), ("BK.STA.00.BHZ", "00", "BHZ"))
         self.assertEqual((used["traces_before_merge"], used["traces_after_merge"]), (2, 1))
-        self.assertEqual(used["nslc_requested"], "XX.STA.*.BHZ")
+        self.assertEqual(used["nslc_requested"], "BK.STA.*.BHZ")
         self.assertTrue(used["response"].startswith("NOT_REMOVED"))
         self.assertEqual(used["epoch"][0], "2026-10-01T00:00:00")
 
@@ -139,9 +141,10 @@ class FetchRecordsProviders(unittest.TestCase):
         self.assertEqual([(a["provider"], a["outcome"]) for a in attempts], [("IRIS", "NO_TRACES")])
 
     def test_without_a_sink_the_result_is_the_same(self):
-        _Client.BEHAVIOUR = {"IRIS": "raise", "GEOFON": "empty", "SCEDC": 20 * 3600 * 24}
+        _Client.BEHAVIOUR = {"NCEDC": "empty", "IRIS": 20 * 3600 * 24}
         with_sink = self.fetch([])
         without = self.fetch(None)
+        self.assertEqual(with_sink[1], 20.0)
         self.assertEqual(with_sink[1], without[1])
         self.assertTrue(np.array_equal(with_sink[0], without[0]))
 
@@ -174,7 +177,7 @@ class RunnerRecordsEveryConfiguredStation(unittest.TestCase):
         RD.RECORD_THD_ATTEMPTS = True
         self.plan = {"AK.SSL": "none", "IU.COLA": "full"}
         out = self.assess("anchorage").to_dict()["thd_attempts"]
-        self.assertEqual(out["schema"], "thd-station-attempts-v1")
+        self.assertEqual(out["schema"], "thd-station-attempts-v2")
         self.assertEqual(out["scored_day"], "2026-10-02")
         rows = [(s["role"], s["station"], s["attempted"], s["outcome"], s["selected"]) for s in out["stations"]]
         self.assertEqual(rows, [("CONFIGURED_PRIMARY", "AK.SSL", True, "NO_DATA", False),

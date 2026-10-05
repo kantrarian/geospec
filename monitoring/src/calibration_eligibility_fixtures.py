@@ -138,7 +138,8 @@ def _stub_load_calibration_capsule(region, scored_day, *, band_tag=None, process
     raise _CalibrationUnavailable(["capsule load not available in the offline harness"])
 
 
-def _stub_fetch(station_network, station_code, start, end):
+def _stub_fetch(station_network, station_code, start, end, attempts=None):
+    # `attempts` is the real fetch's optional sink (thd-station-attempts-v1); the stub records nothing in it.
     # >= 12 h of 1 Hz samples so compute_thd_risk does not refuse for insufficiency; no resampling at 1 Hz.
     return [0.0] * (3600 * 13), 1.0
 

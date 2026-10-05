@@ -101,7 +101,8 @@ class _CalibrationUnavailable(Exception):
         self.reasons = list(reasons)
 
 
-def _stub_fetch(station_network, station_code, start, end, channel="BHZ"):
+def _stub_fetch(station_network, station_code, start, end, channel="BHZ", attempts=None):
+    # `attempts` is the real fetch's optional sink (thd-station-attempts-v1); the stub records nothing in it.
     if f"{station_network}.{station_code}" not in THD_VALUES:
         return None, 0.0
     return [0.0] * (3600 * 13), 1.0
@@ -168,6 +169,14 @@ def run(src, rule_on, workdir):
     if os.path.dirname(os.path.abspath(RD.__file__)) != src or os.path.dirname(os.path.abspath(ensemble.__file__)) != src:
         raise SystemExit("REFUSED: imported a module from outside --src")
     has_rule = hasattr(ensemble, "CE")
+    # Pin the configuration explicitly, never inheriting the shipped constants: the rule is OFF unless --rule-on, and
+    # attempt recording (a separate, additive feature with its own suites) is OFF in both modes.
+    if has_rule:
+        ensemble.CE.ELIGIBILITY_RULE_ACTIVE = False
+        if hasattr(ensemble.CE, "EFFECTIVE_SCORED_DAY"):
+            ensemble.CE.EFFECTIVE_SCORED_DAY = None
+    if hasattr(RD, "RECORD_THD_ATTEMPTS"):
+        RD.RECORD_THD_ATTEMPTS = False
     if rule_on:
         if not has_rule:
             raise SystemExit("REFUSED: --rule-on needs a tree with the eligibility rule")

@@ -328,7 +328,9 @@ class FlagOffIsByteIdentical(unittest.TestCase):
         args = dict(region=fx["regions"][0], network=fx["network"], station=fx["station"],
                     thd_baseline=fx["baseline"], thd_value=fx["thd"], shared=fx["regions"])
         args.update(kw)
-        base = FX.build(self.base, **args)
+        # BOTH sides pin the rule OFF: the base tree imports the candidate's calibration_eligibility by name, so an
+        # unpinned base would inherit whatever the candidate SHIPS (it must not depend on the shipped default).
+        base = FX.build(self.base, active=False, **args)
         cand = FX.build(ensemble, active=False, **args)
         return json.dumps(FX.result_dict(base), sort_keys=True), json.dumps(FX.result_dict(cand), sort_keys=True)
 
@@ -345,7 +347,8 @@ class FlagOffIsByteIdentical(unittest.TestCase):
     def test_flag_on_changes_only_the_named_fields(self):
         fx = FX.fixture_baselines()["n0_default_kaikoura"]
         args = dict(region="kaikoura", network="IU", station="SNZO", thd_baseline=fx["baseline"], thd_value=fx["thd"])
-        base, cand = FX.result_dict(FX.build(self.base, **args)), FX.result_dict(FX.build(ensemble, active=True, **args))
+        base, cand = (FX.result_dict(FX.build(self.base, active=False, **args)),
+                      FX.result_dict(FX.build(ensemble, active=True, **args)))
         # The ONLY additions with the rule on are the per-component `calibration` blocks (every judged component
         # carries one) and the tier-level fields the rule is allowed to move.
         judged = sorted(name for name, comp in cand["components"].items() if "calibration" in comp)

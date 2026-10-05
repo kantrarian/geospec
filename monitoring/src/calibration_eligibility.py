@@ -1,10 +1,12 @@
 """
 calibration_eligibility.py -- PROSPECTIVE, VERSIONED calibration-eligibility rule (calibration-eligibility-v3).
 
-NOT ACTIVATED. `ELIGIBILITY_RULE_ACTIVE` is False and stays False until a dated amendment / owner decision flips
-it; with the flag off every ordinary-run output is byte-identical to the pre-rule runner (proved by
-calibration_eligibility_report.py and test_calibration_eligibility_cayley_20260930.py). Saved historical scores
-are never re-scored by this module.
+ACTIVATED AND DATE-GATED (docs/AMENDMENT_2026-10-05_method_qualification.md, owner approval 2026-10-05):
+`ELIGIBILITY_RULE_ACTIVE` is True and `EFFECTIVE_SCORED_DAY` is "2026-10-07", so the production daily path applies the
+rule only to scored days on or after 2026-10-07 (rule_active_for_scored_day). Every scored day before the boundary keeps
+the rule-off behaviour, and a rule-off output is byte-identical to the pre-rule runner (proved by
+calibration_eligibility_report.py and test_calibration_eligibility_cayley_20260930.py). Saved historical scores are
+never re-scored by this module. Changing either constant is a new dated amendment, never an in-place edit.
 
 Why (codex a7d0533d item 1, 2026-09-30): a station with NO empirical local baseline (e.g. IU.SNZO: mean 0.30 /
 std 0.07 / n_samples 0, calibration_period 'UNCALIBRATED') is z-scored by `ensemble.thd_to_risk_with_baseline`
@@ -72,7 +74,8 @@ from datetime import date, datetime
 from typing import Iterable, Optional, Sequence, Tuple
 
 ELIGIBILITY_RULE_VERSION = "calibration-eligibility-v3"
-# Prospective rule: OFF until a dated amendment / owner decision. Nothing in the ordinary run flips this.
+# Set True by the 2026-10-05 amendment (owner decision); applied only from EFFECTIVE_SCORED_DAY. Nothing in the
+# ordinary run flips this.
 ELIGIBILITY_RULE_ACTIVE = True
 # The amendment's effective scored-day boundary (ISO date, e.g. "2026-10-12"). None = UNSET. The production daily path
 # applies the rule to scored day D only when ELIGIBILITY_RULE_ACTIVE AND D >= this boundary, so a replay of an earlier

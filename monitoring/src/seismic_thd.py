@@ -19,6 +19,12 @@ Expected Pattern:
 - Transitional: 0.05 < THD < 0.15
 - Pre-failure (nonlinear): THD > 0.15
 
+The physical basis and pattern above are the motivating HYPOTHESIS and the original thresholds, not validated
+interpretations. THD is a processing-dependent spectral ratio; a nonlinearity interpretation requires estimator and
+response controls (codex review 70ec9745: record length, window, multi-constituent tides, gaps and instrument
+response all move the ratio; grassmann a7e7d947 measured a pure M2 sine on a 15.46 h record at about 1.0 on this
+estimator).
+
 Author: R.J. Mathews
 Date: January 2026
 """
@@ -97,7 +103,8 @@ class SeismicTHDAnalyzer:
     """
     Analyzes Total Harmonic Distortion in seismic signals relative to tidal forcing.
 
-    High THD indicates nonlinear rock behavior, which increases before failure.
+    THD is a processing-dependent spectral ratio; a nonlinearity interpretation requires estimator and response
+    controls.
 
     Attributes:
         fundamental_freq: Primary tidal frequency for analysis (default M2)

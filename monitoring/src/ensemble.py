@@ -313,7 +313,8 @@ def thd_to_risk(thd_value: float) -> float:
     Elevated: 0.05 < THD < 0.15 -> risk ~0.3-0.6
     Critical: THD > 0.15 -> risk ~0.7-1.0
 
-    Very high THD (>0.5) indicates extreme nonlinearity.
+    Very high THD (>0.5) maps to the top of this scale; by itself it is not evidence of nonlinearity (THD is a
+    processing-dependent spectral ratio; see seismic_thd.SeismicTHDAnalyzer).
     """
     if thd_value < 0.05:
         return 0.1 * (thd_value / 0.05)

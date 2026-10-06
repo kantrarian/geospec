@@ -62,7 +62,9 @@ NETWORK_ROUTES = {
     "IV": {"adapters": ((FDSN, "INGV"),),
            "basis": "EXPECTATION: INGV is IV's FDSN data centre (seismic_data.FDSN_CLIENTS already maps IV->INGV; codex "
                     "cites fdsn.org/datacenters/detail/INGV); the old chain never asked it. RETAINED: IV.CAFE is in the "
-                    "2026-09-27 INGV station listing (station level only); CAFE BHZ for a requested epoch is UNVERIFIED"},
+                    "2026-09-27 INGV station listing (station level only), and grassmann's 10-03 inventory (a6af5e32) "
+                    "records a cayley probe BHZ 404 / HHZ 200: the station serves HH* only, so this route alone will not "
+                    "return BHZ; the channel parameter (HHZ, 100 Hz) is a separate, reviewed config change"},
     "HINET": {"adapters": ((NIED_HINET, "NIED"),),
               "basis": "RETAINED: N.KI2H is not an FDSN station code (IRIS HTTP 422 RequestValidationError, 2026-10-03). "
                        "Hi-net access is NIED registration + win32 download with redistribution terms: owner-handled. "

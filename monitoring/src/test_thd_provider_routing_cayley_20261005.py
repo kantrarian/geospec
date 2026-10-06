@@ -243,13 +243,14 @@ def channel_listing(channel, start="2005-07-10", end=None):
     return out.getvalue()
 
 
-class MetadataFirstRefinement(unittest.TestCase):
+class AdvisoryInventoryContext(unittest.TestCase):
+    """codex 998f59fa s2: a listing ADVISES; it never turns NO_DATA into INVALID_SELECTOR or an absence verdict."""
     WINDOW = ("2026-10-01T23:00:00", "2026-10-03T00:00:00")
 
-    def test_retained_station_listings(self):
+    def test_retained_station_listings_advise_within_their_own_scope(self):
         earthscope, asked_es = retained_listing("earthscope.txt")
         ingv, asked_ingv = retained_listing("ingv.txt")
-        cases = ((("AK", "SSL"), earthscope, asked_es, ("INVALID_SELECTOR", "NO_MATCHING_STATION_IN_INVENTORY")),
+        cases = ((("AK", "SSL"), earthscope, asked_es, ("NO_DATA", "NO_MATCHING_STATION_IN_THIS_INVENTORY")),
                  (("IU", "TUC"), earthscope, asked_es, ("NO_DATA", "CHANNEL_UNVERIFIED_STATION_LEVEL_ONLY")),
                  (("IV", "CAFE"), ingv, asked_ingv, ("NO_DATA", "CHANNEL_UNVERIFIED_STATION_LEVEL_ONLY")),
                  (("BK", "BKS"), earthscope, asked_es, ("NO_DATA", "INVENTORY_DID_NOT_ASK")))
@@ -257,14 +258,32 @@ class MetadataFirstRefinement(unittest.TestCase):
             with self.subTest(station=net + "." + sta):
                 self.assertEqual(TPR.refine_no_data(net, sta, "BHZ", self.WINDOW, text, asked), expected)
 
-    def test_channel_level_listing_separates_no_channel_from_no_data(self):
+    def test_codex_counterexamples_stay_no_data(self):
+        # codex review_checks.py: an HHZ-filtered response cannot exclude BHZ; an empty station response is not a
+        # malformed selector. Same bytes as the reviewer's reproducer.
+        header = "#Network|Station|Location|Channel|StartTime|EndTime\n"
+        filtered = TPR.refine_no_data("IV", "CAFE", "BHZ", ("2026-10-01T00:00:00", "2026-10-03T00:00:00"),
+                                      header + "IV|CAFE||HHZ|2005-07-10T00:00:00|\n", ({"IV"}, {"CAFE"}))
+        self.assertEqual(filtered, ("NO_DATA", "NO_MATCHING_CHANNEL_IN_THIS_INVENTORY"))
+        empty = TPR.refine_no_data("AK", "SSL", "BHZ", ("2026-10-01T00:00:00", "2026-10-03T00:00:00"),
+                                   "#Network|Station|Latitude|Longitude|Elevation|SiteName|StartTime|EndTime\n",
+                                   ({"AK"}, {"SSL"}))
+        self.assertEqual(empty, ("NO_DATA", "NO_MATCHING_STATION_IN_THIS_INVENTORY"))
+
+    def test_channel_level_context_is_distinguishable_and_never_a_verdict(self):
         asked = ({"IV"}, {"CAFE"})
         self.assertEqual(TPR.refine_no_data("IV", "CAFE", "BHZ", self.WINDOW, channel_listing("HHZ"), asked),
-                         ("NO_MATCHING_CHANNEL", "NO_CHANNEL_EPOCH_COVERING_WINDOW"))
+                         ("NO_DATA", "NO_MATCHING_CHANNEL_IN_THIS_INVENTORY"))
         self.assertEqual(TPR.refine_no_data("IV", "CAFE", "BHZ", self.WINDOW, channel_listing("BHZ", end="2020-01-01"),
-                                            asked), ("NO_MATCHING_CHANNEL", "NO_CHANNEL_EPOCH_COVERING_WINDOW"))
+                                            asked), ("NO_DATA", "NO_MATCHING_CHANNEL_IN_THIS_INVENTORY"))
         self.assertEqual(TPR.refine_no_data("IV", "CAFE", "BHZ", self.WINDOW, channel_listing("BHZ"), asked),
-                         ("NO_DATA", "CHANNEL_IN_INVENTORY_PROVIDER_RETURNED_NO_DATA"))
+                         ("NO_DATA", "CHANNEL_IN_THIS_INVENTORY_PROVIDER_RETURNED_NO_DATA"))
+        self.assertNotIn("NO_MATCHING_CHANNEL", TPR.TYPED_OUTCOMES)
+
+    def test_a_real_provider_validation_error_still_is_invalid_selector(self):
+        # the HTTP classification is independent of the advisory helper: a provider 400/422 keeps INVALID_SELECTOR
+        self.assertEqual(TPR.classify_exception(obspy_refusal(422, b"Error 422"))[0], "INVALID_SELECTOR")
+        self.assertEqual(TPR.classify_exception(obspy_refusal(400))[0], "INVALID_SELECTOR")
 
     def test_a_listing_without_its_header_is_refused(self):
         with self.assertRaises(ValueError):

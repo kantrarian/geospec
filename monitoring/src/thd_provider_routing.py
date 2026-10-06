@@ -12,11 +12,14 @@ gets one typed outcome:
   NO_DATA             the provider answered "no data" (HTTP 204/404) or returned an empty stream
   AUTH_REQUIRED       HTTP 401/403, or an adapter whose only access path is registered/credentialed
   INVALID_SELECTOR    HTTP 400/422: the provider refused the request's selector itself
-  NO_MATCHING_CHANNEL only by metadata-first refinement (refine_no_data) from a channel-level inventory
   TRANSPORT_ERROR     no usable answer: service discovery failed, timeout, connection, HTTP 429/5xx
   PROVIDER_ERROR      anything else, untyped; the class and status are still kept
-A 204 from dataselect cannot by itself tell "no such channel" from "no data in the window"; only an inventory that
-ASKED for the selector can (refine_no_data), so the fetch never guesses NO_MATCHING_CHANNEL.
+A 204 from dataselect cannot by itself tell "no such channel" from "no data in the window". An inventory listing can
+only ADVISE (refine_no_data): it stays NO_DATA with a basis scoped to THAT inventory (codex 998f59fa s2), because a
+filtered, incomplete or stale listing cannot establish absence outside its own scope. An authoritative
+NO_MATCHING_CHANNEL / absence verdict would need a strict receipt (provider, full N.S.L.C selector, time bounds, level,
+retrieval time, complete response and digest, proof it covers the questioned selector and window) and is not produced
+by this version.
 """
 import re
 
@@ -25,8 +28,8 @@ ROUTING_VERSION = "thd-provider-routing-v1"
 FDSN = "FDSN"              # obspy.clients.fdsn.Client(<key>).get_waveforms
 NIED_HINET = "NIED_HINET"  # NIED Hi-net: registered-access win32 download; not an FDSN service
 
-TYPED_OUTCOMES = ("DATA_RETURNED", "NO_DATA", "AUTH_REQUIRED", "INVALID_SELECTOR", "NO_MATCHING_CHANNEL",
-                  "TRANSPORT_ERROR", "PROVIDER_ERROR", "OPERATOR_REFUSED", "NETWORK_NOT_ROUTED")
+TYPED_OUTCOMES = ("DATA_RETURNED", "NO_DATA", "AUTH_REQUIRED", "INVALID_SELECTOR", "TRANSPORT_ERROR",
+                  "PROVIDER_ERROR", "OPERATOR_REFUSED", "NETWORK_NOT_ROUTED")
 
 # basis labels: RETAINED = seen in retained run evidence; LADDER = unchanged from the pre-map if/elif ladder;
 # EXPECTATION = data-centre knowledge not yet observed from this host (the later bounded live metadata check verifies).
@@ -136,21 +139,23 @@ def _overlaps(row, start, end):
 
 
 def refine_no_data(network, station, channel, window, inventory_text, asked):
-    """Metadata-first refinement of a NO_DATA attempt from a RETAINED station-service response.
+    """ADVISORY context for a NO_DATA attempt from a RETAINED station-service response (codex 998f59fa s2).
 
-    `asked` is the (networks, stations) the inventory query requested: absence is evidence only for a selector the
-    query asked about. Returns (typed_outcome, basis). Station level can say only "no such station"; channel level can
-    also say "no such channel for this window". Anything else stays NO_DATA, with the reason it could not refine."""
+    The outcome is ALWAYS "NO_DATA": a listing never promotes an attempt to INVALID_SELECTOR or to an absence verdict
+    (a syntactically valid selector with no rows is not a malformed request; an HHZ-filtered or time-restricted listing
+    cannot exclude BHZ or another epoch). The basis says what THIS inventory shows, scoped to it. `asked` is the
+    (networks, stations) the query requested; for a selector it did not ask about it says nothing. Not wired into the
+    daily fetch. Returns ("NO_DATA", basis)."""
     nets, stas = asked
     if network not in nets or station not in stas:
         return "NO_DATA", "INVENTORY_DID_NOT_ASK"
     header, rows = parse_fdsn_text(inventory_text)
     same = [r for r in rows if r.get("Network") == network and r.get("Station") == station]
     if not same:
-        return "INVALID_SELECTOR", "NO_MATCHING_STATION_IN_INVENTORY"
+        return "NO_DATA", "NO_MATCHING_STATION_IN_THIS_INVENTORY"
     if "Channel" not in header:
         return "NO_DATA", "CHANNEL_UNVERIFIED_STATION_LEVEL_ONLY"
     start, end = window
     if not any(r.get("Channel") == channel and _overlaps(r, start, end) for r in same):
-        return "NO_MATCHING_CHANNEL", "NO_CHANNEL_EPOCH_COVERING_WINDOW"
-    return "NO_DATA", "CHANNEL_IN_INVENTORY_PROVIDER_RETURNED_NO_DATA"
+        return "NO_DATA", "NO_MATCHING_CHANNEL_IN_THIS_INVENTORY"
+    return "NO_DATA", "CHANNEL_IN_THIS_INVENTORY_PROVIDER_RETURNED_NO_DATA"

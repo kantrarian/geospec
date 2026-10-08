@@ -277,7 +277,8 @@ RECORD_THD_ATTEMPTS = True
 # v3 (candidate, codex 1515 s4) = v2 plus selector_basis on every provider record and, on DATA_RETURNED, the
 # pre-merge coverage facts of the trace used; and LOCAL_PROCESSING_ERROR, with the coverage of each returned trace
 # id, where a provider returned data the local merge/detrend refused; and, on DATA_RETURNED, the DIAGNOSTIC
-# response_epoch of the trace used from the retained StationXML. Values are unchanged; v2 never shipped.
+# response_epoch of the trace used from the retained StationXML; and, per attempted station, the
+# thd-daily-measurement-v1 identity of the measurement. Values are unchanged; v2 never shipped.
 THD_ATTEMPTS_SCHEMA = 'thd-station-attempts-v3'
 THD_ROLES = ('CONFIGURED_PRIMARY', 'CONFIGURED_FALLBACK', 'CONFIGURED_FALLBACK2')
 
@@ -397,7 +398,8 @@ def run_region_assessment(
                     station_records.append({
                         'role': roles[len(station_records)], 'station': f'{network_code}.{station_code}',
                         'attempted': True, 'outcome': outcome, 'reason': reason,
-                        'selected': outcome == 'VALUE', 'providers': providers})
+                        'selected': outcome == 'VALUE', 'providers': providers,
+                        'measurement_identity': getattr(ensemble, 'last_thd_measurement_identity', None)})
                 if thd_component and thd_component.available:
                     logger.info(f"  THD data obtained from {network_code}.{station_code}")
                     break

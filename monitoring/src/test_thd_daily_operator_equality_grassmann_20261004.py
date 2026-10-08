@@ -84,7 +84,9 @@ class EntrypointEquality(unittest.TestCase):
         daily, weekly_value, weekly_rate, recs, calls = self.run_both(Stream([a, b]))
         self.assertFalse(daily.available); self.assertIsNone(weekly_value); self.assertEqual(weekly_rate, None)
 
-    def test_unbound_station_keeps_its_legacy_paths(self):
+    def test_unbound_station_is_measured_by_the_shared_daily_measurement(self):
+        # was test_unbound_station_keeps_its_legacy_paths (assertNotEqual): codex 1614 finding 1 / thd-daily-measurement-v1
+        # (cayley 2026-10-08) calibrates an unbound station with the daily measurement too, so the two values now agree
         st = synthetic_stream(sta="TUC", loc="10", hours=76)   # covers the legacy weekly window [Aug 1 00:00, Aug 2 01:00) too
         import types
         fake_mod = types.SimpleNamespace(Client=lambda name, timeout=120: FakeClient(st))
@@ -92,9 +94,9 @@ class EntrypointEquality(unittest.TestCase):
             runner = E.GeoSpecEnsemble(region="ridgecrest", eligibility_rule_active=False)
             daily = runner.compute_thd_risk(DAY, station_network="IU", station_code="TUC")
             weekly_value, weekly_rate = C.compute_daily_thd("IU", "TUC", DAY)
-            self.assertEqual(dm.call_count, 0)
+            self.assertEqual(dm.call_count, 0)                             # an unbound station never enters the bound operator
         self.assertTrue(daily.available); self.assertIsNotNone(weekly_value)
-        self.assertNotEqual(daily.raw_value, weekly_value)                 # legacy: 1 Hz analyze_window vs native compute_thd on a different window
+        self.assertEqual(daily.raw_value, weekly_value)
 
     def test_daily_operator_identity_binds_native_and_estimator_rates_distinctly(self):
         rec = OP.daily_operator_record("IU.SNZO")

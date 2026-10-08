@@ -161,6 +161,12 @@ def run_recal(stations, end_date=None, dry_run=False):
         }
         if is_bound(net, sta) and operator_record is not None:
             entry["operator"] = operator_record(key)
+        try:   # thd-daily-measurement-v1: which measurement produced these moments (recording only)
+            import thd_daily_measurement as TDM
+            from seismic_thd import SeismicTHDAnalyzer as _A
+            entry["measurement"] = TDM.measurement_record(net, sta, _A(n_harmonics=5, freq_tolerance=0.1, window_hours=24))
+        except Exception as _e:  # noqa: BLE001 -- a recording failure never drops a baseline
+            entry["measurement"] = {"identity": "UNIDENTIFIED", "error_class": type(_e).__name__}
         out[key] = entry
         attempts.append(dict(station=key, attempted_utc=attempted_utc, outcome="VALUE", disposition="RECALIBRATED"))
     if not any(a.get("disposition") == "RECALIBRATED" for a in attempts):

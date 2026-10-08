@@ -539,6 +539,7 @@ class GeoSpecEnsemble:
         # of its fetch in `last_thd_fetch_attempts` (None while not recording; nothing is emitted by to_dict).
         self.record_thd_attempts = bool(record_thd_attempts)
         self.last_thd_fetch_attempts: Optional[list] = None
+        self.last_thd_measurement_identity: Optional[str] = None   # thd-daily-measurement-v1
 
         # Initialize seismic analyzers
         self.fault_corr_monitor = FaultCorrelationMonitor(
@@ -796,88 +797,33 @@ class GeoSpecEnsemble:
             # thd-station-attempts-v1: the sink exists before the bound dispatch so both paths record their attempts.
             fetch_kwargs = {}
             self.last_thd_fetch_attempts = None
+            self.last_thd_measurement_identity = None
             if self.record_thd_attempts:
                 self.last_thd_fetch_attempts = []
                 fetch_kwargs['attempts'] = self.last_thd_fetch_attempts
 
-            # thd-bound-station-daily-operator-v1 (grassmann 2026-10-04; codex eb83ad47 finding 1): a BOUND station's
-            # daily measurement is ONE shared function (thd_bound_station_operator.daily_measurement) that the weekly
-            # recal also calls, so both paths measure the same operator. Other stations: unchanged code below.
-            _bound = None
-            try:
-                from thd_bound_station_operator import is_bound as _is_bound, daily_measurement as _daily_measurement
-                _bound = _is_bound(station_network, station_code)
-            except ImportError:
-                _bound = False
-            if _bound:
-                _fetch = fetch_continuous_data_for_thd
-                if fetch_kwargs:
-                    from functools import partial
-                    _fetch = partial(fetch_continuous_data_for_thd, **fetch_kwargs)
-                _m = _daily_measurement(station_network, station_code, date, analyzer=self.thd_analyzer,
-                                        fetch=_fetch)
-                if _m['thd'] is None:
-                    return MethodResult(
-                        name='seismic_thd',
-                        available=False,
-                        raw_value=0.0,
-                        notes=f'Insufficient data from {station_network}.{station_code}'
-                    )
-                thd_result = _m['result']
-                native_sample_rate = _m['native_rate_hz']
-                sample_rate = _m['estimator_rate_hz']
-                data = None
-            # Need 24+ hours of data ending at target date
-            end_time = date
-            start_time = date - timedelta(hours=self.thd_analyzer.window_hours + 1)
-
-            if not _bound:
-                data, sample_rate = fetch_continuous_data_for_thd(
-                    station_network=station_network,
-                    station_code=station_code,
-                    start=start_time,
-                    end=end_time,
-                    **fetch_kwargs
-                )
-
-            if not _bound and (data is None or len(data) < sample_rate * 3600 * 12):
+            # thd-daily-measurement-v1 (cayley 2026-10-08; codex 1614 finding 1): ONE shared daily measurement for every
+            # station (thd_daily_measurement.measure), also called by the weekly recal, so a baseline is built from the
+            # quantity this path compares against it. A BOUND station delegates to thd_bound_station_operator's reviewed
+            # daily_measurement unchanged; every other station runs the steps this path always ran (window
+            # [date - (window_hours + 1) h, date], 12 h floor, resample_poly to 1 Hz, analyze_window).
+            import thd_daily_measurement as TDM
+            _fetch = fetch_continuous_data_for_thd
+            if fetch_kwargs:
+                from functools import partial
+                _fetch = partial(fetch_continuous_data_for_thd, **fetch_kwargs)
+            _m = TDM.measure(station_network, station_code, date, analyzer=self.thd_analyzer, fetch=_fetch)
+            self.last_thd_measurement_identity = _m.get('measurement_identity')
+            if _m['thd'] is None:
                 return MethodResult(
                     name='seismic_thd',
                     available=False,
                     raw_value=0.0,
                     notes=f'Insufficient data from {station_network}.{station_code}'
                 )
-
-            # Store native sample rate for logging
-            if not _bound:
-                native_sample_rate = sample_rate
-
-            # Resample to target rate (1 Hz) for consistent THD computation
-            # Using resample_poly for predictable filtering regardless of input rate
-            TARGET_THD_RATE = 1.0  # Hz - sufficient for tidal frequencies (~1e-5 Hz)
-            if not _bound and sample_rate > TARGET_THD_RATE * 1.5:
-                from scipy.signal import resample_poly
-                from math import gcd
-                # Compute rational resampling factors
-                # E.g., 40Hz -> 1Hz: up=1, down=40
-                # E.g., 20Hz -> 1Hz: up=1, down=20
-                up = int(TARGET_THD_RATE * 100)  # Scale to avoid float issues
-                down = int(sample_rate * 100)
-                common = gcd(up, down)
-                up //= common
-                down //= common
-                logger.debug(f"Resampling {sample_rate:.1f}Hz -> {TARGET_THD_RATE}Hz (up={up}, down={down})")
-                data = resample_poly(data, up, down)
-                sample_rate = TARGET_THD_RATE
-
-            # Compute THD
-            if not _bound:
-                thd_result = self.thd_analyzer.analyze_window(
-                    data=data,
-                    sample_rate=sample_rate,
-                    station=f'{station_network}.{station_code}',
-                    window_time=date
-                )
+            thd_result = _m['result']
+            native_sample_rate = _m['native_rate_hz']
+            sample_rate = _m['estimator_rate_hz']
 
             # Get station baseline if available
             baseline = get_baseline(station_code, station_network) if get_baseline else None

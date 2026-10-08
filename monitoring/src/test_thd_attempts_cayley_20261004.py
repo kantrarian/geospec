@@ -208,6 +208,20 @@ class RunnerRecordsEveryConfiguredStation(unittest.TestCase):
         self.assertEqual([s["outcome"] for s in out["stations"]], ["INSUFFICIENT_SAMPLES"] * 2)
         self.assertFalse(any(s["selected"] for s in out["stations"]))
 
+    def test_each_attempted_station_carries_its_measurement_identity(self):
+        import thd_daily_measurement as TDM
+        from seismic_thd import SeismicTHDAnalyzer
+        RD.RECORD_THD_ATTEMPTS = True
+        self.plan = {"IU.COLA": "none", "AK.BMR": "full"}
+        out = self.assess("anchorage").to_dict()["thd_attempts"]
+        analyzer = SeismicTHDAnalyzer(n_harmonics=5, freq_tolerance=0.1, window_hours=24)
+        self.assertEqual([s["measurement_identity"] for s in out["stations"]],
+                         [TDM.measurement_record("IU", "COLA", analyzer)["identity"],
+                          TDM.measurement_record("AK", "BMR", analyzer)["identity"]])
+        self.plan = {"IU.COLA": "full"}
+        out = self.assess("anchorage").to_dict()["thd_attempts"]
+        self.assertNotIn("measurement_identity", out["stations"][1], "a station not attempted was not measured")
+
     def test_returned_data_refused_locally_is_its_own_station_outcome(self):
         RD.RECORD_THD_ATTEMPTS = True
         self.plan = {"IU.COLA": "local", "AK.BMR": "none"}

@@ -324,6 +324,11 @@ class RetainedResponseEpochs(RoutedFetch):
         self.assertEqual(self.at("BK.BKS.00.BHZ", "2026-09-01T00:00:00Z", "2026-09-02T00:00:00Z")["status"],
                          "SINGLE_EPOCH")
 
+    def test_a_declared_far_future_end_is_known_only_up_to_retrieval(self):
+        self.assertEqual(TPR.RESPONSE_METADATA["BK.BKS.00.BHZ"]["epochs"][0][1], "3000-01-01T00:00:00.000000Z")
+        self.assertEqual(self.at("BK.BKS.00.BHZ", "2026-10-07T23:00:00Z", "2026-10-09T00:00:00Z")["status"],
+                         "NO_COVERING_EPOCH")
+
     def test_the_fetch_records_the_epoch_of_the_trace_used_without_touching_the_value(self):
         with_sink, rate, attempts = self.fetch("IU", "COLA", {"IRIS": synthetic_stream("IU", "COLA", "00", "BHZ")})
         epoch = attempts[0]["response_epoch"]

@@ -276,7 +276,8 @@ RECORD_THD_ATTEMPTS = True
 # (thd-provider-routing-v1); same label would carry content the identity omits.
 # v3 (candidate, codex 1515 s4) = v2 plus selector_basis on every provider record and, on DATA_RETURNED, the
 # pre-merge coverage facts of the trace used; and LOCAL_PROCESSING_ERROR, with the coverage of each returned trace
-# id, where a provider returned data the local merge/detrend refused. Values are unchanged; v2 never shipped.
+# id, where a provider returned data the local merge/detrend refused; and, on DATA_RETURNED, the DIAGNOSTIC
+# response_epoch of the trace used from the retained StationXML. Values are unchanged; v2 never shipped.
 THD_ATTEMPTS_SCHEMA = 'thd-station-attempts-v3'
 THD_ROLES = ('CONFIGURED_PRIMARY', 'CONFIGURED_FALLBACK', 'CONFIGURED_FALLBACK2')
 

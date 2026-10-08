@@ -625,6 +625,12 @@ def fetch_continuous_data_for_thd(
 
                 if record is not None:
                     stats = st[0].stats
+                    # diagnostic only: which RETAINED response epoch(s) cover the request for the trace used; a failure
+                    # to evaluate is UNMEASURED and never changes the value path
+                    try:
+                        response_epoch = TPR.response_epoch_for(st[0].id, str(UTCDateTime(start)), str(UTCDateTime(end)))
+                    except Exception as epoch_error:  # noqa: BLE001 -- diagnostic only
+                        response_epoch = {'status': 'UNMEASURED', 'error_class': type(epoch_error).__name__}
                     record.update(outcome='DATA_RETURNED', typed_outcome='DATA_RETURNED', reason=None, trace_id=st[0].id,
                                   location=stats.location, channel=stats.channel,
                                   epoch=[str(stats.starttime), str(stats.endtime)],
@@ -632,7 +638,8 @@ def fetch_continuous_data_for_thd(
                                   traces_before_merge=int(traces_before_merge), traces_after_merge=len(st),
                                   selection='st[0] after merge(method=1, fill_value=interpolate)',
                                   coverage=coverage.get(st[0].id, coverage.get('*')),
-                                  response='NOT_REMOVED (raw counts; demean and linear detrend only)')
+                                  response='NOT_REMOVED (raw counts; demean and linear detrend only)',
+                                  response_epoch=response_epoch)
                 return data, sample_rate
             if record is not None:
                 record.update(outcome='NO_TRACES', typed_outcome='NO_DATA', exception_class=None, http_status=None,

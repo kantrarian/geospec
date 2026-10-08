@@ -280,6 +280,67 @@ class EpochInstants(unittest.TestCase):
                 TPR.response_epoch_status([("2025-01-01T00:00:00Z", None, "a")], *window)
 
 
+class RetainedResponseEpochs(RoutedFetch):
+    """The retained StationXML (grassmann 3ebc83ba) read as diagnostic epoch status, unknown outside its query window."""
+    SERVED_WITH_XML = ("BK.BKS.00.BHZ", "IU.ANTO.00.BHZ", "IU.COLA.00.BHZ", "IU.COR.00.BHZ", "IU.MAJO.00.BHZ",
+                       "IU.SNZO.00.BHZ", "IU.TATO.00.BHZ", "IU.TUC.00.BHZ", "MX.TLIG..BHZ")
+
+    def at(self, trace_id, start, end):
+        return TPR.response_epoch_for(trace_id, start, end)
+
+    def test_every_served_channel_with_retained_xml_is_in_the_table_and_none_without(self):
+        for nslc in self.SERVED_WITH_XML:
+            with self.subTest(nslc=nslc):
+                entry = TPR.RESPONSE_METADATA[nslc]
+                self.assertTrue(entry["basis"].startswith("RETAINED: stationxml_response_20261006/"))
+                self.assertTrue(all(label == "%s@%s" % (nslc, b) for b, _, label in entry["epochs"]))
+        for nslc in ("AK.BMR..BHZ", "AK.SSL..BHZ", "G.UNM.00.BHZ", "IV.CAFE..BHZ"):
+            with self.subTest(nslc=nslc):
+                self.assertNotIn(nslc, TPR.RESPONSE_METADATA)
+                self.assertEqual(self.at(nslc, "2026-09-01T00:00:00Z", "2026-09-02T00:00:00Z"),
+                                 {"status": "NO_RETAINED_RESPONSE_METADATA", "labels": None})
+
+    def test_cola_crosses_its_2026_07_31_change_and_is_single_after_it(self):
+        crossed = self.at("IU.COLA.00.BHZ", "2026-07-30T23:00:00Z", "2026-08-01T00:00:00Z")
+        self.assertEqual(crossed["status"], "CROSSES_EPOCH_BOUNDARY")
+        self.assertEqual(crossed["labels"], ["IU.COLA.00.BHZ@2023-07-12T00:00:00.000000Z",
+                                             "IU.COLA.00.BHZ@2026-07-31T02:00:00.000000Z"])
+        self.assertEqual(self.at("IU.COLA.00.BHZ", "2026-09-01T23:00:00Z", "2026-09-03T00:00:00Z")["status"], "SINGLE_EPOCH")
+
+    def test_outside_the_retained_query_window_the_response_is_unknown(self):
+        after = self.at("IU.COLA.00.BHZ", "2026-10-07T23:00:00Z", "2026-10-09T00:00:00Z")
+        self.assertEqual((after["status"], after["known"][1]), ("NO_COVERING_EPOCH", "2026-10-06T05:22:27.794893"))
+        straddle = self.at("IU.COLA.00.BHZ", "2026-10-05T23:00:00Z", "2026-10-07T00:00:00Z")
+        self.assertEqual(straddle["status"], "EPOCH_PARTIALLY_COVERS_WINDOW")
+        before = self.at("IU.COLA.00.BHZ", "2025-10-01T00:00:00Z", "2025-10-02T00:00:00Z")
+        self.assertEqual(before["status"], "NO_COVERING_EPOCH", "an epoch starting in 2023 is known only from the query")
+
+    def test_ncedc_echoed_offset_and_far_future_end_are_read_exactly(self):
+        lo, hi = TPR.RESPONSE_METADATA["BK.BKS.00.BHZ"]["known"]
+        self.assertEqual(TPR.utc_instant_ns(lo), TPR.utc_instant_ns("2025-10-17T07:00:00Z"))
+        self.assertLessEqual(TPR.utc_instant_ns(hi), TPR.utc_instant_ns("2026-10-06T05:22:32Z"))
+        self.assertEqual(self.at("BK.BKS.00.BHZ", "2025-10-17T00:00:00Z", "2025-10-17T06:00:00Z")["status"],
+                         "NO_COVERING_EPOCH")
+        self.assertEqual(self.at("BK.BKS.00.BHZ", "2026-09-01T00:00:00Z", "2026-09-02T00:00:00Z")["status"],
+                         "SINGLE_EPOCH")
+
+    def test_the_fetch_records_the_epoch_of_the_trace_used_without_touching_the_value(self):
+        with_sink, rate, attempts = self.fetch("IU", "COLA", {"IRIS": synthetic_stream("IU", "COLA", "00", "BHZ")})
+        epoch = attempts[0]["response_epoch"]
+        self.assertEqual((epoch["status"], epoch["labels"]), ("SINGLE_EPOCH", "IU.COLA.00.BHZ@2026-07-31T02:00:00.000000Z"))
+        RecordingClient.BEHAVIOUR = {"IRIS": synthetic_stream("IU", "COLA", "00", "BHZ")}
+        without, rate_without = ST.fetch_continuous_data_for_thd("IU", "COLA", START, END)
+        self.assertTrue(np.array_equal(with_sink, without))
+        self.assertEqual(rate, rate_without)
+
+    def test_an_epoch_evaluation_failure_is_unmeasured_and_never_drops_the_value(self):
+        with mock.patch.object(TPR, "response_epoch_for", side_effect=RuntimeError("synthetic")):
+            data, rate, attempts = self.fetch("IU", "COLA", {"IRIS": synthetic_stream("IU", "COLA", "00", "BHZ")})
+        self.assertEqual((attempts[0]["outcome"], rate), ("DATA_RETURNED", 100.0))
+        self.assertIsNotNone(data)
+        self.assertEqual(attempts[0]["response_epoch"], {"status": "UNMEASURED", "error_class": "RuntimeError"})
+
+
 class ResponseEpoch(unittest.TestCase):
     WINDOW = ("2026-07-30T23:00:00", "2026-08-01T00:00:00")
 

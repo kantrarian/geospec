@@ -370,3 +370,93 @@ def response_epoch_status(epochs, start, end):
             return "OVERLAPPING_EPOCH_METADATA", labels
         reach = None if f is None else max(reach, f)
     return "CROSSES_EPOCH_BOUNDARY", labels
+
+
+# Retained level=response StationXML (grassmann 3ebc83ba: owner-authorized 2026-10-06 retrieval of the nine served
+# stations, every location). A retained query speaks only for its own window, so `known` runs from the provider's own
+# ModuleURI echo of the query start (NCEDC echoes -07:00, applied exactly) to the EARLIER of its echoed query end and the
+# document's <Created> instant. No retained XML: AK.BMR, AK.SSL, G.UNM, IV.CAFE, Hi-net N.KI2H.
+RESPONSE_METADATA = {   # "NET.STA.LOC.CHA" -> known window, epochs, basis; generated from retained XML, never re-typed
+    'BK.BKS.00.BHZ': {"known": ['2025-10-17T00:00:00.000-07:00', '2026-10-06T05:22:32.000000Z'],
+                      "epochs": [('2011-03-02T20:00:00.000000Z', '3000-01-01T00:00:00.000000Z', 'BK.BKS.00.BHZ@2011-03-02T20:00:00.000000Z')],
+                      "basis": 'RETAINED: stationxml_response_20261006/BK.BKS.BHZ.response.xml sha256 76e10db43675bad1 (grassmann 3ebc83ba); known window = ModuleURI query start through min(query end, Created)'},
+    'IU.ANTO.00.BHZ': {"known": ['2025-10-17T00:00:00.000000', '2026-10-06T05:22:27.794893'],
+                       "epochs": [('2024-10-23T00:00:00.000000Z', None, 'IU.ANTO.00.BHZ@2024-10-23T00:00:00.000000Z')],
+                       "basis": 'RETAINED: stationxml_response_20261006/IU.ANTO.BHZ.response.xml sha256 5ff50798adcfca5e (grassmann 3ebc83ba); known window = ModuleURI query start through min(query end, Created)'},
+    'IU.ANTO.10.BHZ': {"known": ['2025-10-17T00:00:00.000000', '2026-10-06T05:22:27.794893'],
+                       "epochs": [('2024-10-25T08:30:00.000000Z', None, 'IU.ANTO.10.BHZ@2024-10-25T08:30:00.000000Z')],
+                       "basis": 'RETAINED: stationxml_response_20261006/IU.ANTO.BHZ.response.xml sha256 5ff50798adcfca5e (grassmann 3ebc83ba); known window = ModuleURI query start through min(query end, Created)'},
+    'IU.ANTO.60.BHZ': {"known": ['2025-10-17T00:00:00.000000', '2026-10-06T05:22:27.794893'],
+                       "epochs": [('2024-10-25T12:00:00.000000Z', None, 'IU.ANTO.60.BHZ@2024-10-25T12:00:00.000000Z')],
+                       "basis": 'RETAINED: stationxml_response_20261006/IU.ANTO.BHZ.response.xml sha256 5ff50798adcfca5e (grassmann 3ebc83ba); known window = ModuleURI query start through min(query end, Created)'},
+    'IU.COLA.00.BHZ': {"known": ['2025-10-17T00:00:00.000000', '2026-10-06T05:22:27.794893'],
+                       "epochs": [('2023-07-12T00:00:00.000000Z', '2026-07-31T02:00:00.000000Z', 'IU.COLA.00.BHZ@2023-07-12T00:00:00.000000Z'), ('2026-07-31T02:00:00.000000Z', None, 'IU.COLA.00.BHZ@2026-07-31T02:00:00.000000Z')],
+                       "basis": 'RETAINED: stationxml_response_20261006/IU.COLA.BHZ.response.xml sha256 a3f0edbf3081c17a (grassmann 3ebc83ba); known window = ModuleURI query start through min(query end, Created)'},
+    'IU.COLA.10.BHZ': {"known": ['2025-10-17T00:00:00.000000', '2026-10-06T05:22:27.794893'],
+                       "epochs": [('2024-12-05T14:54:00.000000Z', None, 'IU.COLA.10.BHZ@2024-12-05T14:54:00.000000Z')],
+                       "basis": 'RETAINED: stationxml_response_20261006/IU.COLA.BHZ.response.xml sha256 a3f0edbf3081c17a (grassmann 3ebc83ba); known window = ModuleURI query start through min(query end, Created)'},
+    'IU.COR.00.BHZ': {"known": ['2025-10-17T00:00:00.000000', '2026-10-06T05:22:27.794893'],
+                      "epochs": [('2020-10-27T18:30:00.000000Z', None, 'IU.COR.00.BHZ@2020-10-27T18:30:00.000000Z')],
+                      "basis": 'RETAINED: stationxml_response_20261006/IU.COR.BHZ.response.xml sha256 5b4807557182ef2a (grassmann 3ebc83ba); known window = ModuleURI query start through min(query end, Created)'},
+    'IU.COR.10.BHZ': {"known": ['2025-10-17T00:00:00.000000', '2026-10-06T05:22:27.794893'],
+                      "epochs": [('2015-03-28T00:00:00.000000Z', None, 'IU.COR.10.BHZ@2015-03-28T00:00:00.000000Z')],
+                      "basis": 'RETAINED: stationxml_response_20261006/IU.COR.BHZ.response.xml sha256 5b4807557182ef2a (grassmann 3ebc83ba); known window = ModuleURI query start through min(query end, Created)'},
+    'IU.COR.60.BHZ': {"known": ['2025-10-17T00:00:00.000000', '2026-10-06T05:22:27.794893'],
+                      "epochs": [('2020-10-27T18:55:00.000000Z', None, 'IU.COR.60.BHZ@2020-10-27T18:55:00.000000Z')],
+                      "basis": 'RETAINED: stationxml_response_20261006/IU.COR.BHZ.response.xml sha256 5b4807557182ef2a (grassmann 3ebc83ba); known window = ModuleURI query start through min(query end, Created)'},
+    'IU.MAJO.00.BHZ': {"known": ['2025-10-17T00:00:00.000000', '2026-10-06T05:22:27.794893'],
+                       "epochs": [('2023-09-22T08:00:00.000000Z', None, 'IU.MAJO.00.BHZ@2023-09-22T08:00:00.000000Z')],
+                       "basis": 'RETAINED: stationxml_response_20261006/IU.MAJO.BHZ.response.xml sha256 d6438200d5520754 (grassmann 3ebc83ba); known window = ModuleURI query start through min(query end, Created)'},
+    'IU.MAJO.10.BHZ': {"known": ['2025-10-17T00:00:00.000000', '2026-10-06T05:22:27.794893'],
+                       "epochs": [('2023-09-26T01:15:00.000000Z', None, 'IU.MAJO.10.BHZ@2023-09-26T01:15:00.000000Z')],
+                       "basis": 'RETAINED: stationxml_response_20261006/IU.MAJO.BHZ.response.xml sha256 d6438200d5520754 (grassmann 3ebc83ba); known window = ModuleURI query start through min(query end, Created)'},
+    'IU.MAJO.60.BHZ': {"known": ['2025-10-17T00:00:00.000000', '2026-10-06T05:22:27.794893'],
+                       "epochs": [('2023-09-26T01:15:00.000000Z', None, 'IU.MAJO.60.BHZ@2023-09-26T01:15:00.000000Z')],
+                       "basis": 'RETAINED: stationxml_response_20261006/IU.MAJO.BHZ.response.xml sha256 d6438200d5520754 (grassmann 3ebc83ba); known window = ModuleURI query start through min(query end, Created)'},
+    'IU.SNZO.00.BHZ': {"known": ['2025-10-17T00:00:00.000000', '2026-10-06T05:22:27.794893'],
+                       "epochs": [('2018-03-21T00:00:00.000000Z', None, 'IU.SNZO.00.BHZ@2018-03-21T00:00:00.000000Z')],
+                       "basis": 'RETAINED: stationxml_response_20261006/IU.SNZO.BHZ.response.xml sha256 4b7f205ddc22af0b (grassmann 3ebc83ba); known window = ModuleURI query start through min(query end, Created)'},
+    'IU.SNZO.10.BHZ': {"known": ['2025-10-17T00:00:00.000000', '2026-10-06T05:22:27.794893'],
+                       "epochs": [('2018-03-21T20:00:00.000000Z', None, 'IU.SNZO.10.BHZ@2018-03-21T20:00:00.000000Z')],
+                       "basis": 'RETAINED: stationxml_response_20261006/IU.SNZO.BHZ.response.xml sha256 4b7f205ddc22af0b (grassmann 3ebc83ba); known window = ModuleURI query start through min(query end, Created)'},
+    'IU.TATO.00.BHZ': {"known": ['2025-10-17T00:00:00.000000', '2026-10-06T05:22:27.794893'],
+                       "epochs": [('2025-08-05T10:00:00.000000Z', None, 'IU.TATO.00.BHZ@2025-08-05T10:00:00.000000Z')],
+                       "basis": 'RETAINED: stationxml_response_20261006/IU.TATO.BHZ.response.xml sha256 34648b83c14477bd (grassmann 3ebc83ba); known window = ModuleURI query start through min(query end, Created)'},
+    'IU.TATO.10.BHZ': {"known": ['2025-10-17T00:00:00.000000', '2026-10-06T05:22:27.794893'],
+                       "epochs": [('2025-08-06T11:00:00.000000Z', None, 'IU.TATO.10.BHZ@2025-08-06T11:00:00.000000Z')],
+                       "basis": 'RETAINED: stationxml_response_20261006/IU.TATO.BHZ.response.xml sha256 34648b83c14477bd (grassmann 3ebc83ba); known window = ModuleURI query start through min(query end, Created)'},
+    'IU.TUC.00.BHZ': {"known": ['2025-10-17T00:00:00.000000', '2026-10-06T05:22:27.794893'],
+                      "epochs": [('2021-09-24T00:00:00.000000Z', '2026-02-05T18:00:00.000000Z', 'IU.TUC.00.BHZ@2021-09-24T00:00:00.000000Z'), ('2026-02-05T18:00:00.000000Z', None, 'IU.TUC.00.BHZ@2026-02-05T18:00:00.000000Z')],
+                      "basis": 'RETAINED: stationxml_response_20261006/IU.TUC.BHZ.response.xml sha256 942180c9ae7ce232 (grassmann 3ebc83ba); known window = ModuleURI query start through min(query end, Created)'},
+    'IU.TUC.10.BHZ': {"known": ['2025-10-17T00:00:00.000000', '2026-10-06T05:22:27.794893'],
+                      "epochs": [('2017-09-06T15:30:00.000000Z', '2026-02-05T18:00:00.000000Z', 'IU.TUC.10.BHZ@2017-09-06T15:30:00.000000Z'), ('2026-02-05T18:00:00.000000Z', None, 'IU.TUC.10.BHZ@2026-02-05T18:00:00.000000Z')],
+                      "basis": 'RETAINED: stationxml_response_20261006/IU.TUC.BHZ.response.xml sha256 942180c9ae7ce232 (grassmann 3ebc83ba); known window = ModuleURI query start through min(query end, Created)'},
+    'IU.TUC.60.BHZ': {"known": ['2025-10-17T00:00:00.000000', '2026-10-06T05:22:27.794893'],
+                      "epochs": [('2017-09-06T15:30:00.000000Z', '2026-02-05T18:00:00.000000Z', 'IU.TUC.60.BHZ@2017-09-06T15:30:00.000000Z'), ('2026-02-05T18:00:00.000000Z', None, 'IU.TUC.60.BHZ@2026-02-05T18:00:00.000000Z')],
+                      "basis": 'RETAINED: stationxml_response_20261006/IU.TUC.BHZ.response.xml sha256 942180c9ae7ce232 (grassmann 3ebc83ba); known window = ModuleURI query start through min(query end, Created)'},
+    'MX.TLIG..BHZ': {"known": ['2025-10-17T00:00:00.000000', '2026-10-06T05:22:27.794893'],
+                     "epochs": [('2009-10-13T00:00:00.000000Z', None, 'MX.TLIG..BHZ@2009-10-13T00:00:00.000000Z')],
+                     "basis": 'RETAINED: stationxml_response_20261006/MX.TLIG.BHZ.response.xml sha256 40a7e7fd22f409e5 (grassmann 3ebc83ba); known window = ModuleURI query start through min(query end, Created)'},
+}
+
+
+def response_epoch_for(trace_id, start, end):
+    """DIAGNOSTIC response-epoch status of the EXACT returned trace id over the request [start, end) (ISO instants),
+    from RESPONSE_METADATA. Every retained epoch is clipped to its query's known window: outside it a response is
+    UNKNOWN, never assumed -- an epoch still open at retrieval is known open only up to the retrieval, and an epoch
+    beginning before the query start is known only from that start. No retained XML for the id gives
+    NO_RETAINED_RESPONSE_METADATA. Response metadata is not response removal; nothing admits or refuses a value on
+    this status (any such policy is a separate, named rule)."""
+    entry = RESPONSE_METADATA.get(trace_id)
+    if entry is None:
+        return {"status": "NO_RETAINED_RESPONSE_METADATA", "labels": None}
+    lo, hi = entry["known"]
+    lo_ns, hi_ns = utc_instant_ns(lo), utc_instant_ns(hi)
+    clipped = []
+    for begin, finish, label in entry["epochs"]:
+        b = lo if begin is None or utc_instant_ns(begin) < lo_ns else begin
+        f = hi if finish is None or utc_instant_ns(finish) > hi_ns else finish
+        if utc_instant_ns(f) > utc_instant_ns(b):
+            clipped.append((b, f, label))
+    status, labels = response_epoch_status(clipped, start, end)
+    return {"status": status, "labels": labels, "known": [lo, hi], "basis": entry["basis"]}

@@ -17,7 +17,7 @@ Date: January 2026
 import json
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 import numpy as np
@@ -37,6 +37,8 @@ DEFAULT_CONFIG = {
     'false_alarm_forward_days': 14,  # No M6+ within N days = false alarm
     'hit_min_tier': 2,              # Tier >= ELEVATED counts as hit (0=NORMAL, 1=WATCH, 2=ELEVATED, 3=CRITICAL)
     'event_region_buffer_km': 100,  # Event within N km of region boundary counts
+    'require_publication_clock': True,  # a record counts toward an event only with a retained publication clock before it
+    'catalog_complete_through': None,   # ISO day through which the event catalog is COMPLETE; None = forward windows unscorable
 }
 
 # Region bounding boxes (approximate, for event filtering)
@@ -91,7 +93,7 @@ class EarthquakeEvent:
 class ScoringResult:
     """Result of scoring a single event."""
     event: EarthquakeEvent
-    classification: str  # 'hit', 'miss', 'aftershock_excluded'
+    classification: str  # 'hit', 'miss', 'aftershock_excluded', 'unscorable_publication_clock'
     max_tier_in_window: int
     max_risk_in_window: float
     warning_lead_days: Optional[float] = None  # Days before event when warning issued
@@ -230,6 +232,18 @@ def load_events_from_usgs(
     return events
 
 
+def _as_utc(value):
+    """Event/clock instants normalised to aware UTC. A naive datetime is TREATED AS UTC (declared, not inferred)."""
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
+def _parse_utc(text):
+    """ISO-8601 publication clock -> aware UTC; subsecond precision kept; 'Z' accepted; offset-free text treated as UTC."""
+    return _as_utc(datetime.fromisoformat(str(text).replace('Z', '+00:00')))
+
+
 def assign_region(lat: float, lon: float) -> Optional[str]:
     """Assign a region based on lat/lon coordinates."""
     for region, bounds in REGION_BOUNDS.items():
@@ -336,13 +350,20 @@ class EventScorer:
                 notes='Event not in monitored region',
             )
 
-        # Look back in lead window for warnings
+        # Look back in lead window for warnings -- PUBLICATION-CLOCK RULE (grassmann 2026-10-08; codex 1614 finding 2).
+        # The record for scored day D is created ~35 h after D 00:00Z and published later still, so a date-keyed join can
+        # count a record published AFTER the event as a warning issued before it. A record counts only when its region
+        # result carries `published_utc` (a receipt-bound publication clock) and that clock precedes the event time.
         lead_days = self.config['lead_window_days']
         hit_min_tier = self.config['hit_min_tier']
+        require_clock = self.config.get('require_publication_clock', True)
+        event_utc = _as_utc(event.time)
 
         max_tier = 0
         max_risk = 0.0
         warning_date = None
+        warning_lead = None
+        clock_missing = False
 
         for days_before in range(lead_days + 1):
             check_date = event.time.date() - timedelta(days=days_before)
@@ -357,22 +378,41 @@ class EventScorer:
 
             tier = region_result.get('tier', 0)
             risk = region_result.get('combined_risk', 0.0)
+            published = region_result.get('published_utc')
+            if published is None:
+                if require_clock:
+                    if tier >= 1:
+                        clock_missing = True
+                    continue  # no publication clock: this record cannot be shown to precede the event
+                published_utc = None
+            else:
+                published_utc = _parse_utc(published)
+                if published_utc >= event_utc:
+                    continue  # POST_EVENT (created before / published after, or later): never a warning
 
             if tier > max_tier:
                 max_tier = tier
                 warning_date = check_date
+                warning_lead = ((event_utc - published_utc).total_seconds() / 86400.0) if published_utc is not None else float(days_before)
             max_risk = max(max_risk, risk)
 
         # Classify
         if max_tier >= hit_min_tier:
-            lead = (event.time.date() - warning_date).days if warning_date else None
             return ScoringResult(
                 event=event,
                 classification='hit',
                 max_tier_in_window=max_tier,
                 max_risk_in_window=max_risk,
-                warning_lead_days=lead,
-                notes=f'Warning issued {lead} days before event',
+                warning_lead_days=warning_lead,
+                notes=f'Warning published {warning_lead:.4f} days before event (publication clock)',
+            )
+        elif clock_missing:
+            return ScoringResult(
+                event=event,
+                classification='unscorable_publication_clock',
+                max_tier_in_window=max_tier,
+                max_risk_in_window=max_risk,
+                notes='UNSCORABLE_CATALOG_OR_PUBLICATION_COVERAGE: a tiered record in the lead window has no retained publication clock',
             )
         else:
             return ScoringResult(
@@ -401,6 +441,10 @@ class EventScorer:
         hit_min_tier = self.config['hit_min_tier']
         forward_days = self.config['false_alarm_forward_days']
         min_mag = self.config['min_magnitude']
+        catalog_through = self.config.get('catalog_complete_through')
+        if isinstance(catalog_through, str):
+            catalog_through = datetime.strptime(catalog_through, '%Y-%m-%d').date()
+        self.unscorable_false_alarm_periods = []
 
         # Build event lookup by region
         events_by_region: Dict[str, List[EarthquakeEvent]] = {}
@@ -429,6 +473,16 @@ class EventScorer:
                 # Check forward window for events
                 forward_start = check_date
                 forward_end = check_date + timedelta(days=forward_days)
+                # catalog-coverage gate (grassmann 2026-10-08; codex 1614 finding 2): a forward window is scorable only when
+                # a COMPLETE catalog is declared through its end; otherwise the period is UNSCORABLE, not a false alarm.
+                if catalog_through is None or forward_end > catalog_through:
+                    self.unscorable_false_alarm_periods.append(dict(
+                        region=region, date=date_str, tier=tier, risk=risk,
+                        status='UNSCORABLE_CATALOG_OR_PUBLICATION_COVERAGE',
+                        reason=('no complete catalog declared' if catalog_through is None
+                                else f'forward window ends {forward_end} after catalog complete-through {catalog_through}')))
+                    checked_periods.add((region, date_str))
+                    continue
 
                 has_event = False
                 for event in events_by_region.get(region, []):

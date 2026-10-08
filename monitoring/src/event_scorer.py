@@ -37,8 +37,8 @@ DEFAULT_CONFIG = {
     'false_alarm_forward_days': 14,  # No M6+ within N days = false alarm
     'hit_min_tier': 2,              # Tier >= ELEVATED counts as hit (0=NORMAL, 1=WATCH, 2=ELEVATED, 3=CRITICAL)
     'event_region_buffer_km': 100,  # Event within N km of region boundary counts
-    'require_publication_clock': True,  # a record counts toward an event only with a retained publication clock before it
-    'catalog_complete_through': None,   # ISO day through which the event catalog is COMPLETE; None = forward windows unscorable
+    'require_publication_clock': True,  # records count toward an event only by a retained publication clock (False = LEGACY date join)
+    'catalog_complete_through': None,   # ISO day through which the event catalog is COMPLETE; None = follow-up windows unscorable
 }
 
 # Region bounding boxes (approximate, for event filtering)
@@ -133,31 +133,36 @@ class FalseAlarmResult:
 
 @dataclass
 class BacktestMetrics:
-    """Aggregate metrics from backtest scoring."""
     total_events: int
     hits: int
     misses: int
     aftershocks_excluded: int
     false_alarms: int
-    hit_rate: float           # hits / (hits + misses)
-    precision: float          # hits / (hits + false_alarms)
-    false_alarm_rate: float   # false_alarms / total_region_days
-    time_in_warning_pct: float  # Days at WATCH+ / total days
-    mean_lead_days: float     # Average warning lead time for hits
+    hit_rate: Optional[float]           # hits / (hits + misses); None when no scorable event
+    precision: Optional[float]          # hits / (hits + false_alarms); None when both are zero
+    false_alarm_rate: Optional[float]   # false_alarms / total_region_days; None when no region-days
+    time_in_warning_pct: Optional[float]  # Days at WATCH+ / total days; None when no region-days
+    mean_lead_days: Optional[float]     # Average warning lead time for hits; None when no hit
     total_region_days: int    # Total region-days in backtest
+    unscorable_events: int = 0              # events with a tiered record lacking a valid publication clock
+    unscorable_false_alarm_periods: int = 0  # alert periods without a complete publication-anchored follow-up
 
     def to_dict(self) -> Dict:
+        def _r(x, n):
+            return None if x is None else round(x, n)
         return {
             'total_events': self.total_events,
             'hits': self.hits,
             'misses': self.misses,
             'aftershocks_excluded': self.aftershocks_excluded,
             'false_alarms': self.false_alarms,
-            'hit_rate': round(self.hit_rate, 4),
-            'precision': round(self.precision, 4),
-            'false_alarm_rate': round(self.false_alarm_rate, 6),
-            'time_in_warning_pct': round(self.time_in_warning_pct, 4),
-            'mean_lead_days': round(self.mean_lead_days, 2),
+            'unscorable_events': self.unscorable_events,
+            'unscorable_false_alarm_periods': self.unscorable_false_alarm_periods,
+            'hit_rate': _r(self.hit_rate, 4),
+            'precision': _r(self.precision, 4),
+            'false_alarm_rate': _r(self.false_alarm_rate, 6),
+            'time_in_warning_pct': _r(self.time_in_warning_pct, 4),
+            'mean_lead_days': _r(self.mean_lead_days, 2),
             'total_region_days': self.total_region_days,
         }
 
@@ -214,7 +219,7 @@ def load_events_from_usgs(
 
         event = EarthquakeEvent(
             event_id=feature['id'],
-            time=datetime.fromtimestamp(props['time'] / 1000, tz=timezone.utc),
+            time=datetime.fromtimestamp(props['time'] / 1000, tz=timezone.utc),  # codex 1741: USGS epoch ms are UTC
             latitude=coords[1],
             longitude=coords[0],
             magnitude=props['mag'],
@@ -239,9 +244,15 @@ def _as_utc(value):
     return value.astimezone(timezone.utc)
 
 
-def _parse_utc(text):
-    """ISO-8601 publication clock -> aware UTC; subsecond precision kept; 'Z' accepted; offset-free text treated as UTC."""
-    return _as_utc(datetime.fromisoformat(str(text).replace('Z', '+00:00')))
+def _parse_clock(text):
+    """ISO-8601 publication clock -> aware UTC, or None when absent or malformed (both stay UNSCORABLE). Subsecond
+    precision kept; 'Z' accepted; offset-free text treated as UTC."""
+    if text is None:
+        return None
+    try:
+        return _as_utc(datetime.fromisoformat(str(text).replace('Z', '+00:00')))
+    except (TypeError, ValueError):
+        return None
 
 
 def assign_region(lat: float, lon: float) -> Optional[str]:
@@ -350,14 +361,15 @@ class EventScorer:
                 notes='Event not in monitored region',
             )
 
-        # Look back in lead window for warnings -- PUBLICATION-CLOCK RULE (grassmann 2026-10-08; codex 1614 finding 2).
+        # PUBLICATION-CLOCK RULE (grassmann 2026-10-08; codex 1614 finding 2, completed per codex 1741 item 1).
         # The record for scored day D is created ~35 h after D 00:00Z and published later still, so a date-keyed join can
-        # count a record published AFTER the event as a warning issued before it. A record counts only when its region
-        # result carries `published_utc` (a receipt-bound publication clock) and that clock precedes the event time.
+        # count a record published AFTER the event as a warning issued before it. In publication-clock mode a region's
+        # records are selected by their publication instant alone: 0 < event - publication <= lead window.
         lead_days = self.config['lead_window_days']
         hit_min_tier = self.config['hit_min_tier']
         require_clock = self.config.get('require_publication_clock', True)
         event_utc = _as_utc(event.time)
+        lead_seconds = lead_days * 86400.0
 
         max_tier = 0
         max_risk = 0.0
@@ -365,36 +377,48 @@ class EventScorer:
         warning_lead = None
         clock_missing = False
 
-        for days_before in range(lead_days + 1):
-            check_date = event.time.date() - timedelta(days=days_before)
-            date_str = check_date.strftime('%Y-%m-%d')
-
-            if date_str not in daily_results:
-                continue
-
-            region_result = daily_results[date_str].get(event.region)
-            if region_result is None:
-                continue
-
-            tier = region_result.get('tier', 0)
-            risk = region_result.get('combined_risk', 0.0)
-            published = region_result.get('published_utc')
-            if published is None:
-                if require_clock:
-                    if tier >= 1:
+        if require_clock:
+            for date_str in sorted(daily_results):
+                region_result = daily_results[date_str].get(event.region)
+                if region_result is None:
+                    continue
+                tier = region_result.get('tier', 0)
+                risk = region_result.get('combined_risk', 0.0)
+                published_utc = _parse_clock(region_result.get('published_utc'))
+                if published_utc is None:
+                    # missing or malformed clock: a tiered record scored on/before the event day cannot be placed
+                    if tier >= 1 and date_str <= event_utc.strftime('%Y-%m-%d'):
                         clock_missing = True
-                    continue  # no publication clock: this record cannot be shown to precede the event
-                published_utc = None
-            else:
-                published_utc = _parse_utc(published)
-                if published_utc >= event_utc:
-                    continue  # POST_EVENT (created before / published after, or later): never a warning
+                    continue
+                lead = (event_utc - published_utc).total_seconds()
+                if not (0.0 < lead <= lead_seconds):
+                    continue  # published at/after the event, or before the lead window: never a warning for this event
+                if tier > max_tier:
+                    max_tier = tier
+                    warning_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+                    warning_lead = lead / 86400.0
+                max_risk = max(max_risk, risk)
+        else:
+            # LEGACY DATE JOIN (explicit opt-in only; clock-blind, kept for comparison, never the default)
+            for days_before in range(lead_days + 1):
+                check_date = event.time.date() - timedelta(days=days_before)
+                date_str = check_date.strftime('%Y-%m-%d')
 
-            if tier > max_tier:
-                max_tier = tier
-                warning_date = check_date
-                warning_lead = ((event_utc - published_utc).total_seconds() / 86400.0) if published_utc is not None else float(days_before)
-            max_risk = max(max_risk, risk)
+                if date_str not in daily_results:
+                    continue
+
+                region_result = daily_results[date_str].get(event.region)
+                if region_result is None:
+                    continue
+
+                tier = region_result.get('tier', 0)
+                risk = region_result.get('combined_risk', 0.0)
+
+                if tier > max_tier:
+                    max_tier = tier
+                    warning_date = check_date
+                    warning_lead = float(days_before)
+                max_risk = max(max_risk, risk)
 
         # Classify
         if max_tier >= hit_min_tier:
@@ -404,7 +428,8 @@ class EventScorer:
                 max_tier_in_window=max_tier,
                 max_risk_in_window=max_risk,
                 warning_lead_days=warning_lead,
-                notes=f'Warning published {warning_lead:.4f} days before event (publication clock)',
+                notes=(f'Warning published {warning_lead:.4f} days before event (publication clock)' if require_clock
+                       else f'LEGACY date join: warning issued {warning_lead:.0f} days before event'),
             )
         elif clock_missing:
             return ScoringResult(
@@ -412,7 +437,7 @@ class EventScorer:
                 classification='unscorable_publication_clock',
                 max_tier_in_window=max_tier,
                 max_risk_in_window=max_risk,
-                notes='UNSCORABLE_CATALOG_OR_PUBLICATION_COVERAGE: a tiered record in the lead window has no retained publication clock',
+                notes='UNSCORABLE_CATALOG_OR_PUBLICATION_COVERAGE: a tiered record scored on/before the event has no valid publication clock',
             )
         else:
             return ScoringResult(
@@ -422,6 +447,23 @@ class EventScorer:
                 max_risk_in_window=max_risk,
                 notes=f'Max tier {max_tier} below threshold {hit_min_tier}',
             )
+
+    def _followup_verdict(self, result, events_in_region, catalog_through, forward_days, min_mag):
+        """Publication-anchored follow-up of ONE alert record: scorable only with a valid publication clock and a catalog
+        declared complete through publication + forward window; an event rescues the alert only if it occurs after
+        publication (an earlier event cannot rescue a later alert)."""
+        published_utc = _parse_clock(result.get('published_utc'))
+        if published_utc is None:
+            return dict(status='UNSCORABLE_CATALOG_OR_PUBLICATION_COVERAGE', reason='no valid publication clock')
+        forward_end = published_utc + timedelta(days=forward_days)
+        if catalog_through is None:
+            return dict(status='UNSCORABLE_CATALOG_OR_PUBLICATION_COVERAGE', reason='no complete catalog declared',
+                        published_utc=published_utc)
+        if forward_end.date() > catalog_through:
+            return dict(status='UNSCORABLE_CATALOG_OR_PUBLICATION_COVERAGE', published_utc=published_utc,
+                        reason=f'follow-up window ends {forward_end.date()} after catalog complete-through {catalog_through}')
+        has_event = any(published_utc < _as_utc(e.time) <= forward_end and e.magnitude >= min_mag for e in events_in_region)
+        return dict(status='SCORABLE', has_event=has_event, published_utc=published_utc, forward_end=forward_end)
 
     def find_false_alarms(
         self,
@@ -441,10 +483,6 @@ class EventScorer:
         hit_min_tier = self.config['hit_min_tier']
         forward_days = self.config['false_alarm_forward_days']
         min_mag = self.config['min_magnitude']
-        catalog_through = self.config.get('catalog_complete_through')
-        if isinstance(catalog_through, str):
-            catalog_through = datetime.strptime(catalog_through, '%Y-%m-%d').date()
-        self.unscorable_false_alarm_periods = []
 
         # Build event lookup by region
         events_by_region: Dict[str, List[EarthquakeEvent]] = {}
@@ -455,9 +493,14 @@ class EventScorer:
         false_alarms = []
         checked_periods = set()  # (region, date) already counted
 
+        require_clock = self.config.get('require_publication_clock', True)
+        catalog_through = self.config.get('catalog_complete_through')
+        if isinstance(catalog_through, str):
+            catalog_through = datetime.strptime(catalog_through, '%Y-%m-%d').date()
+        self.unscorable_false_alarm_periods = []
+
         for date_str, regions in sorted(daily_results.items()):
             check_date = datetime.strptime(date_str, '%Y-%m-%d').date()
-
             for region, result in regions.items():
                 tier = result.get('tier', 0)
                 risk = result.get('combined_risk', 0.0)
@@ -470,52 +513,58 @@ class EventScorer:
                 if (region, date_str) in checked_periods:
                     continue
 
-                # Check forward window for events
-                forward_start = check_date
-                forward_end = check_date + timedelta(days=forward_days)
-                # catalog-coverage gate (grassmann 2026-10-08; codex 1614 finding 2): a forward window is scorable only when
-                # a COMPLETE catalog is declared through its end; otherwise the period is UNSCORABLE, not a false alarm.
-                if catalog_through is None or forward_end > catalog_through:
-                    self.unscorable_false_alarm_periods.append(dict(
-                        region=region, date=date_str, tier=tier, risk=risk,
-                        status='UNSCORABLE_CATALOG_OR_PUBLICATION_COVERAGE',
-                        reason=('no complete catalog declared' if catalog_through is None
-                                else f'forward window ends {forward_end} after catalog complete-through {catalog_through}')))
-                    checked_periods.add((region, date_str))
-                    continue
-
-                has_event = False
-                for event in events_by_region.get(region, []):
-                    event_date = event.time.date()
-                    if forward_start <= event_date <= forward_end:
-                        if event.magnitude >= min_mag:
-                            has_event = True
-                            break
+                if require_clock:
+                    # publication-anchored follow-up (grassmann 2026-10-08; codex 1741 item 1)
+                    verdict = self._followup_verdict(result, events_by_region.get(region, []), catalog_through, forward_days, min_mag)
+                    if verdict['status'] != 'SCORABLE':
+                        self.unscorable_false_alarm_periods.append(dict(
+                            region=region, date=date_str, tier=tier, risk=risk, status=verdict['status'], reason=verdict['reason']))
+                        checked_periods.add((region, date_str))
+                        continue
+                    has_event = verdict['has_event']
+                    period_note = (f'No M{min_mag}+ within {forward_days} days after publication '
+                                   f'{verdict["published_utc"].isoformat()}')
+                else:
+                    # LEGACY date-anchored follow-up (explicit opt-in only)
+                    forward_start = check_date
+                    forward_end = check_date + timedelta(days=forward_days)
+                    has_event = False
+                    for event in events_by_region.get(region, []):
+                        event_date = event.time.date()
+                        if forward_start <= event_date <= forward_end:
+                            if event.magnitude >= min_mag:
+                                has_event = True
+                                break
+                    period_note = f'LEGACY date join: no M{min_mag}+ within {forward_days} days'
 
                 if not has_event:
-                    # Count consecutive days at elevated tier
+                    # Count consecutive days at elevated tier; in clock mode a constituent is merged only when it is
+                    # itself scorable (valid clock, complete follow-up); otherwise the merge stops and that day is
+                    # evaluated on its own
                     duration = 1
                     for d in range(1, 30):  # Check up to 30 days
                         next_date = (check_date + timedelta(days=d)).strftime('%Y-%m-%d')
                         if next_date in daily_results:
                             next_result = daily_results[next_date].get(region, {})
                             if next_result.get('tier', 0) >= hit_min_tier:
+                                if require_clock:
+                                    nv = self._followup_verdict(next_result, events_by_region.get(region, []), catalog_through, forward_days, min_mag)
+                                    if nv['status'] != 'SCORABLE' or nv['has_event']:
+                                        break
                                 duration += 1
                                 checked_periods.add((region, next_date))
                             else:
                                 break
                         else:
                             break
-
                     false_alarms.append(FalseAlarmResult(
                         region=region,
                         date=datetime.strptime(date_str, '%Y-%m-%d'),
                         tier=tier,
                         risk=risk,
                         duration_days=duration,
-                        notes=f'No M{min_mag}+ within {forward_days} days',
+                        notes=period_note,
                     ))
-
                 checked_periods.add((region, date_str))
 
         logger.info(f"Found {len(false_alarms)} false alarm periods")
@@ -543,17 +592,19 @@ class EventScorer:
         hits = sum(1 for r in event_results if r.classification == 'hit')
         misses = sum(1 for r in event_results if r.classification == 'miss')
         aftershocks = sum(1 for r in event_results if r.classification == 'aftershock_excluded')
+        unscorable_events = sum(1 for r in event_results if r.classification == 'unscorable_publication_clock')
+        unscorable_fa = len(getattr(self, 'unscorable_false_alarm_periods', []) or [])
 
-        # Hit rate
-        hit_rate = hits / (hits + misses) if (hits + misses) > 0 else 0.0
+        # Hit rate: None, never a measured zero, when no event is scorable
+        hit_rate = hits / (hits + misses) if (hits + misses) > 0 else None
 
         # Precision
         n_fa = len(false_alarms)
-        precision = hits / (hits + n_fa) if (hits + n_fa) > 0 else 0.0
+        precision = hits / (hits + n_fa) if (hits + n_fa) > 0 else None
 
         # False alarm rate (per region-day)
         total_region_days = len(daily_results) * len(regions)
-        far = n_fa / total_region_days if total_region_days > 0 else 0.0
+        far = n_fa / total_region_days if total_region_days > 0 else None
 
         # Time in warning
         hit_min_tier = self.config['hit_min_tier']
@@ -563,13 +614,12 @@ class EventScorer:
                 result = region_results.get(region, {})
                 if result.get('tier', 0) >= hit_min_tier:
                     days_at_warning += 1
-
-        time_in_warning = days_at_warning / total_region_days if total_region_days > 0 else 0.0
+        time_in_warning = days_at_warning / total_region_days if total_region_days > 0 else None
 
         # Mean lead time for hits
         lead_times = [r.warning_lead_days for r in event_results
                      if r.classification == 'hit' and r.warning_lead_days is not None]
-        mean_lead = np.mean(lead_times) if lead_times else 0.0
+        mean_lead = float(np.mean(lead_times)) if lead_times else None
 
         return BacktestMetrics(
             total_events=len(event_results),
@@ -583,6 +633,8 @@ class EventScorer:
             time_in_warning_pct=time_in_warning,
             mean_lead_days=mean_lead,
             total_region_days=total_region_days,
+            unscorable_events=unscorable_events,
+            unscorable_false_alarm_periods=unscorable_fa,
         )
 
 

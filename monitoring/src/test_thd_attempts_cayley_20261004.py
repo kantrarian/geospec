@@ -177,7 +177,7 @@ class RunnerRecordsEveryConfiguredStation(unittest.TestCase):
         RD.RECORD_THD_ATTEMPTS = True
         self.plan = {"AK.SSL": "none", "IU.COLA": "full"}
         out = self.assess("anchorage").to_dict()["thd_attempts"]
-        self.assertEqual(out["schema"], "thd-station-attempts-v2")
+        self.assertEqual(out["schema"], "thd-station-attempts-v3")
         self.assertEqual(out["scored_day"], "2026-10-02")
         rows = [(s["role"], s["station"], s["attempted"], s["outcome"], s["selected"]) for s in out["stations"]]
         self.assertEqual(rows, [("CONFIGURED_PRIMARY", "AK.SSL", True, "NO_DATA", False),

@@ -161,3 +161,72 @@ def refine_no_data(network, station, channel, window, inventory_text, asked):
     if not any(r.get("Channel") == channel and _overlaps(r, start, end) for r in same):
         return "NO_DATA", "NO_MATCHING_CHANNEL_IN_THIS_INVENTORY"
     return "NO_DATA", "CHANNEL_IN_THIS_INVENTORY_PROVIDER_RETURNED_NO_DATA"
+
+
+# ---- candidate additions (cayley 2026-10-08; codex 1515 s4, 1523 item 2) ------------------------------------------------
+# EXACT SELECTOR. A location is pinned ONLY from retained evidence: the trace id a station's served value actually used
+# (d3_daily_station_attempts trace_id), with that evidence named as the basis. Until a pin is bound the request stays
+# the historical wildcard and the attempt says so -- a guessed location could silently select another sensor (MAJO
+# has three co-located instruments). Empty today: the retained trace ids are on the production host (grassmann).
+_LOCATION = re.compile(r"[0-9A-Z]{0,2}")
+STATION_LOCATIONS = {}   # "NET.STA" -> {"location": "00", "basis": "RETAINED: <evidence>"}
+
+
+def selector_for(network, station):
+    """(location, selector_basis): a retained pin, or ("*", "WILDCARD_LOCATION_NOT_PINNED")."""
+    pin = STATION_LOCATIONS.get("%s.%s" % (network, station))
+    if pin is None:
+        return "*", "WILDCARD_LOCATION_NOT_PINNED"
+    location, basis = pin.get("location"), pin.get("basis")
+    if not (isinstance(location, str) and _LOCATION.fullmatch(location) and isinstance(basis, str)
+            and basis.startswith("RETAINED: ")):
+        raise ValueError("STATION_LOCATION_PIN_INVALID: %s.%s" % (network, station))
+    return location, "PINNED " + basis
+
+
+def coverage_facts(stream, start, end):
+    """Honest missingness of a returned stream BEFORE it is merged, per trace id: the requested span, how much of it
+    the traces' samples actually cover, and the gaps/overlaps the merge will fill or resolve. FACTS ONLY -- the value
+    path (merge with interpolation, detrend) is unchanged by this version; whether a partial day may be scored is a
+    separate, reviewed rule. A day is FULL only with no gap and both ends within one sample of the request."""
+    from obspy import UTCDateTime
+    t0, t1 = UTCDateTime(start), UTCDateTime(end)
+    requested = float(t1 - t0)
+    by_id = {}
+    for trace in stream:
+        by_id.setdefault(trace.id, []).append(trace)
+    gaps = stream.get_gaps()  # [net, sta, loc, cha, t_from, t_to, duration, n_samples]; duration < 0 is an overlap
+    facts = {}
+    for trace_id, traces in by_id.items():
+        delta = max(float(tr.stats.delta) for tr in traces)
+        mine = [g for g in gaps if "%s.%s.%s.%s" % tuple(g[:4]) == trace_id]
+        gap_seconds = sum(float(g[6]) for g in mine if g[6] > 0)
+        head = max(0.0, float(min(tr.stats.starttime for tr in traces) - t0))
+        tail = max(0.0, float(t1 - max(tr.stats.endtime for tr in traces)) - delta)
+        covered = max(0.0, requested - head - tail - gap_seconds)
+        full = gap_seconds == 0 and head <= delta and tail <= delta
+        facts[trace_id] = {"requested_seconds": round(requested, 3), "covered_seconds": round(covered, 3),
+                           "coverage_fraction": round(covered / requested, 6) if requested > 0 else 0.0,
+                           "gaps": sum(1 for g in mine if g[6] > 0), "gap_seconds": round(gap_seconds, 3),
+                           "overlaps": sum(1 for g in mine if g[6] < 0), "missing_head_seconds": round(head, 3),
+                           "missing_tail_seconds": round(tail, 3), "status": "FULL" if full else "PARTIAL",
+                           "fill": "NONE" if full else "MERGE_INTERPOLATE_UNCHANGED"}
+    return facts
+
+
+def response_epoch_status(epochs, start, end):
+    """Whether one RETAINED response epoch covers the whole window. `epochs` are (start_iso, end_iso_or_None, label)
+    from a retained StationXML (level=response) for the exact selector; this helper reads nothing itself.
+      ("SINGLE_EPOCH", label)                one epoch spans the window
+      ("CROSSES_EPOCH_BOUNDARY", [labels])   the window straddles a response change: not one instrument state
+      ("EPOCH_PARTIALLY_COVERS_WINDOW", label)  one epoch overlaps but part of the window has no known response
+      ("NO_COVERING_EPOCH", None)            no retained epoch overlaps the window (wrong epoch / stale metadata)
+    Wiring this into the daily fetch needs the retained response table bound to the method (a named prerequisite)."""
+    s, e = start[:19], end[:19]
+    overlapping = [(b, f, label) for b, f, label in epochs if (not f or f[:19] >= s) and (not b or b[:19] <= e)]
+    if not overlapping:
+        return "NO_COVERING_EPOCH", None
+    whole = [label for b, f, label in overlapping if (not b or b[:19] <= s) and (not f or f[:19] >= e)]
+    if len(overlapping) == 1:
+        return ("SINGLE_EPOCH", whole[0]) if whole else ("EPOCH_PARTIALLY_COVERS_WINDOW", overlapping[0][2])
+    return "CROSSES_EPOCH_BOUNDARY", [label for _, _, label in overlapping]

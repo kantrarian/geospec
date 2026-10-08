@@ -559,11 +559,14 @@ def fetch_continuous_data_for_thd(
     # ladder; an unmapped network is refused by name instead of being sent through four generic providers.
     import thd_provider_routing as TPR
     adapters = TPR.route(station_network)
-    nslc_requested = '%s.%s.*.%s' % (station_network, station_code, channel)
+    # exact selector (candidate, codex 1515 s4): a retained location pin, else the historical wildcard, named as such
+    location, selector_basis = TPR.selector_for(station_network, station_code)
+    nslc_requested = '%s.%s.%s.%s' % (station_network, station_code, location, channel)
     if adapters is None:
         if attempts is not None:
             attempts.append({'provider': None, 'adapter': None, 'routing': TPR.ROUTING_VERSION,
-                             'nslc_requested': nslc_requested, 'window_requested': [start.isoformat(), end.isoformat()],
+                             'nslc_requested': nslc_requested, 'selector_basis': selector_basis,
+                             'window_requested': [start.isoformat(), end.isoformat()],
                              'outcome': 'NOT_REQUESTED', 'typed_outcome': 'NETWORK_NOT_ROUTED',
                              'reason': 'network %s has no adapter in %s' % (station_network, TPR.ROUTING_VERSION)})
         logger.error(f"No provider route for network {station_network} ({TPR.ROUTING_VERSION})")
@@ -573,7 +576,7 @@ def fetch_continuous_data_for_thd(
         record = None
         if attempts is not None:
             record = {'provider': client_name, 'adapter': adapter, 'routing': TPR.ROUTING_VERSION,
-                      'nslc_requested': nslc_requested,
+                      'nslc_requested': nslc_requested, 'selector_basis': selector_basis,
                       'window_requested': [start.isoformat(), end.isoformat()]}
             attempts.append(record)
         if adapter != TPR.FDSN:
@@ -589,7 +592,7 @@ def fetch_continuous_data_for_thd(
             st = client.get_waveforms(
                 network=station_network,
                 station=station_code,
-                location='*',
+                location=location,
                 channel=channel,
                 starttime=UTCDateTime(start),
                 endtime=UTCDateTime(end)
@@ -597,6 +600,14 @@ def fetch_continuous_data_for_thd(
 
             if len(st) > 0:
                 traces_before_merge = len(st)
+                # honest missingness, per trace id, measured BEFORE the merge fills anything (facts only): a failure
+                # to MEASURE is recorded as UNMEASURED and never changes the value path below
+                coverage = None
+                if record is not None:
+                    try:
+                        coverage = TPR.coverage_facts(st, start, end)
+                    except Exception as coverage_error:  # noqa: BLE001 -- facts only
+                        coverage = {'*': {'status': 'UNMEASURED', 'error_class': type(coverage_error).__name__}}
                 # Merge traces
                 st.merge(method=1, fill_value='interpolate')
 
@@ -618,6 +629,7 @@ def fetch_continuous_data_for_thd(
                                   sampling_rate=float(sample_rate), n_samples=int(len(data)),
                                   traces_before_merge=int(traces_before_merge), traces_after_merge=len(st),
                                   selection='st[0] after merge(method=1, fill_value=interpolate)',
+                                  coverage=coverage.get(st[0].id, coverage.get('*')),
                                   response='NOT_REMOVED (raw counts; demean and linear detrend only)')
                 return data, sample_rate
             if record is not None:

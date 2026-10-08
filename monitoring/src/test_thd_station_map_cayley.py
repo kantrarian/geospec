@@ -77,13 +77,27 @@ class Parsing(unittest.TestCase):
         self.assertEqual(M.recorded_station(rep("sta=IU.TUC, THD=0.40, z=0.57, n=91, rate=40Hz"))[0], "IU.TUC")
 
     def test_second_configured_fallback_is_a_row_role_with_a_distance_entry(self):
-        """grassmann 2026-10-03 (cayley b1765426 defect): anchorage's fallback2 AK.BMR was omitted from the map."""
+        """grassmann 2026-10-03 (cayley b1765426 defect): a configured fallback2 must appear with its distance entry.
+        In the provider candidate no configured region has a fallback2 (anchorage is IU.COLA then AK.BMR), so the role
+        is exercised on a copy of the inputs whose anchorage declares AK.BMR as fallback2 as well."""
         rows = {r["region"]: r for r in M.build()["regions"]}
-        self.assertEqual(rows["anchorage"]["configured_fallback2"], "AK.BMR")
+        self.assertEqual((rows["anchorage"]["configured_primary"], rows["anchorage"]["configured_fallback"]),
+                         ("IU.COLA", "AK.BMR"))
         self.assertIn("AK.BMR", rows["anchorage"]["distances"])
-        self.assertIsNone(rows["kaikoura"]["configured_fallback2"])
         for row in rows.values():
             self.assertIn("configured_fallback2", row)
+        with tempfile.TemporaryDirectory() as tmp:
+            copy_inputs(tmp)
+            src = Path(tmp) / M.REGIONS_SRC
+            text = src.read_text(encoding="utf-8")
+            old = "        'fallback_station': 'BMR',"
+            self.assertEqual(text.count(old), 1)
+            src.write_text(text.replace(old, "        'fallback2_station': 'BMR', 'fallback2_network': 'AK',\n" + old),
+                           encoding="utf-8")
+            copied = {r["region"]: r for r in M.build(tmp)["regions"]}
+        self.assertEqual(copied["anchorage"]["configured_fallback2"], "AK.BMR")
+        self.assertIn("AK.BMR", copied["anchorage"]["distances"])
+        self.assertIsNone(copied["kaikoura"]["configured_fallback2"])
 
     def test_notes_do_not_create_available_numeric_measurements(self):
         for available, raw in [(False, 0.4), (True, None), (True, "0.4"), (True, False), (True, float('nan'))]:

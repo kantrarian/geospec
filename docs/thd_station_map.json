@@ -35,14 +35,11 @@
  "regions": [
   {
    "baseline_n_days": 91,
-   "configured_fallback": "IU.COLA",
-   "configured_fallback2": "AK.BMR",
-   "configured_primary": "AK.SSL",
+   "configured_fallback": "AK.BMR",
+   "configured_fallback2": null,
+   "configured_primary": "IU.COLA",
    "distances": {
     "AK.BMR": {
-     "status": "COORDINATES_NOT_ON_FILE"
-    },
-    "AK.SSL": {
      "status": "COORDINATES_NOT_ON_FILE"
     },
     "IU.COLA": {

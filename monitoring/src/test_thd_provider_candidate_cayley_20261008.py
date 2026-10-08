@@ -57,6 +57,35 @@ class ExactSelector(RoutedFetch):
                     TPR.selector_for("IU", "MAJO")
 
 
+class InstalledPins(RoutedFetch):
+    """The installed table is grassmann's retained evidence (3227c6a6): one pin per station with a served VALUE trace id
+    in scored 10-03..10-06, the pin's location equal to that trace id's, and no pin where nothing was served."""
+    PINNED = {"BK.BKS": "00", "IU.ANTO": "00", "IU.COLA": "00", "IU.COR": "00", "IU.MAJO": "00", "IU.TATO": "00",
+              "IU.TUC": "00", "MX.TLIG": ""}
+    NOT_SERVED = ("AK.BMR", "AK.SSL", "G.UNM", "HINET.N.KI2H", "IU.SNZO", "IV.CAFE")
+
+    def test_exactly_the_retained_stations_are_pinned(self):
+        self.assertEqual({k: v["location"] for k, v in TPR.STATION_LOCATIONS.items()}, self.PINNED)
+        for key in self.NOT_SERVED:
+            with self.subTest(key=key):
+                self.assertNotIn(key, TPR.STATION_LOCATIONS)
+
+    def test_each_pin_is_the_location_of_the_trace_id_its_basis_quotes(self):
+        for key, pin in TPR.STATION_LOCATIONS.items():
+            with self.subTest(key=key):
+                net, sta, loc, cha = pin["basis"].split("served trace id ", 1)[1].split(" ", 1)[0].split(".")
+                self.assertEqual((net + "." + sta, loc, cha), (key, pin["location"], "BHZ"))
+                self.assertEqual(TPR.selector_for(net, sta), (pin["location"], "PINNED " + pin["basis"]))
+
+    def test_the_anchorage_primary_is_requested_at_its_pinned_location(self):
+        _, _, attempts = self.fetch("IU", "COLA", {"IRIS": synthetic_stream("IU", "COLA", "00", "BHZ")})
+        self.assertEqual(RecordingClient.asked, [("IRIS", "IU", "COLA", "00", "BHZ")])
+        self.assertEqual(attempts[0]["nslc_requested"], "IU.COLA.00.BHZ")
+
+    def test_a_blank_location_pin_asks_for_the_blank_location_not_the_wildcard(self):
+        self.assertEqual(TPR.selector_for("MX", "TLIG")[0], "")
+
+
 class HonestCoverage(RoutedFetch):
     def test_a_complete_day_is_full_with_no_fill(self):
         _, _, attempts = self.fetch("IV", "CAFE", {"INGV": synthetic_stream("IV", "CAFE", "", "BHZ")})

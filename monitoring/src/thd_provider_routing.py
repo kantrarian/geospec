@@ -167,9 +167,28 @@ def refine_no_data(network, station, channel, window, inventory_text, asked):
 # EXACT SELECTOR. A location is pinned ONLY from retained evidence: the trace id a station's served value actually used
 # (d3_daily_station_attempts trace_id), with that evidence named as the basis. Until a pin is bound the request stays
 # the historical wildcard and the attempt says so -- a guessed location could silently select another sensor (MAJO
-# has three co-located instruments). Empty today: the retained trace ids are on the production host (grassmann).
+# has three co-located instruments). Populated from grassmann's retained evidence (3227c6a6): the 8 stations with a
+# served VALUE trace id in scored 10-03..10-06; AK.BMR, AK.SSL, G.UNM, HINET.N.KI2H and IV.CAFE had no served value and
+# stay wildcard; IU.SNZO is fetched by its bound operator, which fixes its own selector.
 _LOCATION = re.compile(r"[0-9A-Z]{0,2}")
-STATION_LOCATIONS = {}   # "NET.STA" -> {"location": "00", "basis": "RETAINED: <evidence>"}
+STATION_LOCATIONS = {   # "NET.STA" -> {"location", "basis"}; generated from retained evidence, never re-typed
+    'BK.BKS': {"location": '00',
+               "basis": 'RETAINED: served trace id BK.BKS.00.BHZ on scored 10-03 (view-2026-10-06 d3_daily_station_attempts; grassmann 3227c6a6 station_pins.json sha256 ef2d6c22401c0d17)'},
+    'IU.ANTO': {"location": '00',
+               "basis": 'RETAINED: served trace id IU.ANTO.00.BHZ on scored 10-03,10-04,10-05,10-06 (view-2026-10-06 d3_daily_station_attempts; grassmann 3227c6a6 station_pins.json sha256 ef2d6c22401c0d17)'},
+    'IU.COLA': {"location": '00',
+               "basis": 'RETAINED: served trace id IU.COLA.00.BHZ on scored 10-03,10-04,10-05,10-06 (view-2026-10-06 d3_daily_station_attempts; grassmann 3227c6a6 station_pins.json sha256 ef2d6c22401c0d17)'},
+    'IU.COR': {"location": '00',
+               "basis": 'RETAINED: served trace id IU.COR.00.BHZ on scored 10-03,10-04,10-05,10-06 (view-2026-10-06 d3_daily_station_attempts; grassmann 3227c6a6 station_pins.json sha256 ef2d6c22401c0d17)'},
+    'IU.MAJO': {"location": '00',
+               "basis": 'RETAINED: served trace id IU.MAJO.00.BHZ on scored 10-03,10-04,10-05,10-06 (view-2026-10-06 d3_daily_station_attempts; grassmann 3227c6a6 station_pins.json sha256 ef2d6c22401c0d17)'},
+    'IU.TATO': {"location": '00',
+               "basis": 'RETAINED: served trace id IU.TATO.00.BHZ on scored 10-03,10-04,10-05,10-06 (view-2026-10-06 d3_daily_station_attempts; grassmann 3227c6a6 station_pins.json sha256 ef2d6c22401c0d17)'},
+    'IU.TUC': {"location": '00',
+               "basis": 'RETAINED: served trace id IU.TUC.00.BHZ on scored 10-03,10-04,10-05,10-06 (view-2026-10-06 d3_daily_station_attempts; grassmann 3227c6a6 station_pins.json sha256 ef2d6c22401c0d17)'},
+    'MX.TLIG': {"location": '',
+               "basis": 'RETAINED: served trace id MX.TLIG..BHZ on scored 10-03,10-04,10-05,10-06 (view-2026-10-06 d3_daily_station_attempts; grassmann 3227c6a6 station_pins.json sha256 ef2d6c22401c0d17)'},
+}
 
 
 def selector_for(network, station):

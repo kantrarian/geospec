@@ -35,6 +35,9 @@ class StationBaseline:
     # baseline was CALIBRATED, as a structured field, so the R3 30-day lag can be re-checked without reading notes.
     # None = unknown (the built-in 2026-01 defaults). Set by _load_newest_baseline_file from the dated file name.
     calibration_date: Optional[str] = None
+    # thd-daily-measurement-v1 staged comparability (codex cfb195ff): the calibration CONVENTION the recal stamped into
+    # the entry; None = legacy (every file written before the shared measurement). Read by ensemble.thd_support only.
+    calibration_convention: Optional[str] = None
 
 
 # Auto-calibrated station baselines (January 2026)
@@ -188,7 +191,9 @@ def _baseline_from_entry(e, filename):
         station=e['station'], mean_thd=float(e['mean_thd']), std_thd=float(e['std_thd']),
         n_samples=int(e.get('n_samples') or e.get('n_days_valid') or 0),
         calibration_period=e.get('calibration_period', 'unknown'),
-        notes=f"Rolling recal, loaded newest-first from {filename}", calibration_date=effective_date)
+        notes=f"Rolling recal, loaded newest-first from {filename}", calibration_date=effective_date,
+        calibration_convention=(e.get('calibration_convention') if isinstance(e.get('calibration_convention'), str)
+                                else None))
 
 
 def _load_newest_baseline_file(bdir: Optional[Path] = None) -> Optional[str]:

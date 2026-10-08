@@ -467,8 +467,9 @@ RAW_DIGEST_VERSION = "thd-raw-samples-sha256-v1"
 
 def raw_samples_digest(stream):
     """sha256 of the provider's samples exactly as returned, BEFORE any merge or detrend: for each trace in (id, start)
-    order its id, start, rate, dtype and length, then its sample bytes (and mask bytes when masked). Two days with the
-    same digest were computed from the same input; a recal can be re-run and checked against it."""
+    order its id, start, rate, dtype and length, then its sample bytes (and mask bytes when masked). It IDENTIFIES the
+    input: two values with the same digest came from the same samples, and retained bytes can be checked against it.
+    It cannot replay the input -- that needs the retained bytes themselves."""
     import hashlib
     import numpy as np
     digest = hashlib.sha256(RAW_DIGEST_VERSION.encode())

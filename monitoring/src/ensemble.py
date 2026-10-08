@@ -755,14 +755,29 @@ class GeoSpecEnsemble:
                 'shared_with': [self.region]}
         return (scored, segments_defined, segments_working, segment_names)
 
-    def thd_support(self, station_id: str) -> Dict:
+    def thd_support(self, station_id: str, baseline=None) -> Dict:
         """method-comparability-v1: the support of a THD value -- its station, the registered calibration class, the
         estimator/normalization code identity (analyzer + baseline mapping) and every configured region the station
-        serves. One definition for the compute path and for any replay of a retained report."""
+        serves. One definition for the compute path and for any replay of a retained report. `baseline` is the
+        baseline the value was SCORED against (None when missing or stale): staged binding (codex cfb195ff) adds the
+        calibration convention the recal stamped into it (thd-daily-measurement-v1 for an unbound station) the first
+        time such a baseline is selected; a legacy baseline (no stamp) adds nothing, and a bound station's own operator
+        convention adds nothing because its separately bound identity already carries it. Any other declared
+        convention is carried as declared, never read as legacy."""
+        calibration_class = 'THD_STATION_BASELINE:max_age=%s,min_lag=%s' % (
+            MAX_BASELINE_AGE_DAYS, CE.registered_constant('run_thd_recal', 'EXCLUDE_RECENT_DAYS'))
+        convention = getattr(baseline, 'calibration_convention', None)
+        if convention is not None:
+            try:
+                import thd_bound_station_operator as OP
+                own = station_id in OP.BOUND_STATIONS and convention == OP.DAILY_OPERATOR['operator_version']
+            except ImportError:
+                own = False
+            if not own:
+                calibration_class += ',convention=' + str(convention)
         return {
             'identity': station_id,
-            'calibration_class': 'THD_STATION_BASELINE:max_age=%s,min_lag=%s' % (
-                MAX_BASELINE_AGE_DAYS, CE.registered_constant('run_thd_recal', 'EXCLUDE_RECENT_DAYS')),
+            'calibration_class': calibration_class,
             'estimator': self._thd_estimator_identity(station_id),
             'shared_with': list(self.station_regions.get(station_id, ()))}
 
@@ -778,6 +793,17 @@ class GeoSpecEnsemble:
         if OP is not None and station_id in OP.BOUND_STATIONS:
             parts += ['daily_operator=' + OP.daily_operator_identity(station_id),
                       MC.code_identity(OP.daily_measurement, OP.fetch_bound, OP.stitch_window)]
+        else:
+            # staged binding (codex cfb195ff): an unbound station's operator class joins the key only when it differs
+            # from the legacy operator, so a pure extraction keeps the key and a real operator change cannot
+            try:
+                import thd_daily_measurement as TDM
+                network, station = station_id.split('.', 1)
+                part = TDM.operator_class_part(network, station, self.thd_analyzer)
+            except Exception:  # noqa: BLE001 -- an unknown operator is UNIDENTIFIED, never the legacy class
+                return MC.UNIDENTIFIED
+            if part is not None:
+                parts.append(part)
         return MC.compose_identity(*parts)
 
     def compute_thd_risk(
@@ -920,7 +946,7 @@ class GeoSpecEnsemble:
                 CE.attach(result, eligibility)
                 # method-comparability-v1: the station the value rests on and every region it serves (shared
                 # support is not independent regional confirmation).
-                result.support = self.thd_support(f'{station_network}.{station_code}')
+                result.support = self.thd_support(f'{station_network}.{station_code}', baseline=baseline)
             return result
 
         except Exception as e:

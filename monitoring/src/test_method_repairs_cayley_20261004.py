@@ -77,7 +77,9 @@ class ComparisonIdentity(unittest.TestCase):
         ens = E.GeoSpecEnsemble(region="anchorage", eligibility_rule_active=True,
                                 station_regions={"IU.COLA": ["anchorage"]})
         sup = ens.thd_support("IU.COLA")
-        self.assertRegex(sup["estimator"], r"analyze_window@[0-9a-f]{12}\+thd_to_risk_with_baseline@[0-9a-f]{12}$")
+        # IU.COLA is pinned to location 00 (3227c6a6), a selector change, so its operator class joins (codex cfb195ff)
+        self.assertRegex(sup["estimator"], r"analyze_window@[0-9a-f]{12}\+thd_to_risk_with_baseline@[0-9a-f]{12}"
+                                           r"\|operator_class=thd-operator-class-v1:[0-9a-f]{16}$")
         self.assertEqual(sup["shared_with"], ["anchorage"])
         self.assertEqual(MC.code_identity(len), MC.UNIDENTIFIED, "a builtin has no readable source")
 

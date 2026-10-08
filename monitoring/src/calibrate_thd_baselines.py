@@ -150,14 +150,17 @@ CALIBRATION_STATIONS = {
 # =============================================================================
 
 def compute_daily_record(network: str, station: str, date: datetime, channel: str = 'BHZ') -> Dict:
-    """One calibration day as a reproducible RECEIPT (grassmann 641c01b7): the shared daily measurement
-    (thd-daily-measurement-v1) for scored day D = `date` at 00:00, with the input it was computed from -- the provider,
-    exact trace id, returned epoch, coverage, response epoch and the sha256 of the samples as returned -- or the reason
-    no value was produced. `thd` is None unless the value is usable (thd > 0 and p1 > 0)."""
+    """One calibration day as a RECEIPT (grassmann 641c01b7): the shared daily measurement (thd-daily-measurement-v1)
+    for scored day D = `date` at 00:00, with the identity of its input -- the provider, exact trace id, returned epoch,
+    coverage, response epoch and the sha256 of the samples as returned -- or the reason no value was produced. The
+    daily values are recorded, so a recal's summary is recomputable; replaying a waveform needs the retained input
+    bytes, which the digest identifies but does not contain, and this recal does not retain them (`raw_input`).
+    `thd` is None unless the value is usable (thd > 0 and p1 > 0)."""
     from functools import partial
     import thd_daily_measurement as TDM
     day = date.replace(hour=0, minute=0, second=0, microsecond=0)
-    receipt = {'day': day.strftime('%Y-%m-%d'), 'thd': None, 'native_rate_hz': None, 'reason': None}
+    receipt = {'day': day.strftime('%Y-%m-%d'), 'thd': None, 'native_rate_hz': None, 'reason': None,
+               'raw_input': 'NOT_RETAINED_BY_THIS_RECAL (identified by raw_samples_sha256, not replayable from it)'}
     attempts = []
     try:
         analyzer = SeismicTHDAnalyzer(n_harmonics=5, freq_tolerance=0.1, window_hours=24)

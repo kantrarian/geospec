@@ -214,7 +214,7 @@ def load_events_from_usgs(
 
         event = EarthquakeEvent(
             event_id=feature['id'],
-            time=datetime.fromtimestamp(props['time'] / 1000),
+            time=datetime.fromtimestamp(props['time'] / 1000, tz=timezone.utc),
             latitude=coords[1],
             longitude=coords[0],
             magnitude=props['mag'],

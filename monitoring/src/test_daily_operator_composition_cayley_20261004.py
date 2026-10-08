@@ -83,7 +83,8 @@ class BoundStationComparisonKey(unittest.TestCase):
 
     def test_the_key_carries_the_daily_operator(self):
         ens = self.ens()
-        bound, unbound = ens.thd_support("IU.SNZO")["estimator"], ens.thd_support("IU.COLA")["estimator"]
+        # an UNPINNED unbound station: a pinned one (IU.COLA since 3227c6a6) carries its own operator class (cfb195ff)
+        bound, unbound = ens.thd_support("IU.SNZO")["estimator"], ens.thd_support("AK.BMR")["estimator"]
         self.assertTrue(bound.startswith(unbound + "|daily_operator=" + OP.daily_operator_identity("IU.SNZO") + "|"))
         self.assertIn("daily_measurement@", bound)
         self.assertIn("fetch_bound@", bound)

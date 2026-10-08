@@ -161,6 +161,15 @@ def run_recal(stations, end_date=None, dry_run=False):
         }
         if is_bound(net, sta) and operator_record is not None:
             entry["operator"] = operator_record(key)
+        # the calibration convention, from the producer itself (never from an identity that may fail to form)
+        try:
+            import thd_daily_measurement as TDM
+            import thd_bound_station_operator as _OP
+            # a bound station is calibrated by its DAILY operator (not the fetch operator record above)
+            entry["calibration_convention"] = (_OP.DAILY_OPERATOR["operator_version"] if is_bound(net, sta)
+                                               else TDM.MEASUREMENT_VERSION)
+        except ImportError:
+            pass
         if r.get("daily_receipts") is not None:   # grassmann 641c01b7: every calibration day with its input receipt
             entry["calibration_days"] = r["daily_receipts"]
         try:   # thd-daily-measurement-v1: which measurement produced these moments (recording only)

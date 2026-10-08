@@ -275,7 +275,8 @@ RECORD_THD_ATTEMPTS = True
 # v2 = v1 provider records plus adapter, routing, typed_outcome, exception_class and http_status
 # (thd-provider-routing-v1); same label would carry content the identity omits.
 # v3 (candidate, codex 1515 s4) = v2 plus selector_basis on every provider record and, on DATA_RETURNED, the
-# pre-merge coverage facts of the trace used. Values are unchanged; v2 never shipped.
+# pre-merge coverage facts of the trace used; and LOCAL_PROCESSING_ERROR, with the coverage of each returned trace
+# id, where a provider returned data the local merge/detrend refused. Values are unchanged; v2 never shipped.
 THD_ATTEMPTS_SCHEMA = 'thd-station-attempts-v3'
 THD_ROLES = ('CONFIGURED_PRIMARY', 'CONFIGURED_FALLBACK', 'CONFIGURED_FALLBACK2')
 
@@ -295,6 +296,10 @@ def thd_station_outcome(component, provider_records):
                 notes, '; '.join(str(r.get('reason')) for r in refused)))
         if any(r.get('outcome') == 'DATA_RETURNED' for r in provider_records or ()):
             return 'INSUFFICIENT_SAMPLES', ER.redact(notes + ' (data returned, shorter than the 12 h minimum)')
+        local = [r for r in provider_records or () if r.get('outcome') == 'LOCAL_PROCESSING_ERROR']
+        if local:
+            return 'LOCAL_PROCESSING_ERROR', ER.redact('%s (data returned, local processing refused it: %s)' % (
+                notes, '; '.join(str(r.get('reason')) for r in local)))
         return 'NO_DATA', ER.redact(notes)
     return 'ERROR', ER.redact(notes)
 

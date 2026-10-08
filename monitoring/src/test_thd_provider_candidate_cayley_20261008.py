@@ -112,13 +112,172 @@ class HonestCoverage(RoutedFetch):
         self.assertAlmostEqual(cov["missing_head_seconds"], 7200.0, delta=0.1)
 
     def test_a_measurement_failure_is_unmeasured_and_never_drops_the_value(self):
-        class NoGaps(Stream):
-            def get_gaps(self, *args, **kwargs):
-                raise RuntimeError("synthetic measurement failure")
-        stream = NoGaps(synthetic_stream("IV", "CAFE", "", "BHZ").traces)
-        data, rate, attempts = self.fetch("IV", "CAFE", {"INGV": stream})
+        with mock.patch.object(TPR, "coverage_facts", side_effect=RuntimeError("synthetic measurement failure")):
+            data, rate, attempts = self.fetch("IV", "CAFE", {"INGV": synthetic_stream("IV", "CAFE", "", "BHZ")})
         self.assertEqual((len(data), rate, attempts[0]["outcome"]), (100 * 3600 * 25, 100.0, "DATA_RETURNED"))
         self.assertEqual(attempts[0]["coverage"], {"status": "UNMEASURED", "error_class": "RuntimeError"})
+
+    def test_overlapping_input_leaves_the_value_path_unchanged_and_says_how_it_was_resolved(self):
+        stream = gapped_stream("IV", "CAFE", "", "BHZ", gap_hours=(10, 9))   # [0, 10 h) and [9 h, 25 h): 1 h overlap
+        with_sink, rate, attempts = self.fetch("IV", "CAFE", {"INGV": stream.copy()})
+        RecordingClient.BEHAVIOUR = {"INGV": stream.copy()}
+        without, rate_without = ST.fetch_continuous_data_for_thd("IV", "CAFE", START, END)
+        self.assertTrue(np.array_equal(with_sink, without))
+        self.assertEqual(rate, rate_without)
+        cov = attempts[0]["coverage"]
+        self.assertEqual((cov["overlaps"], cov["overlap_resolution"], cov["fill"], cov["gaps"], cov["status"]),
+                         (1, "MERGE_METHOD_1_LATER_TRACE_KEPT_UNCHANGED", "NONE", 0, "FULL"))
+        self.assertAlmostEqual(cov["overlap_seconds"], 3600.0, delta=0.1)
+
+    def test_returned_data_the_local_detrend_refuses_is_local_not_a_provider_error(self):
+        stream = synthetic_stream("IV", "CAFE", "", "BHZ")
+        stream[0].data = stream[0].data.astype(np.float64)
+        stream[0].data[:200] = np.nan    # obspy's linear detrend raises on nonfinite samples
+        data, rate, attempts = self.fetch("IV", "CAFE", {"INGV": stream.copy()})
+        RecordingClient.BEHAVIOUR = {"INGV": stream.copy()}
+        self.assertEqual((data, rate), ST.fetch_continuous_data_for_thd("IV", "CAFE", START, END))
+        self.assertEqual((data, rate), (None, 0.0))
+        a = attempts[0]
+        self.assertEqual((a["outcome"], a["typed_outcome"], a["exception_class"], a["http_status"], a["traces_before_merge"]),
+                         ("LOCAL_PROCESSING_ERROR", "LOCAL_PROCESSING_ERROR", "ValueError", None, 1))
+        self.assertIn("LOCAL_PROCESSING_ERROR", TPR.TYPED_OUTCOMES)
+        cov = a["coverage_by_trace_id"]["IV.CAFE..BHZ"]
+        self.assertEqual((cov["nonfinite_or_masked_handling"], cov["status"]), ("UNCHANGED_IN_VALUE_PATH", "PARTIAL"))
+        self.assertAlmostEqual(cov["nonfinite_or_masked_seconds"], 2.0, places=6)
+
+    def test_a_provider_that_raises_before_returning_stays_a_provider_outcome(self):
+        _, _, attempts = self.fetch("IV", "CAFE", {"INGV": obspy_refusal(503)})
+        self.assertEqual((attempts[0]["outcome"], attempts[0]["typed_outcome"]), ("PROVIDER_ERROR", "TRANSPORT_ERROR"))
+        self.assertNotIn("coverage_by_trace_id", attempts[0])
+
+def one_hz(offset, count, data=None):
+    """1 Hz XX.TEST.00.BHZ trace starting `offset` seconds after T0; the request is [T0, T0 + 100 s)."""
+    tr = Trace(np.ones(count) if data is None else data)
+    tr.stats.network, tr.stats.station, tr.stats.location, tr.stats.channel = "XX", "TEST", "00", "BHZ"
+    tr.stats.sampling_rate, tr.stats.starttime = 1.0, CoverageEdges.T0 + offset
+    return tr
+
+
+class CoverageEdges(unittest.TestCase):
+    """codex 1614 finding 4: support is the union of finite, unmasked sample intervals clipped to the request."""
+    T0 = UTCDateTime("2026-01-01T00:00:00Z")
+
+    def facts(self, *traces):
+        return TPR.coverage_facts(Stream(list(traces)), self.T0, self.T0 + 100)["XX.TEST.00.BHZ"]
+
+    def head(self, cov, *keys):
+        return tuple(cov[k] for k in keys)
+
+    def test_data_beyond_both_ends_is_clipped_to_the_request(self):
+        cov = self.facts(one_hz(-10, 120))
+        self.assertEqual(self.head(cov, "covered_seconds", "extent_seconds", "missing_head_seconds",
+                                   "missing_tail_seconds", "status"), (100.0, 100.0, 0.0, 0.0, "FULL"))
+
+    def test_a_trace_outside_the_request_neither_adds_nor_removes_coverage(self):
+        cov = self.facts(one_hz(-200, 100), one_hz(0, 100), one_hz(150, 20))
+        self.assertEqual(self.head(cov, "covered_seconds", "coverage_fraction", "gaps", "overlaps", "status"),
+                         (100.0, 1.0, 0, 0, "FULL"))
+        self.assertEqual(self.facts(one_hz(-200, 100))["status"], "NO_SAMPLES_IN_REQUEST")
+
+    def test_a_duplicate_is_an_overlap_not_extra_coverage(self):
+        cov = self.facts(one_hz(0, 100), one_hz(0, 100))
+        self.assertEqual(self.head(cov, "covered_seconds", "overlaps", "overlap_seconds", "overlap_resolution", "fill"),
+                         (100.0, 1, 100.0, "MERGE_METHOD_1_LATER_TRACE_KEPT_UNCHANGED", "NONE"))
+
+    def test_overlap_resolution_is_disclosed_apart_from_gap_fill(self):
+        cov = self.facts(one_hz(0, 70), one_hz(50, 50))
+        self.assertEqual(self.head(cov, "overlaps", "overlap_seconds", "fill", "status"), (1, 20.0, "NONE", "FULL"))
+        both = self.facts(one_hz(0, 30), one_hz(20, 20), one_hz(60, 40))   # overlap [20, 30), gap [40, 60)
+        self.assertEqual(self.head(both, "overlaps", "overlap_seconds", "gaps", "gap_seconds", "fill", "overlap_resolution"),
+                         (1, 10.0, 1, 20.0, "MERGE_INTERPOLATE_UNCHANGED", "MERGE_METHOD_1_LATER_TRACE_KEPT_UNCHANGED"))
+
+    def test_nonfinite_and_masked_runs_are_not_numeric_coverage(self):
+        data = np.ones(100)
+        data[25:75] = np.nan
+        data[80] = np.inf
+        cov = self.facts(one_hz(0, 100, data))
+        self.assertEqual(self.head(cov, "covered_seconds", "extent_seconds", "nonfinite_or_masked_seconds", "gaps",
+                                   "fill", "nonfinite_or_masked_handling", "status"),
+                         (49.0, 100.0, 51.0, 0, "NONE", "UNCHANGED_IN_VALUE_PATH", "PARTIAL"))
+        masked = np.ma.masked_array(np.ones(100), mask=[10 <= i < 30 for i in range(100)])
+        self.assertEqual(self.head(self.facts(one_hz(0, 100, masked)), "covered_seconds", "status"), (80.0, "PARTIAL"))
+
+    def test_an_empty_stream_and_an_empty_trace(self):
+        self.assertEqual(TPR.coverage_facts(Stream(), self.T0, self.T0 + 100), {})
+        cov = self.facts(one_hz(0, 0))
+        self.assertEqual(self.head(cov, "covered_seconds", "missing_head_seconds", "missing_tail_seconds", "status"),
+                         (0.0, None, None, "NO_SAMPLES_IN_REQUEST"))
+
+    def test_each_end_is_allowed_one_sample_period_and_no_more(self):
+        self.assertEqual(self.facts(one_hz(1, 99))["status"], "FULL")
+        self.assertEqual(self.facts(one_hz(0, 99))["status"], "FULL")
+        late, short = self.facts(one_hz(2, 98)), self.facts(one_hz(0, 98))
+        self.assertEqual(self.head(late, "missing_head_seconds", "edge_fill", "status"), (2.0, "NOT_FILLED", "PARTIAL"))
+        self.assertEqual(self.head(short, "missing_tail_seconds", "edge_fill", "status"), (2.0, "NOT_FILLED", "PARTIAL"))
+
+    def test_sub_half_sample_jitter_is_not_a_gap_but_a_larger_hole_is(self):
+        jitter = self.facts(one_hz(0, 50), one_hz(50.3, 49))
+        self.assertEqual(self.head(jitter, "gaps", "status"), (0, "FULL"))
+        self.assertAlmostEqual(jitter["covered_seconds"], 99.0, places=6)
+        hole = self.facts(one_hz(0, 50), one_hz(50.6, 49))
+        self.assertEqual(self.head(hole, "gaps", "status"), (1, "PARTIAL"))
+        self.assertAlmostEqual(hole["gap_seconds"], 0.6, places=6)
+
+    def test_unordered_request_bounds_are_refused(self):
+        for end in (self.T0, self.T0 - 1):
+            with self.subTest(end=str(end)), self.assertRaises(ValueError):
+                TPR.coverage_facts(Stream([one_hz(0, 100)]), self.T0, end)
+
+
+class EpochInstants(unittest.TestCase):
+    """codex 1614 finding 3: exact UTC instants, offsets applied, half-open edges, ordered bounds."""
+    WINDOW = ("2026-01-01T00:00:00.000Z", "2026-01-01T00:01:40Z")
+
+    def status(self, *epochs):
+        return TPR.response_epoch_status(list(epochs), *self.WINDOW)
+
+    def test_a_fractional_second_late_start_is_partial(self):
+        self.assertEqual(self.status(("2026-01-01T00:00:00.500Z", None, "late")),
+                         ("EPOCH_PARTIALLY_COVERS_WINDOW", "late"))
+        self.assertEqual(self.status(("2026-01-01T00:00:00.000000001Z", None, "1ns")),
+                         ("EPOCH_PARTIALLY_COVERS_WINDOW", "1ns"))
+
+    def test_offsets_are_applied_and_an_offset_free_instant_is_utc(self):
+        self.assertEqual(self.status(("2026-01-01T00:00:00-05:00", None, "future")), ("NO_COVERING_EPOCH", None))
+        self.assertEqual(self.status(("2026-01-01T05:00:00+05:00", None, "same")), ("SINGLE_EPOCH", "same"))
+        self.assertEqual(TPR.utc_instant_ns("2026-01-01T00:00:00"), TPR.utc_instant_ns("2026-01-01T00:00:00Z"))
+        self.assertEqual(TPR.utc_instant_ns("1970-01-01T00:00:01.000000001Z"), 1_000_000_001)
+
+    def test_edges_are_half_open(self):
+        self.assertEqual(self.status(("2025-01-01T00:00:00Z", "2026-01-01T00:00:00Z", "ended")), ("NO_COVERING_EPOCH", None))
+        self.assertEqual(self.status(("2026-01-01T00:01:40Z", None, "next")), ("NO_COVERING_EPOCH", None))
+        self.assertEqual(self.status(("2025-01-01T00:00:00Z", "2026-01-01T00:01:40Z", "exact")), ("SINGLE_EPOCH", "exact"))
+        self.assertEqual(self.status((None, None, "unbounded")), ("SINGLE_EPOCH", "unbounded"))
+
+    def test_sequential_epochs_cross_and_are_ordered_by_start(self):
+        self.assertEqual(self.status(("2026-01-01T00:00:50Z", None, "new"),
+                                     ("2025-01-01T00:00:00Z", "2026-01-01T00:00:50Z", "old")),
+                         ("CROSSES_EPOCH_BOUNDARY", ["old", "new"]))
+
+    def test_overlapping_metadata_is_not_called_a_response_change(self):
+        for epochs in ((("2025-01-01T00:00:00Z", None, "a"), ("2025-06-01T00:00:00Z", None, "b")),
+                       (("2025-01-01T00:00:00Z", None, "a"), ("2025-01-01T00:00:00Z", None, "a")),
+                       (("2025-01-01T00:00:00Z", None, "a"), ("2026-01-01T00:00:10Z", "2026-01-01T00:00:20Z", "b"))):
+            with self.subTest(epochs=epochs):
+                self.assertEqual(self.status(*epochs)[0], "OVERLAPPING_EPOCH_METADATA")
+
+    def test_malformed_or_unordered_instants_are_refused(self):
+        for bad in ("2026-13-01T00:00:00Z", "2026-01-01", "2026-01-01T24:00:00Z", "2026-01-01T00:00:00.1234567890Z",
+                    "2026-01-01T00:00:00+15:00", "2026-01-01 00:00:00Z", None, 0):
+            with self.subTest(bad=bad), self.assertRaises(ValueError):
+                TPR.utc_instant_ns(bad)
+        with self.assertRaises(ValueError):
+            self.status(("2026-01-01T00:00:50Z", "2026-01-01T00:00:10Z", "inverted"))
+        with self.assertRaises(ValueError):
+            self.status(("2026-01-01T00:00:50Z", "2026-01-01T00:00:50Z", "empty"))
+        for window in (("2026-01-01T00:01:40Z", "2026-01-01T00:00:00Z"), ("2026-01-01T00:00:00Z",) * 2):
+            with self.subTest(window=window), self.assertRaises(ValueError):
+                TPR.response_epoch_status([("2025-01-01T00:00:00Z", None, "a")], *window)
 
 
 class ResponseEpoch(unittest.TestCase):

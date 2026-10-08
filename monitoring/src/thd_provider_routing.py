@@ -14,6 +14,8 @@ gets one typed outcome:
   INVALID_SELECTOR    HTTP 400/422: the provider refused the request's selector itself
   TRANSPORT_ERROR     no usable answer: service discovery failed, timeout, connection, HTTP 429/5xx
   PROVIDER_ERROR      anything else, untyped; the class and status are still kept
+  LOCAL_PROCESSING_ERROR  the provider RETURNED data and the local merge/detrend raised (e.g. nonfinite samples):
+                      not a provider failure; the pre-merge coverage of each returned trace id is kept
 A 204 from dataselect cannot by itself tell "no such channel" from "no data in the window". An inventory listing can
 only ADVISE (refine_no_data): it stays NO_DATA with a basis scoped to THAT inventory (codex 998f59fa s2), because a
 filtered, incomplete or stale listing cannot establish absence outside its own scope. An authoritative
@@ -29,7 +31,7 @@ FDSN = "FDSN"              # obspy.clients.fdsn.Client(<key>).get_waveforms
 NIED_HINET = "NIED_HINET"  # NIED Hi-net: registered-access win32 download; not an FDSN service
 
 TYPED_OUTCOMES = ("DATA_RETURNED", "NO_DATA", "AUTH_REQUIRED", "INVALID_SELECTOR", "TRANSPORT_ERROR",
-                  "PROVIDER_ERROR", "OPERATOR_REFUSED", "NETWORK_NOT_ROUTED")
+                  "PROVIDER_ERROR", "OPERATOR_REFUSED", "NETWORK_NOT_ROUTED", "LOCAL_PROCESSING_ERROR")
 
 # basis labels: RETAINED = seen in retained run evidence; LADDER = unchanged from the pre-map if/elif ladder;
 # EXPECTATION = data-centre knowledge not yet observed from this host (the later bounded live metadata check verifies).
@@ -203,49 +205,168 @@ def selector_for(network, station):
     return location, "PINNED " + basis
 
 
+COVERAGE_VERSION = "thd-coverage-facts-v2"
+_COVERAGE_EPS = 1e-6   # seconds: float noise when joining touching intervals, far below any sample period
+
+
+def _union(intervals):
+    """Sorted union of half-open [a, b) intervals in seconds; intervals touching within _COVERAGE_EPS are joined."""
+    merged = []
+    for a, b in sorted(i for i in intervals if i[1] - i[0] > _COVERAGE_EPS):
+        if merged and a <= merged[-1][1] + _COVERAGE_EPS:
+            merged[-1][1] = max(merged[-1][1], b)
+        else:
+            merged.append([a, b])
+    return merged
+
+
 def coverage_facts(stream, start, end):
-    """Honest missingness of a returned stream BEFORE it is merged, per trace id: the requested span, how much of it
-    the traces' samples actually cover, and the gaps/overlaps the merge will fill or resolve. FACTS ONLY -- the value
-    path (merge with interpolation, detrend) is unchanged by this version; whether a partial day may be scored is a
-    separate, reviewed rule. A day is FULL only with no gap and both ends within one sample of the request."""
+    """Honest missingness of a returned stream BEFORE it is merged, per exact trace id (codex 1614 finding 4). FACTS
+    ONLY: the value path (merge(method=1, fill_value='interpolate'), demean, linear detrend) is unchanged; whether a
+    partial day may be scored is a separate, reviewed rule.
+
+    Definitions (thd-coverage-facts-v2). The request is half-open [start, end). Sample i of a trace stands for
+    [t_i, t_i + delta). A trace's TEMPORAL EXTENT is [starttime, starttime + npts * delta); its SAMPLE SUPPORT is the
+    part of that extent whose samples are finite and unmasked. Both are clipped to the request and measured as the
+    UNION over the id's traces, so data outside the request, duplicates and overlaps never add or remove coverage.
+      covered_seconds / coverage_fraction   sample support (availability), not extent
+      extent_seconds                        temporal extent; nonfinite_or_masked_seconds = extent without support
+      gaps / gap_seconds                    holes BETWEEN traces inside the request longer than half a sample: what
+                                            the merge interpolates (fill)
+      missing_head_seconds / _tail_         request before the first / after the last returned sample: NOT filled
+                                            by the merge (edge_fill); None when nothing falls in the request
+      overlaps / overlap_seconds            traces claiming the same instants: merge method 1 keeps the later trace
+                                            (overlap_resolution), which is not gap interpolation
+    FULL needs no gap, no nonfinite or masked support, and each end within one sample period of the request;
+    NO_SAMPLES_IN_REQUEST when no usable sample falls inside it; otherwise PARTIAL. An empty stream yields {}."""
+    import numpy as np
     from obspy import UTCDateTime
     t0, t1 = UTCDateTime(start), UTCDateTime(end)
     requested = float(t1 - t0)
+    if not requested > 0:
+        raise ValueError("COVERAGE_REQUEST_BOUNDS_NOT_ORDERED")
     by_id = {}
     for trace in stream:
         by_id.setdefault(trace.id, []).append(trace)
-    gaps = stream.get_gaps()  # [net, sta, loc, cha, t_from, t_to, duration, n_samples]; duration < 0 is an overlap
     facts = {}
     for trace_id, traces in by_id.items():
         delta = max(float(tr.stats.delta) for tr in traces)
-        mine = [g for g in gaps if "%s.%s.%s.%s" % tuple(g[:4]) == trace_id]
-        gap_seconds = sum(float(g[6]) for g in mine if g[6] > 0)
-        head = max(0.0, float(min(tr.stats.starttime for tr in traces) - t0))
-        tail = max(0.0, float(t1 - max(tr.stats.endtime for tr in traces)) - delta)
-        covered = max(0.0, requested - head - tail - gap_seconds)
-        full = gap_seconds == 0 and head <= delta and tail <= delta
-        facts[trace_id] = {"requested_seconds": round(requested, 3), "covered_seconds": round(covered, 3),
-                           "coverage_fraction": round(covered / requested, 6) if requested > 0 else 0.0,
-                           "gaps": sum(1 for g in mine if g[6] > 0), "gap_seconds": round(gap_seconds, 3),
-                           "overlaps": sum(1 for g in mine if g[6] < 0), "missing_head_seconds": round(head, 3),
-                           "missing_tail_seconds": round(tail, 3), "status": "FULL" if full else "PARTIAL",
-                           "fill": "NONE" if full else "MERGE_INTERPOLATE_UNCHANGED"}
+        extents, support = [], []
+        for tr in traces:
+            rel, step = float(tr.stats.starttime - t0), float(tr.stats.delta)
+            values = np.ma.getdata(tr.data)
+            extents.append((max(0.0, rel), min(requested, rel + len(values) * step)))
+            valid = np.isfinite(values) & ~np.ma.getmaskarray(tr.data)
+            edges = np.diff(np.concatenate(([0], valid.astype(np.int8), [0])))
+            for first, stop in zip(np.flatnonzero(edges == 1), np.flatnonzero(edges == -1)):
+                support.append((max(0.0, rel + int(first) * step), min(requested, rel + int(stop) * step)))
+        extent = _union(extents)
+        covered = sum(b - a for a, b in _union(support))
+        extent_seconds = sum(b - a for a, b in extent)
+        holes = [b[0] - a[1] for a, b in zip(extent, extent[1:])]
+        gap_holes = [h for h in holes if h > 0.5 * delta]
+        head = extent[0][0] if extent else None
+        tail = requested - extent[-1][1] if extent else None
+        clipped = sorted(i for i in extents if i[1] - i[0] > _COVERAGE_EPS)
+        overlaps, reach = 0, None
+        for a, b in clipped:
+            if reach is not None and a < reach - _COVERAGE_EPS:
+                overlaps += 1
+            reach = b if reach is None else max(reach, b)
+        overlap_seconds = sum(b - a for a, b in clipped) - extent_seconds
+        unusable = max(0.0, extent_seconds - covered)
+        edges_missing = bool(extent) and (head > delta + _COVERAGE_EPS or tail > delta + _COVERAGE_EPS)
+        if covered <= _COVERAGE_EPS:
+            status = "NO_SAMPLES_IN_REQUEST"
+        elif gap_holes or edges_missing or unusable > _COVERAGE_EPS:
+            status = "PARTIAL"
+        else:
+            status = "FULL"
+
+        def r(x):
+            return None if x is None else round(x, 6)
+        facts[trace_id] = {"coverage_version": COVERAGE_VERSION, "requested_seconds": r(requested),
+                           "covered_seconds": r(covered), "coverage_fraction": round(covered / requested, 6),
+                           "extent_seconds": r(extent_seconds), "nonfinite_or_masked_seconds": r(unusable),
+                           "gaps": len(gap_holes), "gap_seconds": r(sum(gap_holes)),
+                           "overlaps": overlaps, "overlap_seconds": r(max(0.0, overlap_seconds)),
+                           "missing_head_seconds": r(head), "missing_tail_seconds": r(tail),
+                           "sample_period_seconds": r(delta), "status": status,
+                           "fill": "MERGE_INTERPOLATE_UNCHANGED" if gap_holes else "NONE",
+                           "overlap_resolution": "MERGE_METHOD_1_LATER_TRACE_KEPT_UNCHANGED" if overlaps else "NONE",
+                           "edge_fill": "NOT_FILLED" if edges_missing else "NONE",
+                           "nonfinite_or_masked_handling": "UNCHANGED_IN_VALUE_PATH" if unusable > _COVERAGE_EPS
+                           else "NONE"}
     return facts
 
 
+_INSTANT = re.compile(r"([0-9]{4})-([0-9]{2})-([0-9]{2})T([0-9]{2}):([0-9]{2}):([0-9]{2})([.][0-9]{1,9})?"
+                      r"(Z|[+-][0-9]{2}:[0-9]{2})?")
+
+
+def utc_instant_ns(value):
+    """Exact integer UTC nanoseconds for an ISO-8601 instant (codex 1614 finding 3). Up to 9 fractional digits are
+    kept and more are refused, never truncated; a Z or +HH:MM / -HH:MM offset is applied; an OFFSET-FREE instant is
+    read as UTC, the FDSN StationXML convention. Anything else (a date alone, month 13, hour 24, an offset beyond
+    14:00, a non-string) is refused with ValueError."""
+    import calendar
+    from datetime import datetime
+    match = _INSTANT.fullmatch(value) if isinstance(value, str) else None
+    if match is None:
+        raise ValueError("INSTANT_NOT_ISO8601: %r" % (value,))
+    year, month, day, hour, minute, second = (int(g) for g in match.groups()[:6])
+    try:
+        whole = calendar.timegm(datetime(year, month, day, hour, minute, second).timetuple())
+    except ValueError:
+        raise ValueError("INSTANT_NOT_A_CALENDAR_TIME: %r" % (value,)) from None
+    fraction, zone = match.group(7), match.group(8)
+    nanos = int((fraction[1:] + "000000000")[:9]) if fraction else 0
+    offset = 0
+    if zone and zone != "Z":
+        hours, minutes = int(zone[1:3]), int(zone[4:6])
+        if hours > 14 or minutes > 59 or (hours == 14 and minutes):
+            raise ValueError("INSTANT_OFFSET_OUT_OF_RANGE: %r" % (value,))
+        offset = (hours * 3600 + minutes * 60) * (1 if zone[0] == "+" else -1)
+    return (whole - offset) * 1_000_000_000 + nanos
+
+
 def response_epoch_status(epochs, start, end):
-    """Whether one RETAINED response epoch covers the whole window. `epochs` are (start_iso, end_iso_or_None, label)
-    from a retained StationXML (level=response) for the exact selector; this helper reads nothing itself.
-      ("SINGLE_EPOCH", label)                one epoch spans the window
-      ("CROSSES_EPOCH_BOUNDARY", [labels])   the window straddles a response change: not one instrument state
-      ("EPOCH_PARTIALLY_COVERS_WINDOW", label)  one epoch overlaps but part of the window has no known response
-      ("NO_COVERING_EPOCH", None)            no retained epoch overlaps the window (wrong epoch / stale metadata)
-    Wiring this into the daily fetch needs the retained response table bound to the method (a named prerequisite)."""
-    s, e = start[:19], end[:19]
-    overlapping = [(b, f, label) for b, f, label in epochs if (not f or f[:19] >= s) and (not b or b[:19] <= e)]
+    """Whether one RETAINED response epoch covers the whole window. `epochs` are (start, end_or_None, label) ISO
+    instants from a retained StationXML (level=response) for the exact selector; this helper reads nothing itself.
+    Instants are compared exactly by utc_instant_ns. Window and epochs are HALF-OPEN [start, end): an epoch ending
+    exactly at the window start, or starting exactly at its end, does not overlap it; an end of None (or a missing
+    start) is unbounded. Unordered bounds are refused (ValueError), never reordered.
+      ("SINGLE_EPOCH", label)                     one epoch spans the window
+      ("EPOCH_PARTIALLY_COVERS_WINDOW", label)    one epoch overlaps; part of the window has no retained epoch
+      ("CROSSES_EPOCH_BOUNDARY", [labels])        sequential epochs with a boundary inside the window. Epoch metadata
+                                                  is not response removal: whether the response DIFFERS is not assessed
+      ("OVERLAPPING_EPOCH_METADATA", [labels])    two retained epochs claim the same instant in the window: a metadata
+                                                  conflict, not a proven response change
+      ("NO_COVERING_EPOCH", None)                 no retained epoch overlaps the window (wrong epoch / stale metadata)
+    Labels are ordered by epoch start. DIAGNOSTIC ONLY: nothing admits or refuses a value on this status; any such
+    policy is a separate, named rule. Wiring it into the daily fetch needs the retained response table bound to the
+    method (a named prerequisite)."""
+    ws, we = utc_instant_ns(start), utc_instant_ns(end)
+    if we <= ws:
+        raise ValueError("RESPONSE_WINDOW_BOUNDS_NOT_ORDERED")
+    spans = []
+    for begin, finish, label in epochs:
+        b = None if begin is None else utc_instant_ns(begin)
+        f = None if finish is None else utc_instant_ns(finish)
+        if b is not None and f is not None and f <= b:
+            raise ValueError("RESPONSE_EPOCH_BOUNDS_NOT_ORDERED: %r" % (label,))
+        spans.append((b, f, label))
+    overlapping = sorted(((b, f, label) for b, f, label in spans if (b is None or b < we) and (f is None or f > ws)),
+                         key=lambda span: (span[0] is not None, span[0] or 0))
     if not overlapping:
         return "NO_COVERING_EPOCH", None
-    whole = [label for b, f, label in overlapping if (not b or b[:19] <= s) and (not f or f[:19] >= e)]
     if len(overlapping) == 1:
-        return ("SINGLE_EPOCH", whole[0]) if whole else ("EPOCH_PARTIALLY_COVERS_WINDOW", overlapping[0][2])
-    return "CROSSES_EPOCH_BOUNDARY", [label for _, _, label in overlapping]
+        b, f, label = overlapping[0]
+        whole = (b is None or b <= ws) and (f is None or f >= we)
+        return ("SINGLE_EPOCH" if whole else "EPOCH_PARTIALLY_COVERS_WINDOW"), label
+    labels, reach = [label for _, _, label in overlapping], overlapping[0][1]
+    for b, f, _ in overlapping[1:]:
+        if reach is None or b is None or b < reach:
+            return "OVERLAPPING_EPOCH_METADATA", labels
+        reach = None if f is None else max(reach, f)
+    return "CROSSES_EPOCH_BOUNDARY", labels

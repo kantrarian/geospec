@@ -164,8 +164,9 @@ class RunnerRecordsEveryConfiguredStation(unittest.TestCase):
             what = self.plan.get(sid, "none")
             if attempts is not None:
                 attempts.append({"provider": "SYNTHETIC", "nslc_requested": sid + ".*.BHZ",
-                                 "outcome": "NO_TRACES" if what == "none" else "DATA_RETURNED"})
-            if what == "none":
+                                 "outcome": {"none": "NO_TRACES", "local": "LOCAL_PROCESSING_ERROR"}.get(
+                                     what, "DATA_RETURNED"), "reason": "ValueError: synthetic" if what == "local" else None})
+            if what in ("none", "local"):
                 return None, 0.0
             hours = 13 if what == "full" else 2
             return np.zeros(hours * 3600), 1.0
@@ -206,6 +207,13 @@ class RunnerRecordsEveryConfiguredStation(unittest.TestCase):
         out = self.assess("anchorage").to_dict()["thd_attempts"]
         self.assertEqual([s["outcome"] for s in out["stations"]], ["INSUFFICIENT_SAMPLES"] * 2)
         self.assertFalse(any(s["selected"] for s in out["stations"]))
+
+    def test_returned_data_refused_locally_is_its_own_station_outcome(self):
+        RD.RECORD_THD_ATTEMPTS = True
+        self.plan = {"IU.COLA": "local", "AK.BMR": "none"}
+        out = self.assess("anchorage").to_dict()["thd_attempts"]
+        self.assertEqual([s["outcome"] for s in out["stations"]], ["LOCAL_PROCESSING_ERROR", "NO_DATA"])
+        self.assertIn("local processing refused it: ValueError: synthetic", out["stations"][0]["reason"])
 
     def test_flag_off_records_nothing_and_passes_no_sink(self):
         RD.RECORD_THD_ATTEMPTS = False

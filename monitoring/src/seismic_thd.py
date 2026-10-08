@@ -586,6 +586,7 @@ def fetch_continuous_data_for_thd(
                               http_status=None, reason='%s access is registered (owner-handled); no request made'
                               % adapter)
             continue
+        returned = None   # set once the provider has answered with traces: a later failure is LOCAL, not the provider's
         try:
             client = Client(client_name, timeout=120)
 
@@ -608,6 +609,7 @@ def fetch_continuous_data_for_thd(
                         coverage = TPR.coverage_facts(st, start, end)
                     except Exception as coverage_error:  # noqa: BLE001 -- facts only
                         coverage = {'*': {'status': 'UNMEASURED', 'error_class': type(coverage_error).__name__}}
+                returned = {'traces_before_merge': int(traces_before_merge), 'coverage_by_trace_id': coverage}
                 # Merge traces
                 st.merge(method=1, fill_value='interpolate')
 
@@ -638,7 +640,13 @@ def fetch_continuous_data_for_thd(
 
         except Exception as e:
             logger.debug(f"{client_name} failed for {station_network}.{station_code}: {e}")
-            if record is not None:
+            if record is not None and returned is not None:
+                # the provider answered with traces and the LOCAL merge/detrend raised: not the provider's failure
+                from evidence_redaction import redact
+                record.update(outcome='LOCAL_PROCESSING_ERROR', typed_outcome='LOCAL_PROCESSING_ERROR',
+                              exception_class=type(e).__name__, http_status=None,
+                              reason=redact('%s: %s' % (type(e).__name__, e)), **returned)
+            elif record is not None:
                 # the exception text is redacted before it becomes evidence (credential-shaped material removed); the
                 # class and HTTP status are kept as separate fields and give the typed outcome (thd-provider-routing-v1)
                 from evidence_redaction import redact

@@ -11,6 +11,7 @@ import sys
 import types
 import unittest
 from datetime import datetime
+from unittest import mock
 
 import numpy as np
 
@@ -173,32 +174,46 @@ class RunnerRecordsEveryConfiguredStation(unittest.TestCase):
     def assess(self, region):
         return RD.run_region_assessment(region, DAY)
 
+    def rows(self, out):
+        return [(s["role"], s["station"], s["attempted"], s["outcome"], s["selected"]) for s in out["stations"]]
+
     def test_primary_silent_fallback_used_fallback2_not_attempted(self):
+        # a synthetic three-station region keeps the FALLBACK2 path covered now that no configured region has one
         RD.RECORD_THD_ATTEMPTS = True
-        self.plan = {"AK.SSL": "none", "IU.COLA": "full"}
-        out = self.assess("anchorage").to_dict()["thd_attempts"]
+        three = dict(RD.REGIONS["anchorage"], name="Synthetic three-station", thd_station="PRI", thd_network="XX",
+                     fallback_station="FB1", fallback_network="XX", fallback2_station="FB2", fallback2_network="XX")
+        self.plan = {"XX.PRI": "none", "XX.FB1": "full"}
+        with mock.patch.dict(RD.REGIONS, {"synthetic_three": three}):
+            out = self.assess("synthetic_three").to_dict()["thd_attempts"]
         self.assertEqual(out["schema"], "thd-station-attempts-v3")
         self.assertEqual(out["scored_day"], "2026-10-02")
-        rows = [(s["role"], s["station"], s["attempted"], s["outcome"], s["selected"]) for s in out["stations"]]
-        self.assertEqual(rows, [("CONFIGURED_PRIMARY", "AK.SSL", True, "NO_DATA", False),
-                                ("CONFIGURED_FALLBACK", "IU.COLA", True, "VALUE", True),
-                                ("CONFIGURED_FALLBACK2", "AK.BMR", False, "NOT_ATTEMPTED", False)])
+        self.assertEqual(self.rows(out), [("CONFIGURED_PRIMARY", "XX.PRI", True, "NO_DATA", False),
+                                          ("CONFIGURED_FALLBACK", "XX.FB1", True, "VALUE", True),
+                                          ("CONFIGURED_FALLBACK2", "XX.FB2", False, "NOT_ATTEMPTED", False)])
         self.assertEqual(out["stations"][0]["providers"][0]["outcome"], "NO_TRACES")
+
+    def test_anchorage_is_cola_then_bmr_and_ssl_is_no_longer_asked(self):
+        RD.RECORD_THD_ATTEMPTS = True
+        self.plan = {"IU.COLA": "full"}
+        out = self.assess("anchorage").to_dict()["thd_attempts"]
+        self.assertEqual(self.rows(out), [("CONFIGURED_PRIMARY", "IU.COLA", True, "VALUE", True),
+                                          ("CONFIGURED_FALLBACK", "AK.BMR", False, "NOT_ATTEMPTED", False)])
+        self.assertNotIn("AK.SSL", [sid for sid, _ in self.calls])
 
     def test_short_data_is_insufficient_samples_not_no_data(self):
         RD.RECORD_THD_ATTEMPTS = True
-        self.plan = {"AK.SSL": "short", "IU.COLA": "short", "AK.BMR": "short"}
+        self.plan = {"IU.COLA": "short", "AK.BMR": "short"}
         out = self.assess("anchorage").to_dict()["thd_attempts"]
-        self.assertEqual([s["outcome"] for s in out["stations"]], ["INSUFFICIENT_SAMPLES"] * 3)
+        self.assertEqual([s["outcome"] for s in out["stations"]], ["INSUFFICIENT_SAMPLES"] * 2)
         self.assertFalse(any(s["selected"] for s in out["stations"]))
 
     def test_flag_off_records_nothing_and_passes_no_sink(self):
         RD.RECORD_THD_ATTEMPTS = False
-        self.plan = {"AK.SSL": "none", "IU.COLA": "full"}
+        self.plan = {"IU.COLA": "none", "AK.BMR": "full"}
         result = self.assess("anchorage")
         self.assertNotIn("thd_attempts", result.to_dict())
         self.assertIsNone(result.thd_attempts)
-        self.assertEqual(self.calls, [("AK.SSL", False), ("IU.COLA", False)])
+        self.assertEqual(self.calls, [("IU.COLA", False), ("AK.BMR", False)])
 
 
 if __name__ == "__main__":

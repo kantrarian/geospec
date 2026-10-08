@@ -206,16 +206,18 @@ REGIONS = {
     },
     'anchorage': {
         'name': 'Alaska (Anchorage)',
-        'thd_station': 'SSL',      # South Sled (AV/AK) - near Anchorage
-        'thd_network': 'AK',
+        # candidate (cayley a8f99001, codex ab7c2ee1: accepted as an offline proposal): the configured primary is the
+        # station that actually supplies every recorded anchorage THD value. AK.SSL is retired: it is absent from the
+        # 2026-09-27 EarthScope listing that asked for it and never returned data. IU.COLA is ~444 km from Anchorage,
+        # now stated instead of hidden behind a failed primary. AK.SSN is a CANDIDATE only (its own response, tidal-
+        # band support and baseline first); no value served from COLA changes.
+        'thd_station': 'COLA',     # College, AK (IU global)
+        'thd_network': 'IU',
         'seismic_available': True,
         'latency_days': 0,
-        # Fallback chain for when primary station unavailable
-        'fallback_station': 'COLA',   # College, AK (IU global) - very reliable
-        'fallback_network': 'IU',
-        'fallback2_station': 'BMR',   # Burnt Mountain (AK)
-        'fallback2_network': 'AK',
-        'notes': 'AK.SSL primary, IU.COLA (global) and AK.BMR as fallbacks',
+        'fallback_station': 'BMR',   # Burnt Mountain (AK): no baseline of its own -> its value is ineligible
+        'fallback_network': 'AK',
+        'notes': 'IU.COLA primary (actual support, ~444 km); AK.BMR fallback (uncalibrated). AK.SSL retired.',
     },
     'kumamoto': {
         'name': 'Japan (Kumamoto)',

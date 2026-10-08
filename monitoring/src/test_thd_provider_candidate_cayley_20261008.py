@@ -8,7 +8,7 @@ Waveforms are SYNTHETIC. Nothing here touches a network, reads a credential or a
 import os
 import sys
 import unittest
-from datetime import timedelta
+from datetime import datetime, timedelta
 from unittest import mock
 
 import numpy as np
@@ -127,6 +127,48 @@ class BothProvidersDown(RoutedFetch):
         self.assertEqual(rate, 100.0)
         self.assertEqual([(a["provider"], a["typed_outcome"]) for a in attempts],
                          [("NCEDC", "TRANSPORT_ERROR"), ("IRIS", "DATA_RETURNED")])
+
+
+class FallbackWithoutItsOwnBaseline(unittest.TestCase):
+    """A fallback that answers but has no baseline of its own is scored on the absolute mapping with baseline
+    'missing' -- never on the primary's baseline (station_baselines.get_baseline is keyed by NET.STA and nothing in
+    the runner substitutes) -- and, with the eligibility rule on, is not eligible for tiering. Uses the candidate's
+    anchorage chain (IU.COLA primary, AK.BMR fallback); the fetch is a synthetic stand-in."""
+    DAY = datetime(2026, 10, 8)   # eligibility rule ON (effective scored day 2026-10-07)
+
+    def setUp(self):
+        import ensemble as E
+        import run_ensemble_daily as RD
+        self.E, self.RD = E, RD
+        original = E.fetch_continuous_data_for_thd
+        self.addCleanup(setattr, E, "fetch_continuous_data_for_thd", original)
+        self.answering = set()
+
+        def fake(station_network, station_code, start, end, channel="BHZ", attempts=None):
+            if "%s.%s" % (station_network, station_code) not in self.answering:
+                return None, 0.0
+            t = np.arange(25 * 3600, dtype=np.float64)
+            return np.sin(2 * np.pi * t / (12.42 * 3600)) + 0.05 * np.sin(4 * np.pi * t / (12.42 * 3600)), 1.0
+        E.fetch_continuous_data_for_thd = fake
+
+    def thd(self, *answering):
+        self.answering = set(answering)
+        return self.RD.run_region_assessment("anchorage", self.DAY).components["seismic_thd"]
+
+    def test_bmr_value_uses_no_baseline_and_is_not_eligible(self):
+        import calibration_eligibility as CE
+        thd = self.thd("AK.BMR")
+        self.assertTrue(thd.available)
+        self.assertIn("sta=AK.BMR", thd.notes)
+        self.assertIn("(no baseline)", thd.notes)
+        self.assertEqual((thd.baseline_quality, thd.baseline_mean, thd.baseline_n), ("missing", 0.0, 0))
+        self.assertIs(thd.eligible_for_tiering, False)
+        self.assertFalse(CE.counts_for_tier(thd, True))
+
+    def test_cola_is_judged_against_its_own_baseline_never_missing(self):
+        thd = self.thd("IU.COLA")
+        self.assertIn("sta=IU.COLA", thd.notes)
+        self.assertNotEqual(thd.baseline_quality, "missing")
 
 
 if __name__ == "__main__":

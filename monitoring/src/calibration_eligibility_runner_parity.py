@@ -28,7 +28,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 TARGET = datetime(2026, 9, 28)
 REGION_LIST = ["ridgecrest", "socal_saf_coachella", "istanbul_marmara", "turkey_kahramanmaras", "kaikoura",
                "anchorage", "norcal_hayward", "cascadia", "kumamoto", "tokyo_kanto", "hualien", "mexico_guerrero"]
-# THD stations that answer (AK.SSL and HINET.N.KI2H do not, as on the live host, so their fallbacks run).
+# THD stations that answer (HINET.N.KI2H does not, as on the live host, so its fallback runs; in the provider
+# candidate anchorage's configured primary is IU.COLA, which answers here exactly as it did as AK.SSL's fallback).
 THD_VALUES = {"IU.TUC": 0.3711, "IU.ANTO": 0.4202, "IU.SNZO": 0.4497223, "IU.COLA": 0.2954, "BK.BKS": 0.3305,
               "IU.COR": 0.3612, "IU.MAJO": 0.6120, "IU.TATO": 0.2805, "MX.TLIG": 0.1903}
 # (mean, std, n, window, calibration_date): R3-shaped where calibrated; COLA stale; SNZO the n=0 default.

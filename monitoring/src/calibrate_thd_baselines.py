@@ -149,6 +149,43 @@ CALIBRATION_STATIONS = {
 # CALIBRATION FUNCTIONS
 # =============================================================================
 
+def compute_daily_record(network: str, station: str, date: datetime, channel: str = 'BHZ') -> Dict:
+    """One calibration day as a reproducible RECEIPT (grassmann 641c01b7): the shared daily measurement
+    (thd-daily-measurement-v1) for scored day D = `date` at 00:00, with the input it was computed from -- the provider,
+    exact trace id, returned epoch, coverage, response epoch and the sha256 of the samples as returned -- or the reason
+    no value was produced. `thd` is None unless the value is usable (thd > 0 and p1 > 0)."""
+    from functools import partial
+    import thd_daily_measurement as TDM
+    day = date.replace(hour=0, minute=0, second=0, microsecond=0)
+    receipt = {'day': day.strftime('%Y-%m-%d'), 'thd': None, 'native_rate_hz': None, 'reason': None}
+    attempts = []
+    try:
+        analyzer = SeismicTHDAnalyzer(n_harmonics=5, freq_tolerance=0.1, window_hours=24)
+        m = TDM.measure(network, station, day, analyzer=analyzer,
+                        fetch=partial(fetch_continuous_data_for_thd, attempts=attempts), channel=channel)
+    except Exception as e:  # noqa: BLE001 -- a failed day is a receipt, never a crash of the recal
+        receipt['reason'] = 'ERROR: %s' % type(e).__name__
+        m = {}
+    receipt.update(measurement_identity=m.get('measurement_identity'), requested_window=m.get('requested_window'),
+                   n_native_samples=m.get('n_native_samples'))
+    used = next((a for a in attempts if a.get('outcome') == 'DATA_RETURNED'), None)
+    if used is not None:
+        coverage = used.get('coverage') or {}
+        receipt.update(provider=used.get('provider'), trace_id=used.get('trace_id'), epoch=used.get('epoch'),
+                       coverage_status=coverage.get('status'), coverage_fraction=coverage.get('coverage_fraction'),
+                       response_epoch=(used.get('response_epoch') or {}).get('status'),
+                       raw_samples_sha256=used.get('raw_samples_sha256'))
+    else:
+        receipt['providers_tried'] = ['%s:%s' % (a.get('provider'), a.get('outcome')) for a in attempts]
+    if m.get('thd') is None:
+        receipt['reason'] = receipt['reason'] or m.get('reason') or 'NO_VALUE'
+    elif not (m['thd'] > 0 and m.get('p1') is not None and m['p1'] > 0):
+        receipt['reason'] = 'NONPOSITIVE_THD_OR_P1'
+    else:
+        receipt.update(thd=m['thd'], native_rate_hz=m['native_rate_hz'])
+    return receipt
+
+
 def compute_daily_thd(
     network: str,
     station: str,
@@ -167,23 +204,16 @@ def compute_daily_thd(
     Returns:
         Tuple of (thd_value, sample_rate) or (None, None) on failure
     """
-    try:
-        # thd-daily-measurement-v1 (cayley 2026-10-08; codex 1614 finding 1): EVERY station is calibrated with the
-        # daily measurement the ensemble issues (thd_daily_measurement.measure): the value for day D is the one the
-        # daily path computes for scored day D -- window [D - 25 h, D], 12 h floor, resample_poly to 1 Hz,
-        # analyze_window. Before this, an unbound station was calibrated on [D, D + 25 h] at the native rate with
-        # compute_thd: a different quantity under the same name. A bound station delegates to its reviewed operator.
-        import thd_daily_measurement as TDM
-        analyzer = SeismicTHDAnalyzer(n_harmonics=5, freq_tolerance=0.1, window_hours=24)
-        _m = TDM.measure(network, station, date.replace(hour=0, minute=0, second=0, microsecond=0),
-                         analyzer=analyzer, fetch=fetch_continuous_data_for_thd, channel=channel)
-        if _m['thd'] is None or not (_m['thd'] > 0 and _m['p1'] > 0):
-            return None, None
-        return _m['thd'], _m['native_rate_hz']
-
-    except Exception as e:
-        logger.debug(f"Failed to compute THD for {network}.{station} on {date.date()}: {e}")
+    # thd-daily-measurement-v1 (cayley 2026-10-08; codex 1614 finding 1): EVERY station is calibrated with the daily
+    # measurement the ensemble issues (thd_daily_measurement.measure, through compute_daily_record): the value for day
+    # D is the one the daily path computes for scored day D -- window [D - 25 h, D], 12 h floor, resample_poly to
+    # 1 Hz, analyze_window. Before this, an unbound station was calibrated on [D, D + 25 h] at the native rate with
+    # compute_thd: a different quantity under the same name. A bound station delegates to its reviewed operator.
+    receipt = compute_daily_record(network, station, date, channel)
+    if receipt['thd'] is None:
+        logger.debug(f"No THD for {network}.{station} on {date.date()}: {receipt['reason']}")
         return None, None
+    return receipt['thd'], receipt['native_rate_hz']
 
 
 def calibrate_station(
@@ -220,15 +250,18 @@ def calibrate_station(
     logger.info(f"  Window: {start_date.date()} to {end_date.date()} ({days_back} days)")
     logger.info(f"  Excluded recent: {exclude_recent_days} days")
 
-    # Collect daily THD values
+    # Collect daily THD values, each with its receipt (grassmann 641c01b7: a recal must be reproducible)
     daily_values = []
+    daily_receipts = []
     sample_rates_seen = []
     current = start_date
     n_attempted = 0
 
     while current <= end_date:
         n_attempted += 1
-        thd, sr = compute_daily_thd(network, station, current, channel)
+        receipt = compute_daily_record(network, station, current, channel)
+        daily_receipts.append(receipt)
+        thd, sr = receipt['thd'], receipt['native_rate_hz']
 
         if thd is not None:
             daily_values.append((current.strftime('%Y-%m-%d'), thd))
@@ -262,6 +295,7 @@ def calibrate_station(
             'n_samples': n_valid,
             'calibration_period': f'{start_date.date()} to {end_date.date()}',
             'daily_values': daily_values,
+            'daily_receipts': daily_receipts,
             'qa': qa.to_dict(),
             'error': 'Insufficient samples',
         }
@@ -312,6 +346,7 @@ def calibrate_station(
         'calibration_period': f'{start_date.date()} to {end_date.date()}',
         'exclude_recent_days': exclude_recent_days,
         'daily_values': daily_values,
+        'daily_receipts': daily_receipts,
         'qa': qa.to_dict(),
     }
 

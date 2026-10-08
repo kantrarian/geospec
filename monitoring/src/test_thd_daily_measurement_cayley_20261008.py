@@ -63,7 +63,9 @@ class TrimmingClient:
         return st.trim(starttime, endtime, nearest_sample=False)
 
 
-class SameWaveformBothCallers(unittest.TestCase):
+class BothCallersHarness(unittest.TestCase):
+    """The trimming client and a spy on the shared measurement; holds no tests itself."""
+
     def setUp(self):
         TrimmingClient.STREAM, TrimmingClient.asked = Stream(), []
         patcher = mock.patch("obspy.clients.fdsn.Client", TrimmingClient)
@@ -93,6 +95,8 @@ class SameWaveformBothCallers(unittest.TestCase):
     SAME = ("requested_window", "native_rate_hz", "estimator_rate_hz", "n_native_samples", "n_processed_samples", "thd",
             "measurement_identity")
 
+
+class SameWaveformBothCallers(BothCallersHarness):
     def test_identical_bounds_selector_trace_rate_and_raw_thd(self):
         TrimmingClient.STREAM = Stream([waveform("IU", "TUC", "00"), waveform("IU", "TUC", "10", seed=7)])
         daily, attempts, (weekly, weekly_rate), (a, b), (asked_daily, asked_weekly) = self.both("IU", "TUC")
@@ -211,6 +215,79 @@ class RecalStampsTheMeasurement(unittest.TestCase):
                          TDM.measurement_record("IU", "TUC", analyzer)["identity"])
         self.assertEqual(written["IU.SNZO"]["measurement"]["identity"], OP.daily_operator_identity("IU.SNZO"))
         self.assertEqual(written["IU.SNZO"]["operator"]["identity"], OP.operator_identity("IU.SNZO"))
+
+
+class CalibrationReceipts(BothCallersHarness):
+    """grassmann 641c01b7: every calibration day is written with the input it was computed from, so a recal can be
+    re-run and checked; the digest is of the samples AS RETURNED, before the merge changes them."""
+
+    def test_a_calibration_day_names_its_input_and_matches_the_daily_attempt(self):
+        TrimmingClient.STREAM = Stream([waveform("IU", "TUC", "00"), waveform("IU", "TUC", "10", seed=7)])
+        daily, attempts, (weekly, _), _, _ = self.both("IU", "TUC")
+        receipt = C.compute_daily_record("IU", "TUC", DAY)
+        self.assertEqual((receipt["day"], receipt["thd"], receipt["reason"]), ("2026-08-01", weekly, None))
+        self.assertEqual((receipt["provider"], receipt["trace_id"], receipt["coverage_status"], receipt["response_epoch"]),
+                         ("IRIS", "IU.TUC.00.BHZ", "FULL", "SINGLE_EPOCH"))
+        self.assertEqual(receipt["raw_samples_sha256"], attempts[0]["raw_samples_sha256"])
+        returned = TrimmingClient.STREAM.select(location="00").copy().trim(
+            UTCDateTime(DAY - timedelta(hours=25)), UTCDateTime(DAY), nearest_sample=False)
+        self.assertEqual(receipt["raw_samples_sha256"], TPR.raw_samples_digest(returned))
+        self.assertEqual(receipt["measurement_identity"], self.records[0]["measurement_identity"])
+
+    def test_a_day_without_a_value_keeps_its_reason_and_its_input(self):
+        TrimmingClient.STREAM = Stream([waveform("IU", "TUC", "00", hours=6, start="2026-07-31T18:00:00")])
+        receipt = C.compute_daily_record("IU", "TUC", DAY)
+        self.assertEqual((receipt["thd"], receipt["reason"], receipt["coverage_status"]),
+                         (None, "INSUFFICIENT_DATA", "PARTIAL"))
+        self.assertIsNotNone(receipt["raw_samples_sha256"])
+        TrimmingClient.STREAM = Stream()
+        empty = C.compute_daily_record("IU", "TUC", DAY)
+        self.assertEqual((empty["thd"], empty["reason"], empty["providers_tried"]),
+                         (None, "INSUFFICIENT_DATA", ["IRIS:NO_TRACES"]))
+
+
+class RawSamplesDigest(unittest.TestCase):
+    def test_deterministic_order_free_and_sensitive_to_one_sample_and_a_mask(self):
+        a, b = waveform("IU", "TUC", "00", hours=1), waveform("IU", "TUC", "10", hours=1, seed=7)
+        base = TPR.raw_samples_digest(Stream([a, b]))
+        self.assertEqual(base, TPR.raw_samples_digest(Stream([b.copy(), a.copy()])))
+        changed = a.copy()
+        changed.data[100] += 1
+        self.assertNotEqual(TPR.raw_samples_digest(Stream([changed, b])), base)
+        masked = a.copy()
+        masked.data = np.ma.masked_array(masked.data, mask=np.zeros(masked.data.size, dtype=bool))
+        masked.data.mask[5] = True
+        self.assertNotEqual(TPR.raw_samples_digest(Stream([masked, b])), base)
+
+
+class ReceiptsReachTheBaselineFile(unittest.TestCase):
+    def test_calibrate_station_returns_one_receipt_per_attempted_day(self):
+        days = []
+
+        def record(network, station, date, channel="BHZ"):
+            day = date.strftime("%Y-%m-%d")
+            days.append(day)
+            ok = date.day % 4 != 0
+            return {"day": day, "thd": 0.5 + date.day / 100 if ok else None, "native_rate_hz": 40.0 if ok else None,
+                    "reason": None if ok else "INSUFFICIENT_DATA"}
+        with mock.patch.object(C, "compute_daily_record", side_effect=record):
+            r = C.calibrate_station("IU", "TUC", days_back=20, exclude_recent_days=0, end_date=datetime(2026, 8, 30))
+        self.assertEqual([x["day"] for x in r["daily_receipts"]], days)
+        self.assertEqual(len(r["daily_receipts"]), r["n_attempted"])
+        self.assertEqual(r["n_samples"], sum(1 for x in r["daily_receipts"] if x["thd"] is not None))
+        self.assertEqual(r["daily_values"], [(x["day"], x["thd"]) for x in r["daily_receipts"] if x["thd"] is not None])
+
+    def test_the_recal_writes_every_calibration_day_into_the_entry(self):
+        import run_thd_recal as R
+        receipts = [{"day": "2026-08-01", "thd": 0.5, "native_rate_hz": 40.0, "reason": None,
+                     "raw_samples_sha256": "a" * 64}, {"day": "2026-08-02", "thd": None, "reason": "INSUFFICIENT_DATA"}]
+        moments = {"mean_thd": 0.5, "std_thd": 0.1, "n_samples": 60, "calibration_period": "2026-06-01 to 2026-08-30",
+                   "daily_receipts": receipts}
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(R, "BASELINE_DIR", Path(tmp)), \
+                mock.patch.object(C, "calibrate_station", return_value=moments), \
+                mock.patch.object(R, "_prior_effective_entries", return_value={}):
+            written = json.loads(Path(R.run_recal(["IU.TUC"], end_date=datetime(2026, 10, 1))).read_text())
+        self.assertEqual(written["IU.TUC"]["calibration_days"], receipts)
 
 
 if __name__ == "__main__":

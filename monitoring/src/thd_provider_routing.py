@@ -460,3 +460,23 @@ def response_epoch_for(trace_id, start, end):
             clipped.append((b, f, label))
     status, labels = response_epoch_status(clipped, start, end)
     return {"status": status, "labels": labels, "known": [lo, hi], "basis": entry["basis"]}
+
+
+RAW_DIGEST_VERSION = "thd-raw-samples-sha256-v1"
+
+
+def raw_samples_digest(stream):
+    """sha256 of the provider's samples exactly as returned, BEFORE any merge or detrend: for each trace in (id, start)
+    order its id, start, rate, dtype and length, then its sample bytes (and mask bytes when masked). Two days with the
+    same digest were computed from the same input; a recal can be re-run and checked against it."""
+    import hashlib
+    import numpy as np
+    digest = hashlib.sha256(RAW_DIGEST_VERSION.encode())
+    for tr in sorted(stream, key=lambda t: (t.id, t.stats.starttime.ns)):
+        values = np.ascontiguousarray(np.ma.getdata(tr.data))
+        digest.update(("|%s|%d|%r|%s|%d|" % (tr.id, tr.stats.starttime.ns, float(tr.stats.sampling_rate),
+                                             values.dtype.str, values.size)).encode())
+        digest.update(values.tobytes())
+        if np.ma.isMaskedArray(tr.data):
+            digest.update(np.ascontiguousarray(np.ma.getmaskarray(tr.data)).tobytes())
+    return digest.hexdigest()

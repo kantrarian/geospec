@@ -609,7 +609,14 @@ def fetch_continuous_data_for_thd(
                         coverage = TPR.coverage_facts(st, start, end)
                     except Exception as coverage_error:  # noqa: BLE001 -- facts only
                         coverage = {'*': {'status': 'UNMEASURED', 'error_class': type(coverage_error).__name__}}
-                returned = {'traces_before_merge': int(traces_before_merge), 'coverage_by_trace_id': coverage}
+                raw_digest = None
+                if record is not None:
+                    try:   # the input as returned, before the merge changes it (recording only)
+                        raw_digest = TPR.raw_samples_digest(st)
+                    except Exception:  # noqa: BLE001 -- facts only
+                        raw_digest = None
+                returned = {'traces_before_merge': int(traces_before_merge), 'coverage_by_trace_id': coverage,
+                            'raw_samples_sha256': raw_digest}
                 # Merge traces
                 st.merge(method=1, fill_value='interpolate')
 
@@ -639,7 +646,7 @@ def fetch_continuous_data_for_thd(
                                   selection='st[0] after merge(method=1, fill_value=interpolate)',
                                   coverage=coverage.get(st[0].id, coverage.get('*')),
                                   response='NOT_REMOVED (raw counts; demean and linear detrend only)',
-                                  response_epoch=response_epoch)
+                                  response_epoch=response_epoch, raw_samples_sha256=raw_digest)
                 return data, sample_rate
             if record is not None:
                 record.update(outcome='NO_TRACES', typed_outcome='NO_DATA', exception_class=None, http_status=None,

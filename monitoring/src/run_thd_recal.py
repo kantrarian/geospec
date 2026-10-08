@@ -161,6 +161,8 @@ def run_recal(stations, end_date=None, dry_run=False):
         }
         if is_bound(net, sta) and operator_record is not None:
             entry["operator"] = operator_record(key)
+        if r.get("daily_receipts") is not None:   # grassmann 641c01b7: every calibration day with its input receipt
+            entry["calibration_days"] = r["daily_receipts"]
         try:   # thd-daily-measurement-v1: which measurement produced these moments (recording only)
             import thd_daily_measurement as TDM
             from seismic_thd import SeismicTHDAnalyzer as _A

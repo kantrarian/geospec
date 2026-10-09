@@ -1,4 +1,4 @@
-# AMENDMENT 2026-10-09 — THD station requests, routing and one shared daily measurement
+# AMENDMENT 2026-10-09 — THD station requests, routing, one shared daily measurement and scored-day baseline selection
 
 - **date (UTC):** 2026-10-09 (registration and source publication; this commit)
 - **authors:** cayley, with codex (review) and grassmann (retained evidence and measurement support)
@@ -9,11 +9,15 @@
   - The actual activation (the run, its scored day and its outcome) is recorded separately. This amendment is not
     edited to match it.
 - **owner approval:** "i approve.  give me the needed lines and be sure the backslashes are correct and it doesn't take more than one line each" (recorded 2026-10-09T00:49Z, in reply to the release request (handoff section 7: amendment and method push, guarded release, the scheduled calibration-convention change, default reversible rollback); sha256 of the quoted text `4ece11a1986b4c229ee3014e0f871741540bbcf6717a030a75367e14608dbcab`)
+- **owner approval, scope extension:** "approved adding both" (recorded 2026-10-09T14:54:29Z, in reply to the request to add the
+  scored-day baseline selection and the publication of DEGRADED regions to this release; sha256 of the quoted text
+  `2f4d93a8b0d3fd7d7bbf05e69f499dcbf05729bebc3e5d15214d86734ccb22c7`)
 - **versions:**
   - `thd-provider-routing-v1`
   - `thd-coverage-facts-v2`
   - `thd-daily-measurement-v1`
   - `thd-operator-class-v1`
+  - `thd-baseline-as-of-v1`
   - station attempts `thd-station-attempts-v3`
   - The qualification rule (`calibration-eligibility-v3`) and comparison contract (`method-comparability-v1`) are
     unchanged.
@@ -63,6 +67,16 @@ and it does not explain the earlier difference between installed and recomputed 
   - Each recalibrated baseline records its calibration convention, its measurement identity and a per-day receipt:
     the value, input identity and coverage, or the reason no value was produced.
   - A digest identifies an input; it does not replace the retained bytes needed to replay a waveform.
+- **Baseline selection for a scored day.** From the first affected scored day, when the selected THD calibration is
+  dated after the scored day, the newest readable dated baseline file on or before that scored day is selected instead.
+  - Existing per-entry lag, age and calibration-eligibility checks remain mandatory. No eligible baseline means not
+    qualified.
+  - Before this, a recalibration run on the day a report is issued was dated after the day it scores, because scoring
+    runs two days behind. It was then refused by the registered lag rule in every THD region, on each recalibration
+    day and the day after.
+  - Prior issued scores are unchanged. The 2026-10-07 report is not rescored.
+  - A dated file name records when a recalibration file was written for. It is not proof that its bytes were available
+    on that day.
 - **Offline scoring.** The event scorer used for backtests counts a record only by its publication instant before the
   event. Event times from the USGS catalogue are read as UTC. The daily runner does not use this scorer.
 

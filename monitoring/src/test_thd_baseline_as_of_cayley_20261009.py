@@ -106,10 +106,23 @@ class AsOfSelection(unittest.TestCase):
             with self.subTest(bad=bad), self.assertRaises(ValueError):
                 self.at("BK.BKS", bad)
 
-    def test_without_a_scored_day_the_import_time_selection_is_unchanged(self):
-        self.assertIs(SB.get_baseline("BKS", "BK"), SB.STATION_BASELINES.get("BK.BKS"))
-        with mock.patch.object(SB, "BASELINE_DIR", self.bdir):
-            self.assertEqual(SB.get_baseline("BKS", "BK", as_of="2026-10-07").mean_thd, MOMENTS["20261001"]["BK.BKS"][0])
+    def test_the_import_time_selection_is_replaced_only_when_dated_after_the_scored_day(self):
+        with mock.patch.dict(SB.STATION_BASELINES), mock.patch.object(SB, "BASELINE_DIR", self.bdir):
+            self.assertEqual(SB._load_newest_baseline_file(), "thd_baselines_20261009.json")   # the loader's own pick
+            selected = SB.STATION_BASELINES["BK.BKS"]
+            self.assertIs(SB.get_baseline("BKS", "BK"), selected)
+            self.assertIs(SB.get_baseline("BKS", "BK", as_of="2026-10-09"), selected)
+            self.assertIs(SB.get_baseline("BKS", "BK", as_of="2026-10-20"), selected)
+            for day in ("2026-10-07", "2026-10-08"):
+                with self.subTest(day=day):
+                    self.assertEqual(SB.get_baseline("BKS", "BK", as_of=day).mean_thd, MOMENTS["20261001"]["BK.BKS"][0])
+            injected = SB.StationBaseline(station="BK.BKS", mean_thd=0.5, std_thd=0.1, n_samples=60,
+                                          calibration_period="2026-06-01 to 2026-08-30", calibration_date="2026-09-30")
+            SB.STATION_BASELINES["BK.BKS"] = injected
+            self.assertIs(SB.get_baseline("BKS", "BK", as_of="2026-10-07"), injected, "not later than the day: kept")
+            default = SB._BUILTIN_BASELINES["BK.BKS"]
+            SB.STATION_BASELINES["BK.BKS"] = default
+            self.assertIs(SB.get_baseline("BKS", "BK", as_of="2026-10-07"), default, "undated default: kept")
 
 
 class TheDailyPathAsksForTheScoredDay(unittest.TestCase):
@@ -124,7 +137,9 @@ class TheDailyPathAsksForTheScoredDay(unittest.TestCase):
                     "station": "IU.TUC", "mean_thd": mean, "std_thd": 0.1, "n_samples": 60, "calibration_period": period,
                     "calibration_date": "%s-%s-%s" % (stamp[:4], stamp[4:6], stamp[6:])}}))
             TrimmingClient.STREAM, TrimmingClient.asked = Stream([waveform("IU", "TUC", "00")]), []
-            with mock.patch("obspy.clients.fdsn.Client", TrimmingClient), mock.patch.object(SB, "BASELINE_DIR", bdir):
+            with mock.patch("obspy.clients.fdsn.Client", TrimmingClient), mock.patch.object(SB, "BASELINE_DIR", bdir), \
+                    mock.patch.dict(SB.STATION_BASELINES):
+                self.assertEqual(SB._load_newest_baseline_file(), "thd_baselines_20260803.json")   # newest-first pick
                 result = E.GeoSpecEnsemble(region="ridgecrest", eligibility_rule_active=False).compute_thd_risk(
                     DAY, station_network="IU", station_code="TUC")
         self.assertEqual(DAY.strftime("%Y-%m-%d"), "2026-08-01")

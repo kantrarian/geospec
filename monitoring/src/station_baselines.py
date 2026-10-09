@@ -314,16 +314,21 @@ def get_baseline(station_code: str, network: str, as_of=None) -> Optional[Statio
     Args:
         station_code: Station code (e.g., 'ANTO')
         network: Network code (e.g., 'IU')
-        as_of: the scored day (thd-baseline-as-of-v1): the baseline in force for that day; None = the import-time
-            newest-first selection, unchanged
+        as_of: the scored day (thd-baseline-as-of-v1). The import-time newest-first selection is returned unchanged
+            UNLESS it is a recal dated after that day; only then the baseline in force for the day (baseline_as_of)
+            replaces it. None = the import-time selection, unchanged.
 
     Returns:
         StationBaseline or None if not found
     """
-    if as_of is not None:
-        return baseline_as_of(station_code, network, as_of)
     key = f"{network}.{station_code}"
-    return STATION_BASELINES.get(key)
+    selected = STATION_BASELINES.get(key)
+    if as_of is not None:
+        day = _scored_day(as_of)
+        dated = getattr(selected, 'calibration_date', None)
+        if isinstance(dated, str) and dated > day:
+            return baseline_as_of(station_code, network, day)
+    return selected
 
 
 def compute_z_score(thd_value: float, baseline: StationBaseline) -> float:

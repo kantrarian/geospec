@@ -852,7 +852,8 @@ class GeoSpecEnsemble:
             sample_rate = _m['estimator_rate_hz']
 
             # Get station baseline if available
-            baseline = get_baseline(station_code, station_network) if get_baseline else None
+            # thd-baseline-as-of-v1: the baseline in force for THIS scored day, never a later recal
+            baseline = get_baseline(station_code, station_network, as_of=date) if get_baseline else None
 
             # calibration-eligibility-v1: judge the baseline AS LOOKED UP (before the staleness guard below
             # replaces a stale one with None), from its structured fields only. Bound to the result at the end;

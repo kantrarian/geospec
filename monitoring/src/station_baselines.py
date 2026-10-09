@@ -20,6 +20,8 @@ from pathlib import Path
 import logging
 
 logger = logging.getLogger(__name__)
+# The dated rolling-recal files (run_thd_recal writes thd_baselines_<YYYYMMDD>.json here); tests override it.
+BASELINE_DIR = Path(__file__).resolve().parent.parent / 'data' / 'baselines'
 
 
 @dataclass
@@ -206,7 +208,7 @@ def _load_newest_baseline_file(bdir: Optional[Path] = None) -> Optional[str]:
     `bdir` (calibration-eligibility-v3) overrides the directory for tests only; production passes nothing."""
     try:
         if bdir is None:
-            bdir = Path(__file__).resolve().parent.parent / 'data' / 'baselines'
+            bdir = BASELINE_DIR
         files = sorted(bdir.glob('thd_baselines_*.json'), key=lambda p: p.name, reverse=True)  # newest name first
     except Exception:
         return None
@@ -238,21 +240,88 @@ def _load_newest_baseline_file(bdir: Optional[Path] = None) -> Optional[str]:
     return None
 
 
+# thd-baseline-as-of-v1: the built-in defaults exactly as written above, kept before the import-time load overrides them,
+# so a scored day falls back to them the way the loader does.
+_BUILTIN_BASELINES: Dict[str, StationBaseline] = dict(STATION_BASELINES)
+
 # Apply newest-first load at import: the freshest rolling recal overrides the built-in 2026-01 defaults.
 _NEWEST_BASELINE_FILE = _load_newest_baseline_file()
 
 
-def get_baseline(station_code: str, network: str) -> Optional[StationBaseline]:
+def _file_baselines(path) -> Optional[Dict[str, StationBaseline]]:
+    """The baselines one dated file holds, parsed exactly as the newest-first loader parses them: None when the file is
+    unreadable, {} when it holds no valid entry."""
+    try:
+        with open(path) as fh:
+            data = json.load(fh)
+    except Exception:
+        return None
+    if isinstance(data, dict) and isinstance(data.get('baselines'), list):
+        entries = data['baselines']
+    elif isinstance(data, dict):
+        entries = [v for v in data.values() if isinstance(v, dict) and 'station' in v]
+    else:
+        entries = []
+    held = {}
+    for e in entries:
+        try:
+            parsed = _baseline_from_entry(e, Path(path).name)
+            held[parsed.station] = parsed
+        except Exception:
+            continue
+    return held
+
+
+def _scored_day(as_of) -> str:
+    """'YYYY-MM-DD' for a date, datetime or ISO date string; anything else is refused (never guessed)."""
+    from datetime import datetime as _dt
+    text = as_of.strftime('%Y-%m-%d') if hasattr(as_of, 'strftime') else as_of
+    if not isinstance(text, str) or len(text) != 10:
+        raise ValueError('BASELINE_AS_OF_NOT_A_DAY: %r' % (as_of,))
+    return _dt.strptime(text, '%Y-%m-%d').strftime('%Y-%m-%d')
+
+
+def baseline_as_of(station_code: str, network: str, as_of, bdir: Optional[Path] = None) -> Optional[StationBaseline]:
+    """thd-baseline-as-of-v1 (cayley 2026-10-09; run da191bd4): the baseline IN FORCE for scored day `as_of`.
+
+    The newest-first rule of the import-time loader, restricted to the dated files that existed for that day: the
+    newest readable file named `thd_baselines_<YYYYMMDD>.json` whose date is ON OR BEFORE the scored day; a station
+    that file lacks keeps its built-in default, as at import. A file named after the scored day (a later recal) is
+    never used for it -- with scoring two days behind, the same-run recal would otherwise be the newest file, and the
+    registered lag (calibration_eligibility) refuses it on every recal day and the day after. No such file: the
+    built-in default. The import-time selection (STATION_BASELINES) is unchanged for every other caller."""
+    day = _scored_day(as_of)
+    key = f"{network}.{station_code}"
+    try:
+        files = sorted((bdir or BASELINE_DIR).glob('thd_baselines_*.json'), key=lambda p: p.name, reverse=True)
+    except Exception:
+        files = []
+    for f in files:
+        file_day = calibration_date_from_name(f.name)
+        if file_day is None or file_day > day:
+            continue
+        held = _file_baselines(f)
+        if not held:   # unreadable, or no valid entry: the loader tries the next older file too
+            continue
+        return held.get(key, _BUILTIN_BASELINES.get(key))
+    return _BUILTIN_BASELINES.get(key)
+
+
+def get_baseline(station_code: str, network: str, as_of=None) -> Optional[StationBaseline]:
     """
     Get baseline for a station.
 
     Args:
         station_code: Station code (e.g., 'ANTO')
         network: Network code (e.g., 'IU')
+        as_of: the scored day (thd-baseline-as-of-v1): the baseline in force for that day; None = the import-time
+            newest-first selection, unchanged
 
     Returns:
         StationBaseline or None if not found
     """
+    if as_of is not None:
+        return baseline_as_of(station_code, network, as_of)
     key = f"{network}.{station_code}"
     return STATION_BASELINES.get(key)
 

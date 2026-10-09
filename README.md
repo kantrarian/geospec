@@ -5,21 +5,21 @@
 > Region labels can share station data and are not independent confirmations.
 > See the [2026-09-17 shared-support claim correction](docs/INCIDENT_2026-09-17_shared_support_claims.md).
 
-**Last Update**: 2026-10-06
+**Last Update**: 2026-10-07
 
 ## Current Status
 
 | Metric | Value |
 |--------|-------|
-| Highest Risk Region | hualien |
-| Risk Score | 0.081 |
+| Highest Risk Region | withheld (regions span different method sets; see summary.comparison) |
+| Risk Score | n/a |
 | Regions Monitored | 14 |
 
 ### Tier Distribution
 
 | Tier | Count |
 |------|-------|
-| NORMAL (0) | 14 |
+| NORMAL (0) | 0 |
 | WATCH (1) | 0 |
 | ELEVATED (2) | 0 |
 | CRITICAL (3) | 0 |

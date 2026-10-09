@@ -144,7 +144,7 @@
    ]
   },
   {
-   "baseline_n_days": 0,
+   "baseline_n_days": null,
    "configured_fallback": null,
    "configured_fallback2": null,
    "configured_primary": "IU.SNZO",
@@ -159,7 +159,7 @@
     "name": "GeoNet",
     "url": "https://www.geonet.org.nz/"
    },
-   "recorded_basis": "LATEST_REPORT_NOTES_STA",
+   "recorded_basis": "LATEST_REPORT_NOTES_ATTEMPTED_NO_VALUE",
    "recorded_station": "IU.SNZO",
    "region": "kaikoura",
    "shares_recorded_station_with": []
@@ -213,7 +213,7 @@
    "shares_recorded_station_with": []
   },
   {
-   "baseline_n_days": 91,
+   "baseline_n_days": null,
    "configured_fallback": null,
    "configured_fallback2": null,
    "configured_primary": "BK.BKS",
@@ -228,7 +228,7 @@
     "name": "USGS",
     "url": "https://earthquake.usgs.gov/earthquakes/map/"
    },
-   "recorded_basis": "LATEST_REPORT_NOTES_STA",
+   "recorded_basis": "LATEST_REPORT_NOTES_ATTEMPTED_NO_VALUE",
    "recorded_station": "BK.BKS",
    "region": "norcal_hayward",
    "shares_recorded_station_with": []
@@ -355,7 +355,7 @@
    ]
   }
  ],
- "report_date": "2026-10-02",
+ "report_date": "2026-10-06",
  "schema": "geospec.thd-station-map.v1",
  "stations": {
   "BK.BKS": {

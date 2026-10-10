@@ -263,5 +263,96 @@ class Replay(unittest.TestCase):
         self.assertIs(rows["2026-07-02"]["support_identical"], True)
         self.assertEqual(rows["2026-08-01"]["outcome"], "UNKNOWN")
 
+    def test_runner_cache_layout_two_fetch_seams_labelled(self):
+        """grassmann e5a34e44: the runner's seismic_cache pickles, cache days D-2 and D-1 per scored day D. Midnight-start
+        runs that abut exactly -> BOTH_ACCEPT; ~07:00Z runs whose seam repeats 317 identical samples -> RECOVERED and
+        labelled not-the-issued-input; a missing cache day -> UNKNOWN (CACHE_DAY_MISSING)."""
+        import json
+        import pickle
+        from obspy import Stream
+        import thd_bound_operator_replay_cayley_20261010 as REPLAY
+        if load_v1() is None:
+            self.skipTest("public commit not reachable")
+        day_n = int(RATE * 86400)
+
+        def put(root, cache_day, start, data):
+            d = Path(root) / "kaikoura" / cache_day.replace("-", "")
+            d.mkdir(parents=True, exist_ok=True)
+            (d / "hope_fault_waveforms.pkl").write_bytes(pickle.dumps({"IU.SNZO": Stream([trace(start, data)]),
+                                                                        "IU.OTHER": Stream()}))
+        with tempfile.TemporaryDirectory() as tmp:
+            a = series(2 * day_n, seed=41)                                   # midnight runs, exact abut
+            put(tmp, "2026-07-01", UTCDateTime("2026-07-01"), a[:day_n]); put(tmp, "2026-07-02", UTCDateTime("2026-07-02"), a[day_n:])
+            b = series(2 * day_n, seed=42)                                   # 07:00Z runs, 317 identical samples at the seam
+            s = UTCDateTime("2026-07-11T07:00:00")
+            put(tmp, "2026-07-11", s, b[:day_n])
+            put(tmp, "2026-07-12", s + (day_n - 317) * DT, b[day_n - 317:2 * day_n - 317])
+            put(tmp, "2026-07-21", UTCDateTime("2026-07-21"), series(day_n, seed=43))   # 07-22 never retained
+            out = Path(tmp) / "replay.json"
+            rc = REPLAY.main(["--runner-cache", tmp, "--days", "2026-07-03:2026-07-23", "--out", str(out)])
+            receipt = json.loads(out.read_text())
+        self.assertEqual(rc, 0)
+        rows = {r["day"]: r for r in receipt["rows"]}
+        self.assertEqual(rows["2026-07-03"]["outcome"], "BOTH_ACCEPT")
+        self.assertIs(rows["2026-07-03"]["support_identical"], True)
+        self.assertEqual(rows["2026-07-03"]["issued_input"], "CACHE_RUNS_MIDNIGHT_START")
+        self.assertEqual(rows["2026-07-13"]["outcome"], "RECOVERED")
+        self.assertEqual(rows["2026-07-13"]["v2_identical_overlap_samples"], 317)
+        self.assertEqual(rows["2026-07-13"]["issued_input"], "CACHE_RUN_NON_MIDNIGHT_START_NOT_THE_ISSUED_INPUT")
+        self.assertEqual((rows["2026-07-23"]["outcome"], rows["2026-07-23"]["unknown_reason"]), ("UNKNOWN", "CACHE_DAY_MISSING"))
+        for r in receipt["rows"]:
+            self.assertEqual(r["input_kind"], "RUNNER_CACHE_TWO_INDEPENDENT_FETCHES")
+        self.assertEqual(receipt["counts"], dict(RECOVERED=1, STILL_REFUSED=0, BOTH_ACCEPT=1, V2_ONLY_REFUSES=0, UNKNOWN=19,
+                                                 BOTH_ACCEPT_BYTES_DIFFER=0))
+        self.assertEqual(receipt["counts_by_issued_input"], {"CACHE_RUNS_MIDNIGHT_START": {"BOTH_ACCEPT": 1},
+                                                             "CACHE_RUN_NON_MIDNIGHT_START_NOT_THE_ISSUED_INPUT": {"RECOVERED": 1}})
+
+
+class ChannelPassThrough(unittest.TestCase):
+    """grassmann e5a34e44 finding: the bound station's channel is bound too. A non-BHZ request refuses at the shared
+    measurement (as for an unbound station) and the channel reaches the operator's fetch, where fetch_bound refuses it."""
+
+    class _Analyzer:
+        window_hours = 24
+
+        def analyze_window(self, data, sample_rate, station, window_time):
+            from unittest import mock
+            return mock.Mock(thd_value=0.3, fundamental_power=1.0, dominant_frequency=2.2e-5, snr=5.0)
+
+    def test_measure_refuses_another_channel_for_the_bound_station(self):
+        import thd_daily_measurement as TDM
+        calls = []
+        with self.assertRaises(ValueError) as cm:
+            TDM.measure("IU", "SNZO", datetime(2026, 10, 8), analyzer=self._Analyzer(),
+                        fetch=lambda **kw: calls.append(kw) or (None, 0.0), channel="HHZ")
+        self.assertIn("THD_MEASUREMENT_CHANNEL_NOT_BOUND", str(cm.exception))
+        self.assertEqual(calls, [], "nothing is fetched for a refused channel")
+
+    def test_the_bound_channel_is_passed_through(self):
+        import thd_daily_measurement as TDM
+        calls = []
+
+        def fetch(**kw):
+            calls.append(kw)
+            return np.zeros(40 * 3600 * 13), 40.0
+        rec = TDM.measure("IU", "SNZO", datetime(2026, 10, 8), analyzer=self._Analyzer(), fetch=fetch)
+        self.assertEqual((calls[0]["channel"], rec["thd"]), ("BHZ", 0.3))
+
+    def test_the_operator_forwards_a_named_channel_and_keeps_the_old_shape_otherwise(self):
+        calls = []
+
+        def fetch(**kw):
+            calls.append(kw)
+            return None, 0.0
+        OP.daily_measurement("IU", "SNZO", datetime(2026, 10, 8), analyzer=self._Analyzer(), fetch=fetch, channel="HHZ")
+        OP.daily_measurement("IU", "SNZO", datetime(2026, 10, 8), analyzer=self._Analyzer(), fetch=fetch)
+        self.assertEqual(calls[0]["channel"], "HHZ")
+        self.assertNotIn("channel", calls[1])
+
+    def test_fetch_bound_refuses_a_forwarded_other_channel(self):
+        data, rate, rec = OP.fetch_bound("IU", "SNZO", datetime(2026, 10, 6, 23), datetime(2026, 10, 8), "HHZ",
+                                         client_factory=lambda name: self.fail("no client for a refused channel"))
+        self.assertEqual((data, rate, rec["refusal"]), (None, 0.0, "CHANNEL_MISMATCH"))
+
 if __name__ == "__main__":
     unittest.main()

@@ -150,7 +150,11 @@ def measure(network: str, station: str, target, *, analyzer, fetch, channel: str
     key = f"{network}.{station}"
     import thd_bound_station_operator as OP
     if key in OP.BOUND_STATIONS:
-        rec = OP.daily_measurement(network, station, target, analyzer=analyzer, fetch=fetch)
+        # the bound station's channel is bound too (grassmann e5a34e44 finding): another channel refuses here, exactly as
+        # for an unbound station, and the bound channel is passed through so fetch_bound's own check also sees it
+        if channel != OP.BOUND_STATIONS[key]["channel"]:
+            raise ValueError("THD_MEASUREMENT_CHANNEL_NOT_BOUND: %r" % (channel,))
+        rec = OP.daily_measurement(network, station, target, analyzer=analyzer, fetch=fetch, channel=channel)
         rec["measurement_identity"] = rec.get("operator_identity")
         return rec
     import thd_provider_routing as TPR

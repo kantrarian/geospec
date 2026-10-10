@@ -268,7 +268,7 @@ def daily_operator_record(key: str) -> Dict:
     return dict(identity=daily_operator_identity(key), fetch=operator_record(key), **DAILY_OPERATOR)
 
 
-def daily_measurement(network: str, station: str, target: datetime, *, analyzer, fetch) -> Dict:
+def daily_measurement(network: str, station: str, target: datetime, *, analyzer, fetch, channel: Optional[str] = None) -> Dict:
     """The PRODUCTION daily THD measurement for a bound station, as one function used by ensemble.compute_thd_risk and
     by calibrate_thd_baselines.compute_daily_thd: requested window = [target - (analyzer.window_hours + 1) h, target],
     `fetch` = the caller's fetch_continuous_data_for_thd (which dispatches bound stations to fetch_bound), the daily
@@ -279,7 +279,10 @@ def daily_measurement(network: str, station: str, target: datetime, *, analyzer,
     start = target - timedelta(hours=analyzer.window_hours + 1)
     rec: Dict = dict(station=key, operator_identity=daily_operator_identity(key), requested_window=[start.isoformat(), target.isoformat()],
                      thd=None, native_rate_hz=None, estimator_rate_hz=None, n_native_samples=None, n_processed_samples=None, reason=None)
-    data, sample_rate = fetch(station_network=network, station_code=station, start=start, end=target)
+    # `channel` (grassmann e5a34e44): passed through when the caller names one, so fetch_bound refuses CHANNEL_MISMATCH
+    # for anything but the bound channel; a caller that names none keeps the unchanged call shape
+    data, sample_rate = fetch(station_network=network, station_code=station, start=start, end=target,
+                              **({} if channel is None else {"channel": channel}))
     if data is None or len(data) < sample_rate * 3600 * 12:
         rec["reason"] = "INSUFFICIENT_DATA"; return rec
     rec["native_rate_hz"] = float(sample_rate); rec["n_native_samples"] = int(len(data))

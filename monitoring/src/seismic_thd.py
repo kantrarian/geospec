@@ -540,6 +540,12 @@ def fetch_continuous_data_for_thd(
                 detail = rec.get('refusal') or 'UNKNOWN_REFUSAL'
                 record.update(outcome='OPERATOR_REFUSED',
                               reason=redact(detail + (' (%s)' % rec['error'] if rec.get('error') else '')))
+                # thd-bound-station-operator-v2 (codex b7a29458): a refusal carries what the operator measured -- the
+                # boundary kind and its seconds/samples, the requested window and, for an uncovered window, the
+                # covered fraction -- so the row says what was seen, not only that it refused
+                facts = {k: rec[k] for k in ('discontinuity', 'coverage', 'have', 'n_traces') if k in rec}
+                if facts:
+                    record['operator_facts'] = facts
             else:
                 record.update(outcome='DATA_RETURNED', reason=None,
                               trace_id='%s.%s.%s.%s' % (station_network, station_code, loc, cha),

@@ -26,12 +26,13 @@ logger = logging.getLogger(__name__)
 
 BOUND_STATIONS: Dict[str, Dict] = {
     "IU.SNZO": dict(location="00", channel="BHZ", expected_rate_hz=40.0, client="IRIS",
-                    response_policy="NOT_REMOVED", gap_policy="EXACT_ABUT_OR_IDENTICAL_DUPLICATE_ONLY_NO_FILL",
+                    response_policy="NOT_REMOVED",
+                    gap_policy="EXACT_ABUT_OR_EXACT_IDENTICAL_OVERLAP_ON_GRID_WITHIN_ONE_RETAINED_EPOCH_NO_FILL",
                     coverage_policy="REQUESTED_WINDOW_FULLY_COVERED_OR_REFUSE",
                     detrend="demean+linear", estimator="SeismicTHDAnalyzer(n_harmonics=5,freq_tolerance=0.1,window_hours=24).compute_thd",
                     normalization="baseline mean=median(daily THD), std=MAD*1.4826 (calibrate_station)",
                     reviewed_by="grassmann thd_bootstrap v2 eae5ed77 / codex measurement-support review 2026-10-03",
-                    operator_version="thd-bound-station-operator-v1"),
+                    operator_version="thd-bound-station-operator-v2"),
 }
 REFUSALS = ("NO_TRACES", "NSLC_MISMATCH", "LOCATION_MISMATCH", "CHANNEL_MISMATCH", "RATE_INVALID", "RATE_MISMATCH",
             "MASKED_SAMPLES", "GAP_OR_OVERLAP", "WINDOW_NOT_COVERED", "PROVIDER_ERROR")
@@ -53,14 +54,52 @@ def operator_record(key: str) -> Dict:
     return dict(identity=operator_identity(key), **spec)
 
 
+def _iso(x) -> str:
+    return x.isoformat() if hasattr(x, "isoformat") else str(x)
+
+
 def _utc(x) -> datetime:
     return x.datetime.replace(tzinfo=timezone.utc)
 
 
+def _discontinuity(kind: str, rec: Dict, **facts) -> None:
+    """Name the refusing boundary in the record: the kind and the measured facts, nothing inferred."""
+    rec["refusal"] = "GAP_OR_OVERLAP" if kind in ("GAP", "UNEQUAL_OVERLAP", "OFF_GRID", "CROSSES_RESPONSE_EPOCH") else rec["refusal"]
+    rec["discontinuity"] = dict(kind=kind, **facts)
+    if "at" in facts:
+        rec["at"] = facts["at"]
+    if "delta_seconds" in facts:
+        rec["delta_seconds"] = facts["delta_seconds"]
+
+
+def _epoch_boundaries(response_epochs):
+    """The retained response-epoch boundaries as integer nanoseconds, from (start, end, label) ISO instants."""
+    if not response_epochs:
+        return []
+    from obspy import UTCDateTime
+    bounds = set()
+    for begin, finish, _label in response_epochs:
+        for value in (begin, finish):
+            if value is not None:
+                bounds.add(int(UTCDateTime(value).ns))
+    return sorted(bounds)
+
+
 def stitch_window(traces, *, network: str, station: str, location: str, channel: str, expected_rate: Optional[float],
-                  start: datetime, end: datetime) -> Tuple[Optional[np.ndarray], float, Dict]:
-    """Join obspy traces into one array covering [start, end) under the reviewed rules. Pure: no I/O."""
-    rec: Dict = dict(n_traces=len(traces), refusal=None)
+                  start: datetime, end: datetime, response_epochs=None) -> Tuple[Optional[np.ndarray], float, Dict]:
+    """Join obspy traces into one array covering [start, end) under the reviewed rules. Pure: no I/O.
+
+    thd-bound-station-operator-v2 (cayley 2026-10-10, codex b7a29458): records are placed on ONE native sample grid
+    anchored at the earliest record. A record joins when it starts exactly at the end of the assembled support (abut),
+    or when it overlaps the support and EVERY overlapping sample equals the support's sample at that grid index -- a
+    nested or fully duplicate record contributes nothing and never shrinks the support's end; a partially overlapping
+    one contributes only its samples past the end. Refused by name, with the measured facts in `discontinuity`: a GAP
+    (no fill, ever), an UNEQUAL_OVERLAP (any differing sample), an OFF_GRID record (start more than a quarter sample
+    off the grid), an identical overlap that CROSSES_RESPONSE_EPOCH (a retained epoch boundary inside it, when
+    `response_epochs` is given), MASKED_SAMPLES (masked or nonfinite). Everything v1 accepted (exact abut, one
+    identical duplicate sample) is joined exactly as v1 joined it, so its output support is byte-identical."""
+    rec: Dict = dict(n_traces=len(traces), refusal=None, requested=[_iso(start), _iso(end)],
+                     identical_overlap_samples=0, identical_overlaps=0)
     pieces = []
     for tr in traces:
         if (tr.stats.network, tr.stats.station) != (network, station):
@@ -81,32 +120,74 @@ def stitch_window(traces, *, network: str, station: str, location: str, channel:
     if expected_rate is not None and abs(rate - expected_rate) > 1e-6:
         rec["refusal"] = "RATE_MISMATCH"; rec["rate"] = rate; return None, 0.0, rec
     dt = 1.0 / rate
-    pieces = sorted(pieces, key=lambda tr: tr.stats.starttime)
-    chunks, t0, prev_end = [], None, None
     for tr in pieces:
         if np.ma.isMaskedArray(tr.data) and np.ma.count_masked(tr.data) > 0:
-            rec["refusal"] = "MASKED_SAMPLES"; return None, 0.0, rec
-        data = np.asarray(tr.data)
-        if t0 is None:
-            t0, chunks, prev_end = tr.stats.starttime, [data], tr.stats.endtime
-            continue
-        delta = float(tr.stats.starttime - prev_end)
-        if abs(delta - dt) <= dt / 4:                                   # exact abut
-            chunks.append(data)
-        elif abs(delta) <= dt / 4 and data.size and chunks[-1].size and data[0] == chunks[-1][-1]:   # identical duplicate sample
-            chunks.append(data[1:])
-        else:
-            rec["refusal"] = "GAP_OR_OVERLAP"; rec["at"] = str(prev_end); rec["delta_seconds"] = delta
+            rec["refusal"] = "MASKED_SAMPLES"; rec["discontinuity"] = dict(kind="MASKED", record_start=str(tr.stats.starttime))
             return None, 0.0, rec
-        prev_end = tr.stats.endtime
-    data = np.concatenate(chunks) if len(chunks) > 1 else chunks[0]
+        values = np.asarray(tr.data)
+        if values.dtype.kind in "fc" and not np.all(np.isfinite(values)):
+            rec["refusal"] = "MASKED_SAMPLES"; rec["discontinuity"] = dict(kind="NONFINITE", record_start=str(tr.stats.starttime))
+            return None, 0.0, rec
+    # earliest first; for one start the longest first, so a shorter record at the same start is a nested duplicate
+    pieces = sorted(pieces, key=lambda tr: (tr.stats.starttime, -tr.stats.npts))
+    boundaries = _epoch_boundaries(response_epochs)
+    t0 = pieces[0].stats.starttime
+    support = [np.asarray(pieces[0].data)]
+    n = int(pieces[0].stats.npts)
+    flat = None                                                          # the joined support, built lazily for compares
+    for tr in pieces[1:]:
+        data = np.asarray(tr.data)
+        offset = float(tr.stats.starttime - t0) * rate                   # in samples from the grid anchor
+        k0 = int(round(offset))
+        end_time = t0 + (n - 1) * dt                                     # last assembled sample
+        if abs(offset - k0) > 0.25:
+            _discontinuity("OFF_GRID", rec, at=str(tr.stats.starttime), offset_samples=round(offset - k0, 6),
+                           delta_seconds=float(tr.stats.starttime - end_time))
+            return None, 0.0, rec
+        if k0 > n:
+            _discontinuity("GAP", rec, at=str(end_time), delta_seconds=float(tr.stats.starttime - end_time),
+                           gap_seconds=round((k0 - n) * dt, 6), gap_samples=k0 - n)
+            return None, 0.0, rec
+        overlap = min(n - k0, int(data.size))
+        if overlap > 0:
+            if flat is None or flat.size != n:
+                flat = np.concatenate(support) if len(support) > 1 else support[0]
+            mine, theirs = data[:overlap], flat[k0:k0 + overlap]
+            if not np.array_equal(mine, theirs):
+                differ = np.flatnonzero(mine != theirs)
+                _discontinuity("UNEQUAL_OVERLAP", rec, at=str(end_time), delta_seconds=float(tr.stats.starttime - end_time),
+                               overlap_samples=overlap, overlap_seconds=round(overlap * dt, 6),
+                               differing_samples=int(differ.size), first_difference_index=int(differ[0]))
+                return None, 0.0, rec
+            lo, hi = int((t0 + k0 * dt).ns), int((t0 + (k0 + overlap - 1) * dt).ns)
+            crossing = [b for b in boundaries if lo < b <= hi]
+            if crossing:
+                from obspy import UTCDateTime
+                _discontinuity("CROSSES_RESPONSE_EPOCH", rec, at=str(UTCDateTime(ns=crossing[0])),
+                               delta_seconds=float(tr.stats.starttime - end_time), overlap_samples=overlap)
+                return None, 0.0, rec
+            rec["identical_overlap_samples"] += overlap
+            rec["identical_overlaps"] += 1
+        remainder = data[overlap:]
+        if remainder.size:
+            support.append(remainder)
+            n += int(remainder.size)
+    data = np.concatenate(support) if len(support) > 1 else support[0]
+    prev_end = t0 + (n - 1) * dt
     # select exactly [start, end) on the native grid and require full coverage
     from obspy import UTCDateTime
     s0 = UTCDateTime(start); e0 = UTCDateTime(end)
     i0 = int(np.ceil(float(s0 - t0) * rate - 1e-6))
     i1 = int(np.floor(float(e0 - t0) * rate - 1e-6)) + 1
     if i0 < 0 or i1 > data.size or i1 <= i0:
+        have_lo, have_hi = max(0, i0), min(int(data.size), i1)
+        requested_samples = max(1, i1 - i0)
         rec["refusal"] = "WINDOW_NOT_COVERED"; rec["have"] = [str(t0), str(prev_end)]
+        rec["coverage"] = dict(requested_seconds=round(float(e0 - s0), 6),
+                               covered_seconds=round(max(0, have_hi - have_lo) * dt, 6),
+                               fraction=round(max(0, have_hi - have_lo) / requested_samples, 6),
+                               missing_head_seconds=round(max(0, -i0) * dt, 6),
+                               missing_tail_seconds=round(max(0, i1 - int(data.size)) * dt, 6))
         return None, 0.0, rec
     sel = data[i0:i1].astype(np.float64)
     rec.update(rate=rate, npts=int(sel.size), start=str(t0 + i0 * dt), end=str(t0 + (i1 - 1) * dt),
@@ -121,6 +202,17 @@ def _detrend(x: np.ndarray) -> np.ndarray:
     t = np.arange(n, dtype=np.float64)
     a, b = np.polyfit(t, x, 1)
     return x - (a * t + b)
+
+
+def _retained_epochs(trace_id: str):
+    """The retained level=response epochs for the exact selector (thd_provider_routing.RESPONSE_METADATA), or None when
+    none are retained -- then no epoch rule applies, and that absence is what the record says."""
+    try:
+        import thd_provider_routing as TPR
+    except ImportError:
+        return None
+    entry = TPR.RESPONSE_METADATA.get(trace_id)
+    return list(entry["epochs"]) if entry else None
 
 
 def fetch_bound(network: str, station: str, start: datetime, end: datetime, channel: Optional[str] = None,
@@ -148,7 +240,8 @@ def fetch_bound(network: str, station: str, start: datetime, end: datetime, chan
         logger.warning(f"bound fetch {key}: PROVIDER_ERROR {type(exc).__name__}")
         return None, 0.0, rec
     data, rate, srec = stitch_window(list(st), network=network, station=station, location=spec["location"], channel=chan,
-                                     expected_rate=spec["expected_rate_hz"], start=start, end=end)
+                                     expected_rate=spec["expected_rate_hz"], start=start, end=end,
+                                     response_epochs=_retained_epochs("%s.%s.%s" % (key, spec["location"], chan)))
     rec.update(srec)
     if data is None:
         logger.warning(f"bound fetch {key}: refused {rec['refusal']}")

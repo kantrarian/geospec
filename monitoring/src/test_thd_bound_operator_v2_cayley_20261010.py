@@ -224,5 +224,44 @@ class Identity(unittest.TestCase):
         self.assertNotEqual(OP.daily_operator_identity("IU.SNZO"), v1.daily_operator_identity("IU.SNZO"))
 
 
+class Replay(unittest.TestCase):
+    """The retained-bytes replay tool, on synthetic miniSEED written to a temporary directory (no provider I/O)."""
+
+    def test_counts_recovered_refused_accepted_unknown(self):
+        import json
+        from obspy import Stream
+        import thd_bound_operator_replay_cayley_20261010 as REPLAY
+        if load_v1() is None:
+            self.skipTest("public commit not reachable")
+        n_day = int(RATE * 3600 * 25)
+        streams = Stream()
+        # scenarios ten days apart, so no 25 h window sees another scenario's records
+        d1 = UTCDateTime("2026-07-02") - 25 * 3600                      # one clean record
+        streams += trace(d1, series(n_day, seed=31))
+        d2 = UTCDateTime("2026-07-12") - 25 * 3600                      # a 317-sample IDENTICAL overlap
+        whole = series(n_day, seed=32)
+        streams += trace(d2, whole[:n_day // 2]); streams += trace(d2 + (n_day // 2 - 317) * DT, whole[n_day // 2 - 317:])
+        d3 = UTCDateTime("2026-07-22") - 25 * 3600                      # a true gap of 5 samples
+        gap = series(n_day, seed=33)
+        streams += trace(d3, gap[:n_day // 2]); streams += trace(d3 + (n_day // 2 + 5) * DT, gap[n_day // 2 + 5:])
+        totals, rows = {}, {}
+        with tempfile.TemporaryDirectory() as tmp:
+            for i, tr in enumerate(streams):
+                tr.data = tr.data.astype(np.int32)
+                Stream([tr]).write(str(Path(tmp) / ("rec%02d.mseed" % i)), format="MSEED")
+            for day in ("2026-07-02", "2026-07-12", "2026-07-22", "2026-08-01"):   # 08-01: nothing retained
+                out = Path(tmp) / ("replay_%s.json" % day)
+                self.assertEqual(REPLAY.main(["--retained", tmp, "--days", "%s:%s" % (day, day), "--out", str(out)]), 0)
+                receipt = json.loads(out.read_text())
+                for k, v in receipt["counts"].items():
+                    totals[k] = totals.get(k, 0) + v
+                rows[day] = receipt["rows"][0]
+        self.assertEqual(totals, dict(RECOVERED=1, STILL_REFUSED=1, BOTH_ACCEPT=1, V2_ONLY_REFUSES=0, UNKNOWN=1,
+                                      BOTH_ACCEPT_BYTES_DIFFER=0))
+        self.assertEqual(rows["2026-07-12"]["v2_identical_overlap_samples"], 317)
+        self.assertEqual(rows["2026-07-22"]["v2_discontinuity"]["kind"], "GAP")
+        self.assertIs(rows["2026-07-02"]["support_identical"], True)
+        self.assertEqual(rows["2026-08-01"]["outcome"], "UNKNOWN")
+
 if __name__ == "__main__":
     unittest.main()

@@ -33,7 +33,8 @@ class Declaration(unittest.TestCase):
         d = TPR.declared_channel("IV", "CAFE")
         self.assertEqual((d["selector"], d["location"], d["channel"], d["native_rate_hz"]), (SELECTOR, "", "HHZ", 100.0))
         self.assertTrue(d["basis"].startswith("RETAINED: "))
-        self.assertTrue(d["response"].startswith("NO_RETAINED_RESPONSE_METADATA"), "the missing response is named, not assumed")
+        # updated deliberately 2026-10-10 (owner "request metadata", 643dd746): the response is now RETAINED (55995dfa)
+        self.assertTrue(d["response"].startswith("RETAINED: "), "the retained response is named, not assumed")
         self.assertEqual(TPR.selector_for("IV", "CAFE")[0], "")
 
     def test_only_cafe_is_declared(self):

@@ -143,7 +143,10 @@ REGIONS = {
     },
     'norcal_hayward': {
         'name': 'NorCal Hayward',
-        'thd_station': 'BKS',      # BK.BKS Berkeley - 100% availability!
+        # owner 2026-10-10 'brk replaces bks' (routed 643dd746): BK.BKS's whole feed stopped upstream 2026-10-02T14:27:49Z
+        # (grassmann ce29dc72); BK.BRK (2.3 km, STS-2, BHZ 40 Hz) is the ranked fallback (f853b959). Its own baseline
+        # comes from run_thd_recal.CALIBRATION_ADDITIONS; until it is eligible the region stays unqualified.
+        'thd_station': 'BRK',
         'thd_network': 'BK',
         'seismic_available': True,
         'latency_days': 0,         # Real-time data available

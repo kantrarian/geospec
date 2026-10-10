@@ -42,10 +42,22 @@ RECAL_INTERVAL_DAYS = 7          # weekly cadence
 BASELINE_DIR = Path(__file__).resolve().parent.parent / "data" / "baselines"
 
 
+# Configured THD stations with NO real prior calibration window that the OWNER approved for calibration -- each one is
+# its own acquisition (LOOKBACK_DAYS station-days at the native rate). Explicit and attributed, never derived from the
+# region map (deriving would silently start acquisitions for every configured fallback). Owner 2026-10-10, routed
+# agent-framework 643dd746: "brk replaces bks. release the cafe channel." (cayley, codex b7a29458 correction 2).
+CALIBRATION_ADDITIONS = {
+    "IV.CAFE": "owner 2026-10-10 'release the cafe channel' (643dd746): declared IV.CAFE..HHZ@100Hz, calibration-first",
+    "BK.BRK": "owner 2026-10-10 'brk replaces bks' (643dd746): norcal_hayward's THD station, its own baseline",
+}
+
+
 def _calibratable_stations():
-    """Stations with a real prior calibration window (skip UNCALIBRATED manual estimates)."""
-    return [k for k, b in STATION_BASELINES.items()
+    """Stations with a real prior calibration window (skip UNCALIBRATED manual estimates), plus the owner-approved
+    CALIBRATION_ADDITIONS (in their declared order, never duplicated)."""
+    real = [k for k, b in STATION_BASELINES.items()
             if b.calibration_period and b.calibration_period != "UNCALIBRATED"]
+    return real + [k for k in CALIBRATION_ADDITIONS if k not in real]
 
 
 def _newest_baseline_age_days():

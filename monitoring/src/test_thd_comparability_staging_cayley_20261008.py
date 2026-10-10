@@ -67,7 +67,7 @@ class Staging(unittest.TestCase):
     def test_the_unchanged_legacy_path_keeps_its_823a84bc_support(self):
         ens = self.ens()
         # the legacy path = no location pins AND no declared channels (thd-station-channel-v1 moved IV.CAFE)
-        with mock.patch.dict(TPR.STATION_LOCATIONS, {}, clear=True), mock.patch.dict(TPR.STATION_CHANNELS, {}, clear=True):
+        with mock.patch.dict(TPR.STATION_LOCATIONS, {}, clear=True), mock.patch.dict(TPR.STATION_CHANNELS, {}, clear=True), mock.patch.dict(TPR.METADATA_LOCATION_PINS, {}, clear=True):
             for station in self.unbound:
                 with self.subTest(station=station):
                     for base in (None, baseline(station)):
@@ -76,7 +76,7 @@ class Staging(unittest.TestCase):
     def test_a_pure_extraction_keeps_the_legacy_operator_class(self):
         analyzer = ST.SeismicTHDAnalyzer()
         self.assertEqual(TDM.LEGACY_OPERATOR_CLASS["analyzer"]["fundamental_freq"], ST.PRIMARY_TIDAL_FREQ)
-        with mock.patch.dict(TPR.STATION_LOCATIONS, {}, clear=True), mock.patch.dict(TPR.STATION_CHANNELS, {}, clear=True):
+        with mock.patch.dict(TPR.STATION_LOCATIONS, {}, clear=True), mock.patch.dict(TPR.STATION_CHANNELS, {}, clear=True), mock.patch.dict(TPR.METADATA_LOCATION_PINS, {}, clear=True):
             for station in self.unbound:
                 with self.subTest(station=station):
                     self.assertEqual(TDM.operator_class(*station.split(".", 1), analyzer), TDM.LEGACY_OPERATOR_CLASS)
@@ -86,8 +86,11 @@ class Staging(unittest.TestCase):
         ens = self.ens()
         moved = {s for s in self.unbound if "|operator_class=" in ens.thd_support(s)["estimator"]}
         # the retained location pins, plus the declared-channel station (thd-station-channel-v1: IV.CAFE HHZ 100 Hz)
-        self.assertEqual(moved, (set(TPR.STATION_LOCATIONS) | set(TPR.STATION_CHANNELS)) & set(self.unbound))
-        self.assertEqual(moved, {"BK.BKS", "IU.ANTO", "IU.COLA", "IU.COR", "IU.MAJO", "IU.TATO", "IU.TUC", "MX.TLIG", "IV.CAFE"})
+        # updated deliberately 2026-10-10 (owner "brk replaces bks", 643dd746): BK.BRK is pinned from retained StationXML
+        # (METADATA_LOCATION_PINS) and configured; BK.BKS keeps its served-trace pin but is configured nowhere
+        self.assertEqual(moved, (set(TPR.STATION_LOCATIONS) | set(TPR.METADATA_LOCATION_PINS) | set(TPR.STATION_CHANNELS))
+                         & set(self.unbound))
+        self.assertEqual(moved, {"BK.BRK", "IU.ANTO", "IU.COLA", "IU.COR", "IU.MAJO", "IU.TATO", "IU.TUC", "MX.TLIG", "IV.CAFE"})
 
     def test_the_first_new_convention_changes_the_key_and_routine_recals_do_not(self):
         legacy = self.key("AK.BMR", baseline("AK.BMR"))

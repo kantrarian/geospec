@@ -594,7 +594,10 @@ def fetch_continuous_data_for_thd(
             continue
         returned = None   # set once the provider has answered with traces: a later failure is LOCAL, not the provider's
         try:
-            client = Client(client_name, timeout=120)
+            # thd-scoped-tls-trust-v1: a provider that declares a CA source is verified against that named bundle
+            client, trust_facts = TPR.fdsn_client(client_name, timeout=120)
+            if record is not None and trust_facts is not None:
+                record['tls_trust'] = trust_facts
 
             st = client.get_waveforms(
                 network=station_network,

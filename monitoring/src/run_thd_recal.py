@@ -170,6 +170,14 @@ def run_recal(stations, end_date=None, dry_run=False):
                                                else TDM.MEASUREMENT_VERSION)
         except ImportError:
             pass
+        # thd-station-channel-v1: a declared-channel station's baseline names the exact selector it was measured on
+        try:
+            import thd_provider_routing as _TPR
+            _declared = _TPR.declared_channel(net, sta)
+            if _declared is not None:
+                entry["selector"] = _declared["selector"]
+        except ImportError:
+            pass
         if r.get("daily_receipts") is not None:   # grassmann 641c01b7: every calibration day with its input receipt
             entry["calibration_days"] = r["daily_receipts"]
         try:   # thd-daily-measurement-v1: which measurement produced these moments (recording only)

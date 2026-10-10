@@ -76,10 +76,16 @@ def operator_class(network: str, station: str, analyzer) -> Dict:
     (no basis text, route, source hashes, dates or sample digests)."""
     import thd_provider_routing as TPR
     location, _basis = TPR.selector_for(network, station)
-    return dict(selector=location, coverage_admission=COVERAGE_ADMISSION, response=RESPONSE_HANDLING,
-                window=MEASUREMENT["window"], minimum_samples=MEASUREMENT["minimum_samples"],
-                resampling=MEASUREMENT["resampling"], estimator_rate_hz=MEASUREMENT["estimator_rate_hz"],
-                estimator=MEASUREMENT["estimator"], analyzer=_analyzer_parameters(analyzer))
+    cls = dict(selector=location, coverage_admission=COVERAGE_ADMISSION, response=RESPONSE_HANDLING,
+               window=MEASUREMENT["window"], minimum_samples=MEASUREMENT["minimum_samples"],
+               resampling=MEASUREMENT["resampling"], estimator_rate_hz=MEASUREMENT["estimator_rate_hz"],
+               estimator=MEASUREMENT["estimator"], analyzer=_analyzer_parameters(analyzer))
+    # thd-station-channel-v1: a DECLARED non-default channel and its native rate join the class (a different quantity);
+    # a BHZ station's class is unchanged, byte for byte
+    declared = TPR.declared_channel(network, station)
+    if declared is not None:
+        cls.update(channel=declared["channel"], native_rate_hz=declared["native_rate_hz"])
+    return cls
 
 
 def operator_class_part(network: str, station: str, analyzer):
@@ -125,7 +131,10 @@ def measurement_record(network: str, station: str, analyzer) -> Dict:
     import seismic_thd
     import thd_provider_routing as TPR
     location, basis = TPR.selector_for(network, station)
-    payload = dict(station=key, measurement=MEASUREMENT, analyzer=_analyzer_parameters(analyzer),
+    declared = TPR.declared_channel(network, station)
+    measurement = MEASUREMENT if declared is None else dict(MEASUREMENT, channel=declared["channel"],
+                                                             native_rate_hz=declared["native_rate_hz"])
+    payload = dict(station=key, measurement=measurement, analyzer=_analyzer_parameters(analyzer),
                    selector=dict(location=location, basis=basis), routing_version=TPR.ROUTING_VERSION,
                    route=TPR.route(network), coverage_version=TPR.COVERAGE_VERSION,
                    code=_code_identity(measure, seismic_thd.fetch_continuous_data_for_thd, type(analyzer).analyze_window))
@@ -144,7 +153,11 @@ def measure(network: str, station: str, target, *, analyzer, fetch, channel: str
         rec = OP.daily_measurement(network, station, target, analyzer=analyzer, fetch=fetch)
         rec["measurement_identity"] = rec.get("operator_identity")
         return rec
-    if channel != MEASUREMENT["channel"]:
+    import thd_provider_routing as TPR
+    declared = TPR.declared_channel(network, station)
+    if declared is not None and channel == MEASUREMENT["channel"]:
+        channel = declared["channel"]                    # the station's declared channel, never BHZ by default
+    if channel != (MEASUREMENT["channel"] if declared is None else declared["channel"]):
         raise ValueError("THD_MEASUREMENT_CHANNEL_NOT_BOUND: %r" % (channel,))
     start = target - timedelta(hours=analyzer.window_hours + 1)
     try:   # an identity that cannot be formed is UNIDENTIFIED; it never changes or blocks the measurement
@@ -154,9 +167,15 @@ def measure(network: str, station: str, target, *, analyzer, fetch, channel: str
     rec: Dict = dict(station=key, measurement_identity=identity,
                      requested_window=[start.isoformat(), target.isoformat()], thd=None, native_rate_hz=None,
                      estimator_rate_hz=None, n_native_samples=None, n_processed_samples=None, reason=None)
-    data, sample_rate = fetch(station_network=network, station_code=station, start=start, end=target)
+    # a BHZ station's fetch call is unchanged; a declared channel is requested explicitly
+    data, sample_rate = fetch(station_network=network, station_code=station, start=start, end=target,
+                              **({} if declared is None else {"channel": channel}))
     if data is None or len(data) < sample_rate * 3600 * 12:
         rec["reason"] = "INSUFFICIENT_DATA"
+        return rec
+    if declared is not None and abs(float(sample_rate) - declared["native_rate_hz"]) > 1e-6:
+        rec["reason"] = "NATIVE_RATE_MISMATCH"                 # a different rate is a different quantity: refused
+        rec["native_rate_hz"] = float(sample_rate)
         return rec
     rec["native_rate_hz"] = float(sample_rate)
     rec["n_native_samples"] = int(len(data))

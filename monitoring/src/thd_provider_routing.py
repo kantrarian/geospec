@@ -193,8 +193,44 @@ STATION_LOCATIONS = {   # "NET.STA" -> {"location", "basis"}; generated from ret
 }
 
 
+# ---- declared station channels (cayley 2026-10-10; codex b7a29458 correction 2) ----------------------------------------
+# A station whose THD channel is NOT the default BHZ is declared here from retained evidence: location, channel, native
+# rate, the response metadata status and the basis. It is measured under its own operator class (channel and rate join
+# the class), its native rate is checked on every fetch, the recal stamps this exact `selector` into its baseline, and the
+# scoring path uses ONLY a baseline carrying that selector: a BHZ, other-station or unstamped baseline is treated as
+# absent, so the region stays unqualified until its own selector has an eligible baseline. A returned waveform is not a
+# calibration.
+DEFAULT_THD_CHANNEL = "BHZ"
+STATION_CHANNELS_VERSION = "thd-station-channel-v1"
+STATION_CHANNELS = {   # "NET.STA" -> declared selector; never inferred from what a provider happens to return
+    "IV.CAFE": {"location": "", "channel": "HHZ", "native_rate_hz": 100.0,
+                "response": "NO_RETAINED_RESPONSE_METADATA: no retained level=response StationXML for IV.CAFE..HHZ; the "
+                            "bounded input is INGV station level=response for IV.CAFE..HHZ from 2021-09-24 (metadata only)",
+                "basis": "RETAINED: grassmann ce29dc72 INGV station metadata (level=channel): IV.CAFE..HHZ 100 Hz and "
+                         "IV.CAFE..HNZ 200 Hz open since 2021-09-24, every BH* epoch closed 2021-09-24, so the configured "
+                         "BHZ request cannot return data; grassmann 10-03 inventory a6af5e32: HHZ 200, BHZ 404"},
+}
+
+
+def declared_channel(network, station):
+    """The declared selector for a non-default channel, with its canonical `selector` string, or None (BHZ default)."""
+    entry = STATION_CHANNELS.get("%s.%s" % (network, station))
+    if entry is None:
+        return None
+    location, channel, rate = entry.get("location"), entry.get("channel"), entry.get("native_rate_hz")
+    if not (isinstance(location, str) and _LOCATION.fullmatch(location) and isinstance(channel, str)
+            and re.fullmatch(r"[A-Z]{3}", channel) and type(rate) is float and rate > 0
+            and str(entry.get("basis", "")).startswith("RETAINED: ")):
+        raise ValueError("STATION_CHANNEL_DECLARATION_INVALID: %s.%s" % (network, station))
+    return dict(entry, selector="%s.%s.%s.%s@%gHz" % (network, station, location, channel, rate),
+                version=STATION_CHANNELS_VERSION)
+
+
 def selector_for(network, station):
-    """(location, selector_basis): a retained pin, or ("*", "WILDCARD_LOCATION_NOT_PINNED")."""
+    """(location, selector_basis): a declared channel's location, a retained pin, or ("*", "WILDCARD_LOCATION_NOT_PINNED")."""
+    declared = declared_channel(network, station)
+    if declared is not None:
+        return declared["location"], "DECLARED_CHANNEL %s: %s" % (declared["selector"], declared["basis"])
     pin = STATION_LOCATIONS.get("%s.%s" % (network, station))
     if pin is None:
         return "*", "WILDCARD_LOCATION_NOT_PINNED"
@@ -328,6 +364,82 @@ def utc_instant_ns(value):
             raise ValueError("INSTANT_OFFSET_OUT_OF_RANGE: %r" % (value,))
         offset = (hours * 3600 + minutes * 60) * (1 if zone[0] == "+" else -1)
     return (whole - offset) * 1_000_000_000 + nanos
+
+
+# ---- scoped TLS trust (cayley 2026-10-10; codex b7a29458 correction 2; grassmann ce29dc72) ----------------------------
+# The runner venv's default trust store cannot verify webservices.ingv.it (CERTIFICATE_VERIFY_FAILED: its openssl cafile
+# path does not exist; service.iris.edu verifies only because its chain is in the Windows store). A provider listed here
+# gets a client whose HTTPS handler carries an SSL context built from the NAMED CA bundle -- CERT_REQUIRED and hostname
+# checking stay on; nothing is disabled, nothing is set process-wide (no SSL_CERT_FILE, no global opener). Every other
+# provider keeps the interpreter's default trust exactly as before. The CA source (package, version, bundle sha256) is
+# recorded in the attempt that used it.
+TLS_TRUST_VERSION = "thd-scoped-tls-trust-v1"
+CERTIFI_BUNDLE = "CERTIFI_BUNDLE"
+TLS_TRUST = {   # provider key -> declared CA source and basis
+    "INGV": {"source": CERTIFI_BUNDLE,
+             "basis": "RETAINED: grassmann ce29dc72 -- urllib with the runner venv's default trust store refuses "
+                      "webservices.ingv.it (CERTIFICATE_VERIFY_FAILED, unable to get local issuer certificate); "
+                      "verified with a named CA bundle in the same probe"},
+}
+
+
+def tls_trust_for(provider):
+    """The declared trust for a provider, or None (interpreter default trust, unchanged)."""
+    return TLS_TRUST.get(provider)
+
+
+def trust_context(source, *, cafile=None):
+    """(ssl.SSLContext, facts) for a declared CA source. CERT_REQUIRED and check_hostname are asserted, not assumed.
+    `cafile` overrides the bundle path for tests only. An unavailable source refuses (ImportError/OSError propagate):
+    there is no unverified fallback."""
+    import hashlib
+    import ssl
+    if source != CERTIFI_BUNDLE:
+        raise ValueError("TLS_TRUST_SOURCE_UNKNOWN: %r" % (source,))
+    if cafile is None:
+        import certifi
+        cafile, version = certifi.where(), getattr(certifi, "__version__", None)
+    else:
+        version = "TEST_OVERRIDE"
+    context = ssl.create_default_context(cafile=cafile)
+    if context.verify_mode != ssl.CERT_REQUIRED or not context.check_hostname:
+        raise ValueError("TLS_TRUST_VERIFICATION_OFF")
+    with open(cafile, "rb") as fh:
+        digest = hashlib.sha256(fh.read()).hexdigest()
+    return context, dict(version=TLS_TRUST_VERSION, source=source, package_version=version, bundle_sha256=digest)
+
+
+def scoped_trust_client(base_url, *, ssl_context, timeout, client_class=None):
+    """An obspy FDSN client whose opener carries `ssl_context` on its HTTPS handler, from construction on, so service
+    discovery is verified with it too. Only this client's opener changes."""
+    import urllib.request
+    if client_class is None:
+        from obspy.clients.fdsn import Client as client_class
+
+    class ScopedTrustClient(client_class):
+        def __init__(self, *args, **kwargs):
+            self._scoped_ssl_context = kwargs.pop("ssl_context")
+            super().__init__(*args, **kwargs)
+
+        def _set_opener(self, user, password):
+            super()._set_opener(user, password)
+            # rebuild the SAME handler set (redirect, auth, defaults) with only the HTTPS handler replaced: every
+            # handler passed in is an instance of its default class, so build_opener adds no duplicate default
+            kept = [h for h in self._url_opener.handlers if not isinstance(h, urllib.request.HTTPSHandler)]
+            self._url_opener = urllib.request.build_opener(*kept, urllib.request.HTTPSHandler(context=self._scoped_ssl_context))
+
+    return ScopedTrustClient(base_url, timeout=timeout, ssl_context=ssl_context)
+
+
+def fdsn_client(provider, *, timeout):
+    """(client, trust_facts): the scoped-trust client when the provider declares a CA source, else the default client
+    and None. The single construction site for the THD FDSN providers."""
+    trust = tls_trust_for(provider)
+    if trust is None:
+        from obspy.clients.fdsn import Client
+        return Client(provider, timeout=timeout), None
+    context, facts = trust_context(trust["source"])
+    return scoped_trust_client(provider, ssl_context=context, timeout=timeout), facts
 
 
 def response_epoch_status(epochs, start, end):

@@ -162,12 +162,15 @@ class DeterministicRouting(RoutedFetch):
 
 class ExactSelectorPositive(RoutedFetch):
     def test_iv_cafe_bhz_at_ingv_returns_data_with_its_identity(self):
+        # thd-station-channel-v1: IV.CAFE's declared selector is location '' (its BH* epochs closed 2021-09-24); a
+        # direct BHZ fetch therefore asks for IV.CAFE..BHZ, never the wildcard, and names the declaration as its basis
         data, rate, attempts = self.fetch("IV", "CAFE", {"INGV": synthetic_stream("IV", "CAFE", "", "BHZ")})
         self.assertEqual((len(data), rate), (100 * 3600 * 25, 100.0))
-        self.assertEqual(RecordingClient.asked, [("INGV", "IV", "CAFE", "*", "BHZ")])
+        self.assertEqual(RecordingClient.asked, [("INGV", "IV", "CAFE", "", "BHZ")])
         used = attempts[0]
         self.assertEqual((used["provider"], used["outcome"], used["typed_outcome"]), ("INGV", "DATA_RETURNED", "DATA_RETURNED"))
-        self.assertEqual((used["trace_id"], used["nslc_requested"]), ("IV.CAFE..BHZ", "IV.CAFE.*.BHZ"))
+        self.assertEqual((used["trace_id"], used["nslc_requested"]), ("IV.CAFE..BHZ", "IV.CAFE..BHZ"))
+        self.assertTrue(used["selector_basis"].startswith("DECLARED_CHANNEL IV.CAFE..HHZ@100Hz"))
 
 
 class TypedNegatives(RoutedFetch):

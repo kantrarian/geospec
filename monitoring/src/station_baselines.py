@@ -40,6 +40,9 @@ class StationBaseline:
     # thd-daily-measurement-v1 staged comparability (codex cfb195ff): the calibration CONVENTION the recal stamped into
     # the entry; None = legacy (every file written before the shared measurement). Read by ensemble.thd_support only.
     calibration_convention: Optional[str] = None
+    # thd-station-channel-v1 (cayley 2026-10-10): the exact selector the recal measured for a DECLARED-channel station
+    # ("NET.STA.LOC.CHA@<rate>Hz"); None for every other entry. Scoring a declared-channel station requires a match.
+    selector: Optional[str] = None
 
 
 # Auto-calibrated station baselines (January 2026)
@@ -195,7 +198,8 @@ def _baseline_from_entry(e, filename):
         calibration_period=e.get('calibration_period', 'unknown'),
         notes=f"Rolling recal, loaded newest-first from {filename}", calibration_date=effective_date,
         calibration_convention=(e.get('calibration_convention') if isinstance(e.get('calibration_convention'), str)
-                                else None))
+                                else None),
+        selector=(e.get('selector') if isinstance(e.get('selector'), str) else None))
 
 
 def _load_newest_baseline_file(bdir: Optional[Path] = None) -> Optional[str]:

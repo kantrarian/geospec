@@ -36,10 +36,11 @@ def gapped_stream(net, sta, loc, cha, rate=20.0, gap_hours=(10, 11), head_hours=
 
 class ExactSelector(RoutedFetch):
     def test_unpinned_station_keeps_the_wildcard_and_says_so(self):
-        _, _, attempts = self.fetch("IV", "CAFE", {"INGV": synthetic_stream("IV", "CAFE", "", "BHZ")})
-        self.assertEqual(RecordingClient.asked, [("INGV", "IV", "CAFE", "*", "BHZ")])
+        # G.UNM: no retained pin and no declared channel (IV.CAFE, the earlier example, is now a declared channel)
+        _, _, attempts = self.fetch("G", "UNM", {"IRIS": synthetic_stream("G", "UNM", "", "BHZ")})
+        self.assertEqual(RecordingClient.asked, [("IRIS", "G", "UNM", "*", "BHZ")])
         self.assertEqual((attempts[0]["nslc_requested"], attempts[0]["selector_basis"]),
-                         ("IV.CAFE.*.BHZ", "WILDCARD_LOCATION_NOT_PINNED"))
+                         ("G.UNM.*.BHZ", "WILDCARD_LOCATION_NOT_PINNED"))
 
     def test_a_retained_pin_requests_exactly_that_location(self):
         pin = {"location": "00", "basis": "RETAINED: synthetic trace id IU.MAJO.00.BHZ"}

@@ -854,6 +854,19 @@ class GeoSpecEnsemble:
             # Get station baseline if available
             # thd-baseline-as-of-v1: the baseline in force for THIS scored day, never a later recal
             baseline = get_baseline(station_code, station_network, as_of=date) if get_baseline else None
+            # thd-station-channel-v1 (cayley 2026-10-10; codex b7a29458): a DECLARED-channel station is scored only
+            # against a baseline stamped with its exact selector; any other baseline (BHZ, another station's, an
+            # unstamped default) is treated as absent, so eligibility sees no baseline and the region stays unqualified
+            try:
+                import thd_provider_routing as _TPR
+                _declared = _TPR.declared_channel(station_network, station_code)
+            except ImportError:
+                _declared = None
+            if _declared is not None and baseline is not None and getattr(baseline, 'selector', None) != _declared['selector']:
+                logger.warning(f"THD baseline for {station_network}.{station_code} is not stamped with the declared "
+                               f"selector {_declared['selector']} (has {getattr(baseline, 'selector', None)!r}); "
+                               f"treated as absent")
+                baseline = None
 
             # calibration-eligibility-v1: judge the baseline AS LOOKED UP (before the staleness guard below
             # replaces a stale one with None), from its structured fields only. Bound to the result at the end;

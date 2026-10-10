@@ -138,9 +138,17 @@ def _stub_load_calibration_capsule(region, scored_day, *, band_tag=None, process
     raise _CalibrationUnavailable(["capsule load not available in the offline harness"])
 
 
-def _stub_fetch(station_network, station_code, start, end, attempts=None):
+def _stub_fetch(station_network, station_code, start, end, attempts=None, channel=None):
     # `attempts` is the real fetch's optional sink (thd-station-attempts-v1); the stub records nothing in it.
     # >= 12 h of 1 Hz samples so compute_thd_risk does not refuse for insufficiency; no resampling at 1 Hz.
+    # thd-station-channel-v1: a DECLARED non-default channel (only such a call passes `channel`) is returned at its
+    # declared native rate, as the real provider would, so the measurement's native-rate check is exercised, not bypassed.
+    if channel is not None:
+        import numpy as np
+        import thd_provider_routing as TPR
+        declared = TPR.declared_channel(station_network, station_code)
+        if declared is not None and declared["channel"] == channel:
+            return np.zeros(int(declared["native_rate_hz"] * 3600 * 13)), declared["native_rate_hz"]
     return [0.0] * (3600 * 13), 1.0
 
 

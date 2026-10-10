@@ -368,6 +368,70 @@ class ChannelPassThrough(unittest.TestCase):
         self.assertEqual(calls[0]["channel"], "HHZ")
         self.assertNotIn("channel", calls[1])
 
+    # ---- codex d1f4cfda correction 2 regression cases (bypass at the pinned commit, repair, unchanged BHZ) ----
+    def _spy(self):
+        calls = []
+
+        def spy(network, station, target, **kw):
+            calls.append(dict(kw))
+            return {"thd": 0.3, "operator_identity": "ab" * 32}
+        return calls, spy
+
+    def test_the_pinned_measure_delegated_a_bound_hhz_request(self):
+        import importlib.util
+        try:
+            source = subprocess.run(["git", "-C", str(HERE), "show", "%s:monitoring/src/thd_daily_measurement.py" % V1_COMMIT],
+                                    capture_output=True, check=True).stdout
+        except (OSError, subprocess.CalledProcessError):
+            self.skipTest("public commit not reachable")
+        tmp = tempfile.NamedTemporaryFile("wb", suffix="_pinned_tdm.py", delete=False)
+        tmp.write(source); tmp.close()
+        spec = importlib.util.spec_from_file_location("thd_daily_measurement_pinned", tmp.name)
+        pinned = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(pinned)
+        os.unlink(tmp.name)
+        calls, spy = self._spy()
+        from unittest import mock
+        with mock.patch.object(OP, "daily_measurement", spy):
+            rec = pinned.measure("IU", "SNZO", datetime(2026, 10, 8), analyzer=self._Analyzer(), fetch=None, channel="HHZ")
+        self.assertEqual((rec["thd"], len(calls)), (0.3, 1), "23aa8658 delegated the HHZ request (the bypass)")
+
+    def test_the_candidate_refuses_a_bound_hhz_request_before_delegating(self):
+        import thd_daily_measurement as TDM
+        from unittest import mock
+        calls, spy = self._spy()
+        with mock.patch.object(OP, "daily_measurement", spy), self.assertRaises(ValueError):
+            TDM.measure("IU", "SNZO", datetime(2026, 10, 8), analyzer=self._Analyzer(), fetch=None, channel="HHZ")
+        self.assertEqual(calls, [], "nothing is delegated for a refused channel")
+
+    def test_an_unbound_hhz_request_still_refuses(self):
+        import thd_daily_measurement as TDM
+        with self.assertRaises(ValueError):
+            TDM.measure("IU", "MAJO", datetime(2026, 10, 8), analyzer=self._Analyzer(), fetch=lambda **kw: self.fail("fetched"),
+                        channel="HHZ")
+
+    def test_default_and_explicit_bhz_reach_the_operator_identically(self):
+        import thd_daily_measurement as TDM
+        from unittest import mock
+        calls, spy = self._spy()
+        analyzer = self._Analyzer()
+        with mock.patch.object(OP, "daily_measurement", spy):
+            a = TDM.measure("IU", "SNZO", datetime(2026, 10, 8), analyzer=analyzer, fetch=None)
+            b = TDM.measure("IU", "SNZO", datetime(2026, 10, 8), analyzer=analyzer, fetch=None, channel="BHZ")
+        self.assertEqual(a, b)
+        self.assertEqual(calls[0], calls[1])
+
+    def test_a_declared_hhz_station_accepts_hhz_no_global_bhz_guard(self):
+        # codex: "do not retain a global BHZ guard where HHZ is explicitly supported" -- IV.CAFE's declared HHZ is measured
+        import thd_daily_measurement as TDM
+        calls = []
+
+        def fetch(**kw):
+            calls.append(kw)
+            return np.zeros(100 * 3600 * 13), 100.0
+        rec = TDM.measure("IV", "CAFE", datetime(2026, 10, 8), analyzer=self._Analyzer(), fetch=fetch, channel="HHZ")
+        self.assertEqual((calls[0]["channel"], rec["thd"]), ("HHZ", 0.3))
+
     def test_fetch_bound_refuses_a_forwarded_other_channel(self):
         data, rate, rec = OP.fetch_bound("IU", "SNZO", datetime(2026, 10, 6, 23), datetime(2026, 10, 8), "HHZ",
                                          client_factory=lambda name: self.fail("no client for a refused channel"))

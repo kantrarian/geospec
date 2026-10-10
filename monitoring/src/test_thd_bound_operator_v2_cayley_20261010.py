@@ -308,6 +308,25 @@ class Replay(unittest.TestCase):
                                                              "CACHE_RUN_NON_MIDNIGHT_START_NOT_THE_ISSUED_INPUT": {"RECOVERED": 1}})
 
 
+class RefusalSummary(unittest.TestCase):
+    """refusal_summary on REAL stitch_window refusals: the code first, then the measured facts and the window."""
+
+    def test_a_gap_names_its_seconds_and_the_window(self):
+        n = 4000
+        a = series(n, seed=51)
+        d, _, rec = OP.stitch_window([trace(T0, a[:n // 2]), trace(T0 + (n // 2 + 5) * DT, a[n // 2 + 5:])], **W, **window(n))
+        self.assertIsNone(d)
+        s = OP.refusal_summary(rec)
+        self.assertTrue(s.startswith("GAP_OR_OVERLAP; GAP "), s)
+        self.assertIn("gap_samples=5 gap_seconds=0.125", s)
+        self.assertTrue(s.endswith("window [%s, %s)" % tuple(rec["requested"])), s)
+
+    def test_an_uncovered_window_names_its_covered_fraction(self):
+        n = 4000
+        d, _, rec = OP.stitch_window([trace(T0, series(n - 400, seed=52))], **W, **window(n))
+        self.assertEqual((d, rec["refusal"]), (None, "WINDOW_NOT_COVERED"))
+        self.assertIn("covered 90.0 of 100.0 s (fraction 0.9; missing head 0.0 s, tail 10.0 s)", OP.refusal_summary(rec))
+
 class ChannelPassThrough(unittest.TestCase):
     """grassmann e5a34e44 finding: the bound station's channel is bound too. A non-BHZ request refuses at the shared
     measurement (as for an unbound station) and the channel reaches the operator's fetch, where fetch_bound refuses it."""

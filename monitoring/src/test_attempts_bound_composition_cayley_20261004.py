@@ -57,7 +57,26 @@ class BoundPathRecordsItsAttempt(unittest.TestCase):
         self.fake((None, 0.0, rec))
         attempts = []
         self.assertEqual(self.ST.fetch_continuous_data_for_thd("IU", "SNZO", START, END, attempts=attempts), (None, 0.0))
-        self.assertEqual((attempts[0]["outcome"], attempts[0]["reason"]), ("OPERATOR_REFUSED", "GAP_OR_OVERLAP"))
+        # updated deliberately 2026-10-10 (codex b7a29458 correction 2): the reason is the operator's code FIRST, then its
+        # measured facts on the same line (refusal_summary) -- here the requested window, the only fact this stub carries
+        self.assertEqual(attempts[0]["outcome"], "OPERATOR_REFUSED")
+        self.assertEqual(attempts[0]["reason"], "GAP_OR_OVERLAP; window [%s, %s)" % (START.isoformat(), END.isoformat()))
+        rec3 = dict(rec, discontinuity=dict(kind="GAP", at="2026-10-01T11:00:00.000000Z", delta_seconds=5.0),
+                    coverage=None)
+        self.fake((None, 0.0, rec3))
+        attempts = []
+        self.ST.fetch_continuous_data_for_thd("IU", "SNZO", START, END, attempts=attempts)
+        self.assertEqual(attempts[0]["reason"], "GAP_OR_OVERLAP; GAP at=2026-10-01T11:00:00.000000Z delta_seconds=5.0; window [%s, %s)"
+                         % (START.isoformat(), END.isoformat()))
+        self.assertEqual(attempts[0]["operator_facts"]["discontinuity"]["delta_seconds"], 5.0)
+        rec4 = dict(rec, refusal="WINDOW_NOT_COVERED", coverage=dict(requested_seconds=90000.0, covered_seconds=86400.0,
+                                                                    fraction=0.96, missing_head_seconds=3600.0,
+                                                                    missing_tail_seconds=0.0))
+        self.fake((None, 0.0, rec4))
+        attempts = []
+        self.ST.fetch_continuous_data_for_thd("IU", "SNZO", START, END, attempts=attempts)
+        self.assertIn("WINDOW_NOT_COVERED; covered 86400.0 of 90000.0 s (fraction 0.96; missing head 3600.0 s, tail 0.0 s)",
+                      attempts[0]["reason"])
         rec2 = dict(rec, refusal="PROVIDER_ERROR", error="token=AbCdEf123456")
         self.fake((None, 0.0, rec2))
         attempts = []

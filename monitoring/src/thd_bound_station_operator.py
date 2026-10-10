@@ -58,6 +58,25 @@ def _iso(x) -> str:
     return x.isoformat() if hasattr(x, "isoformat") else str(x)
 
 
+def refusal_summary(rec: Dict) -> str:
+    """The refusal with its measured facts on ONE line (codex b7a29458 correction 2: carry the requested window, the
+    covered fraction, the gap/overlap seconds and the outcome into refusal rows): the code, the refusing boundary's kind
+    and facts, the covered seconds and fraction of an uncovered window, and the requested window. The D3 attempt row
+    carries this as its reason text, so the served row says what was seen, not only that it refused."""
+    parts = [str(rec.get("refusal") or "UNKNOWN_REFUSAL")]
+    d = rec.get("discontinuity") or {}
+    if d:
+        parts.append(" ".join([str(d.get("kind"))] + ["%s=%s" % (k, d[k]) for k in sorted(d) if k != "kind"]))
+    c = rec.get("coverage") or {}
+    if c:
+        parts.append("covered %s of %s s (fraction %s; missing head %s s, tail %s s)" % (
+            c.get("covered_seconds"), c.get("requested_seconds"), c.get("fraction"), c.get("missing_head_seconds"),
+            c.get("missing_tail_seconds")))
+    if rec.get("requested"):
+        parts.append("window [%s, %s)" % tuple(rec["requested"]))
+    return "; ".join(parts)
+
+
 def _utc(x) -> datetime:
     return x.datetime.replace(tzinfo=timezone.utc)
 

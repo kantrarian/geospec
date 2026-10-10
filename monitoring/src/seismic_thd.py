@@ -537,7 +537,10 @@ def fetch_continuous_data_for_thd(
                       'nslc_requested': '%s.%s.%s.%s' % (station_network, station_code, loc, cha),
                       'window_requested': rec.get('requested'), 'operator_identity': rec.get('operator_identity')}
             if data is None:
-                detail = rec.get('refusal') or 'UNKNOWN_REFUSAL'
+                # the refusal code with its measured facts on one line (refusal_summary), so the D3 attempt row's
+                # reason carries the boundary kind, its seconds, the covered fraction and the requested window
+                from thd_bound_station_operator import refusal_summary
+                detail = refusal_summary(rec)
                 record.update(outcome='OPERATOR_REFUSED',
                               reason=redact(detail + (' (%s)' % rec['error'] if rec.get('error') else '')))
                 # thd-bound-station-operator-v2 (codex b7a29458): a refusal carries what the operator measured -- the

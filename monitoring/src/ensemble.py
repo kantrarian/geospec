@@ -464,6 +464,9 @@ class EnsembleResult:
     # thd-station-attempts-v1 (M4): every configured THD station and what happened to it; None (not emitted)
     # unless run_ensemble_daily.RECORD_THD_ATTEMPTS is on
     thd_attempts: Optional[Dict] = None
+    # thd-station-configuration-v1 (codex b7a29458 correction 3): the run's effective configuration of this region's THD
+    # stations (selectors, routing, operators, hashes, source provenance); None (not emitted) unless the runner sets it
+    thd_station_configuration: Optional[Dict] = None
 
     def to_dict(self) -> Dict:
         out = {
@@ -490,6 +493,8 @@ class EnsembleResult:
             out['method_set'] = self.method_set
         if self.thd_attempts is not None:
             out['thd_attempts'] = self.thd_attempts
+        if self.thd_station_configuration is not None:
+            out['thd_station_configuration'] = self.thd_station_configuration
         return out
 
 

@@ -51,6 +51,7 @@ from ensemble import GeoSpecEnsemble, EnsembleResult, RISK_TIERS
 import method_comparability as MC
 import calibration_eligibility as CE
 import evidence_redaction as ER
+import thd_station_configuration as TSC
 # Immutable public revision store (asylum 2026-09-02: "use immutable
 # revision"; codex's model). The runner's production path publishes
 # every scored day create-once under docs/ensemble/<date>/<run_id>.json
@@ -281,6 +282,11 @@ RECORD_THD_ATTEMPTS = True
 # thd-daily-measurement-v1 identity of the measurement. Values are unchanged; v2 never shipped.
 THD_ATTEMPTS_SCHEMA = 'thd-station-attempts-v3'
 THD_ROLES = ('CONFIGURED_PRIMARY', 'CONFIGURED_FALLBACK', 'CONFIGURED_FALLBACK2')
+# thd-station-configuration-v1 (cayley 2026-10-10; codex b7a29458 correction 3): each region's record carries the run's
+# EFFECTIVE configuration of its THD stations -- every configured station with its exact selector, routing, trust and
+# operator identity, the content hashes and the source provenance -- so a report is read against the configuration
+# that produced it, not today's map. Configuration only: the outcome stays in thd_attempts. Values are unchanged.
+RECORD_THD_STATION_CONFIGURATION = True
 
 
 def thd_station_outcome(component, provider_records):
@@ -354,6 +360,13 @@ def run_region_assessment(
         ensemble = GeoSpecEnsemble(region=region, station_regions=station_regions,
                                    record_thd_attempts=RECORD_THD_ATTEMPTS,
                                    eligibility_rule_active=rule_for_day)
+        configuration = (TSC.region_block(region, REGIONS, ensemble.thd_analyzer)
+                         if RECORD_THD_STATION_CONFIGURATION else None)
+
+        def _stamp(res):
+            if res is not None and configuration is not None:
+                res.thd_station_configuration = configuration
+            return res
 
         # Set Lambda_geo if provided
         if lambda_geo_ratio is not None:
@@ -415,12 +428,12 @@ def run_region_assessment(
                 result.thd_attempts = {'schema': THD_ATTEMPTS_SCHEMA, 'scored_day': target_date.strftime('%Y-%m-%d'),
                                        'stations': station_records}
             # Return best result we got (even if THD failed on all stations)
-            return result
+            return _stamp(result)
         else:
             if ensemble.eligibility_rule_active:
                 # method-comparability-v1 (codex db9a28ff finding 2): with the rule on, the Lambda_geo-only path goes
                 # through the qualified combiner; the legacy construction below would bypass qualification.
-                return ensemble.compute_risk(target_date, methods=('lambda_geo',))
+                return _stamp(ensemble.compute_risk(target_date, methods=('lambda_geo',)))
             # Lambda_geo only
             lg_result = ensemble.compute_lambda_geo_risk(target_date)
             risk = lg_result.risk_score
@@ -438,7 +451,7 @@ def run_region_assessment(
                 methods_available=1 if lg_result.available else 0,
             )
 
-        return result
+        return _stamp(result)
 
     except Exception as e:
         logger.error(f"Assessment failed for {region}: {e}")

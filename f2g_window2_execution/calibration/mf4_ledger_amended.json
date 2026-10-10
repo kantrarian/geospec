@@ -1,0 +1,69 @@
+{
+ "amended_training_binding": {
+  "authorization_sha256": "098b1741a52fdd1a2327ca0e4128868d5d23160e23e7ac102fca0212ee235b71",
+  "canonical_event_table_sha256": "1e4839cf062ad63c8b8bb8b835b829925a80f3d38c2552962fbd94c047092ad2",
+  "engine_training_digest": "a3f94c23e1162c2aecfe4b54686edfdb5f35078dc72840b2344dd56a016d7dfd",
+  "policy_source": "docs/f2g_window2_execution/amendment_mf4_late_catalog_repair_20260829_correction3.md",
+  "receipt_schema": "geospec-mf4-catalog-acquisition-receipt-v1",
+  "result_authentication": {
+   "catalog_commit": "4893e63281e52d5a8e9d5047fe2aa2f445cd0dc4",
+   "catalog_commit_parent": "f636c234e0957ea7719091072bc91591f3fe9570",
+   "receipt_git_blob_oid": "55993672fa7f4a69215c2822c448496e2a415363",
+   "receipt_path": "docs/f2g_window2_execution/mf4_catalog_snapshot/acquisition_receipt_v1.json",
+   "receipt_sha256": "054002dd617b174e859645fce5c34a9adbc5b5c8024a0eed54f55757ae29c9ff",
+   "snapshot_git_blob_oid": "4c87f45f49662143a3189ea5eefc698f7c67e0d8",
+   "snapshot_path": "docs/f2g_window2_execution/mf4_catalog_snapshot/catalog_snapshot_v1.json",
+   "snapshot_sha256": "490c407796209a513995a9012911a1e3764825622d4e33d355c983a13dbbb7f3",
+   "trusted_ref": "origin/master"
+  },
+  "snapshot_sha256": "490c407796209a513995a9012911a1e3764825622d4e33d355c983a13dbbb7f3",
+  "temporal_role_policy_sha256": "a3d7463bcebd4f467740ee8910d5f51450bf9388b48d077a4357a303e1896e4b",
+  "trust_anchor": {
+   "go_framework_commit": "561cfdf41a35ebbc480e63ada70b1400a6434aa9",
+   "module_git_blob_sha256": "64140fc01132d0e190dd96d029d3539c2fdd71b3a979de9277cf61a8ac766220",
+   "pass_framework_commit": "7601d3853440aff2bae07638de72fec65624681b",
+   "public_head_commit": "f636c234e0957ea7719091072bc91591f3fe9570",
+   "public_head_tree": "d9651a76a5053181dfafbce439dbc673788fbdb9"
+  }
+ },
+ "amended_training_digest": "bbb193d0e008703ec764c08cf4471478a13ce33bb55ceaf9f558a28ce1160ffc",
+ "baseline_coef": [
+  0.6957882287429795
+ ],
+ "baseline_intercept": -1.7512427893529183,
+ "calibration_issue_end": "2026-08-20",
+ "calibration_start": "2025-10-18",
+ "coef": [
+  -0.005736256850888751,
+  -0.05411636138806451,
+  0.695691139592816
+ ],
+ "intercept": -1.7521967639087292,
+ "n_rows": 3727,
+ "regions": [
+  "anchorage",
+  "campi_flegrei",
+  "cascadia",
+  "hualien",
+  "istanbul_marmara",
+  "kaikoura",
+  "kumamoto",
+  "mexico_guerrero",
+  "norcal_hayward",
+  "ridgecrest",
+  "socal_saf_coachella",
+  "socal_saf_mojave",
+  "turkey_kahramanmaras"
+ ],
+ "scaler_mean": [
+  -0.0005924944988384314,
+  97678.76488238788,
+  0.1540112691172525
+ ],
+ "scaler_std": [
+  0.12629640020567814,
+  5962373.1770633,
+  0.36095955189210316
+ ],
+ "training_digest": "a3f94c23e1162c2aecfe4b54686edfdb5f35078dc72840b2344dd56a016d7dfd"
+}

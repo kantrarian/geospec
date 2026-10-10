@@ -1,0 +1,24 @@
+{
+ "schema": "f2g-w2-probe-parser-notes-v4",
+ "author": "grassmann",
+ "note": "Append-only companion for socal attempt 4 (codex 1711Z one-delta ruling; input record attempt4_input_record_grassmann.json committed pre-fire at 0cdeb16). Attempts 1-3 byte-untouched.",
+ "operations": {
+  "socal_coachella_attempt4": {
+   "body_sha256_ref": "socal_coachella_attempt4.envelope.json",
+   "verdict": "GRAMMAR CONFIRMED (HTTP 200, 8769 bytes, unambiguous FDSN station/1 text channel rows) -- the one-delta full-datetime spelling was the entire defect, exactly as SCEDC's attempt-3 400 body stated.",
+   "parse_facts": {
+    "format": "FDSN station text level=channel, pipe-delimited, 17 header-declared columns (Network|Station|Location|Channel|...|StartTime|EndTime)",
+    "data_rows": 59,
+    "malformed_rows": 0,
+    "distinct_ci_stations_in_bbox": 59,
+    "registered_filter_applied": "ACP,ANG,BAR,BC3,BEL,BLA2,BOM,BOR,COA,CRR,CSH,CTC",
+    "registered_present_with_active_hhz_epoch": 12,
+    "registered_missing": [],
+    "epoch_rule_check": "every registered station has an HHZ channel epoch with StartTime strictly before 2025-11-15 and EndTime 3000-01-01T00:00:00 -- active across the whole probe window [2025-11-15, 2025-11-16); presence 12/12 for the probe day",
+    "outside_station_note": "the other 47 CI stations in the bbox are retained in the raw body per the 1647Z parser contract and excluded by the registered filter"
+   },
+   "template_implication": "per the 1711Z fill rule the tenth template composes with the EXISTING token vocabulary: starttime={day}T00:00:00.000000 & endtime={day_next}T00:00:00.000000; derivation lock binds the exact bbox query + the registered 12-station filter + the active-epoch rule; istanbul/turkey remain bare-date per the same ruling (no harmonization).",
+   "scope_note": "probe evidence remains request/parser-grammar evidence only; nothing here enters staged_envelopes, the 1,794-key capture tree, calibration/selection values, cutoffs, geometry, tiers, or claims."
+  }
+ }
+}

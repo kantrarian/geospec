@@ -1,0 +1,34 @@
+{
+ "artifact_sha256": "beccc174e084e2459a909c24c35da7d373ce3041d50ab577ddb7ccf8e1515150",
+ "claim": {
+  "artifact_claim_kind": "SUPPORT_SERIES",
+  "outcome": "ADMITTED"
+ },
+ "join_kind": "RESTAGED_LINEAGE",
+ "new_authority": {
+  "blob_sha256": "3c24182b042de1a14d2717610b8940acd93f44be8dc8fdc344cce771d28d4f66",
+  "commit": "0e248d28ae16affd38dc440042a81fc857a320c8",
+  "keys_sha256": "3e7a4779f95e6feb835331998ec4b270721fd54e5b36520af03b79e68cb920a9",
+  "path": "docs/f2g_window2_execution/staged_expected_contracts_v3.json"
+ },
+ "old_authority": {
+  "blob_sha256": "b5b0a61a4edcdac2bfcd8a819f2e118a81c492947a0b6167ffd07ef09338967e",
+  "commit": "332a98acd34797163413350dc4989fdb37ec87b2",
+  "keys_sha256": "9a2b5b6c5e0b0f456f4587e7eed63c561440685cae33bad59ac4b3d4ebc7cee9",
+  "path": "docs/f2g_window2_execution/staged_expected_contracts_v3.json"
+ },
+ "raw_body_bytes": 95222,
+ "raw_body_sha256": "a2ab5f7e330afc2354453f95773c1c2ad6dc3bf707d6ffe7950389447761967b",
+ "s_v3_sha256": "588210b50891c004d371e38c216ed3a117d62cf6289b6e0f0766b86ff65729dc",
+ "s_v4_sha256": "0960e0b763d51d25d936866bb7a2023da2ae0b7fbf5d3e8a3308d70031bd7bfe",
+ "schema": "f2g-w2-restage-lineage-v1",
+ "t_v3_sha256": "08330d1935fb3c08f1f685d1c2a8c8f51545c35c292951f06a58386af8fbc93c",
+ "transform_identity": {
+  "artifact_schema": "f2g-w2-admission-artifact-v1",
+  "digest_domain": "UTF8_SOURCE_LF_V1",
+  "module": "w2_acquisition_capture_grassmann.py",
+  "source_sha256": "a48baa50530854d966e2a6947af7c9108a1ca1e7068364a59f21e6597f3cee7f"
+ },
+ "v3_key": "MAG_FEED/tuc/2026-04-06",
+ "v4_key": "MAG_FEED/tuc/2026-04-06"
+}

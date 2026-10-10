@@ -1,0 +1,43 @@
+{
+ "authorizes": "NOTHING. No point was drawn, no result exists, and no successor may reuse this carrier identity or the phase-1 go that preceded it.",
+ "carrier_disposition": "SUPERSEDED, not resumable. The driver is manifest-pinned and this pre binds its blob, so any repair changes that blob and _require_bound_sources refuses every phase against this carrier. That is the binding working as designed, not a side effect.",
+ "classification": "reproduced code defect in the operator driver, NOT infrastructure. Killed or contended harness lanes are typed INFRA_INTERRUPTED separately and are not this.",
+ "control_gap": "D-5 asserted only that a worker failed and that the failure was not the host guard, which any failure satisfies. It was therefore green while the child died on this TypeError, and the routed packet repeated the strong reading that the child had reached the harness.",
+ "driver_bound": {
+  "blob_sha256": "7f0a4baa58f5f543971ab2a265f11c7b1bae04073a286a593e692ff610df0cf7",
+  "commit": "877cec40313e2cbee5d0699a71aa93c7dd3e9d46"
+ },
+ "execution_identity": {
+  "host": "geomen",
+  "interpreter_executable": "c:\\users\\mailr\\appdata\\local\\programs\\python\\python314\\python.exe",
+  "interpreter_implementation": "CPython",
+  "interpreter_version": "3.14.0 (tags/v3.14.0:ebf955d, Oct  7 2025, 10:15:03) [MSC v.1944 64 bit (AMD64)]",
+  "numpy_config_sha256": "29b90c09cd1fd9972edcadb29674c6396a7c209dc89f3864665485b24dd71645",
+  "numpy_version": "2.5.1",
+  "schema": "f2g-w2-tier-s-execution-identity-v1"
+ },
+ "failure": {
+  "defect": "cmd_worker called _run_one(repo, outdir, int(idx), loco) -- four arguments for the five parameters of _run_one(repo, outdir, sha, idx, loco); the pre digest was never passed, so every worker failed before TSR.run_smoke_point",
+  "exception": "_run_one() missing 1 required positional argument: 'loco'",
+  "exception_type": "TypeError",
+  "point_index": 0,
+  "process_count_requested": 8,
+  "reached_harness": false,
+  "workers_started": 1
+ },
+ "manifest_commit": "94968394c87c634edb22bf7cde3c7e79f7ff7af0",
+ "pre_bytes": 2477,
+ "pre_commit": "e01e961e4b6918885ce0f22ea7b4013701495a87",
+ "pre_commit_is_local_only": true,
+ "pre_invocation_sha256": "fa0687a5aaa807ca03c4eec36bfda5335979259ae8e011755facf00fdeaa4574",
+ "pre_raw_sha256": "a40d9a1caf9f4c40c0871c7fcbd446a4a4a3c82fe5b265d171db8b7f0b36c247",
+ "public_source_commit": "94968394c87c634edb22bf7cde3c7e79f7ff7af0",
+ "published_point_carriers": [],
+ "published_point_count": 0,
+ "quality": {
+  "R": 50,
+  "n_draws": 999
+ },
+ "schema": "f2g-w2-tier-s-aborted-operation-v1",
+ "state": "PHASE1_ABORTED_EXECUTION_DEFECT"
+}

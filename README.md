@@ -5,7 +5,7 @@
 > Region labels can share station data and are not independent confirmations.
 > See the [2026-09-17 shared-support claim correction](docs/INCIDENT_2026-09-17_shared_support_claims.md).
 
-**Last Update**: 2026-10-08
+**Last Update**: 2026-10-09
 
 ## Current Status
 
@@ -19,8 +19,8 @@
 
 | Tier | Count |
 |------|-------|
-| NORMAL (0) | 8 |
-| WATCH (1) | 1 |
+| NORMAL (0) | 7 |
+| WATCH (1) | 2 |
 | ELEVATED (2) | 0 |
 | CRITICAL (3) | 0 |
 

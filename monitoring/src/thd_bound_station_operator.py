@@ -24,6 +24,10 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
+# gap_policy is part of the operator identity, so its name stays. What "WITHIN_ONE_RETAINED_EPOCH" implements is narrower
+# than the name: an identical overlap with a KNOWN retained response-epoch boundary inside it refuses
+# (CROSSES_RESPONSE_EPOCH). It is not a proof that the whole window lies in one epoch, and with no retained epochs for the
+# selector no epoch rule applies (codex 51e62a83 s.3).
 BOUND_STATIONS: Dict[str, Dict] = {
     "IU.SNZO": dict(location="00", channel="BHZ", expected_rate_hz=40.0, client="IRIS",
                     response_policy="NOT_REMOVED",

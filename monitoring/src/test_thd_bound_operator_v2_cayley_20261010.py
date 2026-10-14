@@ -262,11 +262,14 @@ class Replay(unittest.TestCase):
         self.assertEqual(rows["2026-07-22"]["v2_discontinuity"]["kind"], "GAP")
         self.assertIs(rows["2026-07-02"]["support_identical"], True)
         self.assertEqual(rows["2026-08-01"]["outcome"], "UNKNOWN")
+        for day, r in rows.items():
+            self.assertEqual((r["original_input_identity"], r["original_issuance"]), ("UNVERIFIED", "UNVERIFIED"), day)
 
     def test_runner_cache_layout_two_fetch_seams_labelled(self):
         """grassmann e5a34e44: the runner's seismic_cache pickles, cache days D-2 and D-1 per scored day D. Midnight-start
-        runs that abut exactly -> BOTH_ACCEPT; ~07:00Z runs whose seam repeats 317 identical samples -> RECOVERED and
-        labelled not-the-issued-input; a missing cache day -> UNKNOWN (CACHE_DAY_MISSING)."""
+        runs that abut exactly -> BOTH_ACCEPT, cache_start_class MIDNIGHT_START; ~07:00Z runs whose seam repeats 317
+        identical samples -> RECOVERED, NON_MIDNIGHT_START; a missing cache day -> UNKNOWN (CACHE_DAY_MISSING). Every row,
+        whatever its class or outcome, says original input identity and issuance are UNVERIFIED (codex 51e62a83 s.3)."""
         import json
         import pickle
         from obspy import Stream
@@ -295,17 +298,22 @@ class Replay(unittest.TestCase):
         rows = {r["day"]: r for r in receipt["rows"]}
         self.assertEqual(rows["2026-07-03"]["outcome"], "BOTH_ACCEPT")
         self.assertIs(rows["2026-07-03"]["support_identical"], True)
-        self.assertEqual(rows["2026-07-03"]["issued_input"], "CACHE_RUNS_MIDNIGHT_START")
+        self.assertEqual(rows["2026-07-03"]["cache_start_class"], "MIDNIGHT_START")
         self.assertEqual(rows["2026-07-13"]["outcome"], "RECOVERED")
         self.assertEqual(rows["2026-07-13"]["v2_identical_overlap_samples"], 317)
-        self.assertEqual(rows["2026-07-13"]["issued_input"], "CACHE_RUN_NON_MIDNIGHT_START_NOT_THE_ISSUED_INPUT")
+        self.assertEqual(rows["2026-07-13"]["cache_start_class"], "NON_MIDNIGHT_START")
         self.assertEqual((rows["2026-07-23"]["outcome"], rows["2026-07-23"]["unknown_reason"]), ("UNKNOWN", "CACHE_DAY_MISSING"))
         for r in receipt["rows"]:
             self.assertEqual(r["input_kind"], "RUNNER_CACHE_TWO_INDEPENDENT_FETCHES")
+            # a midnight start or an equal value never upgrades either field
+            self.assertEqual((r["original_input_identity"], r["original_issuance"]), ("UNVERIFIED", "UNVERIFIED"), r["day"])
+            self.assertNotIn("issued_input", r)
         self.assertEqual(receipt["counts"], dict(RECOVERED=1, STILL_REFUSED=0, BOTH_ACCEPT=1, V2_ONLY_REFUSES=0, UNKNOWN=19,
                                                  BOTH_ACCEPT_BYTES_DIFFER=0))
-        self.assertEqual(receipt["counts_by_issued_input"], {"CACHE_RUNS_MIDNIGHT_START": {"BOTH_ACCEPT": 1},
-                                                             "CACHE_RUN_NON_MIDNIGHT_START_NOT_THE_ISSUED_INPUT": {"RECOVERED": 1}})
+        self.assertEqual(receipt["counts_by_cache_start_class"], {"MIDNIGHT_START": {"BOTH_ACCEPT": 1},
+                                                                  "NON_MIDNIGHT_START": {"RECOVERED": 1}})
+        self.assertNotIn("counts_by_issued_input", receipt)
+        self.assertEqual(receipt["schema"], "cayley.thd-bound-operator-replay.v3")
 
 
 class RefusalSummary(unittest.TestCase):

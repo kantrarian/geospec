@@ -18,9 +18,11 @@ Two retained layouts:
                           whole; the operator cuts the window. A missing cache day is UNKNOWN (CACHE_DAY_MISSING).
      INPUT KIND (grassmann e5a34e44 s.2): a cache day is an independent 24 h fetch, so the window is assembled from TWO
      fetches -- not the one continuous provider response production received. Every row says so
-     (input_kind = RUNNER_CACHE_TWO_INDEPENDENT_FETCHES) and labels its cache runs: MIDNIGHT_START (the bytes reproduced
-     the issued values in grassmann's parity) or NON_MIDNIGHT_START (a different fetch time than production; not the
-     issued input). Operator outcomes on these rows are facts about these bytes, not about the issued run.
+     (input_kind = RUNNER_CACHE_TWO_INDEPENDENT_FETCHES) and classes its cache runs by START TIME only:
+     cache_start_class MIDNIGHT_START (every retained cache run starts at midnight) or NON_MIDNIGHT_START. A midnight
+     start, or a value equal to a retained report value, does not prove original waveform identity: every row carries
+     original_input_identity UNVERIFIED and original_issuance UNVERIFIED (codex 51e62a83 s.3). Operator outcomes on these
+     rows are facts about these bytes, not about any issued run.
 
 Usage (host, pinned venv, cwd = <geospec tree>/monitoring/src):
   python -B thd_bound_operator_replay_cayley_20261010.py --runner-cache C:/GeoSpec/geospec_runner/monitoring/data/seismic_cache --days 2026-06-11:2026-09-09 --out <json>
@@ -124,8 +126,7 @@ class RunnerCacheSource:
                 return None, dict(meta, unknown_reason="CACHE_DAY_MISSING")
             recs.extend(tr.copy() for tr in traces)
         runs = {f["cache_run"] for f in meta["cache_days"]}
-        meta["issued_input"] = ("CACHE_RUNS_MIDNIGHT_START" if runs == {"MIDNIGHT_START"}
-                                else "CACHE_RUN_NON_MIDNIGHT_START_NOT_THE_ISSUED_INPUT")
+        meta["cache_start_class"] = "MIDNIGHT_START" if runs == {"MIDNIGHT_START"} else "NON_MIDNIGHT_START"
         return recs, meta
 
 
@@ -143,13 +144,14 @@ def main(argv=None):
     source = MiniSeedSource(a.retained, spec) if a.retained else RunnerCacheSource(a.runner_cache, spec)
     epochs = V2._retained_epochs(served_id(spec))
     rows, counts = [], dict(RECOVERED=0, STILL_REFUSED=0, BOTH_ACCEPT=0, V2_ONLY_REFUSES=0, UNKNOWN=0, BOTH_ACCEPT_BYTES_DIFFER=0)
-    by_issued = {}
+    by_class = {}
+    unverified = dict(original_input_identity="UNVERIFIED", original_issuance="UNVERIFIED")
     for day in days(a.days):
         end = day.replace(tzinfo=timezone.utc)
         start = end - timedelta(hours=25)
         records, meta = source.records(day, start, end)
         if records is None:
-            rows.append(dict(day=day.date().isoformat(), outcome="UNKNOWN", input_kind=source.kind, **meta))
+            rows.append(dict(day=day.date().isoformat(), outcome="UNKNOWN", input_kind=source.kind, **meta, **unverified))
             counts["UNKNOWN"] += 1
             continue
         kw = dict(network="IU", station="SNZO", location=spec["location"], channel=spec["channel"],
@@ -159,7 +161,7 @@ def main(argv=None):
         ok1, ok2 = d1 is not None, d2 is not None
         row = dict(day=day.date().isoformat(), input_kind=source.kind, records=len(records), v1_refusal=r1.get("refusal"),
                    v2_refusal=r2.get("refusal"), v2_discontinuity=r2.get("discontinuity"), v2_coverage=r2.get("coverage"),
-                   v2_identical_overlap_samples=r2.get("identical_overlap_samples"), **meta)
+                   v2_identical_overlap_samples=r2.get("identical_overlap_samples"), **meta, **unverified)
         if ok1 and ok2:
             same = (r1.get("support_sha256") == r2.get("support_sha256"))
             row.update(outcome="BOTH_ACCEPT", support_identical=same)
@@ -172,21 +174,22 @@ def main(argv=None):
             row.update(outcome="V2_ONLY_REFUSES"); counts["V2_ONLY_REFUSES"] += 1
         else:
             row.update(outcome="STILL_REFUSED"); counts["STILL_REFUSED"] += 1
-        issued = meta.get("issued_input", "NOT_CLASSIFIED")
-        by_issued.setdefault(issued, {}).setdefault(row["outcome"], 0)
-        by_issued[issued][row["outcome"]] += 1
+        cls = meta.get("cache_start_class", "NOT_CLASSIFIED")
+        by_class.setdefault(cls, {}).setdefault(row["outcome"], 0)
+        by_class[cls][row["outcome"]] += 1
         rows.append(row)
-    receipt = dict(schema="cayley.thd-bound-operator-replay.v2", generated_utc=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+    receipt = dict(schema="cayley.thd-bound-operator-replay.v3", generated_utc=datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
                    source=dict(kind=source.kind, root=str(a.retained or a.runner_cache), files=len(source.files),
                                unreadable=source.unreadable),
                    days=a.days, v1=dict(commit=V1_COMMIT, operator_identity=V1.operator_identity("IU.SNZO")),
                    v2=dict(operator_identity=V2.operator_identity("IU.SNZO"), version=spec["operator_version"]),
-                   counts=counts, counts_by_issued_input=by_issued, rows=rows,
+                   counts=counts, counts_by_cache_start_class=by_class, rows=rows,
                    not_claimed=["no provider was contacted", "UNKNOWN days are unmeasured, not refused or accepted",
                                 "a RECOVERED day is an operator outcome, not a calibration or a score",
-                                "a runner-cache window is assembled from two independent fetches, not the production response"])
+                                "a runner-cache window is assembled from two independent fetches, not the production response",
+                                "a midnight cache start or an equal value does not verify original input identity or issuance"])
     Path(a.out).write_text(json.dumps(receipt, indent=1, sort_keys=True, default=str), encoding="utf-8")
-    print(json.dumps(dict(counts=counts, by_issued_input=by_issued), sort_keys=True))
+    print(json.dumps(dict(counts=counts, by_cache_start_class=by_class), sort_keys=True))
     return 1 if counts["BOTH_ACCEPT_BYTES_DIFFER"] else 0
 
 

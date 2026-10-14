@@ -5,7 +5,7 @@
 > Region labels can share station data and are not independent confirmations.
 > See the [2026-09-17 shared-support claim correction](docs/INCIDENT_2026-09-17_shared_support_claims.md).
 
-**Last Update**: 2026-10-11
+**Last Update**: 2026-10-12
 
 ## Current Status
 

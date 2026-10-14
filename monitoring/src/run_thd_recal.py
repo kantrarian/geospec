@@ -46,9 +46,12 @@ BASELINE_DIR = Path(__file__).resolve().parent.parent / "data" / "baselines"
 # its own acquisition (LOOKBACK_DAYS station-days at the native rate). Explicit and attributed, never derived from the
 # region map (deriving would silently start acquisitions for every configured fallback). Owner 2026-10-10, routed
 # agent-framework 643dd746: "brk replaces bks. release the cafe channel." (cayley, codex b7a29458 correction 2).
+# Owner 2026-10-14, routed agent-framework 68e91628: "yes, add SNZO to the calibration list" -- IU.SNZO's only prior
+# record is the UNCALIBRATED n=0 default, so it is an addition; a bound station, calibrated by its daily operator.
 CALIBRATION_ADDITIONS = {
     "IV.CAFE": "owner 2026-10-10 'release the cafe channel' (643dd746): declared IV.CAFE..HHZ@100Hz, calibration-first",
     "BK.BRK": "owner 2026-10-10 'brk replaces bks' (643dd746): norcal_hayward's THD station, its own baseline",
+    "IU.SNZO": "owner 2026-10-14 'yes, add SNZO to the calibration list' (68e91628): kaikoura's bound station, BHZ 40 Hz",
 }
 
 

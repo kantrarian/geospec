@@ -198,7 +198,12 @@ class Eligibility(unittest.TestCase):
         self.assertEqual(before.calibration_period, "UNCALIBRATED")
         res = run([])
         self.assertFalse(res["candidate_eligible"]); self.assertIs(sb.STATION_BASELINES[STA], before)
-        self.assertNotIn(STA, rr._calibratable_stations())
+        # cayley 2026-10-14: the owner added IU.SNZO to rr.CALIBRATION_ADDITIONS (agent-framework 68e91628), so the
+        # weekly recal now calibrates it by decision. The default itself must still never count as a calibration window:
+        from unittest import mock
+        with mock.patch.dict(rr.CALIBRATION_ADDITIONS, clear=True):
+            self.assertNotIn(STA, rr._calibratable_stations())
+        self.assertIn("68e91628", rr.CALIBRATION_ADDITIONS[STA])
 
 
 class Operators(unittest.TestCase):
@@ -406,7 +411,8 @@ class BaseAndCandidate(unittest.TestCase):
         self.assertEqual(after["rows"]["IU.SNZO"]["date"], "2026-10-03"); self.assertEqual(after["rows"]["IU.SNZO"]["n"], 60)
         self.assertNotIn("IU.SNZO", before["rows"])
         # and the recal gate now includes the station, with no code change in run_thd_recal
-        code2 = code.replace("print(json.dumps(dict(used=used", "import run_thd_recal as rr; print(json.dumps(dict(cal=rr._calibratable_stations(), used=used")
+        # (cayley 2026-10-14) without the owner's 68e91628 addition, or this landing assertion would pass vacuously
+        code2 = code.replace("print(json.dumps(dict(used=used", "import run_thd_recal as rr; rr.CALIBRATION_ADDITIONS.pop('IU.SNZO'); print(json.dumps(dict(cal=rr._calibratable_stations(), used=used")
         out = subprocess.run([sys.executable, "-B", "-c", code2, str(self.bdir)], capture_output=True, text=True, check=True)
         self.assertIn("IU.SNZO", json.loads(out.stdout.strip().splitlines()[-1])["cal"])
 

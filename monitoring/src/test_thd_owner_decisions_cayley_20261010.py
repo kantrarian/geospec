@@ -1,12 +1,14 @@
 """Owner decisions routed in agent-framework 643dd746 (asylum 2026-10-10 ~16:27Z: "brk replaces bks. release the cafe
-channel. request metadata."), as the method candidate carries them:
+channel. request metadata.") and 68e91628 (asylum 2026-10-14 ~17:07Z: "yes, add SNZO to the calibration list"), as the
+method candidate carries them:
 
   * norcal_hayward's THD station is BK.BRK (BHZ, location pinned from the retained StationXML), routed NCEDC -> IRIS;
     BK.BKS is no longer configured anywhere;
   * the CAFE declaration's response is RETAINED (the owner-authorized 10-10 StationXML), not NO_RETAINED_*;
   * RESPONSE_METADATA carries the two retrieved channels with their epochs, and a 10-08 window resolves to one epoch;
-  * the weekly recal calibrates the owner-approved CALIBRATION_ADDITIONS (IV.CAFE, BK.BRK) and NOTHING else new --
-    no configured fallback (AK.BMR, G.UNM), no Hi-net, no UNCALIBRATED default (IU.SNZO) is pulled in silently;
+  * the weekly recal calibrates the owner-approved CALIBRATION_ADDITIONS (IV.CAFE, BK.BRK, IU.SNZO), each attributed
+    to the routing of its own decision, and NOTHING else new -- no configured fallback (AK.BMR, G.UNM), no Hi-net is
+    pulled in silently; IU.SNZO (bound) is calibrated by its daily operator, and its entry names that operator;
   * BK.BRK without a baseline is unqualified (no early tiering, no BKS baseline reuse).
 
 Offline; no provider I/O. Run: <py with obspy> -B -m unittest test_thd_owner_decisions_cayley_20261010
@@ -69,19 +71,31 @@ class ResponseMetadata(unittest.TestCase):
 
 
 class Recal(unittest.TestCase):
+    APPROVED = {"IV.CAFE": "643dd746", "BK.BRK": "643dd746", "IU.SNZO": "68e91628"}
+
     def test_the_recal_adds_exactly_the_owner_approved_stations(self):
         import run_thd_recal as R
-        self.assertEqual(list(R.CALIBRATION_ADDITIONS), ["IV.CAFE", "BK.BRK"])
+        self.assertEqual(list(R.CALIBRATION_ADDITIONS), ["IV.CAFE", "BK.BRK", "IU.SNZO"])
         stations = R._calibratable_stations()
-        self.assertEqual(stations[-2:], ["IV.CAFE", "BK.BRK"])
-        for never in ("AK.BMR", "G.UNM", "HINET.N.KI2H", "IU.SNZO"):
+        self.assertEqual(stations[-3:], ["IV.CAFE", "BK.BRK", "IU.SNZO"])
+        for never in ("AK.BMR", "G.UNM", "HINET.N.KI2H"):
             self.assertNotIn(never, stations, never + " is not owner-approved for calibration")
+        self.assertEqual(stations.count("IU.SNZO"), 1)
         self.assertEqual(len(stations), len(set(stations)))
 
-    def test_additions_are_attributed(self):
+    def test_snzo_is_an_addition_because_its_only_record_is_uncalibrated(self):
         import run_thd_recal as R
+        self.assertEqual(R.STATION_BASELINES["IU.SNZO"].calibration_period, "UNCALIBRATED")
+        with mock.patch.dict(R.CALIBRATION_ADDITIONS, clear=True,
+                             values={k: v for k, v in R.CALIBRATION_ADDITIONS.items() if k != "IU.SNZO"}):
+            self.assertNotIn("IU.SNZO", R._calibratable_stations(), "without the owner's addition SNZO is not calibrated")
+
+    def test_additions_are_attributed_to_their_own_decision(self):
+        import run_thd_recal as R
+        self.assertEqual(set(R.CALIBRATION_ADDITIONS), set(self.APPROVED))
         for key, why in R.CALIBRATION_ADDITIONS.items():
-            self.assertIn("643dd746", why, key)
+            self.assertIn("(%s)" % self.APPROVED[key], why, key)
+            self.assertIn("owner 2026-10-", why, key)
 
     def test_a_recal_of_brk_writes_its_own_entry_and_cafe_its_selector(self):
         import json
@@ -90,13 +104,32 @@ class Recal(unittest.TestCase):
 
         def calibrate(network, station, **kw):
             return {"mean_thd": 0.3, "std_thd": 0.05, "n_samples": 70, "calibration_period": "2026-06-11 to 2026-09-09"}
-        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(R, "BASELINE_DIR", Path(tmp)), \
-                mock.patch.object(C, "calibrate_station", side_effect=calibrate), \
-                mock.patch.object(R, "_prior_effective_entries", return_value={}):
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(R, "BASELINE_DIR", Path(tmp)),                 mock.patch.object(C, "calibrate_station", side_effect=calibrate),                 mock.patch.object(R, "_prior_effective_entries", return_value={}):
             data = json.loads(Path(R.run_recal(["IV.CAFE", "BK.BRK"], end_date=datetime(2026, 10, 12))).read_text())
         self.assertEqual(data["IV.CAFE"]["selector"], "IV.CAFE..HHZ@100Hz")
         self.assertNotIn("selector", data["BK.BRK"])
         self.assertEqual(data["BK.BRK"]["calibration_convention"], "thd-daily-measurement-v1")
+
+    def test_a_recal_of_snzo_writes_its_own_entry_by_its_bound_daily_operator(self):
+        import json
+        import calibrate_thd_baselines as C
+        import run_thd_recal as R
+
+        def calibrate(network, station, **kw):
+            return {"mean_thd": 0.2, "std_thd": 0.04, "n_samples": 61, "calibration_period": "2026-06-16 to 2026-09-14"}
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(R, "BASELINE_DIR", Path(tmp)),                 mock.patch.object(C, "calibrate_station", side_effect=calibrate),                 mock.patch.object(R, "_prior_effective_entries", return_value={}):
+            data = json.loads(Path(R.run_recal(["IU.SNZO"], end_date=datetime(2026, 10, 14))).read_text())
+        e = data["IU.SNZO"]
+        self.assertEqual((e["n_samples"], e["calibration_date"]), (61, "2026-10-14"))
+        self.assertNotEqual(e["calibration_period"], "UNCALIBRATED")
+        # literals, not the module's own answer: a patched or regressed operator must not move both sides
+        self.assertEqual(e["calibration_convention"], "thd-bound-station-daily-operator-v1")
+        op = e["operator"]
+        self.assertEqual((op["operator_version"], op["location"], op["channel"], op["expected_rate_hz"], op["client"]),
+                         ("thd-bound-station-operator-v2", "00", "BHZ", 40.0, "IRIS"))
+        self.assertIn("EXACT_IDENTICAL_OVERLAP", op["gap_policy"], "v2 joins identical overlaps (why SNZO can measure)")
+        self.assertNotIn("selector", e, "SNZO is bound, not a declared-channel station")
+        self.assertEqual([a["disposition"] for a in data["_recal_attempts"]], ["RECALIBRATED"])
 
 
 class NoEarlyTiering(unittest.TestCase):

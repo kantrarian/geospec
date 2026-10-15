@@ -112,6 +112,10 @@ def detect_stress_release_drops(
                     break
             if z_score is None:
                 thd = components.get('seismic_thd', {})
+                # thd-score-basis-v1: a withheld score (no empirical baseline) is not recomputed from the retained
+                # baseline block -- that block is the very default the record refused to score against.
+                if thd.get('score_basis'):
+                    thd = {}
                 if thd.get('available') and thd.get('raw_value') and thd.get('baseline'):
                     bl = thd['baseline']
                     if bl.get('std') and bl['std'] > 0:

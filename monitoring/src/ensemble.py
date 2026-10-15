@@ -30,6 +30,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 import os
 import json
+import re
 import logging
 
 # Local imports
@@ -326,6 +327,21 @@ def thd_to_risk(thd_value: float) -> float:
         return min(1.0, 0.9 + 0.1 * (thd_value - 0.5) / 0.5)
 
 
+# thd-score-basis-v1 -- the two eligibility codes under which a THD component's scores are withheld (not computed)
+SCORE_BASIS_NOT_COMPUTED = "NOT_COMPUTED_NO_EMPIRICAL_BASELINE"
+SCORE_BASIS_WITHHOLD_CODES = (CE.NO_BASELINE, CE.ZERO_SAMPLE_DEFAULT)
+SCORE_BASIS_NOTES_TOKEN = "z=not computed (no empirical baseline)"
+_Z_TOKEN = re.compile(r"z=-?\d+(?:\.\d+)?")
+
+
+def _notes_without_score(notes: str) -> str:
+    """Replace the numeric z token in a THD notes string with the withheld-score token (or add the token when the
+    string carried none, as the no-baseline branch's does). Nothing else in the string changes."""
+    if _Z_TOKEN.search(notes or ""):
+        return _Z_TOKEN.sub(SCORE_BASIS_NOTES_TOKEN, notes, count=1)
+    return f"{notes}, {SCORE_BASIS_NOTES_TOKEN}" if notes else SCORE_BASIS_NOTES_TOKEN
+
+
 def thd_to_risk_with_baseline(
     thd_value: float,
     baseline_mean: float,
@@ -405,6 +421,13 @@ class MethodResult:
     # method-comparability-v1 (prospective; set ONLY while the eligibility rule is active and never emitted by
     # to_dict): the support the observation rests on, read by the region's method-set block.
     support: Optional[Dict] = None
+    # thd-score-basis-v1 (grassmann 2026-10-15; contract cayley 3baa7d1e (b) + amendment, codex b16fdd32 s.3): set ONLY
+    # when the eligibility rule judged the THD baseline NO_BASELINE or ZERO_SAMPLE_DEFAULT. Then z_score, risk_score,
+    # is_elevated (and is_critical, the same derived flag) are None -- a z against a non-empirical default or against
+    # no baseline is not a measurement -- and this field names why. Absent on every other component (= computed as
+    # before); absence on a legacy record means only that this marker did not exist yet, never that a baseline was
+    # calibrated. Eligibility, exclusion, ensemble weights and DEGRADED semantics are untouched.
+    score_basis: Optional[str] = None
 
     def to_dict(self) -> Dict:
         result = {
@@ -412,12 +435,14 @@ class MethodResult:
             'available': self.available,
             'raw_value': float(self.raw_value) if self.raw_value is not None else None,
             'raw_secondary': float(self.raw_secondary) if self.raw_secondary is not None else None,
-            'risk_score': float(self.risk_score),
-            'is_elevated': bool(self.is_elevated),
-            'is_critical': bool(self.is_critical),
+            'risk_score': float(self.risk_score) if self.risk_score is not None else None,
+            'is_elevated': bool(self.is_elevated) if self.is_elevated is not None else None,
+            'is_critical': bool(self.is_critical) if self.is_critical is not None else None,
             'frozen': bool(self.frozen),
             'notes': self.notes,
         }
+        if self.score_basis is not None:
+            result['score_basis'] = self.score_basis
         # Include baseline fields only for THD method
         if self.name == 'seismic_thd' and self.available:
             result['baseline'] = {
@@ -427,7 +452,7 @@ class MethodResult:
                 'window': self.baseline_window,
                 'quality': self.baseline_quality,
             }
-            result['z_score'] = float(self.z_score)
+            result['z_score'] = float(self.z_score) if self.z_score is not None else None
             result['sample_rate_hz'] = float(self.sample_rate_hz)
         # Emitted ONLY when the eligibility rule judged this observation (rule active); raw values, scores and
         # notes above are untouched either way.
@@ -966,6 +991,15 @@ class GeoSpecEnsemble:
                 # method-comparability-v1: the station the value rests on and every region it serves (shared
                 # support is not independent regional confirmation).
                 result.support = self.thd_support(f'{station_network}.{station_code}', baseline=baseline)
+                # thd-score-basis-v1: no empirical baseline -> no score. The measured raw_value, the baseline block
+                # and the exclusion stay; the derived numbers that would read as a signal are withheld by name.
+                if eligibility.code in SCORE_BASIS_WITHHOLD_CODES:
+                    result.risk_score = None
+                    result.z_score = None
+                    result.is_elevated = None
+                    result.is_critical = None
+                    result.score_basis = SCORE_BASIS_NOT_COMPUTED
+                    result.notes = _notes_without_score(result.notes)
             return result
 
         except Exception as e:

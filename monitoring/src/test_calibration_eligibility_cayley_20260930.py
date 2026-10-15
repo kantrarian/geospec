@@ -229,7 +229,10 @@ class KaikouraReproduction(unittest.TestCase):
         thd = _thd(r)
         self.assertTrue(thd.available)                                    # numeric availability unchanged
         self.assertAlmostEqual(thd.raw_value, FX.KAIKOURA_THD, places=9)  # raw value visible
-        self.assertAlmostEqual(thd.risk_score, 0.4097225, places=6)       # saved score unchanged
+        # thd-score-basis-v1 (grassmann 2026-10-15, contract cayley 3baa7d1e (b), codex b16fdd32 s.3): the n=0 default's
+        # score is WITHHELD, not saved -- the 0.4097225 this line pinned was a z against a non-empirical default.
+        self.assertIsNone(thd.risk_score); self.assertIsNone(thd.z_score); self.assertIsNone(thd.is_elevated)
+        self.assertEqual(thd.score_basis, "NOT_COMPUTED_NO_EMPIRICAL_BASELINE")
         self.assertEqual(thd.calibration_status, "n0_default")
         self.assertIs(thd.eligible_for_tiering, False)
         self.assertEqual(thd.to_dict()["calibration"]["status"], "n0_default")

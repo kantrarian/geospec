@@ -127,6 +127,10 @@ def detect_stress_release_drops(
                 'tier_name': region_data.get('tier_name', 'NORMAL'),
                 'risk': region_data.get('combined_risk', 0),
                 'z_score': z_score,
+                # A deliberately withheld score is not a zero or a tier-based
+                # z surrogate. A different method's numeric z remains usable.
+                'z_explicitly_withheld': z_score is None and components.get('seismic_thd', {}).get('score_basis')
+                    == 'NOT_COMPUTED_NO_EMPIRICAL_BASELINE',
             })
 
     tier_names = {0: 'NORMAL', 1: 'WATCH', 2: 'ELEVATED', 3: 'CRITICAL'}
@@ -153,6 +157,8 @@ def detect_stress_release_drops(
 
             prior_z = prev.get('z_score')
             curr_z = curr.get('z_score')
+            if prev.get('z_explicitly_withheld') or curr.get('z_explicitly_withheld'):
+                continue
             if prior_z is not None and curr_z is not None:
                 delta_z = abs(prior_z - curr_z)
             else:

@@ -398,9 +398,9 @@ class MethodResult:
     available: bool
     raw_value: float  # Primary metric value
     raw_secondary: Optional[float] = None  # Secondary metric if applicable
-    risk_score: float = 0.0
-    is_elevated: bool = False
-    is_critical: bool = False
+    risk_score: Optional[float] = 0.0
+    is_elevated: Optional[bool] = False
+    is_critical: Optional[bool] = False
     notes: str = ""
     # THD baseline context (populated for seismic_thd method)
     baseline_mean: float = 0.0
@@ -408,7 +408,7 @@ class MethodResult:
     baseline_n: int = 0
     baseline_window: str = ""      # e.g., "2025-10-15 to 2026-01-05"
     baseline_quality: str = "unknown"  # good, acceptable, poor, missing
-    z_score: float = 0.0           # Standard deviations above baseline
+    z_score: Optional[float] = 0.0  # None when deliberately withheld; otherwise standard deviations above baseline
     sample_rate_hz: float = 0.0    # Native sample rate of station
     frozen: bool = False           # INCIDENT freeze: computed but EXCLUDED from tier (visible + annotated)
     # calibration-eligibility-v1 (prospective; populated ONLY when the rule is active, so inactive output is

@@ -21,7 +21,6 @@ import calibration_eligibility as CE
 import calibration_eligibility_fixtures as FX
 import ensemble as E
 import method_comparability as MC
-import stress_release_detector as SRD
 
 DAY = datetime(2026, 9, 28)
 FRESH = "2026-05-29 to 2026-08-27"          # end 32 d before DAY; calibrated 2026-09-26 (R3 lag honoured)
@@ -114,29 +113,9 @@ class ComposedReaders(unittest.TestCase):
         self.assertEqual(q["state"], MC._REFUSED_STATUS_STATE.get("n0_default", q["state"]))
         self.assertNotIn(q["state"], (MC.VALID, MC.VALID_ZERO))
 
-    def test_stress_reader_does_not_recompute_a_z_from_the_withheld_default(self):
-        record = {"regions": {"kaikoura": {"tier": -1, "components": {"seismic_thd": thd(self.res).to_dict()}}}}
-        hist = {}
-        # the loop body of detect_stress_release_drops, as it reads one record
-        region_data = record["regions"]["kaikoura"]; components = region_data["components"]
-        z = None
-        for method in ("seismic_thd", "lambda_geo", "fault_correlation"):
-            comp = components.get(method, {})
-            if comp.get("available") and comp.get("z_score") is not None:
-                z = comp["z_score"]; break
-        self.assertIsNone(z)
-        thd_comp = components["seismic_thd"]
-        self.assertTrue(thd_comp.get("score_basis"))
-        self.assertTrue(thd_comp.get("baseline") and thd_comp["baseline"]["std"] > 0, "the default block is present and WOULD recompute without the guard")
-        # the production module's guard: run the real reader over a one-record directory
-        import tempfile
-        with tempfile.TemporaryDirectory() as d:
-            with open(os.path.join(d, "ensemble_2026-10-13.json"), "w", encoding="utf-8") as fh:
-                json.dump({"date": "2026-10-13", "regions": record["regions"]}, fh)
-            drops = SRD.detect_stress_release_drops(results_dir=d) if "results_dir" in SRD.detect_stress_release_drops.__code__.co_varnames else None
-        self.assertTrue(drops is None or all(getattr(x, "region", "") != "kaikoura" for x in drops))
-        src = open(SRD.__file__, encoding="utf-8").read()
-        self.assertIn("if thd.get('score_basis'):", src, "the recompute guard is in the production reader")
+    # The stress-reader check lives in test_score_reader_contract_codex_20261015.py (codex a96c47cc): my earlier
+    # version here probed a `results_dir` parameter the real reader does not have, so it never ran the reader -- vacuous,
+    # replaced by the five real-reader tests codex supplied.
 
 
 class HistoricalRecords(unittest.TestCase):

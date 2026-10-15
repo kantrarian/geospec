@@ -54,12 +54,32 @@ CALIBRATION_ADDITIONS = {
     "IU.SNZO": "owner 2026-10-14 'yes, add SNZO to the calibration list' (68e91628): kaikoura's bound station, BHZ 40 Hz",
 }
 
+# Calibrated stations that NO configured region reads: their weekly recal is no longer COLLECTED. Collection-cost
+# maintenance, not a qualification change (codex 72777c8b: "a small explicit collection-list change from configured
+# stations plus approved calibration additions, retaining historical baselines and any declared research consumers";
+# owner 2026-10-15 in cayley's session: "start the collection-list trim while waiting"). Explicit and attributed, like
+# the additions; a test keeps every collected station configured or approved, and every retired one unconfigured.
+# Nothing is deleted: each retired station's newest recalibrated record is RETAINED in every new file with its own
+# calibration_date (so the ordinary age rules expire it), dated files and built-in records stay, and `--stations` can
+# still name a retired station explicitly.
+COLLECTION_RETIRED = {
+    "BK.BKS": "owner 2026-10-10 'brk replaces bks' (643dd746): norcal_hayward reads BK.BRK since GeoSpec ac79f2ba; "
+              "BKS's whole feed stopped upstream 2026-10-02",
+    "GE.ARPR": "configured by no region (istanbul_marmara and turkey_kahramanmaras read IU.ANTO); 20 Hz; its built-in "
+               "record is an UNCALIBRATED manual estimate",
+    "GE.CSS": "configured by no region; its built-in record is an UNCALIBRATED manual estimate",
+}
+
 
 def _calibratable_stations():
-    """Stations with a real prior calibration window (skip UNCALIBRATED manual estimates), plus the owner-approved
-    CALIBRATION_ADDITIONS (in their declared order, never duplicated)."""
+    """Stations with a real prior calibration window (skip UNCALIBRATED manual estimates) that are not
+    COLLECTION_RETIRED, plus the owner-approved CALIBRATION_ADDITIONS (in their declared order, never duplicated).
+    A station both retired and added is a contradiction and refuses."""
+    both = sorted(set(COLLECTION_RETIRED) & set(CALIBRATION_ADDITIONS))
+    if both:
+        raise ValueError("stations both retired from collection and added for calibration: %s" % both)
     real = [k for k, b in STATION_BASELINES.items()
-            if b.calibration_period and b.calibration_period != "UNCALIBRATED"]
+            if b.calibration_period and b.calibration_period != "UNCALIBRATED" and k not in COLLECTION_RETIRED]
     return real + [k for k in CALIBRATION_ADDITIONS if k not in real]
 
 
@@ -128,6 +148,9 @@ def run_recal(stations, end_date=None, dry_run=False):
     if dry_run:
         for s in stations:
             print(f"  would recal {s} over {window_start.date()}..{window_end.date()}")
+        for s in COLLECTION_RETIRED:
+            if s not in stations:
+                print(f"  not collected {s} (newest recalibrated record retained, if any)")
         return None
 
     out = {}
@@ -203,6 +226,17 @@ def run_recal(stations, end_date=None, dry_run=False):
             entry["measurement"] = {"identity": "UNIDENTIFIED", "error_class": type(_e).__name__}
         out[key] = entry
         attempts.append(dict(station=key, attempted_utc=attempted_utc, outcome="VALUE", disposition="RECALIBRATED"))
+    # COLLECTION_RETIRED (cayley 2026-10-15): not fetched. The newest recalibrated record is carried forward as the
+    # loader parsed it (its own calibration_date and period), so readers keep it and its age expires it; nothing is
+    # deleted. A retired station named explicitly in `stations` was fetched above instead.
+    for key in COLLECTION_RETIRED:
+        if key in stations or key in out or key not in prior:
+            continue
+        out[key] = dict(prior[key])
+        attempts.append(dict(station=key, attempted_utc=attempted_utc, outcome="NOT_COLLECTED",
+                             reason=COLLECTION_RETIRED[key], disposition="PRIOR_RECORD_RETAINED",
+                             retained_calibration_date=prior[key].get("calibration_date"),
+                             retained_period=prior[key].get("calibration_period")))
     if not any(a.get("disposition") == "RECALIBRATED" for a in attempts):
         logger.error("recal produced no station baselines; NOT writing (keeping prior file)")
         return None

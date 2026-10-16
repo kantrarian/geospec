@@ -12,7 +12,7 @@
   "max_leverage": 0.5,
   "envelope_factor": 1.5
  },
- "updated": "2026-10-15T07:06:29.841369",
+ "updated": "2026-10-16T07:02:45.754323",
  "days": {
   "2026-07-28": {
    "ridgecrest": {
@@ -14435,6 +14435,198 @@
     "raw_ratio": 0.1,
     "api7": 134.31015808,
     "r30": 404.5,
+    "beta": [
+     -0.98132745363,
+     0.0039482402184,
+     -0.0033471429574
+    ],
+    "n_fit": 305,
+    "fitted_date": "2026-10-07",
+    "r5_computed": true,
+    "r5_active": false
+   }
+  },
+  "2026-10-14": {
+   "ridgecrest": {
+    "stat": 0.32907665368,
+    "residual_percentile": 0.75080906149,
+    "residual_rank_index": 232,
+    "raw_ratio": 0.3107878451,
+    "api7": 4.0131496007,
+    "r30": 5.5,
+    "beta": [
+     -1.607934826,
+     0.011397845205,
+     0.0011835233803
+    ],
+    "n_fit": 309,
+    "fitted_date": "2026-10-07",
+    "r5_computed": true,
+    "r5_active": false
+   },
+   "socal_saf_mojave": {
+    "stat": 0.25262109672,
+    "residual_percentile": 0.63106796117,
+    "residual_rank_index": 195,
+    "raw_ratio": 0.29902046078,
+    "api7": 18.493520747,
+    "r30": 23.4,
+    "beta": [
+     -1.4141077062,
+     0.0080974524088,
+     -0.0055795608304
+    ],
+    "n_fit": 309,
+    "fitted_date": "2026-10-07",
+    "r5_computed": true,
+    "r5_active": false
+   },
+   "socal_saf_coachella": {
+    "stat": 0.12275009811,
+    "residual_percentile": 0.27184466019,
+    "residual_rank_index": 84,
+    "raw_ratio": 0.16377987478,
+    "api7": 20.695177152,
+    "r30": 30.7,
+    "beta": [
+     -1.7346226726,
+     0.022786001243,
+     -0.0069071595034
+    ],
+    "n_fit": 309,
+    "fitted_date": "2026-10-07",
+    "r5_computed": true,
+    "r5_active": false
+   },
+   "norcal_hayward": {
+    "r5_active": false
+   },
+   "cascadia": {
+    "stat": 0.12577649933,
+    "residual_percentile": 0.43365695793,
+    "residual_rank_index": 134,
+    "raw_ratio": 0.11125121134,
+    "api7": 5.313428602,
+    "r30": 26.7,
+    "beta": [
+     -1.9773523542,
+     -0.00036990034171,
+     0.0014701670057
+    ],
+    "n_fit": 309,
+    "fitted_date": "2026-10-07",
+    "r5_computed": true,
+    "r5_active": false
+   },
+   "tokyo_kanto": {
+    "stat": 0.1,
+    "residual_percentile": 0.0,
+    "residual_rank_index": 0,
+    "raw_ratio": 0.1,
+    "api7": 43.663954863,
+    "r30": 353.9,
+    "beta": [
+     -1.7636859964,
+     -0.0039907302533,
+     0.0029119951242
+    ],
+    "n_fit": 309,
+    "fitted_date": "2026-10-07",
+    "r5_computed": true,
+    "r5_active": false
+   },
+   "istanbul_marmara": {
+    "stat": 0.1,
+    "residual_percentile": 0.016233766234,
+    "residual_rank_index": 5,
+    "raw_ratio": 0.1,
+    "api7": 80.67676581,
+    "r30": 184.0,
+    "beta": [
+     -2.2723731281,
+     0.0020436716582,
+     -0.00014912984653
+    ],
+    "n_fit": 308,
+    "fitted_date": "2026-10-07",
+    "r5_computed": true,
+    "r5_active": false
+   },
+   "campi_flegrei": {
+    "stat": 0.1,
+    "residual_percentile": 0.0,
+    "residual_rank_index": 0,
+    "raw_ratio": 0.1,
+    "api7": 62.829849876,
+    "r30": 116.4,
+    "beta": [
+     -1.689101015,
+     0.00021837881701,
+     0.0075954620672
+    ],
+    "n_fit": 290,
+    "fitted_date": "2026-10-07",
+    "r5_computed": true,
+    "r5_active": false
+   },
+   "kaikoura": {
+    "stat": 0.19204163931,
+    "residual_percentile": 0.8137254902,
+    "residual_rank_index": 249,
+    "raw_ratio": 0.18995856232,
+    "api7": 21.121071736,
+    "r30": 107.1,
+    "beta": [
+     -1.9749271087,
+     0.0015497458981,
+     -0.00097971276531
+    ],
+    "n_fit": 306,
+    "fitted_date": "2026-10-07",
+    "r5_computed": true,
+    "r5_active": false
+   },
+   "anchorage": {
+    "stat": 0.29383240099,
+    "residual_percentile": 0.80258899676,
+    "residual_rank_index": 248,
+    "raw_ratio": 0.23199751396,
+    "api7": 51.950690142,
+    "r30": 141.1,
+    "beta": [
+     -2.1619571204,
+     -0.0090229909151,
+     0.0059067395255
+    ],
+    "n_fit": 309,
+    "fitted_date": "2026-10-07",
+    "r5_computed": true,
+    "r5_active": false
+   },
+   "kumamoto": {
+    "stat": 0.12506177013,
+    "residual_percentile": 0.30225080386,
+    "residual_rank_index": 94,
+    "raw_ratio": 0.1654530474,
+    "api7": 39.389554511,
+    "r30": 156.9,
+    "beta": [
+     -1.5669529998,
+     -0.0073048196399,
+     0.0050380315885
+    ],
+    "n_fit": 311,
+    "fitted_date": "2026-10-07",
+    "r5_computed": true,
+    "r5_active": false
+   },
+   "mexico_guerrero": {
+    "stat": 0.15911305574,
+    "residual_percentile": 0.4262295082,
+    "residual_rank_index": 130,
+    "raw_ratio": 0.1,
+    "api7": 125.86992361,
+    "r30": 387.4,
     "beta": [
      -0.98132745363,
      0.0039482402184,

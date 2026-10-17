@@ -1,0 +1,169 @@
+{
+ "carriers": {
+  "istanbul_marmara": {
+   "b1a_carrier_max": 2.844,
+   "b1a_top_edges": [
+    {
+     "edge": "KO.HRTX|KO.ISK",
+     "window_max_mean_abs_z": 2.844
+    },
+    {
+     "edge": "KO.NMR2|KO.NMR3",
+     "window_max_mean_abs_z": 2.439
+    },
+    {
+     "edge": "KO.HRTX|KO.KAVV",
+     "window_max_mean_abs_z": 2.352
+    },
+    {
+     "edge": "KO.HRTX|KO.NMR3",
+     "window_max_mean_abs_z": 2.335
+    },
+    {
+     "edge": "KO.GULT|KO.HRTX",
+     "window_max_mean_abs_z": 2.3
+    }
+   ],
+   "b2a": {
+    "accepted_days": 29,
+    "max_run_len": 1,
+    "n_runs": 29,
+    "refusal_codes": {
+     "NODESET_MISMATCH": 16,
+     "NO_REGISTERED_SNAPSHOT": 15
+    },
+    "run_lengths_top": [
+     1,
+     1,
+     1,
+     1,
+     1,
+     1,
+     1,
+     1
+    ]
+   },
+   "coverage": {
+    "edges_per_day_median": 55.0,
+    "edges_per_day_min": 36,
+    "n_edges_seen": 66,
+    "n_stations": 12,
+    "station_presence_min": 0.559,
+    "stations_below_half": []
+   }
+  },
+  "socal_coachella": {
+   "b1a_carrier_max": 4.885,
+   "b1a_top_edges": [
+    {
+     "edge": "CI.COA|CI.CSH",
+     "window_max_mean_abs_z": 4.885
+    },
+    {
+     "edge": "CI.ANG|CI.COA",
+     "window_max_mean_abs_z": 4.415
+    },
+    {
+     "edge": "CI.BOR|CI.COA",
+     "window_max_mean_abs_z": 4.174
+    },
+    {
+     "edge": "CI.BEL|CI.COA",
+     "window_max_mean_abs_z": 4.144
+    },
+    {
+     "edge": "CI.BAR|CI.BEL",
+     "window_max_mean_abs_z": 3.788
+    }
+   ],
+   "b2a": {
+    "accepted_days": 43,
+    "max_run_len": 7,
+    "n_runs": 22,
+    "refusal_codes": {
+     "NODESET_MISMATCH": 1,
+     "NO_REGISTERED_SNAPSHOT": 16
+    },
+    "run_lengths_top": [
+     7,
+     5,
+     4,
+     4,
+     3,
+     2,
+     2,
+     2
+    ]
+   },
+   "coverage": {
+    "edges_per_day_median": 66.0,
+    "edges_per_day_min": 66,
+    "n_edges_seen": 66,
+    "n_stations": 12,
+    "station_presence_min": 1.0,
+    "stations_below_half": []
+   }
+  },
+  "turkey_kahramanmaras": {
+   "b1a_carrier_max": 31.477,
+   "b1a_top_edges": [
+    {
+     "edge": "KO.KOZT|KO.MLTY",
+     "window_max_mean_abs_z": 31.477
+    },
+    {
+     "edge": "KO.KARA|KO.KOZT",
+     "window_max_mean_abs_z": 19.2
+    },
+    {
+     "edge": "KO.KOZT|KO.NURH",
+     "window_max_mean_abs_z": 16.438
+    },
+    {
+     "edge": "KO.GAZ|KO.KOZT",
+     "window_max_mean_abs_z": 12.936
+    },
+    {
+     "edge": "KO.AKDG|KO.KOZT",
+     "window_max_mean_abs_z": 12.613
+    }
+   ],
+   "b2a": {
+    "accepted_days": 32,
+    "max_run_len": 3,
+    "n_runs": 25,
+    "refusal_codes": {
+     "NODESET_MISMATCH": 13,
+     "NO_REGISTERED_SNAPSHOT": 15
+    },
+    "run_lengths_top": [
+     3,
+     2,
+     2,
+     2,
+     2,
+     2,
+     1,
+     1
+    ]
+   },
+   "coverage": {
+    "edges_per_day_median": 45.0,
+    "edges_per_day_min": 15,
+    "n_edges_seen": 55,
+    "n_stations": 11,
+    "station_presence_min": 0.153,
+    "stations_below_half": [
+     "KO.KHMN"
+    ]
+   }
+  }
+ },
+ "lane": "EXPLORATORY -- zero claim weight; hypothesis generation for the next-window prereg only",
+ "schema": "f2g-poc-review-exploratory-v1",
+ "sealed_reference": {
+  "B1A_p": 0.0928,
+  "B2A_p": 0.0953,
+  "B3A_p": 0.3945
+ }
+}

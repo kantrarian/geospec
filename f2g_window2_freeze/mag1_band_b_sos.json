@@ -1,0 +1,39 @@
+{
+ "apply": {
+  "function": "scipy.signal.sosfiltfilt",
+  "padlen_integer": 27,
+  "padlen_rule": "the sosfiltfilt default for this SOS, fixed as an integer",
+  "padtype": "odd"
+ },
+ "causal_span": {
+  "last_index_above": 266,
+  "threshold": 1e-12
+ },
+ "design": {
+  "band_hz": [
+   0.001,
+   0.004
+  ],
+  "btype": "bandpass",
+  "family": "butterworth",
+  "fs_hz": 0.016666666666666666,
+  "library": "scipy 1.18.0",
+  "order": 4,
+  "output": "sos"
+ },
+ "edge_exclusion_samples_per_boundary": 532,
+ "kats": [
+  "N=532",
+  "N=1064",
+  "N=1065",
+  "impulse boundary 266/267",
+  "single NaN split",
+  "100-sample gap",
+  "dual-host byte-equal energy"
+ ],
+ "schema": "f2g-mag1-band-b-sos-v1",
+ "serialization_rule": "EXACT default-spaced Python json.dumps(sos.tolist()) (NOT compact canonical JSON); the digest below is of those bytes",
+ "sos_serialized": "[[0.03335084842611003, 0.06670169685222006, 0.03335084842611003, 1.0, -0.4335022458108813, 0.1895651670998254], [1.0, 2.0, 1.0, 1.0, -1.2817075462737266, 0.47136073583231775], [1.0, -2.0, 1.0, 1.0, -0.14604207871941982, 0.5907699948149516], [1.0, -2.0, 1.0, 1.0, -1.6866172950190808, 0.8219689177869957]]",
+ "sos_serialized_sha256": "77bceec4003b75d11ac671d86fb79342a265a12364fc6101e80decdd6e9a7f29",
+ "usable_support_rule": "usable_N = N - 2*532 per contiguous segment; FILTER_SUPPORT_INSUFFICIENT iff usable_N <= 0 (i.e. N <= 1064); the 90% day floor applies only to positive surviving support"
+}

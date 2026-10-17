@@ -1,0 +1,29 @@
+{
+ "carrier": "istanbul_marmara",
+ "cutoff": "2026-08-27",
+ "endpoint": "http://eida.koeri.boun.edu.tr/fdsnws/station/1/query",
+ "expected_keys": [
+  "2026-08-17"
+ ],
+ "lane": "SELECTION_RECORDS",
+ "operation_params": {
+  "carrier": "istanbul_marmara",
+  "day": "2026-08-17"
+ },
+ "request_params": {
+  "cha": "HHZ",
+  "endtime": "2026-08-18",
+  "format": "text",
+  "level": "channel",
+  "net": "KO",
+  "nodata": "404",
+  "sta": "ADVT,BOTS,GAZK,GEML,GULT,HRTX,ISK,KAVV,KRBG,MDNY,NMR2,NMR3",
+  "starttime": "2026-08-17"
+ },
+ "schema": "f2g-w2-static-contract-v1",
+ "source": {
+  "kind": "fdsn-station-channel",
+  "ref": "http://eida.koeri.boun.edu.tr/fdsnws/station/1/query"
+ },
+ "utc_day": "2026-08-17"
+}

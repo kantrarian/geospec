@@ -483,6 +483,13 @@ class DailyIntegrationTests(unittest.TestCase):
             self.assertEqual(R.verify(str(ROOT), BASE, d), [])
             self.assertEqual(R.main(["--repo", str(ROOT), "--rev", BASE, "--verify", d]), 0)
             self.assertEqual(R.main(["--repo", str(ROOT), "--rev", self.parent, "--verify", d]), 3, "not the parent's inputs")
+            index = Path(d, "index.json")
+            original = index.read_bytes()
+            changed = json.loads(original)
+            changed["preservation"]["equal"] += 1
+            index.write_bytes(json.dumps(changed).encode("utf-8"))
+            self.assertEqual(R.main(["--repo", str(ROOT), "--rev", BASE, "--verify", d]), 3, "index content beyond the build block")
+            index.write_bytes(original)
             target = Path(d, "hualien.json")
             target.write_bytes(target.read_bytes().replace(b'"MEASURED"', b'"MEASURE"', 1))
             self.assertEqual(R.main(["--repo", str(ROOT), "--rev", BASE, "--verify", d]), 3)

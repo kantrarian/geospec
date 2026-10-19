@@ -248,6 +248,39 @@ class BuildTests(unittest.TestCase):
                 s = next(s for s in d["superseded"] if rev in (s["source"].get("commit"), s["source"].get("run_id")))
                 self.assertEqual(list(R._csv_shape(s["combined"]["recorded"])), m["csv"])
 
+    def test_a_retained_report_that_does_not_match_its_recorded_identity_refuses(self):
+        real_show = R._show
+        def tampered(repo, rev, path):
+            data = real_show(repo, rev, path)
+            if path == R.CAPSULE_REL:
+                capsule = json.loads(data)
+                capsule["records"][-1]["sha256"] = "0" * 64
+                return json.dumps(capsule).encode("utf-8")
+            if path == R.JOURNAL_REL:
+                return data
+            return data
+        R._show = tampered
+        try:
+            with self.assertRaises(R.Refused) as caught:
+                R.load_reports(str(ROOT), BASE)
+            self.assertTrue(str(caught.exception).startswith("LEGACY_BLOB_MISMATCH"))
+        finally:
+            R._show = real_show
+        def tampered_journal(repo, rev, path):
+            data = real_show(repo, rev, path)
+            if path == R.JOURNAL_REL:
+                lines = data.decode("utf-8").splitlines()
+                entry = json.loads(lines[-1]); entry["sha256"] = "0" * 64; lines[-1] = json.dumps(entry)
+                return ("\n".join(lines) + "\n").encode("utf-8")
+            return data
+        R._show = tampered_journal
+        try:
+            with self.assertRaises(R.Refused) as caught:
+                R.load_reports(str(ROOT), BASE)
+            self.assertTrue(str(caught.exception).startswith("REVISION_SHA256_MISMATCH"))
+        finally:
+            R._show = real_show
+
     def test_writer_refuses_a_directory_it_did_not_write(self):
         with tempfile.TemporaryDirectory() as tmp:
             out = Path(tmp) / "raw"

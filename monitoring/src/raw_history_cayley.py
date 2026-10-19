@@ -19,8 +19,10 @@ recalibrates or rewrites a published value; scores are shown as recorded under t
 Per method (seismic_thd, lambda_geo, fault_correlation) and day:
   recorded      the report's own fields, verbatim (available, raw_value, raw_secondary, risk_score, frozen, notes)
   raw.value     raw_value ONLY when available is true and it is a finite number; otherwise null
-  raw.state     MEASURED | AVAILABLE_NONNUMERIC | UNAVAILABLE_ZERO_PLACEHOLDER (available false with raw_value 0: a
-                legacy placeholder, never a measurement) | UNAVAILABLE | NOT_IN_REPORT | NO_REPORT
+  raw.state     MEASURED | AVAILABLE_NONNUMERIC | UNAVAILABLE_ZERO_PLACEHOLDER (available not true with raw_value 0: a
+                legacy placeholder, never a measurement) | UNCONFIRMED_NONZERO (available not true with a finite nonzero
+                raw_value: kept as raw.unconfirmed_value, shown flagged, never a measurement or admitted -- as in codex's
+                viewer 5d8095ca) | UNAVAILABLE | NOT_IN_REPORT | NO_REPORT
   score.value   the recorded risk_score only when the method was available and it is a finite number
   score.state   RECORDED | WITHHELD (null, with any recorded score_basis) | NONNUMERIC | METHOD_UNAVAILABLE
                 | NOT_IN_REPORT | NO_REPORT
@@ -29,7 +31,7 @@ Per method (seismic_thd, lambda_geo, fault_correlation) and day:
   calibration   baseline, z_score, calibration, score_basis, sample_rate_hz -- only the keys the report has (an absent
                 key stays absent: unknown; no formula is applied to a record that did not carry it)
   station       for THD, the recorded notes' "sta=" text (basis NOTES_TEXT); otherwise absent
-  warnings      FROZEN, CALIBRATION_<STATUS> (status other than calibrated), BASELINE_QUALITY_<QUALITY> (other than
+  warnings      UNCONFIRMED_MEASUREMENT_STATUS, FROZEN, CALIBRATION_<STATUS> (status other than calibrated), BASELINE_QUALITY_<QUALITY> (other than
                 good), ZERO_SAMPLE_BASELINE, NOT_ADMITTED_<STATE> (a measured value its method set excluded), and one
                 DERIVED here: REPEATS_PREVIOUS_MEASURED_VALUE (exactly equal, at full precision, to the method's previous
                 measured day in this series: a likely carried-forward value; the report's own frozen flag may be false)
@@ -100,8 +102,10 @@ def method_entry(name, comp, region_report):
     available, raw, risk = comp.get("available"), comp.get("raw_value"), comp.get("risk_score")
     if available is True:
         raw_state = "MEASURED" if _finite(raw) else "AVAILABLE_NONNUMERIC"
+    elif _finite(raw):
+        raw_state = "UNAVAILABLE_ZERO_PLACEHOLDER" if raw == 0 else "UNCONFIRMED_NONZERO"
     else:
-        raw_state = "UNAVAILABLE_ZERO_PLACEHOLDER" if _finite(raw) and raw == 0 else "UNAVAILABLE"
+        raw_state = "UNAVAILABLE"
     measured = raw_state == "MEASURED"
     secondary = comp.get("raw_secondary")
     if available is not True:
@@ -116,6 +120,8 @@ def method_entry(name, comp, region_report):
              "raw": {"value": raw if measured else None, "state": raw_state,
                      "secondary": secondary if measured and _finite(secondary) else None},
              "score": {"value": risk if score_state == "RECORDED" else None, "state": score_state}}
+    if raw_state == "UNCONFIRMED_NONZERO":
+        entry["raw"]["unconfirmed_value"] = raw
     calibration = {k: comp[k] for k in CALIBRATION_KEYS if k in comp}
     if calibration:
         entry["calibration"] = calibration
@@ -136,7 +142,7 @@ def method_entry(name, comp, region_report):
         match = _STATION_RE.search(notes)
         if match:
             entry["station"] = {"value": match.group(1), "basis": "NOTES_TEXT"}
-    warnings = []
+    warnings = ["UNCONFIRMED_MEASUREMENT_STATUS"] if raw_state == "UNCONFIRMED_NONZERO" else []
     if comp.get("frozen") is True:
         warnings.append("FROZEN")
     status = (calibration.get("calibration") or {}).get("status") if isinstance(calibration.get("calibration"), dict) else None

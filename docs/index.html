@@ -1582,7 +1582,7 @@
         // Raw-first history (cayley 2026-10-19; codex bbe31a10). docs/raw_history/ holds, per region and day, the input values
         // retained in the named report beside the scores that report recorded. Nothing here recomputes a score or fills a gap.
         const RAW_METHOD_LABELS = { seismic_thd: 'THD', lambda_geo: 'LG', fault_correlation: 'FC' };
-        const RAW_COLUMNS = ['date', 'source', 'raw_value', 'raw_state', 'raw_secondary', 'score', 'score_state', 'admission',
+        const RAW_COLUMNS = ['date', 'source', 'raw_value', 'raw_state', 'recorded_raw_value', 'raw_secondary', 'score', 'score_state', 'admission',
             'weight', 'baseline_window', 'baseline_mean', 'baseline_std', 'baseline_n', 'baseline_quality', 'z_score',
             'calibration', 'score_basis', 'station', 'warnings', 'combined', 'combined_state', 'csv_published_risk',
             'csv_disagrees', 'superseded_revisions', 'notes'];
@@ -1598,8 +1598,8 @@
         }
 
         function rawSeries(days, method) {
-            const out = { dates: [], raw: [], score: [], scoreNotAdmitted: [], combined: [], csvCombined: [],
-                gaps: [], baselineChanges: [] };
+            const out = { dates: [], raw: [], frozen: [], unconfirmed: [], baselineMean: [], baselineStd: [], score: [],
+                scoreNotAdmitted: [], combined: [], csvCombined: [], gaps: [], baselineChanges: [] };
             let lastWindow = null;
             for (const d of days) {
                 const m = (d.methods || {})[method] || {};
@@ -1608,7 +1608,13 @@
                 const comb = d.combined || {};
                 out.dates.push(d.date);
                 const rv = raw.state === 'MEASURED' ? rawNumber(raw.value) : null;
-                out.raw.push(rv);
+                const frozen = rv !== null && (m.warnings || []).includes('FROZEN');
+                out.raw.push(frozen ? null : rv);          // the measured line: neither frozen nor unconfirmed values
+                out.frozen.push(frozen ? rv : null);       // grey, disconnected
+                out.unconfirmed.push(raw.state === 'UNCONFIRMED_NONZERO' ? rawNumber(raw.unconfirmed_value) : null);
+                const bm = rawNumber(baseline.mean), bs = rawNumber(baseline.std);
+                out.baselineMean.push(method === 'seismic_thd' && bm !== null && bs !== null ? bm : null);
+                out.baselineStd.push(method === 'seismic_thd' && bm !== null && bs !== null ? bs : null);
                 const sv = score.state === 'RECORDED' ? rawNumber(score.value) : null;
                 const admitted = sv !== null && admission.included === true;
                 out.score.push(admitted ? sv : null);
@@ -1617,7 +1623,7 @@
                 const csv = d.csv;
                 const csvRisk = csv ? parseFloat(csv.risk) : NaN;
                 out.csvCombined.push(csv && parseInt(csv.methods, 10) > 0 && Number.isFinite(csvRisk) ? csvRisk : null);
-                if (rv === null) out.gaps.push({ date: d.date, state: raw.state || 'UNKNOWN', combined: comb.state || 'UNKNOWN' });
+                if (rv === null && raw.state !== 'UNCONFIRMED_NONZERO') out.gaps.push({ date: d.date, state: raw.state || 'UNKNOWN', combined: comb.state || 'UNKNOWN' });
                 const w = typeof baseline.window === 'string' ? baseline.window : null;
                 if (w !== null && lastWindow !== null && w !== lastWindow) out.baselineChanges.push({ date: d.date, from: lastWindow, to: w });
                 if (w !== null) lastWindow = w;
@@ -1636,6 +1642,7 @@
                     source: [src.kind, src.commit || src.run_id || ''].filter(Boolean).join(' '),
                     raw_value: rawCell(raw.state === 'MEASURED' ? raw.value : null),
                     raw_state: rawCell(raw.state),
+                    recorded_raw_value: m.recorded && 'raw_value' in m.recorded ? rawCell(m.recorded.raw_value) : '',
                     raw_secondary: rawCell(raw.secondary),
                     score: rawCell(score.state === 'RECORDED' ? score.value : null),
                     score_state: rawCell(score.state),
@@ -1672,9 +1679,10 @@
             const counts = {};
             series.gaps.forEach(g => { counts[g.state] = (counts[g.state] || 0) + 1; });
             const parts = Object.keys(counts).sort().map(k => k + ' ' + counts[k]);
+            const flagged = series.frozen.filter(v => v !== null).length, unconfirmed = series.unconfirmed.filter(v => v !== null).length;
             return series.gaps.length + ' of ' + series.dates.length + ' days have no measured value' +
                 (parts.length ? ' (' + parts.join(', ') + ')' : '') + '; ' + series.baselineChanges.length +
-                ' baseline-window changes. A gap is never drawn as zero.';
+                ' baseline-window changes; ' + flagged + ' frozen and ' + unconfirmed + ' unconfirmed values drawn apart. A gap is never drawn as zero.';
         }
 
         function rawPlotSpec(series, method, doc) {
@@ -1682,6 +1690,13 @@
             const traces = [
                 { x: series.dates, y: series.raw, name: label + ' measured value', type: 'scatter', mode: 'lines+markers',
                   connectgaps: false, yaxis: 'y', line: { color: '#4a9eff', width: 1.5 }, marker: { size: 4 } },
+                { x: series.dates, y: series.frozen, name: label + ' frozen value (flagged)', type: 'scatter', mode: 'markers',
+                  yaxis: 'y', marker: { color: '#9ca3af', size: 5 } },
+                { x: series.dates, y: series.unconfirmed, name: label + ' value with unconfirmed status (not admitted)', type: 'scatter',
+                  mode: 'markers', yaxis: 'y', marker: { color: '#f59e0b', size: 7, symbol: 'circle-open' } },
+                { x: series.dates, y: series.baselineMean, name: 'recorded baseline mean ± 1 sd (reference, not a confidence interval)',
+                  type: 'scatter', mode: 'markers', yaxis: 'y', marker: { color: '#eab308', size: 2 },
+                  error_y: { type: 'data', array: series.baselineStd, visible: true, color: 'rgba(234,179,8,0.35)', thickness: 1, width: 0 } },
                 { x: series.dates, y: series.score, name: label + ' score as recorded (carried the day)', type: 'scatter',
                   mode: 'markers', yaxis: 'y2', marker: { color: '#f97316', size: 5 } },
                 { x: series.dates, y: series.scoreNotAdmitted, name: label + ' score recorded, not carried', type: 'scatter',
@@ -1695,17 +1710,17 @@
                   hoverinfo: 'x+text', marker: { symbol: 'line-ns-open', color: '#64748b', size: 9 } }
             ];
             const shapes = series.baselineChanges.map(c => ({ type: 'line', xref: 'x', yref: 'paper', x0: c.date, x1: c.date,
-                y0: 0.1, y1: 1, line: { color: '#eab308', width: 1, dash: 'dash' } }));
+                y0: 0.08, y1: 1, line: { color: '#eab308', width: 1, dash: 'dash' } }));
             const layout = {
                 paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)',
                 font: { color: '#e8e8f0', family: 'JetBrains Mono, monospace', size: 11 },
                 xaxis: { gridcolor: '#2a2a3a', title: 'Scored day' },
-                yaxis: { gridcolor: '#2a2a3a', domain: [0.12, 1], autorange: true, rangemode: 'normal',
+                yaxis: { gridcolor: '#2a2a3a', domain: [0.5, 1], autorange: true, rangemode: 'normal',
                          title: label + ' measured value (unit not recorded' + (doc && doc.raw ? '; documented: ' + doc.raw : '') + ')' },
-                yaxis2: { overlaying: 'y', side: 'right', autorange: true, rangemode: 'tozero', showgrid: false,
+                yaxis2: { gridcolor: '#2a2a3a', domain: [0.1, 0.44], autorange: true, rangemode: 'tozero',
                           title: 'score as recorded (0-1 scale, not a probability)' },
                 yaxis3: { domain: [0, 0.06], showticklabels: false, showgrid: false, zeroline: false, range: [-1, 1] },
-                legend: { orientation: 'h', y: -0.25 }, margin: { t: 30, r: 70, b: 70, l: 70 }, shapes: shapes
+                legend: { orientation: 'h', y: -0.2 }, margin: { t: 30, r: 30, b: 70, l: 70 }, height: 620, shapes: shapes
             };
             return { traces, layout };
         }

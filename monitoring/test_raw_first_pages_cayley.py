@@ -99,6 +99,17 @@ class RecordTests(unittest.TestCase):
         e = R.method_entry("seismic_thd", comp, july)
         self.assertEqual((e["raw"]["state"], e["raw"]["value"]), ("MEASURED", 0.0))
 
+    def test_unconfirmed_nonzero_is_kept_flagged_never_a_measurement(self):
+        # DECLARED SYNTHETIC: history holds no unavailable nonzero raw field; the real record's available flag is edited.
+        july = region("0c99e0ec", "docs/ensemble_latest.json", "hualien")
+        for available in (False, None):
+            comp = dict(july["components"]["seismic_thd"], available=available)
+            e = R.method_entry("seismic_thd", comp, july)
+            self.assertEqual((e["raw"]["state"], e["raw"]["value"], e["raw"]["unconfirmed_value"]),
+                             ("UNCONFIRMED_NONZERO", None, 0.5233468943622342))
+            self.assertEqual((e["score"]["state"], e["score"]["value"]), ("METHOD_UNAVAILABLE", None))
+            self.assertIn("UNCONFIRMED_MEASUREMENT_STATUS", e["warnings"])
+
     def test_raw_above_one_is_not_clamped(self):
         rep, _ = capsule_report("2026-01-12")
         r = rep["regions"]["ridgecrest"]
@@ -304,6 +315,7 @@ class PageTests(unittest.TestCase):
         files = R.build(str(ROOT), BASE)
         cls.hualien = json.loads(files["hualien.json"])["days"]
         cls.ridgecrest = json.loads(files["ridgecrest.json"])["days"]
+        cls.anchorage = json.loads(files["anchorage.json"])["days"]
         cls.functions = page_functions()
 
     def run_js(self, body):
@@ -316,16 +328,40 @@ class PageTests(unittest.TestCase):
         days = {d["date"]: d for d in self.hualien}
         for date, i in by.items():
             thd = days[date]["methods"]["seismic_thd"]
-            expected = thd["raw"]["value"] if thd["raw"]["state"] == "MEASURED" else None
-            self.assertEqual(out["raw"][i], expected, date)
+            measured = thd["raw"]["value"] if thd["raw"]["state"] == "MEASURED" else None
+            frozen = "FROZEN" in thd.get("warnings", [])
+            self.assertEqual((out["raw"][i], out["frozen"][i]), (None if frozen else measured, measured if frozen else None), date)
         i = by["2026-10-07"]
         self.assertEqual((out["raw"][i], out["score"][i], out["scoreNotAdmitted"][i], out["combined"][i], out["csvCombined"][i]),
                          (0.42326726420803307, None, 0.04718178923375134, None, None))
         self.assertIsNone(out["raw"][by["2025-12-01"]])
         # A CSV-only day has no report: the published CSV value is its own trace, never labelled as the report's.
         self.assertEqual((out["combined"][by["2025-12-01"]], out["csvCombined"][by["2025-12-01"]]), (None, 0.0791))
-        self.assertEqual(len(out["gaps"]), sum(1 for d in self.hualien if d["methods"]["seismic_thd"]["raw"]["state"] != "MEASURED"))
+        self.assertEqual(len(out["gaps"]), sum(1 for d in self.hualien if d["methods"]["seismic_thd"]["raw"]["state"]
+                                               not in ("MEASURED", "UNCONFIRMED_NONZERO")))
         self.assertNotIn(0, [out["raw"][by[g["date"]]] for g in out["gaps"]])
+
+    def test_frozen_and_unconfirmed_values_are_drawn_apart_and_whiskers_follow_the_record(self):
+        out = self.run_js("process.stdout.write(JSON.stringify(rawSeries(" + json.dumps(self.anchorage) + ",'seismic_thd')));")
+        i = out["dates"].index("2026-07-30")
+        day = next(d for d in self.anchorage if d["date"] == "2026-07-30")["methods"]["seismic_thd"]
+        self.assertIn("FROZEN", day["warnings"])
+        self.assertEqual((out["raw"][i], out["frozen"][i]), (None, day["raw"]["value"]))
+        self.assertNotIn("2026-07-30", [g["date"] for g in out["gaps"]], "a frozen value is not a gap")
+        for d, mean, std in zip(self.anchorage, out["baselineMean"], out["baselineStd"]):
+            b = (d["methods"]["seismic_thd"].get("calibration") or {}).get("baseline") or {}
+            ok = isinstance(b.get("mean"), (int, float)) and isinstance(b.get("std"), (int, float))
+            self.assertEqual((mean, std), (b["mean"], b["std"]) if ok else (None, None), d["date"])
+        lg = self.run_js("process.stdout.write(JSON.stringify(rawSeries(" + json.dumps(self.anchorage) + ",'lambda_geo')));")
+        self.assertEqual(set(lg["baselineMean"]), {None}, "whiskers are a THD reference only")
+        # DECLARED SYNTHETIC: one real day's THD entry set to an unconfirmed nonzero value (none in history).
+        edited = json.loads(json.dumps(self.anchorage))
+        target = next(d for d in edited if d["date"] == "2026-07-29")
+        target["methods"]["seismic_thd"]["raw"] = {"state": "UNCONFIRMED_NONZERO", "value": None, "unconfirmed_value": 0.4}
+        u = self.run_js("process.stdout.write(JSON.stringify(rawSeries(" + json.dumps(edited) + ",'seismic_thd')));")
+        j = u["dates"].index("2026-07-29")
+        self.assertEqual((u["raw"][j], u["unconfirmed"][j]), (None, 0.4))
+        self.assertNotIn("2026-07-29", [g["date"] for g in u["gaps"]], "an unconfirmed value is shown, not a gap")
 
     def test_baseline_changes_follow_the_recorded_windows(self):
         out = self.run_js("process.stdout.write(JSON.stringify(rawSeries(" + json.dumps(self.hualien) + ",'seismic_thd').baselineChanges));")
@@ -352,12 +388,22 @@ class PageTests(unittest.TestCase):
             score = m["score"]["value"] if m["score"]["state"] == "RECORDED" else None
             self.assertEqual(float(row["score"]) if row["score"] else None, score, day["date"])
         self.assertTrue(any(float(r["raw_value"]) > 1 for r in parsed if r["raw_value"]), "raw > 1 kept")
+        for row, day in zip(parsed, self.ridgecrest):
+            recorded = day["methods"]["lambda_geo"].get("recorded") or {}
+            self.assertEqual(row["recorded_raw_value"], "" if "raw_value" not in recorded else
+                             ("0" if recorded["raw_value"] == 0 else row["recorded_raw_value"]), day["date"])
+            if "raw_value" in recorded:
+                self.assertEqual(float(row["recorded_raw_value"]), recorded["raw_value"], day["date"])
+        placeholders = [r for r, d in zip(parsed, self.ridgecrest) if d["methods"]["lambda_geo"]["raw"]["state"] == "UNAVAILABLE_ZERO_PLACEHOLDER"]
+        self.assertTrue(placeholders)
+        self.assertTrue(all((r["raw_value"], r["recorded_raw_value"]) == ("", "0") for r in placeholders), "placeholder inspectable, not measured")
 
     def test_independent_axes_without_clamping(self):
         out = self.run_js("const s=rawSeries(" + json.dumps(self.hualien) + ",'seismic_thd');" +
                           "process.stdout.write(JSON.stringify(rawPlotSpec(s,'seismic_thd',{raw:'THD value (dimensionless)'})));")
         layout = out["layout"]
-        self.assertEqual((layout["yaxis2"]["overlaying"], layout["yaxis2"]["side"]), ("y", "right"))
+        self.assertNotIn("overlaying", layout["yaxis2"], "stacked panels, each on its own axis")
+        self.assertLessEqual(layout["yaxis2"]["domain"][1], layout["yaxis"]["domain"][0])
         self.assertNotIn("range", layout["yaxis"])
         self.assertNotIn("range", layout["yaxis2"])
         self.assertTrue(all(t["connectgaps"] is False for t in out["traces"] if "lines" in t["mode"]))

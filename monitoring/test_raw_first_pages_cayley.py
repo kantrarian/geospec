@@ -490,6 +490,12 @@ class DailyIntegrationTests(unittest.TestCase):
             index.write_bytes(json.dumps(changed).encode("utf-8"))
             self.assertEqual(R.main(["--repo", str(ROOT), "--rev", BASE, "--verify", d]), 3, "index content beyond the build block")
             index.write_bytes(original)
+            moved = Path(d, "kaikoura.json")
+            kept = moved.read_bytes()
+            moved.unlink()
+            self.assertEqual(R.main(["--repo", str(ROOT), "--rev", BASE, "--verify", d]), 3, "a missing region file")
+            moved.write_bytes(kept)
+            self.assertEqual(R.main(["--repo", str(ROOT), "--rev", BASE, "--verify", d]), 0)
             target = Path(d, "hualien.json")
             target.write_bytes(target.read_bytes().replace(b'"MEASURED"', b'"MEASURE"', 1))
             self.assertEqual(R.main(["--repo", str(ROOT), "--rev", BASE, "--verify", d]), 3)
@@ -566,6 +572,17 @@ class PublishStepTests(unittest.TestCase):
                                      capture_output=True, text=True, timeout=120)
                 self.assertEqual(out.returncode, 0, out.stderr)
                 self.assertIn("RESULT=%s EXIT=%d" % (expected, rc), out.stdout)
+        # A launch that sets no exit code (here a stub with no native command) must not inherit an earlier native 0.
+        with tempfile.TemporaryDirectory() as d:
+            script = ("$ErrorActionPreference = 'Stop'\n$RepoRoot = '%s'\n$DocsDir = '%s'\ncmd /c exit 0 | Out-Null\n"
+                      "function python { 'stub writer that never ran a native command' }\n" % (d, d)) + block + \
+                     "\nWrite-Output ('RESULT=' + $RawHistoryOk + ' EXIT=' + $RawHistoryExit)\n"
+            path = Path(d, "step3c_stale.ps1")
+            path.write_text(script, encoding="utf-8")
+            out = subprocess.run([shell, "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", str(path)],
+                                 capture_output=True, text=True, timeout=120)
+            self.assertEqual(out.returncode, 0, out.stderr)
+            self.assertIn("RESULT=False EXIT=1", out.stdout, "the pinned exit code, never a stale 0")
 
 
 if __name__ == "__main__":

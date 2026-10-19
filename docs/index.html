@@ -1716,7 +1716,7 @@
                 font: { color: '#e8e8f0', family: 'JetBrains Mono, monospace', size: 11 },
                 xaxis: { gridcolor: '#2a2a3a', title: 'Scored day', anchor: 'y3' },
                 yaxis: { gridcolor: '#2a2a3a', domain: [0.5, 1], autorange: true, rangemode: 'normal',
-                         title: label + ' measured value<br>(unit not recorded' + (doc && doc.raw ? '; documented: ' + doc.raw : '') + ')' },
+                         title: label + ' measured value<br>(unit not recorded)' },
                 yaxis2: { gridcolor: '#2a2a3a', domain: [0.1, 0.44], autorange: true, rangemode: 'tozero', side: 'right',
                           title: 'score as recorded<br>(0-1 scale, not a probability)' },
                 yaxis3: { domain: [0, 0.06], showticklabels: false, showgrid: false, zeroline: false, range: [-1, 1] },
@@ -1767,7 +1767,8 @@
                 table.innerHTML = '<thead><tr>' + RAW_COLUMNS.map(c => '<th>' + c + '</th>').join('') + '</tr></thead><tbody>' +
                     rows.map(r => '<tr>' + RAW_COLUMNS.map(c => '<td>' + r[c].replace(/&/g, '&amp;').replace(/</g, '&lt;') + '</td>').join('') + '</tr>').join('') + '</tbody>';
                 status.textContent = 'Retained reports at commit ' + String(rawIndex.source_commit).slice(0, 12) + ' · ' +
-                    body.days.length + ' days · region ' + region.replace(/_/g, ' ') + ' · input ' + (RAW_METHOD_LABELS[method] || method) + '.';
+                    body.days.length + ' days · region ' + region.replace(/_/g, ' ') + ' · input ' + (RAW_METHOD_LABELS[method] || method) +
+                    ' · documented meaning (docs/JSON_SCHEMA.md, not recorded in the reports): ' + (((rawIndex.methods || {})[method] || {}).raw || 'not documented') + '.';
             } catch (e) {
                 status.textContent = 'Retained raw history is not available on this build (' + e.message + '); nothing is substituted.';
             }

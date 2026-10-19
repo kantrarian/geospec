@@ -270,7 +270,8 @@ class PageTests(unittest.TestCase):
         self.assertEqual((out["raw"][i], out["score"][i], out["scoreNotAdmitted"][i], out["combined"][i], out["csvCombined"][i]),
                          (0.42326726420803307, None, 0.04718178923375134, None, None))
         self.assertIsNone(out["raw"][by["2025-12-01"]])
-        self.assertEqual(out["combined"][by["2025-12-01"]], 0.0791)
+        # A CSV-only day has no report: the published CSV value is its own trace, never labelled as the report's.
+        self.assertEqual((out["combined"][by["2025-12-01"]], out["csvCombined"][by["2025-12-01"]]), (None, 0.0791))
         self.assertEqual(len(out["gaps"]), sum(1 for d in self.hualien if d["methods"]["seismic_thd"]["raw"]["state"] != "MEASURED"))
         self.assertNotIn(0, [out["raw"][by[g["date"]]] for g in out["gaps"]])
 

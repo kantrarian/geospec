@@ -1613,7 +1613,7 @@
                 const admitted = sv !== null && admission.included === true;
                 out.score.push(admitted ? sv : null);
                 out.scoreNotAdmitted.push(sv !== null && !admitted ? sv : null);
-                out.combined.push((comb.state === 'SCORED' || comb.state === 'CSV_ONLY_SCORED') ? rawNumber(comb.value) : null);
+                out.combined.push(comb.state === 'SCORED' ? rawNumber(comb.value) : null);  // report-scored days only
                 const csv = d.csv;
                 const csvRisk = csv ? parseFloat(csv.risk) : NaN;
                 out.csvCombined.push(csv && parseInt(csv.methods, 10) > 0 && Number.isFinite(csvRisk) ? csvRisk : null);
@@ -1653,7 +1653,7 @@
                     score_basis: rawCell(cal.score_basis),
                     station: m.station ? rawCell(m.station.value) : '',
                     warnings: (m.warnings || []).join(' '),
-                    combined: rawCell((comb.state === 'SCORED' || comb.state === 'CSV_ONLY_SCORED') ? comb.value : null),
+                    combined: rawCell(comb.state === 'SCORED' ? comb.value : null),
                     combined_state: rawCell(comb.state),
                     csv_published_risk: d.csv ? rawCell(d.csv.risk) : '',
                     csv_disagrees: d.csv_disagrees ? rawCell(d.csv_disagrees.reason) : '',

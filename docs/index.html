@@ -1714,13 +1714,13 @@
             const layout = {
                 paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)',
                 font: { color: '#e8e8f0', family: 'JetBrains Mono, monospace', size: 11 },
-                xaxis: { gridcolor: '#2a2a3a', title: 'Scored day' },
+                xaxis: { gridcolor: '#2a2a3a', title: 'Scored day', anchor: 'y3' },
                 yaxis: { gridcolor: '#2a2a3a', domain: [0.5, 1], autorange: true, rangemode: 'normal',
-                         title: label + ' measured value (unit not recorded' + (doc && doc.raw ? '; documented: ' + doc.raw : '') + ')' },
-                yaxis2: { gridcolor: '#2a2a3a', domain: [0.1, 0.44], autorange: true, rangemode: 'tozero',
-                          title: 'score as recorded (0-1 scale, not a probability)' },
+                         title: label + ' measured value<br>(unit not recorded' + (doc && doc.raw ? '; documented: ' + doc.raw : '') + ')' },
+                yaxis2: { gridcolor: '#2a2a3a', domain: [0.1, 0.44], autorange: true, rangemode: 'tozero', side: 'right',
+                          title: 'score as recorded<br>(0-1 scale, not a probability)' },
                 yaxis3: { domain: [0, 0.06], showticklabels: false, showgrid: false, zeroline: false, range: [-1, 1] },
-                legend: { orientation: 'h', y: -0.2 }, margin: { t: 30, r: 30, b: 70, l: 70 }, height: 620, shapes: shapes
+                legend: { orientation: 'h', y: -0.12 }, margin: { t: 30, r: 80, b: 60, l: 80 }, height: 640, shapes: shapes
             };
             return { traces, layout };
         }

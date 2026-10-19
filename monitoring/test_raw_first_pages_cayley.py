@@ -354,6 +354,11 @@ class PageTests(unittest.TestCase):
             self.assertEqual((mean, std), (b["mean"], b["std"]) if ok else (None, None), d["date"])
         lg = self.run_js("process.stdout.write(JSON.stringify(rawSeries(" + json.dumps(self.anchorage) + ",'lambda_geo')));")
         self.assertEqual(set(lg["baselineMean"]), {None}, "whiskers are a THD reference only")
+        # DECLARED SYNTHETIC: no LG record carries a baseline; one is added so the THD-only rule is observable.
+        lg_edit = json.loads(json.dumps(self.anchorage))
+        lg_edit[0]["methods"]["lambda_geo"]["calibration"] = {"baseline": {"mean": 1.0, "std": 0.2, "window": "synthetic"}}
+        lg2 = self.run_js("process.stdout.write(JSON.stringify(rawSeries(" + json.dumps(lg_edit) + ",'lambda_geo')));")
+        self.assertEqual((lg2["baselineMean"][0], lg2["baselineStd"][0]), (None, None), "no whisker for a non-THD baseline")
         # DECLARED SYNTHETIC: one real day's THD entry set to an unconfirmed nonzero value (none in history).
         edited = json.loads(json.dumps(self.anchorage))
         target = next(d for d in edited if d["date"] == "2026-07-29")

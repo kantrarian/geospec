@@ -39,8 +39,18 @@ Per method (seismic_thd, lambda_geo, fault_correlation) and day:
 Per day: combined.value is the recorded combined_risk only when at least one method carried it; otherwise null with
 NO_QUALIFIED_METHOD (a method set with nothing included) or NO_METHOD_AVAILABLE. The CSV row is kept as published.
 
+Daily publication (codex fd5f79b0): run_and_publish.ps1 step [3c] runs --staged BEFORE the daily commit, so the output
+ships in the SAME "Daily monitoring" commit as its inputs (the receipt target of step 5a stays that commit). In staged
+mode the capsule and every journal entry already committed at HEAD are read from git; the run's NEW journal lines must
+extend HEAD's journal byte-for-byte (append-only), their revision files are read from the runner tree and must hash to
+their journal entries, the working capsule must equal HEAD's, and docs/data.csv is the file this run copied. Region files
+carry content identities (capsule, journal and data.csv hashes), never a commit id, so --verify can later rebuild at the
+published commit and require byte equality.
+
 Usage: python monitoring/src/raw_history_cayley.py --repo <repo> --rev <commit> --out <new empty dir>
        python monitoring/src/raw_history_cayley.py ... --replace-own   (only a directory this writer produced)
+       python monitoring/src/raw_history_cayley.py --repo <runner> --staged --out docs/raw_history --replace-own
+       python monitoring/src/raw_history_cayley.py --repo <repo> --rev <published commit> --verify <dir>
 """
 import argparse
 import csv
@@ -94,6 +104,47 @@ def _finite(value):
 
 def _show(repo, rev, path):
     return _git(repo, "show", rev + ":" + path)
+
+
+class Inputs:
+    """Where each input is read. COMMIT: everything from the commit. STAGED: the capsule and HEAD's journal entries from
+    git; the run's appended journal lines, their revision files and docs/data.csv from the runner tree, each bound."""
+
+    def __init__(self, repo, rev, staged=False):
+        self.repo, self.staged = repo, staged
+        self.commit = _git(repo, "rev-parse", rev + "^{commit}").decode().strip()
+        self.committed_journal = _show(repo, self.commit, JOURNAL_REL)
+        if not staged:
+            self.journal = self.committed_journal
+            return
+        capsule_tree = self._tree(CAPSULE_REL)
+        if capsule_tree != _show(repo, self.commit, CAPSULE_REL):
+            raise Refused("CAPSULE_CHANGED_IN_WORKING_TREE")
+        self.journal = self._tree(JOURNAL_REL)
+        if not self.journal.startswith(self.committed_journal):
+            raise Refused("JOURNAL_NOT_APPEND_ONLY")
+
+    def _tree(self, rel):
+        try:
+            with open(os.path.join(self.repo, *rel.split("/")), "rb") as handle:
+                return handle.read()
+        except OSError:
+            raise Refused("STAGED_INPUT_MISSING " + rel)
+
+    def show(self, rel):
+        return _show(self.repo, self.commit, rel)
+
+    def revision(self, rel, committed):
+        return self.show(rel) if committed or not self.staged else self._tree(rel)
+
+    def data_csv(self):
+        # docs/data.csv is an ordinary text path (not -text): Git commits it LF whatever the tree holds, so the staged
+        # identity is taken on the committed (LF) form and equals the published blob's.
+        return self._tree(CSV_REL).replace(b"\r\n", b"\n") if self.staged else self.show(CSV_REL)
+
+    def build_identity(self):
+        return ({"mode": "STAGED_FOR_THE_NEXT_COMMIT", "parent_commit": self.commit} if self.staged
+                else {"mode": "COMMIT", "commit": self.commit})
 
 
 def method_entry(name, comp, region_report):
@@ -206,9 +257,10 @@ def _parse_csv(data):
     return rows
 
 
-def load_reports(repo, rev):
+def load_reports(repo, rev, inputs=None):
     """{date: {"current": (report, source), "superseded": [(report, source), ...]}} from the commit, by identity."""
-    capsule = json.loads(_show(repo, rev, CAPSULE_REL))
+    inputs = inputs or Inputs(repo, rev)
+    capsule = json.loads(inputs.show(CAPSULE_REL))
     reports = {}
     legacy_dates = set()
     undated = []
@@ -262,18 +314,20 @@ def load_reports(repo, rev):
                 reports[date]["superseded"].append((json.loads(data), {
                     "kind": "LEGACY_EARLIER_COMMITTED_BLOB", "record_path": path, "commit": commit,
                     "git_blob": blob, "sha256": _sha(data)}))
-    journal_bytes = _show(repo, rev, JOURNAL_REL)
+    journal_bytes = inputs.journal
+    committed_lines = len(inputs.committed_journal.decode("utf-8").splitlines())
     by_date = {}
-    for line in journal_bytes.decode("utf-8").splitlines():
+    for number, line in enumerate(journal_bytes.decode("utf-8").splitlines()):
         if line.strip():
             entry = json.loads(line)
+            entry["_committed"] = number < committed_lines
             by_date.setdefault(entry["date"], []).append(entry)
     for date, entries in by_date.items():
         if date in legacy_dates:
             raise Refused("JOURNAL_DATE_ALSO_LEGACY " + date)
         loaded = []
         for entry in entries:
-            data = _show(repo, rev, entry["path"])
+            data = inputs.revision(entry["path"], entry["_committed"])
             if _sha(data) != entry["sha256"]:
                 raise Refused("REVISION_SHA256_MISMATCH " + entry["path"])
             loaded.append((json.loads(data), {"kind": "REVISION", "path": entry["path"], "run_id": entry["run_id"],
@@ -286,15 +340,18 @@ def load_reports(repo, rev):
             source["kind"] = "REVISION_SUPERSEDED"
             superseded.append((report, source))
         reports[date] = {"current": current, "superseded": superseded}
-    identity = {"capsule_sha256": _sha(_show(repo, rev, CAPSULE_REL)), "journal_sha256": _sha(journal_bytes),
+    identity = {"capsule_sha256": _sha(inputs.show(CAPSULE_REL)), "journal_sha256": _sha(journal_bytes),
+                "journal_entries": len([l for l in journal_bytes.decode("utf-8").splitlines() if l.strip()]),
                 "undated_unparseable_capsule_records": undated}
     return reports, identity
 
 
-def build(repo, rev):
-    commit = _git(repo, "rev-parse", rev + "^{commit}").decode().strip()
-    reports, identity = load_reports(repo, commit)
-    csv_bytes = _show(repo, commit, CSV_REL)
+def build(repo, rev, staged=False):
+    inputs = Inputs(repo, rev, staged)
+    reports, identity = load_reports(repo, inputs.commit, inputs)
+    csv_bytes = inputs.data_csv()
+    content = {"capsule_sha256": identity["capsule_sha256"], "journal_sha256": identity["journal_sha256"],
+               "journal_entries": identity["journal_entries"], "data_csv_sha256": _sha(csv_bytes)}
     csv_rows = _parse_csv(csv_bytes)
     csv_by = {}
     for row in csv_rows:
@@ -356,13 +413,13 @@ def build(repo, rev):
                 if previous is not None and value == previous:
                     entry["warnings"].append("REPEATS_PREVIOUS_MEASURED_VALUE")
                 previous = value
-        body = {"schema": REGION_SCHEMA, "region": region, "source_commit": commit, "days": days}
+        body = {"schema": REGION_SCHEMA, "region": region, "inputs": content, "days": days}
         files[region + ".json"] = (json.dumps(body, sort_keys=True, separators=(",", ":"), allow_nan=False) + "\n").encode("utf-8")
     reasons = {}
     for item in preservation["mismatches"]:
         reasons[item["reason"]] = reasons.get(item["reason"], 0) + 1
     preservation["mismatch_reasons"] = dict(sorted(reasons.items()))
-    index = {"schema": SCHEMA, "source_commit": commit, "inputs": dict(identity, data_csv_sha256=_sha(csv_bytes)),
+    index = {"schema": SCHEMA, "build": inputs.build_identity(), "inputs": dict(identity, data_csv_sha256=_sha(csv_bytes)),
              "regions": regions, "dates": {"first": dates[0], "last": dates[-1]},
              "methods": METHOD_DOCS, "documentation": "docs/JSON_SCHEMA.md (meanings only; reports record no unit)",
              "preservation": preservation,
@@ -393,21 +450,54 @@ def write(files, out, replace_own=False):
         os.replace(tmp, os.path.join(out, name))
 
 
+def verify(repo, rev, directory):
+    """Rebuild at a published commit and compare with a written directory: every region file byte-equal; index.json equal
+    except its build block (a staged build names its parent, a commit build names itself)."""
+    files = build(repo, rev)
+    problems = []
+    present = sorted(os.listdir(directory))
+    if present != sorted(files):
+        problems.append({"files": {"expected": sorted(files), "present": present}})
+    for name, data in sorted(files.items()):
+        try:
+            with open(os.path.join(directory, name), "rb") as handle:
+                got = handle.read()
+        except OSError:
+            continue
+        if name == "index.json":
+            a, b = json.loads(data), json.loads(got)
+            a.pop("build", None)
+            b.pop("build", None)
+            if a != b:
+                problems.append({"index.json": "content differs beyond the build block"})
+        elif got != data:
+            problems.append({name: "bytes differ"})
+    return problems
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--repo", required=True)
-    ap.add_argument("--rev", required=True)
-    ap.add_argument("--out", required=True)
+    ap.add_argument("--rev", default="HEAD")
+    ap.add_argument("--out")
     ap.add_argument("--replace-own", action="store_true")
+    ap.add_argument("--staged", action="store_true", help="read this run's appended journal, revisions and data.csv from the tree")
+    ap.add_argument("--verify", metavar="DIR", help="rebuild at --rev and compare with DIR")
     args = ap.parse_args(argv)
     try:
-        files = build(args.repo, args.rev)
+        if args.verify:
+            problems = verify(args.repo, args.rev, args.verify)
+            print(json.dumps({"verify": args.verify, "rev": args.rev, "problems": problems}))
+            return 3 if problems else 0
+        if not args.out:
+            raise Refused("OUT_REQUIRED")
+        files = build(args.repo, args.rev, staged=args.staged)
         write(files, args.out, args.replace_own)
     except Refused as e:
         print("REFUSED: %s" % e, file=sys.stderr)
         return 2
     index = json.loads(files["index.json"])
-    print(json.dumps({"source_commit": index["source_commit"], "regions": len(index["regions"]),
+    print(json.dumps({"build": index["build"], "regions": len(index["regions"]),
                       "preservation": {k: (len(v) if isinstance(v, list) else v) for k, v in index["preservation"].items()},
                       "bytes": sum(len(v) for v in files.values())}))
     return 0

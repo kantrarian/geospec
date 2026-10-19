@@ -10,6 +10,7 @@ import csv
 import importlib.util
 import io
 import json
+import os
 from pathlib import Path
 import re
 import shutil
@@ -26,7 +27,7 @@ SEP20 = "docs/ensemble/2026-09-20/20260922T053344926589Z-63b9971e.json"
 OCT07 = "docs/ensemble/2026-10-07/20261009T114617132021Z-7adb6101.json"
 OCT16 = "docs/ensemble/2026-10-16/20261018T110515494888Z-4b8f597c.json"
 DECLARED_PATCH_PATHS = ("docs/index.html", "docs/raw_history/", "monitoring/src/raw_history_cayley.py",
-                        "monitoring/test_raw_first_pages_cayley.py")
+                        "monitoring/test_raw_first_pages_cayley.py", "run_and_publish.ps1")
 
 
 def git(*args):
@@ -187,7 +188,7 @@ class BuildTests(unittest.TestCase):
             committed = json.loads(git("show", "HEAD:docs/raw_history/index.json"))
         except subprocess.CalledProcessError:
             self.skipTest("docs/raw_history/ is not committed in this checkout")
-        self.assertEqual(committed["source_commit"], BASE)
+        self.assertEqual(committed["build"], {"mode": "COMMIT", "commit": BASE})
         for name, data in self.files.items():
             self.assertEqual(git("show", "HEAD:docs/raw_history/" + name), data, name)
 
@@ -434,6 +435,130 @@ class PageTests(unittest.TestCase):
         out = self.run_js("process.stdout.write(JSON.stringify([historyValue({methods:'0',risk:'0.0000'})," +
                           "historyValue({methods:'1',risk:'0.5560'}),historyValue({methods:'2',risk:''}),historyValue({methods:'',risk:'0.3'})]));")
         self.assertEqual(out, [None, 0.556, None, None])
+
+
+@unittest.skipUnless(have(BASE), "pinned base commit absent from this clone")
+class DailyIntegrationTests(unittest.TestCase):
+    """The daily step [3c] builds from STAGED inputs before the commit. Reconstruct exactly that state: the parent of BASE
+    checked out, then BASE's journal, its new revision file(s) and data.csv written into the tree, as step [2] and the CSV
+    copy leave them. The staged build must equal the build at BASE, the commit that published those inputs."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.parent = git("rev-parse", BASE + "^").decode().strip()
+        cls.tmp = tempfile.mkdtemp(prefix="raw-history-staged-")
+        cls.tree = os.path.join(cls.tmp, "tree")
+        git("worktree", "add", "--detach", cls.tree, cls.parent)
+        parent_journal = git("show", cls.parent + ":" + R.JOURNAL_REL)
+        base_journal = git("show", BASE + ":" + R.JOURNAL_REL)
+        assert base_journal.startswith(parent_journal)
+        cls.new_paths = [json.loads(l)["path"] for l in base_journal[len(parent_journal):].decode().splitlines() if l.strip()]
+        for rel in [R.JOURNAL_REL, R.CSV_REL] + cls.new_paths:
+            target = Path(cls.tree, *rel.split("/"))
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(git("show", BASE + ":" + rel))
+        cls.staged = R.build(cls.tree, "HEAD", staged=True)
+        cls.committed = R.build(str(ROOT), BASE)
+
+    @classmethod
+    def tearDownClass(cls):
+        subprocess.run(["git", "-C", str(ROOT), "worktree", "remove", "--force", cls.tree], capture_output=True)
+        shutil.rmtree(cls.tmp, ignore_errors=True)
+
+    def test_staged_build_equals_the_build_at_the_commit_that_publishes_it(self):
+        self.assertEqual(len(self.new_paths), 1)
+        self.assertEqual(sorted(self.staged), sorted(self.committed))
+        for name in self.committed:
+            if name != "index.json":
+                self.assertEqual(self.staged[name], self.committed[name], name)
+        a, b = json.loads(self.staged["index.json"]), json.loads(self.committed["index.json"])
+        self.assertEqual(a.pop("build"), {"mode": "STAGED_FOR_THE_NEXT_COMMIT", "parent_commit": self.parent})
+        self.assertEqual(b.pop("build"), {"mode": "COMMIT", "commit": BASE})
+        self.assertEqual(a, b)
+        self.assertEqual(a["dates"]["last"], "2026-10-17", "the staged day is in the output")
+
+    def test_verify_accepts_the_staged_output_at_the_published_commit_and_refuses_a_change(self):
+        with tempfile.TemporaryDirectory() as d:
+            R.write(self.staged, d)
+            self.assertEqual(R.verify(str(ROOT), BASE, d), [])
+            self.assertEqual(R.main(["--repo", str(ROOT), "--rev", BASE, "--verify", d]), 0)
+            self.assertEqual(R.main(["--repo", str(ROOT), "--rev", self.parent, "--verify", d]), 3, "not the parent's inputs")
+            target = Path(d, "hualien.json")
+            target.write_bytes(target.read_bytes().replace(b'"MEASURED"', b'"MEASURE"', 1))
+            self.assertEqual(R.main(["--repo", str(ROOT), "--rev", BASE, "--verify", d]), 3)
+
+    def test_staged_inputs_that_are_not_bound_refuse(self):
+        def refuses(prefix):
+            with self.assertRaises(R.Refused) as caught:
+                R.build(self.tree, "HEAD", staged=True)
+            self.assertTrue(str(caught.exception).startswith(prefix), str(caught.exception))
+        journal = Path(self.tree, *R.JOURNAL_REL.split("/"))
+        revision = Path(self.tree, *self.new_paths[0].split("/"))
+        capsule = Path(self.tree, *R.CAPSULE_REL.split("/"))
+        cases = [(journal, lambda b: b.split(b"\n", 1)[1], "JOURNAL_NOT_APPEND_ONLY"),
+                 (revision, lambda b: b + b"\n", "REVISION_SHA256_MISMATCH"),
+                 (capsule, lambda b: b + b" ", "CAPSULE_CHANGED_IN_WORKING_TREE")]
+        for path, change, code in cases:
+            original = path.read_bytes()
+            try:
+                path.write_bytes(change(original))
+                refuses(code)
+            finally:
+                path.write_bytes(original)
+        moved = revision.with_name(revision.name + ".moved")
+        revision.rename(moved)
+        try:
+            refuses("STAGED_INPUT_MISSING")
+        finally:
+            moved.rename(revision)
+        self.assertEqual(R.build(self.tree, "HEAD", staged=True), self.staged, "restored")
+
+    def test_staged_csv_identity_is_its_committed_form(self):
+        path = Path(self.tree, "docs", "data.csv")
+        original = path.read_bytes()
+        try:
+            path.write_bytes(original.replace(b"\n", b"\r\n"))
+            files = R.build(self.tree, "HEAD", staged=True)
+            self.assertEqual(files, self.staged)
+        finally:
+            path.write_bytes(original)
+
+
+class PublishStepTests(unittest.TestCase):
+    """run_and_publish.ps1 step [3c]: placement, staging and fail-soft behaviour (the step's own text under PowerShell)."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.ps = (ROOT / "run_and_publish.ps1").read_text(encoding="utf-8-sig").replace("\r\n", "\n")
+
+    def test_step_order_staging_and_one_daily_commit(self):
+        ps = self.ps
+        copy, atlas, raw = ps.index("Copy-Item $CsvFile $DocsCSV -Force"), ps.index('Write-Host "[3b/5]'), ps.index('Write-Host "[3c/5]')
+        commit = ps.index('git commit -m "Daily monitoring $AssessmentDate"')
+        self.assertTrue(copy < atlas < raw < ps.index("# 4. Update README") < commit)
+        self.assertIn('--repo $RepoRoot --staged --out (Join-Path $DocsDir "raw_history") --replace-own', ps)
+        stage = ps.index("if ($RawHistoryOk) { $Candidates += 'docs/raw_history' }")
+        self.assertTrue(ps.index("$ToAdd = @($Candidates") > stage)
+        self.assertEqual(ps.count("git commit "), 1, "the raw history rides in the one daily commit")
+        self.assertLess(commit, ps.index("--declare-target --scored-day $AssessmentDate --commit $PushedCommit"),
+                        "step 5a still declares the daily commit")
+
+    def test_step_is_fail_soft_under_powershell(self):
+        shell = shutil.which("powershell") or shutil.which("pwsh")
+        if not shell:
+            self.skipTest("PowerShell absent")
+        block = self.ps[self.ps.index("# 3c. Raw-first history"):self.ps.index("# 4. Update README")]
+        for rc, expected in ((0, "True"), (2, "False"), (1, "False")):
+            with tempfile.TemporaryDirectory() as d, self.subTest(rc=rc):
+                script = ("$ErrorActionPreference = 'Stop'\n$RepoRoot = '%s'\n$DocsDir = '%s'\n"
+                          "function python { cmd /c exit %d | Out-Null; 'stub writer' }\n" % (d, d, rc)) + block + \
+                         "\nWrite-Output ('RESULT=' + $RawHistoryOk + ' EXIT=' + $RawHistoryExit)\n"
+                path = Path(d, "step3c.ps1")
+                path.write_text(script, encoding="utf-8")
+                out = subprocess.run([shell, "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", str(path)],
+                                     capture_output=True, text=True, timeout=120)
+                self.assertEqual(out.returncode, 0, out.stderr)
+                self.assertIn("RESULT=%s EXIT=%d" % (expected, rc), out.stdout)
 
 
 if __name__ == "__main__":

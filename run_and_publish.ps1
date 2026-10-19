@@ -230,6 +230,30 @@ if ($AtlasExit -eq 0) {
     Write-Host "  WARNING: atlas generation failed (exit $AtlasExit); keeping previous atlas.html unstaged" -ForegroundColor Yellow
 }
 
+# 3c. Raw-first history (cayley 2026-10-19; codex bbe31a10 / fd5f79b0). Rebuilt from this run's STAGED inputs: the
+# journal as extended by step [2] (it must extend the committed journal byte-for-byte), the new revision files (each must
+# hash to its journal entry), the unchanged legacy capsule and docs/data.csv as copied above. It therefore ships in the
+# SAME "Daily monitoring" commit, so step 5a still declares that commit as the receipt target. FAIL-SOFT exactly as the
+# atlas step: any non-zero exit leaves the previous docs/raw_history unstaged, and that snapshot names its own inputs.
+Write-Host "[3c/5] Rebuilding docs/raw_history from the staged retained reports..." -ForegroundColor Yellow
+$RawHistoryOk = $false
+$RawHistoryExit = -1
+$PrevEAPRaw = $ErrorActionPreference
+$ErrorActionPreference = 'Continue'
+try {
+    cmd /c exit 1 | Out-Null   # pin LASTEXITCODE so a launch failure can never inherit a stale 0
+    python (Join-Path $RepoRoot "monitoring\src\raw_history_cayley.py") --repo $RepoRoot --staged --out (Join-Path $DocsDir "raw_history") --replace-own 2>&1 | ForEach-Object { "$_" } | Write-Host
+    $RawHistoryExit = $LASTEXITCODE
+} finally {
+    $ErrorActionPreference = $PrevEAPRaw
+}
+if ($RawHistoryExit -eq 0) {
+    Write-Host "  Raw history rebuilt" -ForegroundColor Green
+    $RawHistoryOk = $true
+} else {
+    Write-Host "  WARNING: raw history failed (exit $RawHistoryExit); keeping the previous docs/raw_history unstaged" -ForegroundColor Yellow
+}
+
 # 4. Update README
 Write-Host "[4/5] Updating README..." -ForegroundColor Yellow
 $TierCounts = $EnsembleData.summary.tier_counts
@@ -304,6 +328,8 @@ try {
     # codex atlas fix 1: atlas stages ONLY on a verified exit-0
     # generation this run -- never on mere file existence
     if ($AtlasOk) { $Candidates += 'docs/atlas.html' }
+    # cayley 3c: raw history stages ONLY on a verified exit-0 rebuild this run, in the same daily commit
+    if ($RawHistoryOk) { $Candidates += 'docs/raw_history' }
     $ToAdd = @($Candidates | Where-Object { Test-Path (Join-Path $RepoRoot $_) })
     if ($ToAdd.Count -gt 0) { git add -- $ToAdd 2>&1 | Write-Host }
 

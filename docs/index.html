@@ -1766,7 +1766,10 @@
                 const table = document.getElementById('raw-table');
                 table.innerHTML = '<thead><tr>' + RAW_COLUMNS.map(c => '<th>' + c + '</th>').join('') + '</tr></thead><tbody>' +
                     rows.map(r => '<tr>' + RAW_COLUMNS.map(c => '<td>' + r[c].replace(/&/g, '&amp;').replace(/</g, '&lt;') + '</td>').join('') + '</tr>').join('') + '</tbody>';
-                status.textContent = 'Retained reports at commit ' + String(rawIndex.source_commit).slice(0, 12) + ' · ' +
+                const build = rawIndex.build || {};
+                status.textContent = 'Retained reports ' + (build.mode === 'COMMIT' ? 'at commit ' + String(build.commit).slice(0, 12)
+                    : 'through journal entry ' + rawIndex.inputs.journal_entries + ', published with the daily commit after ' +
+                      String(build.parent_commit).slice(0, 12)) + ' (last scored day ' + rawIndex.dates.last + ') · ' +
                     body.days.length + ' days · region ' + region.replace(/_/g, ' ') + ' · input ' + (RAW_METHOD_LABELS[method] || method) +
                     ' · documented meaning (docs/JSON_SCHEMA.md, not recorded in the reports): ' + (((rawIndex.methods || {})[method] || {}).raw || 'not documented') + '.';
             } catch (e) {

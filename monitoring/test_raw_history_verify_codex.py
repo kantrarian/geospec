@@ -3,9 +3,34 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+import subprocess
 from unittest.mock import patch
 
 from monitoring.src import raw_history_cayley as raw
+
+
+class CheckoutByteIdentity(unittest.TestCase):
+    def test_autocrlf_checkout_preserves_manifest_bound_bytes(self):
+        root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory(prefix="raw-checkout-codex-") as d:
+            repo = Path(d, "repo")
+            repo.mkdir()
+            def git(*args):
+                return subprocess.check_output(["git", "-C", str(repo), "-c", "core.autocrlf=true", *args],
+                                               stderr=subprocess.STDOUT)
+            git("init", "-q")
+            (repo / ".gitattributes").write_bytes((root / ".gitattributes").read_bytes())
+            source = repo / "docs/raw_history"
+            source.mkdir(parents=True)
+            payload = b'{"value":0.2}\n'
+            for name in ("index.json", "hualien.json"):
+                (source / name).write_bytes(payload)
+            git("add", ".gitattributes", "docs/raw_history")
+            dest = Path(d, "checkout")
+            dest.mkdir()
+            git("checkout-index", "--prefix=" + dest.as_posix() + "/", "--all")
+            for name in ("index.json", "hualien.json"):
+                self.assertEqual((dest / "docs/raw_history" / name).read_bytes(), payload)
 
 
 class VerifyReadFailures(unittest.TestCase):

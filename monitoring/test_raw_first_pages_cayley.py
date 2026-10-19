@@ -26,7 +26,7 @@ BASE = "08d72b537af0aa6c4b88bd3c9eb041f278e14ba4"  # the commit docs/raw_history
 SEP20 = "docs/ensemble/2026-09-20/20260922T053344926589Z-63b9971e.json"
 OCT07 = "docs/ensemble/2026-10-07/20261009T114617132021Z-7adb6101.json"
 OCT16 = "docs/ensemble/2026-10-16/20261018T110515494888Z-4b8f597c.json"
-DECLARED_PATCH_PATHS = ("docs/index.html", "docs/raw_history/", "monitoring/src/raw_history_cayley.py",
+DECLARED_PATCH_PATHS = (".gitattributes", "docs/index.html", "docs/raw_history/", "monitoring/src/raw_history_cayley.py",
                         "monitoring/test_raw_first_pages_cayley.py", "monitoring/test_raw_history_verify_codex.py",
                         "run_and_publish.ps1")
 

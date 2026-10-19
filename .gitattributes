@@ -11,6 +11,8 @@ docs/f2g_window2_execution/probe_evidence/** -text
 # checked; a checkout must never translate them (core.autocrlf would make every canonical
 # line non-canonical and every digest diverge). Same class as probe_evidence/** -text.
 docs/ensemble/** -text
+# Raw-history manifests bind output bytes; Windows checkouts must not expand LF.
+docs/raw_history/** -text
 docs/f2g_window2_execution/staged_envelopes/capture_run_archive.json -text
 docs/f2g_window2_execution/staged_envelopes_v4/** -text
 docs/f2g_window2_execution/staged_envelopes/** -text

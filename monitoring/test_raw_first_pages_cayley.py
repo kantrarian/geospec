@@ -209,6 +209,25 @@ class BuildTests(unittest.TestCase):
         self.assertTrue(all(s["source"]["kind"] == "LEGACY_EARLIER_COMMITTED_BLOB" for s in d["superseded"]))
         self.assertNotIn(d["source"]["git_blob"], [s["source"]["git_blob"] for s in d["superseded"]])
 
+    def test_repeated_identical_value_is_flagged_never_changed(self):
+        # Ridgecrest LG 2026-10-05 differs from 10-04; 10-06 repeats 10-05 exactly (the report says frozen false).
+        a, b = self.day("ridgecrest", "2026-10-05")["methods"]["lambda_geo"], self.day("ridgecrest", "2026-10-06")["methods"]["lambda_geo"]
+        self.assertEqual(a["raw"]["value"], b["raw"]["value"])
+        self.assertNotIn("REPEATS_PREVIOUS_MEASURED_VALUE", a["warnings"])
+        self.assertIn("REPEATS_PREVIOUS_MEASURED_VALUE", b["warnings"])
+        self.assertIs(b["recorded"].get("frozen"), False)
+        self.assertEqual(b["raw"]["value"], b["recorded"]["raw_value"])
+        for body in self.regions.values():
+            for method in R.METHODS:
+                previous = None
+                for d in body["days"]:
+                    m = d["methods"][method]
+                    if m["raw"]["state"] != "MEASURED":
+                        self.assertNotIn("REPEATS_PREVIOUS_MEASURED_VALUE", m.get("warnings", []))
+                        continue
+                    self.assertEqual("REPEATS_PREVIOUS_MEASURED_VALUE" in m["warnings"], previous == m["raw"]["value"])
+                    previous = m["raw"]["value"]
+
     def test_missing_raw_dates_are_gaps_with_a_reason(self):
         d = self.day("hualien", "2025-12-01")
         self.assertEqual((d["source"]["kind"], d["methods"]["seismic_thd"]["raw"]), ("NO_REPORT", {"value": None, "state": "NO_REPORT"}))

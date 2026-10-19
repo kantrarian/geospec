@@ -30,7 +30,9 @@ Per method (seismic_thd, lambda_geo, fault_correlation) and day:
                 key stays absent: unknown; no formula is applied to a record that did not carry it)
   station       for THD, the recorded notes' "sta=" text (basis NOTES_TEXT); otherwise absent
   warnings      FROZEN, CALIBRATION_<STATUS> (status other than calibrated), BASELINE_QUALITY_<QUALITY> (other than
-                good), ZERO_SAMPLE_BASELINE, NOT_ADMITTED_<STATE> (a measured value its method set excluded)
+                good), ZERO_SAMPLE_BASELINE, NOT_ADMITTED_<STATE> (a measured value its method set excluded), and one
+                DERIVED here: REPEATS_PREVIOUS_MEASURED_VALUE (exactly equal, at full precision, to the method's previous
+                measured day in this series: a likely carried-forward value; the report's own frozen flag may be false)
 Per day: combined.value is the recorded combined_risk only when at least one method carried it; otherwise null with
 NO_QUALIFIED_METHOD (a method set with nothing included) or NO_METHOD_AVAILABLE. The CSV row is kept as published.
 
@@ -337,6 +339,16 @@ def build(repo, rev):
                                                        "report": list(derived), "reason": reason,
                                                        "matching_revisions": matches})
             days.append(day)
+        for method in METHODS:
+            previous = None
+            for day in days:
+                entry = day["methods"][method]
+                if entry["raw"]["state"] != "MEASURED":
+                    continue
+                value = entry["raw"]["value"]
+                if previous is not None and value == previous:
+                    entry["warnings"].append("REPEATS_PREVIOUS_MEASURED_VALUE")
+                previous = value
         body = {"schema": REGION_SCHEMA, "region": region, "source_commit": commit, "days": days}
         files[region + ".json"] = (json.dumps(body, sort_keys=True, separators=(",", ":"), allow_nan=False) + "\n").encode("utf-8")
     reasons = {}

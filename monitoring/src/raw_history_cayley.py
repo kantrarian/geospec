@@ -455,7 +455,10 @@ def verify(repo, rev, directory):
     except its build block (a staged build names its parent, a commit build names itself)."""
     files = build(repo, rev)
     problems = []
-    present = sorted(os.listdir(directory))
+    try:
+        present = sorted(os.listdir(directory))
+    except OSError:
+        return [{"directory": "required output directory unreadable or absent"}]
     if present != sorted(files):
         problems.append({"files": {"expected": sorted(files), "present": present}})
     for name, data in sorted(files.items()):
@@ -463,12 +466,27 @@ def verify(repo, rev, directory):
             with open(os.path.join(directory, name), "rb") as handle:
                 got = handle.read()
         except OSError:
+            problems.append({name: "required file unreadable or absent"})
             continue
         if name == "index.json":
-            a, b = json.loads(data), json.loads(got)
+            try:
+                a, b = json.loads(data), json.loads(got)
+            except (ValueError, UnicodeError):
+                problems.append({name: "invalid JSON index"})
+                continue
+            if type(b) is not dict:
+                problems.append({name: "index must be a JSON object"})
+                continue
             a.pop("build", None)
             b.pop("build", None)
-            if a != b:
+            # Python equates True with 1 and 1.0 with 1; a content verifier must
+            # retain JSON types as well as values. Key order is not identity.
+            try:
+                equal = (json.dumps(a, sort_keys=True, separators=(",", ":"), allow_nan=False) ==
+                         json.dumps(b, sort_keys=True, separators=(",", ":"), allow_nan=False))
+            except (ValueError, TypeError):
+                equal = False
+            if not equal:
                 problems.append({"index.json": "content differs beyond the build block"})
         elif got != data:
             problems.append({name: "bytes differ"})

@@ -586,6 +586,15 @@
         table.station-map td.num { text-align: right; white-space: nowrap; }
         table.station-map tr.shared td.station { color: #f59e0b; }
         table.station-map a { color: var(--accent, #4a9eff); }
+        /* raw-first history (cayley 2026-10-19): measured values beside the scores as recorded */
+        .raw-controls { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: end; margin: 0.5rem 0 0.75rem; }
+        .raw-controls label { display: flex; flex-direction: column; font-size: 0.75rem; color: var(--text-secondary); gap: 0.2rem; }
+        .raw-controls select, .raw-controls button { background: var(--bg-card, #16161f); color: inherit; border: 1px solid #2a2a3a; border-radius: 5px; padding: 0.3rem 0.5rem; font: inherit; }
+        .raw-note { color: var(--text-secondary); font-size: 0.8rem; line-height: 1.45; margin: 0.4rem 0; }
+        .raw-table-wrap { overflow: auto; max-height: 420px; margin-top: 0.75rem; }
+        table.raw-table { border-collapse: collapse; font-size: 0.72rem; white-space: nowrap; }
+        table.raw-table th, table.raw-table td { border-bottom: 1px solid #2a2a3a; padding: 0.2rem 0.45rem; text-align: left; }
+        table.raw-table th { position: sticky; top: 0; background: var(--bg-card, #16161f); }
     </style>
 </head>
 <body>
@@ -692,6 +701,33 @@
             THD. Tier names are thresholds on this score (0.25 / 0.50 / 0.75), not hazard levels, and a region with only
             one method is capped at WATCH. None of these numbers is a probability.
         </p>
+
+        <div class="chart-section" id="raw-first-section">
+            <h2 class="chart-title">Measured Values and Recorded Scores <span style="font-size:0.75rem; font-weight:400;">(from each day's retained report)</span></h2>
+            <p class="raw-note">
+                Each point is the input value retained in that day's named report, beside the score that same report recorded.
+                Scores are shown as recorded, never recomputed: a similar measured value can carry a different score after the
+                station baseline changed (dashed vertical lines mark a change of baseline window). Gaps are not zeros: no report
+                was retained, the method was unavailable (a legacy 0.0 placeholder is not a measurement), or no qualified method
+                carried the day. Measured values are derived metrics computed from waveform or GNSS series, not source samples,
+                and the reports record no unit. None of these numbers is a probability.
+            </p>
+            <div class="raw-controls">
+                <label>Region<select id="raw-region"></select></label>
+                <label>Input<select id="raw-method"><option value="seismic_thd">THD</option><option value="lambda_geo">LG</option><option value="fault_correlation">FC</option></select></label>
+                <button id="raw-export" type="button">Download CSV</button>
+            </div>
+            <p class="raw-note" id="raw-status">Loading retained history...</p>
+            <div id="raw-chart"></div>
+            <p class="raw-note" id="raw-gaps"></p>
+            <div class="raw-table-wrap"><table class="raw-table" id="raw-table"></table></div>
+            <p class="raw-note">
+                Source: <code>docs/raw_history/</code>, written by <code>monitoring/src/raw_history_cayley.py</code> from the
+                retained reports at a named commit (legacy dates: the last committed report of the date; later dates: the current
+                journaled revision). Earlier published reports of a date are kept as separate revisions, never merged. Where the
+                published data.csv row differs from the retained report, both are shown and the reason is named.
+            </p>
+        </div>
 
         <!-- Stress-Release Drop Detector -->
         <div class="chart-section drop-section">
@@ -1067,6 +1103,13 @@
         }
 
         // Render history chart with optional earthquake events and stress-release drops
+        // A data.csv row no method carried (methods 0: the no_data placeholder 0.0000) is a gap, never a plotted zero.
+        function historyValue(row) {
+            const methods = parseInt(row.methods, 10);
+            const risk = parseFloat(row.risk);
+            return (methods > 0 && Number.isFinite(risk)) ? risk : null;
+        }
+
         async function renderChart(data, earthquakeEvents = [], stressDrops = []) {
             // Group by region
             const byRegion = {};
@@ -1095,10 +1138,11 @@
 
                 traces.push({
                     x: rows.map(r => r.date),
-                    y: rows.map(r => parseFloat(r.risk) || 0),
+                    y: rows.map(r => historyValue(r)),
                     name: region.replace(/_/g, ' '),
                     type: 'scatter',
                     mode: 'lines+markers',
+                    connectgaps: false,
                     line: { color: colors[colorIdx % colors.length], width: 2 },
                     marker: { size: 6 }
                 });
@@ -1533,6 +1577,185 @@
                        `<td class="num">${dist[0]}</td><td class="num">${dist[1]}</td><td class="num">${base}</td>` +
                        `<td>${peers.length ? esc(peers.map(p => p.replace(/_/g, ' ')).join(', ')) : '&mdash;'}</td><td>${src}</td></tr>`;
             }).join('');
+        }
+
+        // Raw-first history (cayley 2026-10-19; codex bbe31a10). docs/raw_history/ holds, per region and day, the input values
+        // retained in the named report beside the scores that report recorded. Nothing here recomputes a score or fills a gap.
+        const RAW_METHOD_LABELS = { seismic_thd: 'THD', lambda_geo: 'LG', fault_correlation: 'FC' };
+        const RAW_COLUMNS = ['date', 'source', 'raw_value', 'raw_state', 'raw_secondary', 'score', 'score_state', 'admission',
+            'weight', 'baseline_window', 'baseline_mean', 'baseline_std', 'baseline_n', 'baseline_quality', 'z_score',
+            'calibration', 'score_basis', 'station', 'warnings', 'combined', 'combined_state', 'csv_published_risk',
+            'csv_disagrees', 'superseded_revisions', 'notes'];
+        const rawCache = {};
+        let rawIndex = null;
+
+        function rawNumber(v) {
+            return (typeof v === 'number' && Number.isFinite(v)) ? v : null;
+        }
+
+        function rawCell(v) {
+            return (v === null || v === undefined) ? '' : String(v);
+        }
+
+        function rawSeries(days, method) {
+            const out = { dates: [], raw: [], score: [], scoreNotAdmitted: [], combined: [], csvCombined: [],
+                gaps: [], baselineChanges: [] };
+            let lastWindow = null;
+            for (const d of days) {
+                const m = (d.methods || {})[method] || {};
+                const raw = m.raw || {}, score = m.score || {}, admission = m.admission || {};
+                const baseline = (m.calibration || {}).baseline || {};
+                const comb = d.combined || {};
+                out.dates.push(d.date);
+                const rv = raw.state === 'MEASURED' ? rawNumber(raw.value) : null;
+                out.raw.push(rv);
+                const sv = score.state === 'RECORDED' ? rawNumber(score.value) : null;
+                const admitted = sv !== null && admission.included === true;
+                out.score.push(admitted ? sv : null);
+                out.scoreNotAdmitted.push(sv !== null && !admitted ? sv : null);
+                out.combined.push((comb.state === 'SCORED' || comb.state === 'CSV_ONLY_SCORED') ? rawNumber(comb.value) : null);
+                const csv = d.csv;
+                const csvRisk = csv ? parseFloat(csv.risk) : NaN;
+                out.csvCombined.push(csv && parseInt(csv.methods, 10) > 0 && Number.isFinite(csvRisk) ? csvRisk : null);
+                if (rv === null) out.gaps.push({ date: d.date, state: raw.state || 'UNKNOWN', combined: comb.state || 'UNKNOWN' });
+                const w = typeof baseline.window === 'string' ? baseline.window : null;
+                if (w !== null && lastWindow !== null && w !== lastWindow) out.baselineChanges.push({ date: d.date, from: lastWindow, to: w });
+                if (w !== null) lastWindow = w;
+            }
+            return out;
+        }
+
+        function rawTableRows(days, method) {
+            return days.map(d => {
+                const m = (d.methods || {})[method] || {};
+                const raw = m.raw || {}, score = m.score || {}, admission = m.admission || {};
+                const cal = m.calibration || {}, baseline = cal.baseline || {}, calibration = cal.calibration || {};
+                const comb = d.combined || {}, src = d.source || {};
+                return {
+                    date: d.date,
+                    source: [src.kind, src.commit || src.run_id || ''].filter(Boolean).join(' '),
+                    raw_value: rawCell(raw.state === 'MEASURED' ? raw.value : null),
+                    raw_state: rawCell(raw.state),
+                    raw_secondary: rawCell(raw.secondary),
+                    score: rawCell(score.state === 'RECORDED' ? score.value : null),
+                    score_state: rawCell(score.state),
+                    admission: [admission.basis, admission.state,
+                        admission.included === true ? 'included' : admission.included === false ? 'excluded' : null,
+                        admission.code].filter(Boolean).join(' '),
+                    weight: rawCell(admission.weight),
+                    baseline_window: rawCell(baseline.window),
+                    baseline_mean: rawCell(baseline.mean),
+                    baseline_std: rawCell(baseline.std),
+                    baseline_n: rawCell(baseline.n_samples),
+                    baseline_quality: rawCell(baseline.quality),
+                    z_score: rawCell(cal.z_score),
+                    calibration: rawCell(calibration.status),
+                    score_basis: rawCell(cal.score_basis),
+                    station: m.station ? rawCell(m.station.value) : '',
+                    warnings: (m.warnings || []).join(' '),
+                    combined: rawCell((comb.state === 'SCORED' || comb.state === 'CSV_ONLY_SCORED') ? comb.value : null),
+                    combined_state: rawCell(comb.state),
+                    csv_published_risk: d.csv ? rawCell(d.csv.risk) : '',
+                    csv_disagrees: d.csv_disagrees ? rawCell(d.csv_disagrees.reason) : '',
+                    superseded_revisions: String((d.superseded || []).length),
+                    notes: (m.recorded && typeof m.recorded.notes === 'string') ? m.recorded.notes : ''
+                };
+            });
+        }
+
+        function rawCsv(rows) {
+            const quote = v => /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
+            return [RAW_COLUMNS.join(',')].concat(rows.map(r => RAW_COLUMNS.map(k => quote(r[k])).join(','))).join('\n') + '\n';
+        }
+
+        function rawGapSummary(series) {
+            const counts = {};
+            series.gaps.forEach(g => { counts[g.state] = (counts[g.state] || 0) + 1; });
+            const parts = Object.keys(counts).sort().map(k => k + ' ' + counts[k]);
+            return series.gaps.length + ' of ' + series.dates.length + ' days have no measured value' +
+                (parts.length ? ' (' + parts.join(', ') + ')' : '') + '; ' + series.baselineChanges.length +
+                ' baseline-window changes. A gap is never drawn as zero.';
+        }
+
+        function rawPlotSpec(series, method, doc) {
+            const label = RAW_METHOD_LABELS[method] || method;
+            const traces = [
+                { x: series.dates, y: series.raw, name: label + ' measured value', type: 'scatter', mode: 'lines+markers',
+                  connectgaps: false, yaxis: 'y', line: { color: '#4a9eff', width: 1.5 }, marker: { size: 4 } },
+                { x: series.dates, y: series.score, name: label + ' score as recorded (carried the day)', type: 'scatter',
+                  mode: 'markers', yaxis: 'y2', marker: { color: '#f97316', size: 5 } },
+                { x: series.dates, y: series.scoreNotAdmitted, name: label + ' score recorded, not carried', type: 'scatter',
+                  mode: 'markers', yaxis: 'y2', marker: { color: '#f97316', size: 6, symbol: 'circle-open' } },
+                { x: series.dates, y: series.combined, name: 'combined score (report)', type: 'scatter', mode: 'lines',
+                  connectgaps: false, yaxis: 'y2', line: { color: '#a855f7', dash: 'dash', width: 1.2 } },
+                { x: series.dates, y: series.csvCombined, name: 'combined score (published data.csv)', type: 'scatter',
+                  mode: 'lines', connectgaps: false, yaxis: 'y2', line: { color: '#94a3b8', dash: 'dot', width: 1 } },
+                { x: series.gaps.map(g => g.date), y: series.gaps.map(() => 0), name: 'no measured value', type: 'scatter',
+                  mode: 'markers', yaxis: 'y3', text: series.gaps.map(g => g.state + ' / combined ' + g.combined),
+                  hoverinfo: 'x+text', marker: { symbol: 'line-ns-open', color: '#64748b', size: 9 } }
+            ];
+            const shapes = series.baselineChanges.map(c => ({ type: 'line', xref: 'x', yref: 'paper', x0: c.date, x1: c.date,
+                y0: 0.1, y1: 1, line: { color: '#eab308', width: 1, dash: 'dash' } }));
+            const layout = {
+                paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)',
+                font: { color: '#e8e8f0', family: 'JetBrains Mono, monospace', size: 11 },
+                xaxis: { gridcolor: '#2a2a3a', title: 'Scored day' },
+                yaxis: { gridcolor: '#2a2a3a', domain: [0.12, 1], autorange: true, rangemode: 'normal',
+                         title: label + ' measured value (unit not recorded' + (doc && doc.raw ? '; documented: ' + doc.raw : '') + ')' },
+                yaxis2: { overlaying: 'y', side: 'right', autorange: true, rangemode: 'tozero', showgrid: false,
+                          title: 'score as recorded (0-1 scale, not a probability)' },
+                yaxis3: { domain: [0, 0.06], showticklabels: false, showgrid: false, zeroline: false, range: [-1, 1] },
+                legend: { orientation: 'h', y: -0.25 }, margin: { t: 30, r: 70, b: 70, l: 70 }, shapes: shapes
+            };
+            return { traces, layout };
+        }
+
+        async function rawLoadRegion(region) {
+            if (!rawCache[region]) {
+                const r = await fetch('raw_history/' + encodeURIComponent(region) + '.json');
+                if (!r.ok) throw new Error('raw history for ' + region + ' not available');
+                rawCache[region] = await r.json();
+            }
+            return rawCache[region];
+        }
+
+        async function renderRawPanel() {
+            const status = document.getElementById('raw-status');
+            if (!status) return;
+            try {
+                if (!rawIndex) {
+                    const r = await fetch('raw_history/index.json');
+                    if (!r.ok) throw new Error('index not available');
+                    rawIndex = await r.json();
+                    const select = document.getElementById('raw-region');
+                    select.innerHTML = rawIndex.regions.map(g => '<option value="' + g + '">' + g.replace(/_/g, ' ') + '</option>').join('');
+                    if (rawIndex.regions.includes('hualien')) select.value = 'hualien';
+                    select.onchange = renderRawPanel;
+                    document.getElementById('raw-method').onchange = renderRawPanel;
+                    document.getElementById('raw-export').onclick = () => {
+                        const region = document.getElementById('raw-region').value, method = document.getElementById('raw-method').value;
+                        const body = rawCsv(rawTableRows(rawCache[region].days, method));
+                        const link = document.createElement('a');
+                        link.href = URL.createObjectURL(new Blob([body], { type: 'text/csv' }));
+                        link.download = 'raw_history_' + region + '_' + method + '.csv';
+                        link.click();
+                    };
+                }
+                const region = document.getElementById('raw-region').value, method = document.getElementById('raw-method').value;
+                const body = await rawLoadRegion(region);
+                const series = rawSeries(body.days, method);
+                const spec = rawPlotSpec(series, method, (rawIndex.methods || {})[method]);
+                Plotly.newPlot('raw-chart', spec.traces, spec.layout, { responsive: true });
+                document.getElementById('raw-gaps').textContent = rawGapSummary(series);
+                const rows = rawTableRows(body.days, method).slice().reverse();
+                const table = document.getElementById('raw-table');
+                table.innerHTML = '<thead><tr>' + RAW_COLUMNS.map(c => '<th>' + c + '</th>').join('') + '</tr></thead><tbody>' +
+                    rows.map(r => '<tr>' + RAW_COLUMNS.map(c => '<td>' + r[c].replace(/&/g, '&amp;').replace(/</g, '&lt;') + '</td>').join('') + '</tr>').join('') + '</tbody>';
+                status.textContent = 'Retained reports at commit ' + String(rawIndex.source_commit).slice(0, 12) + ' · ' +
+                    body.days.length + ' days · region ' + region.replace(/_/g, ' ') + ' · input ' + (RAW_METHOD_LABELS[method] || method) + '.';
+            } catch (e) {
+                status.textContent = 'Retained raw history is not available on this build (' + e.message + '); nothing is substituted.';
+            }
         }
 
         async function loadData() {
@@ -2077,6 +2300,7 @@
         console.log('event-grid element:', document.getElementById('event-grid') ? 'FOUND' : 'NOT FOUND');
 
         loadData();
+        renderRawPanel();
         renderBacktestChart();
 
         // Load backtest data (with fallback)

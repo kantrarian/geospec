@@ -1611,7 +1611,7 @@
                 const frozen = rv !== null && (m.warnings || []).includes('FROZEN');
                 out.raw.push(frozen ? null : rv);          // the measured line: neither frozen nor unconfirmed values
                 out.frozen.push(frozen ? rv : null);       // grey, disconnected
-                out.unconfirmed.push(raw.state === 'UNCONFIRMED_NONZERO' ? rawNumber(raw.unconfirmed_value) : null);
+                out.unconfirmed.push(['UNCONFIRMED_NONZERO', 'UNCONFIRMED_ZERO'].includes(raw.state) ? rawNumber(raw.unconfirmed_value) : null);
                 const bm = rawNumber(baseline.mean), bs = rawNumber(baseline.std);
                 out.baselineMean.push(method === 'seismic_thd' && bm !== null && bs !== null ? bm : null);
                 out.baselineStd.push(method === 'seismic_thd' && bm !== null && bs !== null ? bs : null);
@@ -1623,7 +1623,7 @@
                 const csv = d.csv;
                 const csvRisk = csv ? parseFloat(csv.risk) : NaN;
                 out.csvCombined.push(csv && parseInt(csv.methods, 10) > 0 && Number.isFinite(csvRisk) ? csvRisk : null);
-                if (rv === null && raw.state !== 'UNCONFIRMED_NONZERO') out.gaps.push({ date: d.date, state: raw.state || 'UNKNOWN', combined: comb.state || 'UNKNOWN' });
+                if (rv === null && !['UNCONFIRMED_NONZERO', 'UNCONFIRMED_ZERO'].includes(raw.state)) out.gaps.push({ date: d.date, state: raw.state || 'UNKNOWN', combined: comb.state || 'UNKNOWN' });
                 const w = typeof baseline.window === 'string' ? baseline.window : null;
                 if (w !== null && lastWindow !== null && w !== lastWindow) out.baselineChanges.push({ date: d.date, from: lastWindow, to: w });
                 if (w !== null) lastWindow = w;

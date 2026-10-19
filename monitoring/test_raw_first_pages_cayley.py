@@ -70,6 +70,22 @@ def page_functions():
 
 @unittest.skipUnless(have(BASE), "pinned base commit absent from this clone")
 class RecordTests(unittest.TestCase):
+    def test_unknown_availability_zero_is_neither_placeholder_nor_measurement(self):
+        for availability in ({}, {"available": None}, {"available": "unknown"}):
+            with self.subTest(availability=availability):
+                comp = dict(availability, raw_value=0.0, risk_score=None)
+                e = R.method_entry("seismic_thd", comp, {})
+                self.assertEqual(e["raw"]["state"], "UNCONFIRMED_ZERO")
+                self.assertIsNone(e["raw"]["value"])
+                self.assertEqual(e["raw"]["unconfirmed_value"], 0.0)
+                self.assertEqual(e["recorded"]["raw_value"], 0.0)
+                self.assertIn("UNCONFIRMED_MEASUREMENT_STATUS", e["warnings"])
+                day = {"date": "2026-01-01", "methods": {"seismic_thd": e}}
+                script = page_functions() + "\nconst days=" + json.dumps([day]) + ";console.log(JSON.stringify(rawSeries(days,'seismic_thd')));"
+                displayed = node_eval(script)
+                self.assertEqual(displayed["raw"], [None])
+                self.assertEqual(displayed["unconfirmed"], [0])
+
     def test_hualien_pair_measured_values_kept_and_scores_as_recorded(self):
         july = region("0c99e0ec", "docs/ensemble_latest.json", "hualien")
         sept = region(BASE, SEP20, "hualien")

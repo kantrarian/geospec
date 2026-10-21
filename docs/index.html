@@ -660,6 +660,13 @@
 
         <div class="chart-section">
             <h2 class="chart-title">Combined Anomaly Score History <span style="font-size:0.75rem; font-weight:400;">(0&ndash;1, not a probability)</span></h2>
+            <label class="raw-note"><input id="show-retrospective" type="checkbox" checked>
+                Show grey retrospective reconstructions</label>
+            <p class="raw-note">Grey diamonds fill unqualified days only where retained measured inputs and method scores
+                support a calculation. Display weights: LG 0.4, FC 0.3, THD 0.3, renormalised over those inputs.
+                Hover for the region, inputs and exclusion reason. These are not originally issued qualified scores;
+                original tiers and alerts are unchanged. Genuine missing inputs remain gaps.</p>
+            <p class="raw-note" id="retrospective-status" role="status"></p>
             <div id="history-chart"></div>
         </div>
 
@@ -1110,6 +1117,36 @@
             return (methods > 0 && Number.isFinite(risk)) ? risk : null;
         }
 
+        function retrospectiveTrace(data, block) {
+            const trace = { x: [], y: [], text: [], name: 'Retrospective reconstruction (not issued)',
+                type: 'scatter', mode: 'markers', connectgaps: false,
+                marker: { color: '#9ca3af', symbol: 'diamond', size: 9, line: { color: '#e5e7eb', width: 1 } },
+                hovertemplate: '%{x}<br>Reconstructed score: %{y:.6f}<br>%{text}<extra></extra>' };
+            if (!block || block.rule !== 'retained-component-weighted-mean-v1') return trace;
+            const escape = value => String(value ?? 'unknown').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            const lookup = new Map();
+            for (const [region, points] of Object.entries(block.regions || {})) {
+                for (const p of points) lookup.set(region + '|' + p.date, p);
+            }
+            for (const row of data) {
+                const p = lookup.get(row.region + '|' + row.date);
+                if (historyValue(row) !== null || Number(row.methods) !== 0 || !p ||
+                    p.state !== 'RETROSPECTIVE_RECONSTRUCTION_NOT_ISSUED' || p.rule !== block.rule ||
+                    typeof p.value !== 'number' || !Number.isFinite(p.value) || p.value < 0 || p.value > 1 ||
+                    !p.csv || ['risk', 'tier', 'methods', 'agreement'].some(k => p.csv[k] !== row[k])) continue;
+                const detail = Object.entries(p.components).map(([method, c]) =>
+                    escape(method) + ': raw ' + escape(c.raw_value) + '; retained score ' + escape(c.recorded_score) +
+                    '; weight ' + Number(c.effective_weight).toFixed(4) + '; ' +
+                    escape(c.admission.reason || c.admission.state || 'not qualified') +
+                    (c.warnings.length ? '; ' + escape(c.warnings.join(', ')) : '')).join('<br>');
+                trace.x.push(row.date); trace.y.push(p.value);
+                trace.text.push(escape(row.region.replace(/_/g, ' ')) + '<br>RETROSPECTIVE — NOT ISSUED<br>' +
+                    detail + '<br>Original: ' + escape(p.original_state) + '<br>Rule: ' + escape(p.rule) +
+                    '<br>Source: ' + escape(p.source.path || p.source.record_path || p.source.kind));
+            }
+            return trace;
+        }
+
         async function renderChart(data, earthquakeEvents = [], stressDrops = []) {
             // Group by region
             const byRegion = {};
@@ -1147,6 +1184,26 @@
                     marker: { size: 6 }
                 });
                 colorIdx++;
+            }
+
+            // A compact, source-bound index avoids fetching all 14 raw-history series for this overlay.
+            const retroStatus = document.getElementById('retrospective-status');
+            try {
+                const response = await fetch('raw_history/index.json');
+                if (!response.ok) throw new Error('index unavailable');
+                const index = await response.json();
+                if (!index.retrospective_combined || index.retrospective_combined.rule !== 'retained-component-weighted-mean-v1')
+                    throw new Error('reconstruction artifact not present on this build');
+                const retro = retrospectiveTrace(data, index.retrospective_combined);
+                const toggle = document.getElementById('show-retrospective');
+                retro.visible = toggle.checked;
+                const traceIndex = traces.length;
+                traces.push(retro);
+                toggle.onchange = () => Plotly.restyle('history-chart', { visible: toggle.checked }, [traceIndex]);
+                retroStatus.textContent = retro.x.length + ' grey reconstructed region-days; not original issued scores. ' +
+                    'Only matching published rows are overlaid; excluded from tier-drop detection.';
+            } catch (e) {
+                retroStatus.textContent = 'Retrospective overlay unavailable: ' + e.message + '. Original history is unchanged.';
             }
 
             // Add tier threshold lines

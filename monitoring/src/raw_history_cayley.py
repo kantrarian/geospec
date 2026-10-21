@@ -13,8 +13,9 @@ identity (git objects, never the working tree), and writes the measured values b
                  and checked against the journal sha256; earlier entries of the date are SUPERSEDED revisions.
   docs/data.csv  the published combined score, kept beside each day (and the only record for CSV-only dates).
 
-Output (LF, sorted keys, deterministic): <out>/index.json and <out>/<region>.json. Nothing here scores,
-recalibrates or rewrites a published value; scores are shown as recorded under the baseline in force that day.
+Output (LF, sorted keys, deterministic): <out>/index.json and <out>/<region>.json. Original region records are
+never recalibrated or rewritten. The index also carries a separate DISPLAY-ONLY retrospective weighted mean
+of retained component scores on unqualified days (owner request 2026-10-21). It is not an issued score or tier.
 
 Per method (seismic_thd, lambda_geo, fault_correlation) and day:
   recorded      the report's own fields, verbatim (available, raw_value, raw_secondary, risk_score, frozen, notes)
@@ -69,6 +70,9 @@ CAPSULE_REL = "docs/ensemble/legacy_baseline_v1.json"
 JOURNAL_REL = "docs/ensemble/index.ndjson"
 CSV_REL = "docs/data.csv"
 METHODS = ("seismic_thd", "lambda_geo", "fault_correlation")
+RETRO_RULE = "retained-component-weighted-mean-v1"
+# Explicit display policy, not the production eligibility rule or a new calibration.
+RETRO_WEIGHTS = {"lambda_geo": 0.4, "fault_correlation": 0.3, "seismic_thd": 0.3}
 # What docs/JSON_SCHEMA.md says each raw field means. Documentation, not a retained record: reports carry no unit.
 METHOD_DOCS = {
     "seismic_thd": {"label": "THD", "raw": "THD value (dimensionless)", "secondary": "documented as signal-to-noise ratio"},
@@ -237,6 +241,33 @@ def _csv_shape(recorded):
             str(recorded.get("methods_available")), recorded.get("agreement"))
 
 
+def retrospective_combined(day):
+    """Separate display result; never mutate original fields, infer a withheld score, or interpolate a gap."""
+    if day.get("combined", {}).get("state") not in {"NO_QUALIFIED_METHOD", "NO_METHOD_AVAILABLE"}:
+        return None
+    parts = {}
+    for name, weight in RETRO_WEIGHTS.items():
+        method = day.get("methods", {}).get(name, {})
+        raw, score = method.get("raw", {}), method.get("score", {})
+        if (raw.get("state") != "MEASURED" or not _finite(raw.get("value")) or
+                score.get("state") != "RECORDED" or not _finite(score.get("value")) or
+                not 0 <= score["value"] <= 1 or method.get("recorded", {}).get("frozen") is True or
+                "FROZEN" in method.get("warnings", [])):
+            continue
+        parts[name] = {"raw_value": raw["value"], "recorded_score": score["value"], "base_weight": weight,
+                       "admission": method.get("admission", {}), "warnings": method.get("warnings", []),
+                       "station": method.get("station"), "calibration": method.get("calibration", {})}
+    if not parts:
+        return None
+    total = sum(p["base_weight"] for p in parts.values())
+    for part in parts.values():
+        part["effective_weight"] = part["base_weight"] / total
+    return {"date": day["date"], "value": sum(p["recorded_score"] * p["effective_weight"] for p in parts.values()),
+            "state": "RETROSPECTIVE_RECONSTRUCTION_NOT_ISSUED", "rule": RETRO_RULE,
+            "original_state": day["combined"]["state"], "source": day.get("source"),
+            "csv": day.get("csv"), "components": parts}
+
+
 def day_from_report(report, region, source):
     regions = report.get("regions")
     region_report = regions.get(region) if isinstance(regions, dict) else None
@@ -363,6 +394,7 @@ def build(repo, rev, staged=False):
             raise Refused("REGION_ID " + region)
     dates = sorted({d for d, _ in csv_by} | set(reports))
     files, preservation = {}, {"compared": 0, "equal": 0, "mismatches": []}
+    retrospective = {}
     for region in regions:
         days = []
         for date in dates:
@@ -414,6 +446,7 @@ def build(repo, rev, staged=False):
                     entry["warnings"].append("REPEATS_PREVIOUS_MEASURED_VALUE")
                 previous = value
         body = {"schema": REGION_SCHEMA, "region": region, "inputs": content, "days": days}
+        retrospective[region] = [p for day in days if (p := retrospective_combined(day)) is not None]
         files[region + ".json"] = (json.dumps(body, sort_keys=True, separators=(",", ":"), allow_nan=False) + "\n").encode("utf-8")
     reasons = {}
     for item in preservation["mismatches"]:
@@ -423,6 +456,11 @@ def build(repo, rev, staged=False):
              "regions": regions, "dates": {"first": dates[0], "last": dates[-1]},
              "methods": METHOD_DOCS, "documentation": "docs/JSON_SCHEMA.md (meanings only; reports record no unit)",
              "preservation": preservation,
+             "retrospective_combined": {"rule": RETRO_RULE, "base_weights": RETRO_WEIGHTS,
+                 "meaning": "Display-only weighted mean of measured, unfrozen methods' retained scores; weights renormalized. "
+                            "Eligibility is not applied to this separate reconstruction. Original scores, tiers and alerts unchanged. "
+                            "No new calibration, no interpolation, no prospective warning claim.",
+                 "regions": retrospective},
              "files": {name: _sha(data) for name, data in sorted(files.items())}}
     files["index.json"] = (json.dumps(index, sort_keys=True, indent=1, allow_nan=False) + "\n").encode("utf-8")
     return files

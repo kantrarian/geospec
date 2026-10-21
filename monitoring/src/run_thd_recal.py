@@ -216,6 +216,8 @@ def run_recal(stations, end_date=None, dry_run=False):
                 entry["selector"] = _declared["selector"]
         except ImportError:
             pass
+        if isinstance(r.get("estimator"), dict):   # thd-robust-estimator-v1: what center/scale mean, from the producer
+            entry["estimator"] = r["estimator"]
         if r.get("daily_receipts") is not None:   # grassmann 641c01b7: every calibration day with its input receipt
             entry["calibration_days"] = r["daily_receipts"]
         try:   # thd-daily-measurement-v1: which measurement produced these moments (recording only)

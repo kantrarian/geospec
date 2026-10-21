@@ -45,6 +45,21 @@ except ImportError as e:
     raise
 
 
+# thd-robust-estimator-v1 (cayley 2026-10-21; codex 05e0904b): the estimator below, declared by the code that computes
+# it. The legacy field names mean_thd / std_thd carry the CENTER (median) and the SCALE (MAD_TO_SIGMA x MAD), not an
+# arithmetic mean and standard deviation; readers name them from this declaration, never from the field names.
+MAD_TO_SIGMA = 1.4826
+STORED_DECIMALS = 6
+ESTIMATOR = {
+    'name': 'thd-robust-estimator-v1',
+    'center': 'median',
+    'scale': 'mad',
+    'scale_multiplier': MAD_TO_SIGMA,
+    'stored_decimals': STORED_DECIMALS,
+    'legacy_fields': {'mean_thd': 'center', 'std_thd': 'scale'},
+}
+
+
 # =============================================================================
 # STATION CONFIGURATION
 # =============================================================================
@@ -309,7 +324,7 @@ def calibrate_station(
     # Robust statistics (median + MAD)
     median_thd = np.median(thd_values)
     mad = np.median(np.abs(thd_values - median_thd))
-    robust_std = mad * 1.4826  # MAD to sigma conversion
+    robust_std = mad * MAD_TO_SIGMA  # MAD to sigma conversion (ESTIMATOR declares it)
 
     # Also compute regular mean/std for comparison
     mean_thd = np.mean(thd_values)
@@ -332,8 +347,9 @@ def calibrate_station(
 
     return {
         'station': f'{network}.{station}',
-        'mean_thd': round(median_thd, 6),        # Use median as "mean" for robustness
-        'std_thd': round(robust_std, 6),         # Use MAD-based std
+        'mean_thd': round(median_thd, STORED_DECIMALS),   # the CENTER: median (ESTIMATOR)
+        'std_thd': round(robust_std, STORED_DECIMALS),    # the SCALE: MAD_TO_SIGMA x MAD (ESTIMATOR)
+        'estimator': dict(ESTIMATOR),
         'mean_thd_classic': round(mean_thd, 6),
         'std_thd_classic': round(std_thd, 6),
         'percentiles': {

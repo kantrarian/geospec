@@ -342,6 +342,66 @@ def _notes_without_score(notes: str) -> str:
     return f"{notes}, {SCORE_BASIS_NOTES_TOKEN}" if notes else SCORE_BASIS_NOTES_TOKEN
 
 
+# thd-baseline-station-check-v1 (cayley 2026-10-21; codex b4f6c848 item 2): the producer-boundary check, made on the
+# baseline AS LOOKED UP and before any normalization. Typed: the baseline's own station must equal the measured
+# station; a declared-channel station's baseline must carry its exact selector (thd-station-channel-v1, unchanged); and
+# a calibration convention, where BOTH sides state one, must equal the measurement's. A failed check treats the baseline
+# as ABSENT: the raw value is retained and the observation is unqualified (eligibility sees no baseline), never scored
+# against a substitute and never zeroed. Unknown stays unknown: a baseline with no stamped convention is neither a
+# mismatch nor a match. The measurement identity is recorded, not compared (a code change between a recal and a scored
+# day changes the identity without changing the quantity).
+THD_BASELINE_CHECK_VERSION = 'thd-baseline-station-check-v1'
+THD_BASELINE_PROVENANCE_SCHEMA = 'thd-baseline-provenance-v1'
+THD_BASELINE_SELECTION = 'thd-baseline-as-of-v1'
+
+
+def thd_measurement_convention(station_id: str) -> Optional[str]:
+    """The calibration convention run_thd_recal stamps for this station's baseline, by its own rule."""
+    try:
+        import thd_bound_station_operator as OP
+        import thd_daily_measurement as TDM
+    except ImportError:
+        return None
+    return OP.DAILY_OPERATOR['operator_version'] if station_id in OP.BOUND_STATIONS else TDM.MEASUREMENT_VERSION
+
+
+def thd_baseline_check(measured_station: str, baseline, declared=None, convention: Optional[str] = None) -> Dict:
+    """The typed producer-boundary check of ONE looked-up baseline against the measurement it would normalize."""
+    base = dict(version=THD_BASELINE_CHECK_VERSION, measured_station=measured_station,
+                declared_selector=None if declared is None else declared['selector'], measurement_convention=convention)
+    if baseline is None:
+        return dict(base, code='NO_BASELINE', station='NO_BASELINE', selector='NO_BASELINE', convention='NO_BASELINE',
+                    baseline_station=None, baseline_selector=None, baseline_convention=None)
+    held_selector = getattr(baseline, 'selector', None)
+    stamped = getattr(baseline, 'calibration_convention', None)
+    station = 'EQUAL' if getattr(baseline, 'station', None) == measured_station else 'DIFFERENT'
+    selector = 'NOT_DECLARED' if declared is None else ('EQUAL' if held_selector == declared['selector'] else 'DIFFERENT')
+    conv = 'UNKNOWN' if stamped is None or convention is None else ('EQUAL' if stamped == convention else 'DIFFERENT')
+    code = ('STATION_MISMATCH' if station == 'DIFFERENT' else 'SELECTOR_MISMATCH' if selector == 'DIFFERENT'
+            else 'CONVENTION_MISMATCH' if conv == 'DIFFERENT' else 'MATCH')
+    return dict(base, code=code, station=station, selector=selector, convention=conv,
+                baseline_station=getattr(baseline, 'station', None), baseline_selector=held_selector,
+                baseline_convention=stamped)
+
+
+def thd_baseline_provenance(looked_up, check: Dict, disposition: str, measurement_identity: Optional[str]) -> Dict:
+    """The issued block: the baseline the producer LOOKED UP (whether or not it was then used) and what happened to it."""
+    def baseline_field(name):
+        return getattr(looked_up, name, None) if looked_up is not None else None
+    source_file = baseline_field('source_file')
+    return dict(
+        schema=THD_BASELINE_PROVENANCE_SCHEMA, selection=THD_BASELINE_SELECTION, disposition=disposition, check=check,
+        measured_station=check['measured_station'], measurement_identity_today=measurement_identity,
+        baseline_station=baseline_field('station'),
+        source=(None if looked_up is None else
+                dict(kind='DATED_RECAL_FILE', file=source_file, sha256=baseline_field('source_sha256'))
+                if source_file is not None else dict(kind='BUILT_IN_DEFAULT', file=None, sha256=None)),
+        calibration_date=baseline_field('calibration_date'), window_label=baseline_field('calibration_period'),
+        n_samples=baseline_field('n_samples'), center=baseline_field('mean_thd'), scale=baseline_field('std_thd'),
+        estimator=baseline_field('estimator'), convention=baseline_field('calibration_convention'),
+        measurement_identity=baseline_field('measurement_identity'), selector=baseline_field('selector'))
+
+
 def thd_to_risk_with_baseline(
     thd_value: float,
     baseline_mean: float,
@@ -428,6 +488,12 @@ class MethodResult:
     # before); absence on a legacy record means only that this marker did not exist yet, never that a baseline was
     # calibrated. Eligibility, exclusion, ensemble weights and DEGRADED semantics are untouched.
     score_basis: Optional[str] = None
+    # thd-baseline-provenance-v1 (cayley 2026-10-21; codex b4f6c848 items 1-2, prospective; set ONLY while the eligibility
+    # rule is active): which baseline the producer looked up for this value, from which file (sha256 of the bytes read),
+    # its calibration date, window, n, center/scale and DECLARED estimator, convention, measurement identity and selector,
+    # the producer-boundary check result, and what happened to it (scored against, rejected by the check, rejected as
+    # stale). Absent on a legacy record: absence never means a baseline was or was not bound.
+    baseline_provenance: Optional[Dict] = None
 
     def to_dict(self) -> Dict:
         result = {
@@ -456,6 +522,8 @@ class MethodResult:
             result['sample_rate_hz'] = float(self.sample_rate_hz)
         # Emitted ONLY when the eligibility rule judged this observation (rule active); raw values, scores and
         # notes above are untouched either way.
+        if self.baseline_provenance is not None:
+            result['baseline_provenance'] = self.baseline_provenance
         if self.eligibility_rule_version is not None:
             result['calibration'] = {
                 'status': self.calibration_status,
@@ -892,9 +960,15 @@ class GeoSpecEnsemble:
                 _declared = _TPR.declared_channel(station_network, station_code)
             except ImportError:
                 _declared = None
-            if _declared is not None and baseline is not None and getattr(baseline, 'selector', None) != _declared['selector']:
-                logger.warning(f"THD baseline for {station_network}.{station_code} is not stamped with the declared "
-                               f"selector {_declared['selector']} (has {getattr(baseline, 'selector', None)!r}); "
+            # thd-baseline-station-check-v1: station, declared selector and stated convention, checked before any use
+            _station_id = f'{station_network}.{station_code}'
+            looked_up = baseline
+            baseline_check = thd_baseline_check(_station_id, baseline, _declared, thd_measurement_convention(_station_id))
+            if baseline is not None and baseline_check['code'] != 'MATCH':
+                logger.warning(f"THD baseline for {_station_id} fails the producer-boundary check "
+                               f"({baseline_check['code']}: station {baseline_check['station']}, selector "
+                               f"{baseline_check['selector']} (declared {baseline_check['declared_selector']!r}, has "
+                               f"{baseline_check['baseline_selector']!r}), convention {baseline_check['convention']}); "
                                f"treated as absent")
                 baseline = None
 
@@ -986,6 +1060,13 @@ class GeoSpecEnsemble:
                 z_score=z_score,
                 sample_rate_hz=native_sample_rate,
             )
+            if self.eligibility_rule_active:
+                result.baseline_provenance = thd_baseline_provenance(
+                    looked_up, baseline_check,
+                    ('NO_BASELINE' if looked_up is None else
+                     'REJECTED_BY_CHECK' if baseline_check['code'] != 'MATCH' else
+                     'REJECTED_STALE' if baseline_stale else 'SCORED_AGAINST'),
+                    self.last_thd_measurement_identity)
             if eligibility is not None:
                 CE.attach(result, eligibility)
                 # method-comparability-v1: the station the value rests on and every region it serves (shared

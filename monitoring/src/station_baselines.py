@@ -43,6 +43,13 @@ class StationBaseline:
     # thd-station-channel-v1 (cayley 2026-10-10): the exact selector the recal measured for a DECLARED-channel station
     # ("NET.STA.LOC.CHA@<rate>Hz"); None for every other entry. Scoring a declared-channel station requires a match.
     selector: Optional[str] = None
+    # thd-baseline-provenance-v1 (cayley 2026-10-21; codex b4f6c848 item 1): the dated file this entry was read from and
+    # the sha256 of the bytes read, the estimator the recal declared (None = not declared; never assumed) and the
+    # measurement identity it recorded. None for the built-in defaults.
+    source_file: Optional[str] = None
+    source_sha256: Optional[str] = None
+    estimator: Optional[Dict] = None
+    measurement_identity: Optional[str] = None
 
 
 # Auto-calibrated station baselines (January 2026)
@@ -185,7 +192,15 @@ def calibration_date_from_name(name: str) -> Optional[str]:
         return None
 
 
-def _baseline_from_entry(e, filename):
+def _read_dated_file(path):
+    """(parsed JSON, sha256 of the bytes parsed); the bytes are what the provenance names."""
+    import hashlib
+    with open(path, 'rb') as fh:
+        raw = fh.read()
+    return json.loads(raw), hashlib.sha256(raw).hexdigest()
+
+
+def _baseline_from_entry(e, filename, sha256=None):
     """Shared loader/snapshot parser; a malformed row never selects a newer file."""
     if e.get('mean_thd') is None or e.get('std_thd') is None:
         raise ValueError('missing baseline moments')
@@ -199,7 +214,12 @@ def _baseline_from_entry(e, filename):
         notes=f"Rolling recal, loaded newest-first from {filename}", calibration_date=effective_date,
         calibration_convention=(e.get('calibration_convention') if isinstance(e.get('calibration_convention'), str)
                                 else None),
-        selector=(e.get('selector') if isinstance(e.get('selector'), str) else None))
+        selector=(e.get('selector') if isinstance(e.get('selector'), str) else None),
+        source_file=filename, source_sha256=sha256,
+        estimator=(dict(e['estimator']) if isinstance(e.get('estimator'), dict) else None),
+        measurement_identity=((e.get('measurement') or {}).get('identity')
+                              if isinstance(e.get('measurement'), dict)
+                              and isinstance(e['measurement'].get('identity'), str) else None))
 
 
 def _load_newest_baseline_file(bdir: Optional[Path] = None) -> Optional[str]:
@@ -218,8 +238,7 @@ def _load_newest_baseline_file(bdir: Optional[Path] = None) -> Optional[str]:
         return None
     for f in files:
         try:
-            with open(f) as fh:
-                data = json.load(fh)
+            data, digest = _read_dated_file(f)
         except Exception as e:
             logger.warning(f"THD baseline file {f.name} unreadable ({e}); trying older / built-in defaults")
             continue
@@ -232,7 +251,7 @@ def _load_newest_baseline_file(bdir: Optional[Path] = None) -> Optional[str]:
         loaded = 0
         for e in entries:
             try:
-                parsed = _baseline_from_entry(e, f.name)
+                parsed = _baseline_from_entry(e, f.name, digest)
                 STATION_BASELINES[parsed.station] = parsed
                 loaded += 1
             except Exception:
@@ -256,8 +275,7 @@ def _file_baselines(path) -> Optional[Dict[str, StationBaseline]]:
     """The baselines one dated file holds, parsed exactly as the newest-first loader parses them: None when the file is
     unreadable, {} when it holds no valid entry."""
     try:
-        with open(path) as fh:
-            data = json.load(fh)
+        data, digest = _read_dated_file(path)
     except Exception:
         return None
     if isinstance(data, dict) and isinstance(data.get('baselines'), list):
@@ -269,7 +287,7 @@ def _file_baselines(path) -> Optional[Dict[str, StationBaseline]]:
     held = {}
     for e in entries:
         try:
-            parsed = _baseline_from_entry(e, Path(path).name)
+            parsed = _baseline_from_entry(e, Path(path).name, digest)
             held[parsed.station] = parsed
         except Exception:
             continue

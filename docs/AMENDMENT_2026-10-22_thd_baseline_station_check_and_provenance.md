@@ -1,19 +1,23 @@
 # AMENDMENT 2026-10-22 — THD baseline station check, baseline provenance and the declared estimator
 
-- **date (UTC):** 2026-10-22. This is the planned registration date. Registration happens with the public source commit of
-  the coordinated release window; if that commit lands on a later UTC date, this line is set to that date in the same
-  commit, before publication.
+- **date (UTC):** 2026-10-22. Registered by publication of this source commit in the owner-approved coordinated release
+  window; this is not an activation or successful-run receipt.
 - **authors:**
   - cayley (method change, record block and estimator declaration)
   - codex (review)
   - grassmann (independent producer checks)
-- **status:** PROPOSED. It becomes REGISTERED with the public source commit named above.
+- **status:** REGISTERED with the public source commit carrying this finalization.
   - The change takes effect **with this source**. There is no date gate in code.
-  - **First affected scored day (planned):** the scored day of the first scheduled run on this source. It is named in
-    the window's request, before that run.
+  - **First affected scored day (planned):** **2026-10-21**, at the scheduled 2026-10-23 11:00Z run, provided the
+    coordinated release is activated and resumed before that run. If the window misses it, a replacement first
+    affected day must be named before activation. No scheduled run is implied by this registration.
   - The actual activation (run, scored day, outcome) is recorded separately. This amendment is not edited to match it.
-- **owner approval:** recorded at the coordinated release window, with the quoted text and its sha256. None has been
-  given for this amendment yet.
+- **owner approval:** the owner approved all four items of the coordinated-release request at 2026-10-22 12:31Z:
+  `approve all 4`. SHA256 of those UTF-8 bytes, without a newline:
+  `03e92ce8d0bf26ac58857d6167140acfab78d815a47a0d40459e8ff196e6b4ea`.
+  Scope: this amendment, grey retrospective display, the planned first affected scored day above, and one coordinated
+  stop/drain/source-publication/pin-binding/release/host-check/resume window. The owner separately stopped the schedule
+  at 2026-10-22 15:13:37Z; drain was observed at 15:14:46Z. Subsequent activation and resume require their own receipts.
 - **versions:**
   - `thd-baseline-station-check-v1`, `thd-baseline-provenance-v1` and `thd-robust-estimator-v1`. Reviewed
     implementation: cayley ee395f80, on public 290d9163; codex review 11b05e0f. The activation receipt names the final
@@ -100,6 +104,16 @@ This amendment makes the record state those facts. It demonstrates neither earth
   - the clamp floor of a clipped LG ratio;
   - calibration look-ahead where a baseline was calibrated after the scored day.
 - **Original scores, tiers, alerts, eligibility and the raw history files are unchanged.**
+- **The decline display and calendar event relations** (codex eca09d61): grey dashed connectors join a reconstructed
+  point to its immediately adjacent available values. Each displayed tier crossing shows its retrospective peak,
+  first decrease, crossing and local low (L, or unconfirmed L?). Retained M5+ events are related only within the same
+  region; different regions crossing on the same day are no longer collapsed. Scored/report days are not measurement
+  or input-availability timestamps; same-day order is unknown. The browser display now counts only consecutive valid
+  days, rejects a tier change without a numeric score decrease, and orders heuristic badges correctly. Thus displayed
+  markers and earlier cross-region event matches may change. The comparison window remains anchored to the first NORMAL
+  report day, never to the earlier peak; later observations may confirm the local low. Production detection/scoring
+  rules, stored scores, tiers, alerts and input-availability records are unchanged. Grey reconstructions remain excluded
+  from the detector. These are display corrections, not a precursor validation, warning or backdated detection.
 
 ## Boundaries
 

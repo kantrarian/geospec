@@ -77,7 +77,7 @@ class PageTests(unittest.TestCase):
     def setUpClass(cls):
         cls.page = (ROOT / "docs/index.html").read_text(encoding="utf-8-sig")
         cls.code = "\n".join(re.search(r"^        function " + name + r"\(.*?^        \}",
-                                       cls.page, re.M | re.S).group() for name in ("historyValue", "retrospectiveTrace"))
+                                       cls.page, re.M | re.S).group() for name in ("historyValue", "retrospectiveTrace", "retrospectiveConnectors"))
 
     def run_trace(self, change=None):
         point = raw.retrospective_combined(real_day())

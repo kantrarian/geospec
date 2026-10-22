@@ -691,11 +691,11 @@
             </div>
             <div class="legend-item">
                 <span style="color: #eab308; font-size: 1rem; line-height: 12px;">◆╌╌○</span>
-                <span>Experimental drop (no event match)</span>
+                <span>P &rarr; L: retrospective peak-to-low decline</span>
             </div>
             <div class="legend-item">
                 <span style="color: #f97316; font-size: 1rem; line-height: 12px;">◆——●</span>
-                <span>Experimental drop (retrospective event match)</span>
+                <span>◇ tier crossing &middot; ● same-region event (calendar relation only)</span>
             </div>
         </div>
 
@@ -751,9 +751,14 @@
             <div class="drop-explainer">
                 <strong>Interpretation limit:</strong> A tier change does not establish stress release, a locked asperity,
                 or impending rupture. No causal mechanism or forecast lead time is established by this display.<br>
-                <strong>On the chart:</strong> ◆ marks a tier drop. A <span style="color:#eab308">dotted line</span> spans a 3-day comparison window.
-                A <span style="color:#f97316">solid line</span> ending at an M5+ event (●) is a retrospective event match,
-                not confirmation of a precursor or prediction. Card badges describe the experimental heuristic, not forecast confidence.
+                <strong>On the chart:</strong> P and the upward triangle mark the elevated episode's last highest sample;
+                L and the downward triangle mark the first subsequent local low (L? if no rebound has confirmed it).
+                The solid bracket and highlighted score segment show that full retrospective decline, including the first decrease.
+                ◇ marks the first NORMAL report day, not the beginning of the decline. The dotted 3-day comparison window starts there,
+                never at the earlier peak. ● marks a retained M5+ event in the same region; hover states whether it lies inside the decline
+                or after the low. These are scored/report dates, not measurement or availability timestamps; same-day ordering is unknown.
+                The low uses later observations. No event match is confirmation of a precursor or prediction.
+                Card badges describe the experimental heuristic, not forecast confidence.
             </div>
             <details style="margin-top: 0.8rem; font-size: 0.8rem; color: var(--text-secondary);">
                 <summary style="cursor: pointer; color: var(--accent); font-weight: 500;">
@@ -762,7 +767,7 @@
                 <div style="margin-top: 0.6rem; padding: 0.8rem; background: var(--bg-secondary); border-radius: 6px; border-left: 3px solid var(--accent); line-height: 1.6;">
                     The existing filter counts <strong>region labels</strong>, not independent station sources.
                     It retains same-date drops in &ge;2 labels and also solo drops after &ge;5 elevated samples
-                    or from prior tier &ge;2. These rules have not been changed by this correction.<br>
+                    or from prior tier &ge;2. Only adjacent valid report days count as consecutive; gaps and absent scores break the run.<br>
                     <strong>Public THD station map:</strong> IU.MAJO supports Kumamoto and Tokyo Kanto when Tokyo uses its fallback;
                     IU.TUC supports Ridgecrest and both SoCal SAF labels; IU.ANTO supports both Turkey labels.
                     Shared source data cannot supply independent regional corroboration.<br>
@@ -1120,7 +1125,7 @@
         }
 
         function retrospectiveTrace(data, block) {
-            const trace = { x: [], y: [], text: [], name: 'Retrospective reconstruction (not issued)',
+            const trace = { x: [], y: [], text: [], customdata: [], name: 'Retrospective reconstruction (not issued)',
                 type: 'scatter', mode: 'markers', connectgaps: false,
                 marker: { color: '#9ca3af', symbol: 'diamond', size: 9, line: { color: '#e5e7eb', width: 1 } },
                 hovertemplate: '%{x}<br>Reconstructed score: %{y:.6f}<br>%{text}<extra></extra>' };
@@ -1144,9 +1149,38 @@
                     (c.admission.code === 'CALIBRATED_AFTER_SCORED_DAY' ? '; calibration look-ahead; not a real-time estimate' : '') +
                     (c.warnings.length ? '; ' + escape(c.warnings.join(', ')) : '')).join('<br>');
                 trace.x.push(row.date); trace.y.push(p.value);
+                trace.customdata.push(row.region);
                 trace.text.push(escape(row.region.replace(/_/g, ' ')) + '<br>RETROSPECTIVE — NOT ISSUED<br>' +
                     detail + '<br>Original: ' + escape(p.original_state) + '<br>Rule: ' + escape(p.rule) +
                     '<br>Source: ' + escape(p.source.path || p.source.record_path || p.source.kind));
+            }
+            return trace;
+        }
+
+        function retrospectiveConnectors(data, retro) {
+            const trace = {x: [], y: [], text: [], name: 'Grey reconstruction links (not issued)',
+                type: 'scatter', mode: 'lines', connectgaps: false,
+                line: {color: '#9ca3af', width: 2, dash: 'dash'},
+                hovertemplate: '%{x}<br>%{y:.6f}<br>%{text}<extra></extra>'};
+            const points = new Map(retro.x.map((date, i) => [retro.customdata[i] + '|' + date, retro.y[i]]));
+            const regions = {};
+            data.forEach(row => (regions[row.region] ||= []).push(row));
+            for (const [region, rows] of Object.entries(regions)) {
+                rows.sort((a, b) => a.date.localeCompare(b.date));
+                for (let i = 1; i < rows.length; i++) {
+                    const a = rows[i - 1], b = rows[i];
+                    const ka = region + '|' + a.date, kb = region + '|' + b.date;
+                    if (Date.parse(b.date + 'T00:00:00Z') - Date.parse(a.date + 'T00:00:00Z') !== 86400000 ||
+                        (!points.has(ka) && !points.has(kb))) continue;
+                    const va = points.has(ka) ? points.get(ka) : historyValue(a);
+                    const vb = points.has(kb) ? points.get(kb) : historyValue(b);
+                    if (va === null || vb === null) continue;
+                    const label = region.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') +
+                        '<br>Retrospective visual connector, NOT an issued continuous series.' +
+                        '<br>Method sets/calibrations may differ; excluded from drop detection.';
+                    trace.x.push(a.date, b.date, null); trace.y.push(va, vb, null);
+                    trace.text.push(label, label, null);
+                }
             }
             return trace;
         }
@@ -1181,6 +1215,7 @@
                     x: rows.map(r => r.date),
                     y: rows.map(r => historyValue(r)),
                     name: region.replace(/_/g, ' '),
+                    legendgroup: region,
                     type: 'scatter',
                     mode: 'lines+markers',
                     connectgaps: false,
@@ -1203,8 +1238,16 @@
                 retro.visible = toggle.checked;
                 const traceIndex = traces.length;
                 traces.push(retro);
-                toggle.onchange = () => Plotly.restyle('history-chart', { visible: toggle.checked }, [traceIndex]);
+                const connector = retrospectiveConnectors(data, retro);
+                const toggleIndices = [traceIndex];
+                if (connector.x.length) {
+                    connector.visible = toggle.checked;
+                    toggleIndices.push(traces.length);
+                    traces.push(connector);
+                }
+                toggle.onchange = () => Plotly.restyle('history-chart', { visible: toggle.checked }, toggleIndices);
                 retroStatus.textContent = retro.x.length + ' grey reconstructed region-days; not original issued scores. ' +
+                    'Grey dashed links join adjacent available days only, not missing measurements; method sets/calibrations may differ. ' +
                     'Only matching published rows are overlaid; excluded from tier-drop detection.';
             } catch (e) {
                 retroStatus.textContent = 'Retrospective overlay unavailable: ' + e.message + '. Original history is unchanged.';
@@ -1272,6 +1315,7 @@
             const dropOverlays = getDropOverlays(stressDrops, regionColors, earthquakeEvents);
             shapes.push(...dropOverlays.shapes);
             annotations.push(...dropOverlays.annotations);
+            traces.push(...(dropOverlays.traces || []));
 
             const layout = {
                 paper_bgcolor: 'rgba(0,0,0,0)',
@@ -1279,7 +1323,7 @@
                 font: { color: '#e8e8f0', family: 'JetBrains Mono, monospace' },
                 xaxis: {
                     gridcolor: '#2a2a3a',
-                    title: 'Date'
+                    title: 'Scored/report day · event calendar date'
                 },
                 yaxis: {
                     gridcolor: '#2a2a3a',
@@ -1320,15 +1364,17 @@
                 for (let i = 1; i < rows.length; i++) {
                     const prev = rows[i - 1];
                     const curr = rows[i];
-                    const prevTier = parseInt(prev.tier) || 0;
-                    const currTier = parseInt(curr.tier) || 0;
+                    const prevTier = Number(prev.tier);
+                    const currTier = Number(curr.tier);
+                    const adjacent = (a, b) => Date.parse(b.date + 'T00:00:00Z') - Date.parse(a.date + 'T00:00:00Z') === 86400000;
 
-                    if (prevTier < 1 || currTier !== 0) continue;
+                    if (prevTier < 1 || currTier !== 0 || !adjacent(prev, curr) ||
+                        historyValue(prev) === null || historyValue(curr) === null) continue;
 
                     // Count consecutive elevated days before drop
                     let consecutive = 0;
                     for (let j = i - 1; j >= 0; j--) {
-                        if ((parseInt(rows[j].tier) || 0) >= 1) consecutive++;
+                        if (Number(rows[j].tier) >= 1 && historyValue(rows[j]) !== null && adjacent(rows[j], rows[j + 1])) consecutive++;
                         else break;
                     }
                     if (consecutive < MIN_ELEVATED_DAYS) continue;
@@ -1336,7 +1382,23 @@
                     // Compute delta-z from risk scores as proxy
                     const prevRisk = parseFloat(prev.risk) || 0;
                     const currRisk = parseFloat(curr.risk) || 0;
+                    if (currRisk >= prevRisk) continue; // A policy-only tier change is not a measured score decline.
                     const deltaZ = Math.abs(prevRisk - currRisk) * 10;
+
+                    // Display-only hindsight geometry. Detection remains the first NORMAL row;
+                    // never backdate it to the peak, first decrease, or a later local minimum.
+                    let peakIndex = i - consecutive;
+                    for (let j = peakIndex + 1; j < i; j++) {
+                        if (historyValue(rows[j]) >= historyValue(rows[peakIndex])) peakIndex = j;
+                    }
+                    let lowIndex = i, lowConfirmedOn = null;
+                    for (let j = i + 1; j < rows.length; j++) {
+                        if (!adjacent(rows[j - 1], rows[j]) || historyValue(rows[j]) === null) break;
+                        if (historyValue(rows[j]) > historyValue(rows[lowIndex])) {
+                            lowConfirmedOn = rows[j].date; break;
+                        }
+                        if (historyValue(rows[j]) < historyValue(rows[lowIndex])) lowIndex = j;
+                    }
 
                     const tierDrop = prevTier;
 
@@ -1347,6 +1409,13 @@
                     rawDrops.push({
                         region: region,
                         dropDate: curr.date,
+                        peakDate: rows[peakIndex].date,
+                        peakRisk: historyValue(rows[peakIndex]),
+                        firstDeclineDate: rows[peakIndex + 1].date,
+                        lowDate: rows[lowIndex].date,
+                        lowRisk: historyValue(rows[lowIndex]),
+                        lowConfirmedOn: lowConfirmedOn,
+                        decline: rows.slice(peakIndex, lowIndex + 1).map(r => ({date: r.date, value: historyValue(r)})),
                         priorTier: prevTier,
                         priorTierName: tierNames[prevTier] || 'TIER_' + prevTier,
                         priorRisk: prevRisk,
@@ -1384,7 +1453,7 @@
             drops.sort((a, b) => {
                 const dateCmp = b.dropDate.localeCompare(a.dropDate);
                 if (dateCmp !== 0) return dateCmp;
-                return (confOrder[a.confidence] || 9) - (confOrder[b.confidence] || 9);
+                return (confOrder[a.confidence] ?? 9) - (confOrder[b.confidence] ?? 9);
             });
 
             return drops.slice(0, 12);
@@ -1417,34 +1486,25 @@
                     </div>
                     <div class="drop-detail">
                         <strong>${d.priorTierName}</strong> (tier ${d.priorTier}) &rarr; NORMAL on <strong>${d.dropDate}</strong><br>
-                        Score: ${d.priorRisk.toFixed(3)} &rarr; ${d.currRisk.toFixed(3)}<br>
+                        Peak ${d.peakDate}: ${d.peakRisk.toFixed(4)} &rarr; first decrease ${d.firstDeclineDate}<br>
+                        ${d.lowConfirmedOn ? 'Local low' : 'Lowest observed endpoint (not confirmed)'} ${d.lowDate}: ${d.lowRisk.toFixed(4)}<br>
+                        Peak-to-low change: ${(d.peakRisk - d.lowRisk).toFixed(4)} (score units)<br>
+                        Scored/report days, NOT measurement or availability times. The local low uses later observations.<br>
                         Elevated for <strong>${d.consecutive}</strong> consecutive day${d.consecutive > 1 ? 's' : ''} before drop
                     </div>
                 </div>
             `).join('');
         }
 
-        // Add stress-release drop overlays to the history chart:
-        // - Diamond marker at the drop point
-        // - Horizontal line extending into the watch window (1-3 days)
-        //   Dashed = pending (no confirmed event), Solid = confirmed (event occurred)
+        // Hindsight decline geometry is separate from the tier-crossing clock.
+        // Event relations below use scored/calendar days, never inferred warning times.
         function getDropOverlays(drops, regionColors, earthquakeEvents) {
             const shapes = [];
             const annotations = [];
+            const traces = [];
 
-            if (!drops || drops.length === 0) return { shapes, annotations };
-
-            // Build a lookup of M5+ events by date for matching
-            const eventsByDate = {};
-            if (earthquakeEvents) {
-                earthquakeEvents.forEach(ev => {
-                    if (ev.mag >= 5.0 && ev.time) {
-                        const d = ev.time.split('T')[0];
-                        if (!eventsByDate[d]) eventsByDate[d] = [];
-                        eventsByDate[d].push(ev);
-                    }
-                });
-            }
+            if (!drops || drops.length === 0) return { shapes, annotations, traces };
+            const escape = value => String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
             // Helper: add N days to a YYYY-MM-DD string
             function addDays(dateStr, n) {
@@ -1453,50 +1513,57 @@
                 return d.toISOString().split('T')[0];
             }
 
-            // De-duplicate drops: keep only the highest-confidence per date
-            const bestByDate = {};
-            drops.forEach(d => {
-                const key = d.dropDate;
-                const confRank = { high: 3, moderate: 2, low: 1 };
-                if (!bestByDate[key] || (confRank[d.confidence] || 0) > (confRank[bestByDate[key].confidence] || 0)) {
-                    bestByDate[key] = d;
-                }
-            });
-            const uniqueDrops = Object.values(bestByDate);
-
-            uniqueDrops.forEach(d => {
+            // Do not collapse different regions that happen to cross on the same day.
+            drops.forEach((d, index) => {
                 const watchWindowDays = 3;
-                const dropColor = d.confidence === 'high' ? '#f97316' : '#eab308';
-                const yLevel = 1.03; // fixed y near top so lines don't overlap data
-
-                // Check if any M5+ event occurred within the watch window
-                let confirmed = false;
-                let eventDate = null;
-                let eventMag = null;
-                for (let offset = 1; offset <= watchWindowDays; offset++) {
-                    const checkDate = addDays(d.dropDate, offset);
-                    if (eventsByDate[checkDate]) {
-                        confirmed = true;
-                        eventDate = checkDate;
-                        eventMag = Math.max(...eventsByDate[checkDate].map(e => e.mag));
-                        break;
-                    }
-                }
-
-                const endDate = confirmed ? eventDate : addDays(d.dropDate, watchWindowDays);
-
-                // Diamond at the drop point
+                const dropColor = regionColors[d.region] || '#eab308';
+                const yLevel = 1.025 + (index % 4) * 0.025;
+                const endDate = addDays(d.dropDate, watchWindowDays);
+                const events = (earthquakeEvents || []).filter(ev => ev.region === d.region &&
+                    ev.mag >= 5 && ev.time && ev.time.slice(0, 10) >= d.peakDate &&
+                    ev.time.slice(0, 10) <= (endDate > d.lowDate ? endDate : d.lowDate));
+                const eventText = events.map(ev => {
+                    const day = ev.time.slice(0, 10);
+                    const relation = day <= d.lowDate ? 'within peak-to-low scored-day interval' : 'after the low scored day';
+                    return 'M' + Number(ev.mag).toFixed(1) + ' ' + escape(ev.time) + ': ' + relation +
+                        (day === d.dropDate ? '; same scored day as tier crossing, intraday order unknown' : '');
+                }).join('<br>') || 'No retained same-region M5+ event in this displayed interval/window (not a completeness claim).';
+                const detail = escape(d.region.replace(/_/g, ' ')) +
+                    '<br>Peak: ' + d.peakDate + ' (' + d.peakRisk.toFixed(4) + ')' +
+                    '<br>First decrease: ' + d.firstDeclineDate +
+                    '<br>Tier crossing: ' + d.dropDate + ' (' + d.currRisk.toFixed(4) + ')' +
+                    '<br>' + (d.lowConfirmedOn ? 'Local low' : 'Lowest observed endpoint, unconfirmed') +
+                    ': ' + d.lowDate + ' (' + d.lowRisk.toFixed(4) + ')' +
+                    '<br>Low confirmed by later rising sample: ' + (d.lowConfirmedOn || 'not observed') +
+                    '<br>Scored/report days, not measurement or input-availability clocks.' +
+                    '<br>Retrospective shape; NOT a backdated detection or warning.<br>' + eventText;
+                traces.push({x: d.decline.map(p => p.date), y: d.decline.map(p => p.value),
+                    name: d.region.replace(/_/g, ' ') + ' peak-to-low (retrospective)',
+                    legendgroup: d.region,
+                    type: 'scatter', mode: 'lines+markers', connectgaps: false, showlegend: false,
+                    line: {color: dropColor, width: 4},
+                    marker: {size: 9, symbol: d.decline.map(p => p.date === d.peakDate ? 'triangle-up' :
+                        p.date === d.lowDate ? 'triangle-down' : p.date === d.dropDate ? 'diamond-open' : 'circle')},
+                    text: d.decline.map(() => detail), hovertemplate: '%{x}: %{y:.4f}<br>%{text}<extra></extra>'});
+                // Solid bracket spans the actual decline; dotted window starts at the crossing, not the peak.
+                shapes.push({type: 'line', x0: d.peakDate, x1: d.lowDate, y0: yLevel, y1: yLevel,
+                    line: {color: dropColor, width: 2.5, dash: 'solid'}});
+                annotations.push({x: d.peakDate, y: yLevel, text: 'P', showarrow: false,
+                    hovertext: detail, font: {color: dropColor, size: 10}, bgcolor: 'rgba(0,0,0,0.7)'});
+                annotations.push({x: d.lowDate, y: yLevel, text: d.lowConfirmedOn ? 'L' : 'L?', showarrow: false,
+                    hovertext: detail, font: {color: dropColor, size: 10}, bgcolor: 'rgba(0,0,0,0.7)'});
                 annotations.push({
                     x: d.dropDate,
                     y: yLevel,
-                    text: '◆',
+                    text: '◇',
+                    hovertext: detail,
                     showarrow: false,
                     font: { color: dropColor, size: d.confidence === 'high' ? 14 : 11 },
                     bgcolor: 'rgba(0,0,0,0)',
                     borderpad: 0
                 });
 
-                // Horizontal watch-window line: dashed if pending, solid if confirmed
+                // Preserve the comparison-window origin at the first NORMAL report day.
                 shapes.push({
                     type: 'line',
                     x0: d.dropDate,
@@ -1505,49 +1572,28 @@
                     y1: yLevel,
                     line: {
                         color: dropColor,
-                        width: confirmed ? 2.5 : 1.5,
-                        dash: confirmed ? 'solid' : 'dot'
+                        width: 1.5,
+                        dash: 'dot'
                     },
-                    opacity: confirmed ? 1.0 : 0.6
+                    opacity: 0.6
                 });
 
-                if (confirmed) {
-                    // Solid circle at the event end
+                for (const event of events) {
+                    const eventDate = event.time.slice(0, 10);
                     annotations.push({
                         x: eventDate,
                         y: yLevel,
                         text: '●',
+                        hovertext: detail,
                         showarrow: false,
                         font: { color: '#ef4444', size: 12 },
                         bgcolor: 'rgba(0,0,0,0)',
                         borderpad: 0
                     });
-                    // Event label
-                    annotations.push({
-                        x: eventDate,
-                        y: yLevel + 0.04,
-                        text: 'M' + eventMag.toFixed(1),
-                        showarrow: false,
-                        font: { color: '#ef4444', size: 9, weight: 'bold' },
-                        bgcolor: 'rgba(10,10,15,0.8)',
-                        borderpad: 2
-                    });
-                } else {
-                    // Open circle at the end of the watch window (pending)
-                    annotations.push({
-                        x: endDate,
-                        y: yLevel,
-                        text: '○',
-                        showarrow: false,
-                        font: { color: dropColor, size: 10 },
-                        bgcolor: 'rgba(0,0,0,0)',
-                        borderpad: 0,
-                        opacity: 0.6
-                    });
                 }
             });
 
-            return { shapes, annotations };
+            return { shapes, annotations, traces };
         }
 
         // Load and render data

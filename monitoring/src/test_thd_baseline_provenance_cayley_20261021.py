@@ -14,7 +14,8 @@ eligibility and the score basis, and serializes the record component. Acceptance
   * a convention both sides state and that differs is a typed CONVENTION_MISMATCH; a baseline stamped with no
     convention is UNKNOWN, neither a mismatch nor a match, and is still used;
   * a declared-channel station's selector rule is unchanged (SELECTOR_MISMATCH);
-  * with the eligibility rule inactive the record carries no block (byte-identical legacy output);
+  * with the eligibility rule inactive the block is omitted (only that is asserted: no general byte-identical-output
+    claim, since the producer-boundary check still applies);
   * calibrate_station stores round(median, 6) / round(MAD_TO_SIGMA x MAD, 6) and declares exactly that, on values where
     median/scaled MAD and mean/SD differ, and run_thd_recal carries the declaration into the entry the loader reads.
 Waveforms and moments are SYNTHETIC. Nothing touches a network, the runner tree or a credential.

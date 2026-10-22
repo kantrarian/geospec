@@ -59,9 +59,11 @@ This amendment makes the record state those facts. It demonstrates neither earth
     Nothing is zeroed, and nothing is scored against a substitute.
   - The measurement identity is recorded, not compared. A code change between a recalibration and a scored day changes
     it without changing the quantity.
-- **Record block (`thd-baseline-provenance-v1`).** The block is written into the `seismic_thd` component only while the
-  eligibility rule is active, so output with the rule inactive is byte-identical. It carries the baseline the producer
-  looked up and what happened to it:
+- **Record block (`thd-baseline-provenance-v1`).** The provenance block is emitted only when the eligibility rule is
+  active and the measurement reaches baseline lookup. With the rule inactive the block is omitted. The separate
+  producer-boundary check can still change handling of a mismatched baseline; no general byte-identical-output claim is
+  made. Written into the `seismic_thd` component, the block carries the baseline the producer looked up and what happened
+  to it:
   - `disposition`: `SCORED_AGAINST`, `REJECTED_BY_CHECK`, `REJECTED_STALE` or `NO_BASELINE`;
   - the typed check;
   - the source:
@@ -71,7 +73,9 @@ This amendment makes the record state those facts. It demonstrates neither earth
   - the DECLARED estimator, or none;
   - the convention, measurement identity and selector.
 
-  The block's absence on an earlier record means only that the block did not exist yet.
+  An absent block establishes neither the reason for absence nor which baseline was used. Earlier code, inactive
+  eligibility and early unavailable returns are distinct possible paths; retain UNKNOWN unless independently
+  documented.
 - **Estimator declaration (`thd-robust-estimator-v1`).**
   - `calibrate_thd_baselines` declares the estimator it computes: center = median, scale = `MAD_TO_SIGMA` × MAD, with
     `MAD_TO_SIGMA` = 1.4826, at 6 stored decimals.

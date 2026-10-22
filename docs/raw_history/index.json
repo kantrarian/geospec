@@ -1,7 +1,7 @@
 {
  "build": {
-  "mode": "STAGED_FOR_THE_NEXT_COMMIT",
-  "parent_commit": "290d9163e8519df4e597720bc2acc9f60807d330"
+  "commit": "0eca6fab1beaa440c6760fd5893d713f1b44fde8",
+  "mode": "COMMIT"
  },
  "dates": {
   "first": "2025-10-18",
@@ -5815,5 +5815,2944 @@
   "tokyo_kanto",
   "turkey_kahramanmaras"
  ],
+ "retrospective_combined": {
+  "base_weights": {
+   "fault_correlation": 0.3,
+   "lambda_geo": 0.4,
+   "seismic_thd": 0.3
+  },
+  "meaning": "Display-only weighted mean of measured, unfrozen methods' retained scores; weights renormalized. Eligibility is not applied to this separate reconstruction. Original scores, tiers and alerts unchanged. No new calibration, no interpolation, no prospective warning claim.",
+  "regions": {
+   "anchorage": [
+    {
+     "components": {
+      "lambda_geo": {
+       "admission": {
+        "basis": "METHOD_SET",
+        "code": "NO_REGISTERED_FRESHNESS_POLICY",
+        "included": false,
+        "reason": "NO_REGISTERED_FRESHNESS_POLICY: lambda_geo_baselines.json:anchorage: lambda_geo has no registered baseline-age bound; qualification unknown",
+        "state": "NOT_QUALIFIED",
+        "weight": null
+       },
+       "base_weight": 0.4,
+       "calibration": {
+        "calibration": {
+         "eligible_for_tiering": false,
+         "reason": "NO_REGISTERED_FRESHNESS_POLICY: lambda_geo_baselines.json:anchorage: lambda_geo has no registered baseline-age bound; qualification unknown",
+         "rule_version": "calibration-eligibility-v3",
+         "status": "missing"
+        }
+       },
+       "effective_weight": 0.5714285714285715,
+       "raw_value": 0.10408437269858015,
+       "recorded_score": 0.0,
+       "station": null,
+       "warnings": [
+        "CALIBRATION_MISSING",
+        "NOT_ADMITTED_NOT_QUALIFIED"
+       ]
+      },
+      "seismic_thd": {
+       "admission": {
+        "basis": "METHOD_SET",
+        "code": "CALIBRATED_AFTER_SCORED_DAY",
+        "included": false,
+        "reason": "CALIBRATED_AFTER_SCORED_DAY: calibrated 2026-10-09, 2 d after the scored day 2026-10-07",
+        "state": "NOT_QUALIFIED",
+        "weight": null
+       },
+       "base_weight": 0.3,
+       "calibration": {
+        "baseline": {
+         "mean": 0.257953,
+         "n_samples": 91,
+         "quality": "good",
+         "std": 0.18958,
+         "window": "2026-06-11 to 2026-09-09"
+        },
+        "calibration": {
+         "eligible_for_tiering": false,
+         "reason": "CALIBRATED_AFTER_SCORED_DAY: calibrated 2026-10-09, 2 d after the scored day 2026-10-07",
+         "rule_version": "calibration-eligibility-v3",
+         "status": "missing"
+        },
+        "sample_rate_hz": 40.0,
+        "z_score": 1.1226811454596075
+       },
+       "effective_weight": 0.4285714285714286,
+       "raw_value": 0.4707908915562324,
+       "recorded_score": 0.19969081939461436,
+       "station": {
+        "basis": "NOTES_TEXT",
+        "value": "IU.COLA"
+       },
+       "warnings": [
+        "CALIBRATION_MISSING",
+        "NOT_ADMITTED_NOT_QUALIFIED"
+       ]
+      }
+     },
+     "csv": {
+      "agreement": "no_data",
+      "methods": "0",
+      "risk": "0.0000",
+      "tier": "-1"
+     },
+     "date": "2026-10-07",
+     "original_state": "NO_QUALIFIED_METHOD",
+     "rule": "retained-component-weighted-mean-v1",
+     "source": {
+      "kind": "REVISION_CURRENT",
+      "path": "docs/ensemble/2026-10-07/20261009T114617132021Z-7adb6101.json",
+      "reason": null,
+      "run_id": "20261009T114617132021Z-7adb6101",
+      "sha256": "3176f99a72d679510d075704e7b0b652c47b004fa5737d2d070de907837b4819",
+      "supersedes": null
+     },
+     "state": "RETROSPECTIVE_RECONSTRUCTION_NOT_ISSUED",
+     "value": 0.08558177974054902
+    }
+   ],
+   "campi_flegrei": [
+    {
+     "components": {
+      "lambda_geo": {
+       "admission": {
+        "basis": "METHOD_SET",
+        "code": "NO_REGISTERED_FRESHNESS_POLICY",
+        "included": false,
+        "reason": "NO_REGISTERED_FRESHNESS_POLICY: lambda_geo_baselines.json:campi_flegrei: lambda_geo has no registered baseline-age bound; qualification unknown",
+        "state": "NOT_QUALIFIED",
+        "weight": null
+       },
+       "base_weight": 0.4,
+       "calibration": {
+        "calibration": {
+         "eligible_for_tiering": false,
+         "reason": "NO_REGISTERED_FRESHNESS_POLICY: lambda_geo_baselines.json:campi_flegrei: lambda_geo has no registered baseline-age bound; qualification unknown",
+         "rule_version": "calibration-eligibility-v3",
+         "status": "missing"
+        }
+       },
+       "effective_weight": 1.0,
+       "raw_value": 0.2242197320916182,
+       "recorded_score": 0.0,
+       "station": null,
+       "warnings": [
+        "CALIBRATION_MISSING",
+        "NOT_ADMITTED_NOT_QUALIFIED"
+       ]
+      }
+     },
+     "csv": {
+      "agreement": "no_data",
+      "methods": "0",
+      "risk": "0.0000",
+      "tier": "-1"
+     },
+     "date": "2026-10-07",
+     "original_state": "NO_QUALIFIED_METHOD",
+     "rule": "retained-component-weighted-mean-v1",
+     "source": {
+      "kind": "REVISION_CURRENT",
+      "path": "docs/ensemble/2026-10-07/20261009T114617132021Z-7adb6101.json",
+      "reason": null,
+      "run_id": "20261009T114617132021Z-7adb6101",
+      "sha256": "3176f99a72d679510d075704e7b0b652c47b004fa5737d2d070de907837b4819",
+      "supersedes": null
+     },
+     "state": "RETROSPECTIVE_RECONSTRUCTION_NOT_ISSUED",
+     "value": 0.0
+    },
+    {
+     "components": {
+      "lambda_geo": {
+       "admission": {
+        "basis": "METHOD_SET",
+        "code": "NO_REGISTERED_FRESHNESS_POLICY",
+        "included": false,
+        "reason": "NO_REGISTERED_FRESHNESS_POLICY: lambda_geo_baselines.json:campi_flegrei: lambda_geo has no registered baseline-age bound; qualification unknown",
+        "state": "NOT_QUALIFIED",
+        "weight": null
+       },
+       "base_weight": 0.4,
+       "calibration": {
+        "calibration": {
+         "eligible_for_tiering": false,
+         "reason": "NO_REGISTERED_FRESHNESS_POLICY: lambda_geo_baselines.json:campi_flegrei: lambda_geo has no registered baseline-age bound; qualification unknown",
+         "rule_version": "calibration-eligibility-v3",
+         "status": "missing"
+        }
+       },
+       "effective_weight": 1.0,
+       "raw_value": 0.2242197320916182,
+       "recorded_score": 0.0,
+       "station": null,
+       "warnings": [
+        "CALIBRATION_MISSING",
+        "NOT_ADMITTED_NOT_QUALIFIED",
+        "REPEATS_PREVIOUS_MEASURED_VALUE"
+       ]
+      }
+     },
+     "csv": {
+      "agreement": "no_data",
+      "methods": "0",
+      "risk": "0.0000",
+      "tier": "-1"
+     },
+     "date": "2026-10-08",
+     "original_state": "NO_QUALIFIED_METHOD",
+     "rule": "retained-component-weighted-mean-v1",
+     "source": {
+      "kind": "REVISION_CURRENT",
+      "path": "docs/ensemble/2026-10-08/20261010T110640457607Z-8a69c025.json",
+      "reason": null,
+      "run_id": "20261010T110640457607Z-8a69c025",
+      "sha256": "2cede73f2944fb09a3be0d40a11680c54f9e563daaa4d9720b4811596ce13a27",
+      "supersedes": null
+     },
+     "state": "RETROSPECTIVE_RECONSTRUCTION_NOT_ISSUED",
+     "value": 0.0
+    },
+    {
+     "components": {
+      "lambda_geo": {
+       "admission": {
+        "basis": "METHOD_SET",
+        "code": "NO_REGISTERED_FRESHNESS_POLICY",
+        "included": false,
+        "reason": "NO_REGISTERED_FRESHNESS_POLICY: lambda_geo_baselines.json:campi_flegrei: lambda_geo has no registered baseline-age bound; qualification unknown",
+        "state": "NOT_QUALIFIED",
+        "weight": null
+       },
+       "base_weight": 0.4,
+       "calibration": {
+        "calibration": {
+         "eligible_for_tiering": false,
+         "reason": "NO_REGISTERED_FRESHNESS_POLICY: lambda_geo_baselines.json:campi_flegrei: lambda_geo has no registered baseline-age bound; qualification unknown",
+         "rule_version": "calibration-eligibility-v3",
+         "status": "missing"
+        }
+       },
+       "effective_weight": 1.0,
+       "raw_value": 0.2242197320916182,
+       "recorded_score": 0.0,
+       "station": null,
+       "warnings": [
+        "CALIBRATION_MISSING",
+        "NOT_ADMITTED_NOT_QUALIFIED",
+        "REPEATS_PREVIOUS_MEASURED_VALUE"
+       ]
+      }
+     },
+     "csv": {
+      "agreement": "no_data",
+      "methods": "0",
+      "risk": "0.0000",
+      "tier": "-1"
+     },
+     "date": "2026-10-09",
+     "original_state": "NO_QUALIFIED_METHOD",
+     "rule": "retained-component-weighted-mean-v1",
+     "source": {
+      "kind": "REVISION_CURRENT",
+      "path": "docs/ensemble/2026-10-09/20261011T110730348906Z-b9fd9794.json",
+      "reason": null,
+      "run_id": "20261011T110730348906Z-b9fd9794",
+      "sha256": "3bc9bcdd21385eeddb15eaa2e394dc73bb8acbdfcbf55ca3c598c134495360c1",
+      "supersedes": null
+     },
+     "state": "RETROSPECTIVE_RECONSTRUCTION_NOT_ISSUED",
+     "value": 0.0
+    },
+    {
+     "components": {
+      "lambda_geo": {
+       "admission": {
+        "basis": "METHOD_SET",
+        "code": "NO_REGISTERED_FRESHNESS_POLICY",
+        "included": false,
+        "reason": "NO_REGISTERED_FRESHNESS_POLICY: lambda_geo_baselines.json:campi_flegrei: lambda_geo has no registered baseline-age bound; qualification unknown",
+        "state": "NOT_QUALIFIED",
+        "weight": null
+       },
+       "base_weight": 0.4,
+       "calibration": {
+        "calibration": {
+         "eligible_for_tiering": false,
+         "reason": "NO_REGISTERED_FRESHNESS_POLICY: lambda_geo_baselines.json:campi_flegrei: lambda_geo has no registered baseline-age bound; qualification unknown",
+         "rule_version": "calibration-eligibility-v3",
+         "status": "missing"
+        }
+       },
+       "effective_weight": 1.0,
+       "raw_value": 0.2242197320916182,
+       "recorded_score": 0.0,
+       "station": null,
+       "warnings": [
+        "CALIBRATION_MISSING",
+        "NOT_ADMITTED_NOT_QUALIFIED",
+        "REPEATS_PREVIOUS_MEASURED_VALUE"
+       ]
+      }
+     },
+     "csv": {
+      "agreement": "no_data",
+      "methods": "0",
+      "risk": "0.0000",
+      "tier": "-1"
+     },
+     "date": "2026-10-10",
+     "original_state": "NO_QUALIFIED_METHOD",
+     "rule": "retained-component-weighted-mean-v1",
+     "source": {
+      "kind": "REVISION_CURRENT",
+      "path": "docs/ensemble/2026-10-10/20261012T111248837323Z-50ec3ee9.json",
+      "reason": null,
+      "run_id": "20261012T111248837323Z-50ec3ee9",
+      "sha256": "535c4bbb173283940c6fc06f343197cf804c34fb591d3f5e2d41b9e7b3011abe",
+      "supersedes": null
+     },
+     "state": "RETROSPECTIVE_RECONSTRUCTION_NOT_ISSUED",
+     "value": 0.0
+    },
+    {
+     "components": {
+      "lambda_geo": {
+       "admission": {
+        "basis": "METHOD_SET",
+        "code": "NO_REGISTERED_FRESHNESS_POLICY",
+        "included": false,
+        "reason": "NO_REGISTERED_FRESHNESS_POLICY: lambda_geo_baselines.json:campi_flegrei: lambda_geo has no registered baseline-age bound; qualification unknown",
+        "state": "NOT_QUALIFIED",
+        "weight": null
+       },
+       "base_weight": 0.4,
+       "calibration": {
+        "calibration": {
+         "eligible_for_tiering": false,
+         "reason": "NO_REGISTERED_FRESHNESS_POLICY: lambda_geo_baselines.json:campi_flegrei: lambda_geo has no registered baseline-age bound; qualification unknown",
+         "rule_version": "calibration-eligibility-v3",
+         "status": "missing"
+        }
+       },
+       "effective_weight": 1.0,
+       "raw_value": 0.2242197320916182,
+       "recorded_score": 0.0,
+       "station": null,
+       "warnings": [
+        "CALIBRATION_MISSING",
+        "NOT_ADMITTED_NOT_QUALIFIED",
+        "REPEATS_PREVIOUS_MEASURED_VALUE"
+       ]
+      }
+     },
+     "csv": {
+      "agreement": "no_data",
+      "methods": "0",
+      "risk": "0.0000",
+      "tier": "-1"
+     },
+     "date": "2026-10-11",
+     "original_state": "NO_QUALIFIED_METHOD",
+     "rule": "retained-component-weighted-mean-v1",
+     "source": {
+      "kind": "REVISION_CURRENT",
+      "path": "docs/ensemble/2026-10-11/20261013T110743538838Z-e374c06e.json",
+      "reason": null,
+      "run_id": "20261013T110743538838Z-e374c06e",
+      "sha256": "545f046cb079ddcd2f3d13841d1bb6a83afbafad7a82db36c1b4a40e46374a7a",
+      "supersedes": null
+     },
+     "state": "RETROSPECTIVE_RECONSTRUCTION_NOT_ISSUED",
+     "value": 0.0
+    },
+    {
+     "components": {
+      "lambda_geo": {
+       "admission": {
+        "basis": "METHOD_SET",
+        "code": "NO_REGISTERED_FRESHNESS_POLICY",
+        "included": false,
+        "reason": "NO_REGISTERED_FRESHNESS_POLICY: lambda_geo_baselines.json:campi_flegrei: lambda_geo has no registered baseline-age bound; qualification unknown",
+        "state": "NOT_QUALIFIED",
+        "weight": null
+       },
+       "base_weight": 0.4,
+       "calibration": {
+        "calibration": {
+         "eligible_for_tiering": false,
+         "reason": "NO_REGISTERED_FRESHNESS_POLICY: lambda_geo_baselines.json:campi_flegrei: lambda_geo has no registered baseline-age bound; qualification unknown",
+         "rule_version": "calibration-eligibility-v3",
+         "status": "missing"
+        }
+       },
+       "effective_weight": 1.0,
+       "raw_value": 0.1,
+       "recorded_score": 0.0,
+       "station": null,
+       "warnings": [
+        "CALIBRATION_MISSING",
+        "NOT_ADMITTED_NOT_QUALIFIED"
+       ]
+      }
+     },
+     "csv": {
+      "agreement": "no_data",
+      "methods": "0",
+      "risk": "0.0000",
+      "tier": "-1"
+     },
+     "date": "2026-10-12",
+     "original_state": "NO_QUALIFIED_METHOD",
+     "rule": "retained-component-weighted-mean-v1",
+     "source": {
+      "kind": "REVISION_CURRENT",
+      "path": "docs/ensemble/2026-10-12/20261014T110546726431Z-e3591cae.json",
+      "reason": null,
+      "run_id": "20261014T110546726431Z-e3591cae",
+      "sha256": "11f6c63b0aee41bb67e7a2cd93626b2567fb180cc3ce81c0ed12dd2a2feccb86",
+      "supersedes": null
+     },
+     "state": "RETROSPECTIVE_RECONSTRUCTION_NOT_ISSUED",
+     "value": 0.0
+    },
+    {
+     "components": {
+      "lambda_geo": {
+       "admission": {
+        "basis": "METHOD_SET",
+        "code": "NO_REGISTERED_FRESHNESS_POLICY",
+        "included": false,
+        "reason": "NO_REGISTERED_FRESHNESS_POLICY: lambda_geo_baselines.json:campi_flegrei: lambda_geo has no registered baseline-age bound; qualification unknown",
+        "state": "NOT_QUALIFIED",
+        "weight": null
+       },
+       "base_weight": 0.4,
+       "calibration": {
+        "calibration": {
+         "eligible_for_tiering": false,
+         "reason": "NO_REGISTERED_FRESHNESS_POLICY: lambda_geo_baselines.json:campi_flegrei: lambda_geo has no registered baseline-age bound; qualification unknown",
+         "rule_version": "calibration-eligibility-v3",
+         "status": "missing"
+        }
+       },
+       "effective_weight": 0.5714285714285715,
+       "raw_value": 0.1,
+       "recorded_score": 0.0,
+       "station": null,
+       "warnings": [
+        "CALIBRATION_MISSING",
+        "NOT_ADMITTED_NOT_QUALIFIED",
+        "REPEATS_PREVIOUS_MEASURED_VALUE"
+       ]
+      },
+      "seismic_thd": {
+       "admission": {
+        "basis": "METHOD_SET",
+        "code": "NO_BASELINE",
+        "included": false,
+        "reason": "NO_BASELINE: no station baseline",
+        "state": "NOT_QUALIFIED",
+        "weight": null
+       },
+       "base_weight": 0.3,
+       "calibration": {
+        "baseline": {
+         "mean": 0.0,
+         "n_samples": 0,
+         "quality": "missing",
+         "std": 0.0,
+         "window": ""
+        },
+        "calibration": {
+         "eligible_for_tiering": false,
+         "reason": "NO_BASELINE: no station baseline",
+         "rule_version": "calibration-eligibility-v3",
+         "status": "missing"
+        },
+        "sample_rate_hz": 100.0,
+        "z_score": 0.0
+       },
+       "effective_weight": 0.4285714285714286,
+       "raw_value": 0.36295187100065796,
+       "recorded_score": 0.782530175143421,
+       "station": {
+        "basis": "NOTES_TEXT",
+        "value": "IV.CAFE"
+       },
+       "warnings": [
+        "CALIBRATION_MISSING",
+        "BASELINE_QUALITY_MISSING",
+        "ZERO_SAMPLE_BASELINE",
+        "NOT_ADMITTED_NOT_QUALIFIED"
+       ]
+      }
+     },
+     "csv": {
+      "agreement": "no_data",
+      "methods": "0",
+      "risk": "0.0000",
+      "tier": "-1"
+     },
+     "date": "2026-10-13",
+     "original_state": "NO_QUALIFIED_METHOD",
+     "rule": "retained-component-weighted-mean-v1",
+     "source": {
+      "kind": "REVISION_CURRENT",
+      "path": "docs/ensemble/2026-10-13/20261015T110719273497Z-116621ca.json",
+      "reason": null,
+      "run_id": "20261015T110719273497Z-116621ca",
+      "sha256": "647ffe4df7dd7f8bcf4d28ff625fd49df1e271187f5e0e4a77ff6821342f32b0",
+      "supersedes": null
+     },
+     "state": "RETROSPECTIVE_RECONSTRUCTION_NOT_ISSUED",
+     "value": 0.3353700750614662
+    },
+    {
+     "components": {
+      "lambda_geo": {
+       "admission": {
+        "basis": "METHOD_SET",
+        "code": "NO_REGISTERED_FRESHNESS_POLICY",
+        "included": false,
+        "reason": "NO_REGISTERED_FRESHNESS_POLICY: lambda_geo_baselines.json:campi_flegrei: lambda_geo has no registered baseline-age bound; qualification unknown",
+        "state": "NOT_QUALIFIED",
+        "weight": null
+       },
+       "base_weight": 0.4,
+       "calibration": {
+        "calibration": {
+         "eligible_for_tiering": false,
+         "reason": "NO_REGISTERED_FRESHNESS_POLICY: lambda_geo_baselines.json:campi_flegrei: lambda_geo has no registered baseline-age bound; qualification unknown",
+         "rule_version": "calibration-eligibility-v3",
+         "status": "missing"
+        }
+       },
+       "effective_weight": 0.5714285714285715,
+       "raw_value": 0.1,
+       "recorded_score": 0.0,
+       "station": null,
+       "warnings": [
+        "CALIBRATION_MISSING",
+        "NOT_ADMITTED_NOT_QUALIFIED",
+        "REPEATS_PREVIOUS_MEASURED_VALUE"
+       ]
+      },
+      "seismic_thd": {
+       "admission": {
+        "basis": "METHOD_SET",
+        "code": "NO_BASELINE",
+        "included": false,
+        "reason": "NO_BASELINE: no station baseline",
+        "state": "NOT_QUALIFIED",
+        "weight": null
+       },
+       "base_weight": 0.3,
+       "calibration": {
+        "baseline": {
+         "mean": 0.0,
+         "n_samples": 0,
+         "quality": "missing",
+         "std": 0.0,
+         "window": ""
+        },
+        "calibration": {
+         "eligible_for_tiering": false,
+         "reason": "NO_BASELINE: no station baseline",
+         "rule_version": "calibration-eligibility-v3",
+         "status": "missing"
+        },
+        "sample_rate_hz": 100.0,
+        "z_score": 0.0
+       },
+       "effective_weight": 0.4285714285714286,
+       "raw_value": 0.205451339010386,
+       "recorded_score": 0.6475297191517594,
+       "station": {
+        "basis": "NOTES_TEXT",
+        "value": "IV.CAFE"
+       },
+       "warnings": [
+        "CALIBRATION_MISSING",
+        "BASELINE_QUALITY_MISSING",
+        "ZERO_SAMPLE_BASELINE",
+        "NOT_ADMITTED_NOT_QUALIFIED"
+       ]
+      }
+     },
+     "csv": {
+      "agreement": "no_data",
+      "methods": "0",
+      "risk": "0.0000",
+      "tier": "-1"
+     },
+     "date": "2026-10-14",
+     "original_state": "NO_QUALIFIED_METHOD",
+     "rule": "retained-component-weighted-mean-v1",
+     "source": {
+      "kind": "REVISION_CURRENT",
+      "path": "docs/ensemble/2026-10-14/20261016T110326624764Z-71bf6b8c.json",
+      "reason": null,
+      "run_id": "20261016T110326624764Z-71bf6b8c",
+      "sha256": "fbe8ab7cbf33ed4f800e2570eb3f6caec08ad532f671c53e915484285e68c07c",
+      "supersedes": null
+     },
+     "state": "RETROSPECTIVE_RECONSTRUCTION_NOT_ISSUED",
+     "value": 0.2775127367793255
+    },
+    {
+     "components": {
+      "lambda_geo": {
+       "admission": {
+        "basis": "METHOD_SET",
+        "code": "NO_REGISTERED_FRESHNESS_POLICY",
+        "included": false,
+        "reason": "NO_REGISTERED_FRESHNESS_POLICY: lambda_geo_baselines.json:campi_flegrei: lambda_geo has no registered baseline-age bound; qualification unknown",
+        "state": "NOT_QUALIFIED",
+        "weight": null
+       },
+       "base_weight": 0.4,
+       "calibration": {
+        "calibration": {
+         "eligible_for_tiering": false,
+         "reason": "NO_REGISTERED_FRESHNESS_POLICY: lambda_geo_baselines.json:campi_flegrei: lambda_geo has no registered baseline-age bound; qualification unknown",
+         "rule_version": "calibration-eligibility-v3",
+         "status": "missing"
+        }
+       },
+       "effective_weight": 1.0,
+       "raw_value": 0.1,
+       "recorded_score": 0.0,
+       "station": null,
+       "warnings": [
+        "CALIBRATION_MISSING",
+        "NOT_ADMITTED_NOT_QUALIFIED",
+        "REPEATS_PREVIOUS_MEASURED_VALUE"
+       ]
+      }
+     },
+     "csv": {
+      "agreement": "no_data",
+      "methods": "0",
+      "risk": "0.0000",
+      "tier": "-1"
+     },
+     "date": "2026-10-15",
+     "original_state": "NO_QUALIFIED_METHOD",
+     "rule": "retained-component-weighted-mean-v1",
+     "source": {
+      "kind": "REVISION_CURRENT",
+      "path": "docs/ensemble/2026-10-15/20261017T113145577948Z-525cb5dd.json",
+      "reason": null,
+      "run_id": "20261017T113145577948Z-525cb5dd",
+      "sha256": "77609d94aebc002fc4668d0ada619055238a47a60deadac9c7a6f7874df493c1",
+      "supersedes": null
+     },
+     "state": "RETROSPECTIVE_RECONSTRUCTION_NOT_ISSUED",
+     "value": 0.0
+    },
+    {
+     "components": {
+      "lambda_geo": {
+       "admission": {
+        "basis": "METHOD_SET",
+        "code": "NO_REGISTERED_FRESHNESS_POLICY",
+        "included": false,
+        "reason": "NO_REGISTERED_FRESHNESS_POLICY: lambda_geo_baselines.json:campi_flegrei: lambda_geo has no registered baseline-age bound; qualification unknown",
+        "state": "NOT_QUALIFIED",
+        "weight": null
+       },
+       "base_weight": 0.4,
+       "calibration": {
+        "calibration": {
+         "eligible_for_tiering": false,
+         "reason": "NO_REGISTERED_FRESHNESS_POLICY: lambda_geo_baselines.json:campi_flegrei: lambda_geo has no registered baseline-age bound; qualification unknown",
+         "rule_version": "calibration-eligibility-v3",
+         "status": "missing"
+        }
+       },
+       "effective_weight": 1.0,
+       "raw_value": 0.1,
+       "recorded_score": 0.0,
+       "station": null,
+       "warnings": [
+        "CALIBRATION_MISSING",
+        "NOT_ADMITTED_NOT_QUALIFIED",
+        "REPEATS_PREVIOUS_MEASURED_VALUE"
+       ]
+      }
+     },
+     "csv": {
+      "agreement": "no_data",
+      "methods": "0",
+      "risk": "0.0000",
+      "tier": "-1"
+     },
+     "date": "2026-10-16",
+     "original_state": "NO_QUALIFIED_METHOD",
+     "rule": "retained-component-weighted-mean-v1",
+     "source": {
+      "kind": "REVISION_CURRENT",
+      "path": "docs/ensemble/2026-10-16/20261018T110515494888Z-4b8f597c.json",
+      "reason": null,
+      "run_id": "20261018T110515494888Z-4b8f597c",
+      "sha256": "a5e72fa310914c21821ac4fb40c3bdb4b4da22501707c6f439846748cc39febd",
+      "supersedes": null
+     },
+     "state": "RETROSPECTIVE_RECONSTRUCTION_NOT_ISSUED",
+     "value": 0.0
+    }
+   ],
+   "cascadia": [
+    {
+     "components": {
+      "lambda_geo": {
+       "admission": {
+        "basis": "METHOD_SET",
+        "code": "NO_REGISTERED_FRESHNESS_POLICY",
+        "included": false,
+        "reason": "NO_REGISTERED_FRESHNESS_POLICY: lambda_geo_baselines.json:cascadia: lambda_geo has no registered baseline-age bound; qualification unknown",
+        "state": "NOT_QUALIFIED",
+        "weight": null
+       },
+       "base_weight": 0.4,
+       "calibration": {
+        "calibration": {
+         "eligible_for_tiering": false,
+         "reason": "NO_REGISTERED_FRESHNESS_POLICY: lambda_geo_baselines.json:cascadia: lambda_geo has no registered baseline-age bound; qualification unknown",
+         "rule_version": "calibration-eligibility-v3",
+         "status": "missing"
+        }
+       },
+       "effective_weight": 0.5714285714285715,
+       "raw_value": 0.1,
+       "recorded_score": 0.0,
+       "station": null,
+       "warnings": [
+        "CALIBRATION_MISSING",
+        "NOT_ADMITTED_NOT_QUALIFIED",
+        "REPEATS_PREVIOUS_MEASURED_VALUE"
+       ]
+      },
+      "seismic_thd": {
+       "admission": {
+        "basis": "METHOD_SET",
+        "code": "CALIBRATED_AFTER_SCORED_DAY",
+        "included": false,
+        "reason": "CALIBRATED_AFTER_SCORED_DAY: calibrated 2026-10-09, 2 d after the scored day 2026-10-07",
+        "state": "NOT_QUALIFIED",
+        "weight": null
+       },
+       "base_weight": 0.3,
+       "calibration": {
+        "baseline": {
+         "mean": 0.343126,
+         "n_samples": 91,
+         "quality": "good",
+         "std": 0.154032,
+         "window": "2026-06-11 to 2026-09-09"
+        },
+        "calibration": {
+         "eligible_for_tiering": false,
+         "reason": "CALIBRATED_AFTER_SCORED_DAY: calibrated 2026-10-09, 2 d after the scored day 2026-10-07",
+         "rule_version": "calibration-eligibility-v3",
+         "status": "missing"
+        },
+        "sample_rate_hz": 40.0,
+        "z_score": 0.4264038183539658
+       },
+       "effective_weight": 0.4285714285714286,
+       "raw_value": 0.40880583294869804,
+       "recorded_score": 0.10685384244719544,
+       "station": {
+        "basis": "NOTES_TEXT",
+        "value": "IU.COR"
+       },
+       "warnings": [
+        "CALIBRATION_MISSING",
+        "NOT_ADMITTED_NOT_QUALIFIED"
+       ]
+      }
+     },
+     "csv": {
+      "agreement": "no_data",
+      "methods": "0",
+      "risk": "0.0000",
+      "tier": "-1"
+     },
+     "date": "2026-10-07",
+     "original_state": "NO_QUALIFIED_METHOD",
+     "rule": "retained-component-weighted-mean-v1",
+     "source": {
+      "kind": "REVISION_CURRENT",
+      "path": "docs/ensemble/2026-10-07/20261009T114617132021Z-7adb6101.json",
+      "reason": null,
+      "run_id": "20261009T114617132021Z-7adb6101",
+      "sha256": "3176f99a72d679510d075704e7b0b652c47b004fa5737d2d070de907837b4819",
+      "supersedes": null
+     },
+     "state": "RETROSPECTIVE_RECONSTRUCTION_NOT_ISSUED",
+     "value": 0.045794503905940906
+    }
+   ],
+   "hualien": [
+    {
+     "components": {
+      "seismic_thd": {
+       "admission": {
+        "basis": "METHOD_SET",
+        "code": "CALIBRATED_AFTER_SCORED_DAY",
+        "included": false,
+        "reason": "CALIBRATED_AFTER_SCORED_DAY: calibrated 2026-10-09, 2 d after the scored day 2026-10-07",
+        "state": "NOT_QUALIFIED",
+        "weight": null
+       },
+       "base_weight": 0.3,
+       "calibration": {
+        "baseline": {
+         "mean": 0.432652,
+         "n_samples": 89,
+         "quality": "good",
+         "std": 0.099901,
+         "window": "2026-06-11 to 2026-09-09"
+        },
+        "calibration": {
+         "eligible_for_tiering": false,
+         "reason": "CALIBRATED_AFTER_SCORED_DAY: calibrated 2026-10-09, 2 d after the scored day 2026-10-07",
+         "rule_version": "calibration-eligibility-v3",
+         "status": "missing"
+        },
+        "sample_rate_hz": 40.0,
+        "z_score": -0.09394035887495535
+       },
+       "effective_weight": 1.0,
+       "raw_value": 0.42326726420803307,
+       "recorded_score": 0.04718178923375134,
+       "station": {
+        "basis": "NOTES_TEXT",
+        "value": "IU.TATO"
+       },
+       "warnings": [
+        "CALIBRATION_MISSING",
+        "NOT_ADMITTED_NOT_QUALIFIED"
+       ]
+      }
+     },
+     "csv": {
+      "agreement": "no_data",
+      "methods": "0",
+      "risk": "0.0000",
+      "tier": "-1"
+     },
+     "date": "2026-10-07",
+     "original_state": "NO_QUALIFIED_METHOD",
+     "rule": "retained-component-weighted-mean-v1",
+     "source": {
+      "kind": "REVISION_CURRENT",
+      "path": "docs/ensemble/2026-10-07/20261009T114617132021Z-7adb6101.json",
+      "reason": null,
+      "run_id": "20261009T114617132021Z-7adb6101",
+      "sha256": "3176f99a72d679510d075704e7b0b652c47b004fa5737d2d070de907837b4819",
+      "supersedes": null
+     },
+     "state": "RETROSPECTIVE_RECONSTRUCTION_NOT_ISSUED",
+     "value": 0.04718178923375134
+    }
+   ],
+   "istanbul_marmara": [
+    {
+     "components": {
+      "lambda_geo": {
+       "admission": {
+        "basis": "METHOD_SET",
+        "code": "NO_REGISTERED_FRESHNESS_POLICY",
+        "included": false,
+        "reason": "NO_REGISTERED_FRESHNESS_POLICY: lambda_geo_baselines.json:istanbul_marmara: lambda_geo has no registered baseline-age bound; qualification unknown",
+        "state": "NOT_QUALIFIED",
+        "weight": null
+       },
+       "base_weight": 0.4,
+       "calibration": {
+        "calibration": {
+         "eligible_for_tiering": false,
+         "reason": "NO_REGISTERED_FRESHNESS_POLICY: lambda_geo_baselines.json:istanbul_marmara: lambda_geo has no registered baseline-age bound; qualification unknown",
+         "rule_version": "calibration-eligibility-v3",
+         "status": "missing"
+        }
+       },
+       "effective_weight": 0.5714285714285715,
+       "raw_value": 0.1,
+       "recorded_score": 0.0,
+       "station": null,
+       "warnings": [
+        "CALIBRATION_MISSING",
+        "NOT_ADMITTED_NOT_QUALIFIED"
+       ]
+      },
+      "seismic_thd": {
+       "admission": {
+        "basis": "METHOD_SET",
+        "code": "CALIBRATED_AFTER_SCORED_DAY",
+        "included": false,
+        "reason": "CALIBRATED_AFTER_SCORED_DAY: calibrated 2026-10-09, 2 d after the scored day 2026-10-07",
+        "state": "NOT_QUALIFIED",
+        "weight": null
+       },
+       "base_weight": 0.3,
+       "calibration": {
+        "baseline": {
+         "mean": 0.317247,
+         "n_samples": 91,
+         "quality": "good",
+         "std": 0.062967,
+         "window": "2026-06-11 to 2026-09-09"
+        },
+        "calibration": {
+         "eligible_for_tiering": false,
+         "reason": "CALIBRATED_AFTER_SCORED_DAY: calibrated 2026-10-09, 2 d after the scored day 2026-10-07",
+         "rule_version": "calibration-eligibility-v3",
+         "status": "missing"
+        },
+        "sample_rate_hz": 40.0,
+        "z_score": 0.15450218985580616
+       },
+       "effective_weight": 0.4285714285714286,
+       "raw_value": 0.327050071245037,
+       "recorded_score": 0.07060029198077417,
+       "station": {
+        "basis": "NOTES_TEXT",
+        "value": "IU.ANTO"
+       },
+       "warnings": [
+        "CALIBRATION_MISSING",
+        "NOT_ADMITTED_NOT_QUALIFIED"
+       ]
+      }
+     },
+     "csv": {
+      "agreement": "no_data",
+      "methods": "0",
+      "risk": "0.0000",
+      "tier": "-1"
+     },
+     "date": "2026-10-07",
+     "original_state": "NO_QUALIFIED_METHOD",
+     "rule": "retained-component-weighted-mean-v1",
+     "source": {
+      "kind": "REVISION_CURRENT",
+      "path": "docs/ensemble/2026-10-07/20261009T114617132021Z-7adb6101.json",
+      "reason": null,
+      "run_id": "20261009T114617132021Z-7adb6101",
+      "sha256": "3176f99a72d679510d075704e7b0b652c47b004fa5737d2d070de907837b4819",
+      "supersedes": null
+     },
+     "state": "RETROSPECTIVE_RECONSTRUCTION_NOT_ISSUED",
+     "value": 0.03025726799176036
+    }
+   ],
+   "kaikoura": [
+    {
+     "components": {
+      "lambda_geo": {
+       "admission": {
+        "basis": "METHOD_SET",
+        "code": "NO_REGISTERED_FRESHNESS_POLICY",
+        "included": false,
+        "reason": "NO_REGISTERED_FRESHNESS_POLICY: lambda_geo_baselines.json:kaikoura: lambda_geo has no registered baseline-age bound; qualification unknown",
+        "state": "NOT_QUALIFIED",
+        "weight": null
+       },
+       "base_weight": 0.4,
+       "calibration": {
+        "calibration": {
+         "eligible_for_tiering": false,
+         "reason": "NO_REGISTERED_FRESHNESS_POLICY: lambda_geo_baselines.json:kaikoura: lambda_geo has no registered baseline-age bound; qualification unknown",
+         "rule_version": "calibration-eligibility-v3",
+         "status": "missing"
+        }
+       },
+       "effective_weight": 1.0,
+       "raw_value": 0.1,
+       "recorded_score": 0.0,
+       "station": null,
+       "warnings": [
+        "CALIBRATION_MISSING",
+        "NOT_ADMITTED_NOT_QUALIFIED",
+        "REPEATS_PREVIOUS_MEASURED_VALUE"
+       ]
+      }
+     },
+     "csv": {
+      "agreement": "no_data",
+      "methods": "0",
+      "risk": "0.0000",
+      "tier": "-1"
+     },
+     "date": "2026-10-07",
+     "original_state": "NO_QUALIFIED_METHOD",
+     "rule": "retained-component-weighted-mean-v1",
+     "source": {
+      "kind": "REVISION_CURRENT",
+      "path": "docs/ensemble/2026-10-07/20261009T114617132021Z-7adb6101.json",
+      "reason": null,
+      "run_id": "20261009T114617132021Z-7adb6101",
+      "sha256": "3176f99a72d679510d075704e7b0b652c47b004fa5737d2d070de907837b4819",
+      "supersedes": null
+     },
+     "state": "RETROSPECTIVE_RECONSTRUCTION_NOT_ISSUED",
+     "value": 0.0
+    },
+    {
+     "components": {
+      "lambda_geo": {
+       "admission": {
+        "basis": "METHOD_SET",
+        "code": "NO_REGISTERED_FRESHNESS_POLICY",
+        "included": false,
+        "reason": "NO_REGISTERED_FRESHNESS_POLICY: lambda_geo_baselines.json:kaikoura: lambda_geo has no registered baseline-age bound; qualification unknown",
+        "state": "NOT_QUALIFIED",
+        "weight": null
+       },
+       "base_weight": 0.4,
+       "calibration": {
+        "calibration": {
+         "eligible_for_tiering": false,
+         "reason": "NO_REGISTERED_FRESHNESS_POLICY: lambda_geo_baselines.json:kaikoura: lambda_geo has no registered baseline-age bound; qualification unknown",
+         "rule_version": "calibration-eligibility-v3",
+         "status": "missing"
+        }
+       },
+       "effective_weight": 1.0,
+       "raw_value": 0.1095826793992722,
+       "recorded_score": 0.0,
+       "station": null,
+       "warnings": [
+        "CALIBRATION_MISSING",
+        "NOT_ADMITTED_NOT_QUALIFIED"
+       ]
+      }
+     },
+     "csv": {
+      "agreement": "no_data",
+      "methods": "0",
+      "risk": "0.0000",
+      "tier": "-1"
+     },
+     "date": "2026-10-08",
+     "original_state": "NO_QUALIFIED_METHOD",
+     "rule": "retained-component-weighted-mean-v1",
+     "source": {
+      "kind": "REVISION_CURRENT",
+      "path": "docs/ensemble/2026-10-08/20261010T110640457607Z-8a69c025.json",
+      "reason": null,
+      "run_id": "20261010T110640457607Z-8a69c025",
+      "sha256": "2cede73f2944fb09a3be0d40a11680c54f9e563daaa4d9720b4811596ce13a27",
+      "supersedes": null
+     },
+     "state": "RETROSPECTIVE_RECONSTRUCTION_NOT_ISSUED",
+     "value": 0.0
+    },
+    {
+     "components": {
+      "lambda_geo": {
+       "admission": {
+        "basis": "METHOD_SET",
+        "code": "NO_REGISTERED_FRESHNESS_POLICY",
+        "included": false,
+        "reason": "NO_REGISTERED_FRESHNESS_POLICY: lambda_geo_baselines.json:kaikoura: lambda_geo has no registered baseline-age bound; qualification unknown",
+        "state": "NOT_QUALIFIED",
+        "weight": null
+       },
+       "base_weight": 0.4,
+       "calibration": {
+        "calibration": {
+         "eligible_for_tiering": false,
+         "reason": "NO_REGISTERED_FRESHNESS_POLICY: lambda_geo_baselines.json:kaikoura: lambda_geo has no registered baseline-age bound; qualification unknown",
+         "rule_version": "calibration-eligibility-v3",
+         "status": "missing"
+        }
+       },
+       "effective_weight": 1.0,
+       "raw_value": 0.13799015992390254,
+       "recorded_score": 0.0,
+       "station": null,
+       "warnings": [
+        "CALIBRATION_MISSING",
+        "NOT_ADMITTED_NOT_QUALIFIED"
+       ]
+      }
+     },
+     "csv": {
+      "agreement": "no_data",
+      "methods": "0",
+      "risk": "0.0000",
+      "tier": "-1"
+     },
+     "date": "2026-10-09",
+     "original_state": "NO_QUALIFIED_METHOD",
+     "rule": "retained-component-weighted-mean-v1",
+     "source": {
+      "kind": "REVISION_CURRENT",
+      "path": "docs/ensemble/2026-10-09/20261011T110730348906Z-b9fd9794.json",
+      "reason": null,
+      "run_id": "20261011T110730348906Z-b9fd9794",
+      "sha256": "3bc9bcdd21385eeddb15eaa2e394dc73bb8acbdfcbf55ca3c598c134495360c1",
+      "supersedes": null
+     },
+     "state": "RETROSPECTIVE_RECONSTRUCTION_NOT_ISSUED",
+     "value": 0.0
+    },
+    {
+     "components": {
+      "lambda_geo": {
+       "admission": {
+        "basis": "METHOD_SET",
+        "code": "NO_REGISTERED_FRESHNESS_POLICY",
+        "included": false,
+        "reason": "NO_REGISTERED_FRESHNESS_POLICY: lambda_geo_baselines.json:kaikoura: lambda_geo has no registered baseline-age bound; qualification unknown",
+        "state": "NOT_QUALIFIED",
+        "weight": null
+       },
+       "base_weight": 0.4,
+       "calibration": {
+        "calibration": {
+         "eligible_for_tiering": false,
+         "reason": "NO_REGISTERED_FRESHNESS_POLICY: lambda_geo_baselines.json:kaikoura: lambda_geo has no registered baseline-age bound; qualification unknown",
+         "rule_version": "calibration-eligibility-v3",
+         "status": "missing"
+        }
+       },
+       "effective_weight": 1.0,
+       "raw_value": 0.1,
+       "recorded_score": 0.0,
+       "station": null,
+       "warnings": [
+        "CALIBRATION_MISSING",
+        "NOT_ADMITTED_NOT_QUALIFIED"
+       ]
+      }
+     },
+     "csv": {
+      "agreement": "no_data",
+      "methods": "0",
+      "risk": "0.0000",
+      "tier": "-1"
+     },
+     "date": "2026-10-10",
+     "original_state": "NO_QUALIFIED_METHOD",
+     "rule": "retained-component-weighted-mean-v1",
+     "source": {
+      "kind": "REVISION_CURRENT",
+      "path": "docs/ensemble/2026-10-10/20261012T111248837323Z-50ec3ee9.json",
+      "reason": null,
+      "run_id": "20261012T111248837323Z-50ec3ee9",
+      "sha256": "535c4bbb173283940c6fc06f343197cf804c34fb591d3f5e2d41b9e7b3011abe",
+      "supersedes": null
+     },
+     "state": "RETROSPECTIVE_RECONSTRUCTION_NOT_ISSUED",
+     "value": 0.0
+    },
+    {
+     "components": {
+      "lambda_geo": {
+       "admission": {
+        "basis": "METHOD_SET",
+        "code": "NO_REGISTERED_FRESHNESS_POLICY",
+        "included": false,
+        "reason": "NO_REGISTERED_FRESHNESS_POLICY: lambda_geo_baselines.json:kaikoura: lambda_geo has no registered baseline-age bound; qualification unknown",
+        "state": "NOT_QUALIFIED",
+        "weight": null
+       },
+       "base_weight": 0.4,
+       "calibration": {
+        "calibration": {
+         "eligible_for_tiering": false,
+         "reason": "NO_REGISTERED_FRESHNESS_POLICY: lambda_geo_baselines.json:kaikoura: lambda_geo has no registered baseline-age bound; qualification unknown",
+         "rule_version": "calibration-eligibility-v3",
+         "status": "missing"
+        }
+       },
+       "effective_weight": 1.0,
+       "raw_value": 0.165775360780444,
+       "recorded_score": 0.0,
+       "station": null,
+       "warnings": [
+        "CALIBRATION_MISSING",
+        "NOT_ADMITTED_NOT_QUALIFIED"
+       ]
+      }
+     },
+     "csv": {
+      "agreement": "no_data",
+      "methods": "0",
+      "risk": "0.0000",
+      "tier": "-1"
+     },
+     "date": "2026-10-11",
+     "original_state": "NO_QUALIFIED_METHOD",
+     "rule": "retained-component-weighted-mean-v1",
+     "source": {
+      "kind": "REVISION_CURRENT",
+      "path": "docs/ensemble/2026-10-11/20261013T110743538838Z-e374c06e.json",
+      "reason": null,
+      "run_id": "20261013T110743538838Z-e374c06e",
+      "sha256": "545f046cb079ddcd2f3d13841d1bb6a83afbafad7a82db36c1b4a40e46374a7a",
+      "supersedes": null
+     },
+     "state": "RETROSPECTIVE_RECONSTRUCTION_NOT_ISSUED",
+     "value": 0.0
+    },
+    {
+     "components": {
+      "lambda_geo": {
+       "admission": {
+        "basis": "METHOD_SET",
+        "code": "NO_REGISTERED_FRESHNESS_POLICY",
+        "included": false,
+        "reason": "NO_REGISTERED_FRESHNESS_POLICY: lambda_geo_baselines.json:kaikoura: lambda_geo has no registered baseline-age bound; qualification unknown",
+        "state": "NOT_QUALIFIED",
+        "weight": null
+       },
+       "base_weight": 0.4,
+       "calibration": {
+        "calibration": {
+         "eligible_for_tiering": false,
+         "reason": "NO_REGISTERED_FRESHNESS_POLICY: lambda_geo_baselines.json:kaikoura: lambda_geo has no registered baseline-age bound; qualification unknown",
+         "rule_version": "calibration-eligibility-v3",
+         "status": "missing"
+        }
+       },
+       "effective_weight": 1.0,
+       "raw_value": 0.1078782426695524,
+       "recorded_score": 0.0,
+       "station": null,
+       "warnings": [
+        "CALIBRATION_MISSING",
+        "NOT_ADMITTED_NOT_QUALIFIED"
+       ]
+      }
+     },
+     "csv": {
+      "agreement": "no_data",
+      "methods": "0",
+      "risk": "0.0000",
+      "tier": "-1"
+     },
+     "date": "2026-10-12",
+     "original_state": "NO_QUALIFIED_METHOD",
+     "rule": "retained-component-weighted-mean-v1",
+     "source": {
+      "kind": "REVISION_CURRENT",
+      "path": "docs/ensemble/2026-10-12/20261014T110546726431Z-e3591cae.json",
+      "reason": null,
+      "run_id": "20261014T110546726431Z-e3591cae",
+      "sha256": "11f6c63b0aee41bb67e7a2cd93626b2567fb180cc3ce81c0ed12dd2a2feccb86",
+      "supersedes": null
+     },
+     "state": "RETROSPECTIVE_RECONSTRUCTION_NOT_ISSUED",
+     "value": 0.0
+    },
+    {
+     "components": {
+      "lambda_geo": {
+       "admission": {
+        "basis": "METHOD_SET",
+        "code": "NO_REGISTERED_FRESHNESS_POLICY",
+        "included": false,
+        "reason": "NO_REGISTERED_FRESHNESS_POLICY: lambda_geo_baselines.json:kaikoura: lambda_geo has no registered baseline-age bound; qualification unknown",
+        "state": "NOT_QUALIFIED",
+        "weight": null
+       },
+       "base_weight": 0.4,
+       "calibration": {
+        "calibration": {
+         "eligible_for_tiering": false,
+         "reason": "NO_REGISTERED_FRESHNESS_POLICY: lambda_geo_baselines.json:kaikoura: lambda_geo has no registered baseline-age bound; qualification unknown",
+         "rule_version": "calibration-eligibility-v3",
+         "status": "missing"
+        }
+       },
+       "effective_weight": 0.5714285714285715,
+       "raw_value": 0.1,
+       "recorded_score": 0.0,
+       "station": null,
+       "warnings": [
+        "CALIBRATION_MISSING",
+        "NOT_ADMITTED_NOT_QUALIFIED"
+       ]
+      },
+      "seismic_thd": {
+       "admission": {
+        "basis": "METHOD_SET",
+        "code": "ZERO_SAMPLE_DEFAULT",
+        "included": false,
+        "reason": "ZERO_SAMPLE_DEFAULT: n_samples=0: a default or manual estimate, not an empirical local baseline",
+        "state": "INVALID_DEFAULT",
+        "weight": null
+       },
+       "base_weight": 0.3,
+       "calibration": {
+        "baseline": {
+         "mean": 0.3,
+         "n_samples": 0,
+         "quality": "poor",
+         "std": 0.07,
+         "window": "UNCALIBRATED"
+        },
+        "calibration": {
+         "eligible_for_tiering": false,
+         "reason": "ZERO_SAMPLE_DEFAULT: n_samples=0: a default or manual estimate, not an empirical local baseline",
+         "rule_version": "calibration-eligibility-v3",
+         "status": "n0_default"
+        },
+        "sample_rate_hz": 40.0,
+        "z_score": 2.887946212823978
+       },
+       "effective_weight": 0.4285714285714286,
+       "raw_value": 0.5021562348976785,
+       "recorded_score": 0.5969865532059945,
+       "station": {
+        "basis": "NOTES_TEXT",
+        "value": "IU.SNZO"
+       },
+       "warnings": [
+        "CALIBRATION_N0_DEFAULT",
+        "BASELINE_QUALITY_POOR",
+        "ZERO_SAMPLE_BASELINE",
+        "NOT_ADMITTED_INVALID_DEFAULT"
+       ]
+      }
+     },
+     "csv": {
+      "agreement": "no_data",
+      "methods": "0",
+      "risk": "0.0000",
+      "tier": "-1"
+     },
+     "date": "2026-10-13",
+     "original_state": "NO_QUALIFIED_METHOD",
+     "rule": "retained-component-weighted-mean-v1",
+     "source": {
+      "kind": "REVISION_CURRENT",
+      "path": "docs/ensemble/2026-10-13/20261015T110719273497Z-116621ca.json",
+      "reason": null,
+      "run_id": "20261015T110719273497Z-116621ca",
+      "sha256": "647ffe4df7dd7f8bcf4d28ff625fd49df1e271187f5e0e4a77ff6821342f32b0",
+      "supersedes": null
+     },
+     "state": "RETROSPECTIVE_RECONSTRUCTION_NOT_ISSUED",
+     "value": 0.2558513799454262
+    },
+    {
+     "components": {
+      "lambda_geo": {
+       "admission": {
+        "basis": "METHOD_SET",
+        "code": "NO_REGISTERED_FRESHNESS_POLICY",
+        "included": false,
+        "reason": "NO_REGISTERED_FRESHNESS_POLICY: lambda_geo_baselines.json:kaikoura: lambda_geo has no registered baseline-age bound; qualification unknown",
+        "state": "NOT_QUALIFIED",
+        "weight": null
+       },
+       "base_weight": 0.4,
+       "calibration": {
+        "calibration": {
+         "eligible_for_tiering": false,
+         "reason": "NO_REGISTERED_FRESHNESS_POLICY: lambda_geo_baselines.json:kaikoura: lambda_geo has no registered baseline-age bound; qualification unknown",
+         "rule_version": "calibration-eligibility-v3",
+         "status": "missing"
+        }
+       },
+       "effective_weight": 0.5714285714285715,
+       "raw_value": 0.18995856231952674,
+       "recorded_score": 0.0,
+       "station": null,
+       "warnings": [
+        "CALIBRATION_MISSING",
+        "NOT_ADMITTED_NOT_QUALIFIED"
+       ]
+      },
+      "seismic_thd": {
+       "admission": {
+        "basis": "METHOD_SET",
+        "code": "ZERO_SAMPLE_DEFAULT",
+        "included": false,
+        "reason": "ZERO_SAMPLE_DEFAULT: n_samples=0: a default or manual estimate, not an empirical local baseline",
+        "state": "INVALID_DEFAULT",
+        "weight": null
+       },
+       "base_weight": 0.3,
+       "calibration": {
+        "baseline": {
+         "mean": 0.3,
+         "n_samples": 0,
+         "quality": "poor",
+         "std": 0.07,
+         "window": "UNCALIBRATED"
+        },
+        "calibration": {
+         "eligible_for_tiering": false,
+         "reason": "ZERO_SAMPLE_DEFAULT: n_samples=0: a default or manual estimate, not an empirical local baseline",
+         "rule_version": "calibration-eligibility-v3",
+         "status": "n0_default"
+        },
+        "sample_rate_hz": 40.0,
+        "z_score": 3.6519044795493527
+       },
+       "effective_weight": 0.4285714285714286,
+       "raw_value": 0.5556333135684547,
+       "recorded_score": 0.7621523583639482,
+       "station": {
+        "basis": "NOTES_TEXT",
+        "value": "IU.SNZO"
+       },
+       "warnings": [
+        "CALIBRATION_N0_DEFAULT",
+        "BASELINE_QUALITY_POOR",
+        "ZERO_SAMPLE_BASELINE",
+        "NOT_ADMITTED_INVALID_DEFAULT"
+       ]
+      }
+     },
+     "csv": {
+      "agreement": "no_data",
+      "methods": "0",
+      "risk": "0.0000",
+      "tier": "-1"
+     },
+     "date": "2026-10-14",
+     "original_state": "NO_QUALIFIED_METHOD",
+     "rule": "retained-component-weighted-mean-v1",
+     "source": {
+      "kind": "REVISION_CURRENT",
+      "path": "docs/ensemble/2026-10-14/20261016T110326624764Z-71bf6b8c.json",
+      "reason": null,
+      "run_id": "20261016T110326624764Z-71bf6b8c",
+      "sha256": "fbe8ab7cbf33ed4f800e2570eb3f6caec08ad532f671c53e915484285e68c07c",
+      "supersedes": null
+     },
+     "state": "RETROSPECTIVE_RECONSTRUCTION_NOT_ISSUED",
+     "value": 0.3266367250131207
+    },
+    {
+     "components": {
+      "lambda_geo": {
+       "admission": {
+        "basis": "METHOD_SET",
+        "code": "NO_REGISTERED_FRESHNESS_POLICY",
+        "included": false,
+        "reason": "NO_REGISTERED_FRESHNESS_POLICY: lambda_geo_baselines.json:kaikoura: lambda_geo has no registered baseline-age bound; qualification unknown",
+        "state": "NOT_QUALIFIED",
+        "weight": null
+       },
+       "base_weight": 0.4,
+       "calibration": {
+        "calibration": {
+         "eligible_for_tiering": false,
+         "reason": "NO_REGISTERED_FRESHNESS_POLICY: lambda_geo_baselines.json:kaikoura: lambda_geo has no registered baseline-age bound; qualification unknown",
+         "rule_version": "calibration-eligibility-v3",
+         "status": "missing"
+        }
+       },
+       "effective_weight": 1.0,
+       "raw_value": 0.1,
+       "recorded_score": 0.0,
+       "station": null,
+       "warnings": [
+        "CALIBRATION_MISSING",
+        "NOT_ADMITTED_NOT_QUALIFIED"
+       ]
+      }
+     },
+     "csv": {
+      "agreement": "no_data",
+      "methods": "0",
+      "risk": "0.0000",
+      "tier": "-1"
+     },
+     "date": "2026-10-15",
+     "original_state": "NO_QUALIFIED_METHOD",
+     "rule": "retained-component-weighted-mean-v1",
+     "source": {
+      "kind": "REVISION_CURRENT",
+      "path": "docs/ensemble/2026-10-15/20261017T113145577948Z-525cb5dd.json",
+      "reason": null,
+      "run_id": "20261017T113145577948Z-525cb5dd",
+      "sha256": "77609d94aebc002fc4668d0ada619055238a47a60deadac9c7a6f7874df493c1",
+      "supersedes": null
+     },
+     "state": "RETROSPECTIVE_RECONSTRUCTION_NOT_ISSUED",
+     "value": 0.0
+    },
+    {
+     "components": {
+      "lambda_geo": {
+       "admission": {
+        "basis": "METHOD_SET",
+        "code": "NO_REGISTERED_FRESHNESS_POLICY",
+        "included": false,
+        "reason": "NO_REGISTERED_FRESHNESS_POLICY: lambda_geo_baselines.json:kaikoura: lambda_geo has no registered baseline-age bound; qualification unknown",
+        "state": "NOT_QUALIFIED",
+        "weight": null
+       },
+       "base_weight": 0.4,
+       "calibration": {
+        "calibration": {
+         "eligible_for_tiering": false,
+         "reason": "NO_REGISTERED_FRESHNESS_POLICY: lambda_geo_baselines.json:kaikoura: lambda_geo has no registered baseline-age bound; qualification unknown",
+         "rule_version": "calibration-eligibility-v3",
+         "status": "missing"
+        }
+       },
+       "effective_weight": 1.0,
+       "raw_value": 0.1,
+       "recorded_score": 0.0,
+       "station": null,
+       "warnings": [
+        "CALIBRATION_MISSING",
+        "NOT_ADMITTED_NOT_QUALIFIED",
+        "REPEATS_PREVIOUS_MEASURED_VALUE"
+       ]
+      }
+     },
+     "csv": {
+      "agreement": "no_data",
+      "methods": "0",
+      "risk": "0.0000",
+      "tier": "-1"
+     },
+     "date": "2026-10-16",
+     "original_state": "NO_QUALIFIED_METHOD",
+     "rule": "retained-component-weighted-mean-v1",
+     "source": {
+      "kind": "REVISION_CURRENT",
+      "path": "docs/ensemble/2026-10-16/20261018T110515494888Z-4b8f597c.json",
+      "reason": null,
+      "run_id": "20261018T110515494888Z-4b8f597c",
+      "sha256": "a5e72fa310914c21821ac4fb40c3bdb4b4da22501707c6f439846748cc39febd",
+      "supersedes": null
+     },
+     "state": "RETROSPECTIVE_RECONSTRUCTION_NOT_ISSUED",
+     "value": 0.0
+    }
+   ],
+   "kumamoto": [
+    {
+     "components": {
+      "lambda_geo": {
+       "admission": {
+        "basis": "METHOD_SET",
+        "code": "NO_REGISTERED_FRESHNESS_POLICY",
+        "included": false,
+        "reason": "NO_REGISTERED_FRESHNESS_POLICY: lambda_geo_baselines.json:kumamoto: lambda_geo has no registered baseline-age bound; qualification unknown",
+        "state": "NOT_QUALIFIED",
+        "weight": null
+       },
+       "base_weight": 0.4,
+       "calibration": {
+        "calibration": {
+         "eligible_for_tiering": false,
+         "reason": "NO_REGISTERED_FRESHNESS_POLICY: lambda_geo_baselines.json:kumamoto: lambda_geo has no registered baseline-age bound; qualification unknown",
+         "rule_version": "calibration-eligibility-v3",
+         "status": "missing"
+        }
+       },
+       "effective_weight": 0.5714285714285715,
+       "raw_value": 0.13716392532806024,
+       "recorded_score": 0.0,
+       "station": null,
+       "warnings": [
+        "CALIBRATION_MISSING",
+        "NOT_ADMITTED_NOT_QUALIFIED"
+       ]
+      },
+      "seismic_thd": {
+       "admission": {
+        "basis": "METHOD_SET",
+        "code": "CALIBRATED_AFTER_SCORED_DAY",
+        "included": false,
+        "reason": "CALIBRATED_AFTER_SCORED_DAY: calibrated 2026-10-09, 2 d after the scored day 2026-10-07",
+        "state": "NOT_QUALIFIED",
+        "weight": null
+       },
+       "base_weight": 0.3,
+       "calibration": {
+        "baseline": {
+         "mean": 0.480586,
+         "n_samples": 91,
+         "quality": "good",
+         "std": 0.107577,
+         "window": "2026-06-11 to 2026-09-09"
+        },
+        "calibration": {
+         "eligible_for_tiering": false,
+         "reason": "CALIBRATED_AFTER_SCORED_DAY: calibrated 2026-10-09, 2 d after the scored day 2026-10-07",
+         "rule_version": "calibration-eligibility-v3",
+         "status": "missing"
+        },
+        "sample_rate_hz": 40.0,
+        "z_score": -0.6471523617477123
+       },
+       "effective_weight": 0.4285714285714286,
+       "raw_value": 0.41096729038026636,
+       "recorded_score": 0.030585429147568635,
+       "station": {
+        "basis": "NOTES_TEXT",
+        "value": "IU.MAJO"
+       },
+       "warnings": [
+        "CALIBRATION_MISSING",
+        "NOT_ADMITTED_NOT_QUALIFIED"
+       ]
+      }
+     },
+     "csv": {
+      "agreement": "no_data",
+      "methods": "0",
+      "risk": "0.0000",
+      "tier": "-1"
+     },
+     "date": "2026-10-07",
+     "original_state": "NO_QUALIFIED_METHOD",
+     "rule": "retained-component-weighted-mean-v1",
+     "source": {
+      "kind": "REVISION_CURRENT",
+      "path": "docs/ensemble/2026-10-07/20261009T114617132021Z-7adb6101.json",
+      "reason": null,
+      "run_id": "20261009T114617132021Z-7adb6101",
+      "sha256": "3176f99a72d679510d075704e7b0b652c47b004fa5737d2d070de907837b4819",
+      "supersedes": null
+     },
+     "state": "RETROSPECTIVE_RECONSTRUCTION_NOT_ISSUED",
+     "value": 0.013108041063243701
+    },
+    {
+     "components": {
+      "lambda_geo": {
+       "admission": {
+        "basis": "METHOD_SET",
+        "code": "NO_REGISTERED_FRESHNESS_POLICY",
+        "included": false,
+        "reason": "NO_REGISTERED_FRESHNESS_POLICY: lambda_geo_baselines.json:kumamoto: lambda_geo has no registered baseline-age bound; qualification unknown",
+        "state": "NOT_QUALIFIED",
+        "weight": null
+       },
+       "base_weight": 0.4,
+       "calibration": {
+        "calibration": {
+         "eligible_for_tiering": false,
+         "reason": "NO_REGISTERED_FRESHNESS_POLICY: lambda_geo_baselines.json:kumamoto: lambda_geo has no registered baseline-age bound; qualification unknown",
+         "rule_version": "calibration-eligibility-v3",
+         "status": "missing"
+        }
+       },
+       "effective_weight": 1.0,
+       "raw_value": 0.13716392532806024,
+       "recorded_score": 0.0,
+       "station": null,
+       "warnings": [
+        "CALIBRATION_MISSING",
+        "NOT_ADMITTED_NOT_QUALIFIED",
+        "REPEATS_PREVIOUS_MEASURED_VALUE"
+       ]
+      }
+     },
+     "csv": {
+      "agreement": "no_data",
+      "methods": "0",
+      "risk": "0.0000",
+      "tier": "-1"
+     },
+     "date": "2026-10-08",
+     "original_state": "NO_QUALIFIED_METHOD",
+     "rule": "retained-component-weighted-mean-v1",
+     "source": {
+      "kind": "REVISION_CURRENT",
+      "path": "docs/ensemble/2026-10-08/20261010T110640457607Z-8a69c025.json",
+      "reason": null,
+      "run_id": "20261010T110640457607Z-8a69c025",
+      "sha256": "2cede73f2944fb09a3be0d40a11680c54f9e563daaa4d9720b4811596ce13a27",
+      "supersedes": null
+     },
+     "state": "RETROSPECTIVE_RECONSTRUCTION_NOT_ISSUED",
+     "value": 0.0
+    },
+    {
+     "components": {
+      "lambda_geo": {
+       "admission": {
+        "basis": "METHOD_SET",
+        "code": "NO_REGISTERED_FRESHNESS_POLICY",
+        "included": false,
+        "reason": "NO_REGISTERED_FRESHNESS_POLICY: lambda_geo_baselines.json:kumamoto: lambda_geo has no registered baseline-age bound; qualification unknown",
+        "state": "NOT_QUALIFIED",
+        "weight": null
+       },
+       "base_weight": 0.4,
+       "calibration": {
+        "calibration": {
+         "eligible_for_tiering": false,
+         "reason": "NO_REGISTERED_FRESHNESS_POLICY: lambda_geo_baselines.json:kumamoto: lambda_geo has no registered baseline-age bound; qualification unknown",
+         "rule_version": "calibration-eligibility-v3",
+         "status": "missing"
+        }
+       },
+       "effective_weight": 1.0,
+       "raw_value": 0.13716392532806024,
+       "recorded_score": 0.0,
+       "station": null,
+       "warnings": [
+        "CALIBRATION_MISSING",
+        "NOT_ADMITTED_NOT_QUALIFIED",
+        "REPEATS_PREVIOUS_MEASURED_VALUE"
+       ]
+      }
+     },
+     "csv": {
+      "agreement": "no_data",
+      "methods": "0",
+      "risk": "0.0000",
+      "tier": "-1"
+     },
+     "date": "2026-10-09",
+     "original_state": "NO_QUALIFIED_METHOD",
+     "rule": "retained-component-weighted-mean-v1",
+     "source": {
+      "kind": "REVISION_CURRENT",
+      "path": "docs/ensemble/2026-10-09/20261011T110730348906Z-b9fd9794.json",
+      "reason": null,
+      "run_id": "20261011T110730348906Z-b9fd9794",
+      "sha256": "3bc9bcdd21385eeddb15eaa2e394dc73bb8acbdfcbf55ca3c598c134495360c1",
+      "supersedes": null
+     },
+     "state": "RETROSPECTIVE_RECONSTRUCTION_NOT_ISSUED",
+     "value": 0.0
+    }
+   ],
+   "mexico_guerrero": [
+    {
+     "components": {
+      "lambda_geo": {
+       "admission": {
+        "basis": "METHOD_SET",
+        "code": "NO_REGISTERED_FRESHNESS_POLICY",
+        "included": false,
+        "reason": "NO_REGISTERED_FRESHNESS_POLICY: lambda_geo_baselines.json:mexico_guerrero: lambda_geo has no registered baseline-age bound; qualification unknown",
+        "state": "NOT_QUALIFIED",
+        "weight": null
+       },
+       "base_weight": 0.4,
+       "calibration": {
+        "calibration": {
+         "eligible_for_tiering": false,
+         "reason": "NO_REGISTERED_FRESHNESS_POLICY: lambda_geo_baselines.json:mexico_guerrero: lambda_geo has no registered baseline-age bound; qualification unknown",
+         "rule_version": "calibration-eligibility-v3",
+         "status": "missing"
+        }
+       },
+       "effective_weight": 0.5714285714285715,
+       "raw_value": 0.1,
+       "recorded_score": 0.0,
+       "station": null,
+       "warnings": [
+        "CALIBRATION_MISSING",
+        "NOT_ADMITTED_NOT_QUALIFIED",
+        "REPEATS_PREVIOUS_MEASURED_VALUE"
+       ]
+      },
+      "seismic_thd": {
+       "admission": {
+        "basis": "METHOD_SET",
+        "code": "CALIBRATED_AFTER_SCORED_DAY",
+        "included": false,
+        "reason": "CALIBRATED_AFTER_SCORED_DAY: calibrated 2026-10-09, 2 d after the scored day 2026-10-07",
+        "state": "NOT_QUALIFIED",
+        "weight": null
+       },
+       "base_weight": 0.3,
+       "calibration": {
+        "baseline": {
+         "mean": 0.128553,
+         "n_samples": 46,
+         "quality": "acceptable",
+         "std": 0.0509,
+         "window": "2026-06-11 to 2026-09-09"
+        },
+        "calibration": {
+         "eligible_for_tiering": false,
+         "reason": "CALIBRATED_AFTER_SCORED_DAY: calibrated 2026-10-09, 2 d after the scored day 2026-10-07",
+         "rule_version": "calibration-eligibility-v3",
+         "status": "missing"
+        },
+        "sample_rate_hz": 20.0,
+        "z_score": -0.74594597777232
+       },
+       "effective_weight": 0.4285714285714286,
+       "raw_value": 0.09058434973138892,
+       "recorded_score": 0.027621620666830403,
+       "station": {
+        "basis": "NOTES_TEXT",
+        "value": "MX.TLIG"
+       },
+       "warnings": [
+        "CALIBRATION_MISSING",
+        "BASELINE_QUALITY_ACCEPTABLE",
+        "NOT_ADMITTED_NOT_QUALIFIED"
+       ]
+      }
+     },
+     "csv": {
+      "agreement": "no_data",
+      "methods": "0",
+      "risk": "0.0000",
+      "tier": "-1"
+     },
+     "date": "2026-10-07",
+     "original_state": "NO_QUALIFIED_METHOD",
+     "rule": "retained-component-weighted-mean-v1",
+     "source": {
+      "kind": "REVISION_CURRENT",
+      "path": "docs/ensemble/2026-10-07/20261009T114617132021Z-7adb6101.json",
+      "reason": null,
+      "run_id": "20261009T114617132021Z-7adb6101",
+      "sha256": "3176f99a72d679510d075704e7b0b652c47b004fa5737d2d070de907837b4819",
+      "supersedes": null
+     },
+     "state": "RETROSPECTIVE_RECONSTRUCTION_NOT_ISSUED",
+     "value": 0.011837837428641602
+    }
+   ],
+   "norcal_hayward": [
+    {
+     "components": {
+      "lambda_geo": {
+       "admission": {
+        "basis": "METHOD_SET",
+        "code": "NO_REGISTERED_FRESHNESS_POLICY",
+        "included": false,
+        "reason": "NO_REGISTERED_FRESHNESS_POLICY: lambda_geo_baselines.json:norcal_hayward: lambda_geo has no registered baseline-age bound; qualification unknown",
+        "state": "NOT_QUALIFIED",
+        "weight": null
+       },
+       "base_weight": 0.4,
+       "calibration": {
+        "calibration": {
+         "eligible_for_tiering": false,
+         "reason": "NO_REGISTERED_FRESHNESS_POLICY: lambda_geo_baselines.json:norcal_hayward: lambda_geo has no registered baseline-age bound; qualification unknown",
+         "rule_version": "calibration-eligibility-v3",
+         "status": "missing"
+        }
+       },
+       "effective_weight": 1.0,
+       "raw_value": 0.1,
+       "recorded_score": 0.0,
+       "station": null,
+       "warnings": [
+        "CALIBRATION_MISSING",
+        "NOT_ADMITTED_NOT_QUALIFIED",
+        "REPEATS_PREVIOUS_MEASURED_VALUE"
+       ]
+      }
+     },
+     "csv": {
+      "agreement": "no_data",
+      "methods": "0",
+      "risk": "0.0000",
+      "tier": "-1"
+     },
+     "date": "2026-10-07",
+     "original_state": "NO_QUALIFIED_METHOD",
+     "rule": "retained-component-weighted-mean-v1",
+     "source": {
+      "kind": "REVISION_CURRENT",
+      "path": "docs/ensemble/2026-10-07/20261009T114617132021Z-7adb6101.json",
+      "reason": null,
+      "run_id": "20261009T114617132021Z-7adb6101",
+      "sha256": "3176f99a72d679510d075704e7b0b652c47b004fa5737d2d070de907837b4819",
+      "supersedes": null
+     },
+     "state": "RETROSPECTIVE_RECONSTRUCTION_NOT_ISSUED",
+     "value": 0.0
+    },
+    {
+     "components": {
+      "lambda_geo": {
+       "admission": {
+        "basis": "METHOD_SET",
+        "code": "NO_REGISTERED_FRESHNESS_POLICY",
+        "included": false,
+        "reason": "NO_REGISTERED_FRESHNESS_POLICY: lambda_geo_baselines.json:norcal_hayward: lambda_geo has no registered baseline-age bound; qualification unknown",
+        "state": "NOT_QUALIFIED",
+        "weight": null
+       },
+       "base_weight": 0.4,
+       "calibration": {
+        "calibration": {
+         "eligible_for_tiering": false,
+         "reason": "NO_REGISTERED_FRESHNESS_POLICY: lambda_geo_baselines.json:norcal_hayward: lambda_geo has no registered baseline-age bound; qualification unknown",
+         "rule_version": "calibration-eligibility-v3",
+         "status": "missing"
+        }
+       },
+       "effective_weight": 1.0,
+       "raw_value": 0.1,
+       "recorded_score": 0.0,
+       "station": null,
+       "warnings": [
+        "CALIBRATION_MISSING",
+        "NOT_ADMITTED_NOT_QUALIFIED",
+        "REPEATS_PREVIOUS_MEASURED_VALUE"
+       ]
+      }
+     },
+     "csv": {
+      "agreement": "no_data",
+      "methods": "0",
+      "risk": "0.0000",
+      "tier": "-1"
+     },
+     "date": "2026-10-08",
+     "original_state": "NO_QUALIFIED_METHOD",
+     "rule": "retained-component-weighted-mean-v1",
+     "source": {
+      "kind": "REVISION_CURRENT",
+      "path": "docs/ensemble/2026-10-08/20261010T110640457607Z-8a69c025.json",
+      "reason": null,
+      "run_id": "20261010T110640457607Z-8a69c025",
+      "sha256": "2cede73f2944fb09a3be0d40a11680c54f9e563daaa4d9720b4811596ce13a27",
+      "supersedes": null
+     },
+     "state": "RETROSPECTIVE_RECONSTRUCTION_NOT_ISSUED",
+     "value": 0.0
+    },
+    {
+     "components": {
+      "lambda_geo": {
+       "admission": {
+        "basis": "METHOD_SET",
+        "code": "NO_REGISTERED_FRESHNESS_POLICY",
+        "included": false,
+        "reason": "NO_REGISTERED_FRESHNESS_POLICY: lambda_geo_baselines.json:norcal_hayward: lambda_geo has no registered baseline-age bound; qualification unknown",
+        "state": "NOT_QUALIFIED",
+        "weight": null
+       },
+       "base_weight": 0.4,
+       "calibration": {
+        "calibration": {
+         "eligible_for_tiering": false,
+         "reason": "NO_REGISTERED_FRESHNESS_POLICY: lambda_geo_baselines.json:norcal_hayward: lambda_geo has no registered baseline-age bound; qualification unknown",
+         "rule_version": "calibration-eligibility-v3",
+         "status": "missing"
+        }
+       },
+       "effective_weight": 1.0,
+       "raw_value": 0.1,
+       "recorded_score": 0.0,
+       "station": null,
+       "warnings": [
+        "CALIBRATION_MISSING",
+        "NOT_ADMITTED_NOT_QUALIFIED",
+        "REPEATS_PREVIOUS_MEASURED_VALUE"
+       ]
+      }
+     },
+     "csv": {
+      "agreement": "no_data",
+      "methods": "0",
+      "risk": "0.0000",
+      "tier": "-1"
+     },
+     "date": "2026-10-09",
+     "original_state": "NO_QUALIFIED_METHOD",
+     "rule": "retained-component-weighted-mean-v1",
+     "source": {
+      "kind": "REVISION_CURRENT",
+      "path": "docs/ensemble/2026-10-09/20261011T110730348906Z-b9fd9794.json",
+      "reason": null,
+      "run_id": "20261011T110730348906Z-b9fd9794",
+      "sha256": "3bc9bcdd21385eeddb15eaa2e394dc73bb8acbdfcbf55ca3c598c134495360c1",
+      "supersedes": null
+     },
+     "state": "RETROSPECTIVE_RECONSTRUCTION_NOT_ISSUED",
+     "value": 0.0
+    },
+    {
+     "components": {
+      "lambda_geo": {
+       "admission": {
+        "basis": "METHOD_SET",
+        "code": "NO_REGISTERED_FRESHNESS_POLICY",
+        "included": false,
+        "reason": "NO_REGISTERED_FRESHNESS_POLICY: lambda_geo_baselines.json:norcal_hayward: lambda_geo has no registered baseline-age bound; qualification unknown",
+        "state": "NOT_QUALIFIED",
+        "weight": null
+       },
+       "base_weight": 0.4,
+       "calibration": {
+        "calibration": {
+         "eligible_for_tiering": false,
+         "reason": "NO_REGISTERED_FRESHNESS_POLICY: lambda_geo_baselines.json:norcal_hayward: lambda_geo has no registered baseline-age bound; qualification unknown",
+         "rule_version": "calibration-eligibility-v3",
+         "status": "missing"
+        }
+       },
+       "effective_weight": 1.0,
+       "raw_value": 0.1,
+       "recorded_score": 0.0,
+       "station": null,
+       "warnings": [
+        "CALIBRATION_MISSING",
+        "NOT_ADMITTED_NOT_QUALIFIED",
+        "REPEATS_PREVIOUS_MEASURED_VALUE"
+       ]
+      }
+     },
+     "csv": {
+      "agreement": "no_data",
+      "methods": "0",
+      "risk": "0.0000",
+      "tier": "-1"
+     },
+     "date": "2026-10-10",
+     "original_state": "NO_QUALIFIED_METHOD",
+     "rule": "retained-component-weighted-mean-v1",
+     "source": {
+      "kind": "REVISION_CURRENT",
+      "path": "docs/ensemble/2026-10-10/20261012T111248837323Z-50ec3ee9.json",
+      "reason": null,
+      "run_id": "20261012T111248837323Z-50ec3ee9",
+      "sha256": "535c4bbb173283940c6fc06f343197cf804c34fb591d3f5e2d41b9e7b3011abe",
+      "supersedes": null
+     },
+     "state": "RETROSPECTIVE_RECONSTRUCTION_NOT_ISSUED",
+     "value": 0.0
+    },
+    {
+     "components": {
+      "lambda_geo": {
+       "admission": {
+        "basis": "METHOD_SET",
+        "code": "NO_REGISTERED_FRESHNESS_POLICY",
+        "included": false,
+        "reason": "NO_REGISTERED_FRESHNESS_POLICY: lambda_geo_baselines.json:norcal_hayward: lambda_geo has no registered baseline-age bound; qualification unknown",
+        "state": "NOT_QUALIFIED",
+        "weight": null
+       },
+       "base_weight": 0.4,
+       "calibration": {
+        "calibration": {
+         "eligible_for_tiering": false,
+         "reason": "NO_REGISTERED_FRESHNESS_POLICY: lambda_geo_baselines.json:norcal_hayward: lambda_geo has no registered baseline-age bound; qualification unknown",
+         "rule_version": "calibration-eligibility-v3",
+         "status": "missing"
+        }
+       },
+       "effective_weight": 1.0,
+       "raw_value": 0.1,
+       "recorded_score": 0.0,
+       "station": null,
+       "warnings": [
+        "CALIBRATION_MISSING",
+        "NOT_ADMITTED_NOT_QUALIFIED",
+        "REPEATS_PREVIOUS_MEASURED_VALUE"
+       ]
+      }
+     },
+     "csv": {
+      "agreement": "no_data",
+      "methods": "0",
+      "risk": "0.0000",
+      "tier": "-1"
+     },
+     "date": "2026-10-11",
+     "original_state": "NO_QUALIFIED_METHOD",
+     "rule": "retained-component-weighted-mean-v1",
+     "source": {
+      "kind": "REVISION_CURRENT",
+      "path": "docs/ensemble/2026-10-11/20261013T110743538838Z-e374c06e.json",
+      "reason": null,
+      "run_id": "20261013T110743538838Z-e374c06e",
+      "sha256": "545f046cb079ddcd2f3d13841d1bb6a83afbafad7a82db36c1b4a40e46374a7a",
+      "supersedes": null
+     },
+     "state": "RETROSPECTIVE_RECONSTRUCTION_NOT_ISSUED",
+     "value": 0.0
+    },
+    {
+     "components": {
+      "lambda_geo": {
+       "admission": {
+        "basis": "METHOD_SET",
+        "code": "NO_REGISTERED_FRESHNESS_POLICY",
+        "included": false,
+        "reason": "NO_REGISTERED_FRESHNESS_POLICY: lambda_geo_baselines.json:norcal_hayward: lambda_geo has no registered baseline-age bound; qualification unknown",
+        "state": "NOT_QUALIFIED",
+        "weight": null
+       },
+       "base_weight": 0.4,
+       "calibration": {
+        "calibration": {
+         "eligible_for_tiering": false,
+         "reason": "NO_REGISTERED_FRESHNESS_POLICY: lambda_geo_baselines.json:norcal_hayward: lambda_geo has no registered baseline-age bound; qualification unknown",
+         "rule_version": "calibration-eligibility-v3",
+         "status": "missing"
+        }
+       },
+       "effective_weight": 1.0,
+       "raw_value": 0.1,
+       "recorded_score": 0.0,
+       "station": null,
+       "warnings": [
+        "CALIBRATION_MISSING",
+        "NOT_ADMITTED_NOT_QUALIFIED",
+        "REPEATS_PREVIOUS_MEASURED_VALUE"
+       ]
+      }
+     },
+     "csv": {
+      "agreement": "no_data",
+      "methods": "0",
+      "risk": "0.0000",
+      "tier": "-1"
+     },
+     "date": "2026-10-12",
+     "original_state": "NO_QUALIFIED_METHOD",
+     "rule": "retained-component-weighted-mean-v1",
+     "source": {
+      "kind": "REVISION_CURRENT",
+      "path": "docs/ensemble/2026-10-12/20261014T110546726431Z-e3591cae.json",
+      "reason": null,
+      "run_id": "20261014T110546726431Z-e3591cae",
+      "sha256": "11f6c63b0aee41bb67e7a2cd93626b2567fb180cc3ce81c0ed12dd2a2feccb86",
+      "supersedes": null
+     },
+     "state": "RETROSPECTIVE_RECONSTRUCTION_NOT_ISSUED",
+     "value": 0.0
+    },
+    {
+     "components": {
+      "lambda_geo": {
+       "admission": {
+        "basis": "METHOD_SET",
+        "code": "NO_REGISTERED_FRESHNESS_POLICY",
+        "included": false,
+        "reason": "NO_REGISTERED_FRESHNESS_POLICY: lambda_geo_baselines.json:norcal_hayward: lambda_geo has no registered baseline-age bound; qualification unknown",
+        "state": "NOT_QUALIFIED",
+        "weight": null
+       },
+       "base_weight": 0.4,
+       "calibration": {
+        "calibration": {
+         "eligible_for_tiering": false,
+         "reason": "NO_REGISTERED_FRESHNESS_POLICY: lambda_geo_baselines.json:norcal_hayward: lambda_geo has no registered baseline-age bound; qualification unknown",
+         "rule_version": "calibration-eligibility-v3",
+         "status": "missing"
+        }
+       },
+       "effective_weight": 0.5714285714285715,
+       "raw_value": 0.1,
+       "recorded_score": 0.0,
+       "station": null,
+       "warnings": [
+        "CALIBRATION_MISSING",
+        "NOT_ADMITTED_NOT_QUALIFIED",
+        "REPEATS_PREVIOUS_MEASURED_VALUE"
+       ]
+      },
+      "seismic_thd": {
+       "admission": {
+        "basis": "METHOD_SET",
+        "code": "NO_BASELINE",
+        "included": false,
+        "reason": "NO_BASELINE: no station baseline",
+        "state": "NOT_QUALIFIED",
+        "weight": null
+       },
+       "base_weight": 0.3,
+       "calibration": {
+        "baseline": {
+         "mean": 0.0,
+         "n_samples": 0,
+         "quality": "missing",
+         "std": 0.0,
+         "window": ""
+        },
+        "calibration": {
+         "eligible_for_tiering": false,
+         "reason": "NO_BASELINE: no station baseline",
+         "rule_version": "calibration-eligibility-v3",
+         "status": "missing"
+        },
+        "sample_rate_hz": 40.0,
+        "z_score": 0.0
+       },
+       "effective_weight": 0.4285714285714286,
+       "raw_value": 0.5430265076145732,
+       "recorded_score": 0.9086053015229146,
+       "station": {
+        "basis": "NOTES_TEXT",
+        "value": "BK.BRK"
+       },
+       "warnings": [
+        "CALIBRATION_MISSING",
+        "BASELINE_QUALITY_MISSING",
+        "ZERO_SAMPLE_BASELINE",
+        "NOT_ADMITTED_NOT_QUALIFIED"
+       ]
+      }
+     },
+     "csv": {
+      "agreement": "no_data",
+      "methods": "0",
+      "risk": "0.0000",
+      "tier": "-1"
+     },
+     "date": "2026-10-13",
+     "original_state": "NO_QUALIFIED_METHOD",
+     "rule": "retained-component-weighted-mean-v1",
+     "source": {
+      "kind": "REVISION_CURRENT",
+      "path": "docs/ensemble/2026-10-13/20261015T110719273497Z-116621ca.json",
+      "reason": null,
+      "run_id": "20261015T110719273497Z-116621ca",
+      "sha256": "647ffe4df7dd7f8bcf4d28ff625fd49df1e271187f5e0e4a77ff6821342f32b0",
+      "supersedes": null
+     },
+     "state": "RETROSPECTIVE_RECONSTRUCTION_NOT_ISSUED",
+     "value": 0.38940227208124917
+    },
+    {
+     "components": {
+      "lambda_geo": {
+       "admission": {
+        "basis": "METHOD_SET",
+        "code": "NO_REGISTERED_FRESHNESS_POLICY",
+        "included": false,
+        "reason": "NO_REGISTERED_FRESHNESS_POLICY: lambda_geo_baselines.json:norcal_hayward: lambda_geo has no registered baseline-age bound; qualification unknown",
+        "state": "NOT_QUALIFIED",
+        "weight": null
+       },
+       "base_weight": 0.4,
+       "calibration": {
+        "calibration": {
+         "eligible_for_tiering": false,
+         "reason": "NO_REGISTERED_FRESHNESS_POLICY: lambda_geo_baselines.json:norcal_hayward: lambda_geo has no registered baseline-age bound; qualification unknown",
+         "rule_version": "calibration-eligibility-v3",
+         "status": "missing"
+        }
+       },
+       "effective_weight": 0.5714285714285715,
+       "raw_value": 0.1,
+       "recorded_score": 0.0,
+       "station": null,
+       "warnings": [
+        "CALIBRATION_MISSING",
+        "NOT_ADMITTED_NOT_QUALIFIED",
+        "REPEATS_PREVIOUS_MEASURED_VALUE"
+       ]
+      },
+      "seismic_thd": {
+       "admission": {
+        "basis": "METHOD_SET",
+        "code": "NO_BASELINE",
+        "included": false,
+        "reason": "NO_BASELINE: no station baseline",
+        "state": "NOT_QUALIFIED",
+        "weight": null
+       },
+       "base_weight": 0.3,
+       "calibration": {
+        "baseline": {
+         "mean": 0.0,
+         "n_samples": 0,
+         "quality": "missing",
+         "std": 0.0,
+         "window": ""
+        },
+        "calibration": {
+         "eligible_for_tiering": false,
+         "reason": "NO_BASELINE: no station baseline",
+         "rule_version": "calibration-eligibility-v3",
+         "status": "missing"
+        },
+        "sample_rate_hz": 40.0,
+        "z_score": 0.0
+       },
+       "effective_weight": 0.4285714285714286,
+       "raw_value": 0.49347368025308747,
+       "recorded_score": 0.8944060116455035,
+       "station": {
+        "basis": "NOTES_TEXT",
+        "value": "BK.BRK"
+       },
+       "warnings": [
+        "CALIBRATION_MISSING",
+        "BASELINE_QUALITY_MISSING",
+        "ZERO_SAMPLE_BASELINE",
+        "NOT_ADMITTED_NOT_QUALIFIED"
+       ]
+      }
+     },
+     "csv": {
+      "agreement": "no_data",
+      "methods": "0",
+      "risk": "0.0000",
+      "tier": "-1"
+     },
+     "date": "2026-10-14",
+     "original_state": "NO_QUALIFIED_METHOD",
+     "rule": "retained-component-weighted-mean-v1",
+     "source": {
+      "kind": "REVISION_CURRENT",
+      "path": "docs/ensemble/2026-10-14/20261016T110326624764Z-71bf6b8c.json",
+      "reason": null,
+      "run_id": "20261016T110326624764Z-71bf6b8c",
+      "sha256": "fbe8ab7cbf33ed4f800e2570eb3f6caec08ad532f671c53e915484285e68c07c",
+      "supersedes": null
+     },
+     "state": "RETROSPECTIVE_RECONSTRUCTION_NOT_ISSUED",
+     "value": 0.38331686213378724
+    },
+    {
+     "components": {
+      "lambda_geo": {
+       "admission": {
+        "basis": "METHOD_SET",
+        "code": "NO_REGISTERED_FRESHNESS_POLICY",
+        "included": false,
+        "reason": "NO_REGISTERED_FRESHNESS_POLICY: lambda_geo_baselines.json:norcal_hayward: lambda_geo has no registered baseline-age bound; qualification unknown",
+        "state": "NOT_QUALIFIED",
+        "weight": null
+       },
+       "base_weight": 0.4,
+       "calibration": {
+        "calibration": {
+         "eligible_for_tiering": false,
+         "reason": "NO_REGISTERED_FRESHNESS_POLICY: lambda_geo_baselines.json:norcal_hayward: lambda_geo has no registered baseline-age bound; qualification unknown",
+         "rule_version": "calibration-eligibility-v3",
+         "status": "missing"
+        }
+       },
+       "effective_weight": 1.0,
+       "raw_value": 0.1,
+       "recorded_score": 0.0,
+       "station": null,
+       "warnings": [
+        "CALIBRATION_MISSING",
+        "NOT_ADMITTED_NOT_QUALIFIED",
+        "REPEATS_PREVIOUS_MEASURED_VALUE"
+       ]
+      }
+     },
+     "csv": {
+      "agreement": "no_data",
+      "methods": "0",
+      "risk": "0.0000",
+      "tier": "-1"
+     },
+     "date": "2026-10-15",
+     "original_state": "NO_QUALIFIED_METHOD",
+     "rule": "retained-component-weighted-mean-v1",
+     "source": {
+      "kind": "REVISION_CURRENT",
+      "path": "docs/ensemble/2026-10-15/20261017T113145577948Z-525cb5dd.json",
+      "reason": null,
+      "run_id": "20261017T113145577948Z-525cb5dd",
+      "sha256": "77609d94aebc002fc4668d0ada619055238a47a60deadac9c7a6f7874df493c1",
+      "supersedes": null
+     },
+     "state": "RETROSPECTIVE_RECONSTRUCTION_NOT_ISSUED",
+     "value": 0.0
+    },
+    {
+     "components": {
+      "lambda_geo": {
+       "admission": {
+        "basis": "METHOD_SET",
+        "code": "NO_REGISTERED_FRESHNESS_POLICY",
+        "included": false,
+        "reason": "NO_REGISTERED_FRESHNESS_POLICY: lambda_geo_baselines.json:norcal_hayward: lambda_geo has no registered baseline-age bound; qualification unknown",
+        "state": "NOT_QUALIFIED",
+        "weight": null
+       },
+       "base_weight": 0.4,
+       "calibration": {
+        "calibration": {
+         "eligible_for_tiering": false,
+         "reason": "NO_REGISTERED_FRESHNESS_POLICY: lambda_geo_baselines.json:norcal_hayward: lambda_geo has no registered baseline-age bound; qualification unknown",
+         "rule_version": "calibration-eligibility-v3",
+         "status": "missing"
+        }
+       },
+       "effective_weight": 1.0,
+       "raw_value": 0.1,
+       "recorded_score": 0.0,
+       "station": null,
+       "warnings": [
+        "CALIBRATION_MISSING",
+        "NOT_ADMITTED_NOT_QUALIFIED",
+        "REPEATS_PREVIOUS_MEASURED_VALUE"
+       ]
+      }
+     },
+     "csv": {
+      "agreement": "no_data",
+      "methods": "0",
+      "risk": "0.0000",
+      "tier": "-1"
+     },
+     "date": "2026-10-16",
+     "original_state": "NO_QUALIFIED_METHOD",
+     "rule": "retained-component-weighted-mean-v1",
+     "source": {
+      "kind": "REVISION_CURRENT",
+      "path": "docs/ensemble/2026-10-16/20261018T110515494888Z-4b8f597c.json",
+      "reason": null,
+      "run_id": "20261018T110515494888Z-4b8f597c",
+      "sha256": "a5e72fa310914c21821ac4fb40c3bdb4b4da22501707c6f439846748cc39febd",
+      "supersedes": null
+     },
+     "state": "RETROSPECTIVE_RECONSTRUCTION_NOT_ISSUED",
+     "value": 0.0
+    }
+   ],
+   "ridgecrest": [
+    {
+     "components": {
+      "lambda_geo": {
+       "admission": {
+        "basis": "METHOD_SET",
+        "code": "NO_REGISTERED_FRESHNESS_POLICY",
+        "included": false,
+        "reason": "NO_REGISTERED_FRESHNESS_POLICY: lambda_geo_baselines.json:ridgecrest: lambda_geo has no registered baseline-age bound; qualification unknown",
+        "state": "NOT_QUALIFIED",
+        "weight": null
+       },
+       "base_weight": 0.4,
+       "calibration": {
+        "calibration": {
+         "eligible_for_tiering": false,
+         "reason": "NO_REGISTERED_FRESHNESS_POLICY: lambda_geo_baselines.json:ridgecrest: lambda_geo has no registered baseline-age bound; qualification unknown",
+         "rule_version": "calibration-eligibility-v3",
+         "status": "missing"
+        }
+       },
+       "effective_weight": 0.5714285714285715,
+       "raw_value": 0.20213408518751502,
+       "recorded_score": 0.0,
+       "station": null,
+       "warnings": [
+        "CALIBRATION_MISSING",
+        "NOT_ADMITTED_NOT_QUALIFIED"
+       ]
+      },
+      "seismic_thd": {
+       "admission": {
+        "basis": "METHOD_SET",
+        "code": "CALIBRATED_AFTER_SCORED_DAY",
+        "included": false,
+        "reason": "CALIBRATED_AFTER_SCORED_DAY: calibrated 2026-10-09, 2 d after the scored day 2026-10-07",
+        "state": "NOT_QUALIFIED",
+        "weight": null
+       },
+       "base_weight": 0.3,
+       "calibration": {
+        "baseline": {
+         "mean": 0.351704,
+         "n_samples": 91,
+         "quality": "good",
+         "std": 0.104826,
+         "window": "2026-06-11 to 2026-09-09"
+        },
+        "calibration": {
+         "eligible_for_tiering": false,
+         "reason": "CALIBRATED_AFTER_SCORED_DAY: calibrated 2026-10-09, 2 d after the scored day 2026-10-07",
+         "rule_version": "calibration-eligibility-v3",
+         "status": "missing"
+        },
+        "sample_rate_hz": 40.0,
+        "z_score": 0.4285357963218402
+       },
+       "effective_weight": 0.4285714285714286,
+       "raw_value": 0.39662569338523324,
+       "recorded_score": 0.10713810617624536,
+       "station": {
+        "basis": "NOTES_TEXT",
+        "value": "IU.TUC"
+       },
+       "warnings": [
+        "CALIBRATION_MISSING",
+        "NOT_ADMITTED_NOT_QUALIFIED"
+       ]
+      }
+     },
+     "csv": {
+      "agreement": "no_data",
+      "methods": "0",
+      "risk": "0.0000",
+      "tier": "-1"
+     },
+     "date": "2026-10-07",
+     "original_state": "NO_QUALIFIED_METHOD",
+     "rule": "retained-component-weighted-mean-v1",
+     "source": {
+      "kind": "REVISION_CURRENT",
+      "path": "docs/ensemble/2026-10-07/20261009T114617132021Z-7adb6101.json",
+      "reason": null,
+      "run_id": "20261009T114617132021Z-7adb6101",
+      "sha256": "3176f99a72d679510d075704e7b0b652c47b004fa5737d2d070de907837b4819",
+      "supersedes": null
+     },
+     "state": "RETROSPECTIVE_RECONSTRUCTION_NOT_ISSUED",
+     "value": 0.04591633121839087
+    }
+   ],
+   "socal_saf_coachella": [
+    {
+     "components": {
+      "lambda_geo": {
+       "admission": {
+        "basis": "METHOD_SET",
+        "code": "NO_REGISTERED_FRESHNESS_POLICY",
+        "included": false,
+        "reason": "NO_REGISTERED_FRESHNESS_POLICY: lambda_geo_baselines.json:socal_saf_coachella: lambda_geo has no registered baseline-age bound; qualification unknown",
+        "state": "NOT_QUALIFIED",
+        "weight": null
+       },
+       "base_weight": 0.4,
+       "calibration": {
+        "calibration": {
+         "eligible_for_tiering": false,
+         "reason": "NO_REGISTERED_FRESHNESS_POLICY: lambda_geo_baselines.json:socal_saf_coachella: lambda_geo has no registered baseline-age bound; qualification unknown",
+         "rule_version": "calibration-eligibility-v3",
+         "status": "missing"
+        }
+       },
+       "effective_weight": 0.5714285714285715,
+       "raw_value": 0.1,
+       "recorded_score": 0.0,
+       "station": null,
+       "warnings": [
+        "CALIBRATION_MISSING",
+        "NOT_ADMITTED_NOT_QUALIFIED",
+        "REPEATS_PREVIOUS_MEASURED_VALUE"
+       ]
+      },
+      "seismic_thd": {
+       "admission": {
+        "basis": "METHOD_SET",
+        "code": "CALIBRATED_AFTER_SCORED_DAY",
+        "included": false,
+        "reason": "CALIBRATED_AFTER_SCORED_DAY: calibrated 2026-10-09, 2 d after the scored day 2026-10-07",
+        "state": "NOT_QUALIFIED",
+        "weight": null
+       },
+       "base_weight": 0.3,
+       "calibration": {
+        "baseline": {
+         "mean": 0.351704,
+         "n_samples": 91,
+         "quality": "good",
+         "std": 0.104826,
+         "window": "2026-06-11 to 2026-09-09"
+        },
+        "calibration": {
+         "eligible_for_tiering": false,
+         "reason": "CALIBRATED_AFTER_SCORED_DAY: calibrated 2026-10-09, 2 d after the scored day 2026-10-07",
+         "rule_version": "calibration-eligibility-v3",
+         "status": "missing"
+        },
+        "sample_rate_hz": 40.0,
+        "z_score": 0.4285357963218402
+       },
+       "effective_weight": 0.4285714285714286,
+       "raw_value": 0.39662569338523324,
+       "recorded_score": 0.10713810617624536,
+       "station": {
+        "basis": "NOTES_TEXT",
+        "value": "IU.TUC"
+       },
+       "warnings": [
+        "CALIBRATION_MISSING",
+        "NOT_ADMITTED_NOT_QUALIFIED"
+       ]
+      }
+     },
+     "csv": {
+      "agreement": "no_data",
+      "methods": "0",
+      "risk": "0.0000",
+      "tier": "-1"
+     },
+     "date": "2026-10-07",
+     "original_state": "NO_QUALIFIED_METHOD",
+     "rule": "retained-component-weighted-mean-v1",
+     "source": {
+      "kind": "REVISION_CURRENT",
+      "path": "docs/ensemble/2026-10-07/20261009T114617132021Z-7adb6101.json",
+      "reason": null,
+      "run_id": "20261009T114617132021Z-7adb6101",
+      "sha256": "3176f99a72d679510d075704e7b0b652c47b004fa5737d2d070de907837b4819",
+      "supersedes": null
+     },
+     "state": "RETROSPECTIVE_RECONSTRUCTION_NOT_ISSUED",
+     "value": 0.04591633121839087
+    }
+   ],
+   "socal_saf_mojave": [
+    {
+     "components": {
+      "lambda_geo": {
+       "admission": {
+        "basis": "METHOD_SET",
+        "code": "NO_REGISTERED_FRESHNESS_POLICY",
+        "included": false,
+        "reason": "NO_REGISTERED_FRESHNESS_POLICY: lambda_geo_baselines.json:socal_saf_mojave: lambda_geo has no registered baseline-age bound; qualification unknown",
+        "state": "NOT_QUALIFIED",
+        "weight": null
+       },
+       "base_weight": 0.4,
+       "calibration": {
+        "calibration": {
+         "eligible_for_tiering": false,
+         "reason": "NO_REGISTERED_FRESHNESS_POLICY: lambda_geo_baselines.json:socal_saf_mojave: lambda_geo has no registered baseline-age bound; qualification unknown",
+         "rule_version": "calibration-eligibility-v3",
+         "status": "missing"
+        }
+       },
+       "effective_weight": 0.5714285714285715,
+       "raw_value": 0.1,
+       "recorded_score": 0.0,
+       "station": null,
+       "warnings": [
+        "CALIBRATION_MISSING",
+        "NOT_ADMITTED_NOT_QUALIFIED",
+        "REPEATS_PREVIOUS_MEASURED_VALUE"
+       ]
+      },
+      "seismic_thd": {
+       "admission": {
+        "basis": "METHOD_SET",
+        "code": "CALIBRATED_AFTER_SCORED_DAY",
+        "included": false,
+        "reason": "CALIBRATED_AFTER_SCORED_DAY: calibrated 2026-10-09, 2 d after the scored day 2026-10-07",
+        "state": "NOT_QUALIFIED",
+        "weight": null
+       },
+       "base_weight": 0.3,
+       "calibration": {
+        "baseline": {
+         "mean": 0.351704,
+         "n_samples": 91,
+         "quality": "good",
+         "std": 0.104826,
+         "window": "2026-06-11 to 2026-09-09"
+        },
+        "calibration": {
+         "eligible_for_tiering": false,
+         "reason": "CALIBRATED_AFTER_SCORED_DAY: calibrated 2026-10-09, 2 d after the scored day 2026-10-07",
+         "rule_version": "calibration-eligibility-v3",
+         "status": "missing"
+        },
+        "sample_rate_hz": 40.0,
+        "z_score": 0.4285357963218402
+       },
+       "effective_weight": 0.4285714285714286,
+       "raw_value": 0.39662569338523324,
+       "recorded_score": 0.10713810617624536,
+       "station": {
+        "basis": "NOTES_TEXT",
+        "value": "IU.TUC"
+       },
+       "warnings": [
+        "CALIBRATION_MISSING",
+        "NOT_ADMITTED_NOT_QUALIFIED"
+       ]
+      }
+     },
+     "csv": {
+      "agreement": "no_data",
+      "methods": "0",
+      "risk": "0.0000",
+      "tier": "-1"
+     },
+     "date": "2026-10-07",
+     "original_state": "NO_QUALIFIED_METHOD",
+     "rule": "retained-component-weighted-mean-v1",
+     "source": {
+      "kind": "REVISION_CURRENT",
+      "path": "docs/ensemble/2026-10-07/20261009T114617132021Z-7adb6101.json",
+      "reason": null,
+      "run_id": "20261009T114617132021Z-7adb6101",
+      "sha256": "3176f99a72d679510d075704e7b0b652c47b004fa5737d2d070de907837b4819",
+      "supersedes": null
+     },
+     "state": "RETROSPECTIVE_RECONSTRUCTION_NOT_ISSUED",
+     "value": 0.04591633121839087
+    }
+   ],
+   "tokyo_kanto": [
+    {
+     "components": {
+      "lambda_geo": {
+       "admission": {
+        "basis": "METHOD_SET",
+        "code": "NO_REGISTERED_FRESHNESS_POLICY",
+        "included": false,
+        "reason": "NO_REGISTERED_FRESHNESS_POLICY: lambda_geo_baselines.json:tokyo_kanto: lambda_geo has no registered baseline-age bound; qualification unknown",
+        "state": "NOT_QUALIFIED",
+        "weight": null
+       },
+       "base_weight": 0.4,
+       "calibration": {
+        "calibration": {
+         "eligible_for_tiering": false,
+         "reason": "NO_REGISTERED_FRESHNESS_POLICY: lambda_geo_baselines.json:tokyo_kanto: lambda_geo has no registered baseline-age bound; qualification unknown",
+         "rule_version": "calibration-eligibility-v3",
+         "status": "missing"
+        }
+       },
+       "effective_weight": 0.5714285714285715,
+       "raw_value": 0.14727595686049638,
+       "recorded_score": 0.0,
+       "station": null,
+       "warnings": [
+        "CALIBRATION_MISSING",
+        "NOT_ADMITTED_NOT_QUALIFIED"
+       ]
+      },
+      "seismic_thd": {
+       "admission": {
+        "basis": "METHOD_SET",
+        "code": "CALIBRATED_AFTER_SCORED_DAY",
+        "included": false,
+        "reason": "CALIBRATED_AFTER_SCORED_DAY: calibrated 2026-10-09, 2 d after the scored day 2026-10-07",
+        "state": "NOT_QUALIFIED",
+        "weight": null
+       },
+       "base_weight": 0.3,
+       "calibration": {
+        "baseline": {
+         "mean": 0.480586,
+         "n_samples": 91,
+         "quality": "good",
+         "std": 0.107577,
+         "window": "2026-06-11 to 2026-09-09"
+        },
+        "calibration": {
+         "eligible_for_tiering": false,
+         "reason": "CALIBRATED_AFTER_SCORED_DAY: calibrated 2026-10-09, 2 d after the scored day 2026-10-07",
+         "rule_version": "calibration-eligibility-v3",
+         "status": "missing"
+        },
+        "sample_rate_hz": 40.0,
+        "z_score": -0.6471523617477123
+       },
+       "effective_weight": 0.4285714285714286,
+       "raw_value": 0.41096729038026636,
+       "recorded_score": 0.030585429147568635,
+       "station": {
+        "basis": "NOTES_TEXT",
+        "value": "IU.MAJO"
+       },
+       "warnings": [
+        "CALIBRATION_MISSING",
+        "NOT_ADMITTED_NOT_QUALIFIED"
+       ]
+      }
+     },
+     "csv": {
+      "agreement": "no_data",
+      "methods": "0",
+      "risk": "0.0000",
+      "tier": "-1"
+     },
+     "date": "2026-10-07",
+     "original_state": "NO_QUALIFIED_METHOD",
+     "rule": "retained-component-weighted-mean-v1",
+     "source": {
+      "kind": "REVISION_CURRENT",
+      "path": "docs/ensemble/2026-10-07/20261009T114617132021Z-7adb6101.json",
+      "reason": null,
+      "run_id": "20261009T114617132021Z-7adb6101",
+      "sha256": "3176f99a72d679510d075704e7b0b652c47b004fa5737d2d070de907837b4819",
+      "supersedes": null
+     },
+     "state": "RETROSPECTIVE_RECONSTRUCTION_NOT_ISSUED",
+     "value": 0.013108041063243701
+    },
+    {
+     "components": {
+      "lambda_geo": {
+       "admission": {
+        "basis": "METHOD_SET",
+        "code": "NO_REGISTERED_FRESHNESS_POLICY",
+        "included": false,
+        "reason": "NO_REGISTERED_FRESHNESS_POLICY: lambda_geo_baselines.json:tokyo_kanto: lambda_geo has no registered baseline-age bound; qualification unknown",
+        "state": "NOT_QUALIFIED",
+        "weight": null
+       },
+       "base_weight": 0.4,
+       "calibration": {
+        "calibration": {
+         "eligible_for_tiering": false,
+         "reason": "NO_REGISTERED_FRESHNESS_POLICY: lambda_geo_baselines.json:tokyo_kanto: lambda_geo has no registered baseline-age bound; qualification unknown",
+         "rule_version": "calibration-eligibility-v3",
+         "status": "missing"
+        }
+       },
+       "effective_weight": 1.0,
+       "raw_value": 0.14727595686049638,
+       "recorded_score": 0.0,
+       "station": null,
+       "warnings": [
+        "CALIBRATION_MISSING",
+        "NOT_ADMITTED_NOT_QUALIFIED",
+        "REPEATS_PREVIOUS_MEASURED_VALUE"
+       ]
+      }
+     },
+     "csv": {
+      "agreement": "no_data",
+      "methods": "0",
+      "risk": "0.0000",
+      "tier": "-1"
+     },
+     "date": "2026-10-08",
+     "original_state": "NO_QUALIFIED_METHOD",
+     "rule": "retained-component-weighted-mean-v1",
+     "source": {
+      "kind": "REVISION_CURRENT",
+      "path": "docs/ensemble/2026-10-08/20261010T110640457607Z-8a69c025.json",
+      "reason": null,
+      "run_id": "20261010T110640457607Z-8a69c025",
+      "sha256": "2cede73f2944fb09a3be0d40a11680c54f9e563daaa4d9720b4811596ce13a27",
+      "supersedes": null
+     },
+     "state": "RETROSPECTIVE_RECONSTRUCTION_NOT_ISSUED",
+     "value": 0.0
+    },
+    {
+     "components": {
+      "lambda_geo": {
+       "admission": {
+        "basis": "METHOD_SET",
+        "code": "NO_REGISTERED_FRESHNESS_POLICY",
+        "included": false,
+        "reason": "NO_REGISTERED_FRESHNESS_POLICY: lambda_geo_baselines.json:tokyo_kanto: lambda_geo has no registered baseline-age bound; qualification unknown",
+        "state": "NOT_QUALIFIED",
+        "weight": null
+       },
+       "base_weight": 0.4,
+       "calibration": {
+        "calibration": {
+         "eligible_for_tiering": false,
+         "reason": "NO_REGISTERED_FRESHNESS_POLICY: lambda_geo_baselines.json:tokyo_kanto: lambda_geo has no registered baseline-age bound; qualification unknown",
+         "rule_version": "calibration-eligibility-v3",
+         "status": "missing"
+        }
+       },
+       "effective_weight": 1.0,
+       "raw_value": 0.14727595686049638,
+       "recorded_score": 0.0,
+       "station": null,
+       "warnings": [
+        "CALIBRATION_MISSING",
+        "NOT_ADMITTED_NOT_QUALIFIED",
+        "REPEATS_PREVIOUS_MEASURED_VALUE"
+       ]
+      }
+     },
+     "csv": {
+      "agreement": "no_data",
+      "methods": "0",
+      "risk": "0.0000",
+      "tier": "-1"
+     },
+     "date": "2026-10-09",
+     "original_state": "NO_QUALIFIED_METHOD",
+     "rule": "retained-component-weighted-mean-v1",
+     "source": {
+      "kind": "REVISION_CURRENT",
+      "path": "docs/ensemble/2026-10-09/20261011T110730348906Z-b9fd9794.json",
+      "reason": null,
+      "run_id": "20261011T110730348906Z-b9fd9794",
+      "sha256": "3bc9bcdd21385eeddb15eaa2e394dc73bb8acbdfcbf55ca3c598c134495360c1",
+      "supersedes": null
+     },
+     "state": "RETROSPECTIVE_RECONSTRUCTION_NOT_ISSUED",
+     "value": 0.0
+    }
+   ],
+   "turkey_kahramanmaras": [
+    {
+     "components": {
+      "seismic_thd": {
+       "admission": {
+        "basis": "METHOD_SET",
+        "code": "CALIBRATED_AFTER_SCORED_DAY",
+        "included": false,
+        "reason": "CALIBRATED_AFTER_SCORED_DAY: calibrated 2026-10-09, 2 d after the scored day 2026-10-07",
+        "state": "NOT_QUALIFIED",
+        "weight": null
+       },
+       "base_weight": 0.3,
+       "calibration": {
+        "baseline": {
+         "mean": 0.317247,
+         "n_samples": 91,
+         "quality": "good",
+         "std": 0.062967,
+         "window": "2026-06-11 to 2026-09-09"
+        },
+        "calibration": {
+         "eligible_for_tiering": false,
+         "reason": "CALIBRATED_AFTER_SCORED_DAY: calibrated 2026-10-09, 2 d after the scored day 2026-10-07",
+         "rule_version": "calibration-eligibility-v3",
+         "status": "missing"
+        },
+        "sample_rate_hz": 40.0,
+        "z_score": 0.15450218985580616
+       },
+       "effective_weight": 1.0,
+       "raw_value": 0.327050071245037,
+       "recorded_score": 0.07060029198077417,
+       "station": {
+        "basis": "NOTES_TEXT",
+        "value": "IU.ANTO"
+       },
+       "warnings": [
+        "CALIBRATION_MISSING",
+        "NOT_ADMITTED_NOT_QUALIFIED"
+       ]
+      }
+     },
+     "csv": {
+      "agreement": "no_data",
+      "methods": "0",
+      "risk": "0.0000",
+      "tier": "-1"
+     },
+     "date": "2026-10-07",
+     "original_state": "NO_QUALIFIED_METHOD",
+     "rule": "retained-component-weighted-mean-v1",
+     "source": {
+      "kind": "REVISION_CURRENT",
+      "path": "docs/ensemble/2026-10-07/20261009T114617132021Z-7adb6101.json",
+      "reason": null,
+      "run_id": "20261009T114617132021Z-7adb6101",
+      "sha256": "3176f99a72d679510d075704e7b0b652c47b004fa5737d2d070de907837b4819",
+      "supersedes": null
+     },
+     "state": "RETROSPECTIVE_RECONSTRUCTION_NOT_ISSUED",
+     "value": 0.07060029198077417
+    }
+   ]
+  },
+  "rule": "retained-component-weighted-mean-v1"
+ },
  "schema": "geospec-raw-history-v1"
 }

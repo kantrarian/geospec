@@ -665,7 +665,9 @@
             <p class="raw-note">Grey diamonds fill unqualified days only where retained measured inputs and method scores
                 support a calculation. Display weights: LG 0.4, FC 0.3, THD 0.3, renormalised over those inputs.
                 Hover for the region, inputs and exclusion reason. These are not originally issued qualified scores;
-                original tiers and alerts are unchanged. Genuine missing inputs remain gaps.</p>
+                original tiers and alerts are unchanged. Some points use calibration registered after the scored day
+                (look-ahead, not a real-time estimate). LG raw 0.1 is at the implemented clamp floor; the unclipped
+                ratio is not retained. Genuine missing inputs remain gaps.</p>
             <p class="raw-note" id="retrospective-status" role="status"></p>
             <div id="history-chart"></div>
         </div>
@@ -1136,8 +1138,10 @@
                     !p.csv || ['risk', 'tier', 'methods', 'agreement'].some(k => p.csv[k] !== row[k])) continue;
                 const detail = Object.entries(p.components).map(([method, c]) =>
                     escape(method) + ': raw ' + escape(c.raw_value) + '; retained score ' + escape(c.recorded_score) +
+                    (method === 'lambda_geo' && c.raw_value === 0.1 ? '; at clamp floor; unclipped ratio not retained' : '') +
                     '; weight ' + Number(c.effective_weight).toFixed(4) + '; ' +
                     escape(c.admission.reason || c.admission.state || 'not qualified') +
+                    (c.admission.code === 'CALIBRATED_AFTER_SCORED_DAY' ? '; calibration look-ahead; not a real-time estimate' : '') +
                     (c.warnings.length ? '; ' + escape(c.warnings.join(', ')) : '')).join('<br>');
                 trace.x.push(row.date); trace.y.push(p.value);
                 trace.text.push(escape(row.region.replace(/_/g, ' ')) + '<br>RETROSPECTIVE — NOT ISSUED<br>' +

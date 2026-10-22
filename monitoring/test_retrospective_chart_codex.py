@@ -99,6 +99,18 @@ class PageTests(unittest.TestCase):
         self.assertFalse(trace["connectgaps"])
         for text in ("CALIBRATED_AFTER_SCORED_DAY", "RETROSPECTIVE", "weight 1.0000", "raw 0.423267", REPORT):
             self.assertIn(text, trace["text"][0])
+        self.assertIn("calibration look-ahead; not a real-time estimate", trace["text"][0])
+
+    def test_lg_clamp_floor_is_named_without_inventing_unclipped_input(self):
+        def add_lg(row, point, block):
+            point["components"]["lambda_geo"] = dict(raw_value=0.1, recorded_score=0,
+                effective_weight=0.4, admission=dict(state="NOT_QUALIFIED"), warnings=[])
+        trace = self.run_trace(add_lg)
+        self.assertIn("at clamp floor; unclipped ratio not retained", trace["text"][0])
+        def above_floor(row, point, block):
+            add_lg(row, point, block)
+            point["components"]["lambda_geo"]["raw_value"] = 0.2
+        self.assertNotIn("at clamp floor", self.run_trace(above_floor)["text"][0])
 
     def test_mismatched_rows_new_qualified_scores_and_unknown_rule_do_not_overlay(self):
         for change in (lambda r, p, b: r.update(risk="0.1234"),

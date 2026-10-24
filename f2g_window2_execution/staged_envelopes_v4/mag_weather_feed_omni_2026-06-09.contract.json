@@ -1,0 +1,31 @@
+{
+ "carrier": "omni",
+ "cutoff": "2026-07-31",
+ "endpoint": "https://omniweb.gsfc.nasa.gov/cgi/nx1.cgi",
+ "expected_keys": [
+  "2026-06-09"
+ ],
+ "lane": "MAG_WEATHER_FEED",
+ "operation_params": {
+  "carrier": "omni",
+  "day": "2026-06-09"
+ },
+ "request_params": {
+  "activity": "retrieve",
+  "end_date": "20260609",
+  "res": "min",
+  "spacecraft": "omni_min",
+  "start_date": "20260609",
+  "vars": [
+   "17",
+   "18",
+   "21"
+  ]
+ },
+ "schema": "f2g-w2-static-contract-v1",
+ "source": {
+  "kind": "omniweb-highres-cgi",
+  "ref": "https://omniweb.gsfc.nasa.gov/cgi/nx1.cgi"
+ },
+ "utc_day": "2026-06-09"
+}

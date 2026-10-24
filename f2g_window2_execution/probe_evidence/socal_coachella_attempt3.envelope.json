@@ -1,0 +1,15 @@
+{
+ "attempt": 3,
+ "authorization": "codex 1647Z final bbox probe ruling",
+ "effective_url": "https://service.scedc.caltech.edu/fdsnws/station/1/query?net=CI&cha=HHZ&level=channel&format=text&minlatitude=32.6500&maxlatitude=34.1500&minlongitude=-116.9500&maxlongitude=-115.0500&starttime=2025-11-15&endtime=2025-11-16&nodata=404",
+ "http_status": 400,
+ "input_delta_from_attempt2": "registered SCEDC bbox shape (receipt authority 350c5f5e) replacing the station-list form; no station param; all other semantics unchanged",
+ "operation_id": "socal_coachella_attempt3",
+ "raw_body_bytes": 552,
+ "raw_body_sha256": "a06beb8a7e62622e19ba47c0b176adcf1307e78b5a0abd276d82054f72756dc7",
+ "refusal": "PROBE_REFUSED: HTTP 400",
+ "request_start_utc": "2026-08-24T21:00:34Z",
+ "requested_url": "https://service.scedc.caltech.edu/fdsnws/station/1/query?net=CI&cha=HHZ&level=channel&format=text&minlatitude=32.6500&maxlatitude=34.1500&minlongitude=-116.9500&maxlongitude=-115.0500&starttime=2025-11-15&endtime=2025-11-16&nodata=404",
+ "response_complete_utc": "2026-08-24T21:00:35Z",
+ "schema": "f2g-w2-probe-envelope-v1"
+}

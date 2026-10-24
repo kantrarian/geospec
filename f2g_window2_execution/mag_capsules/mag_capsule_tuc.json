@@ -1,0 +1,21 @@
+{
+ "cadence_seconds": 60,
+ "carrier": "socal_coachella",
+ "coordinates_lat_lon": [
+  32.174,
+  -110.733
+ ],
+ "iaga_code": "TUC",
+ "observatory": "TUC",
+ "probe_body_sha256": "0eace370136741958f622ab88cc3fa2f0a2131375cd4109c2b277435924663bc",
+ "probe_envelope": "docs/f2g_window2_execution/mag_capsules/receipts/mag_tuc_probe.envelope.json",
+ "product_class": "adjusted",
+ "provider": "USGS geomagnetism program",
+ "recomputed_coverage_samples": 1441,
+ "reported_orientation": "XYZF",
+ "role": "regional reference for socal_coachella (M3)",
+ "schema": "f2g-mag-input-capsule-v1",
+ "sensor_orientation": "HDZ",
+ "sentinel_note": "USGS ws nulls = missing",
+ "source_data_type": "adjusted"
+}

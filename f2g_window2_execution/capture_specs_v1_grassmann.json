@@ -1,0 +1,98 @@
+{
+ "schema": "f2g-w2-capture-specs-v1",
+ "author": "grassmann",
+ "purpose": "Phase-A input to the v3 static-contract freeze (codex 0320Z item 1 two-phase rule): per-(lane, carrier) endpoint + request templates for cayley's generator fill; codex reviews the frozen no-OPEN authority BEFORE the first HTTP request. {day} substitutes the UTC key day; {day_next} (PROPOSED template token, see notes) substitutes key day + 1.",
+ "claim_ceiling": "These are PROPOSED operation records. Nothing here is admitted until the v3 authority freezes under codex review; endpoints marked PROBE_REQUIRED need a pinned probe envelope (the MAG-capsule precedent) before freeze.",
+ "lanes": {
+  "MAG_FEED": {
+   "izn": {
+    "source": {"kind": "intermagnet-gin-minute", "ref": "https://imag-data.bgs.ac.uk/GIN_V1/GINServices"},
+    "endpoint": "https://imag-data.bgs.ac.uk/GIN_V1/GINServices",
+    "request_params": {"Request": "GetData", "format": "json", "testObsys": "0", "observatoryIagaCode": "IZN", "samplesPerDay": "minute", "dataStartDate": "{day}", "dataDuration": "1", "publicationState": "adj-or-rep"},
+    "operation_params": {"carrier": "izn", "day": "{day}"},
+    "evidence": {"pinned_probe_envelope": "docs/f2g_window2_execution/mag_capsules/receipts/mag_izn_probe.envelope.json", "probe_body_sha256": "e3b5e0be9d2554549f3574d5ec1d88e9a949a366eaa49961458fc0501f4b9501", "coverage_samples": 1440},
+    "status": "EVIDENCE_PINNED"
+   },
+   "frn": {
+    "source": {"kind": "usgs-geomag-ws-minute", "ref": "https://geomag.usgs.gov/ws/data/"},
+    "endpoint": "https://geomag.usgs.gov/ws/data/",
+    "request_params": {"id": "FRN", "format": "json", "sampling_period": "60", "starttime": "{day}T00:00:00Z", "endtime": "{day_next}T00:00:00Z"},
+    "operation_params": {"carrier": "frn", "day": "{day}"},
+    "evidence": {"pinned_probe_envelope": "docs/f2g_window2_execution/mag_capsules/receipts/mag_frn_probe.envelope.json", "probe_body_sha256": "6176a3baad14f028e047202a01f6f86483948742dd1e25841229a921d5e8df52", "coverage_samples": 1441},
+    "status": "EVIDENCE_PINNED",
+    "note": "needs the {day_next} template token (endtime is exclusive next-day midnight, matching the pinned probe exactly)"
+   },
+   "tuc": {
+    "source": {"kind": "usgs-geomag-ws-minute", "ref": "https://geomag.usgs.gov/ws/data/"},
+    "endpoint": "https://geomag.usgs.gov/ws/data/",
+    "request_params": {"id": "TUC", "format": "json", "sampling_period": "60", "starttime": "{day}T00:00:00Z", "endtime": "{day_next}T00:00:00Z"},
+    "operation_params": {"carrier": "tuc", "day": "{day}"},
+    "evidence": {"pinned_probe_envelope": "docs/f2g_window2_execution/mag_capsules/receipts/mag_tuc_probe.envelope.json", "probe_body_sha256": "0eace370136741958f622ab88cc3fa2f0a2131375cd4109c2b277435924663bc", "coverage_samples": 1441},
+    "status": "EVIDENCE_PINNED",
+    "note": "needs the {day_next} template token"
+   }
+  },
+  "SELECTION_RECORDS": {
+   "cascadia": {
+    "source": {"kind": "fdsn-station-channel", "ref": "https://service.iris.edu/fdsnws/station/1/query"},
+    "endpoint": "https://service.iris.edu/fdsnws/station/1/query",
+    "request_params": {"net": "UW,CC,CN", "cha": "HHZ", "level": "channel", "format": "text", "minlatitude": "45.0", "maxlatitude": "51.0", "minlongitude": "-128.0", "maxlongitude": "-121.5", "starttime": "{day}", "endtime": "{day_next}", "nodata": "404"},
+    "operation_params": {"carrier": "cascadia", "day": "{day}"},
+    "evidence": {"pinned_receipt_envelope": "docs/f2g_window2_freeze/receipts/cascadia_UW_CC_CN_HHZ.envelope.json", "receipt_body_sha256": "d4256792bf85edf855a4dbaf7841982824a020cd5e075c103d832248c513a847"},
+    "status": "EVIDENCE_PINNED",
+    "note": "day-windowed form of the EXACT pinned receipt query (same networks/bbox/channel/level); presence = NET.STA rows with a channel epoch active that day, epoch-first-then-location rule per the frozen capsule; redirects to service.earthscope.org expected (transcript records the effective URL)"
+   },
+   "istanbul_marmara": {
+    "source": {"kind": "fdsn-station-channel", "ref": "REGISTERED_MONITOR_CONFIG"},
+    "endpoint": "PROBE_REQUIRED",
+    "request_params": {"day_windowed": "{day}..{day_next}", "params_from": "the registered daily-monitor carrier definition (networks/bbox/channel) -- extracted verbatim, then probed + envelope-pinned like cascadia"},
+    "operation_params": {"carrier": "istanbul_marmara", "day": "{day}"},
+    "status": "PROBE_REQUIRED"
+   },
+   "socal_coachella": {
+    "source": {"kind": "fdsn-station-channel", "ref": "REGISTERED_MONITOR_CONFIG"},
+    "endpoint": "PROBE_REQUIRED",
+    "request_params": {"day_windowed": "{day}..{day_next}", "params_from": "the registered daily-monitor carrier definition"},
+    "operation_params": {"carrier": "socal_coachella", "day": "{day}"},
+    "status": "PROBE_REQUIRED"
+   },
+   "turkey_kahramanmaras": {
+    "source": {"kind": "fdsn-station-channel", "ref": "REGISTERED_MONITOR_CONFIG"},
+    "endpoint": "PROBE_REQUIRED",
+    "request_params": {"day_windowed": "{day}..{day_next}", "params_from": "the registered daily-monitor carrier definition"},
+    "operation_params": {"carrier": "turkey_kahramanmaras", "day": "{day}"},
+    "status": "PROBE_REQUIRED"
+   }
+  },
+  "MF4_FEED": {
+   "sym_h": {
+    "source": {"kind": "wdc-kyoto-sym-asy", "ref": "https://wdc.kugi.kyoto-u.ac.jp/"},
+    "endpoint": "PROBE_REQUIRED",
+    "request_params": {"proposal": "WDC Kyoto ASY/SYM minute service, day-windowed {day}; exact param grammar fixed at probe"},
+    "operation_params": {"carrier": "sym_h", "day": "{day}"},
+    "status": "PROBE_REQUIRED",
+    "note": "the calibration engines consume symh as an aligned minute series; the probe pins format + null sentinel"
+   },
+   "kp": {
+    "source": {"kind": "gfz-kp-json", "ref": "https://kp.gfz-potsdam.de/app/json/"},
+    "endpoint": "https://kp.gfz-potsdam.de/app/json/",
+    "request_params": {"start": "{day}T00:00:00Z", "end": "{day_next}T00:00:00Z", "index": "Kp"},
+    "operation_params": {"carrier": "kp", "day": "{day}"},
+    "status": "PROBE_REQUIRED",
+    "note": "public GFZ Kp JSON service; probe pins the exact response schema before freeze"
+   },
+   "omni": {
+    "source": {"kind": "nasa-omniweb", "ref": "https://cdaweb.gsfc.nasa.gov/"},
+    "endpoint": "PROBE_REQUIRED",
+    "request_params": {"proposal": "OMNI high-res via CDAWeb REST, day-windowed {day}; exact dataset id + params fixed at probe"},
+    "operation_params": {"carrier": "omni", "day": "{day}"},
+    "status": "PROBE_REQUIRED"
+   }
+  }
+ },
+ "freeze_conditions": [
+  "the {day_next} template token lands in the generator + authoritative_static_contract substitution (one-line extension, cayley) -- without it the USGS/FDSN day-window forms cannot be expressed",
+  "every PROBE_REQUIRED entry gets ONE probe capture with a pinned envelope (the MAG-capsule precedent: requested/effective URL + body sha + parser note) BEFORE the v3 template freeze; probes are single historical-day requests, not staging",
+  "cutoffs come from the v3 authority (2026-08-27), never from these specs; expected_keys are always [{day}] per key"
+ ]
+}

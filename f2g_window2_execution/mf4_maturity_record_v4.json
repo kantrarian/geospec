@@ -1,0 +1,40 @@
+{
+ "claim_ceiling": {
+  "lambda_geo": "INCONCLUSIVE",
+  "scientific_admission": "NONE -- this records bounds and requirements only"
+ },
+ "frozen_constants": {
+  "cal_start": "2025-10-18",
+  "equation": "calibration_issue_end = min(freeze_day - H, snapshot_end - H)",
+  "h_days": 7,
+  "source": "monitoring/src/w2_mf4.py (frozen)"
+ },
+ "gate_a_calibration_ledger": {
+  "calibration_interval": [
+   "2025-10-18",
+   "2026-08-20"
+  ],
+  "calibration_issue_end": "2026-08-20",
+  "d2_archive_scored_through": "2026-08-23",
+  "finding": "the matured bound 2026-08-20 is within the historical daily-risk archive (2026-08-23), margin 3 d -- so the D2 capsule expiry does NOT threaten the M-F4 CALIBRATION LEDGER",
+  "freeze_day": "2026-08-28",
+  "historical_rows_sufficient": true,
+  "margin_days": 3,
+  "snapshot_end": "2026-08-27",
+  "still_required_from_the_archive": {
+   "catalog_snapshot": "OPEN -- pinned snapshot + its digest",
+   "note": "these live on the monitor host; this record fixes the BOUND they must satisfy so they cannot be chosen after the fact",
+   "risk_series_support": "OPEN -- per-region support census over [cal_start, issue_end], from the daily-risk archive",
+   "training_digest": "OPEN -- canonical digest of the exact rows fitted"
+  }
+ },
+ "gate_b_prospective_producer": {
+  "accrual_span": "evaluation_start .. evaluation_end + H (2026-08-29 .. 2027-01-14 under the 08-28 successor schedule)",
+  "authorization_note": "the 2026-08-22 owner artifact already authorizes daily-monitor CONTINUITY through window-2 close; that authorization is NOT a bypass for an expired producer capsule, and re-asking the owner for continuity already granted would be wrong. This routes as a TECHNICAL renewal/proof before PRESTART (codex 0542Z cond. 4)",
+  "requirement": "a technically valid daily-risk producer for EVERY accrual day through the maturity tail",
+  "status": "OPEN -- the D2 producer capsule expires after scored day 2026-08-23; gate (a) sufficiency does NOT discharge this"
+ },
+ "producer": "monitoring/src/w2_mf4_maturity_record_gen_cayley.py",
+ "schema": "f2g-w2-mf4-maturity-record-v4",
+ "why_separate": "M-F4 does not use the MAG 01-01..07-31 interval; its bound derives from the frozen maturity equation, never from a neighbouring lane's cutoff (codex 0542Z condition 4)"
+}

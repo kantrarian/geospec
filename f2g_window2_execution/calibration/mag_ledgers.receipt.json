@@ -1,0 +1,119 @@
+{
+ "carrier_object_sha256": "3620d0c2dfcdb4f55f1efe797302b5063900697535b5ced279da7c22a9503ec2",
+ "carrier_record_path": "docs/f2g_window2_execution/calibration/mag_carrier_record_v1.json",
+ "cutoff": "2026-07-31",
+ "lane": "MAG",
+ "producer_identity": {
+  "module": "w2_calibration_feed_producer_cayley.py",
+  "source_sha256_normalized": "01887a593ddb11de57342da4ea666789952b30f0451ddadef560f106136c3b51"
+ },
+ "provenance": {
+  "authority_sha256": "f2e8a53adbe9fbd9feddcfff2a8f4be616f7bfe28cf8940ccfcdfe6cf119d2de",
+  "cutoff": "2026-07-31",
+  "days": 212,
+  "descriptor_sha256": "1859280560a55e5ebf4de034659b687e753fbf312ef186e2fc3732d575c4b1bd",
+  "inventory_sha256": "b019d3d9a5671da0eb07194748ed4c88374aa1f050ef5360f3735876901f280e",
+  "minutes": 305280,
+  "producer_source_sha256_normalized": "01887a593ddb11de57342da4ea666789952b30f0451ddadef560f106136c3b51",
+  "staged_rolling_sha256": "09d5b468a352b3425e92be25dd75aeb45343046a86324b3a568844af75c84a55"
+ },
+ "results": {
+  "m3": {
+   "FRN:TUC:X": {
+    "ledger_path": "docs/f2g_window2_execution/calibration/mag_m3_frn_on_tuc_X_ledger.json",
+    "ledger_sha256": "5a2536dd6776a37b41a6cbe1eaa7d8776cfa183a9a74d991f24d8d5c37147d65"
+   },
+   "FRN:TUC:Y": {
+    "ledger_path": "docs/f2g_window2_execution/calibration/mag_m3_frn_on_tuc_Y_ledger.json",
+    "ledger_sha256": "4442506721d1be1bfc53c9e97c313594d3751fb98f5778037cca414ffd7215e5"
+   },
+   "VIC:NEW:X": {
+    "ledger_path": "docs/f2g_window2_execution/calibration/mag_m3_vic_on_new_X_ledger.json",
+    "ledger_sha256": "e551a2ce3aae5d14a1f02fd363589ac48ef68011a7450271230c18d38dbee4f0"
+   },
+   "VIC:NEW:Y": {
+    "ledger_path": "docs/f2g_window2_execution/calibration/mag_m3_vic_on_new_Y_ledger.json",
+    "ledger_sha256": "40da35da45f62434b6b201af51170546b3575cbee5b41efccb345d7b1432beaa"
+   }
+  },
+  "observatories": {
+   "FRN": {
+    "components": {
+     "X": {
+      "ledger_digest_field": "0c339196bb25c59a24f9f63c7ff8afa7212b1b7e44190e48a987ec67f461d1aa",
+      "ledger_path": "docs/f2g_window2_execution/calibration/mag_frn_X_ledger.json",
+      "ledger_sha256": "01281e3bc1253b6545882e46335ee979f39923af374409b08705ba6bdca2edba"
+     },
+     "Y": {
+      "ledger_digest_field": "352850ba57dcd8892d16dd3bdd09da22eecd070fcbd3cec699850fa3e9073389",
+      "ledger_path": "docs/f2g_window2_execution/calibration/mag_frn_Y_ledger.json",
+      "ledger_sha256": "4d44edca9cb5de47e77cbc6efdbbc207b9dece0fa8938044c9799cffc2d7600c"
+     }
+    },
+    "input_feed_sha256": "6d75c5ecfdc2f7e1e435063fb051fa11c5806443644006198887ba21a032f396"
+   },
+   "IZN": {
+    "components": {
+     "X": {
+      "ledger_digest_field": "2755ef9a1ca6973b2e23dccc5f5dc2b4375dc212129dd5266c6211bbbc457429",
+      "ledger_path": "docs/f2g_window2_execution/calibration/mag_izn_X_ledger.json",
+      "ledger_sha256": "caf6d56928f43a7474c140f401c80b2ae96550ae1182c08c2d619322ddd700a0"
+     },
+     "Y": {
+      "ledger_digest_field": "86f33e2be7640314038113d118089b5b057dc7b53a03eda572b0d1745c3d6bbf",
+      "ledger_path": "docs/f2g_window2_execution/calibration/mag_izn_Y_ledger.json",
+      "ledger_sha256": "cf945e4f42179b4e55dc3680037f26821539cdc9bd68c227b67cba79dd4f3a3e"
+     }
+    },
+    "input_feed_sha256": "159c0cca3b7f2e75fd26d134a577d158cac80db09f667fece0d1995429f89e15"
+   },
+   "NEW": {
+    "components": {
+     "X": {
+      "ledger_digest_field": "87bb5de5d5e086138b12df48c273ab2dd15019b6d330f08e675f262e3200adc8",
+      "ledger_path": "docs/f2g_window2_execution/calibration/mag_new_X_ledger.json",
+      "ledger_sha256": "f497b2043462e3c08f6a56e0570c9501094bf0d7be6f7b1c48048f792179b235"
+     },
+     "Y": {
+      "ledger_digest_field": "89696c863fe9e0e7299b049473fa22b915993214e3b00de2eda6d22ec97115cb",
+      "ledger_path": "docs/f2g_window2_execution/calibration/mag_new_Y_ledger.json",
+      "ledger_sha256": "5b4ecde65862e910cdd34b05bf877d44910129b1857d8e529bfcbab523cd01e3"
+     }
+    },
+    "input_feed_sha256": "1433dca064a4afa3cf1db4633b467d7a0529b6f831a540fdb18bdf37d9899fe5"
+   },
+   "TUC": {
+    "components": {
+     "X": {
+      "ledger_digest_field": "44c2b8b6a1803a921bd481340be85a1526a7bcdbe56ef8b04960763287e4afc9",
+      "ledger_path": "docs/f2g_window2_execution/calibration/mag_tuc_X_ledger.json",
+      "ledger_sha256": "fe456b5b02a166ace800caf939b5de01db3d14075ab93bf61c48768ab1cec7ea"
+     },
+     "Y": {
+      "ledger_digest_field": "396806e8a58dfcc547bebc71264f9ce3279dcb0587fbc5ae5ba82ad92f483b74",
+      "ledger_path": "docs/f2g_window2_execution/calibration/mag_tuc_Y_ledger.json",
+      "ledger_sha256": "333655388df0120b732bc06871887da58a550165aea642b7547d17b292ad1d41"
+     }
+    },
+    "input_feed_sha256": "1b52d83f2a46fb8f6e8c84f876e3f33b5181b9f9c712bac1449314a7c8f70aae"
+   },
+   "VIC": {
+    "components": {
+     "X": {
+      "ledger_digest_field": "c66f14efb77575fb49f5fd62f09cf0e40ae4b846f6b8eda83a678a16f7cc9003",
+      "ledger_path": "docs/f2g_window2_execution/calibration/mag_vic_X_ledger.json",
+      "ledger_sha256": "6a59c5ae48be3563495201d1f0711c30f17c2934a04072302ffc3e6af394c00d"
+     },
+     "Y": {
+      "ledger_digest_field": "391a4c1773cdc7898c0e5a4fc5d1da8fb86ef7e6a35d93699cf9b506ec566c83",
+      "ledger_path": "docs/f2g_window2_execution/calibration/mag_vic_Y_ledger.json",
+      "ledger_sha256": "88e6520e627570cc61ce95e4ef1c42c5c0cec5238222e400c1875c22a99b809d"
+     }
+    },
+    "input_feed_sha256": "b3b71258f359667e7fa6f7140f043356b47c6fff618a8b80918777bab22558c9"
+   }
+  }
+ },
+ "runner_source_sha256_normalized": "0e89691c02dd24a46bf2552e81cfd280ad5701f2250f03b14879a4b95870bad6",
+ "schema": "f2g-w2-calibration-receipt-v1"
+}

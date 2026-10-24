@@ -1,0 +1,25 @@
+{
+ "authority": {
+  "blob_sha256": "b5b0a61a4edcdac2bfcd8a819f2e118a81c492947a0b6167ffd07ef09338967e",
+  "commit": "332a98acd34797163413350dc4989fdb37ec87b2",
+  "keys_sha256": "9a2b5b6c5e0b0f456f4587e7eed63c561440685cae33bad59ac4b3d4ebc7cee9",
+  "path": "docs/f2g_window2_execution/staged_expected_contracts_v3.json"
+ },
+ "carrier": "izn",
+ "effective_url": "https://imag-data.bgs.ac.uk/GIN_V1/GINServices?Request=GetData&dataDuration=1&dataStartDate=2026-05-25&format=json&observatoryIagaCode=IZN&publicationState=adj-or-rep&samplesPerDay=minute&testObsys=0",
+ "headers": {
+  "content-length": "90995",
+  "content-type": "application/json",
+  "date": "Tue, 25 Aug 2026 04:12:11 GMT"
+ },
+ "http_status": 200,
+ "lane": "MAG_FEED",
+ "raw_body_bytes": 90995,
+ "raw_body_sha256": "a507025d627995de43ca7944cd609f2483a69dbe6697e8f863cd01b4c64181f4",
+ "request_start_utc": "2026-08-25T04:12:10Z",
+ "requested_url": "https://imag-data.bgs.ac.uk/GIN_V1/GINServices?Request=GetData&dataDuration=1&dataStartDate=2026-05-25&format=json&observatoryIagaCode=IZN&publicationState=adj-or-rep&samplesPerDay=minute&testObsys=0",
+ "response_complete_utc": "2026-08-25T04:12:11Z",
+ "schema": "f2g-w2-capture-transcript-v1",
+ "static_contract_sha256": "5e40d0c0e40720684ff309359d95b5ad3557e1eb25160f54e5f0ee41add4b3c0",
+ "utc_day": "2026-05-25"
+}

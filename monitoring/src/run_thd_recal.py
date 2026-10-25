@@ -206,6 +206,8 @@ def run_recal(stations, end_date=None, dry_run=False):
             # a bound station is calibrated by its DAILY operator (not the fetch operator record above)
             entry["calibration_convention"] = (_OP.DAILY_OPERATOR["operator_version"] if is_bound(net, sta)
                                                else TDM.MEASUREMENT_VERSION)
+            # thd-value-eligibility-v1 (F1): the rule that admitted this baseline's daily values (recording only)
+            entry["value_eligibility"] = TDM.VALUE_ELIGIBILITY_VERSION
         except ImportError:
             pass
         # thd-station-channel-v1: a declared-channel station's baseline names the exact selector it was measured on

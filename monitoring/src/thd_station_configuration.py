@@ -82,7 +82,7 @@ def versions() -> Dict:
     import thd_provider_routing as TPR
     return dict(schema=SCHEMA, routing=TPR.ROUTING_VERSION, station_channels=TPR.STATION_CHANNELS_VERSION,
                 tls_trust=TPR.TLS_TRUST_VERSION, coverage=TPR.COVERAGE_VERSION, measurement=TDM.MEASUREMENT_VERSION,
-                operator_class=TDM.OPERATOR_CLASS_VERSION,
+                operator_class=TDM.OPERATOR_CLASS_VERSION, value_eligibility=TDM.VALUE_ELIGIBILITY_VERSION,
                 bound_operators={k: v["operator_version"] for k, v in sorted(OP.BOUND_STATIONS.items())})
 
 

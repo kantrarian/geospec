@@ -32,8 +32,9 @@ from __future__ import annotations
 import hashlib
 import inspect
 import json
+import math
 from datetime import timedelta
-from typing import Dict
+from typing import Dict, Optional, Tuple
 
 MEASUREMENT_VERSION = "thd-daily-measurement-v1"
 TARGET_THD_RATE = 1.0   # Hz, the daily estimator rate
@@ -117,23 +118,48 @@ def _number(x):
     return None if x is None else float(x)
 
 
-# thd-undefined-unavailable-v1 (cayley 2026-10-25, F1): the ONE rule for whether a measured record carries a usable
-# THD value, shared by the daily scorer (ensemble.compute_thd_risk) and the weekly recal
-# (calibrate_thd_baselines.compute_daily_record, whose inline rule this is, moved here unchanged). When the fundamental
-# band power is not positive, sqrt(sum P_n / P1) is undefined and analyze_window returns 0.0 as a placeholder, not a
-# measurement: the recal already refused it, the daily path scored it. `measure` itself is unchanged (its source is in
-# the measurement identity); a record with no value (thd None) is not judged here and keeps its own reason.
+# thd-value-eligibility-v1 (cayley 2026-10-25, F1; codex c1612936): the ONE rule for whether a measured record carries
+# a scorable THD value, shared by the daily scorer (ensemble.compute_thd_risk) and the weekly recal
+# (calibrate_thd_baselines.compute_daily_record). The positive-only domain is the recal's established rule, kept as it
+# was; the finite check is an INTENTIONAL eligibility repair (the recal's inline rule admitted thd or p1 = +inf and gave
+# NaN the non-positive reason). `measure` itself is unchanged (its source is in the measurement identity); a record
+# with no value (thd None) is not judged here and keeps its own reason. Registered with the run's other rule versions
+# (thd_station_configuration.versions) and on every recalibrated baseline (run_thd_recal).
+VALUE_ELIGIBILITY_VERSION = "thd-value-eligibility-v1"
 UNUSABLE_VALUE_REASON = "NONPOSITIVE_THD_OR_P1"
+NONFINITE_VALUE_REASON = "NONFINITE_THD_OR_P1"
+# Which case a refusal is, in words. Only a non-positive fundamental band power leaves the ratio sqrt(sum P_n / P1)
+# undefined (analyze_window then returns 0.0 as a placeholder); a defined THD of 0 or below is a value outside the
+# positive-only scoring domain, not an undefined one.
+P1_NOT_RECORDED = "fundamental band power p1 not recorded"
+NONFINITE_VALUE = "non-finite value"
+RATIO_UNDEFINED = "ratio undefined: fundamental band power p1 is not positive"
+OUTSIDE_POSITIVE_DOMAIN = "defined THD outside the positive-only scoring domain"
 
 
-def unusable_value_reason(rec: Dict):
-    """None when `rec` has no value (thd None) or a usable one (thd > 0 and p1 > 0); otherwise UNUSABLE_VALUE_REASON.
-    NaN compares False, so a non-finite value or fundamental power is unusable too."""
+def unusable_value(rec: Dict) -> Optional[Tuple[str, str]]:
+    """None when `rec` has no value (thd None) or a scorable one (finite thd > 0 and finite p1 > 0); otherwise
+    (reason, case): the reason code the recal records, and which case it is. Missing power is judged before finiteness,
+    finiteness before sign."""
     thd = rec.get("thd")
     if thd is None:
         return None
     p1 = rec.get("p1")
-    return None if (thd > 0 and p1 is not None and p1 > 0) else UNUSABLE_VALUE_REASON
+    if p1 is None:
+        return UNUSABLE_VALUE_REASON, P1_NOT_RECORDED
+    if not (math.isfinite(thd) and math.isfinite(p1)):
+        return NONFINITE_VALUE_REASON, NONFINITE_VALUE
+    if p1 <= 0:
+        return UNUSABLE_VALUE_REASON, RATIO_UNDEFINED
+    if thd <= 0:
+        return UNUSABLE_VALUE_REASON, OUTSIDE_POSITIVE_DOMAIN
+    return None
+
+
+def unusable_value_reason(rec: Dict) -> Optional[str]:
+    """The reason code alone (the recal's receipt field), or None."""
+    unusable = unusable_value(rec)
+    return None if unusable is None else unusable[0]
 
 
 def _analyzer_parameters(analyzer) -> Dict:

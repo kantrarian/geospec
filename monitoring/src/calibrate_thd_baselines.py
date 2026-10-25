@@ -170,7 +170,7 @@ def compute_daily_record(network: str, station: str, date: datetime, channel: st
     coverage, response epoch and the sha256 of the samples as returned -- or the reason no value was produced. The
     daily values are recorded, so a recal's summary is recomputable; replaying a waveform needs the retained input
     bytes, which the digest identifies but does not contain, and this recal does not retain them (`raw_input`).
-    `thd` is None unless the value is usable (thd > 0 and p1 > 0)."""
+    `thd` is None unless the value is usable (finite thd > 0 and finite p1 > 0: the shared rule)."""
     from functools import partial
     import thd_daily_measurement as TDM
     day = date.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -197,7 +197,7 @@ def compute_daily_record(network: str, station: str, date: datetime, channel: st
         receipt['providers_tried'] = ['%s:%s' % (a.get('provider'), a.get('outcome')) for a in attempts]
     if m.get('thd') is None:
         receipt['reason'] = receipt['reason'] or m.get('reason') or 'NO_VALUE'
-    elif TDM.unusable_value_reason(m) is not None:   # thd-undefined-unavailable-v1: the shared rule, unchanged here
+    elif TDM.unusable_value_reason(m) is not None:   # thd-value-eligibility-v1: the shared rule (finite check new)
         receipt['reason'] = TDM.unusable_value_reason(m)
     else:
         receipt.update(thd=m['thd'], native_rate_hz=m['native_rate_hz'])

@@ -945,6 +945,18 @@ class GeoSpecEnsemble:
                     raw_value=0.0,
                     notes=f'Insufficient data from {station_network}.{station_code}'
                 )
+            # thd-undefined-unavailable-v1 (cayley 2026-10-25, F1): a value the weekly recal refuses is not scored either.
+            # P1 <= 0 leaves sqrt(sum P_n / P1) undefined and the analyzer's 0.0 is a placeholder, not a low THD; the
+            # component is unavailable with the shared reason, so the runner tries the next configured station.
+            _unusable = TDM.unusable_value_reason(_m)
+            if _unusable is not None:
+                return MethodResult(
+                    name='seismic_thd',
+                    available=False,
+                    raw_value=0.0,
+                    notes=(f'Undefined THD from {station_network}.{station_code} ({_unusable}: '
+                           f'thd={_m.get("thd")!r}, fundamental band power p1={_m.get("p1")!r}); not scored')
+                )
             thd_result = _m['result']
             native_sample_rate = _m['native_rate_hz']
             sample_rate = _m['estimator_rate_hz']

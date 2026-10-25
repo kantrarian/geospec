@@ -298,6 +298,9 @@ def thd_station_outcome(component, provider_records):
     if component is not None and component.available:
         return 'VALUE', ER.redact(component.notes)
     notes = component.notes if component is not None else 'no THD component'
+    if notes.startswith('Undefined THD from'):
+        # thd-undefined-unavailable-v1 (F1): data returned and measured, but the ratio is undefined (P1 <= 0)
+        return 'UNDEFINED_RATIO', ER.redact(notes)
     if notes.startswith('Insufficient data from'):
         # a BOUND station (thd_bound_station_operator): the provider answered but the operator refused the window by
         # name (gap/overlap, rate, coverage ...) -- not "no data"; the operator's own code is carried, redacted.

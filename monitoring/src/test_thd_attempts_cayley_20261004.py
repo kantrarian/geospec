@@ -169,7 +169,10 @@ class RunnerRecordsEveryConfiguredStation(unittest.TestCase):
             if what in ("none", "local"):
                 return None, 0.0
             hours = 13 if what == "full" else 2
-            return np.zeros(hours * 3600), 1.0
+            # thd-undefined-unavailable-v1 (F1): an all-zero trace is the UNDEFINED-ratio state (P1 = 0), refused like the
+            # recal refuses it; "full" data is a defined M2-period waveform
+            n = hours * 3600
+            return ((np.sin(2 * np.pi * np.arange(n) / (12.42 * 3600)) + 0.05 * np.sin(4 * np.pi * np.arange(n) / (12.42 * 3600))) if what == "full" else np.zeros(n)), 1.0
         E.fetch_continuous_data_for_thd = fake_fetch
 
     def assess(self, region):

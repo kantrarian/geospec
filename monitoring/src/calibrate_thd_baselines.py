@@ -197,8 +197,8 @@ def compute_daily_record(network: str, station: str, date: datetime, channel: st
         receipt['providers_tried'] = ['%s:%s' % (a.get('provider'), a.get('outcome')) for a in attempts]
     if m.get('thd') is None:
         receipt['reason'] = receipt['reason'] or m.get('reason') or 'NO_VALUE'
-    elif not (m['thd'] > 0 and m.get('p1') is not None and m['p1'] > 0):
-        receipt['reason'] = 'NONPOSITIVE_THD_OR_P1'
+    elif TDM.unusable_value_reason(m) is not None:   # thd-undefined-unavailable-v1: the shared rule, unchanged here
+        receipt['reason'] = TDM.unusable_value_reason(m)
     else:
         receipt.update(thd=m['thd'], native_rate_hz=m['native_rate_hz'])
     return receipt

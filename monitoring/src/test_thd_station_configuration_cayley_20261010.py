@@ -205,7 +205,9 @@ class RunnerStamp(unittest.TestCase):
             if attempts is not None:
                 attempts.append({"provider": "SYNTHETIC", "nslc_requested": "%s.%s.*.%s" % (station_network, station_code, channel),
                                  "outcome": "DATA_RETURNED"})
-            return np.zeros(13 * 3600), 1.0
+            # thd-undefined-unavailable-v1 (F1): an all-zero trace is the UNDEFINED-ratio state (P1 = 0), refused like the
+            # recal refuses it; "full" data is a defined M2-period waveform
+            return np.sin(2 * np.pi * np.arange(13 * 3600) / (12.42 * 3600)) + 0.05 * np.sin(4 * np.pi * np.arange(13 * 3600) / (12.42 * 3600)), 1.0
         E.fetch_continuous_data_for_thd = fake_fetch
 
     def test_thd_path_carries_the_block_and_lists_the_unattempted_fallback(self):

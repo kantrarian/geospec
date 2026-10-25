@@ -117,6 +117,25 @@ def _number(x):
     return None if x is None else float(x)
 
 
+# thd-undefined-unavailable-v1 (cayley 2026-10-25, F1): the ONE rule for whether a measured record carries a usable
+# THD value, shared by the daily scorer (ensemble.compute_thd_risk) and the weekly recal
+# (calibrate_thd_baselines.compute_daily_record, whose inline rule this is, moved here unchanged). When the fundamental
+# band power is not positive, sqrt(sum P_n / P1) is undefined and analyze_window returns 0.0 as a placeholder, not a
+# measurement: the recal already refused it, the daily path scored it. `measure` itself is unchanged (its source is in
+# the measurement identity); a record with no value (thd None) is not judged here and keeps its own reason.
+UNUSABLE_VALUE_REASON = "NONPOSITIVE_THD_OR_P1"
+
+
+def unusable_value_reason(rec: Dict):
+    """None when `rec` has no value (thd None) or a usable one (thd > 0 and p1 > 0); otherwise UNUSABLE_VALUE_REASON.
+    NaN compares False, so a non-finite value or fundamental power is unusable too."""
+    thd = rec.get("thd")
+    if thd is None:
+        return None
+    p1 = rec.get("p1")
+    return None if (thd > 0 and p1 is not None and p1 > 0) else UNUSABLE_VALUE_REASON
+
+
 def _analyzer_parameters(analyzer) -> Dict:
     return {name: getattr(analyzer, name) for name in ("fundamental_freq", "n_harmonics", "freq_tolerance", "window_hours")}
 

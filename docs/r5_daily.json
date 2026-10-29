@@ -12,7 +12,7 @@
   "max_leverage": 0.5,
   "envelope_factor": 1.5
  },
- "updated": "2026-10-28T07:02:32.037280",
+ "updated": "2026-10-29T07:06:14.803789",
  "days": {
   "2026-07-28": {
    "ridgecrest": {
@@ -16987,6 +16987,184 @@
     "raw_ratio": 0.13244342434,
     "api7": 94.335566475,
     "r30": 359.7,
+    "beta": [
+     -0.94663691822,
+     0.0013720600445,
+     -0.0029223309846
+    ],
+    "n_fit": 321,
+    "fitted_date": "2026-10-23",
+    "r5_computed": true,
+    "r5_active": false
+   }
+  },
+  "2026-10-27": {
+   "ridgecrest": {
+    "stat": 0.26564678637,
+    "residual_percentile": 0.70987654321,
+    "residual_rank_index": 230,
+    "raw_ratio": 0.32126292877,
+    "api7": 13.353726313,
+    "r30": 26.3,
+    "beta": [
+     -1.6524552518,
+     0.011739068507,
+     0.0017906870435
+    ],
+    "n_fit": 324,
+    "fitted_date": "2026-10-23",
+    "r5_computed": true,
+    "r5_active": false
+   },
+   "socal_saf_mojave": {
+    "stat": 0.29349351827,
+    "residual_percentile": 0.62153846154,
+    "residual_rank_index": 202,
+    "raw_ratio": 0.28470544285,
+    "api7": 14.642737629,
+    "r30": 40.3,
+    "beta": [
+     -1.3978632642,
+     0.0079148276075,
+     -0.0053190177424
+    ],
+    "n_fit": 325,
+    "fitted_date": "2026-10-23",
+    "r5_computed": true,
+    "r5_active": false
+   },
+   "socal_saf_coachella": {
+    "stat": 0.19614594455,
+    "residual_percentile": 0.53538461538,
+    "residual_rank_index": 174,
+    "raw_ratio": 0.1685455124,
+    "api7": 5.3190006539,
+    "r30": 30.8,
+    "beta": [
+     -1.7049590044,
+     0.022455097611,
+     -0.0074629434533
+    ],
+    "n_fit": 325,
+    "fitted_date": "2026-10-23",
+    "r5_computed": true,
+    "r5_active": false
+   },
+   "norcal_hayward": {
+    "stat": 0.14867671974,
+    "residual_percentile": 0.81230769231,
+    "residual_rank_index": 264,
+    "raw_ratio": 0.11965922879,
+    "api7": 8.8449459074,
+    "r30": 14.9,
+    "beta": [
+     -2.3886702664,
+     -0.00098472664868,
+     0.0073606523064
+    ],
+    "n_fit": 325,
+    "fitted_date": "2026-10-23",
+    "r5_computed": true,
+    "r5_active": false
+   },
+   "cascadia": {
+    "stat": 0.16938686259,
+    "residual_percentile": 0.56,
+    "residual_rank_index": 182,
+    "raw_ratio": 0.13861382457,
+    "api7": 29.315182947,
+    "r30": 32.9,
+    "beta": [
+     -1.9980866618,
+     -0.00080630849307,
+     0.001674753289
+    ],
+    "n_fit": 325,
+    "fitted_date": "2026-10-23",
+    "r5_computed": true,
+    "r5_active": false
+   },
+   "tokyo_kanto": {
+    "stat": 0.1,
+    "residual_percentile": 0.19384615385,
+    "residual_rank_index": 63,
+    "raw_ratio": 0.1,
+    "api7": 57.650347954,
+    "r30": 123.2,
+    "beta": [
+     -1.7088165139,
+     -0.0057627367231,
+     0.0030170427172
+    ],
+    "n_fit": 325,
+    "fitted_date": "2026-10-23",
+    "r5_computed": true,
+    "r5_active": false
+   },
+   "istanbul_marmara": {
+    "r5_active": false
+   },
+   "campi_flegrei": {
+    "r5_active": false
+   },
+   "kaikoura": {
+    "stat": 0.1,
+    "residual_percentile": 0.2049689441,
+    "residual_rank_index": 66,
+    "raw_ratio": 0.1,
+    "api7": 25.874460705,
+    "r30": 74.2,
+    "beta": [
+     -1.9914448077,
+     0.0016036828705,
+     -0.00095335984619
+    ],
+    "n_fit": 322,
+    "fitted_date": "2026-10-23",
+    "r5_computed": true,
+    "r5_active": false
+   },
+   "anchorage": {
+    "stat": 0.23131264575,
+    "residual_percentile": 0.80615384615,
+    "residual_rank_index": 262,
+    "raw_ratio": 0.25803683104,
+    "api7": 35.596995225,
+    "r30": 135.9,
+    "beta": [
+     -2.1338250256,
+     -0.00845505695,
+     0.004920489611
+    ],
+    "n_fit": 325,
+    "fitted_date": "2026-10-23",
+    "r5_computed": true,
+    "r5_active": false
+   },
+   "kumamoto": {
+    "stat": 0.2178772572,
+    "residual_percentile": 0.43425076453,
+    "residual_rank_index": 142,
+    "raw_ratio": 0.19150507732,
+    "api7": 56.134746847,
+    "r30": 133.1,
+    "beta": [
+     -1.5653527107,
+     -0.0075370994235,
+     0.0051205276486
+    ],
+    "n_fit": 327,
+    "fitted_date": "2026-10-23",
+    "r5_computed": true,
+    "r5_active": false
+   },
+   "mexico_guerrero": {
+    "stat": 0.22132973353,
+    "residual_percentile": 0.57009345794,
+    "residual_rank_index": 183,
+    "raw_ratio": 0.13244342434,
+    "api7": 85.577426727,
+    "r30": 329.4,
     "beta": [
      -0.94663691822,
      0.0013720600445,

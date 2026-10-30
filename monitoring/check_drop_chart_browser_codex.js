@@ -5,7 +5,7 @@ const fs = require('fs'), path = require('path'), cp = require('child_process'),
 const {chromium} = require(process.env.GEOSPEC_PLAYWRIGHT || 'C:/codex/.tools/environment-browser/node_modules/playwright');
 const root = path.resolve(__dirname, '..');
 const html = fs.readFileSync(path.join(root, 'docs/index.html'), 'utf8');
-const names = ['parseCSV', 'historyValue', 'retrospectiveTrace', 'retrospectiveConnectors', 'renderChart', 'detectStressReleaseDrops', 'getDropOverlays'];
+const names = ['fetchDashboard', 'parseCSV', 'historyValue', 'retrospectiveTrace', 'retrospectiveConnectors', 'renderChart', 'detectStressReleaseDrops', 'getDropOverlays'];
 const code = names.map(name => html.match(new RegExp('^        (?:async )?function ' + name + '\\(.*?^        \\}', 'ms'))[0]).join('\n');
 const csv = cp.execFileSync('git', ['show', '0eca6fab:docs/data.csv'], {cwd: root, encoding: 'utf8'});
 const index = JSON.parse(cp.execFileSync('git', ['show', '3ec764e2:docs/raw_history/index.json'], {cwd: root, encoding: 'utf8'}));

@@ -129,7 +129,7 @@ class PageTests(unittest.TestCase):
         self.assertIn('id="show-retrospective" type="checkbox" checked', self.page)
         self.assertIn("Plotly.restyle('history-chart', { visible: toggle.checked }", self.page)
         self.assertIn("Retrospective overlay unavailable:", self.page)
-        self.assertIn("const drops = detectStressReleaseDrops(csvData)", self.page)
+        self.assertIn("drops = detectStressReleaseDrops(data)", self.page)
         script = re.search(r"<script>(.*?)</script>", self.page, re.S).group(1)
         result = subprocess.run(["node", "--check"], input=script, text=True, encoding="utf-8", capture_output=True)
         self.assertEqual(result.returncode, 0, result.stderr)
@@ -153,6 +153,7 @@ class PageTests(unittest.TestCase):
         row = dict(point["csv"], date=point["date"], region="hualien")
         block = {"rule": raw.RETRO_RULE, "regions": {"hualien": [point]}}
         render = re.search(r"^        async function renderChart\(.*?^        \}", self.page, re.M | re.S).group()
+        fetch_helper = re.search(r"^        async function fetchDashboard\(.*?^        \}", self.page, re.M | re.S).group()
         harness = """
 const status = {textContent: ''}, toggle = {checked: true};
 const document = {getElementById: id => id === 'retrospective-status' ? status : toggle};
@@ -165,7 +166,7 @@ const fetch = async () => { if (FAILURE) throw new Error('offline');
   if (toggle.onchange) toggle.onchange(); result.status = status.textContent;
   console.log(JSON.stringify(result));})();
 """.replace("FAILURE", json.dumps(failure)).replace("BLOCK", json.dumps(block)).replace("ROWS", json.dumps([row]))
-        result = subprocess.run(["node", "-"], input=self.code + render + harness, text=True,
+        result = subprocess.run(["node", "-"], input=self.code + fetch_helper + render + harness, text=True,
                                 encoding="utf-8", capture_output=True, check=True)
         return json.loads(result.stdout)
 

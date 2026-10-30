@@ -592,6 +592,14 @@
         .raw-controls select, .raw-controls button { background: var(--bg-card, #16161f); color: inherit; border: 1px solid #2a2a3a; border-radius: 5px; padding: 0.3rem 0.5rem; font: inherit; }
         .raw-note { color: var(--text-secondary); font-size: 0.8rem; line-height: 1.45; margin: 0.4rem 0; }
         .raw-table-wrap { overflow: auto; max-height: 420px; margin-top: 0.75rem; }
+        [hidden] { display: none !important; }
+        .history-feedback { padding: 0.6rem 0; }
+        .history-feedback[data-state="error"] { color: #fbbf24; }
+        #rate-detail { white-space: pre-wrap; overflow-wrap: anywhere; }
+        #raw-rate-chart { min-height: 330px; }
+        .raw-controls select { max-width: 100%; }
+        .raw-controls label { min-width: 0; max-width: 100%; }
+        .raw-controls button:focus-visible, .raw-controls select:focus-visible { outline: 2px solid #4a9eff; outline-offset: 3px; }
         table.raw-table { border-collapse: collapse; font-size: 0.72rem; white-space: nowrap; }
         table.raw-table th, table.raw-table td { border-bottom: 1px solid #2a2a3a; padding: 0.2rem 0.45rem; text-align: left; }
         table.raw-table th { position: sticky; top: 0; background: var(--bg-card, #16161f); }
@@ -669,6 +677,11 @@
                 (look-ahead, not a real-time estimate). LG raw 0.1 is at the implemented clamp floor; the unclipped
                 ratio is not retained. Genuine missing inputs remain gaps.</p>
             <p class="raw-note" id="retrospective-status" role="status"></p>
+            <div class="raw-controls history-feedback" id="history-feedback" data-state="loading">
+                <span id="history-load-status" role="status" aria-live="polite">Loading history...</span>
+                <button id="history-retry" type="button" hidden>Retry history</button>
+                <button id="open-history-rate" type="button">Inspect values + change/day</button>
+            </div>
             <div id="history-chart"></div>
         </div>
 
@@ -724,10 +737,37 @@
             <div class="raw-controls">
                 <label>Region<select id="raw-region"></select></label>
                 <label>Input<select id="raw-method"><option value="seismic_thd">THD</option><option value="lambda_geo">LG</option><option value="fault_correlation">FC</option></select></label>
+                <label>View<select id="raw-view"><option value="values">Values only</option><option value="rate">Values + change/day</option></select></label>
                 <button id="raw-export" type="button">Download CSV</button>
+                <button id="raw-retry" type="button" hidden>Retry retained history</button>
             </div>
             <p class="raw-note" id="raw-status">Loading retained history...</p>
             <div id="raw-chart"></div>
+            <section id="raw-rate-panel" hidden aria-label="Recorded-value change per day">
+                <h3>Recorded-value change per day</h3>
+                <p class="raw-note">Backward difference: (current value &minus; previous value) / elapsed report days, plotted on the later day.
+                    Above zero means rising; below zero means falling. This is not percentage change, a screen angle, or a forecast.
+                    Only adjacent report days with matching retained station, baseline and processing metadata are compared.
+                    Gaps, frozen values, revised days and unknown support stay UNKNOWN, not zero.</p>
+                <p class="raw-note">The visible range starts at 90 days; the vertical scale follows that range. Counts and CSV cover all retained days.</p>
+                <p class="raw-note">The archive does not retain complete unit and algorithm-version metadata. This is a descriptive change
+                    in the recorded number, not a validated physical derivative. Unknown metadata is not inferred from a region name.
+                    Omitted revisions that the archive does not declare cannot be detected here.</p>
+                <div class="raw-controls">
+                    <label>Rate of<select id="rate-basis"><option value="raw">Recorded raw value</option><option value="score">Recorded method score</option></select></label>
+                    <label>Visible range<select id="rate-window"><option value="90">Last 90 report days</option><option value="30">Last 30 report days</option><option value="all">All retained days</option></select></label>
+                    <button id="rate-export" type="button" disabled>Download change/day CSV</button>
+                </div>
+                <p id="rate-summary" class="raw-note" role="status"></p>
+                <details class="raw-note"><summary>Why rates are unknown</summary><p id="rate-reasons"></p></details>
+                <div id="raw-rate-chart"></div>
+                <div class="raw-controls">
+                    <button id="rate-prev" type="button">Previous day</button>
+                    <label>Inspect report day<select id="rate-day"></select></label>
+                    <button id="rate-next" type="button">Next day</button>
+                </div>
+                <p id="rate-detail" class="raw-note" role="status" aria-live="polite"></p>
+            </section>
             <p class="raw-note" id="raw-gaps"></p>
             <div class="raw-table-wrap"><table class="raw-table" id="raw-table"></table></div>
             <p class="raw-note">
@@ -867,10 +907,25 @@
         </footer>
     </div>
 
+    <script src="history-rate.js"></script>
     <script>
+        // Bound both headers and body reads; a stalled request must not leave an empty panel forever.
+        async function fetchDashboard(url, kind = 'json') {
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), 15000);
+            try {
+                const response = await fetch(url, { signal: controller.signal, cache: 'no-cache' });
+                if (!response.ok) throw new Error(url + ': HTTP ' + response.status);
+                return kind === 'text' ? await response.text() : await response.json();
+            } catch (e) {
+                if (e.name === 'AbortError') throw new Error(url + ': timed out after 15 seconds');
+                throw e;
+            } finally { clearTimeout(timer); }
+        }
+
         // Parse CSV data
         function parseCSV(text) {
-            const lines = text.trim().split('\n');
+            const lines = text.trim().split('\n').filter(line => line.trim() !== '');
             const headers = lines[0].split(',');
             return lines.slice(1).map(line => {
                 const values = line.split(',');
@@ -1228,9 +1283,7 @@
             // A compact, source-bound index avoids fetching all 14 raw-history series for this overlay.
             const retroStatus = document.getElementById('retrospective-status');
             try {
-                const response = await fetch('raw_history/index.json');
-                if (!response.ok) throw new Error('index unavailable');
-                const index = await response.json();
+                const index = await fetchDashboard('raw_history/index.json');
                 if (!index.retrospective_combined || index.retrospective_combined.rule !== 'retained-component-weighted-mean-v1')
                     throw new Error('reconstruction artifact not present on this build');
                 const retro = retrospectiveTrace(data, index.retrospective_combined);
@@ -1339,7 +1392,7 @@
                 annotations: annotations
             };
 
-            Plotly.newPlot('history-chart', traces, layout, { responsive: true });
+            return Plotly.newPlot('history-chart', traces, layout, { responsive: true });
         }
 
         // Stress-release drop detection (client-side from CSV history)
@@ -1834,40 +1887,152 @@
 
         async function rawLoadRegion(region) {
             if (!rawCache[region]) {
-                const r = await fetch('raw_history/' + encodeURIComponent(region) + '.json');
-                if (!r.ok) throw new Error('raw history for ' + region + ' not available');
-                rawCache[region] = await r.json();
+                const body = await fetchDashboard('raw_history/' + encodeURIComponent(region) + '.json');
+                if (body.schema !== 'geospec-raw-history-region-v1' || body.region !== region || !Array.isArray(body.days))
+                    throw new Error('retained history identity or schema mismatch');
+                rawCache[region] = body;
             }
             return rawCache[region];
+        }
+
+        let rawRenderGeneration = 0, rateRows = [], rawDisplayedSelection = null;
+        function downloadText(body, filename) {
+            const link = document.createElement('a'), url = URL.createObjectURL(new Blob([body], {type:'text/csv'}));
+            link.href = url; link.download = filename; link.click();
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+        }
+        function selectRateDay(index, locate = true) {
+            const row = rateRows[index];
+            if (!row) return;
+            document.getElementById('rate-day').value = String(index);
+            document.getElementById('rate-detail').textContent = GeoSpecHistoryRate.describe(row);
+            document.getElementById('rate-prev').disabled = index === 0;
+            document.getElementById('rate-next').disabled = index === rateRows.length - 1;
+            if (locate) {
+                for (const id of ['raw-chart', 'raw-rate-chart']) {
+                    const chart = document.getElementById(id);
+                    if (!chart.data) continue;
+                    const shapes = (chart.layout.shapes || []).filter(s => s.name !== 'rate-cursor');
+                    shapes.push({name:'rate-cursor', type:'line', xref:'x', yref:'paper', x0:row.date, x1:row.date,
+                        y0:0, y1:1, line:{color:'#e8e8f0', width:1, dash:'dot'}});
+                    Plotly.relayout(chart, {shapes});
+                }
+            }
+        }
+        async function renderRatePanel(body, method) {
+            const panel = document.getElementById('raw-rate-panel');
+            panel.hidden = document.getElementById('raw-view').value !== 'rate';
+            rateRows = [];
+            document.getElementById('rate-export').disabled = true;
+            if (panel.hidden) return;
+            if (typeof GeoSpecHistoryRate === 'undefined') throw new Error('change/day script did not load; reload this page');
+            const basis = document.getElementById('rate-basis').value;
+            rateRows = GeoSpecHistoryRate.rows(body.days, method, basis, body.region);
+            const known = rateRows.filter(r => r.status === 'KNOWN'), reasons = {};
+            rateRows.filter(r => r.reason).forEach(r => {reasons[r.reason] = (reasons[r.reason] || 0) + 1;});
+            document.getElementById('rate-summary').textContent = known.length + ' known / ' + rateRows.length + ' report-day rates; ' +
+                (rateRows.length - known.length) + ' UNKNOWN (' + (rateRows.length ? ((rateRows.length - known.length) / rateRows.length * 100).toFixed(1) : '0') + '%). ' +
+                'Full retained archive; numerical comparison of retained metadata only.';
+            document.getElementById('rate-reasons').textContent = Object.entries(reasons).map(([k,v]) => k + ': ' + v).join('; ') || 'No unknown intervals.';
+            const windowDays = document.getElementById('rate-window').value;
+            const lastTime = Math.max(...rateRows.map(r => GeoSpecHistoryRate.dayTime(r.date)).filter(t => t !== null));
+            const range = windowDays !== 'all' && Number.isFinite(lastTime) ?
+                [new Date(lastTime - (Number(windowDays) - 1) * 86400000).toISOString().slice(0,10), new Date(lastTime).toISOString().slice(0,10)] : null;
+            const rateScale = bounds => Math.max(0.000001, ...known.filter(r => !bounds ||
+                (Date.parse(r.date) >= Date.parse(bounds[0]) && Date.parse(r.date) <= Date.parse(bounds[1]))).map(r => Math.abs(r.change_per_day))) * 1.1;
+            const magnitude = rateScale(range);
+            const escape = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+            const unknown = rateRows.map((r,i) => ({r,i})).filter(({r}) => r.status !== 'KNOWN');
+            const traces = [
+                {x:rateRows.map(r => r.date), y:rateRows.map(r => r.change_per_day), customdata:rateRows.map((_,i) => i),
+                 text:rateRows.map(r => escape(GeoSpecHistoryRate.describe(r)).replace(/\n/g,'<br>')),
+                 hovertemplate:'%{text}<extra></extra>', name:(RAW_METHOD_LABELS[method] || method) + ' ' + basis + ' change/day',
+                 type:'scatter', mode:'lines+markers', connectgaps:false, line:{color:'#38bdf8', width:1.5}, marker:{size:5}},
+                {x:unknown.map(({r}) => r.date), y:unknown.map(() => 0), customdata:unknown.map(({i}) => i),
+                 text:unknown.map(({r}) => escape(r.date + ': UNKNOWN - ' + r.reason)), hovertemplate:'%{text}<extra></extra>',
+                 name:'UNKNOWN (separate band)', type:'scatter', mode:'markers', yaxis:'y2',
+                 marker:{color:'#94a3b8',symbol:'line-ns-open',size:9}}
+            ];
+            await Plotly.newPlot('raw-rate-chart', traces, {
+                paper_bgcolor:'rgba(0,0,0,0)', plot_bgcolor:'rgba(0,0,0,0)', height:350,
+                font:{color:'#e8e8f0',family:'JetBrains Mono, monospace',size:11},
+                xaxis:{title:'Later report day<br>(not sensor availability)',gridcolor:'#2a2a3a',anchor:'y2',...(range ? {range} : {})},
+                yaxis:{title:basis === 'score' ? 'score units / report day' : 'recorded-value units / report day',
+                    range:[-magnitude,magnitude],domain:[0.16,1],gridcolor:'#2a2a3a',zeroline:true,zerolinecolor:'#e8e8f0'},
+                yaxis2:{domain:[0,0.08],range:[-1,1],showticklabels:false,showgrid:false,zeroline:false},
+                legend:{orientation:'h',y:-0.28},margin:{t:20,r:80,b:85,l:80}
+            }, {responsive:true});
+            await Plotly.relayout('raw-chart', range ? {'xaxis.range':range} : {'xaxis.autorange':true});
+            const select = document.getElementById('rate-day');
+            select.replaceChildren(...rateRows.map((r,i) => new Option(r.date + ' - ' + r.status, String(i))));
+            select.onchange = () => selectRateDay(Number(select.value));
+            document.getElementById('rate-prev').onclick = () => selectRateDay(Number(select.value) - 1);
+            document.getElementById('rate-next').onclick = () => selectRateDay(Number(select.value) + 1);
+            const chart = document.getElementById('raw-rate-chart');
+            chart.on('plotly_click', e => selectRateDay(Number(e.points[0].customdata)));
+            let syncing = false;
+            for (const [from,to] of [['raw-chart','raw-rate-chart'],['raw-rate-chart','raw-chart']]) {
+                document.getElementById(from).on('plotly_relayout', async e => {
+                    if (syncing) return;
+                    const update = Object.fromEntries(Object.entries(e).filter(([k]) => k.startsWith('xaxis.range') || k === 'xaxis.autorange'));
+                    if (!Object.keys(update).length) return;
+                    syncing = true;
+                    try {
+                        await Plotly.relayout(to, update);
+                        const scale = rateScale(document.getElementById('raw-rate-chart').layout.xaxis.range);
+                        await Plotly.relayout('raw-rate-chart', {'yaxis.range':[-scale,scale]});
+                    } finally {syncing = false;}
+                });
+            }
+            document.getElementById('rate-export').onclick = () => downloadText(GeoSpecHistoryRate.csv(rateRows),
+                'change_per_day_' + body.region + '_' + method + '_' + basis + '.csv');
+            document.getElementById('rate-export').disabled = rateRows.length === 0;
+            const latestKnown = rateRows.findLastIndex(r => r.status === 'KNOWN');
+            selectRateDay(latestKnown >= 0 ? latestKnown : rateRows.length - 1, false);
         }
 
         async function renderRawPanel() {
             const status = document.getElementById('raw-status');
             if (!status) return;
+            const generation = ++rawRenderGeneration;
+            status.textContent = 'Loading retained history...';
+            document.getElementById('raw-retry').hidden = true;
+            document.getElementById('raw-export').disabled = true;
+            document.getElementById('rate-export').disabled = true;
+            document.getElementById('raw-rate-panel').hidden = true;
+            rawDisplayedSelection = null;
+            rateRows = [];
+            for (const id of ['raw-chart', 'raw-rate-chart']) {
+                const chart = document.getElementById(id);
+                if (typeof Plotly !== 'undefined' && chart.data) Plotly.purge(chart);
+            }
+            document.getElementById('raw-table').replaceChildren();
+            document.getElementById('raw-gaps').textContent = '';
             try {
                 if (!rawIndex) {
-                    const r = await fetch('raw_history/index.json');
-                    if (!r.ok) throw new Error('index not available');
-                    rawIndex = await r.json();
+                    const index = await fetchDashboard('raw_history/index.json');
+                    if (generation !== rawRenderGeneration) return;
+                    if (!Array.isArray(index.regions) || !index.regions.length) throw new Error('retained index has no regions');
+                    rawIndex = index;
                     const select = document.getElementById('raw-region');
-                    select.innerHTML = rawIndex.regions.map(g => '<option value="' + g + '">' + g.replace(/_/g, ' ') + '</option>').join('');
+                    select.replaceChildren(...rawIndex.regions.map(g => new Option(g.replace(/_/g, ' '), g)));
                     if (rawIndex.regions.includes('hualien')) select.value = 'hualien';
                     select.onchange = renderRawPanel;
                     document.getElementById('raw-method').onchange = renderRawPanel;
                     document.getElementById('raw-export').onclick = () => {
-                        const region = document.getElementById('raw-region').value, method = document.getElementById('raw-method').value;
+                        if (!rawDisplayedSelection) return;
+                        const {region,method} = rawDisplayedSelection;
                         const body = rawCsv(rawTableRows(rawCache[region].days, method));
-                        const link = document.createElement('a');
-                        link.href = URL.createObjectURL(new Blob([body], { type: 'text/csv' }));
-                        link.download = 'raw_history_' + region + '_' + method + '.csv';
-                        link.click();
+                        downloadText(body, 'raw_history_' + region + '_' + method + '.csv');
                     };
                 }
                 const region = document.getElementById('raw-region').value, method = document.getElementById('raw-method').value;
                 const body = await rawLoadRegion(region);
+                if (generation !== rawRenderGeneration) return;
                 const series = rawSeries(body.days, method);
                 const spec = rawPlotSpec(series, method, (rawIndex.methods || {})[method]);
-                Plotly.newPlot('raw-chart', spec.traces, spec.layout, { responsive: true });
+                await Plotly.newPlot('raw-chart', spec.traces, spec.layout, { responsive: true });
+                if (generation !== rawRenderGeneration) return;
                 document.getElementById('raw-gaps').textContent = rawGapSummary(series);
                 const rows = rawTableRows(body.days, method).slice().reverse();
                 const table = document.getElementById('raw-table');
@@ -1879,81 +2044,79 @@
                       String(build.parent_commit).slice(0, 12)) + ' (last scored day ' + rawIndex.dates.last + ') · ' +
                     body.days.length + ' days · region ' + region.replace(/_/g, ' ') + ' · input ' + (RAW_METHOD_LABELS[method] || method) +
                     ' · documented meaning (docs/JSON_SCHEMA.md, not recorded in the reports): ' + (((rawIndex.methods || {})[method] || {}).raw || 'not documented') + '.';
+                rawDisplayedSelection = {region,method};
+                document.getElementById('raw-export').disabled = false;
+                await renderRatePanel(body, method);
             } catch (e) {
+                if (generation !== rawRenderGeneration) return;
                 status.textContent = 'Retained raw history is not available on this build (' + e.message + '); nothing is substituted.';
+                document.getElementById('raw-retry').hidden = false;
+                document.getElementById('rate-export').disabled = true;
             }
         }
 
-        async function loadData() {
-            try {
-                // Try ensemble JSON first (includes earthquake events)
-                const ensembleResponse = await fetch('ensemble_latest.json');
-                if (ensembleResponse.ok) {
-                    const ensembleData = await ensembleResponse.json();
-                    checkStaleness(ensembleData.date);
-                    renderR4Exclusions();
-                    renderCards(ensembleData);
-                    renderStationMap(ensembleData);
-
-                    // Extract M6.5+ events from ensemble JSON (single source of truth)
-                    const cardEvents = extractCardEvents(ensembleData.earthquake_events);
-
-                    // Try CSV for history chart
-                    try {
-                        const csvResponse = await fetch('data.csv');
-                        if (csvResponse.ok) {
-                            const csvData = parseCSV(await csvResponse.text());
-                            if (csvData.length > 0) {
-                                const drops = detectStressReleaseDrops(csvData);
-                                renderChart(csvData, cardEvents, drops);
-                                renderDropCards(drops);
-                            }
-                        }
-                    } catch (e) { /* No history data */ }
-                    return;
-                }
-
-                // Fallback to CSV only (no earthquake events available)
-                const response = await fetch('data.csv');
-                if (!response.ok) {
-                    throw new Error('Data not available');
-                }
-                const text = await response.text();
-                const data = parseCSV(text);
-
-                if (data.length > 0) {
-                    // Convert CSV to ensemble-like format for renderCards
-                    const latest = {};
-                    data.forEach(row => {
-                        const region = row.region;
-                        if (!latest[region] || row.date > latest[region].date) {
-                            latest[region] = row;
-                        }
-                    });
-                    // CSV-only mode carries the tier and nothing else. It used to synthesise
-                    // confidence 0.5 / methods 1 / agreement 'single_method' / risk amp_72h/20
-                    // and render them as if measured (found 2026-09-01); renderCards now labels
-                    // the cards as a fallback and blanks those metrics.
-                    const fakeEnsemble = {
-                        fallback: true,
-                        date: Object.values(latest)[0]?.date || 'Unknown',
-                        regions: Object.fromEntries(
-                            Object.entries(latest).map(([r, d]) => [r, {
-                                tier: parseInt(d.tier) || 0
-                            }])
-                        )
-                    };
-                    renderCards(fakeEnsemble);
-                    renderChart(data, []); // No earthquake events in CSV-only mode
-                } else {
-                    document.getElementById('status-grid').innerHTML =
-                        '<div class="region-card"><p>No monitoring data available yet.</p></div>';
-                }
-            } catch (e) {
-                console.error('Error loading data:', e);
-                document.getElementById('status-grid').innerHTML =
-                    '<div class="region-card"><p>Monitoring data not yet available. Run the daily pipeline to generate data.</p></div>';
+        let historyLoading = false, dashboardLoading = false, cardEvents = [], haveEnsemble = false;
+        function historyFeedback(state, text) {
+            document.getElementById('history-feedback').dataset.state = state;
+            document.getElementById('history-load-status').textContent = text;
+            document.getElementById('history-retry').hidden = state !== 'error';
+            document.getElementById('history-retry').disabled = state === 'loading';
+            document.getElementById('history-chart').setAttribute('aria-busy', String(state === 'loading'));
+        }
+        function validateHistoryCsv(text) {
+            const header = text.split(/\r?\n/, 1)[0].split(',').map(h => h.trim());
+            if (!['date','region','tier','risk','methods'].every(k => header.includes(k))) throw new Error('history CSV has an invalid header');
+            const data = parseCSV(text), seen = new Set();
+            if (!data.length) throw new Error('history CSV has no rows');
+            for (const row of data) {
+                const t = Date.parse(row.date + 'T00:00:00Z');
+                if (!/^\d{4}-\d{2}-\d{2}$/.test(row.date || '') || !Number.isFinite(t) || new Date(t).toISOString().slice(0,10) !== row.date || !/^[a-z0-9_]+$/.test(row.region || ''))
+                    throw new Error('history CSV has an invalid date or region');
+                const key = row.date + '/' + row.region;
+                if (seen.has(key)) throw new Error('history CSV contains duplicate region-days');
+                seen.add(key);
             }
+            return data;
+        }
+        async function loadHistory() {
+            if (historyLoading) return;
+            historyLoading = true;
+            const lastChart = !!document.getElementById('history-chart').data;
+            historyFeedback('loading', lastChart ? 'Refreshing history; the previous chart is still shown...' : 'Loading history...');
+            try {
+                const data = validateHistoryCsv(await fetchDashboard('data.csv', 'text'));
+                let drops = [], warning = '';
+                try {drops = detectStressReleaseDrops(data);} catch (e) {warning = ' Tier-drop overlay unavailable: ' + e.message;}
+                await renderChart(data, cardEvents, drops);
+                renderDropCards(drops);
+                if (!haveEnsemble) {
+                    const latest = {};
+                    data.forEach(row => {if (!latest[row.region] || row.date > latest[row.region].date) latest[row.region] = row;});
+                    renderCards({fallback:true, date:Object.values(latest)[0].date,
+                        regions:Object.fromEntries(Object.entries(latest).map(([r,d]) => [r,{tier:parseInt(d.tier) || 0}]))});
+                }
+                historyFeedback('ready', data.length + ' historical rows loaded.' + warning);
+            } catch (e) {
+                historyFeedback('error', 'History could not be loaded: ' + e.message + '. ' +
+                    (lastChart ? 'The last successful chart may be stale. ' : 'The blank panel is not evidence of missing measurements. ') + 'Use Retry history.');
+            } finally {historyLoading = false;}
+        }
+        async function loadData() {
+            if (dashboardLoading) return;
+            dashboardLoading = true;
+            try {
+                try {
+                    const ensembleData = await fetchDashboard('ensemble_latest.json');
+                    checkStaleness(ensembleData.date);
+                    renderR4Exclusions(); renderCards(ensembleData); renderStationMap(ensembleData);
+                    cardEvents = extractCardEvents(ensembleData.earthquake_events);
+                    haveEnsemble = true;
+                } catch (e) {
+                    haveEnsemble = false; cardEvents = [];
+                    document.getElementById('status-grid').textContent = 'Current report unavailable; trying labelled CSV-only cards. ' + e.message;
+                }
+                await loadHistory();
+            } finally {dashboardLoading = false;}
         }
 
         // Backtest validation data (Real GPS - computed from NGL .tenv3 files)
@@ -2425,6 +2588,17 @@
         console.log('methods-legend element:', document.getElementById('methods-legend') ? 'FOUND' : 'NOT FOUND');
         console.log('event-grid element:', document.getElementById('event-grid') ? 'FOUND' : 'NOT FOUND');
 
+        document.getElementById('history-retry').onclick = loadHistory;
+        document.getElementById('raw-retry').onclick = renderRawPanel;
+        document.getElementById('raw-view').onchange = renderRawPanel;
+        document.getElementById('rate-basis').onchange = renderRawPanel;
+        document.getElementById('rate-window').onchange = renderRawPanel;
+        document.getElementById('open-history-rate').onclick = () => {
+            document.getElementById('raw-view').value = 'rate';
+            document.getElementById('raw-first-section').scrollIntoView({behavior:'smooth'});
+            document.getElementById('raw-view').focus({preventScroll:true});
+            renderRawPanel();
+        };
         loadData();
         renderRawPanel();
         renderBacktestChart();

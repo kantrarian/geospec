@@ -1,0 +1,35 @@
+'use strict';
+const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
+const E=require('../docs/history-events.js');
+let passed=0;const test=(name,fn)=>{fn();passed++;console.log('PASS '+name);};
+const days=[{date:'2026-10-01'},{date:'2026-10-03'}]; // The intervening missing measurement day still admits event context.
+const ev=(id='one',time='2026-10-02T12:00:00.000000',magnitude=4.9)=>({event_id:id,time,magnitude,place:'Fixture',url:'https://earthquake.usgs.gov/earthquakes/eventpage/'+id});
+const entry=(events=[ev()])=>({region:'fixture',events,largest_event:events[0],most_recent_event:events[0],m65_plus_events:[],event_count:8});
+const select=(record=entry())=>E.selectRegion({fixture:record},'fixture',days);
+test('naive retained UTC timestamps do not use browser local time',()=>assert.deepEqual(E.eventTime('2026-10-02T23:59:00.123000'),{day:'2026-10-02',utc_time:'2026-10-02T23:59:00.123Z'}));
+test('offset timestamps use their UTC calendar day',()=>assert.equal(E.eventTime('2026-10-02T23:30:00-04:00').day,'2026-10-03'));
+test('date-only summaries do not invent exact event times',()=>assert.deepEqual(E.eventTime('2026-10-02'),{day:'2026-10-02',utc_time:null}));
+test('invalid calendar dates and clocks refuse',()=>{for(const value of ['2026-02-30','2026-10-02T25:01:00','2026-10-02T12:60:00','10/02/2026',null])assert.equal(E.eventTime(value),null);});
+test('repeated largest and most recent records are deduplicated',()=>{const p=select();assert.equal(p.events.length,1);assert.equal(p.count,8);});
+test('events within measurement gaps are still plotted',()=>assert.equal(select().events[0].day,'2026-10-02'));
+test('unrelated regions are not copied into this region',()=>assert.equal(E.selectRegion({other:entry()},'fixture',days).status,'UNAVAILABLE'));
+test('mismatched region identity refuses',()=>assert.equal(select({...entry(),region:'other'}).status,'UNAVAILABLE'));
+test('empty region summary is distinct from absent coverage',()=>{assert.equal(select(entry([])).status,'READY');assert.equal(E.selectRegion(null,'fixture',days).status,'UNAVAILABLE');});
+test('out-of-range events do not extend the measurement history',()=>{const p=select(entry([ev('old','2026-09-30'),ev('late','2026-10-04')]));assert.equal(p.events.length,0);assert.equal(p.outside,2);});
+test('date-only M6.5 supplement keeps a detailed duplicate when retained',()=>{const p=select({...entry(),m65_plus_events:[ev('one','2026-10-02')]});assert.equal(p.events.length,1);assert.equal(p.events[0].utc_time,'2026-10-02T12:00:00.000Z');});
+test('supplement events absent from recent five are retained',()=>{const p=select({...entry(),m65_plus_events:[ev('large','2026-10-01',6.8)]});assert.equal(p.events.length,2);assert.match(E.describe(p.events[0]),/exact time not retained/);});
+test('conflicting same-ID time or magnitude is not silently substituted',()=>{for(const conflict of [ev('one','2026-10-03'),ev('one','2026-10-02T13:00:00'),ev('one','2026-10-02',5)]){const p=select({...entry(),largest_event:conflict});assert.equal(p.events.length,0);assert.equal(p.conflicts,1);}});
+test('malformed missing ID or magnitude is not fabricated',()=>{const p=select(entry([{time:'2026-10-02',magnitude:4},ev('bad','2026-10-02',NaN)]));assert.equal(p.events.length,0);assert.ok(p.invalid>0);});
+test('unsafe event links are not exposed',()=>assert.equal(select(entry([{...ev(),url:'javascript:alert(1)'}])).events[0].url,null));
+test('multiple same-day events share a line without losing event identities',()=>{const p=select(entry([ev(),ev('two','2026-10-02T20:00:00',4.16)])),o=E.overlays(p.events,'two');assert.equal(p.events.length,2);assert.equal(o.shapes.length,1);assert.match(o.annotations[0].text,/4.16 \(2 events\)/);assert.match(o.annotations[0].hovertext,/Event ID: one/);assert.match(o.annotations[0].hovertext,/Event ID: two/);});
+test('event line uses calendar x and spans every value/score panel independently of scale',()=>{const s=E.overlays(select().events,'one').shapes[0];assert.deepEqual([s.xref,s.yref,s.y0,s.y1,s.x0,s.x1],['x','paper',0,1,'2026-10-02','2026-10-02']);});
+test('toggle removes only overlay specifications',()=>assert.deepEqual(E.overlays(select().events,'one',false),{shapes:[],annotations:[]}));
+test('event text is escaped in hover labels',()=>{const e=select(entry([{...ev(),place:'<img onerror="bad"> & test'}])).events;const o=E.overlays(e,'one');assert.ok(!o.annotations[0].hovertext.includes('<img'));assert.match(o.annotations[0].hovertext,/&lt;img/);});
+test('selection and overlays do not alter retained inputs',()=>{const record=entry(),before=JSON.stringify(record);E.overlays(select(record).events,'one');assert.equal(JSON.stringify(record),before);});
+test('real Hualien summary exposes partial coverage and same-day multiplicity',()=>{
+ const root=path.resolve(__dirname,'../docs'),report=JSON.parse(fs.readFileSync(path.join(root,'ensemble_latest.json')));
+ const body=JSON.parse(fs.readFileSync(path.join(root,'raw_history/hualien.json'))),p=E.selectRegion(report.earthquake_events,'hualien',body.days);
+ assert.equal(p.count,8);assert.equal(p.retained,5);assert.equal(p.events.length,5);assert.equal(E.overlays(p.events,p.events[0].id).shapes.length,4);
+ assert.equal(p.events.filter(e=>e.day==='2026-10-23').length,2);
+});
+console.log(JSON.stringify({passed}));

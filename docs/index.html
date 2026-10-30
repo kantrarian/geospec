@@ -591,6 +591,8 @@
         .raw-controls label { display: flex; flex-direction: column; font-size: 0.75rem; color: var(--text-secondary); gap: 0.2rem; }
         .raw-controls select, .raw-controls button { background: var(--bg-card, #16161f); color: inherit; border: 1px solid #2a2a3a; border-radius: 5px; padding: 0.3rem 0.5rem; font: inherit; }
         .raw-note { color: var(--text-secondary); font-size: 0.8rem; line-height: 1.45; margin: 0.4rem 0; }
+        #raw-event-detail { white-space: pre-line; }
+        #raw-event-link { color: var(--accent); }
         .raw-table-wrap { overflow: auto; max-height: 420px; margin-top: 0.75rem; }
         [hidden] { display: none !important; }
         .history-feedback { padding: 0.6rem 0; }
@@ -743,6 +745,19 @@
             </div>
             <p class="raw-note">Select All inputs to see every measurement and its recorded score for the selected region. Raw values and rates use separate input scales; recorded scores share a labelled score panel. Nothing is summed or normalised.</p>
             <p class="raw-note" id="raw-status">Loading retained history...</p>
+            <div class="raw-controls">
+                <label><span><input id="raw-events-toggle" type="checkbox" checked> Show earthquake event-day lines</span></label>
+                <label>Inspect event<select id="raw-event-select" disabled></select></label>
+                <button id="raw-event-locate" type="button" disabled>Locate event day</button>
+            </div>
+            <p class="raw-note" id="raw-event-status" role="status">Loading published event context...</p>
+            <p class="raw-note">Pink dash-dot lines mark UTC earthquake days across every value, score and change/day panel.
+                Hover a triangle or select an event for details. Same-day events share one line; exact times remain in the details.
+                Source: the selected region's recent M4+ summary in <code>ensemble_latest.json</code> (five most recent, largest, most recent,
+                plus a 30-day M6.5+ supplement). This is a partial list, not a complete historical catalog. No line does not mean no earthquake.
+                Calendar context only: same-day order versus report-day measurements is unknown; no prediction or causal match is implied.</p>
+            <p class="raw-note" id="raw-event-detail" aria-live="polite"></p>
+            <p class="raw-note"><a id="raw-event-link" hidden target="_blank" rel="noopener noreferrer">Open retained USGS event link</a></p>
             <div id="raw-chart"></div>
             <section id="raw-rate-panel" hidden aria-label="Recorded-value change per day">
                 <h3>Recorded-value change per day</h3>
@@ -909,6 +924,7 @@
     </div>
 
     <script src="history-rate.js"></script>
+    <script src="history-events.js"></script>
     <script>
         // Bound both headers and body reads; a stalled request must not leave an empty panel forever.
         async function fetchDashboard(url, kind = 'json') {
@@ -1940,6 +1956,63 @@
         }
 
         let rawRenderGeneration = 0, rateRows = [], rawDisplayedSelection = null;
+        let rawEventSource = {status:'LOADING',payload:null,report:null};
+        let rawVisibleEvents = [], rawSelectedEventId = null, rawEventOverlayGeneration = 0;
+
+        async function refreshRawEvents() {
+            const overlayGeneration=++rawEventOverlayGeneration, renderGeneration=rawRenderGeneration;
+            const status=document.getElementById('raw-event-status'), select=document.getElementById('raw-event-select');
+            const link=document.getElementById('raw-event-link'), locate=document.getElementById('raw-event-locate');
+            const shown=document.getElementById('raw-events-toggle').checked, region=rawDisplayedSelection?.region;
+            rawVisibleEvents=[];select.replaceChildren();select.disabled=true;locate.disabled=true;
+            document.getElementById('raw-event-detail').textContent='';link.hidden=true;link.removeAttribute('href');
+            let overlays={shapes:[],annotations:[]};
+            if(typeof GeoSpecHistoryEvents==='undefined') status.textContent='Event overlay script unavailable; measured values are unchanged.';
+            else if(!region) status.textContent='Select and load a region to inspect retained event context.';
+            else if(rawEventSource.status!=='READY') status.textContent=rawEventSource.status==='LOADING'?
+                'Loading published event context...':'Published event context unavailable; no event lines shown. This does not mean no earthquakes.';
+            else {
+                const packet=GeoSpecHistoryEvents.selectRegion(rawEventSource.payload,region,rawCache[region].days);
+                rawVisibleEvents=packet.events;
+                if(packet.status==='UNAVAILABLE') status.textContent='No regional event summary retained for '+region+'; earthquake coverage is unknown.';
+                else {
+                    status.textContent=(shown?'Showing ':'Lines hidden; ')+packet.events.length+' retained events on '+new Set(packet.events.map(e=>e.day)).size+
+                        ' UTC days within this measurement history. '+packet.retained+' distinct usable records retained; source reports '+
+                        (packet.count===null?'an unknown number of':packet.count)+' events in its 90-day summary. Report '+(rawEventSource.report||'unknown')+
+                        '; regional update '+(packet.updated||'not retained')+'. Partial list; '+packet.outside+' records outside the measurement dates; '+
+                        packet.invalid+' malformed entries and '+packet.conflicts+' conflicting IDs omitted.';
+                    if(!packet.events.some(e=>e.id===rawSelectedEventId)) rawSelectedEventId=packet.events.at(-1)?.id||null;
+                    select.replaceChildren(...packet.events.map(e=>new Option(e.day+' M'+e.magnitude+' '+e.id,e.id)));
+                    select.value=rawSelectedEventId||'';select.disabled=!packet.events.length;locate.disabled=!packet.events.length;
+                    const selected=packet.events.find(e=>e.id===rawSelectedEventId);
+                    if(selected){document.getElementById('raw-event-detail').textContent=GeoSpecHistoryEvents.describe(selected);
+                        if(selected.url){link.href=selected.url;link.hidden=false;}}
+                    overlays=GeoSpecHistoryEvents.overlays(packet.events,rawSelectedEventId,shown);
+                }
+            }
+            for(const id of ['raw-chart','raw-rate-chart']) {
+                if(overlayGeneration!==rawEventOverlayGeneration||renderGeneration!==rawRenderGeneration) return;
+                const chart=document.getElementById(id);
+                if(!chart.data||typeof Plotly==='undefined') continue;
+                const keep=item=>!String(item.name||'').startsWith('retained-event:');
+                try {
+                    await Plotly.relayout(chart,{shapes:[...(chart.layout.shapes||[]).filter(keep),...overlays.shapes],
+                        annotations:[...(chart.layout.annotations||[]).filter(keep),...overlays.annotations]});
+                } catch(e) {
+                    if(overlayGeneration===rawEventOverlayGeneration) status.textContent='Event overlay could not render: '+e.message+'. Measured values are unchanged.';
+                }
+            }
+        }
+
+        async function locateRawEvent() {
+            const event=rawVisibleEvents.find(e=>e.id===rawSelectedEventId);
+            if(!event) return;
+            const time=Date.parse(event.day+'T00:00:00Z');
+            const range=[new Date(time-7*86400000).toISOString().slice(0,10),new Date(time+7*86400000).toISOString().slice(0,10)];
+            document.getElementById('raw-events-toggle').checked=true;
+            await refreshRawEvents();
+            await Plotly.relayout('raw-chart',{'xaxis.range':range});
+        }
         function downloadText(body, filename) {
             const link = document.createElement('a'), url = URL.createObjectURL(new Blob([body], {type:'text/csv'}));
             link.href = url; link.download = filename; link.click();
@@ -2066,6 +2139,7 @@
             }
             document.getElementById('raw-table').replaceChildren();
             document.getElementById('raw-gaps').textContent = '';
+            refreshRawEvents();
             try {
                 if (!rawIndex) {
                     const index = await fetchDashboard('raw_history/index.json');
@@ -2110,6 +2184,8 @@
                 status.textContent = 'Retained raw history is not available on this build (' + e.message + '); nothing is substituted.';
                 document.getElementById('raw-retry').hidden = false;
                 document.getElementById('rate-export').disabled = true;
+            } finally {
+                if(generation===rawRenderGeneration) await refreshRawEvents();
             }
         }
 
@@ -2168,11 +2244,14 @@
                     checkStaleness(ensembleData.date);
                     renderR4Exclusions(); renderCards(ensembleData); renderStationMap(ensembleData);
                     cardEvents = extractCardEvents(ensembleData.earthquake_events);
+                    rawEventSource={status:'READY',payload:ensembleData.earthquake_events,report:ensembleData.date};
                     haveEnsemble = true;
                 } catch (e) {
                     haveEnsemble = false; cardEvents = [];
+                    rawEventSource={status:'UNAVAILABLE',payload:null,report:null};
                     document.getElementById('status-grid').textContent = 'Current report unavailable; trying labelled CSV-only cards. ' + e.message;
                 }
+                await refreshRawEvents();
                 await loadHistory();
             } finally {dashboardLoading = false;}
         }
@@ -2648,6 +2727,9 @@
 
         document.getElementById('history-retry').onclick = loadHistory;
         document.getElementById('raw-retry').onclick = renderRawPanel;
+        document.getElementById('raw-events-toggle').onchange = refreshRawEvents;
+        document.getElementById('raw-event-select').onchange = e => {rawSelectedEventId=e.target.value;refreshRawEvents();};
+        document.getElementById('raw-event-locate').onclick = locateRawEvent;
         document.getElementById('raw-view').onchange = renderRawPanel;
         document.getElementById('rate-basis').onchange = renderRawPanel;
         document.getElementById('rate-window').onchange = renderRawPanel;

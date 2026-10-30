@@ -736,11 +736,12 @@
             </p>
             <div class="raw-controls">
                 <label>Region<select id="raw-region"></select></label>
-                <label>Input<select id="raw-method"><option value="seismic_thd">THD</option><option value="lambda_geo">LG</option><option value="fault_correlation">FC</option></select></label>
+                <label>Input<select id="raw-method"><option value="seismic_thd">THD</option><option value="lambda_geo">LG</option><option value="fault_correlation">FC</option><option value="all">All inputs (THD, LG, FC)</option></select></label>
                 <label>View<select id="raw-view"><option value="values">Values only</option><option value="rate">Values + change/day</option></select></label>
                 <button id="raw-export" type="button">Download CSV</button>
                 <button id="raw-retry" type="button" hidden>Retry retained history</button>
             </div>
+            <p class="raw-note">Select All inputs to see every measurement and its recorded score for the selected region. Raw values and rates use separate input scales; recorded scores share a labelled score panel. Nothing is summed or normalised.</p>
             <p class="raw-note" id="raw-status">Loading retained history...</p>
             <div id="raw-chart"></div>
             <section id="raw-rate-panel" hidden aria-label="Recorded-value change per day">
@@ -1742,12 +1743,16 @@
         // Raw-first history (cayley 2026-10-19; codex bbe31a10). docs/raw_history/ holds, per region and day, the input values
         // retained in the named report beside the scores that report recorded. Nothing here recomputes a score or fills a gap.
         const RAW_METHOD_LABELS = { seismic_thd: 'THD', lambda_geo: 'LG', fault_correlation: 'FC' };
-        const RAW_COLUMNS = ['date', 'source', 'raw_value', 'raw_state', 'recorded_raw_value', 'raw_secondary', 'score', 'score_state', 'admission',
+        const RAW_COLUMNS = ['date', 'input', 'source', 'raw_value', 'raw_state', 'recorded_raw_value', 'raw_secondary', 'score', 'score_state', 'admission',
             'weight', 'baseline_window', 'baseline_mean', 'baseline_std', 'baseline_n', 'baseline_quality', 'z_score',
             'calibration', 'score_basis', 'station', 'warnings', 'combined', 'combined_state', 'csv_published_risk',
             'csv_disagrees', 'superseded_revisions', 'notes'];
         const rawCache = {};
         let rawIndex = null;
+
+        function rawSelectedMethods(method) {
+            return method === 'all' ? Object.keys(RAW_METHOD_LABELS) : [method];
+        }
 
         function rawNumber(v) {
             return (typeof v === 'number' && Number.isFinite(v)) ? v : null;
@@ -1792,6 +1797,8 @@
         }
 
         function rawTableRows(days, method) {
+            if (method === 'all') return rawSelectedMethods(method).flatMap(m => rawTableRows(days, m))
+                .sort((a,b) => a.date.localeCompare(b.date) || a.input.localeCompare(b.input));
             return days.map(d => {
                 const m = (d.methods || {})[method] || {};
                 const raw = m.raw || {}, score = m.score || {}, admission = m.admission || {};
@@ -1799,6 +1806,7 @@
                 const comb = d.combined || {}, src = d.source || {};
                 return {
                     date: d.date,
+                    input: method,
                     source: [src.kind, src.commit || src.run_id || ''].filter(Boolean).join(' '),
                     raw_value: rawCell(raw.state === 'MEASURED' ? raw.value : null),
                     raw_state: rawCell(raw.state),
@@ -1885,6 +1893,42 @@
             return { traces, layout };
         }
 
+        function rawSelectionPlotSpec(days, method) {
+            const methods = rawSelectedMethods(method);
+            if (methods.length === 1) return rawPlotSpec(rawSeries(days, method), method);
+            const traces = [], colors = ['#4a9eff', '#22c55e', '#e879f9'];
+            const layout = {...rawPlotSpec(rawSeries(days, methods[0]), methods[0]).layout,
+                height:1200, shapes:[], annotations:[], legend:{orientation:'h',y:-0.08},
+                xaxis:{gridcolor:'#2a2a3a',title:'Scored day',anchor:'y7'},
+                yaxis4:{gridcolor:'#2a2a3a',domain:[0.10,0.27],autorange:true,rangemode:'tozero',
+                    title:'Recorded scores<br>(0-1 scale)'}};
+            methods.forEach((m,i) => {
+                const spec = rawPlotSpec(rawSeries(days,m),m), rawAxis = 'y' + (i ? i+1 : ''), gapAxis = 'y' + (i+5);
+                const domain = [0.79-i*0.24, 1-i*0.24];
+                layout['yaxis' + (i ? i+1 : '')] = {...spec.layout.yaxis,domain,title:RAW_METHOD_LABELS[m]+' value<br>(unit unknown)'};
+                layout['yaxis' + (i+5)] = {...spec.layout.yaxis3,domain:[0.06-i*0.025,0.08-i*0.025]};
+                spec.traces.forEach((t,j) => {
+                    if (i && (j === 6 || j === 7)) return; // Combined report/CSV scores are shown once, not added.
+                    const trace = {...t,meta:{input:m,kind:j},yaxis:j<4 ? rawAxis : j<8 ? 'y4' : gapAxis};
+                    if (j === 0) {trace.line={...t.line,color:colors[i]};trace.marker={...t.marker,color:colors[i]};}
+                    if (j === 4 || j === 5) trace.marker={...t.marker,color:colors[i]};
+                    if (j === 3 || j === 8) trace.name=RAW_METHOD_LABELS[m] + ' ' + t.name;
+                    if (j === 2) trace.name=RAW_METHOD_LABELS[m]+' unconfirmed value<br>(not admitted)';
+                    if (j === 3) trace.name=RAW_METHOD_LABELS[m]+' baseline mean ± 1 sd<br>(reference only)';
+                    if (j === 4) trace.name=RAW_METHOD_LABELS[m]+' score as recorded<br>(carried the day)';
+                    if (j === 5) trace.name=RAW_METHOD_LABELS[m]+' recorded score<br>(not carried)';
+                    if (j === 7) trace.name='combined score<br>(published data.csv)';
+                    if ([1,2,3,5].includes(j) && t.y.every(v => v === null)) trace.showlegend=false;
+                    traces.push(trace);
+                });
+                layout.shapes.push(...spec.layout.shapes.map(s => ({...s,y0:domain[0],y1:domain[1]})));
+                if (spec.traces.slice(0,3).every(t => t.y.every(v => v === null)))
+                    layout.annotations.push({xref:'paper',yref:'paper',x:0.5,y:(domain[0]+domain[1])/2,showarrow:false,
+                        text:RAW_METHOD_LABELS[m]+': no retained<br>numeric values',font:{color:'#94a3b8',size:10}});
+            });
+            return {traces,layout};
+        }
+
         async function rawLoadRegion(region) {
             if (!rawCache[region]) {
                 const body = await fetchDashboard('raw_history/' + encodeURIComponent(region) + '.json');
@@ -1926,11 +1970,12 @@
             document.getElementById('rate-export').disabled = true;
             if (panel.hidden) return;
             if (typeof GeoSpecHistoryRate === 'undefined') throw new Error('change/day script did not load; reload this page');
-            const basis = document.getElementById('rate-basis').value;
-            rateRows = GeoSpecHistoryRate.rows(body.days, method, basis, body.region);
+            const basis = document.getElementById('rate-basis').value, methods = rawSelectedMethods(method);
+            rateRows = methods.flatMap(m => GeoSpecHistoryRate.rows(body.days, m, basis, body.region))
+                .sort((a,b) => a.date.localeCompare(b.date) || a.method.localeCompare(b.method));
             const known = rateRows.filter(r => r.status === 'KNOWN'), reasons = {};
             rateRows.filter(r => r.reason).forEach(r => {reasons[r.reason] = (reasons[r.reason] || 0) + 1;});
-            document.getElementById('rate-summary').textContent = known.length + ' known / ' + rateRows.length + ' report-day rates; ' +
+            document.getElementById('rate-summary').textContent = known.length + ' known / ' + rateRows.length + (methods.length > 1 ? ' input-day rates; ' : ' report-day rates; ') +
                 (rateRows.length - known.length) + ' UNKNOWN (' + (rateRows.length ? ((rateRows.length - known.length) / rateRows.length * 100).toFixed(1) : '0') + '%). ' +
                 'Full retained archive; numerical comparison of retained metadata only.';
             document.getElementById('rate-reasons').textContent = Object.entries(reasons).map(([k,v]) => k + ': ' + v).join('; ') || 'No unknown intervals.';
@@ -1938,33 +1983,45 @@
             const lastTime = Math.max(...rateRows.map(r => GeoSpecHistoryRate.dayTime(r.date)).filter(t => t !== null));
             const range = windowDays !== 'all' && Number.isFinite(lastTime) ?
                 [new Date(lastTime - (Number(windowDays) - 1) * 86400000).toISOString().slice(0,10), new Date(lastTime).toISOString().slice(0,10)] : null;
-            const rateScale = bounds => Math.max(0.000001, ...known.filter(r => !bounds ||
-                (Date.parse(r.date) >= Date.parse(bounds[0]) && Date.parse(r.date) <= Date.parse(bounds[1]))).map(r => Math.abs(r.change_per_day))) * 1.1;
-            const magnitude = rateScale(range);
+            const rateScale = (bounds, m) => Math.max(0.000001, ...known.filter(r => r.method === m && (!bounds ||
+                (Date.parse(r.date) >= Date.parse(bounds[0]) && Date.parse(r.date) <= Date.parse(bounds[1])))).map(r => Math.abs(r.change_per_day))) * 1.1;
             const escape = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-            const unknown = rateRows.map((r,i) => ({r,i})).filter(({r}) => r.status !== 'KNOWN');
-            const traces = [
-                {x:rateRows.map(r => r.date), y:rateRows.map(r => r.change_per_day), customdata:rateRows.map((_,i) => i),
-                 text:rateRows.map(r => escape(GeoSpecHistoryRate.describe(r)).replace(/\n/g,'<br>')),
-                 hovertemplate:'%{text}<extra></extra>', name:(RAW_METHOD_LABELS[method] || method) + ' ' + basis + ' change/day',
-                 type:'scatter', mode:'lines+markers', connectgaps:false, line:{color:'#38bdf8', width:1.5}, marker:{size:5}},
-                {x:unknown.map(({r}) => r.date), y:unknown.map(() => 0), customdata:unknown.map(({i}) => i),
-                 text:unknown.map(({r}) => escape(r.date + ': UNKNOWN - ' + r.reason)), hovertemplate:'%{text}<extra></extra>',
-                 name:'UNKNOWN (separate band)', type:'scatter', mode:'markers', yaxis:'y2',
-                 marker:{color:'#94a3b8',symbol:'line-ns-open',size:9}}
-            ];
-            await Plotly.newPlot('raw-rate-chart', traces, {
-                paper_bgcolor:'rgba(0,0,0,0)', plot_bgcolor:'rgba(0,0,0,0)', height:350,
+            const traces = [], layout = {
+                paper_bgcolor:'rgba(0,0,0,0)', plot_bgcolor:'rgba(0,0,0,0)', height:methods.length === 1 ? 350 : 850,
                 font:{color:'#e8e8f0',family:'JetBrains Mono, monospace',size:11},
-                xaxis:{title:'Later report day<br>(not sensor availability)',gridcolor:'#2a2a3a',anchor:'y2',...(range ? {range} : {})},
-                yaxis:{title:basis === 'score' ? 'score units / report day' : 'recorded-value units / report day',
-                    range:[-magnitude,magnitude],domain:[0.16,1],gridcolor:'#2a2a3a',zeroline:true,zerolinecolor:'#e8e8f0'},
-                yaxis2:{domain:[0,0.08],range:[-1,1],showticklabels:false,showgrid:false,zeroline:false},
-                legend:{orientation:'h',y:-0.28},margin:{t:20,r:80,b:85,l:80}
-            }, {responsive:true});
+                xaxis:{title:'Later report day<br>(not sensor availability)',gridcolor:'#2a2a3a',anchor:'y'+methods.length*2,...(range ? {range} : {})},
+                legend:{orientation:'h',y:methods.length === 1 ? -0.28 : -0.10},margin:{t:20,r:80,b:85,l:80},annotations:[]
+            };
+            methods.forEach((m,j) => {
+                const indexed = rateRows.map((r,i) => ({r,i})).filter(({r}) => r.method === m);
+                const unknown = indexed.filter(({r}) => r.status !== 'KNOWN');
+                const label = RAW_METHOD_LABELS[m], axis = j ? String(j*2+1) : '', gapAxis = String(j*2+2);
+                const base = (methods.length-1-j)/methods.length, step = 1/methods.length, magnitude = rateScale(range,m);
+                const hasKnown = indexed.some(({r}) => r.status === 'KNOWN');
+                layout['yaxis'+axis] = {title:methods.length === 1 ? (basis === 'score' ? 'score units / report day' : 'recorded-value units / report day') : label+' '+basis+' change<br>per report day',
+                    range:[-magnitude,magnitude],domain:[base+step*0.16,base+step],showticklabels:hasKnown,showgrid:hasKnown,
+                    gridcolor:'#2a2a3a',zeroline:hasKnown,zerolinecolor:'#e8e8f0'};
+                layout['yaxis'+gapAxis] = {domain:[base,base+step*0.08],range:[-1,1],showticklabels:false,showgrid:false,zeroline:false};
+                if (indexed.every(({r}) => r.status !== 'KNOWN'))
+                    layout.annotations.push({xref:'paper',yref:'paper',x:0.5,y:base+step*0.58,showarrow:false,
+                        text:label+': no comparable<br>intervals (UNKNOWN)',font:{color:'#94a3b8',size:10}});
+                traces.push(
+                    {x:indexed.map(({r}) => r.date),y:indexed.map(({r}) => r.change_per_day),customdata:indexed.map(({i}) => i),
+                     text:indexed.map(({r}) => escape(GeoSpecHistoryRate.describe(r)).replace(/\n/g,'<br>')),
+                     hovertemplate:'%{text}<extra></extra>',name:label+' '+basis+' change/day',yaxis:'y'+axis,
+                     type:'scatter',mode:'lines+markers',connectgaps:false,line:{color:['#38bdf8','#22c55e','#e879f9'][j],width:1.5},marker:{size:5}},
+                    {x:unknown.map(({r}) => r.date),y:unknown.map(() => 0),customdata:unknown.map(({i}) => i),
+                     text:unknown.map(({r}) => escape(r.date+': '+label+' UNKNOWN - '+r.reason)),hovertemplate:'%{text}<extra></extra>',
+                     name:(methods.length > 1 ? label+' ' : '')+'UNKNOWN (separate band)',type:'scatter',mode:'markers',yaxis:'y'+gapAxis,
+                     marker:{color:'#94a3b8',symbol:'line-ns-open',size:9}}
+                );
+            });
+            await Plotly.newPlot('raw-rate-chart', traces, layout, {responsive:true});
             await Plotly.relayout('raw-chart', range ? {'xaxis.range':range} : {'xaxis.autorange':true});
             const select = document.getElementById('rate-day');
-            select.replaceChildren(...rateRows.map((r,i) => new Option(r.date + ' - ' + r.status, String(i))));
+            select.replaceChildren(...rateRows.map((r,i) => new Option(r.date + (methods.length > 1 ? ' '+RAW_METHOD_LABELS[r.method] : '') + ' - ' + r.status, String(i))));
+            document.getElementById('rate-prev').textContent = methods.length > 1 ? 'Previous point' : 'Previous day';
+            document.getElementById('rate-next').textContent = methods.length > 1 ? 'Next point' : 'Next day';
             select.onchange = () => selectRateDay(Number(select.value));
             document.getElementById('rate-prev').onclick = () => selectRateDay(Number(select.value) - 1);
             document.getElementById('rate-next').onclick = () => selectRateDay(Number(select.value) + 1);
@@ -1979,8 +2036,9 @@
                     syncing = true;
                     try {
                         await Plotly.relayout(to, update);
-                        const scale = rateScale(document.getElementById('raw-rate-chart').layout.xaxis.range);
-                        await Plotly.relayout('raw-rate-chart', {'yaxis.range':[-scale,scale]});
+                        const bounds = document.getElementById('raw-rate-chart').layout.xaxis.range, scales = {};
+                        methods.forEach((m,j) => {const scale=rateScale(bounds,m);scales['yaxis'+(j ? j*2+1 : '')+'.range']=[-scale,scale];});
+                        await Plotly.relayout('raw-rate-chart', scales);
                     } finally {syncing = false;}
                 });
             }
@@ -2029,11 +2087,11 @@
                 const region = document.getElementById('raw-region').value, method = document.getElementById('raw-method').value;
                 const body = await rawLoadRegion(region);
                 if (generation !== rawRenderGeneration) return;
-                const series = rawSeries(body.days, method);
-                const spec = rawPlotSpec(series, method, (rawIndex.methods || {})[method]);
+                const methods = rawSelectedMethods(method);
+                const spec = rawSelectionPlotSpec(body.days, method);
                 await Plotly.newPlot('raw-chart', spec.traces, spec.layout, { responsive: true });
                 if (generation !== rawRenderGeneration) return;
-                document.getElementById('raw-gaps').textContent = rawGapSummary(series);
+                document.getElementById('raw-gaps').textContent = methods.map(m => RAW_METHOD_LABELS[m] + ': ' + rawGapSummary(rawSeries(body.days,m))).join(' ');
                 const rows = rawTableRows(body.days, method).slice().reverse();
                 const table = document.getElementById('raw-table');
                 table.innerHTML = '<thead><tr>' + RAW_COLUMNS.map(c => '<th>' + c + '</th>').join('') + '</tr></thead><tbody>' +
@@ -2042,8 +2100,8 @@
                 status.textContent = 'Retained reports ' + (build.mode === 'COMMIT' ? 'at commit ' + String(build.commit).slice(0, 12)
                     : 'through journal entry ' + rawIndex.inputs.journal_entries + ', published with the daily commit after ' +
                       String(build.parent_commit).slice(0, 12)) + ' (last scored day ' + rawIndex.dates.last + ') · ' +
-                    body.days.length + ' days · region ' + region.replace(/_/g, ' ') + ' · input ' + (RAW_METHOD_LABELS[method] || method) +
-                    ' · documented meaning (docs/JSON_SCHEMA.md, not recorded in the reports): ' + (((rawIndex.methods || {})[method] || {}).raw || 'not documented') + '.';
+                    body.days.length + ' days · region ' + region.replace(/_/g, ' ') + ' · input ' + methods.map(m => RAW_METHOD_LABELS[m]).join(', ') +
+                    ' · documented meaning (docs/JSON_SCHEMA.md, not recorded in the reports): ' + methods.map(m => RAW_METHOD_LABELS[m] + ': ' + (((rawIndex.methods || {})[m] || {}).raw || 'not documented')).join('; ') + '.';
                 rawDisplayedSelection = {region,method};
                 document.getElementById('raw-export').disabled = false;
                 await renderRatePanel(body, method);

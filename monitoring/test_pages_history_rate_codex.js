@@ -62,4 +62,42 @@ test('real archive numerical rates recompute and unknowns remain null',()=>{
  }
  assert.ok(archive.find(r=>r.region==='hualien'&&r.method==='seismic_thd').known>0);
 });
+const vm=require('node:vm'), page=fs.readFileSync(path.join(root,'docs/index.html'),'utf8');
+const source=page.match(/^        const RAW_METHOD_LABELS.*?(?=^        async function rawLoadRegion)/ms)[0];
+const P=vm.runInNewContext(source+'\n({rawSelectedMethods,rawSeries,rawTableRows,rawCsv,rawPlotSpec,rawSelectionPlotSpec});');
+const plain=v=>JSON.parse(JSON.stringify(v));
+test('all selector expands only to the three named inputs',()=>assert.deepEqual(plain(P.rawSelectedMethods('all')),['seismic_thd','lambda_geo','fault_correlation']));
+test('all charts preserve every raw and score series independently across retained regions',()=>{
+ for(const region of new Set(archive.map(r=>r.region))){
+  const days=JSON.parse(fs.readFileSync(path.join(root,'docs/raw_history',region+'.json'))).days;
+  const before=JSON.stringify(days), spec=P.rawSelectionPlotSpec(days,'all');
+  for(const method of P.rawSelectedMethods('all')) {
+   const single=P.rawSelectionPlotSpec(days,method);
+   single.traces.slice(0,6).forEach((trace,j)=>assert.deepEqual(plain(spec.traces.find(t=>t.meta.input===method&&t.meta.kind===j).y),plain(trace.y)));
+  }
+  assert.equal(JSON.stringify(days),before);
+ }
+});
+const example=JSON.parse(fs.readFileSync(path.join(root,'docs/raw_history/hualien.json'))).days;
+test('all view never puts raw inputs on a shared value axis',()=>{
+ const spec=P.rawSelectionPlotSpec(example,'all'), measured=spec.traces.filter(t=>/^(THD|LG|FC) measured value$/.test(t.name));
+ assert.equal(new Set(measured.map(t=>t.yaxis)).size,3);
+ const domains=measured.map(t=>spec.layout['yaxis'+t.yaxis.slice(1)].domain).sort((a,b)=>a[0]-b[0]);
+ assert.ok(domains.every((d,i)=>i===0||d[0]>domains[i-1][1]));
+});
+test('combined scores appear once and gaps remain disconnected',()=>{
+ const spec=P.rawSelectionPlotSpec(example,'all');
+ assert.equal(spec.traces.filter(t=>t.name==='combined score (report)').length,1);
+ assert.equal(spec.traces.filter(t=>t.meta.kind===7).length,1);
+ assert.ok(spec.traces.filter(t=>t.mode.includes('lines')).every(t=>t.connectgaps===false));
+ assert.equal(spec.traces.filter(t=>t.name.endsWith('no measured value')).length,3);
+});
+test('all table is exactly the union of the individually labelled inputs',()=>{
+ const all=P.rawTableRows(example,'all');assert.equal(all.length,example.length*3);
+ for(const method of P.rawSelectedMethods('all')) assert.deepEqual(plain(all.filter(r=>r.input===method)),plain(P.rawTableRows(example,method)));
+ assert.match(P.rawCsv(all),/^date,input,source,/);
+});
+test('individual plot specifications are unchanged',()=>{
+ for(const method of P.rawSelectedMethods('all')) assert.deepEqual(plain(P.rawSelectionPlotSpec(example,method)),plain(P.rawPlotSpec(P.rawSeries(example,method),method)));
+});
 console.log(JSON.stringify({passed,archive},null,2));

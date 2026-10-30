@@ -61,6 +61,56 @@ const server=http.createServer((req,res)=>{
   if(out){await page.locator('#raw-rate-panel').scrollIntoViewIfNeeded();await page.screenshot({path:path.join(out,'desktop-rate.png')});}
   await page.locator('#raw-method').selectOption('lambda_geo');await page.waitForFunction(()=>!document.getElementById('rate-export').disabled);
   assert.ok(await page.evaluate(()=>document.getElementById('raw-rate-chart').data[0].y.every(x=>x===null)));pass('unknown LG support cannot fabricate rates');
+  await page.locator('#raw-method').selectOption('all');await page.waitForFunction(()=>!document.getElementById('rate-export').disabled);
+  const allRaw=await page.evaluate(()=>document.getElementById('raw-chart').data.filter(t=>/^(THD|LG|FC) measured value$/.test(t.name)).map(t=>({name:t.name,axis:t.yaxis,y:t.y})));
+  assert.deepEqual(allRaw.map(t=>t.name),['THD measured value','LG measured value','FC measured value']);
+  assert.equal(new Set(allRaw.map(t=>t.axis)).size,3);pass('all raw inputs use distinct axes');
+  const allScores=await page.evaluate(()=>document.getElementById('raw-chart').data.filter(t=>t.name.includes('score as recorded')));
+  assert.equal(allScores.length,3);assert.ok(allScores.every(t=>t.yaxis==='y4'));pass('all recorded scores shown without aggregation');
+  assert.equal(await page.locator('#raw-table tbody tr').count(),373*3);
+  for(const method of ['seismic_thd','lambda_geo','fault_correlation']) assert.equal(await page.locator('#raw-table tbody tr').filter({has:page.locator('td:nth-child(2)',{hasText:method})}).count(),373);
+  pass('all-input table labels every measurement row');
+  const rawDownloadPromise=page.waitForEvent('download');await page.locator('#raw-export').click();const rawDownload=await rawDownloadPromise;
+  const allCsv=fs.readFileSync(await rawDownload.path(),'utf8');
+  assert.equal(allCsv,await page.evaluate(()=>rawCsv(rawTableRows(rawCache.hualien.days,'all'))));
+  assert.match(rawDownload.suggestedFilename(),/_all\.csv$/);pass('all-input CSV includes complete labelled selection');
+  const allRates=await page.evaluate(()=>document.getElementById('raw-rate-chart').data.filter(t=>t.name.endsWith(' change/day')).map(t=>({axis:t.yaxis,y:t.y})));
+  assert.equal(allRates.length,3);assert.equal(new Set(allRates.map(t=>t.axis)).size,3);
+  assert.deepEqual(allRates[0].y,rawRate);assert.ok(allRates[1].y.every(x=>x===null)&&allRates[2].y.every(x=>x===null));pass('all rates retain per-input arithmetic and unknowns');
+  const allRateDownloadPromise=page.waitForEvent('download');await page.locator('#rate-export').click();const allRateDownload=await allRateDownloadPromise;
+  assert.equal(fs.readFileSync(await allRateDownload.path(),'utf8').trim().split('\n').length,373*3+1);pass('all-input rate CSV covers every input-day');
+  await page.evaluate(()=>{const chart=document.getElementById('raw-rate-chart');chart.emit('plotly_click',{points:[{customdata:chart.data[3].customdata[0]}]});});
+  assert.match(await page.locator('#rate-detail').innerText(),/lambda_geo/);pass('all-input point lookup preserves input identity');
+  await page.locator('#rate-basis').selectOption('score');await page.waitForFunction(()=>!document.getElementById('rate-export').disabled);
+  assert.equal(await page.evaluate(()=>document.getElementById('raw-rate-chart').data.filter(t=>t.name.endsWith('score change/day')).length),3);pass('all-input score-rate mode');
+  await page.locator('#rate-basis').selectOption('raw');await page.waitForFunction(()=>!document.getElementById('rate-export').disabled);
+  await page.evaluate(()=>Plotly.relayout('raw-chart',{'xaxis.range':['2026-09-01','2026-10-01']}));
+  await page.waitForFunction(()=>document.getElementById('raw-rate-chart').layout.xaxis.range[0]==='2026-09-01');pass('all-input value and rate zoom synchronized');
+  assert.match(await page.locator('#raw-chart').innerText(),/LG: no retained/);
+  assert.match(await page.locator('#raw-rate-chart').innerText(),/LG: no comparable/);pass('empty input panels explicitly labelled');
+  await page.locator('#raw-region').selectOption('ridgecrest');await page.waitForFunction(()=>!document.getElementById('rate-export').disabled);
+  assert.ok(await page.evaluate(()=>document.getElementById('raw-chart').data.filter(t=>/^(THD|LG|FC) measured value$/.test(t.name)).every(t=>t.y.some(v=>v!==null))));
+  pass('region with three retained inputs shows all three numeric histories');
+  await page.locator('#rate-window').selectOption('all');await page.waitForFunction(()=>!document.getElementById('rate-export').disabled);
+  if(out){await page.locator('#raw-chart').scrollIntoViewIfNeeded();await page.screenshot({path:path.join(out,'desktop-all-values.png')});await page.locator('#raw-rate-chart').scrollIntoViewIfNeeded();await page.screenshot({path:path.join(out,'desktop-all-rates.png')});}
+  await page.setViewportSize({width:390,height:844});await page.waitForTimeout(600);
+  for(const id of ['raw-chart','raw-rate-chart']){const box=await page.locator('#'+id+' svg.main-svg').first().boundingBox();assert.ok(box.height>200&&box.x+box.width<=391,JSON.stringify(box));}
+  const legendClipped=await page.locator('#raw-chart .legendtext').evaluateAll(nodes=>nodes.some(n=>n.getBoundingClientRect().right>innerWidth+1));
+  assert.equal(legendClipped,false);pass('all-input legend labels fit mobile viewport');
+  const titles=await page.locator('#raw-chart .g-ytitle, #raw-chart .g-y2title, #raw-chart .g-y3title, #raw-chart .g-y4title').evaluateAll(nodes=>nodes.map(n=>{const b=n.getBoundingClientRect();return {top:b.top,bottom:b.bottom};}).sort((a,b)=>a.top-b.top));
+  assert.equal(titles.length,4);assert.ok(titles.every((b,i)=>!i||b.top>titles[i-1].bottom));pass('all-input mobile axis labels do not overlap');
+  if(out){await page.locator('#raw-chart').scrollIntoViewIfNeeded();await page.screenshot({path:path.join(out,'mobile-all-values.png')});}
+  pass('all-input plots fit mobile viewport');
+  await page.setViewportSize({width:1440,height:1000});
+  await page.locator('#raw-region').selectOption('hualien');await page.waitForFunction(()=>!document.getElementById('rate-export').disabled);
+  await page.locator('#rate-window').selectOption('90');await page.waitForFunction(()=>!document.getElementById('rate-export').disabled);
+  for(const method of ['fault_correlation','lambda_geo','seismic_thd']) {
+   await page.locator('#raw-method').selectOption(method);await page.waitForFunction(()=>!document.getElementById('rate-export').disabled);
+   assert.equal(await page.locator('#raw-table tbody tr').count(),373);
+   assert.equal(await page.evaluate(()=>document.getElementById('raw-chart').data.filter(t=>/^(THD|LG|FC) measured value$/.test(t.name)).length),1);
+   assert.equal(await page.evaluate(()=>document.getElementById('raw-rate-chart').data.length),2);
+  }
+  pass('each individual selection removes other input traces and rows');
   await page.locator('#raw-method').selectOption('seismic_thd');await page.waitForFunction(()=>!document.getElementById('rate-export').disabled);
   let regionFailure=true;await page.route('**/raw_history/istanbul_marmara.json',r=>regionFailure?r.abort('failed'):r.continue());
   await page.locator('#raw-region').selectOption('istanbul_marmara');await page.waitForFunction(()=>!document.getElementById('raw-retry').hidden);

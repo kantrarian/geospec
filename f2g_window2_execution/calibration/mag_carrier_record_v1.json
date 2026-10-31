@@ -1,0 +1,18 @@
+{
+ "byte_length": 47473945,
+ "cutoff": "2026-07-31",
+ "logical_root": "s4t://geospec/w2/mag_calibration_input_v1",
+ "object_sha256": "3620d0c2dfcdb4f55f1efe797302b5063900697535b5ced279da7c22a9503ec2",
+ "provenance": {
+  "authority_sha256": "f2e8a53adbe9fbd9feddcfff2a8f4be616f7bfe28cf8940ccfcdfe6cf119d2de",
+  "cutoff": "2026-07-31",
+  "days": 212,
+  "descriptor_sha256": "1859280560a55e5ebf4de034659b687e753fbf312ef186e2fc3732d575c4b1bd",
+  "inventory_sha256": "b019d3d9a5671da0eb07194748ed4c88374aa1f050ef5360f3735876901f280e",
+  "minutes": 305280,
+  "producer_source_sha256_normalized": "01887a593ddb11de57342da4ea666789952b30f0451ddadef560f106136c3b51",
+  "staged_rolling_sha256": "09d5b468a352b3425e92be25dd75aeb45343046a86324b3a568844af75c84a55"
+ },
+ "schema": "f2g-w2-mag-carrier-record-v1",
+ "serialization": "canonical-json-v1"
+}

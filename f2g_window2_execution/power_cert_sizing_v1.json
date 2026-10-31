@@ -1,0 +1,66 @@
+{
+ "families": {
+  "B1B": {
+   "99": 0.774,
+   "999": 7.944
+  },
+  "B2A": {
+   "99": 0.038,
+   "999": 0.117
+  },
+  "B2B": {
+   "99": 0.997,
+   "999": 1.053
+  },
+  "B3A": {
+   "99": 0.057,
+   "999": 0.252
+  }
+ },
+ "fit_9999": {
+  "B1B": 79.7,
+  "B2A": 0.9,
+  "B2B": 1.6,
+  "B3A": 2.2
+ },
+ "gen_seconds": 0.024,
+ "generated_utc": "2026-08-22T19:26:01Z",
+ "geometry": {
+  "calendar_days": 132,
+  "carriers": {
+   "c_cas": 16,
+   "c_ist": 16,
+   "c_soc": 20,
+   "c_tur": 14
+  }
+ },
+ "label": "TIMING ONLY -- fixture-authority geometry at frozen cap sizes; no power numbers exist in this artifact",
+ "projections": {
+  "assumptions": {
+   "all_four_families_per_replicate": "the sec-5 Holm rule runs ALL FOUR engines per replicate; the target-only column is the screening-style lower bound",
+   "grid_points": {
+    "B1B_artifact": 2,
+    "B1B_detection": 48,
+    "B2A": 3,
+    "B2B": 5,
+    "B3A": 24
+   },
+   "loco_scenario_folds": 16,
+   "tier_c_candidates_per_family": 3,
+   "tier_s_R": 50
+  },
+  "per_replicate_seconds": {
+   "all_four_at_999": 9.4,
+   "all_four_at_9999": 84.4
+  },
+  "tier_c_hours": {
+   "R20_all_four": 6.6,
+   "R20_all_four_with_loco_x17": 111.6,
+   "R40_all_four": 13.1,
+   "R40_all_four_with_loco_x17": 223.3
+  },
+  "tier_s_full_grid_hours": {
+   "all_four": 10.7
+  }
+ }
+}

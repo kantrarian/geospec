@@ -1,0 +1,98 @@
+{
+ "acquisition_code_identity": {
+  "git_blob_bytes": 33703,
+  "git_blob_sha256": "0afdd0950c3e8532f24c7a4fc78e765183605d30f8d1dcc4ccae1c2117c3c846",
+  "path": "monitoring/src/w2_mf4_catalog_acquire_grassmann.py",
+  "runtime_bytes": 33703,
+  "runtime_sha256": "0afdd0950c3e8532f24c7a4fc78e765183605d30f8d1dcc4ccae1c2117c3c846"
+ },
+ "attempts": {
+  "anchorage": {
+   "bbox": {
+    "max_lat": 62.0,
+    "max_lon": -148.0,
+    "min_lat": 60.0,
+    "min_lon": -151.0
+   },
+   "carrier": "anchorage",
+   "effective_url": "https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&starttime=2025-10-11T00%3A00%3A00&endtime=2026-08-28T00%3A00%3A00&minmagnitude=4.0&minlatitude=60.0&maxlatitude=62.0&minlongitude=-151.0&maxlongitude=-148.0&orderby=time-asc&limit=20000",
+   "http_status": 200,
+   "params": {
+    "endtime": "2026-08-28T00:00:00",
+    "format": "geojson",
+    "limit": "20000",
+    "maxlatitude": "62.0",
+    "maxlongitude": "-148.0",
+    "minlatitude": "60.0",
+    "minlongitude": "-151.0",
+    "minmagnitude": "4.0",
+    "orderby": "time-asc",
+    "starttime": "2025-10-11T00:00:00"
+   },
+   "parse_result": "REFUSED MF4_CATALOG_COUNT_MISMATCH: anchorage: metadata.count None != 6 features",
+   "raw_bytes": 5246,
+   "raw_file": "raw_anchorage.geojson",
+   "raw_sha256": "9ce8ff6ad271bb1c10cf38d5a762b9b81345857267d893ae2b15140bc4ed2233",
+   "region": "anchorage",
+   "request_utc": "2026-08-30T02:12:15.907570Z",
+   "requested_url": "https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&starttime=2025-10-11T00%3A00%3A00&endtime=2026-08-28T00%3A00%3A00&minmagnitude=4.0&minlatitude=60.0&maxlatitude=62.0&minlongitude=-151.0&maxlongitude=-148.0&orderby=time-asc&limit=20000",
+   "response_headers": {
+    "Access-Control-Allow-Headers": "*",
+    "Access-Control-Allow-Methods": "GET, OPTIONS",
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Max-Age": "86400",
+    "Cache-Control": "public, max-age=60",
+    "Connection": "close",
+    "Content-Length": "5246",
+    "Content-Type": "application/json; charset=utf-8",
+    "Date": "Sun, 30 Aug 2026 02:12:16 GMT",
+    "Expires": "Sun, 30 Aug 2026 02:13:16 GMT",
+    "Last-Modified": "Sun, 30 Aug 2026 02:12:16 GMT",
+    "Server": "nginx",
+    "Strict-Transport-Security": "max-age=31536000; includeSubDomains; preload",
+    "Vary": "Accept-Encoding",
+    "Via": "1.1 869402f2ecee156c63cb7eb71b47e990.cloudfront.net (CloudFront)",
+    "X-Amz-Cf-Id": "V_zpof99sRU8mR1KDlt3Yp9RvhElwerSP9jwzGJEAGS7gsEShhh1Ww==",
+    "X-Amz-Cf-Pop": "ATL58-P11",
+    "X-Cache": "Miss from cloudfront",
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "SAMEORIGIN",
+    "X-XSS-Protection": "1; mode=block"
+   },
+   "response_utc": "2026-08-30T02:12:16.218730Z"
+  }
+ },
+ "authorization": {
+  "bytes": 765,
+  "file": "C:\\Users\\devildog\\AppData\\Local\\Temp\\claude\\C--agent-framework\\6f9e1ccc-93c5-446a-a6b2-a8d9edc10ff5\\scratchpad\\mf4_fire_authorization_v4.json",
+  "go_source_sha256": "beb88afd5949e8408820de6e97a50b12e304112be6e49c005f40dfcfafc11952",
+  "sha256": "51f1864b7a9155a5b58ce4571394f9407ce898c3aa703465160e453d6846555c"
+ },
+ "authorization_content": {
+  "codex_pass": {
+   "file": "inbox/geospec_japan/2026-08-30-0024-codex-mf4-correction5-pre-http-pass.json",
+   "framework_commit": "d9a394c0eadd7c8ab595020609e1867240877eb1"
+  },
+  "module_git_blob_sha256": "0afdd0950c3e8532f24c7a4fc78e765183605d30f8d1dcc4ccae1c2117c3c846",
+  "output_target_must_be_absent": true,
+  "owner_fire_go": {
+   "source_file": "inbox/geospec_japan/2026-08-30-0105-asylum-owner-fire-go.json",
+   "source_framework_commit": "03ea9cce9897484c4984571ff3ad69d1021c88c1"
+  },
+  "public_head_commit": "58782d8e3b3272cf3a7e4f5578a2a505aad38c99",
+  "public_head_tree": "fd096a6b1d314d806323a84741002826c37ef419",
+  "query_contract_sha256": "cf19d414b1ba98a38953332b8940e12460c203babb5eadd139a19ce4bb530095",
+  "schema": "geospec-mf4-fire-authorization-v4"
+ },
+ "fault_segments_identity": {
+  "bytes": 34410,
+  "path": "monitoring/src/fault_segments.py",
+  "sha256": "90acfd35fc05bd9b4f178837ebbd2ff7e44b6211a422e47bfbcfa230c1b8f913"
+ },
+ "note": "staging evidence preserved; every sealed response is immutable; continuation requires a new owner decision and reuses sealed bytes",
+ "query_contract_sha256": "cf19d414b1ba98a38953332b8940e12460c203babb5eadd139a19ce4bb530095",
+ "refusal_code": "REFUSED MF4_CATALOG_COUNT_MISMATCH: anchorage: metadata.count None != 6 features",
+ "refusal_detail": "REFUSED MF4_CATALOG_COUNT_MISMATCH: anchorage: metadata.count None != 6 features",
+ "schema": "geospec-mf4-catalog-refusal-manifest-v1",
+ "utc": "2026-08-30T02:12:16.263082Z"
+}

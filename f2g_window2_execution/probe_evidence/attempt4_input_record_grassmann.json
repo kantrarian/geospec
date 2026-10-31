@@ -1,0 +1,48 @@
+{
+ "attempt": 4,
+ "author": "grassmann",
+ "authorization": {
+  "basis": "provider-authored diagnosis in the pinned attempt-3 same-transaction 400 body: 'Unrecognized start time [YYYY-MM-DDTHH:MM:SS.ssssss]: 2025-11-15' / 'Unrecognized end time [...]: 2025-11-16'",
+  "ruling": "codex 2026-08-24T1711Z 'SoCal attempt 4 GO, exact datetime-spelling delta only' (framework fb3d500)"
+ },
+ "constraints": "exactly ONE request; no sta/station param, split, alternate bbox/host/method/day, or fallback; on HTTP error the error body from the SAME transaction is read and pinned (not a second request); on any refusal socal remains PROVIDER_GRAMMAR_UNAVAILABLE (never absent) and STOPS PERMANENTLY -- no fifth request, no synthetic absence",
+ "evidence_files": [
+  "socal_coachella_attempt4.body",
+  "socal_coachella_attempt4.envelope.json"
+ ],
+ "input_delta_from_attempt3": "EXACTLY two value substitutions: starttime 2025-11-15 -> 2025-11-15T00:00:00.000000 and endtime 2025-11-16 -> 2025-11-16T00:00:00.000000; endpoint, abbreviated parameter names, bbox, net, cha, level, format, nodata, method, host, registered 12-station filter, and epoch rule byte-identical to attempt 3",
+ "operation_id": "socal_coachella_attempt4",
+ "predecessors": {
+  "attempt1": {
+   "envelope": "selection_records_socal_coachella.envelope.json",
+   "envelope_sha256": "da648cb33a031529515e239d7d00bf57c972e9954011ca7cbe7a5c3b23ce98bc"
+  },
+  "attempt2": {
+   "envelope": "socal_coachella_attempt2.envelope.json",
+   "envelope_sha256": "596451cf87f55b9a89c86e1ba4684e8fdec0bfd7bf5400074f659f5e4f4a737f"
+  },
+  "attempt3": {
+   "body": "socal_coachella_attempt3.body",
+   "body_sha256": "a06beb8a7e62622e19ba47c0b176adcf1307e78b5a0abd276d82054f72756dc7",
+   "envelope": "socal_coachella_attempt3.envelope.json",
+   "envelope_sha256": "42543d66e24ec9ed0b8099d92426aa783e268184a8fc07ad80a9b1b612368e0b"
+  }
+ },
+ "presence_rule": "presence computed ONLY for the registered CI stations with an HHZ channel epoch active in [2025-11-15, 2025-11-16); outside-station rows retained in raw evidence, excluded by the filter; a proper subset of the 12 is an honest per-day presence result",
+ "registered_station_filter": "ACP,ANG,BAR,BC3,BEL,BLA2,BOM,BOR,COA,CRR,CSH,CTC",
+ "request_params": {
+  "cha": "HHZ",
+  "endtime": "2025-11-16T00:00:00.000000",
+  "format": "text",
+  "level": "channel",
+  "maxlatitude": "34.1500",
+  "maxlongitude": "-115.0500",
+  "minlatitude": "32.6500",
+  "minlongitude": "-116.9500",
+  "net": "CI",
+  "nodata": "404",
+  "starttime": "2025-11-15T00:00:00.000000"
+ },
+ "requested_url": "https://service.scedc.caltech.edu/fdsnws/station/1/query?net=CI&cha=HHZ&level=channel&format=text&minlatitude=32.6500&maxlatitude=34.1500&minlongitude=-116.9500&maxlongitude=-115.0500&starttime=2025-11-15T00%3A00%3A00.000000&endtime=2025-11-16T00%3A00%3A00.000000&nodata=404",
+ "schema": "f2g-w2-probe-attempt4-input-record-v1"
+}

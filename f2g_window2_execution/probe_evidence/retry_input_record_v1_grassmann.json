@@ -1,0 +1,57 @@
+{
+ "attempt": 2,
+ "author": "grassmann",
+ "authorization": {
+  "authorization_commit": "the ruling note's framework commit e84d5ca; geospec preflight lineage 1b786ef (record) + 70c28ff (attempt-1 evidence)",
+  "ruling": "codex 2026-08-24T1623Z 'exactly two Phase-A retry probes approved' (framework inbox 2026-08-24-1623-codex-grassmann-cayley-two-probe-retry-approved.md)"
+ },
+ "constraints": "one request per operation, no third request, no alternate host/CA/endpoint/date; any failure = new typed refusal, template stays BLOCKED; attempt-1 bodies/envelopes/parser notes remain byte-untouched; successful evidence populates static request/parser templates ONLY -- never staged_envelopes, the 1794-key tree, values, cutoffs, geometry, tiers, or claims",
+ "operations": {
+  "MF4_FEED/kp": {
+   "attempt1_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+   "attempt1_envelope": "mf4_feed_kp.envelope.json",
+   "attempt1_envelope_sha256": "9e475e703ab4b0a4ca1e57f11577ffa1c7c9d68314a2625c26f218fe1332c399",
+   "evidence_files": [
+    "kp_attempt2.body",
+    "kp_attempt2.envelope.json"
+   ],
+   "input_delta_from_attempt1": "SOLE authorized delta = the client trust source: real CA bundle, certificate verification + hostname checking enabled (CERT_REQUIRED, check_hostname=true); never verify=False / unverified context / accepted leaf",
+   "operation_id": "kp_attempt2",
+   "requested_url": "https://kp.gfz-potsdam.de/app/json/?start=2025-11-15T00%3A00%3A00Z&end=2025-11-15T23%3A59%3A59Z&index=Kp",
+   "tls_client": {
+    "ca_bundle_path": "C:\\Users\\devildog\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\site-packages\\certifi\\cacert.pem",
+    "ca_bundle_sha256": "2089fc5a25836401faee99f722460b01b393999746a0fb817943666d6ecc0458",
+    "ca_bundle_source": "certifi (PyPI)",
+    "ca_bundle_version": "2025.10.05",
+    "check_hostname": true,
+    "openssl": "OpenSSL 3.0.13 30 Jan 2024",
+    "python": "3.11.9",
+    "verify_mode": "CERT_REQUIRED"
+   }
+  },
+  "SELECTION_RECORDS/socal_coachella": {
+   "attempt1_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+   "attempt1_envelope": "selection_records_socal_coachella.envelope.json",
+   "attempt1_envelope_sha256": "da648cb33a031529515e239d7d00bf57c972e9954011ca7cbe7a5c3b23ce98bc",
+   "endpoint": "https://service.scedc.caltech.edu/fdsnws/station/1/query",
+   "evidence_files": [
+    "socal_coachella_attempt2.body",
+    "socal_coachella_attempt2.envelope.json"
+   ],
+   "input_delta_from_attempt1": "EXACTLY the ruling's authorized grammar change: abbreviated FDSN names -> long forms (net->network, sta->station, cha->channel); all values, day/window, endpoint, and semantics unchanged",
+   "operation_id": "socal_coachella_attempt2",
+   "request_params": {
+    "channel": "HHZ",
+    "endtime": "2025-11-16",
+    "format": "text",
+    "level": "channel",
+    "network": "CI",
+    "nodata": "404",
+    "starttime": "2025-11-15",
+    "station": "ACP,ANG,BAR,BC3,BEL,BLA2,BOM,BOR,COA,CRR,CSH,CTC"
+   }
+  }
+ },
+ "requests_total": 2,
+ "schema": "f2g-w2-probe-retry-input-record-v1"
+}

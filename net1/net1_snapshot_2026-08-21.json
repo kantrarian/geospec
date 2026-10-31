@@ -1,0 +1,319 @@
+{
+ "generated_utc": "2026-08-21T18:36:36Z",
+ "lane": "operational-telemetry; no scientific claims; no measurement values retained (byte counts + HTTP status only)",
+ "probe": "FDSN dataselect HHZ, 1h window, 24h fallback",
+ "regions": {
+  "istanbul_marmara": {
+   "coverage": 1.0,
+   "live": 12,
+   "selected": 12,
+   "stale_24h": 0,
+   "unreachable_or_empty": 0
+  },
+  "socal_coachella": {
+   "coverage": 0.75,
+   "live": 9,
+   "selected": 12,
+   "stale_24h": 3,
+   "unreachable_or_empty": 0
+  },
+  "turkey_kahramanmaras": {
+   "coverage": 0.909,
+   "live": 10,
+   "selected": 11,
+   "stale_24h": 0,
+   "unreachable_or_empty": 1
+  }
+ },
+ "schema": "net1-integrity-snapshot-v1",
+ "stations": [
+  {
+   "bytes_1h": 370688,
+   "carrier": "istanbul_marmara",
+   "http_1h": 200,
+   "network": "KO",
+   "station_id": "KO.ADVT",
+   "status": "LIVE"
+  },
+  {
+   "bytes_1h": 657920,
+   "carrier": "istanbul_marmara",
+   "http_1h": 200,
+   "network": "KO",
+   "station_id": "KO.BOTS",
+   "status": "LIVE"
+  },
+  {
+   "bytes_1h": 520192,
+   "carrier": "istanbul_marmara",
+   "http_1h": 200,
+   "network": "KO",
+   "station_id": "KO.GAZK",
+   "status": "LIVE"
+  },
+  {
+   "bytes_1h": 545280,
+   "carrier": "istanbul_marmara",
+   "http_1h": 200,
+   "network": "KO",
+   "station_id": "KO.GEML",
+   "status": "LIVE"
+  },
+  {
+   "bytes_1h": 527360,
+   "carrier": "istanbul_marmara",
+   "http_1h": 200,
+   "network": "KO",
+   "station_id": "KO.GULT",
+   "status": "LIVE"
+  },
+  {
+   "bytes_1h": 402432,
+   "carrier": "istanbul_marmara",
+   "http_1h": 200,
+   "network": "KO",
+   "station_id": "KO.HRTX",
+   "status": "LIVE"
+  },
+  {
+   "bytes_1h": 422400,
+   "carrier": "istanbul_marmara",
+   "http_1h": 200,
+   "network": "KO",
+   "station_id": "KO.ISK",
+   "status": "LIVE"
+  },
+  {
+   "bytes_1h": 627200,
+   "carrier": "istanbul_marmara",
+   "http_1h": 200,
+   "network": "KO",
+   "station_id": "KO.KAVV",
+   "status": "LIVE"
+  },
+  {
+   "bytes_1h": 508928,
+   "carrier": "istanbul_marmara",
+   "http_1h": 200,
+   "network": "KO",
+   "station_id": "KO.KRBG",
+   "status": "LIVE"
+  },
+  {
+   "bytes_1h": 657408,
+   "carrier": "istanbul_marmara",
+   "http_1h": 200,
+   "network": "KO",
+   "station_id": "KO.MDNY",
+   "status": "LIVE"
+  },
+  {
+   "bytes_1h": 704000,
+   "carrier": "istanbul_marmara",
+   "http_1h": 200,
+   "network": "KO",
+   "station_id": "KO.NMR2",
+   "status": "LIVE"
+  },
+  {
+   "bytes_1h": 491520,
+   "carrier": "istanbul_marmara",
+   "http_1h": 200,
+   "network": "KO",
+   "station_id": "KO.NMR3",
+   "status": "LIVE"
+  },
+  {
+   "bytes_1h": 393216,
+   "carrier": "socal_coachella",
+   "http_1h": 200,
+   "network": "CI",
+   "station_id": "CI.ACP",
+   "status": "LIVE"
+  },
+  {
+   "bytes_1h": 0,
+   "bytes_24h": 90112,
+   "carrier": "socal_coachella",
+   "http_1h": 204,
+   "http_24h": 200,
+   "network": "CI",
+   "station_id": "CI.ANG",
+   "status": "STALE_24H"
+  },
+  {
+   "bytes_1h": 0,
+   "bytes_24h": 12288,
+   "carrier": "socal_coachella",
+   "http_1h": 204,
+   "http_24h": 200,
+   "network": "CI",
+   "station_id": "CI.BAR",
+   "status": "STALE_24H"
+  },
+  {
+   "bytes_1h": 507904,
+   "carrier": "socal_coachella",
+   "http_1h": 200,
+   "network": "CI",
+   "station_id": "CI.BC3",
+   "status": "LIVE"
+  },
+  {
+   "bytes_1h": 393216,
+   "carrier": "socal_coachella",
+   "http_1h": 200,
+   "network": "CI",
+   "station_id": "CI.BEL",
+   "status": "LIVE"
+  },
+  {
+   "bytes_1h": 393216,
+   "carrier": "socal_coachella",
+   "http_1h": 200,
+   "network": "CI",
+   "station_id": "CI.BLA2",
+   "status": "LIVE"
+  },
+  {
+   "bytes_1h": 684032,
+   "carrier": "socal_coachella",
+   "http_1h": 200,
+   "network": "CI",
+   "station_id": "CI.BOM",
+   "status": "LIVE"
+  },
+  {
+   "bytes_1h": 512000,
+   "carrier": "socal_coachella",
+   "http_1h": 200,
+   "network": "CI",
+   "station_id": "CI.BOR",
+   "status": "LIVE"
+  },
+  {
+   "bytes_1h": 0,
+   "bytes_24h": 4096,
+   "carrier": "socal_coachella",
+   "http_1h": 204,
+   "http_24h": 200,
+   "network": "CI",
+   "station_id": "CI.COA",
+   "status": "STALE_24H"
+  },
+  {
+   "bytes_1h": 401408,
+   "carrier": "socal_coachella",
+   "http_1h": 200,
+   "network": "CI",
+   "station_id": "CI.CRR",
+   "status": "LIVE"
+  },
+  {
+   "bytes_1h": 393216,
+   "carrier": "socal_coachella",
+   "http_1h": 200,
+   "network": "CI",
+   "station_id": "CI.CSH",
+   "status": "LIVE"
+  },
+  {
+   "bytes_1h": 724992,
+   "carrier": "socal_coachella",
+   "http_1h": 200,
+   "network": "CI",
+   "station_id": "CI.CTC",
+   "status": "LIVE"
+  },
+  {
+   "bytes_1h": 414720,
+   "carrier": "turkey_kahramanmaras",
+   "http_1h": 200,
+   "network": "KO",
+   "station_id": "KO.AKDG",
+   "status": "LIVE"
+  },
+  {
+   "bytes_1h": 814080,
+   "carrier": "turkey_kahramanmaras",
+   "http_1h": 200,
+   "network": "KO",
+   "station_id": "KO.ARGN",
+   "status": "LIVE"
+  },
+  {
+   "bytes_1h": 404992,
+   "carrier": "turkey_kahramanmaras",
+   "http_1h": 200,
+   "network": "KO",
+   "station_id": "KO.BNN",
+   "status": "LIVE"
+  },
+  {
+   "bytes_1h": 433152,
+   "carrier": "turkey_kahramanmaras",
+   "http_1h": 200,
+   "network": "KO",
+   "station_id": "KO.GAZ",
+   "status": "LIVE"
+  },
+  {
+   "bytes_1h": 523776,
+   "carrier": "turkey_kahramanmaras",
+   "http_1h": 200,
+   "network": "KO",
+   "station_id": "KO.KARA",
+   "status": "LIVE"
+  },
+  {
+   "bytes_1h": 651264,
+   "carrier": "turkey_kahramanmaras",
+   "http_1h": 200,
+   "network": "KO",
+   "station_id": "KO.KBAN",
+   "status": "LIVE"
+  },
+  {
+   "bytes_1h": 0,
+   "bytes_24h": 0,
+   "carrier": "turkey_kahramanmaras",
+   "http_1h": 204,
+   "http_24h": 204,
+   "network": "KO",
+   "station_id": "KO.KHMN",
+   "status": "NO_DATA_24H"
+  },
+  {
+   "bytes_1h": 424960,
+   "carrier": "turkey_kahramanmaras",
+   "http_1h": 200,
+   "network": "KO",
+   "station_id": "KO.KOZT",
+   "status": "LIVE"
+  },
+  {
+   "bytes_1h": 626176,
+   "carrier": "turkey_kahramanmaras",
+   "http_1h": 200,
+   "network": "KO",
+   "station_id": "KO.MLTY",
+   "status": "LIVE"
+  },
+  {
+   "bytes_1h": 395264,
+   "carrier": "turkey_kahramanmaras",
+   "http_1h": 200,
+   "network": "KO",
+   "station_id": "KO.NURH",
+   "status": "LIVE"
+  },
+  {
+   "bytes_1h": 696320,
+   "carrier": "turkey_kahramanmaras",
+   "http_1h": 200,
+   "network": "KO",
+   "station_id": "KO.TAHT",
+   "status": "LIVE"
+  }
+ ]
+}

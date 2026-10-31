@@ -1,0 +1,35 @@
+{
+ "schema": "f2g-w2-mf4-final-bind-record-v1",
+ "registered_utc": "2026-08-30T05:43:10Z",
+ "status": "PRIVATE_CANDIDATE_PENDING_OWNER_LANDING",
+ "artifact_commit": "d83248181d3299dc7e05ae31959cbf18233b5d3b",
+ "artifact_commit_parent": "a76e2ce90b631958d23e53498d1f6db694aa3075",
+ "expected_input_sha256": "e38d9488143aef35228366fdee9abf45ddb3716b25ef26d4bab413e969202115",
+ "expected_ledger_sha256": "44d4ec4d9194ef97bbc9a1d441e7e2fef9bd43ac57f275130765d766f03a35d5",
+ "expected_source": "codex MF4_POST_RUN_LEDGER_PASS, framework commit d899e3a9723269ddb7854821effd845ea37f3088 (independent no-refit recomputation; both values are codex's, not self-issued)",
+ "artifact_blob_sha256": {
+  "mf4_input_feed_amended.json": "c337b07f18a237155da2439e5ece57b8ad793301941edeb90d03e0286e185511",
+  "mf4_ledger_amended.json": "3f07d9bb112b9d195cce1fd97e5f6f304ca1c2a28d6d66d65b3bf5a70e90623a",
+  "mf4_ledger_amended.receipt.json": "251be9a46951e1ce77fda8d532b86f341c0351b092b2ec2462b6500920775c88"
+ },
+ "bound_digests": {
+  "engine_training_digest": "a3f94c23e1162c2aecfe4b54686edfdb5f35078dc72840b2344dd56a016d7dfd",
+  "amended_training_digest": "bbb193d0e008703ec764c08cf4471478a13ce33bb55ceaf9f558a28ce1160ffc",
+  "canonical_event_table_sha256": "1e4839cf062ad63c8b8bb8b835b829925a80f3d38c2552962fbd94c047092ad2",
+  "result_commit": "4893e63281e52d5a8e9d5047fe2aa2f445cd0dc4"
+ },
+ "run_identity": {
+  "host": "devildog",
+  "interpreter": "Python 3.11.9 (MSC v.1938 64-bit)",
+  "started_utc": "2026-08-30T05:19:08Z",
+  "ended_utc": "2026-08-30T05:20:07Z",
+  "n_rows": 3727,
+  "class_counts_codex_recomputed": [3097, 630]
+ },
+ "nonclaims": [
+  "this record is a PRIVATE candidate; it lands publicly only on asylum's explicit authorization of the exact chain",
+  "no scientific admission, publication, promotion, or prospective-value access",
+  "producer_boundary and calibration_ledgers remain OPEN until this record lands and passes its later gate",
+  "Lambda_geo remains INCONCLUSIVE"
+ ]
+}

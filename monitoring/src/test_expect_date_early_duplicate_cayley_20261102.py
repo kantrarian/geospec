@@ -39,8 +39,9 @@ def _published_days():
 class _Run:
     """main() with argv, tripwires on every fetch/write seam, optional REV stubs; returns (rc, calls, logs, unchanged)."""
 
-    def __init__(self, argv, *, stub_view=False, refuse_checkout=None):
-        self.argv, self.stub_view, self.refuse_checkout = argv, stub_view, refuse_checkout
+    def __init__(self, argv, *, stub_view=False, refuse_checkout=None, now=None):
+        self.argv, self.stub_view, self.refuse_checkout, self.now = argv, stub_view, refuse_checkout, now
+        self.replay_mode = None
 
     def __call__(self):
         calls, saved, saved_rev = [], {}, {}
@@ -57,6 +58,16 @@ class _Run:
                 raise AssertionError("TRIPWIRE " + name)
             return _t
         saved_argv = sys.argv
+        saved_dt, saved_mode = RED.datetime, RED._HISTORICAL_REPLAY
+        RED._HISTORICAL_REPLAY = False                      # the module default; --date sets it inside main()
+        if self.now is not None:
+            fixed = self.now
+
+            class _FixedClock(saved_dt):
+                @classmethod
+                def now(cls, tz=None):
+                    return fixed if tz is not None else fixed.replace(tzinfo=None)
+            RED.datetime = _FixedClock
         try:
             for name in SEAMS:
                 if hasattr(RED, name):
@@ -77,6 +88,8 @@ class _Run:
             except AssertionError as e:
                 rc = "TRIPWIRE:%s" % e
         finally:
+            self.replay_mode = RED._HISTORICAL_REPLAY
+            RED.datetime, RED._HISTORICAL_REPLAY = saved_dt, saved_mode
             sys.argv = saved_argv
             for n, f in saved.items():
                 setattr(RED, n, f)
@@ -139,6 +152,41 @@ class ExpectDateAndEarlyDuplicate(unittest.TestCase):
         self.assertTrue(str(rc).startswith("TRIPWIRE"), rc)       # reached scoring: the check let it through
         self.assertEqual(calls[:1], ["run_all_regions"])
         self.assertNotIn("REVISION_EXISTS_BEFORE_FETCH", logs)
+
+    def test_auto_and_auto_with_matching_expectation_behave_identically(self):
+        """codex 05f6019e: the assertion never changes the ordinary mode. A fixed clock puts the auto day on the first
+        unpublished day; both runs reach scoring the same way and neither selects the --date historical replay."""
+        import datetime as d
+        day = (d.date.fromisoformat(max(_published_days())) + d.timedelta(days=1))
+        now = d.datetime(day.year, day.month, day.day, 12, 0, tzinfo=d.timezone.utc) + d.timedelta(days=2)
+        plain = _Run([], stub_view=True, now=now)
+        r1 = plain()
+        expect = _Run(["--expect-date", day.isoformat()], stub_view=True, now=now)
+        r2 = expect()
+        self.assertTrue(str(r1[0]).startswith("TRIPWIRE") and str(r2[0]).startswith("TRIPWIRE"), (r1[0], r2[0]))
+        self.assertEqual(r1[1], r2[1])
+        self.assertIs(plain.replay_mode, False)
+        self.assertIs(expect.replay_mode, False)
+        self.assertIn("Starting ensemble assessment for %s" % day.isoformat(), r2[2])
+
+    def test_utc_midnight_crossed_between_claim_and_scoring_refuses_without_substitution(self):
+        """D3 claimed day X before UTC midnight; recalibration (or a late launch) carried the runner past midnight, so
+        its auto day is X+1. The bound expectation X refuses -- the day is never moved to X+1 silently."""
+        import datetime as d
+        claimed = d.date.fromisoformat(max(_published_days())) + d.timedelta(days=1)
+        after_midnight = d.datetime(claimed.year, claimed.month, claimed.day, 0, 5, tzinfo=d.timezone.utc) + d.timedelta(days=3)
+        rc, calls, logs, unchanged = _Run(["--expect-date", claimed.isoformat()], stub_view=True, now=after_midnight)()
+        self.assertEqual((rc, calls, unchanged), (12, [], True))
+        self.assertIn("EXPECTED_DAY_MISMATCH: this run scores %s" % (claimed + d.timedelta(days=1)).isoformat(), logs)
+
+    def test_explicit_replay_remains_store_free_with_or_without_expectation(self):
+        import datetime as d
+        day = (d.date.fromisoformat(max(_published_days())) + d.timedelta(days=1)).isoformat()
+        for argv in (["--date", day], ["--date", day, "--expect-date", day]):
+            run = _Run(argv, stub_view=True)
+            rc = run()[0]
+            self.assertTrue(str(rc).startswith("TRIPWIRE"), (argv, rc))
+            self.assertIs(run.replay_mode, True, argv)
 
     def test_rescore_bypasses_only_the_early_check(self):
         day = max(_published_days())

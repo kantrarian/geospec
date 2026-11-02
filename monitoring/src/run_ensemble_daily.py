@@ -1479,6 +1479,13 @@ def main():
              'one and this reason. Without it, a second run of a scored day '
              'REFUSES (exit 12) and writes nothing public.'
     )
+    parser.add_argument(
+        '--expect-date', type=str, default=None, metavar='YYYY-MM-DD',
+        help='ASSERT the scored day (cayley 2026-11-02, codex afb97398): the run '
+             'refuses with exit 12 (EXPECTED_DAY_MISMATCH) before any preflight, '
+             'fetch or local write unless its own day equals this one. It never '
+             'sets the day and never switches to the --date historical replay.'
+    )
 
     args = parser.parse_args()
 
@@ -1511,6 +1518,22 @@ def main():
         target_date = (datetime(today_utc.year, today_utc.month, today_utc.day)
                        - timedelta(days=args.latency))
         logger.info(f"Using {args.latency}-day latency offset (UTC data date: {target_date.date()})")
+
+    # cayley 2026-11-02 (codex afb97398 finding 1): the caller's EXPECTED day is
+    # ASSERTED here, before the preflight, the provider fetch and any local
+    # write. The day itself is still derived above (B6 auto rule, or --date);
+    # nothing here moves it or changes replay semantics. A wrapper whose
+    # recalibration crossed UTC midnight now refuses instead of scoring the
+    # next day (attempt B, 2026-11-02 04:36Z).
+    if args.expect_date is not None:
+        try:
+            expected = datetime.strptime(args.expect_date, '%Y-%m-%d').strftime('%Y-%m-%d')
+        except ValueError:
+            expected = None
+        if expected != args.expect_date or expected != target_date.strftime('%Y-%m-%d'):
+            logger.error(f"EXPECTED_DAY_MISMATCH: this run scores {target_date.strftime('%Y-%m-%d')}; "
+                         f"the caller expected {args.expect_date!r}; nothing scored, fetched or written")
+            return 12
 
     # Determine regions
     regions = [args.region] if args.region else None
@@ -1548,6 +1571,20 @@ def main():
                     "LEGACY_CAPSULE_ABSENT: run `--cutover` once (owner) before "
                     "the first production run of the revision model")
             journal_snapshot = REV.journal_bytes(REPO_ROOT)
+            # cayley 2026-11-02 (codex afb97398 finding 2): a day that ALREADY
+            # has a current public revision is refused HERE -- before scoring,
+            # the provider fetch and save_results -- not after them at publish
+            # time (where it overwrote the canonical local record first). An
+            # already-published day is imported, never re-collected; a re-score
+            # still needs --rescore. publish_revision keeps its own race guard.
+            if args.rescore is None:
+                _day = target_date.strftime('%Y-%m-%d')
+                _cur = REV.current_map(REV.parse_journal(journal_snapshot)).get(_day)
+                if _cur is not None:
+                    raise REV.RevisionRefusal(
+                        f"REVISION_EXISTS_BEFORE_FETCH: {_day} already has current revision "
+                        f"{_cur['run_id']}; nothing scored, fetched or written (an already-"
+                        "published day is imported, not re-collected; a re-score needs --rescore)")
             view = REV.prior_days_view(REPO_ROOT, journal_snapshot, legacy_cap,
                                        target_date.strftime('%Y-%m-%d'), 3)
         except REV.RevisionRefusal as e:

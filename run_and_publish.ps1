@@ -3,7 +3,10 @@
 # Keeps source code private, only pushes data to public dashboard
 
 param(
-    [string]$Date = "auto"
+    [string]$Date = "auto",
+    # cayley 2026-11-02 (codex afb97398): the caller's EXPECTED scored day, passed to the runner as an ASSERTION
+    # (--expect-date); it never sets the day and never selects the --date historical replay. Empty = no assertion.
+    [string]$ExpectDate = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -98,9 +101,17 @@ if ($ThdNeedsRecal) {
 
 try {
     if ($Date -eq "auto") {
-        python -m src.run_ensemble_daily
+        if ($ExpectDate) {
+            python -m src.run_ensemble_daily --expect-date $ExpectDate
+        } else {
+            python -m src.run_ensemble_daily
+        }
     } else {
-        python -m src.run_ensemble_daily --date $Date
+        if ($ExpectDate) {
+            python -m src.run_ensemble_daily --date $Date --expect-date $ExpectDate
+        } else {
+            python -m src.run_ensemble_daily --date $Date
+        }
     }
     $MonitoringExitCode = $LASTEXITCODE
 } finally {

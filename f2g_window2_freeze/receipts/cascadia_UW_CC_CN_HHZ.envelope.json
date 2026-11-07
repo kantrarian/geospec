@@ -1,0 +1,21 @@
+{
+ "body_path": "docs/f2g_window2_freeze/receipts/cascadia_UW_CC_CN_HHZ.txt",
+ "body_sha256": "d4256792bf85edf855a4dbaf7841982824a020cd5e075c103d832248c513a847",
+ "channel_rows": 203,
+ "effective_url": "https://service.earthscope.org/fdsnws/station/1/query?net=UW,CC,CN&cha=HHZ&level=channel&format=text&minlatitude=45.0&maxlatitude=51.0&minlongitude=-128.0&maxlongitude=-121.5&starttime=2026-07-11&endtime=2026-11-30&nodata=404",
+ "fired_utc": "2026-08-22T01:00:12Z",
+ "http_status": 200,
+ "parser_version": "f2g-w2-cascadia-parser-v1 (pipe-split, strip, skip #)",
+ "per_network_unique": {
+  "CC": 43,
+  "CN": 37,
+  "UW": 118
+ },
+ "requested_url": "https://service.iris.edu/fdsnws/station/1/query?net=UW,CC,CN&cha=HHZ&level=channel&format=text&minlatitude=45.0&maxlatitude=51.0&minlongitude=-128.0&maxlongitude=-121.5&starttime=2026-07-11&endtime=2026-11-30&nodata=404",
+ "response_headers": {
+  "Content-Type": "text/plain",
+  "Date": "Sat, 22 Aug 2026 01:00:10 GMT"
+ },
+ "schema": "f2g-receipt-envelope-v1",
+ "unique_net_sta": 198
+}

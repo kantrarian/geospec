@@ -1,0 +1,425 @@
+{
+ "counts": {
+  "B1B_detection": 48,
+  "B1B_specificity": 2,
+  "B2A": 3,
+  "B2B": 5,
+  "B3A": 24,
+  "total": 82
+ },
+ "grids": {
+  "B1B": [
+   {
+    "delta_lat": 0.3,
+    "k": 3,
+    "n_e": 3
+   },
+   {
+    "delta_lat": 0.3,
+    "k": 3,
+    "n_e": 10
+   },
+   {
+    "delta_lat": 0.3,
+    "k": 3,
+    "n_e": 33
+   },
+   {
+    "delta_lat": 0.3,
+    "k": 10,
+    "n_e": 3
+   },
+   {
+    "delta_lat": 0.3,
+    "k": 10,
+    "n_e": 10
+   },
+   {
+    "delta_lat": 0.3,
+    "k": 10,
+    "n_e": 33
+   },
+   {
+    "delta_lat": 0.3,
+    "k": 25,
+    "n_e": 3
+   },
+   {
+    "delta_lat": 0.3,
+    "k": 25,
+    "n_e": 10
+   },
+   {
+    "delta_lat": 0.3,
+    "k": 25,
+    "n_e": 33
+   },
+   {
+    "delta_lat": 0.3,
+    "k": 50,
+    "n_e": 3
+   },
+   {
+    "delta_lat": 0.3,
+    "k": 50,
+    "n_e": 10
+   },
+   {
+    "delta_lat": 0.3,
+    "k": 50,
+    "n_e": 33
+   },
+   {
+    "delta_lat": 0.6,
+    "k": 3,
+    "n_e": 3
+   },
+   {
+    "delta_lat": 0.6,
+    "k": 3,
+    "n_e": 10
+   },
+   {
+    "delta_lat": 0.6,
+    "k": 3,
+    "n_e": 33
+   },
+   {
+    "delta_lat": 0.6,
+    "k": 10,
+    "n_e": 3
+   },
+   {
+    "delta_lat": 0.6,
+    "k": 10,
+    "n_e": 10
+   },
+   {
+    "delta_lat": 0.6,
+    "k": 10,
+    "n_e": 33
+   },
+   {
+    "delta_lat": 0.6,
+    "k": 25,
+    "n_e": 3
+   },
+   {
+    "delta_lat": 0.6,
+    "k": 25,
+    "n_e": 10
+   },
+   {
+    "delta_lat": 0.6,
+    "k": 25,
+    "n_e": 33
+   },
+   {
+    "delta_lat": 0.6,
+    "k": 50,
+    "n_e": 3
+   },
+   {
+    "delta_lat": 0.6,
+    "k": 50,
+    "n_e": 10
+   },
+   {
+    "delta_lat": 0.6,
+    "k": 50,
+    "n_e": 33
+   },
+   {
+    "delta_lat": 1.2,
+    "k": 3,
+    "n_e": 3
+   },
+   {
+    "delta_lat": 1.2,
+    "k": 3,
+    "n_e": 10
+   },
+   {
+    "delta_lat": 1.2,
+    "k": 3,
+    "n_e": 33
+   },
+   {
+    "delta_lat": 1.2,
+    "k": 10,
+    "n_e": 3
+   },
+   {
+    "delta_lat": 1.2,
+    "k": 10,
+    "n_e": 10
+   },
+   {
+    "delta_lat": 1.2,
+    "k": 10,
+    "n_e": 33
+   },
+   {
+    "delta_lat": 1.2,
+    "k": 25,
+    "n_e": 3
+   },
+   {
+    "delta_lat": 1.2,
+    "k": 25,
+    "n_e": 10
+   },
+   {
+    "delta_lat": 1.2,
+    "k": 25,
+    "n_e": 33
+   },
+   {
+    "delta_lat": 1.2,
+    "k": 50,
+    "n_e": 3
+   },
+   {
+    "delta_lat": 1.2,
+    "k": 50,
+    "n_e": 10
+   },
+   {
+    "delta_lat": 1.2,
+    "k": 50,
+    "n_e": 33
+   },
+   {
+    "delta_lat": 2.4,
+    "k": 3,
+    "n_e": 3
+   },
+   {
+    "delta_lat": 2.4,
+    "k": 3,
+    "n_e": 10
+   },
+   {
+    "delta_lat": 2.4,
+    "k": 3,
+    "n_e": 33
+   },
+   {
+    "delta_lat": 2.4,
+    "k": 10,
+    "n_e": 3
+   },
+   {
+    "delta_lat": 2.4,
+    "k": 10,
+    "n_e": 10
+   },
+   {
+    "delta_lat": 2.4,
+    "k": 10,
+    "n_e": 33
+   },
+   {
+    "delta_lat": 2.4,
+    "k": 25,
+    "n_e": 3
+   },
+   {
+    "delta_lat": 2.4,
+    "k": 25,
+    "n_e": 10
+   },
+   {
+    "delta_lat": 2.4,
+    "k": 25,
+    "n_e": 33
+   },
+   {
+    "delta_lat": 2.4,
+    "k": 50,
+    "n_e": 3
+   },
+   {
+    "delta_lat": 2.4,
+    "k": 50,
+    "n_e": 10
+   },
+   {
+    "delta_lat": 2.4,
+    "k": 50,
+    "n_e": 33
+   },
+   {
+    "gain": 3.0
+   },
+   {
+    "gain": 10.0
+   }
+  ],
+  "B2A": [
+   {
+    "m": 1
+   },
+   {
+    "m": 2
+   },
+   {
+    "m": 3
+   }
+  ],
+  "B2B": [
+   {
+    "m": 1
+   },
+   {
+    "m": 2
+   },
+   {
+    "m": 3
+   },
+   {
+    "dropout": 0.1,
+    "m": 2
+   },
+   {
+    "dropout": 0.25,
+    "m": 2
+   }
+  ],
+  "B3A": [
+   {
+    "delta_lat": 0.3,
+    "k": 10,
+    "n_cross": 3
+   },
+   {
+    "delta_lat": 0.3,
+    "k": 25,
+    "n_cross": 3
+   },
+   {
+    "delta_lat": 0.3,
+    "k": 50,
+    "n_cross": 3
+   },
+   {
+    "delta_lat": 0.3,
+    "k": 10,
+    "n_cross": 8
+   },
+   {
+    "delta_lat": 0.3,
+    "k": 25,
+    "n_cross": 8
+   },
+   {
+    "delta_lat": 0.3,
+    "k": 50,
+    "n_cross": 8
+   },
+   {
+    "delta_lat": 0.6,
+    "k": 10,
+    "n_cross": 3
+   },
+   {
+    "delta_lat": 0.6,
+    "k": 25,
+    "n_cross": 3
+   },
+   {
+    "delta_lat": 0.6,
+    "k": 50,
+    "n_cross": 3
+   },
+   {
+    "delta_lat": 0.6,
+    "k": 10,
+    "n_cross": 8
+   },
+   {
+    "delta_lat": 0.6,
+    "k": 25,
+    "n_cross": 8
+   },
+   {
+    "delta_lat": 0.6,
+    "k": 50,
+    "n_cross": 8
+   },
+   {
+    "delta_lat": 1.2,
+    "k": 10,
+    "n_cross": 3
+   },
+   {
+    "delta_lat": 1.2,
+    "k": 25,
+    "n_cross": 3
+   },
+   {
+    "delta_lat": 1.2,
+    "k": 50,
+    "n_cross": 3
+   },
+   {
+    "delta_lat": 1.2,
+    "k": 10,
+    "n_cross": 8
+   },
+   {
+    "delta_lat": 1.2,
+    "k": 25,
+    "n_cross": 8
+   },
+   {
+    "delta_lat": 1.2,
+    "k": 50,
+    "n_cross": 8
+   },
+   {
+    "delta_lat": 2.4,
+    "k": 10,
+    "n_cross": 3
+   },
+   {
+    "delta_lat": 2.4,
+    "k": 25,
+    "n_cross": 3
+   },
+   {
+    "delta_lat": 2.4,
+    "k": 50,
+    "n_cross": 3
+   },
+   {
+    "delta_lat": 2.4,
+    "k": 10,
+    "n_cross": 8
+   },
+   {
+    "delta_lat": 2.4,
+    "k": 25,
+    "n_cross": 8
+   },
+   {
+    "delta_lat": 2.4,
+    "k": 50,
+    "n_cross": 8
+   }
+  ]
+ },
+ "provenance": {
+  "claim_ceiling": "registration only; no power value; Lambda_geo INCONCLUSIVE",
+  "note": "verbatim transcription of the frozen grid definitions; registered_grid_index = list position; k=3 B1B cells are the registered DILUTION probes (annex B1A disclosure); transcription verification is a review item",
+  "producer": "monitoring/src/w2_effect_grids_gen_cayley.py",
+  "sources": [
+   "docs/f2g_window2_freeze/annex_b2b.md",
+   "docs/f2g_phase_b_power_annex_b2a.md",
+   "docs/f2g_phase_b_power_annex_b1a.md",
+   "docs/f2g_window2_freeze/annex_b1b.md",
+   "docs/f2g_phase_b_power_annex_b3a.md"
+  ]
+ },
+ "schema": "f2g-w2-effect-grids-v1"
+}

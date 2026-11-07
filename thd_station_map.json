@@ -1,0 +1,461 @@
+{
+ "distance_basis": {
+  "box_km": "great-circle km to the lat/lon-clamped point of that box; 0 = inside, not a geodesic minimum",
+  "centre_km": "great-circle km from the station to the midpoint of the region's REGION_BOUNDS lat/lon box",
+  "note": "neither is a distance to a fault trace"
+ },
+ "inputs": {
+  "bounds": "monitoring/src/event_scorer.py:REGION_BOUNDS",
+  "regions": "monitoring/src/run_ensemble_daily.py:REGIONS",
+  "report": "docs/ensemble_latest.json",
+  "station_metadata": {
+   "earthscope.txt": {
+    "bytes": 885,
+    "retrieved_utc": "2026-09-27T20:16:32Z",
+    "sha256": "7a1a4ec8b72fc7590a9788f9ce2b89468dc36549c6c98e2df334613d00867198",
+    "url": "https://service.iris.edu/fdsnws/station/1/query?net=IU,AK,G,MX&sta=TUC,COR,MAJO,ANTO,SNZO,COLA,TATO,SSL,UNM,TLIG&level=station&format=text",
+    "url_effective": "https://service.earthscope.org/fdsnws/station/1/query?net=IU,AK,G,MX&sta=TUC,COR,MAJO,ANTO,SNZO,COLA,TATO,SSL,UNM,TLIG&level=station&format=text"
+   },
+   "ingv.txt": {
+    "bytes": 145,
+    "retrieved_utc": "2026-09-27T20:16:32Z",
+    "sha256": "5ec9b46c086c9eb0b930d42aea5a1c5f905323e01eda76b9eae833f0db4f7268",
+    "url": "https://webservices.ingv.it/fdsnws/station/1/query?net=IV&sta=CAFE&level=station&format=text",
+    "url_effective": "https://webservices.ingv.it/fdsnws/station/1/query?net=IV&sta=CAFE&level=station&format=text"
+   },
+   "ncedc.txt": {
+    "bytes": 447,
+    "retrieved_utc": "2026-09-27T20:16:33Z",
+    "sha256": "2be265fe3fc35a10f596801f2c67f0fad2e13f73de86995a4df1fb737612fdbf",
+    "url": "https://service.ncedc.org/fdsnws/station/1/query?net=BK&sta=BKS&level=station&format=text",
+    "url_effective": "https://service.ncedc.org/fdsnws/station/1/query?net=BK&sta=BKS&level=station&format=text"
+   }
+  }
+ },
+ "regions": [
+  {
+   "baseline_n_days": 91,
+   "configured_fallback": "AK.BMR",
+   "configured_fallback2": null,
+   "configured_primary": "IU.COLA",
+   "distances": {
+    "AK.BMR": {
+     "status": "COORDINATES_NOT_ON_FILE"
+    },
+    "IU.COLA": {
+     "box_km": 264.0,
+     "centre_km": 444.0
+    }
+   },
+   "name": "Alaska (Anchorage)",
+   "official_source": {
+    "name": "USGS",
+    "url": "https://earthquake.usgs.gov/earthquakes/map/"
+   },
+   "recorded_basis": "LATEST_REPORT_NOTES_STA",
+   "recorded_station": "IU.COLA",
+   "region": "anchorage",
+   "shares_recorded_station_with": []
+  },
+  {
+   "baseline_n_days": null,
+   "configured_fallback": null,
+   "configured_fallback2": null,
+   "configured_primary": "IV.CAFE",
+   "distances": {
+    "IV.CAFE": {
+     "box_km": 79.9,
+     "centre_km": 94.8
+    }
+   },
+   "name": "Campi Flegrei",
+   "official_source": {
+    "name": "INGV",
+    "url": "https://www.ov.ingv.it/"
+   },
+   "recorded_basis": "LATEST_REPORT_NOTES_ATTEMPTED_NO_VALUE",
+   "recorded_station": "IV.CAFE",
+   "region": "campi_flegrei",
+   "shares_recorded_station_with": []
+  },
+  {
+   "baseline_n_days": 91,
+   "configured_fallback": null,
+   "configured_fallback2": null,
+   "configured_primary": "IU.COR",
+   "distances": {
+    "IU.COR": {
+     "box_km": 0.0,
+     "centre_km": 48.6
+    }
+   },
+   "name": "Cascadia",
+   "official_source": {
+    "name": "USGS",
+    "url": "https://earthquake.usgs.gov/earthquakes/map/"
+   },
+   "recorded_basis": "LATEST_REPORT_NOTES_STA",
+   "recorded_station": "IU.COR",
+   "region": "cascadia",
+   "shares_recorded_station_with": []
+  },
+  {
+   "baseline_n_days": 89,
+   "configured_fallback": null,
+   "configured_fallback2": null,
+   "configured_primary": "IU.TATO",
+   "distances": {
+    "IU.TATO": {
+     "box_km": 52.7,
+     "centre_km": 136.0
+    }
+   },
+   "name": "Taiwan (Hualien)",
+   "official_source": {
+    "name": "CWA",
+    "url": "https://scweb.cwa.gov.tw/en-US"
+   },
+   "recorded_basis": "LATEST_REPORT_NOTES_STA",
+   "recorded_station": "IU.TATO",
+   "region": "hualien",
+   "shares_recorded_station_with": []
+  },
+  {
+   "baseline_n_days": 91,
+   "configured_fallback": null,
+   "configured_fallback2": null,
+   "configured_primary": "IU.ANTO",
+   "distances": {
+    "IU.ANTO": {
+     "box_km": 244.7,
+     "centre_km": 317.7
+    }
+   },
+   "name": "Istanbul Marmara",
+   "official_source": {
+    "name": "AFAD",
+    "url": "https://deprem.afad.gov.tr/"
+   },
+   "recorded_basis": "LATEST_REPORT_NOTES_STA",
+   "recorded_station": "IU.ANTO",
+   "region": "istanbul_marmara",
+   "shares_recorded_station_with": [
+    "turkey_kahramanmaras"
+   ]
+  },
+  {
+   "baseline_n_days": null,
+   "configured_fallback": null,
+   "configured_fallback2": null,
+   "configured_primary": "IU.SNZO",
+   "distances": {
+    "IU.SNZO": {
+     "box_km": 27.3,
+     "centre_km": 144.7
+    }
+   },
+   "name": "New Zealand (Kaikoura)",
+   "official_source": {
+    "name": "GeoNet",
+    "url": "https://www.geonet.org.nz/"
+   },
+   "recorded_basis": "LATEST_REPORT_NOTES_ATTEMPTED_NO_VALUE",
+   "recorded_station": "IU.SNZO",
+   "region": "kaikoura",
+   "shares_recorded_station_with": []
+  },
+  {
+   "baseline_n_days": 91,
+   "configured_fallback": null,
+   "configured_fallback2": null,
+   "configured_primary": "IU.MAJO",
+   "distances": {
+    "IU.MAJO": {
+     "box_km": 697.9,
+     "centre_km": 801.5
+    }
+   },
+   "name": "Japan (Kumamoto)",
+   "official_source": {
+    "name": "JMA",
+    "url": "https://www.jma.go.jp/jma/indexe.html"
+   },
+   "recorded_basis": "LATEST_REPORT_NOTES_STA",
+   "recorded_station": "IU.MAJO",
+   "region": "kumamoto",
+   "shares_recorded_station_with": [
+    "tokyo_kanto"
+   ]
+  },
+  {
+   "baseline_n_days": 46,
+   "configured_fallback": "G.UNM",
+   "configured_fallback2": null,
+   "configured_primary": "MX.TLIG",
+   "distances": {
+    "G.UNM": {
+     "box_km": 92.3,
+     "centre_km": 259.7
+    },
+    "MX.TLIG": {
+     "box_km": 0.0,
+     "centre_km": 77.7
+    }
+   },
+   "name": "Mexico (Guerrero)",
+   "official_source": {
+    "name": "SSN",
+    "url": "http://www.ssn.unam.mx/"
+   },
+   "recorded_basis": "LATEST_REPORT_NOTES_STA",
+   "recorded_station": "MX.TLIG",
+   "region": "mexico_guerrero",
+   "shares_recorded_station_with": []
+  },
+  {
+   "baseline_n_days": null,
+   "configured_fallback": null,
+   "configured_fallback2": null,
+   "configured_primary": "BK.BKS",
+   "distances": {
+    "BK.BKS": {
+     "box_km": 0.0,
+     "centre_km": 30.0
+    }
+   },
+   "name": "NorCal Hayward",
+   "official_source": {
+    "name": "USGS",
+    "url": "https://earthquake.usgs.gov/earthquakes/map/"
+   },
+   "recorded_basis": "LATEST_REPORT_NOTES_ATTEMPTED_NO_VALUE",
+   "recorded_station": "BK.BKS",
+   "region": "norcal_hayward",
+   "shares_recorded_station_with": []
+  },
+  {
+   "baseline_n_days": 91,
+   "configured_fallback": null,
+   "configured_fallback2": null,
+   "configured_primary": "IU.TUC",
+   "distances": {
+    "IU.TUC": {
+     "box_km": 648.2,
+     "centre_km": 746.9
+    }
+   },
+   "name": "Ridgecrest/Mojave",
+   "official_source": {
+    "name": "USGS",
+    "url": "https://earthquake.usgs.gov/earthquakes/map/"
+   },
+   "recorded_basis": "LATEST_REPORT_NOTES_STA",
+   "recorded_station": "IU.TUC",
+   "region": "ridgecrest",
+   "shares_recorded_station_with": [
+    "socal_saf_coachella",
+    "socal_saf_mojave"
+   ]
+  },
+  {
+   "baseline_n_days": 91,
+   "configured_fallback": null,
+   "configured_fallback2": null,
+   "configured_primary": "IU.TUC",
+   "distances": {
+    "IU.TUC": {
+     "box_km": 402.0,
+     "centre_km": 482.0
+    }
+   },
+   "name": "SoCal SAF Coachella",
+   "official_source": {
+    "name": "USGS",
+    "url": "https://earthquake.usgs.gov/earthquakes/map/"
+   },
+   "recorded_basis": "LATEST_REPORT_NOTES_STA",
+   "recorded_station": "IU.TUC",
+   "region": "socal_saf_coachella",
+   "shares_recorded_station_with": [
+    "ridgecrest",
+    "socal_saf_mojave"
+   ]
+  },
+  {
+   "baseline_n_days": 91,
+   "configured_fallback": null,
+   "configured_fallback2": null,
+   "configured_primary": "IU.TUC",
+   "distances": {
+    "IU.TUC": {
+     "box_km": 564.2,
+     "centre_km": 678.8
+    }
+   },
+   "name": "SoCal SAF Mojave",
+   "official_source": {
+    "name": "USGS",
+    "url": "https://earthquake.usgs.gov/earthquakes/map/"
+   },
+   "recorded_basis": "LATEST_REPORT_NOTES_STA",
+   "recorded_station": "IU.TUC",
+   "region": "socal_saf_mojave",
+   "shares_recorded_station_with": [
+    "ridgecrest",
+    "socal_saf_coachella"
+   ]
+  },
+  {
+   "baseline_n_days": 91,
+   "configured_fallback": "IU.MAJO",
+   "configured_fallback2": null,
+   "configured_primary": "HINET.N.KI2H",
+   "distances": {
+    "HINET.N.KI2H": {
+     "status": "COORDINATES_NOT_ON_FILE"
+    },
+    "IU.MAJO": {
+     "box_km": 26.9,
+     "centre_km": 181.2
+    }
+   },
+   "name": "Tokyo Kanto",
+   "official_source": {
+    "name": "JMA",
+    "url": "https://www.jma.go.jp/jma/indexe.html"
+   },
+   "recorded_basis": "LATEST_REPORT_NOTES_STA",
+   "recorded_station": "IU.MAJO",
+   "region": "tokyo_kanto",
+   "shares_recorded_station_with": [
+    "kumamoto"
+   ]
+  },
+  {
+   "baseline_n_days": 91,
+   "configured_fallback": null,
+   "configured_fallback2": null,
+   "configured_primary": "IU.ANTO",
+   "distances": {
+    "IU.ANTO": {
+     "box_km": 315.4,
+     "centre_km": 450.1
+    }
+   },
+   "name": "Turkey Kahramanmaras",
+   "official_source": {
+    "name": "AFAD",
+    "url": "https://deprem.afad.gov.tr/"
+   },
+   "recorded_basis": "LATEST_REPORT_NOTES_STA",
+   "recorded_station": "IU.ANTO",
+   "region": "turkey_kahramanmaras",
+   "shares_recorded_station_with": [
+    "istanbul_marmara"
+   ]
+  }
+ ],
+ "report_date": "2026-10-07",
+ "schema": "geospec.thd-station-map.v1",
+ "stations": {
+  "BK.BKS": {
+   "elevation_m": 243.9,
+   "epoch_end": "3000-01-01T00:00:00",
+   "epoch_start": "1993-12-13T23:54:00",
+   "lat": 37.876221,
+   "lon": -122.23558,
+   "site": "Byerly Seismographic Vault, Berkeley, CA, USA",
+   "source": "ncedc.txt"
+  },
+  "G.UNM": {
+   "elevation_m": 2280.0,
+   "epoch_end": null,
+   "epoch_start": "1990-06-06T00:00:00.0000",
+   "lat": 19.329662,
+   "lon": -99.178065,
+   "site": "Unam - Mexico, Mexico",
+   "source": "earthscope.txt"
+  },
+  "IU.ANTO": {
+   "elevation_m": 1080.0,
+   "epoch_end": null,
+   "epoch_start": "2002-05-30T00:00:00.0000",
+   "lat": 39.8681,
+   "lon": 32.79356,
+   "site": "Ankara, Turkey",
+   "source": "earthscope.txt"
+  },
+  "IU.COLA": {
+   "elevation_m": 200.0,
+   "epoch_end": null,
+   "epoch_start": "1996-06-14T00:00:00.0000",
+   "lat": 64.873566,
+   "lon": -147.861772,
+   "site": "College Outpost, Alaska, USA",
+   "source": "earthscope.txt"
+  },
+  "IU.COR": {
+   "elevation_m": 110.0,
+   "epoch_end": null,
+   "epoch_start": "1989-10-26T00:00:00.0000",
+   "lat": 44.5855,
+   "lon": -123.3046,
+   "site": "Corvallis, Oregon, USA",
+   "source": "earthscope.txt"
+  },
+  "IU.MAJO": {
+   "elevation_m": 405.0,
+   "epoch_end": null,
+   "epoch_start": "1990-08-18T00:00:00.0000",
+   "lat": 36.54567,
+   "lon": 138.20406,
+   "site": "Matsushiro, Japan",
+   "source": "earthscope.txt"
+  },
+  "IU.SNZO": {
+   "elevation_m": 120.0,
+   "epoch_end": null,
+   "epoch_start": "1992-04-07T00:00:00.0000",
+   "lat": -41.3087,
+   "lon": 174.7043,
+   "site": "South Karori, New Zealand",
+   "source": "earthscope.txt"
+  },
+  "IU.TATO": {
+   "elevation_m": 160.0,
+   "epoch_end": null,
+   "epoch_start": "1992-09-26T00:00:00.0000",
+   "lat": 24.9735,
+   "lon": 121.4971,
+   "site": "Taipei, Taiwan",
+   "source": "earthscope.txt"
+  },
+  "IU.TUC": {
+   "elevation_m": 910.0,
+   "epoch_end": null,
+   "epoch_start": "1992-06-13T00:00:00.0000",
+   "lat": 32.3098,
+   "lon": -110.7847,
+   "site": "Tucson, Arizona",
+   "source": "earthscope.txt"
+  },
+  "IV.CAFE": {
+   "elevation_m": 1070.0,
+   "epoch_end": null,
+   "epoch_start": "2005-07-10T00:00:00",
+   "lat": 41.028,
+   "lon": 15.2366,
+   "site": "Carife",
+   "source": "ingv.txt"
+  },
+  "MX.TLIG": {
+   "elevation_m": 1136.0,
+   "epoch_end": null,
+   "epoch_start": "2009-10-13T00:00:00.0000",
+   "lat": 17.562653,
+   "lon": -98.566498,
+   "site": "TLAPA",
+   "source": "earthscope.txt"
+  }
+ }
+}

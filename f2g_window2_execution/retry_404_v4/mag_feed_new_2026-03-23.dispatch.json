@@ -1,0 +1,38 @@
+{
+ "attempt_id": "3e99dd6af9bd54bbd318f882dacfa6a0",
+ "capsule_pin_commit": "0e248d28ae16affd38dc440042a81fc857a320c8",
+ "capsule_sha256": "e7e99db9ff53377c58fbaad91e6e58cadb8ef9e16ba8fc87374e1236246a2b2c",
+ "contract": "codex 1345Z exact-key retry contract",
+ "dispatch_sha256": "f780ea2f702b82ae5b82533894257a5bc28cdc1a3a696f60104652cc2eb60854",
+ "dispatched_utc": "2026-08-27T21:52:08Z",
+ "executed_code": {
+  "disk_sha256": "bc2f9c7651d4ed78ba94f1d7e148c8cfb6649b61004532e043d4c371e4bfba64",
+  "path": "monitoring/src/w2_capture_retry_404_v4_cayley.py",
+  "pin_blob_sha256": "bc2f9c7651d4ed78ba94f1d7e148c8cfb6649b61004532e043d4c371e4bfba64",
+  "pin_commit": "e2784a598181844feb3bd136c5fa87f7353fe7f5"
+ },
+ "expected_classes": [
+  "mag_feed_new_2026-03-23.record.json",
+  "mag_feed_new_2026-03-23.transcript.json",
+  "mag_feed_new_2026-03-23.contract.json",
+  "mag_feed_new_2026-03-23.artifact.json"
+ ],
+ "key": "MAG_FEED/new/2026-03-23",
+ "manifest_blob_sha256": "c065f21792217c1a83717777586118b8f58ca759afeb368627b19ec2b5333325",
+ "manifest_commit": "166e81ac79671a4dc12bb4686114cc2548365778",
+ "max_logical_http_operations": 1,
+ "original_ledger": {
+  "entry_sha256": "6657385255cff94c5cb167c618ccc1041eb74cab029febed62ac55219fdb68f4",
+  "path": "docs/f2g_window2_execution/capture_run_ledger_v4.jsonl",
+  "seq": 81,
+  "sha256": "a01bb3259aada3f9fee1d01998579f2e5f2e5280024382d9ac50d7c2d23956ad"
+ },
+ "owner_authorization": "inbox 68f40f81 (asylum in-session, one exact-key retry outside the 635 ceiling)",
+ "registered_request_url": "https://geomag.usgs.gov/ws/data/?endtime=2026-03-24T00%3A00%3A00Z&format=json&id=NEW&sampling_period=60&starttime=2026-03-23T00%3A00%3A00Z",
+ "schema": "f2g-w2-retry-404-dispatch-v1",
+ "store": {
+  "id": "s4t-w2-capture-v4",
+  "root": "s4t://geospec/w2/capture_v4"
+ },
+ "vic_http_operations": 0
+}

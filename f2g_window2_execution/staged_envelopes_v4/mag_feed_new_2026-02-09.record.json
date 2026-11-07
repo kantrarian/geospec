@@ -1,0 +1,49 @@
+{
+ "capture_time_utc": "2026-08-27T04:20:49Z",
+ "carrier": "new",
+ "cutoff": "2026-07-31",
+ "endpoint": "https://geomag.usgs.gov/ws/data/",
+ "expected_keys": [
+  "2026-02-09"
+ ],
+ "lane": "MAG_FEED",
+ "operation_params": {
+  "carrier": "new",
+  "day": "2026-02-09"
+ },
+ "output_sha256": "f2ee2e527c3b27a5ef8651f4c435efbc776406e6be789957e45aa632b7b391aa",
+ "raw_body_bytes": 95287,
+ "raw_body_sha256": "c702db49bc8ef4804f4bb6a9ee2cd0622e6aa7413cc2608f536663b35ff12ec3",
+ "receipt": {
+  "authority": {
+   "blob_sha256": "3c24182b042de1a14d2717610b8940acd93f44be8dc8fdc344cce771d28d4f66",
+   "commit": "2f91143ec1b36a0b59558bdb0741987ef0fbba10",
+   "keys_sha256": "3e7a4779f95e6feb835331998ec4b270721fd54e5b36520af03b79e68cb920a9",
+   "path": "docs/f2g_window2_execution/staged_expected_contracts_v3.json"
+  },
+  "effective_url": "https://geomag.usgs.gov/ws/data/?endtime=2026-02-10T00%3A00%3A00Z&format=json&id=NEW&sampling_period=60&starttime=2026-02-09T00%3A00%3A00Z",
+  "headers": {
+   "content-type": "application/json",
+   "date": "Thu, 27 Aug 2026 04:20:48 GMT"
+  },
+  "http_status": 200,
+  "request_start_utc": "2026-08-27T04:20:42Z",
+  "requested_url": "https://geomag.usgs.gov/ws/data/?endtime=2026-02-10T00%3A00%3A00Z&format=json&id=NEW&sampling_period=60&starttime=2026-02-09T00%3A00%3A00Z",
+  "response_complete_utc": "2026-08-27T04:20:49Z",
+  "transcript_sha256": "e35b3f8e65f322eed4db6246ad72658995af06af0365d7a12dc09cb44ced37ba"
+ },
+ "request_params": {
+  "endtime": "2026-02-10T00:00:00Z",
+  "format": "json",
+  "id": "NEW",
+  "sampling_period": "60",
+  "starttime": "2026-02-09T00:00:00Z"
+ },
+ "schema": "f2g-w2-staged-envelope-v1",
+ "source": {
+  "kind": "usgs-geomag-ws-minute",
+  "ref": "https://geomag.usgs.gov/ws/data/",
+  "sha256": "c702db49bc8ef4804f4bb6a9ee2cd0622e6aa7413cc2608f536663b35ff12ec3"
+ },
+ "utc_day": "2026-02-09"
+}

@@ -1,0 +1,11 @@
+{
+ "key": "SELECTION_RECORDS/socal_coachella",
+ "probe_day_utc": "2025-11-15",
+ "raw_body_bytes": 0,
+ "raw_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+ "refusal": "PROBE_REFUSED: HTTPError: HTTP Error 400: 400",
+ "request_start_utc": "2026-08-24T18:50:46Z",
+ "requested_url": "https://service.scedc.caltech.edu/fdsnws/station/1/query?net=CI&sta=ACP%2CANG%2CBAR%2CBC3%2CBEL%2CBLA2%2CBOM%2CBOR%2CCOA%2CCRR%2CCSH%2CCTC&cha=HHZ&level=channel&format=text&starttime=2025-11-15&endtime=2025-11-16&nodata=404",
+ "response_complete_utc": "2026-08-24T18:50:46Z",
+ "schema": "f2g-w2-probe-envelope-v1"
+}

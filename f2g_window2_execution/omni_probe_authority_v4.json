@@ -1,0 +1,63 @@
+{
+ "authorization": {
+  "codex_ruling": "2026-08-25T05:44:19Z OMNI sequencing (636 total, probe first, retroactive lock REJECTED)",
+  "counts_against_owner_ceiling": 636,
+  "owner_quote": "go ahead with the 636 corrective capture",
+  "owner_quote_sha256": "f2411fa7a4b828f0780bf643e452281a4748d5fc5d0bae690f8d86629586f4f1",
+  "remaining_after_freeze": {
+   "omni": 211,
+   "vic_new": 424
+  },
+  "requests_authorized": 1
+ },
+ "claim_ceiling": {
+  "expected_keys_satisfied": "NONE; this probe does not satisfy MAG_WEATHER_FEED/omni/2026-01-01 as a scientific key",
+  "lambda_geo": "INCONCLUSIVE",
+  "later_admission": "only through the v4 predecessor-evidence bridge, which must reproduce this request byte-for-byte, reopen this transcript/body, rerun the pinned v4 transform, and bind BOTH authority lineages; relabelling this record is refused",
+  "scientific_admission": "NONE -- grammar evidence only"
+ },
+ "discipline": {
+  "evidence": "create-once raw body + envelope binding requested/effective URL, day, request start and completion UTC, status, headers, byte count, body sha256, parser note, and independently recomputed minute coverage",
+  "on_failure": "pin a typed probe refusal; the corrected OMNI template stays BLOCKED and the matter returns to codex",
+  "requests": "EXACTLY ONE; no retry, fallback host, alternate dataset, expanded range, or second exploratory request"
+ },
+ "probe": {
+  "carrier": "omni",
+  "day_selection_rule": "the FIRST day of the registered MAG interval (CALIBRATION_START) -- structural, fixed before any byte is seen",
+  "endpoint": "https://omniweb.gsfc.nasa.gov/cgi/nx1.cgi",
+  "lane": "MAG_WEATHER_FEED",
+  "request_params": {
+   "activity": "retrieve",
+   "end_date": "20260101",
+   "res": "min",
+   "spacecraft": "omni_min",
+   "start_date": "20260101",
+   "vars": [
+    "17",
+    "18",
+    "21"
+   ]
+  },
+  "requested_url": "https://omniweb.gsfc.nasa.gov/cgi/nx1.cgi?activity=retrieve&end_date=20260101&res=min&spacecraft=omni_min&start_date=20260101&vars=17&vars=18&vars=21",
+  "supersedes_reason": "vars 17/21/25 = By_GSM / flow speed / proton density; the frozen Newell coupling needs Bz_GSM = var 18 (codex 0527Z finding 2)",
+  "supersedes_vars": [
+   "17",
+   "21",
+   "25"
+  ],
+  "utc_day": "2026-01-01",
+  "var_labels": {
+   "17": "By_GSM (nT, GSM)",
+   "18": "Bz_GSM (nT, GSM)",
+   "21": "flow speed (km/s)"
+  },
+  "vars_corrected": [
+   "17",
+   "18",
+   "21"
+  ]
+ },
+ "probe_sha256": "8acddd360a581e2e132ae362ab41cbba0782bd299e0197c2ac0283289361f593",
+ "producer": "monitoring/src/w2_omni_probe_authority_gen_cayley.py",
+ "schema": "f2g-w2-omni-probe-authority-v4"
+}

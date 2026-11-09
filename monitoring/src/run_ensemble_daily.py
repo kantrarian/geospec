@@ -58,6 +58,10 @@ import thd_station_configuration as TSC
 # and derives data.csv / ensemble_latest.json from the append-only index.
 import ensemble_revisions_cayley as REV
 
+# lg-candidate-operation-v1 (cayley 2026-11-09; owner-authorized two-region LG, codex 0c71239f1): default OFF. Nothing
+# is imported for it unless this committed config exists (main(), production path only).
+LG_OPERATION_CONFIG_REL = 'monitoring/config/lg_candidate_operation.json'
+
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
 # Earthquake event fetching
@@ -768,6 +772,7 @@ def run_all_regions(
     lambda_geo_data: Optional[Dict[str, float]] = None,
     use_seismic: bool = True,
     fetch_events: bool = True,
+    lg_candidate: Optional[Dict[str, dict]] = None,
 ) -> tuple:
     """
     Run ensemble assessment for multiple regions.
@@ -778,6 +783,9 @@ def run_all_regions(
         lambda_geo_data: Dict mapping region to Lambda_geo ratio
         use_seismic: Whether to use seismic methods
         fetch_events: Whether to fetch recent earthquake events
+        lg_candidate: lg-candidate-operation-v1 -- region -> the candidate's ratio / provenance / typed refusal and
+            its registered policy, for the allowlisted regions of a scored day on/after E only (None = every region
+            on the legacy LG path, unchanged)
 
     Returns:
         Tuple of (Dict mapping region to EnsembleResult, Dict of earthquake events)
@@ -823,14 +831,29 @@ def run_all_regions(
 
     for region in regions:
         lg_ratio = lambda_geo_data.get(region)
-        result = run_region_assessment(
-            region=region,
-            target_date=target_date,
-            lambda_geo_ratio=lg_ratio,
-            use_seismic=use_seismic,
-            lambda_geo_provenance=lambda_geo_provenance.get(region),
-            station_regions=THD_STATION_REGIONS,
-        )
+        candidate = (lg_candidate or {}).get(region)
+        if candidate is not None:
+            # lg-candidate-operation-v1: the candidate value or its typed refusal, under the registered policy. The
+            # legacy ratio above is still computed (and unused here), so every legacy side output is as before.
+            result = run_region_assessment(
+                region=region,
+                target_date=target_date,
+                lambda_geo_ratio=candidate['ratio'],
+                use_seismic=use_seismic,
+                lambda_geo_provenance=candidate['provenance'],
+                station_regions=THD_STATION_REGIONS,
+                lg_candidate_policy=candidate['policy'],
+                lg_candidate_refusal=candidate['refusal'],
+            )
+        else:
+            result = run_region_assessment(
+                region=region,
+                target_date=target_date,
+                lambda_geo_ratio=lg_ratio,
+                use_seismic=use_seismic,
+                lambda_geo_provenance=lambda_geo_provenance.get(region),
+                station_regions=THD_STATION_REGIONS,
+            )
         if result:
             results[region] = result
 
@@ -1610,6 +1633,39 @@ def main():
             logger.warning(f"Persistence holes (no public revision, no legacy record): {holes}")
         loader = lambda days_back: prior_map.get(days_back)  # noqa: E731
 
+    # ---- lg-candidate-operation-v1 (owner-authorized two-region LG; codex
+    # 0c71239f1). Default OFF: with the committed config absent (nothing is
+    # imported) or disabled, off the production path, or for a scored day
+    # before its effective day E, lg_candidate stays None and every region
+    # takes the legacy LG path unchanged. A committed config that cannot be
+    # imported or is malformed refuses HERE, before any fetch (exit 12). ON:
+    # the allowlisted regions get the candidate value or a typed refusal; an
+    # explicit --date replay makes no candidate acquisition (typed).
+    lg_candidate = None
+    if production and (REPO_ROOT / LG_OPERATION_CONFIG_REL).exists():
+        try:
+            import lg_candidate_operation as LCO
+        except ImportError as e:
+            logger.error(f"LG_OPERATION_UNAVAILABLE: {LG_OPERATION_CONFIG_REL} is committed but the operation "
+                         f"cannot be imported ({e}); nothing scored, fetched or written")
+            return 12
+        try:
+            lg_operation = LCO.load_operation(REPO_ROOT)
+        except LCO.OperationConfigInvalid as e:
+            logger.error(str(e))
+            return 12
+        lg_regions = regions if regions is not None else list(REGIONS.keys())
+        lg_targets = LCO.targets(lg_operation, lg_regions, target_date.date())
+        if lg_targets and _HISTORICAL_REPLAY:
+            lg_candidate = {r: dict(ratio=None, provenance=None, policy=lg_operation.policy,
+                                    status='LG_CANDIDATE_NOT_ON_REPLAY',
+                                    refusal=('LG_CANDIDATE_NOT_ON_REPLAY',
+                                             'an explicit --date replay makes no candidate acquisition'))
+                            for r in lg_targets}
+        elif lg_targets:
+            lg_candidate = LCO.daily_candidate(lg_operation, lg_regions, target_date.date(),
+                                               datetime.now(timezone.utc).date(), REPO_ROOT, log=logger)
+
     # Run assessment (scoring + provider fetch; only reached once the
     # production preflight above has passed)
     logger.info(f"Starting ensemble assessment for {target_date.date()}")
@@ -1619,6 +1675,7 @@ def main():
         regions=regions,
         use_seismic=not args.no_seismic,
         fetch_events=True,
+        lg_candidate=lg_candidate,
     )
 
     if not results:

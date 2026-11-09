@@ -1,0 +1,27 @@
+{
+ "schema": "grassmann.lg-real-istanbul-expectation.v1",
+ "generated_utc": "2026-11-09T05:08:38Z",
+ "region": "istanbul_marmara",
+ "days_back": 90,
+ "target": "2026-10-02",
+ "target_b": "2026-09-01",
+ "edge_margin": 5,
+ "files": [
+  "ALE3.igs20.tenv",
+  "ISTA.igs20.tenv",
+  "KRU1.igs20.tenv",
+  "ORE1.igs20.tenv",
+  "PRKV.igs20.tenv",
+  "QIBP.igs20.tenv",
+  "ngl_catalog.json"
+ ],
+ "input_manifest_sha256": "b212afdd9829ed9ddd2cad42ec9f1d3af69951d2ce624de0c9206d79c961e2ac",
+ "source_cache": "C:\\GeoSpec\\geospec_runner\\monitoring\\data\\gps_cache",
+ "expected": {
+  "status": "OK",
+  "epoch": "2026-09-26",
+  "stations_with_real_samples": 6,
+  "denominator_available": true,
+  "identities_equal": true
+ }
+}

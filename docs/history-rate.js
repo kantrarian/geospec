@@ -5,10 +5,11 @@
     else root.GeoSpecHistoryRate = api;
 })(typeof globalThis === 'object' ? globalThis : this, function () {
     'use strict';
-    const VERSION = 'pages-recorded-change-v1';
+    const VERSION = 'pages-recorded-change-v2';
     const COLUMNS = ['date', 'previous_date', 'region', 'method', 'basis', 'current', 'previous', 'elapsed_days',
         'change_per_day', 'status', 'reason', 'station', 'recorded_unit', 'recorded_method_version',
-        'current_source_sha256', 'previous_source_sha256', 'clock', 'definition'];
+        'current_source_sha256', 'previous_source_sha256', 'clock', 'definition',
+        'comparability_status', 'comparability_reason', 'clamp_note'];
     const finite = v => typeof v === 'number' && Number.isFinite(v) ? v : null;
     const known = v => typeof v === 'string' && v.trim() !== '' && !/^(unknown|unspecified|not[_ ]recorded)$/i.test(v);
     const canonical = v => Array.isArray(v) ? v.map(canonical) : v && typeof v === 'object'
@@ -20,6 +21,10 @@
     }
     function endpoint(day, method, basis) {
         const m = day.methods?.[method] || {}, cal = m.calibration || {};
+        const lg = cal.baseline_provenance || {}, measurement = lg.measurement || {};
+        const gnssKnown = /^[a-f0-9]{64}$/.test(lg.operator_identity || '') &&
+            lg.operator_identity === measurement.operator_identity && /^[a-f0-9]{64}$/.test(lg.calibration_sha256 || '') &&
+            finite(lg.baseline_value) !== null && lg.baseline_value > 0 && measurement.selection_status === 'OK';
         const value = basis === 'score' ? m.score : m.raw;
         const source = day.source || {};
         let reason = null;
@@ -30,9 +35,10 @@
         else if (m.raw?.state !== 'MEASURED' || finite(m.raw.value) === null) reason = 'MEASUREMENT_UNKNOWN';
         else if (!value || value.state !== (basis === 'score' ? 'RECORDED' : 'MEASURED') || finite(value.value) === null) reason = 'VALUE_UNKNOWN';
         else if (basis === 'score' && m.admission?.included !== true) reason = 'SCORE_NOT_ADMITTED';
-        else if (!known(m.station?.value)) reason = 'STATION_SUPPORT_UNKNOWN';
-        else if (finite(cal.sample_rate_hz) === null || cal.sample_rate_hz <= 0) reason = 'PROCESSING_SUPPORT_UNKNOWN';
-        else if (method === 'seismic_thd' && (!known(cal.baseline?.window) || finite(cal.baseline?.mean) === null || finite(cal.baseline?.std) === null)) reason = 'BASELINE_UNKNOWN';
+        else if (basis !== 'recorded_raw' && method === 'lambda_geo' && !gnssKnown) reason = 'GNSS_SUPPORT_UNKNOWN';
+        else if (basis !== 'recorded_raw' && method !== 'lambda_geo' && !known(m.station?.value)) reason = 'STATION_SUPPORT_UNKNOWN';
+        else if (basis !== 'recorded_raw' && method !== 'lambda_geo' && (finite(cal.sample_rate_hz) === null || cal.sample_rate_hz <= 0)) reason = 'PROCESSING_SUPPORT_UNKNOWN';
+        else if (basis !== 'recorded_raw' && method === 'seismic_thd' && (!known(cal.baseline?.window) || finite(cal.baseline?.mean) === null || finite(cal.baseline?.std) === null)) reason = 'BASELINE_UNKNOWN';
         // Reports do not retain a complete unit/algorithm-version identity. This is
         // a numerical change of the recorded field, NOT a validated sensor derivative.
         // Compare every retained stable field; daily source locators and z-scores
@@ -41,12 +47,15 @@
             baseline:cal.baseline, score_basis:cal.score_basis, calibration:cal.calibration &&
                 Object.fromEntries(Object.entries(cal.calibration).filter(([k]) => k !== 'reason')),
             unit:m.raw?.unit ?? m.unit, method_version:m.method_version, processing:m.processing_id,
-            regime:m.regime_id, support:m.support, admission:basis === 'score' ? m.admission : null}));
+            regime:m.regime_id, support:m.support, admission:basis === 'score' ? m.admission : null,
+            gnss:method === 'lambda_geo' ? {operator:lg.operator_identity, baseline:lg.calibration_sha256,
+                denominator:lg.baseline_value, statistic:lg.statistic} : null}));
         return {value:finite(value?.value), reason, identity, station:m.station?.value || null,
+            support_reason:basis === 'recorded_raw' ? endpoint(day, method, 'raw').reason : reason,
             unit:m.raw?.unit ?? m.unit ?? null, version:m.method_version ?? null, source:source.sha256 || null};
     }
     function rows(days, method, basis = 'raw', region = '') {
-        if (!['raw', 'score'].includes(basis)) throw new Error('RATE_BASIS_INVALID');
+        if (!['raw', 'score', 'recorded_raw'].includes(basis)) throw new Error('RATE_BASIS_INVALID');
         const counts = new Map();
         days.forEach(d => counts.set(d.date, (counts.get(d.date) || 0) + 1));
         let previous = null;
@@ -57,14 +66,15 @@
                 current:e.value, previous:previous?.endpoint.value ?? null, elapsed_days:null, change_per_day:null,
                 status:'UNKNOWN', reason:e.reason, station:e.station, recorded_unit:e.unit,
                 recorded_method_version:e.version, current_source_sha256:e.source,
-                previous_source_sha256:previous?.endpoint.source ?? null, clock:'REPORT_DAY_NOT_SENSOR_OR_AVAILABILITY', definition:VERSION};
+                previous_source_sha256:previous?.endpoint.source ?? null, clock:'REPORT_DAY_NOT_SENSOR_OR_AVAILABILITY', definition:VERSION,
+                comparability_status:'UNKNOWN', comparability_reason:null, clamp_note:null};
             if (!r.reason) {
                 if (!previous) r.reason = 'NO_PREVIOUS_DAY';
                 else if (previous.endpoint.reason) r.reason = 'PREVIOUS_' + previous.endpoint.reason;
                 else {
                     r.elapsed_days = (dayTime(d.date) - dayTime(previous.date)) / 86400000;
                     if (r.elapsed_days !== 1) r.reason = 'MISSING_REPORT_DAY';
-                    else if (e.identity !== previous.endpoint.identity) r.reason = 'SUPPORT_BASELINE_OR_PROCESSING_CHANGE';
+                    else if (basis !== 'recorded_raw' && e.identity !== previous.endpoint.identity) r.reason = 'SUPPORT_BASELINE_OR_PROCESSING_CHANGE';
                     else {
                         const change = (e.value - previous.endpoint.value) / r.elapsed_days;
                         if (!Number.isFinite(change)) r.reason = 'NONFINITE_CHANGE';
@@ -72,6 +82,13 @@
                     }
                 }
             }
+            const supportReason = e.support_reason || (previous?.endpoint.support_reason && 'PREVIOUS_' + previous.endpoint.support_reason) ||
+                (previous && e.identity !== previous.endpoint.identity ? 'SUPPORT_BASELINE_OR_PROCESSING_CHANGE' : null);
+            r.comparability_reason = r.reason || supportReason;
+            // This is only a check of retained metadata, never validated physical comparability.
+            if (r.status === 'KNOWN' && !r.comparability_reason) r.comparability_status = 'RETAINED_METADATA_MATCH';
+            if (method === 'lambda_geo' && [r.current, r.previous].some(v => v !== null && (v <= 0.1 || v >= 50)))
+                r.clamp_note = 'LG_ENDPOINT_AT_DISPLAY_CLAMP_BOUND; unclipped change cannot be recovered';
             previous = {date:d.date, endpoint:e};
             return r;
         });
@@ -83,6 +100,8 @@
             '\nStation: ' + (r.station || 'not retained') + '; unit: ' + (r.recorded_unit || 'not retained') +
             '; method version: ' + (r.recorded_method_version || 'not retained') +
             '\nSource SHA256: ' + (r.previous_source_sha256 || 'none') + ' -> ' + (r.current_source_sha256 || 'none') +
+            '\nRetained support comparison: ' + r.comparability_status + (r.comparability_reason ? ' - ' + r.comparability_reason : '') +
+            (r.clamp_note ? '\n' + r.clamp_note : '') +
             '\nRecorded-number difference only. No physical derivative, sensor-time or warning claim.';
     }
     function csv(records) {

@@ -336,6 +336,8 @@ def run_region_assessment(
     use_seismic: bool = True,
     lambda_geo_provenance: Optional[dict] = None,
     station_regions: Optional[Dict[str, List[str]]] = None,
+    lg_candidate_policy=None,
+    lg_candidate_refusal: Optional[tuple] = None,
 ) -> Optional[EnsembleResult]:
     """
     Run ensemble assessment for a single region.
@@ -348,6 +350,9 @@ def run_region_assessment(
         lambda_geo_provenance: calibration-eligibility-v3 -- the baseline record the ratio was derived under
             (None = unknown); read only while the eligibility rule is active
         station_regions: calibration-eligibility-v3 -- configured 'NET.STA' -> regions map; read only while active
+        lg_candidate_policy: lg-producer-candidate-v1 -- an explicit lg_integration_candidate.CandidatePolicy, or None
+            (the default: the production LG classification, unchanged). Requires the eligibility rule for the day.
+        lg_candidate_refusal: (status, detail) from lg_producer_candidate when it produced no ratio; candidate only
 
     Returns:
         EnsembleResult or None if failed
@@ -363,10 +368,16 @@ def run_region_assessment(
     # OUTSIDE the per-region try: a misconfigured rule (active with no boundary) must stop the run, not turn every
     # region into a logged failure.
     rule_for_day = CE.rule_active_for_scored_day(target_date)
+    if lg_candidate_refusal is not None and lg_candidate_policy is None:
+        raise ValueError('an LG candidate refusal needs the explicit candidate policy')
+    if lg_candidate_policy is not None and not rule_for_day:
+        raise ValueError('the LG candidate requires the eligibility rule for the scored day')
     try:
         ensemble = GeoSpecEnsemble(region=region, station_regions=station_regions,
                                    record_thd_attempts=RECORD_THD_ATTEMPTS,
-                                   eligibility_rule_active=rule_for_day)
+                                   eligibility_rule_active=rule_for_day,
+                                   **({'lg_candidate_policy': lg_candidate_policy} if lg_candidate_policy is not None
+                                      else {}))
         configuration = (TSC.region_block(region, REGIONS, ensemble.thd_analyzer)
                          if RECORD_THD_STATION_CONFIGURATION else None)
 
@@ -378,6 +389,8 @@ def run_region_assessment(
         # Set Lambda_geo if provided
         if lambda_geo_ratio is not None:
             ensemble.set_lambda_geo(target_date, lambda_geo_ratio, provenance=lambda_geo_provenance)
+        elif lg_candidate_refusal is not None:
+            ensemble.set_lambda_geo_unavailable(target_date, *lg_candidate_refusal, provenance=lambda_geo_provenance)
 
         # Determine if seismic should be used
         seismic_ok = use_seismic and config['seismic_available']

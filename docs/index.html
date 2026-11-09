@@ -759,18 +759,27 @@
             <p class="raw-note" id="raw-event-detail" aria-live="polite"></p>
             <p class="raw-note"><a id="raw-event-link" hidden target="_blank" rel="noopener noreferrer">Open retained USGS event link</a></p>
             <div id="raw-chart"></div>
+            <section id="raw-lg-audit" aria-label="LG observation age and contribution" hidden>
+                <h3>How LG contributed</h3>
+                <label>Report day <select id="raw-lg-day"></select></label>
+                <p id="raw-lg-summary" class="raw-note" aria-live="polite"></p>
+                <p class="raw-note">LG's existing score uses its level relative to baseline, not its change/day.
+                    In the current mapping, ratios at or below 1.5 map to zero. A large increase can therefore
+                    still have a zero score. Historical scores below are shown as recorded, not recalculated.</p>
+            </section>
             <section id="raw-rate-panel" hidden aria-label="Recorded-value change per day">
                 <h3>Recorded-value change per day</h3>
                 <p class="raw-note">Backward difference: (current value &minus; previous value) / elapsed report days, plotted on the later day.
                     Above zero means rising; below zero means falling. This is not percentage change, a screen angle, or a forecast.
-                    Only adjacent report days with matching retained station, baseline and processing metadata are compared.
-                    Gaps, frozen values, revised days and unknown support stay UNKNOWN, not zero.</p>
+                    Recorded-number mode shows adjacent retained values even when GNSS support metadata is incomplete; that limitation is named in the hover and CSV.
+                    The support-matched modes additionally require matching retained station, baseline and processing metadata.
+                    Gaps, frozen values and revised days stay UNKNOWN, not zero.</p>
                 <p class="raw-note">The visible range starts at 90 days; the vertical scale follows that range. Counts and CSV cover all retained days.</p>
                 <p class="raw-note">The archive does not retain complete unit and algorithm-version metadata. This is a descriptive change
                     in the recorded number, not a validated physical derivative. Unknown metadata is not inferred from a region name.
                     Omitted revisions that the archive does not declare cannot be detected here.</p>
                 <div class="raw-controls">
-                    <label>Rate of<select id="rate-basis"><option value="raw">Recorded raw value</option><option value="score">Recorded method score</option></select></label>
+                    <label>Rate of<select id="rate-basis"><option value="recorded_raw">Recorded-number change (descriptive)</option><option value="raw">Raw value (support-matched)</option><option value="score">Method score (support-matched)</option></select></label>
                     <label>Visible range<select id="rate-window"><option value="90">Last 90 report days</option><option value="30">Last 30 report days</option><option value="all">All retained days</option></select></label>
                     <button id="rate-export" type="button" disabled>Download change/day CSV</button>
                 </div>
@@ -1758,6 +1767,33 @@
 
         // Raw-first history (cayley 2026-10-19; codex bbe31a10). docs/raw_history/ holds, per region and day, the input values
         // retained in the named report beside the scores that report recorded. Nothing here recomputes a score or fills a gap.
+        function lgUseAudit(input) {
+          const num=v=>typeof v==='number'&&Number.isFinite(v)?v:null;
+          const day=v=>{if(typeof v!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(v))return null;const n=Date.parse(v+'T00:00:00Z');return Number.isFinite(n)&&new Date(n).toISOString().slice(0,10)===v?v:null;};
+          const c=input.component||{},p=c.baseline_provenance||{},m=p.measurement||{};
+          const report=day(input.day),observed=day(m.observation_day),support=day(m.support_through_day);
+          const age=report&&observed?(Date.parse(report)-Date.parse(observed))/86400000:null;
+          const clock=(!report||!observed||!support)?'OBSERVATION_TIME_UNKNOWN':
+            observed>support||support>report?'INVALID_OBSERVATION_ORDER':'RETAINED_OBSERVATION';
+          const score=num(c.risk_score),recordedWeight=num(input.weight);
+          const included=typeof input.included==='boolean'?input.included:null;
+          const contradiction=(included===false&&recordedWeight!==null&&recordedWeight>0)||
+            (included===true&&(c.eligible_for_tiering===false||c.calibration?.eligible_for_tiering===false||c.available===false||c.frozen===true))||
+            (recordedWeight!==null&&(recordedWeight<0||recordedWeight>1));
+          const admission=contradiction?'CONFLICTING_ADMISSION':included===true?'INCLUDED':included===false?'EXCLUDED':'ADMISSION_UNKNOWN';
+          const weight=admission==='EXCLUDED'?0:admission==='INCLUDED'?recordedWeight:null;
+          const contribution=admission==='EXCLUDED'?0:admission==='INCLUDED'&&weight!==null&&score!==null&&score>=0&&score<=1?weight*score:null;
+          return {report_day:report,observation_day:observed,support_through_day:support,
+            observation_age_days:clock==='RETAINED_OBSERVATION'?age:null,clock_status:clock,
+            report_timestamp:input.reportTimestamp??null,calibrated_on:day(p.calibrated_on),
+            calibration_sha256:p.calibration_sha256??null,operator_identity:m.operator_identity??null,
+            input_sha256:m.input_sha256??null,recorded_ratio:num(c.raw_value),recorded_score:score,
+            admission,reason:input.reason??c.eligibility_reason??c.calibration?.reason??null,
+            recorded_effective_weight:recordedWeight,effective_weight:weight,weighted_contribution:contribution,
+            contribution_basis:contribution===null?'UNKNOWN':admission==='EXCLUDED'?'EXPLICITLY_EXCLUDED':'RECORDED_WEIGHT_TIMES_RECORDED_SCORE',
+            baseline_value:num(p.baseline_value),unclamped_ratio:num(m.unclamped_ratio),
+            clamp_note:c.raw_value===0.1?'At the ratio floor; the unclamped value is unknown unless retained.':null};
+        }
         const RAW_METHOD_LABELS = { seismic_thd: 'THD', lambda_geo: 'LG', fault_correlation: 'FC' };
         const RAW_COLUMNS = ['date', 'input', 'source', 'raw_value', 'raw_state', 'recorded_raw_value', 'raw_secondary', 'score', 'score_state', 'admission',
             'weight', 'baseline_window', 'baseline_mean', 'baseline_std', 'baseline_n', 'baseline_quality', 'z_score',
@@ -1765,6 +1801,35 @@
             'csv_disagrees', 'superseded_revisions', 'notes'];
         const rawCache = {};
         let rawIndex = null;
+        const LG_AUDIT_COLUMNS=['observation_day','support_through_day','observation_age_days','clock_status',
+            'calibrated_on','calibration_sha256','operator_identity','input_sha256','effective_weight',
+            'weighted_contribution','contribution_basis','unclamped_ratio'];
+        RAW_COLUMNS.push(...LG_AUDIT_COLUMNS.map(k=>'lg_'+k));
+        function rawLgAudit(d) {
+            const m=d.methods?.lambda_geo||{},a=m.admission||{};
+            return lgUseAudit({day:d.date,component:{...m.recorded,baseline_provenance:m.calibration?.baseline_provenance,
+                calibration:m.calibration?.calibration},included:a.basis==='METHOD_SET'?a.included:typeof a.weight==='number'?a.weight>0:null,weight:a.weight,
+                reason:a.reason??a.code,reportTimestamp:d.source?.report_timestamp});
+        }
+        function renderRawLgAudit(body,method,selectedDay) {
+            const panel=document.getElementById('raw-lg-audit'),select=document.getElementById('raw-lg-day');
+            panel.hidden=!rawSelectedMethods(method).includes('lambda_geo');
+            if(panel.hidden)return;
+            select.replaceChildren(...body.days.map(d=>new Option(d.date,d.date)));
+            select.value=body.days.some(d=>d.date===selectedDay)?selectedDay:body.days.at(-1)?.date||'';
+            const show=()=>{
+                const d=body.days.find(d=>d.date===select.value);if(!d)return;
+                const a=rawLgAudit(d),v=x=>x===null||x===undefined?'Unknown':String(x);
+                document.getElementById('raw-lg-summary').textContent='LG '+a.admission+' · retained ratio '+v(a.recorded_ratio)+
+                    ' → recorded score '+v(a.recorded_score)+' × effective weight '+v(a.effective_weight)+
+                    ' = contribution '+v(a.weighted_contribution)+' to recorded combined '+v(d.combined?.value)+
+                    '. Observation '+v(a.observation_day)+'; support through '+v(a.support_through_day)+
+                    '; age at report day '+v(a.observation_age_days)+' days ('+a.clock_status+'). Report day '+a.report_day+
+                    ' is not the observation date.'+(a.reason?' '+a.reason:'')+
+                    (a.admission==='INCLUDED'&&a.recorded_score===0?' Included zero-score LG still takes its weight and reduces the other methods\' shares.':'');
+            };
+            select.onchange=show;show();
+        }
 
         function rawSelectedMethods(method) {
             return method === 'all' ? Object.keys(RAW_METHOD_LABELS) : [method];
@@ -1849,7 +1914,8 @@
                     csv_published_risk: d.csv ? rawCell(d.csv.risk) : '',
                     csv_disagrees: d.csv_disagrees ? rawCell(d.csv_disagrees.reason) : '',
                     superseded_revisions: String((d.superseded || []).length),
-                    notes: (m.recorded && typeof m.recorded.notes === 'string') ? m.recorded.notes : ''
+                    notes: (m.recorded && typeof m.recorded.notes === 'string') ? m.recorded.notes : '',
+                    ...Object.fromEntries(LG_AUDIT_COLUMNS.map(k=>['lg_'+k,method==='lambda_geo'?rawCell(rawLgAudit(d)[k]):'']))
                 };
             });
         }
@@ -2026,6 +2092,7 @@
             document.getElementById('rate-prev').disabled = index === 0;
             document.getElementById('rate-next').disabled = index === rateRows.length - 1;
             if (locate) {
+                if (rawDisplayedSelection) renderRawLgAudit(rawDisplayedSelection.body,rawDisplayedSelection.method,row.date);
                 for (const id of ['raw-chart', 'raw-rate-chart']) {
                     const chart = document.getElementById(id);
                     if (!chart.data) continue;
@@ -2044,13 +2111,15 @@
             if (panel.hidden) return;
             if (typeof GeoSpecHistoryRate === 'undefined') throw new Error('change/day script did not load; reload this page');
             const basis = document.getElementById('rate-basis').value, methods = rawSelectedMethods(method);
+            const basisLabel = basis === 'recorded_raw' ? 'recorded-number' : basis;
             rateRows = methods.flatMap(m => GeoSpecHistoryRate.rows(body.days, m, basis, body.region))
                 .sort((a,b) => a.date.localeCompare(b.date) || a.method.localeCompare(b.method));
             const known = rateRows.filter(r => r.status === 'KNOWN'), reasons = {};
             rateRows.filter(r => r.reason).forEach(r => {reasons[r.reason] = (reasons[r.reason] || 0) + 1;});
             document.getElementById('rate-summary').textContent = known.length + ' known / ' + rateRows.length + (methods.length > 1 ? ' input-day rates; ' : ' report-day rates; ') +
                 (rateRows.length - known.length) + ' UNKNOWN (' + (rateRows.length ? ((rateRows.length - known.length) / rateRows.length * 100).toFixed(1) : '0') + '%). ' +
-                'Full retained archive; numerical comparison of retained metadata only.';
+                (basis === 'recorded_raw' ? 'Recorded-number differences; ' + known.filter(r => r.comparability_status === 'UNKNOWN').length +
+                    ' have UNKNOWN support comparability. Not physical derivatives.' : 'Full retained archive; numerical comparison of retained metadata only.');
             document.getElementById('rate-reasons').textContent = Object.entries(reasons).map(([k,v]) => k + ': ' + v).join('; ') || 'No unknown intervals.';
             const windowDays = document.getElementById('rate-window').value;
             const lastTime = Math.max(...rateRows.map(r => GeoSpecHistoryRate.dayTime(r.date)).filter(t => t !== null));
@@ -2071,17 +2140,17 @@
                 const label = RAW_METHOD_LABELS[m], axis = j ? String(j*2+1) : '', gapAxis = String(j*2+2);
                 const base = (methods.length-1-j)/methods.length, step = 1/methods.length, magnitude = rateScale(range,m);
                 const hasKnown = indexed.some(({r}) => r.status === 'KNOWN');
-                layout['yaxis'+axis] = {title:methods.length === 1 ? (basis === 'score' ? 'score units / report day' : 'recorded-value units / report day') : label+' '+basis+' change<br>per report day',
+                layout['yaxis'+axis] = {title:methods.length === 1 ? (basis === 'score' ? 'score units / report day' : 'recorded-value units / report day') : label+' '+basisLabel+' change<br>per report day',
                     range:[-magnitude,magnitude],domain:[base+step*0.16,base+step],showticklabels:hasKnown,showgrid:hasKnown,
                     gridcolor:'#2a2a3a',zeroline:hasKnown,zerolinecolor:'#e8e8f0'};
                 layout['yaxis'+gapAxis] = {domain:[base,base+step*0.08],range:[-1,1],showticklabels:false,showgrid:false,zeroline:false};
                 if (indexed.every(({r}) => r.status !== 'KNOWN'))
                     layout.annotations.push({xref:'paper',yref:'paper',x:0.5,y:base+step*0.58,showarrow:false,
-                        text:label+': no comparable<br>intervals (UNKNOWN)',font:{color:'#94a3b8',size:10}});
+                        text:label+(basis === 'recorded_raw' ? ': no retained adjacent' : ': no comparable')+'<br>intervals (UNKNOWN)',font:{color:'#94a3b8',size:10}});
                 traces.push(
                     {x:indexed.map(({r}) => r.date),y:indexed.map(({r}) => r.change_per_day),customdata:indexed.map(({i}) => i),
                      text:indexed.map(({r}) => escape(GeoSpecHistoryRate.describe(r)).replace(/\n/g,'<br>')),
-                     hovertemplate:'%{text}<extra></extra>',name:label+' '+basis+' change/day',yaxis:'y'+axis,
+                     hovertemplate:'%{text}<extra></extra>',name:label+' '+basisLabel+' change/day',yaxis:'y'+axis,
                      type:'scatter',mode:'lines+markers',connectgaps:false,line:{color:['#38bdf8','#22c55e','#e879f9'][j],width:1.5},marker:{size:5}},
                     {x:unknown.map(({r}) => r.date),y:unknown.map(() => 0),customdata:unknown.map(({i}) => i),
                      text:unknown.map(({r}) => escape(r.date+': '+label+' UNKNOWN - '+r.reason)),hovertemplate:'%{text}<extra></extra>',
@@ -2089,6 +2158,10 @@
                      marker:{color:'#94a3b8',symbol:'line-ns-open',size:9}}
                 );
             });
+            // Reserve the full multi-panel height in normal document flow.
+            // Plotly's percentage-height wrapper otherwise falls back to the
+            // CSS minimum during a narrow-window resize and overlaps controls.
+            document.getElementById('raw-rate-chart').style.height = layout.height + 'px';
             await Plotly.newPlot('raw-rate-chart', traces, layout, {responsive:true});
             await Plotly.relayout('raw-chart', range ? {'xaxis.range':range} : {'xaxis.autorange':true});
             const select = document.getElementById('rate-day');
@@ -2131,6 +2204,7 @@
             document.getElementById('raw-export').disabled = true;
             document.getElementById('rate-export').disabled = true;
             document.getElementById('raw-rate-panel').hidden = true;
+            document.getElementById('raw-lg-audit').hidden = true;
             rawDisplayedSelection = null;
             rateRows = [];
             for (const id of ['raw-chart', 'raw-rate-chart']) {
@@ -2176,7 +2250,12 @@
                       String(build.parent_commit).slice(0, 12)) + ' (last scored day ' + rawIndex.dates.last + ') · ' +
                     body.days.length + ' days · region ' + region.replace(/_/g, ' ') + ' · input ' + methods.map(m => RAW_METHOD_LABELS[m]).join(', ') +
                     ' · documented meaning (docs/JSON_SCHEMA.md, not recorded in the reports): ' + methods.map(m => RAW_METHOD_LABELS[m] + ': ' + (((rawIndex.methods || {})[m] || {}).raw || 'not documented')).join('; ') + '.';
-                rawDisplayedSelection = {region,method};
+                rawDisplayedSelection = {region,method,body};
+                renderRawLgAudit(body,method);
+                document.getElementById('raw-chart').on('plotly_click',event=>{
+                    const day=String(event.points?.[0]?.x??'').slice(0,10);
+                    if(body.days.some(d=>d.date===day))renderRawLgAudit(body,method,day);
+                });
                 document.getElementById('raw-export').disabled = false;
                 await renderRatePanel(body, method);
             } catch (e) {

@@ -179,8 +179,12 @@ def method_entry(name, comp, region_report):
     if raw_state in ("UNCONFIRMED_NONZERO", "UNCONFIRMED_ZERO"):
         entry["raw"]["unconfirmed_value"] = raw
     calibration = {k: comp[k] for k in CALIBRATION_KEYS if k in comp}
+    if name == 'lambda_geo' and 'baseline_provenance' in comp:
+        calibration['baseline_provenance'] = comp['baseline_provenance']
     if calibration:
         entry["calibration"] = calibration
+    if isinstance(comp.get('support'), dict):
+        entry['support'] = comp['support']
     method_set = region_report.get("method_set")
     if isinstance(method_set, dict):
         excluded = (method_set.get("excluded") or {}).get(name) or {}

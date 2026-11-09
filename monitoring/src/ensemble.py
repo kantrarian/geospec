@@ -41,6 +41,7 @@ import seismic_data as SD
 import fault_correlation as FC
 # calibration-eligibility-v1 (codex a7d0533d item 1, 2026-09-30): PROSPECTIVE rule, OFF by default; see the module.
 import calibration_eligibility as CE
+import lg_integration_candidate as LGI
 # method-comparability-v1 (METHOD_QUALIFICATION_DELIVERY_PLAN M1, 2026-10-04): PROSPECTIVE; emitted only while the
 # eligibility rule is active; see the module.
 import method_comparability as MC
@@ -524,6 +525,10 @@ class MethodResult:
         # notes above are untouched either way.
         if self.baseline_provenance is not None:
             result['baseline_provenance'] = self.baseline_provenance
+        # Retain LG support even when excluded. Previously only included methods
+        # kept support in method_set, discarding the evidence needed to repair LG.
+        if self.name == 'lambda_geo' and self.support is not None:
+            result['support'] = self.support
         if self.eligibility_rule_version is not None:
             result['calibration'] = {
                 'status': self.calibration_status,
@@ -616,6 +621,7 @@ class GeoSpecEnsemble:
         eligibility_rule_active: Optional[bool] = None,
         station_regions: Optional[Dict[str, List[str]]] = None,
         record_thd_attempts: bool = False,
+        lg_candidate_policy: Optional[LGI.CandidatePolicy] = None,
     ):
         """
         Initialize the ensemble.
@@ -632,6 +638,9 @@ class GeoSpecEnsemble:
         self.weights = weights or WEIGHTS.copy()
         # calibration-eligibility-v1: OFF unless the module flag or an explicit override says otherwise.
         self.eligibility_rule_active = CE.rule_active(eligibility_rule_active)
+        if lg_candidate_policy is not None and not self.eligibility_rule_active:
+            raise ValueError('LG candidate requires eligibility checks to be active')
+        self.lg_candidate_policy = lg_candidate_policy
         self.station_regions: Dict[str, List[str]] = dict(station_regions or {})
         # thd-station-attempts-v1 (M4, prospective): when True, each compute_thd_risk leaves the provider records
         # of its fetch in `last_thd_fetch_attempts` (None while not recording; nothing is emitted by to_dict).
@@ -652,6 +661,9 @@ class GeoSpecEnsemble:
         self._lambda_geo_cache: Dict[str, float] = {}
         # calibration-eligibility-v1: the baseline provenance a ratio was derived under (None = unknown).
         self._lambda_geo_provenance: Dict[str, Optional[dict]] = {}
+        # lg-producer-candidate-v1: the TYPED producer status of a day with no candidate ratio (set only under an
+        # explicit lg_candidate_policy), so the component is unavailable by name rather than as absent data.
+        self._lambda_geo_refusal: Dict[str, Tuple[str, str]] = {}
 
         # D2 rev-2 calibration seams. `capsule_loader` is an injectable override (tests /
         # bespoke wiring); when None, compute_fault_correlation_risk builds the PRODUCTION
@@ -682,6 +694,17 @@ class GeoSpecEnsemble:
         key = date.strftime('%Y-%m-%d')
         self._lambda_geo_cache[key] = ratio
         self._lambda_geo_provenance[key] = provenance
+        self._lambda_geo_refusal.pop(key, None)
+
+    def set_lambda_geo_unavailable(self, date: datetime, status: str, detail: str, provenance: Optional[dict] = None):
+        """lg-producer-candidate-v1: record that the candidate producer refused `date` with a typed `status`. Only
+        under an explicit lg_candidate_policy; the component is then unavailable and names the status."""
+        if self.lg_candidate_policy is None:
+            raise ValueError('typed LG refusals are recorded only under an explicit LG candidate policy')
+        key = date.strftime('%Y-%m-%d')
+        self._lambda_geo_cache.pop(key, None)
+        self._lambda_geo_provenance[key] = provenance
+        self._lambda_geo_refusal[key] = (str(status), str(detail))
 
     def get_lambda_geo(self, date: datetime) -> Optional[float]:
         """Get Lambda_geo ratio for date."""
@@ -693,6 +716,9 @@ class GeoSpecEnsemble:
         ratio = self.get_lambda_geo(date)
 
         if ratio is None:
+            refusal = self._lambda_geo_refusal.get(date.strftime('%Y-%m-%d'))
+            if refusal is not None:
+                return self._lambda_geo_candidate_refusal(date, *refusal)
             return MethodResult(
                 name='lambda_geo',
                 available=False,
@@ -713,10 +739,18 @@ class GeoSpecEnsemble:
             notes=f'ratio={ratio:.1f}x'
         )
         if self.eligibility_rule_active:
-            CE.attach(result, CE.classify_lambda_geo(
-                self._lambda_geo_provenance.get(date.strftime('%Y-%m-%d')), date,
-                max_age_days=LAMBDA_GEO_BASELINE_MAX_AGE_DAYS,
-                min_lag_days=LAMBDA_GEO_BASELINE_MIN_LAG_DAYS))
+            prov = self._lambda_geo_provenance.get(date.strftime('%Y-%m-%d'))
+            if self.lg_candidate_policy is None:
+                eligibility = CE.classify_lambda_geo(prov, date,
+                    max_age_days=LAMBDA_GEO_BASELINE_MAX_AGE_DAYS,
+                    min_lag_days=LAMBDA_GEO_BASELINE_MIN_LAG_DAYS)
+            else:
+                eligibility = LGI.classify(prov, date, ratio, self.lg_candidate_policy)
+            CE.attach(result, eligibility)
+            # Preserve the actual record, including absent fields, not a guessed
+            # THD station/sample-rate identity for a GNSS network measurement.
+            if isinstance(prov, dict):
+                result.baseline_provenance = dict(prov)
             # method-comparability-v1: the provenance the ratio rests on, and the registered policy class. The
             # numerator estimator is identified only by the provenance's bound operator identity; without one the
             # estimator is UNIDENTIFIED and the region cannot join a comparable group.
@@ -731,6 +765,21 @@ class GeoSpecEnsemble:
                 'calibration_class': 'LG_BASELINE_RATIO:max_age=%s,min_lag=%s' % (
                     LAMBDA_GEO_BASELINE_MAX_AGE_DAYS, LAMBDA_GEO_BASELINE_MIN_LAG_DAYS),
                 'shared_with': [self.region]}
+            if self.lg_candidate_policy is not None:
+                result.support['calibration_class'] = LGI.VERSION + ':' + str(self.lg_candidate_policy)
+        return result
+
+    def _lambda_geo_candidate_refusal(self, date: datetime, status: str, detail: str) -> MethodResult:
+        """lg-producer-candidate-v1: the component of a day the candidate producer refused, by its typed status."""
+        result = MethodResult(name='lambda_geo', available=False, raw_value=0.0, risk_score=0.0,
+                              notes=f'LG candidate unavailable: {status}: {detail}')
+        CE.attach(result, CE.Eligibility('missing', False, f'{status}: {detail}', status, LGI.VERSION))
+        prov = self._lambda_geo_provenance.get(date.strftime('%Y-%m-%d'))
+        if isinstance(prov, dict):
+            result.baseline_provenance = dict(prov)
+        result.support = {'estimator': MC.UNIDENTIFIED, 'identity': None,
+                          'calibration_class': LGI.VERSION + ':' + str(self.lg_candidate_policy),
+                          'shared_with': [self.region]}
         return result
 
     def _resolve_calibration_capsule(self, region, date):

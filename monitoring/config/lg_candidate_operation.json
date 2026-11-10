@@ -1,0 +1,18 @@
+{
+  "schema": "lg-candidate-operation-v1",
+  "enabled": true,
+  "regions": [
+    "tokyo_kanto",
+    "kumamoto"
+  ],
+  "effective_scored_day": "2026-11-12",
+  "policy": {
+    "baseline_max_age_days": 45,
+    "calibration_min_lag_days": 30,
+    "observation_max_age_days": 45,
+    "min_baseline_samples": 30
+  },
+  "recalibration_days": 7,
+  "state_root": "../lg_candidate",
+  "amendment": "docs/AMENDMENT_2026-11-11_lg_two_region_candidate.md"
+}

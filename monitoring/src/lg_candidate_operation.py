@@ -220,6 +220,16 @@ def recalibrate(ctx, regions, *, generated_utc: str, code_id: Optional[str] = No
                                                     declared=previous['station_codes'])
         entries[region] = P.calibrate_region(region, ctx.run_day, ctx.cache_dir, code_id=code_id, catalog_path=path)
         bound[region] = path.name
+    # An unavailable candidate must not become the newest selectable baseline.
+    # Keep the prior immutable baseline and retry the scheduled calibration on
+    # the next run, subject to its normal freshness and acquisition limits.
+    failed = {r: e.get('reason') or 'BASELINE_UNAVAILABLE'
+              for r, e in entries.items() if not e.get('available')}
+    if failed:
+        return dict(status='RECALIBRATION_FAILED', failed_regions=failed,
+                    previous=selected['path'].name, baseline_file=None,
+                    scope='declared carriers only; no catalog fetch',
+                    retries_left=ctx.acquisition.retries_left)
     written = P.write_baselines(ctx.baselines_dir, ctx.run_day, entries, code_id, generated_utc)
     return dict(status='RECALIBRATED', scope='declared carriers only; no catalog fetch', previous=selected['path'].name,
                 baseline_file=written.name, bound_catalogs=bound,

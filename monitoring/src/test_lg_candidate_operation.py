@@ -162,6 +162,20 @@ class Config(Layout):
 
 
 class Seed(Layout):
+    def test_partial_seed_does_not_publish_an_unavailable_baseline(self):
+        real = LCO.P.calibrate_region
+
+        def partial(region, *args, **kwargs):
+            if region == 'tokyo_kanto':
+                return dict(available=False, reason='SYNTHETIC_TEMPORARY_FAILURE')
+            return real(region, *args, **kwargs)
+
+        with mock.patch.object(LCO.P, 'calibrate_region', side_effect=partial):
+            result = self.seed()
+        self.assertEqual(result['status'], 'CALIBRATION_FAILED')
+        self.assertFalse(list(self.op().baselines.glob('lambda_geo_baselines_rule_*.json')))
+        self.assertEqual(self.seed(day=RT.CAL_DAY + timedelta(days=1))['status'], 'CALIBRATED')
+
     def test_the_seed_is_the_bounded_first_acquisition(self):
         out = self.seed()
         self.assertEqual(out['status'], 'CALIBRATED', out)
@@ -198,6 +212,20 @@ class Seed(Layout):
 
 
 class Daily(Layout):
+    def test_unavailable_weekly_candidate_does_not_shadow_previous_or_poison_recovery(self):
+        self.seed()
+        previous = next(self.op().baselines.glob('lambda_geo_baselines_rule_*.json'))
+        before = previous.read_bytes()
+        with mock.patch.object(LCO.P, 'calibrate_region', return_value=dict(
+                available=False, reason='SYNTHETIC_TEMPORARY_FAILURE')):
+            self.daily(E, RT.CAL_DAY + timedelta(days=7))
+        self.assertEqual(list(self.op().baselines.glob('lambda_geo_baselines_rule_*.json')), [previous])
+        self.assertEqual(previous.read_bytes(), before)
+        next_day = RT.CAL_DAY + timedelta(days=8)
+        later = self.daily(next_day, next_day + timedelta(days=2))
+        self.assertEqual({r: v['status'] for r, v in later.items()}, {r: 'OK' for r in REGIONS})
+        self.assertTrue((self.op().baselines / 'lambda_geo_baselines_rule_20261109.json').exists())
+
     def test_pre_E_and_off_touch_nothing(self):
         self.seed()
         self.sessions.clear()

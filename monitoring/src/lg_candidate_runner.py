@@ -135,6 +135,14 @@ def calibration_run(ctx: RunContext, regions, *, generated_utc: str, code_id: Op
             continue
         refresh[region] = refresh_region_inputs(ctx, region, window_end, P.BASELINE_DAYS)
         entries[region] = P.calibrate_region(region, ctx.run_day, ctx.cache_dir, code_id=code_id, catalog_path=bound)
+    failed = {r: e.get('reason') or 'BASELINE_UNAVAILABLE'
+              for r, e in entries.items() if not e.get('available')}
+    if failed:
+        out = dict(status='CALIBRATION_FAILED', version=VERSION, run_id=ctx.run_id,
+                   baseline_file=None, failed_regions=failed, catalog=catalog,
+                   bound_catalog=bound.name, retries_left=ctx.acquisition.retries_left)
+        ctx.log.append(out)
+        return out
     path = P.write_baselines(ctx.baselines_dir, ctx.run_day, entries, code_id, generated_utc)
     out = dict(status='CALIBRATED', version=VERSION, run_id=ctx.run_id, baseline_file=path.name, catalog=catalog,
                bound_catalog=bound.name,

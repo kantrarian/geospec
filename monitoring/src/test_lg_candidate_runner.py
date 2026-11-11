@@ -221,6 +221,45 @@ class Scoring(Base):
             self.assertTrue(lg.eligible_for_tiering, (region, lg.eligibility_reason))
             self.assertEqual(out.method_set['included'], ['lambda_geo'])
 
+    def test_station_file_freshness_names_the_limiting_carrier_station_without_moving_the_operator(self):
+        # cayley 2026-11-11 (GNSS freshness): QTK3's provider file ends 8 days before the scored day.
+        TT.write_cache(self.src, extra=tuple(KUMAMOTO) + (DEAD,), last={'QTK9': date(2026, 8, 3), 'QTK3': SCORED - timedelta(days=8)})
+        self.calibrate()
+        identity_before = P.code_identity()
+        ctx = self.run_ctx(self.serve(), SCORED + timedelta(days=2), 'tick-fresh')
+        r = RUN.scoring_run(ctx, ['tokyo_kanto'], SCORED)['tokyo_kanto']
+        self.assertEqual(r['status'], 'OK', r.get('refusal'))
+        m = r['provenance']['measurement']
+        f = m['station_freshness']
+        self.assertEqual(f['basis'], 'REFRESH_RECORD_FILE_END')
+        self.assertEqual(f['limiting_stations'], ['QTK3'])
+        self.assertEqual(f['earliest_file_end_day'], (SCORED - timedelta(days=8)).isoformat())
+        self.assertEqual(sorted(f['station_file_end_day']), sorted(r['provenance']['measurement'].get('declared', []) or
+                                                                  r['trace']['declared_carrier']))
+        self.assertEqual(m['data_end_day'], SCORED.isoformat(), 'the union end hides the lagging station')
+        self.assertEqual(m['observation_day'], (SCORED - timedelta(days=8 + P.SUPPORT_MARGIN)).isoformat(),
+                         'the rule recorded beside it explains the observation day')
+        self.assertEqual(P.code_identity(), identity_before, 'recording freshness does not move the operator identity')
+        out = RD.run_region_assessment('tokyo_kanto', datetime(2026, 11, 4), lambda_geo_ratio=r['ratio'], use_seismic=False,
+                                       lambda_geo_provenance=r['provenance'], lg_candidate_policy=POLICY,
+                                       lg_candidate_refusal=r['refusal'])
+        lg = out.components['lambda_geo']
+        self.assertTrue(lg.eligible_for_tiering, lg.eligibility_reason)
+        self.assertEqual(lg.baseline_provenance['measurement']['station_freshness']['limiting_stations'], ['QTK3'],
+                         'the record carries it to the report')
+
+    def test_station_file_freshness_reads_only_refresh_records(self):
+        recs = [dict(file='AAA1.igs20.tenv', data_end_after='2026-10-24'), dict(file='AAA1.tenv3', data_end_after='2026-12-01'),
+                dict(file='BBB2.igs20.tenv', outcome='NOT_DUE', data_end_day='2026-10-20'),
+                dict(file='CCC3.igs20.tenv', data_end_after='2026-11-30'), dict(file='ZZZ9.igs20.tenv', data_end_after='2026-01-01'),
+                dict(file='ngl_catalog.json')]
+        f = RUN.station_file_freshness(recs, ['AAA1', 'BBB2', 'CCC3', 'DDD4'], date(2026, 11, 12))
+        self.assertEqual(f['station_file_end_day'], {'AAA1': '2026-10-24', 'BBB2': '2026-10-20', 'CCC3': '2026-11-12', 'DDD4': None})
+        self.assertEqual(f['station_file_kind']['AAA1'], 'IGS20', 'the IGS20 record wins over a fallback record')
+        self.assertEqual((f['limiting_stations'], f['earliest_file_end_day'], f['latest_file_end_day']), (['BBB2'], '2026-10-20', '2026-11-12'))
+        self.assertEqual((f['clipped_to_scored_day'], f['stations_without_file_end']), (['CCC3'], ['DDD4']))
+        self.assertNotIn('ZZZ9', f['station_file_end_day'], 'an undeclared station is not counted')
+
     def test_a_legacy_rewrite_of_the_mutable_catalog_does_not_change_candidate_scoring(self):
         """The legacy NGLLiveAcquisition refetches the cache catalog on its 7-day wall clock. Scoring reads the as-of
         baseline's STORED catalog, so the rewrite neither strands the day nor leaks into the measurement."""

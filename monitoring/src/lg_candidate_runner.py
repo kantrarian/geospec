@@ -157,6 +157,40 @@ def calibration_run(ctx: RunContext, regions, *, generated_utc: str, code_id: Op
     return out
 
 
+def station_file_freshness(refresh: List[dict], declared, scored_day: date) -> dict:
+    """cayley 2026-11-11 (GNSS freshness, codex 87d56f8aa / 7a98cf3a4). Per declared carrier station, the data end of the
+    file THIS run's refresh records name (the ledger's own end of the retained bytes: data_end_after, or data_end_day on
+    a NOT_DUE record), and the station(s) with the earliest end. Full support needs every station's last real sample at
+    least SUPPORT_MARGIN rows after the selected epoch, so these stations bound the newest admissible observation; the
+    producer's data_end_day is the union end (the freshest station) and cannot show this. A file end, not the last
+    in-window sample: an interior gap is not seen here. An end after the scored day is clipped to it (the producer reads
+    as of the scored day) and listed. No cache, fetch or retrieval clock is read. Recorded only; never selects or scores.
+    Computed here, outside lg_producer_candidate (an OPERATOR_SOURCE), so the operator identity does not move."""
+    declared = set(declared or ())
+    ends, kinds = {}, {}
+    for rec in refresh or ():
+        name = str(rec.get('file') or '')
+        code = name.split('.')[0]
+        if code not in declared:
+            continue
+        kind = 'IGS20' if name.endswith('.igs20.tenv') else 'IGS14' if name.endswith('.tenv3') else None
+        end = rec.get('data_end_after') if 'data_end_after' in rec else rec.get('data_end_day')
+        if kind is None or (kinds.get(code) == 'IGS20' and kind != 'IGS20'):
+            continue                                    # the IGS20 file is the one the producer prefers
+        ends[code], kinds[code] = end, kind
+    clipped = sorted(c for c, d in ends.items() if d is not None and d > scored_day.isoformat())
+    eff = {c: (scored_day.isoformat() if c in clipped else d) for c, d in ends.items()}
+    known = sorted(d for d in eff.values() if d is not None)
+    earliest = known[0] if known else None
+    return dict(basis='REFRESH_RECORD_FILE_END', station_file_end_day={c: eff.get(c) for c in sorted(declared)},
+                station_file_kind={c: kinds.get(c) for c in sorted(declared)},
+                earliest_file_end_day=earliest, latest_file_end_day=known[-1] if known else None,
+                limiting_stations=sorted(c for c, d in eff.items() if d is not None and d == earliest),
+                stations_without_file_end=sorted(c for c in declared if eff.get(c) is None),
+                clipped_to_scored_day=clipped, support_margin_rows=P.SUPPORT_MARGIN,
+                rule='observation_day <= earliest_file_end_day - support_margin_rows daily grid rows')
+
+
 def scoring_run(ctx: RunContext, regions, scored_day: date) -> Dict[str, dict]:
     """Per region: the catalog-binding GATE, then (only when bound) a refresh of the declared carrier's files and the
     producer. Each result carries what run_region_assessment takes: ratio, provenance, refusal (status, detail)."""
@@ -183,6 +217,8 @@ def scoring_run(ctx: RunContext, regions, scored_day: date) -> Dict[str, dict]:
         refresh = refresh_region_inputs(ctx, region, scored_day, P.DAYS_BACK, declared=entry['station_codes'])
         ratio, prov, trace = P.candidate_lambda_geo(region, scored_day, ctx.cache_dir, ctx.baselines_dir,
                                                     catalog_store=catalog_store(ctx.baselines_dir))
+        if isinstance(prov, dict) and isinstance(prov.get('measurement'), dict):
+            prov['measurement']['station_freshness'] = station_file_freshness(refresh, entry['station_codes'], scored_day)
         results[region] = dict(status=trace['status'], gate=gate, ratio=ratio, provenance=prov, trace=trace,
                                refusal=None if ratio is not None else (trace['status'], trace.get('detail', '')),
                                refresh=refresh)

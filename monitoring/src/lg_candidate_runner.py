@@ -157,38 +157,55 @@ def calibration_run(ctx: RunContext, regions, *, generated_utc: str, code_id: Op
     return out
 
 
-def station_file_freshness(refresh: List[dict], declared, scored_day: date) -> dict:
-    """cayley 2026-11-11 (GNSS freshness, codex 87d56f8aa / 7a98cf3a4). Per declared carrier station, the data end of the
-    file THIS run's refresh records name (the ledger's own end of the retained bytes: data_end_after, or data_end_day on
-    a NOT_DUE record), and the station(s) with the earliest end. Full support needs every station's last real sample at
-    least SUPPORT_MARGIN rows after the selected epoch, so these stations bound the newest admissible observation; the
-    producer's data_end_day is the union end (the freshest station) and cannot show this. A file end, not the last
-    in-window sample: an interior gap is not seen here. An end after the scored day is clipped to it (the producer reads
-    as of the scored day) and listed. No cache, fetch or retrieval clock is read. Recorded only; never selects or scores.
-    Computed here, outside lg_producer_candidate (an OPERATOR_SOURCE), so the operator identity does not move."""
-    declared = set(declared or ())
-    ends, kinds = {}, {}
-    for rec in refresh or ():
-        name = str(rec.get('file') or '')
-        code = name.split('.')[0]
-        if code not in declared:
+def station_file_freshness(refresh: List[dict], declared, scored_day: date, *, selected_files=None) -> dict:
+    """Record file ends bound to the producer's selected filename AND content hash, not its format preference.
+    A file ending after scored_day does not prove a sample exists on scored_day: retain the real file end and give
+    an explicitly labelled upper bound separately. File ends cannot identify interior-gap support limiters.
+    Receipt only: no acquisition, parser, measurement, eligibility, scoring or operator identity is changed."""
+    declared = sorted(set(declared or ()))
+    selected_files = selected_files or {}
+    ends, kinds, identities, unknown = {}, {}, {}, {}
+    for code in declared:
+        chosen = selected_files.get(code) or {}
+        name, sha = chosen.get('file'), chosen.get('sha256')
+        identities[code] = dict(file=name, sha256=sha)
+        kinds[code] = chosen.get('frame')
+        ends[code] = None
+        if not name or not isinstance(sha, str) or len(sha) != 64 or any(c not in '0123456789abcdef' for c in sha):
+            unknown[code] = 'SELECTED_FILE_IDENTITY_UNKNOWN'
             continue
-        kind = 'IGS20' if name.endswith('.igs20.tenv') else 'IGS14' if name.endswith('.tenv3') else None
-        end = rec.get('data_end_after') if 'data_end_after' in rec else rec.get('data_end_day')
-        if kind is None or (kinds.get(code) == 'IGS20' and kind != 'IGS20'):
-            continue                                    # the IGS20 file is the one the producer prefers
-        ends[code], kinds[code] = end, kind
-    clipped = sorted(c for c, d in ends.items() if d is not None and d > scored_day.isoformat())
-    eff = {c: (scored_day.isoformat() if c in clipped else d) for c, d in ends.items()}
-    known = sorted(d for d in eff.values() if d is not None)
+        matches = [r for r in refresh or () if r.get('file') == name and
+                   (r.get('sha256_after') if 'sha256_after' in r else r.get('sha256')) == sha]
+        if not matches:
+            unknown[code] = 'SELECTED_FILE_REFRESH_RECORD_UNBOUND'
+            continue
+        values = [r.get('data_end_after') if 'data_end_after' in r else r.get('data_end_day') for r in matches]
+        try:
+            parsed = {date.fromisoformat(v).isoformat() for v in values}
+        except (TypeError, ValueError):
+            unknown[code] = 'FILE_END_UNKNOWN'
+            continue
+        if len(parsed) != 1:
+            unknown[code] = 'FILE_END_RECORD_CONFLICT'
+            continue
+        ends[code] = parsed.pop()
+    cutoff = scored_day.isoformat()
+    bounds = {c: min(d, cutoff) if d is not None else None for c, d in ends.items()}
+    asof_ends = {c: d if d is not None and d <= cutoff else None for c, d in ends.items()}
+    known = sorted(d for d in ends.values() if d is not None)
     earliest = known[0] if known else None
-    return dict(basis='REFRESH_RECORD_FILE_END', station_file_end_day={c: eff.get(c) for c in sorted(declared)},
-                station_file_kind={c: kinds.get(c) for c in sorted(declared)},
+    return dict(basis='SELECTED_FILE_REFRESH_RECORD_END', station_file_end_day=ends,
+                station_file_kind=kinds, selected_files=identities, unknown_reasons=unknown,
+                scored_day=cutoff, station_asof_end_upper_bound_day=bounds,
+                station_asof_end_day=asof_ends,
+                stations_ending_after_scored_day=sorted(c for c, d in ends.items() if d is not None and d > cutoff),
                 earliest_file_end_day=earliest, latest_file_end_day=known[-1] if known else None,
-                limiting_stations=sorted(c for c, d in eff.items() if d is not None and d == earliest),
-                stations_without_file_end=sorted(c for c in declared if eff.get(c) is None),
-                clipped_to_scored_day=clipped, support_margin_rows=P.SUPPORT_MARGIN,
-                rule='observation_day <= earliest_file_end_day - support_margin_rows daily grid rows')
+                earliest_file_end_stations=sorted(c for c, d in ends.items() if d is not None and d == earliest),
+                stations_without_file_end=sorted(c for c, d in ends.items() if d is None),
+                all_carrier_file_ends_known=bool(declared) and not unknown,
+                support_limiter_status='UNKNOWN_FILE_ENDS_DO_NOT_RESOLVE_INTERIOR_GAPS',
+                support_margin_rows=P.SUPPORT_MARGIN,
+                rule='File ends bound possible support; interior gaps and the producer support grid determine the observation.')
 
 
 def scoring_run(ctx: RunContext, regions, scored_day: date) -> Dict[str, dict]:
@@ -218,7 +235,9 @@ def scoring_run(ctx: RunContext, regions, scored_day: date) -> Dict[str, dict]:
         ratio, prov, trace = P.candidate_lambda_geo(region, scored_day, ctx.cache_dir, ctx.baselines_dir,
                                                     catalog_store=catalog_store(ctx.baselines_dir))
         if isinstance(prov, dict) and isinstance(prov.get('measurement'), dict):
-            prov['measurement']['station_freshness'] = station_file_freshness(refresh, entry['station_codes'], scored_day)
+            prov['measurement']['station_freshness'] = station_file_freshness(
+                refresh, entry['station_codes'], scored_day,
+                selected_files=(trace.get('input_manifest') or {}).get('stations'))
         results[region] = dict(status=trace['status'], gate=gate, ratio=ratio, provenance=prov, trace=trace,
                                refusal=None if ratio is not None else (trace['status'], trace.get('detail', '')),
                                refresh=refresh)

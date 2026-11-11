@@ -221,7 +221,7 @@ class Scoring(Base):
             self.assertTrue(lg.eligible_for_tiering, (region, lg.eligibility_reason))
             self.assertEqual(out.method_set['included'], ['lambda_geo'])
 
-    def test_station_file_freshness_names_the_limiting_carrier_station_without_moving_the_operator(self):
+    def test_station_file_freshness_names_the_earliest_file_without_moving_the_operator(self):
         # cayley 2026-11-11 (GNSS freshness): QTK3's provider file ends 8 days before the scored day.
         TT.write_cache(self.src, extra=tuple(KUMAMOTO) + (DEAD,), last={'QTK9': date(2026, 8, 3), 'QTK3': SCORED - timedelta(days=8)})
         self.calibrate()
@@ -231,8 +231,11 @@ class Scoring(Base):
         self.assertEqual(r['status'], 'OK', r.get('refusal'))
         m = r['provenance']['measurement']
         f = m['station_freshness']
-        self.assertEqual(f['basis'], 'REFRESH_RECORD_FILE_END')
-        self.assertEqual(f['limiting_stations'], ['QTK3'])
+        self.assertEqual(f['basis'], 'SELECTED_FILE_REFRESH_RECORD_END')
+        self.assertEqual(f['earliest_file_end_stations'], ['QTK3'])
+        self.assertTrue(f['all_carrier_file_ends_known'])
+        self.assertEqual(f['support_limiter_status'], 'UNKNOWN_FILE_ENDS_DO_NOT_RESOLVE_INTERIOR_GAPS')
+        self.assertNotIn('limiting_stations', f, 'a file-end bound is not a claim about actual support limiters')
         self.assertEqual(f['earliest_file_end_day'], (SCORED - timedelta(days=8)).isoformat())
         self.assertEqual(sorted(f['station_file_end_day']), sorted(r['provenance']['measurement'].get('declared', []) or
                                                                   r['trace']['declared_carrier']))
@@ -245,7 +248,7 @@ class Scoring(Base):
                                        lg_candidate_refusal=r['refusal'])
         lg = out.components['lambda_geo']
         self.assertTrue(lg.eligible_for_tiering, lg.eligibility_reason)
-        self.assertEqual(lg.baseline_provenance['measurement']['station_freshness']['limiting_stations'], ['QTK3'],
+        self.assertEqual(lg.baseline_provenance['measurement']['station_freshness']['earliest_file_end_stations'], ['QTK3'],
                          'the record carries it to the report')
 
     def test_station_file_freshness_reads_only_refresh_records(self):
@@ -253,12 +256,41 @@ class Scoring(Base):
                 dict(file='BBB2.igs20.tenv', outcome='NOT_DUE', data_end_day='2026-10-20'),
                 dict(file='CCC3.igs20.tenv', data_end_after='2026-11-30'), dict(file='ZZZ9.igs20.tenv', data_end_after='2026-01-01'),
                 dict(file='ngl_catalog.json')]
-        f = RUN.station_file_freshness(recs, ['AAA1', 'BBB2', 'CCC3', 'DDD4'], date(2026, 11, 12))
-        self.assertEqual(f['station_file_end_day'], {'AAA1': '2026-10-24', 'BBB2': '2026-10-20', 'CCC3': '2026-11-12', 'DDD4': None})
-        self.assertEqual(f['station_file_kind']['AAA1'], 'IGS20', 'the IGS20 record wins over a fallback record')
-        self.assertEqual((f['limiting_stations'], f['earliest_file_end_day'], f['latest_file_end_day']), (['BBB2'], '2026-10-20', '2026-11-12'))
-        self.assertEqual((f['clipped_to_scored_day'], f['stations_without_file_end']), (['CCC3'], ['DDD4']))
+        for rec in recs:
+            rec['sha256'] = 'a' * 64
+        selected = {c: dict(file=f'{c}.igs20.tenv', frame='IGS20', sha256='a' * 64) for c in ['AAA1', 'BBB2', 'CCC3']}
+        f = RUN.station_file_freshness(recs, ['AAA1', 'BBB2', 'CCC3', 'DDD4'], date(2026, 11, 12), selected_files=selected)
+        self.assertEqual(f['station_file_end_day'], {'AAA1': '2026-10-24', 'BBB2': '2026-10-20', 'CCC3': '2026-11-30', 'DDD4': None})
+        self.assertEqual(f['station_file_kind']['AAA1'], 'IGS20', 'the selected manifest, not extension preference, binds the file')
+        self.assertEqual((f['earliest_file_end_stations'], f['earliest_file_end_day'], f['latest_file_end_day']), (['BBB2'], '2026-10-20', '2026-11-30'))
+        self.assertEqual((f['stations_ending_after_scored_day'], f['stations_without_file_end']), (['CCC3'], ['DDD4']))
+        self.assertIsNone(f['station_asof_end_day']['CCC3'], 'a future file end does not prove a scored-day sample')
+        self.assertEqual(f['station_asof_end_upper_bound_day']['CCC3'], '2026-11-12')
+        self.assertFalse(f['all_carrier_file_ends_known'])
         self.assertNotIn('ZZZ9', f['station_file_end_day'], 'an undeclared station is not counted')
+
+    def test_station_file_freshness_uses_the_actual_fallback_and_binds_its_bytes(self):
+        recs = [dict(file='AAA1.igs20.tenv', data_end_after='2026-11-10', sha256_after='a' * 64),
+                dict(file='AAA1.tenv3', data_end_after='2026-10-20', sha256_after='b' * 64)]
+        selected = {'AAA1': dict(file='AAA1.tenv3', frame='IGS14', sha256='b' * 64)}
+        f = RUN.station_file_freshness(recs, ['AAA1'], SCORED, selected_files=selected)
+        self.assertEqual((f['station_file_end_day']['AAA1'], f['station_file_kind']['AAA1']), ('2026-10-20', 'IGS14'))
+        self.assertTrue(f['all_carrier_file_ends_known'])
+        selected['AAA1']['sha256'] = 'c' * 64
+        f = RUN.station_file_freshness(recs, ['AAA1'], SCORED, selected_files=selected)
+        self.assertIsNone(f['station_file_end_day']['AAA1'])
+        self.assertEqual(f['unknown_reasons']['AAA1'], 'SELECTED_FILE_REFRESH_RECORD_UNBOUND')
+
+    def test_station_file_freshness_missing_or_conflicting_metadata_does_not_break_scoring(self):
+        selected = {'AAA1': dict(file='AAA1.igs20.tenv', frame='IGS20', sha256='a' * 64)}
+        rec = dict(file='AAA1.igs20.tenv', data_end_after='2026-10-20', sha256_after='a' * 64)
+        for recs, chosen, reason in [([rec], {}, 'SELECTED_FILE_IDENTITY_UNKNOWN'),
+                                     ([dict(rec, data_end_after='not-a-date')], selected, 'FILE_END_UNKNOWN'),
+                                     ([rec, dict(rec, data_end_after='2026-10-21')], selected, 'FILE_END_RECORD_CONFLICT')]:
+            with self.subTest(reason=reason):
+                f = RUN.station_file_freshness(recs, ['AAA1'], SCORED, selected_files=chosen)
+                self.assertIsNone(f['station_file_end_day']['AAA1'])
+                self.assertEqual(f['unknown_reasons']['AAA1'], reason)
 
     def test_a_legacy_rewrite_of_the_mutable_catalog_does_not_change_candidate_scoring(self):
         """The legacy NGLLiveAcquisition refetches the cache catalog on its 7-day wall clock. Scoring reads the as-of

@@ -882,7 +882,7 @@
                 </div>
             </div>
             <div class="validation-note">
-                <strong>Data Integrity:</strong> Lambda_geo ratios are computed from real NGL GPS daily final positions (IGS20 <code>.tenv</code>; IGS14 <code>.tenv3</code> only where no IGS20 file exists), never synthetic data. NGL documents about two weeks' latency for final solutions, so LG describes ground motion weeks before its report day; each card states the GNSS observation day it rests on.<br>
+                <strong>Data Integrity:</strong> Lambda_geo ratios are computed from real NGL GPS daily final positions (IGS20 <code>.tenv</code>; legacy IGS14 <code>.tenv3</code> fallback when a usable IGS20 series is unavailable), never synthetic data. NGL documents about two weeks' latency for final solutions, so LG describes ground motion weeks before its report day; each card states the GNSS observation day it rests on.<br>
                 <strong>Scope:</strong> Historical calibration figures; current threshold/version equivalence has not been verified here.<br>
                 <strong>95% CI:</strong> Training-set proportion [57%, 100%] (Wilson); this interval does not establish prospective skill
             </div>

@@ -1,0 +1,36 @@
+{
+ "schema": "cayley.lg-observation-age-fixture.v1",
+ "note": "One independently dated LG candidate component (GNSS freshness, codex 87d56f8aa / 7a98cf3a4). The expected values are written by hand from the dates below, not computed by the code under test. The cache mtime (2026-11-14) is a retrieval clock and must never change the age.",
+ "report_day": "2026-11-12",
+ "component": {
+  "name": "lambda_geo",
+  "available": true,
+  "raw_value": 1.2,
+  "risk_score": 0.0,
+  "frozen": false,
+  "notes": "ratio=1.2x",
+  "baseline_provenance": {
+   "source": "lambda_geo_baselines_rule_20261111.json:tokyo_kanto",
+   "calibrated_on": "2026-11-11",
+   "calibration_sha256": "64b6d98da84e9f4062c71608c51ea50d64cb4fb589f43264eaa0c69cc0226768",
+   "baseline_value": 0.026,
+   "operator_identity": "aa00000000000000000000000000000000000000000000000000000000000000",
+   "measurement": {
+    "operator_identity": "aa00000000000000000000000000000000000000000000000000000000000000",
+    "observation_day": "2026-10-19",
+    "support_through_day": "2026-10-24",
+    "data_end_day": "2026-10-24",
+    "observation_age_days": 24,
+    "selection_status": "OK",
+    "retrieval": {"files_mtime_utc": {"G100": "2026-11-14T12:01:07Z"}, "oldest_mtime_utc": "2026-11-14T12:01:07Z"}
+   }
+  }
+ },
+ "expected": {
+  "observation_day": "2026-10-19",
+  "support_through_day": "2026-10-24",
+  "data_end_day": "2026-10-24",
+  "observation_age_days": 24,
+  "report_day": "2026-11-12"
+ }
+}

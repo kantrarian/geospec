@@ -882,7 +882,7 @@
                 </div>
             </div>
             <div class="validation-note">
-                <strong>Data Integrity:</strong> All Lambda_geo ratios computed from real NGL GPS .tenv3 files (no synthetic data)<br>
+                <strong>Data Integrity:</strong> Lambda_geo ratios are computed from real NGL GPS daily final positions (IGS20 <code>.tenv</code>; IGS14 <code>.tenv3</code> only where no IGS20 file exists), never synthetic data. NGL documents about two weeks' latency for final solutions, so LG describes ground motion weeks before its report day; each card states the GNSS observation day it rests on.<br>
                 <strong>Scope:</strong> Historical calibration figures; current threshold/version equivalence has not been verified here.<br>
                 <strong>95% CI:</strong> Training-set proportion [57%, 100%] (Wilson); this interval does not establish prospective skill
             </div>
@@ -1039,6 +1039,21 @@
         }
 
         // Render status cards from ensemble data
+        // LG-OBSERVATION-AGE (cayley 2026-11-11; codex 87d56f8aa, 7a98cf3a4). The GNSS observation an LG value rests on
+        // is not its report day: NGL's final daily positions arrive weeks later. Dates come only from the retained
+        // measurement through lgUseAudit (never a file, fetch or report clock); absent or inconsistent dates stay unknown.
+        function lgCardObservation(component, reportDay) {
+            if (!component || component.available !== true) return '';
+            const a = lgUseAudit({day: typeof reportDay === 'string' ? reportDay.slice(0, 10) : null, component});
+            const known = a.clock_status === 'RETAINED_OBSERVATION';
+            const text = known
+                ? 'LG: GNSS observation ' + a.observation_day + ' · ' + a.observation_age_days + ' d before report day ' + a.report_day +
+                  ' (support through ' + a.support_through_day + '); the report day is not the observation date'
+                : 'LG: GNSS observation time unknown: ' + (a.clock_status === 'INVALID_OBSERVATION_ORDER' ? 'the retained dates are inconsistent' : 'not retained by this report');
+            return `<div class="lg-observation" data-status="${known ? 'LG_OBSERVATION_AGE' : 'LG_OBSERVATION_TIME_UNKNOWN'}"
+                         style="font-size:0.72rem; opacity:0.85; margin-top:0.35rem">${text}</div>`;
+        }
+
         function renderCards(ensembleData) {
             const grid = document.getElementById('status-grid');
             const regions = ensembleData.regions || {};
@@ -1115,6 +1130,7 @@
                                     <div class="metric-value" style="font-size: 0.9rem">${fallback ? na : agreement.replace(/_/g, ' ')}</div>
                                 </div>
                             </div>
+                            ${fallback ? '' : lgCardObservation(components.lambda_geo, data.date || ensembleData.date)}
                             ${renderEventsSection(region, eventsData)}
                         </div>
                     `;

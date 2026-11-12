@@ -1,34 +1,34 @@
 {
  "build": {
   "mode": "STAGED_FOR_THE_NEXT_COMMIT",
-  "parent_commit": "9610465f26fdeaefd7f4fedfdb64fc20bac546bc"
+  "parent_commit": "15cac88c04d089de5872222eee537e29b0ee60af"
  },
  "dates": {
   "first": "2025-10-18",
-  "last": "2026-11-09"
+  "last": "2026-11-10"
  },
  "documentation": "docs/JSON_SCHEMA.md (meanings only; reports record no unit)",
  "files": {
-  "anchorage.json": "8df4e128e236b394b4510388c94a8fdd0dca56f0a1dc9fe6b4a6bf719d604b8c",
-  "campi_flegrei.json": "0df445d325831da871dae517bbdbfe0d43710fa8d97186d030cddf9c5a1e5e77",
-  "cascadia.json": "6f070e8481834f7098ecd32a205ef55958b73d846fd4eb778be52995c4eaabb7",
-  "hualien.json": "bf7d0d96e14ae005b734b8ffd8b3d073e3e4444de6bc478f638ab29aef60653b",
-  "istanbul_marmara.json": "54a6039bfec0a2b12dd5f81a153d8d99647b3b570556963d417150206fb438ca",
-  "kaikoura.json": "fe0f7f37d34599cd244f84171111235259bbf4234e87fca2a14d09e3bceeac16",
-  "kumamoto.json": "b1e95b4e4c22d9a04c376b1e50900a8a3c29d7726e28d72cb3110d9b752f41a8",
-  "mexico_guerrero.json": "afd7df03d25cbf5b8108d8f73771b1324c0bfa7de781193871cc32868f5b5494",
-  "norcal_hayward.json": "1be66a3d2e249a3676cd0bbe345340c359532c8ece8adb1bf0aef02cec328773",
-  "ridgecrest.json": "e8aa5bc44a65633b480fc36987f92fc23b899ceb8b5838bf8af807edf44c35d6",
-  "socal_saf_coachella.json": "161b489fd15bc899924a31c3efb304851d2d841926ca6e66139fb8e7e27d99ed",
-  "socal_saf_mojave.json": "63162b5f381e6b5d5a1cc22f99c808333cf9cf0fdb09d4ff063119fef39d961a",
-  "tokyo_kanto.json": "6dcccc50d97cd7bfe7de6cc7debccb2c7305bfcf5e5b568b922fea9270f46a0f",
-  "turkey_kahramanmaras.json": "32c0e2f8e0b323effa4dc0dbfc7fed646476bc1cbd2e001a71a35bb54103d78e"
+  "anchorage.json": "c325719ea0002603d3cc30d50638c941d8d4ef58c9d23924382347c097505b08",
+  "campi_flegrei.json": "6ddcef137dc4d9bd6d37ab0c45c8217522e493ec24ab871840d0a3cd38e1acaa",
+  "cascadia.json": "8595b7e4f27503f8d8f6b46d9b79caf6d0cfd92d2c7605c63ef8449e3303d4e9",
+  "hualien.json": "c6bc3e72b160c001232935be1e998f766e6602fdfe794fb77b43f37f59eb8016",
+  "istanbul_marmara.json": "12fde9cb47e079d0eb7206fdae7c014942232dd0defce3d3110ed729962b30a6",
+  "kaikoura.json": "bfcf67a423074c6307e71b6ebe26d951a6bd31c1066a167c30cb4af54e17eff8",
+  "kumamoto.json": "aa44362d1bbb1aecd957378152597c042ac7ba2cb6ba09a50a61c86078f5338e",
+  "mexico_guerrero.json": "53fe197ba8dd9c4238121044fb30ecf11fe75ce2904e425fa2600a427f167b8e",
+  "norcal_hayward.json": "99bbb759e088396cae06682f27b0d9df94057af907aaf1d101766eb5f03e1470",
+  "ridgecrest.json": "2362f63a61d5135c40557f162128c41a0bdb87523280935cefa359f154d9adca",
+  "socal_saf_coachella.json": "dfbb9cf0f79a581d4f8e5ed97ceeb78699fede2a870adb1758b0e1396dd94b2b",
+  "socal_saf_mojave.json": "a34b4f02e69a1aae385436a4fa51c2d0841dc1f1f358a10aad29471d3ab3cbf6",
+  "tokyo_kanto.json": "46bef1310e22a4e46ceb2028225df156004bdc325eb890964725afab36be203e",
+  "turkey_kahramanmaras.json": "c6dcaf8233255747fcc95f39a56d3ff294b206e87086595524966662510615d3"
  },
  "inputs": {
   "capsule_sha256": "a4f61f64379d7b8b2cb18f54c74ca40548bd3cd94ef463ec60ba870b3cf26d4e",
-  "data_csv_sha256": "fa38041198efe3da43ce53fab6e9d9c48ec8a3c4ab6cc2b6dd91f1e5cd3192b4",
-  "journal_entries": 69,
-  "journal_sha256": "0c2139fae72f0fe0de9be96aa4e76dd13c9eca324814e93edd95d2447b494477",
+  "data_csv_sha256": "a1fbd348c4eabe26f69d0be45a17d317da74c9b3fefb349dbc02297db580f179",
+  "journal_entries": 70,
+  "journal_sha256": "06b0554dbc1418ab9875d2e1786ac0ae859077dc54b95cb0a2e1c213b8ca0e9c",
   "undated_unparseable_capsule_records": [
    {
     "byte_length": 0,
@@ -57,8 +57,8 @@
   }
  },
  "preservation": {
-  "compared": 4004,
-  "equal": 3692,
+  "compared": 4018,
+  "equal": 3706,
   "mismatch_reasons": {
    "CSV_EQUALS_A_SUPERSEDED_REVISION": 45,
    "CSV_EQUALS_NO_RETAINED_REVISION": 36,
@@ -7486,6 +7486,65 @@
       "reason": null,
       "run_id": "20261103T120703958909Z-f5c9294a",
       "sha256": "469042df1825e89162c3150ec4c406742443156230d56340a94294bea9452ba7",
+      "supersedes": null
+     },
+     "state": "RETROSPECTIVE_RECONSTRUCTION_NOT_ISSUED",
+     "value": 0.0
+    },
+    {
+     "components": {
+      "lambda_geo": {
+       "admission": {
+        "basis": "METHOD_SET",
+        "code": "NO_REGISTERED_FRESHNESS_POLICY",
+        "included": false,
+        "reason": "NO_REGISTERED_FRESHNESS_POLICY: lambda_geo_baselines.json:kaikoura: lambda_geo has no registered baseline-age bound; qualification unknown",
+        "state": "NOT_QUALIFIED",
+        "weight": null
+       },
+       "base_weight": 0.4,
+       "calibration": {
+        "baseline_provenance": {
+         "calibrated_on": "2026-11-09",
+         "calibration_sha256": "3a89ca7f4591fc5efb7e5997e808a18f49fd867e79585271b11ca5de4b2aa687",
+         "n_days": 90,
+         "quality": "good",
+         "source": "lambda_geo_baselines.json:kaikoura",
+         "window_end": "2026-10-10",
+         "window_start": "2026-07-12"
+        },
+        "calibration": {
+         "eligible_for_tiering": false,
+         "reason": "NO_REGISTERED_FRESHNESS_POLICY: lambda_geo_baselines.json:kaikoura: lambda_geo has no registered baseline-age bound; qualification unknown",
+         "rule_version": "calibration-eligibility-v3",
+         "status": "missing"
+        }
+       },
+       "effective_weight": 1.0,
+       "raw_value": 0.1,
+       "recorded_score": 0.0,
+       "station": null,
+       "warnings": [
+        "CALIBRATION_MISSING",
+        "NOT_ADMITTED_NOT_QUALIFIED"
+       ]
+      }
+     },
+     "csv": {
+      "agreement": "no_data",
+      "methods": "0",
+      "risk": "0.0000",
+      "tier": "-1"
+     },
+     "date": "2026-11-10",
+     "original_state": "NO_QUALIFIED_METHOD",
+     "rule": "retained-component-weighted-mean-v1",
+     "source": {
+      "kind": "REVISION_CURRENT",
+      "path": "docs/ensemble/2026-11-10/20261112T120705445341Z-78ea5c34.json",
+      "reason": null,
+      "run_id": "20261112T120705445341Z-78ea5c34",
+      "sha256": "41f85988e38f03669c8e227aa85a1cc548f1df068a17ef9c81fe6ee98de44fe7",
       "supersedes": null
      },
      "state": "RETROSPECTIVE_RECONSTRUCTION_NOT_ISSUED",

@@ -147,7 +147,7 @@ class IssuedTokyoRepeatedInput(unittest.TestCase):
         self.assertEqual(p["regime"]["regime_transition"]["kind"], "MEASUREMENT_SUPPORT")
         self.assertEqual((p["consecutive_days"], p["is_confirmed"]), (1, False))
         self.assertEqual(p["regime"]["observation_updates"]["lambda_geo"]["observation_updates"], 1)
-        self.assertEqual(p["regime"]["not_confirmed_reasons"], ["REPORT_DAYS_BELOW_REQUIRED"])
+        self.assertEqual(p["regime"]["not_confirmed_reasons"], ["REPORT_DAYS_BELOW_REQUIRED:MEASUREMENT_SUPPORT_CHANGE"])
 
     def test_d_a_genuine_next_retained_epoch_is_a_new_observation(self):
         cur = next_day(self.tokyo)
@@ -193,12 +193,12 @@ class IssuedTokyoRepeatedInput(unittest.TestCase):
         self.assertEqual((p["consecutive_days"], p["is_confirmed"]), (1, False))
         self.assertEqual(p["regime"]["observation_updates"]["lambda_geo"]["steps"], [])
         self.assertEqual(p["regime"]["not_confirmed_reasons"],
-                         ["REPORT_DAYS_BELOW_REQUIRED", "UNKNOWN_OBSERVATION_IDENTITY:lambda_geo"])
+                         ["REPORT_DAYS_BELOW_REQUIRED:GAP", "UNKNOWN_OBSERVATION_IDENTITY:lambda_geo"])
 
     def test_e_a_gap_resets_with_its_reason(self):
         p = persistence(next_day(self.tokyo), [None, self.tokyo], "tokyo_kanto")
         self.assertEqual((p["consecutive_days"], p["is_confirmed"]), (1, False))
-        self.assertEqual(p["regime"]["not_confirmed_reasons"], ["REPORT_DAYS_BELOW_REQUIRED"])
+        self.assertEqual(p["regime"]["not_confirmed_reasons"], ["REPORT_DAYS_BELOW_REQUIRED:GAP"])
 
     def test_a_revised_same_epoch_is_a_revision_not_an_update(self):
         cur = next_day(self.tokyo)
@@ -298,6 +298,66 @@ class IssuedThdOnlyControls(unittest.TestCase):
         p = persistence(next_day(row), [row], "kumamoto")
         self.assertEqual((p["consecutive_days"], p["is_confirmed"], p["regime"]["not_confirmed_reasons"]),
                          (0, False, []))
+
+
+def as_v2(row):
+    """The row as a method-comparability-v2 report would carry it: same values, the new contract's regime and key."""
+    out = copy.deepcopy(row)
+    ms = out["method_set"]
+    old = ms["contract_version"]
+    ms["contract_version"], ms["regime"] = MC.COMPARISON_CONTRACT_VERSION, MC.regime_id()
+    ms["comparability_key"] = ms["comparability_key"].replace(old, MC.COMPARISON_CONTRACT_VERSION)
+    return out
+
+
+class ContractTransition(unittest.TestCase):
+    """codex 93df4f774 item 2: v1 -> v2 is a disclosed one-day regime reset; later complete v2 pairs can confirm."""
+
+    def setUp(self):
+        self.rep = issued_report()
+        self.tokyo = self.rep["regions"]["tokyo_kanto"]
+
+    def test_the_contract_is_v2_and_the_issued_rows_are_v1(self):
+        self.assertEqual(MC.COMPARISON_CONTRACT_VERSION, "method-comparability-v2")
+        self.assertIn("method-comparability-v2", MC.regime_id())
+        self.assertEqual(self.tokyo["method_set"]["contract_version"], "method-comparability-v1")
+
+    def test_a_v1_prior_does_not_count_toward_a_v2_confirmation(self):
+        for region in ("tokyo_kanto", "campi_flegrei"):
+            row = self.rep["regions"][region]
+            cur = as_v2(next_day(row))
+            lg = lg_measurement(cur) if "lambda_geo" in cur["method_set"]["included"] else None
+            if lg is not None:   # even a genuinely new LG epoch cannot bridge the contract change
+                lg["observation_day"], lg["input_sha256"] = "2026-10-20", SYNTHETIC_DIGEST + "next_epoch"
+            p = persistence(cur, [row], region)
+            self.assertEqual((p["consecutive_days"], p["is_confirmed"]), (1, False), region)
+            self.assertEqual(p["regime"]["regime_transition"]["from"], row["method_set"]["regime"], region)
+            self.assertEqual(p["regime"]["regime_transition"]["to"], MC.regime_id(), region)
+            self.assertEqual(p["regime"]["not_confirmed_reasons"], ["REPORT_DAYS_BELOW_REQUIRED:REGIME_TRANSITION"],
+                             region)
+
+    def test_a_later_complete_v2_pair_with_advanced_observations_confirms(self):
+        prior = as_v2(next_day(self.tokyo))
+        cur = next_day(prior)
+        m = lg_measurement(cur)
+        m["observation_day"], m["input_sha256"] = "2026-10-20", SYNTHETIC_DIGEST + "next_epoch"
+        p = persistence(cur, [prior, self.tokyo], "tokyo_kanto")   # the v1 day behind them is not counted
+        self.assertEqual((p["consecutive_days"], p["is_confirmed"]), (2, True))
+        self.assertEqual(p["regime"]["observation_updates"]["lambda_geo"]["observation_updates"], 2)
+        self.assertEqual(p["regime"]["not_confirmed_reasons"], [])
+
+    def test_a_v2_pair_repeating_the_lg_input_does_not_confirm(self):
+        prior = as_v2(next_day(self.tokyo))
+        p = persistence(next_day(prior), [prior, self.tokyo], "tokyo_kanto")
+        self.assertEqual((p["consecutive_days"], p["is_confirmed"]), (2, False))
+        self.assertEqual(p["regime"]["not_confirmed_reasons"], ["REPEATED_INPUT:lambda_geo"])
+
+    def test_a_tier_zero_prior_names_its_cause(self):
+        kum = self.rep["regions"]["kumamoto"]
+        cur = copy.deepcopy(kum)
+        cur["tier"] = 1                   # SYNTHETIC tier for the reason probe; the issued prior day is tier 0
+        p = persistence(next_day(cur), [kum], "kumamoto")
+        self.assertEqual(p["regime"]["not_confirmed_reasons"], ["REPORT_DAYS_BELOW_REQUIRED:PRIOR_DAY_BELOW_WATCH"])
 
 
 class WriterPathAndConsumers(unittest.TestCase):

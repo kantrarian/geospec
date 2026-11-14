@@ -251,7 +251,12 @@ class PersistenceUnderRegimes(unittest.TestCase):
         cur = thd_only("turkey_kahramanmaras", 0.8114640273239097)
         same = cur.method_set
         p = self.persistence(cur, [self.issued(1, same), self.issued(1, same), self.issued(0, same)])
-        self.assertEqual((p["consecutive_days"], p["is_confirmed"]), (3, True))
+        # observation-update-confirmation-v1 / contract v2 (2026-11-14, codex 93df4f774): same-regime REPORT days still
+        # count (3), but these synthetic rows retain no THD trace evidence, so novelty is UNKNOWN and nothing confirms.
+        # Was (3, True) under method-comparability-v1. Retained-evidence confirmation is covered in
+        # test_confirmation_observation_updates_cayley_20261114.
+        self.assertEqual((p["consecutive_days"], p["is_confirmed"]), (3, False))
+        self.assertEqual(p["regime"]["not_confirmed_reasons"], ["UNKNOWN_OBSERVATION_IDENTITY:seismic_thd"])
         self.assertIsNone(p["regime"]["regime_transition"])
         self.assertFalse(p["regime"]["method_set_changed"])
 

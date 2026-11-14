@@ -1,5 +1,5 @@
 """
-method_comparability.py -- PROSPECTIVE comparison contract for the ensemble (method-comparability-v1).
+method_comparability.py -- PROSPECTIVE comparison contract for the ensemble (method-comparability-v2; v1 + point 6).
 
 NOT ACTIVATED. Everything here is emitted ONLY while the calibration-eligibility rule is active
 (calibration_eligibility.rule_active), so every rule-OFF output stays byte-identical to the issued reports. Issued
@@ -30,7 +30,8 @@ Contract:
      start a new confirmation sequence. This remains an offline prospective candidate.
   6. observation-update-confirmation-v1 (2026-11-14): report-day persistence is kept as counted; CONFIRMATION also
      needs each included method's retained observation to have advanced over those report days. A repeated input
-     is two report days and one observation, with an explicit reason; unknown identity blocks confirmation.
+     is two report days and one observation, with an explicit reason; unknown identity blocks confirmation. Every
+     included method counts, a qualified zero included (codex ruling A). Introduced as contract v2.
 """
 from __future__ import annotations
 
@@ -41,7 +42,9 @@ from typing import Dict, Iterable, List, Mapping, Optional, Sequence
 
 import calibration_eligibility as CE
 
-COMPARISON_CONTRACT_VERSION = "method-comparability-v1"
+# v2 (2026-11-14; codex 93df4f774 item 2) = v1 + observation-update confirmation (point 6 above). The bump is a regime
+# change: no v1 report day is carried into a v2 confirmation, and the reset is disclosed as REGIME_TRANSITION.
+COMPARISON_CONTRACT_VERSION = "method-comparability-v2"
 
 METHOD_ORDER = ("lambda_geo", "fault_correlation", "seismic_thd")
 METHOD_LABELS = {"lambda_geo": "LG", "fault_correlation": "FC", "seismic_thd": "THD"}
@@ -290,6 +293,14 @@ STEP_UNKNOWN = "UNKNOWN_OBSERVATION_IDENTITY"              # not retained, not r
 UPDATE_STEPS = frozenset((STEP_ADVANCED,))
 BLOCKING_STEPS = frozenset((STEP_UNKNOWN, STEP_REGRESSED))
 UPDATES_BELOW_REQUIRED = "OBSERVATION_UPDATES_BELOW_REQUIRED"
+REPORT_DAYS_BELOW_REQUIRED = "REPORT_DAYS_BELOW_REQUIRED"
+# why a report-day chain ended (codex 93df4f774 item 2: the regime transition is a disclosed reason, not an outage)
+CHAIN_GAP = "GAP"
+CHAIN_REGIME_TRANSITION = "REGIME_TRANSITION"
+CHAIN_METHOD_SET_CHANGE = "METHOD_SET_CHANGE"
+CHAIN_SUPPORT_CHANGE = "MEASUREMENT_SUPPORT_CHANGE"
+CHAIN_PRIOR_BELOW_WATCH = "PRIOR_DAY_BELOW_WATCH"
+CHAIN_NO_EARLIER_REPORT = "NO_EARLIER_REPORT"
 LG_OBSERVATION_BASIS = "RETAINED_LG_MEASUREMENT"
 LG_OBSERVATION_CONTENT = ("input_sha256", "input_selection_sha256", "operator_identity")
 THD_OBSERVATION_BASIS = "RETAINED_THD_TRACE_EPOCH"
@@ -444,27 +455,35 @@ def regime_persistence(current_tier: int, current_ms: Mapping, prior_rows: Seque
     consecutive = 1
     transition = None
     counted = []
+    stop = None   # why the report-day chain ended (named in the reason when too few report days remain)
     for back, row in enumerate(prior_rows, start=1):
         if row is None:
+            stop = CHAIN_GAP
             break
         regime = prior_regime(row)
         if regime != current:
             transition = {"from": regime, "to": current, "days_back": back}
+            stop = CHAIN_REGIME_TRANSITION
             break
         if PERSISTENCE_RESETS_ON_METHOD_SET_CHANGE and prior_key(row) != current_ms["comparability_key"]:
             transition = {"from": prior_key(row), "to": current_ms["comparability_key"], "days_back": back,
                           "kind": "METHOD_SET"}
+            stop = CHAIN_METHOD_SET_CHANGE
             break
         if persistence_basis(current_ms) is None or persistence_basis(row.get("method_set") or {}) != persistence_basis(current_ms):
             transition = {"kind": "MEASUREMENT_SUPPORT", "days_back": back,
                           "reason": "support unknown or changed; start a new confirmation sequence"}
+            stop = CHAIN_SUPPORT_CHANGE
             break
         tier = row.get("tier", 0)
         if tier is not None and tier >= 1 and current_tier >= 1:
             consecutive += 1
             counted.append(row)
         else:
+            stop = CHAIN_PRIOR_BELOW_WATCH
             break
+    else:
+        stop = CHAIN_NO_EARLIER_REPORT
     yesterday = prior_rows[0] if prior_rows else None
     chain = [current_row] + counted
     updates = {m: observation_updates(m, chain) for m in (current_ms.get("included") or [])}
@@ -472,8 +491,9 @@ def regime_persistence(current_tier: int, current_ms: Mapping, prior_rows: Seque
     reasons = []
     if current_tier >= 1:
         if not report_days_met:
-            # too few report days already decides it; add only what independently blocks (unknown or regressed)
-            reasons.append("REPORT_DAYS_BELOW_REQUIRED")
+            # too few report days already decides it: name why the chain ended, then add only what independently
+            # blocks (unknown or regressed)
+            reasons.append("%s:%s" % (REPORT_DAYS_BELOW_REQUIRED, stop))
             reasons += ["%s:%s" % (u["blocking"][0], m) for m, u in updates.items() if u["blocking"]]
         else:
             reasons += [r for r in (_not_confirmed_reason(m, u, required_consecutive)

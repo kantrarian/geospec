@@ -971,7 +971,8 @@ def check_persistence(
         # regime change is recorded, never carried across. Issued tiers in tier_history stay as issued.
         method_set = getattr(result, 'method_set', None)
         if method_set is not None:
-            regime = MC.regime_persistence(current_tier, method_set, prior_rows, required_consecutive)
+            regime = MC.regime_persistence(current_tier, method_set, prior_rows, required_consecutive,
+                                           current_row=result)
             consecutive = max(1, regime.pop('consecutive_days'))
             is_confirmed = regime.pop('is_confirmed')
             persistence[region]['consecutive_days'] = consecutive if current_tier >= 1 else 0

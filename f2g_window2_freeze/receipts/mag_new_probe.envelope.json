@@ -1,0 +1,15 @@
+{
+ "body_path": "docs/f2g_window2_freeze/receipts/mag_new_probe.json",
+ "body_sha256": "2bcdbb1295156383b08db5dce532a627d2098da2b60c467755935341c1a91143",
+ "effective_url": "https://geomag.usgs.gov/ws/data/?id=NEW&format=json&sampling_period=60&starttime=2026-08-19T00:00:00Z&endtime=2026-08-20T00:00:00Z",
+ "fired_utc": "2026-08-22T01:13:40Z",
+ "http_status": 200,
+ "parser_version": "json metadata.intermagnet + times[] (USGS geomag ws)",
+ "recomputed_coverage_samples": 1441,
+ "requested_url": "https://geomag.usgs.gov/ws/data/?id=NEW&format=json&sampling_period=60&starttime=2026-08-19T00:00:00Z&endtime=2026-08-20T00:00:00Z",
+ "response_headers": {
+  "Content-Type": "application/json",
+  "Date": "Sat, 22 Aug 2026 01:13:43 GMT"
+ },
+ "schema": "f2g-receipt-envelope-v1"
+}

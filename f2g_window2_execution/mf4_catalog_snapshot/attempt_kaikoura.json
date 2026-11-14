@@ -1,0 +1,53 @@
+{
+ "bbox": {
+  "max_lat": -41.5,
+  "max_lon": 174.5,
+  "min_lat": -43.0,
+  "min_lon": 171.5
+ },
+ "carrier": "kaikoura",
+ "effective_url": "https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&starttime=2025-10-11T00%3A00%3A00&endtime=2026-08-28T00%3A00%3A00&minmagnitude=4.0&minlatitude=-43.0&maxlatitude=-41.5&minlongitude=171.5&maxlongitude=174.5&orderby=time-asc&limit=20000",
+ "http_status": 200,
+ "params": {
+  "endtime": "2026-08-28T00:00:00",
+  "format": "geojson",
+  "limit": "20000",
+  "maxlatitude": "-41.5",
+  "maxlongitude": "174.5",
+  "minlatitude": "-43.0",
+  "minlongitude": "171.5",
+  "minmagnitude": "4.0",
+  "orderby": "time-asc",
+  "starttime": "2025-10-11T00:00:00"
+ },
+ "raw_bytes": 4073,
+ "raw_file": "raw_kaikoura.geojson",
+ "raw_sha256": "d5fee348bef62dfb283c47c8f643a3a929acdd8ea92aa25ca61b3db45c4d2fe6",
+ "region": "kaikoura",
+ "request_utc": "2026-08-30T02:39:51.690905Z",
+ "requested_url": "https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&starttime=2025-10-11T00%3A00%3A00&endtime=2026-08-28T00%3A00%3A00&minmagnitude=4.0&minlatitude=-43.0&maxlatitude=-41.5&minlongitude=171.5&maxlongitude=174.5&orderby=time-asc&limit=20000",
+ "response_headers": {
+  "Access-Control-Allow-Headers": "*",
+  "Access-Control-Allow-Methods": "GET, OPTIONS",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Max-Age": "86400",
+  "Cache-Control": "public, max-age=60",
+  "Connection": "close",
+  "Content-Length": "4073",
+  "Content-Type": "application/json; charset=utf-8",
+  "Date": "Sun, 30 Aug 2026 02:39:51 GMT",
+  "Expires": "Sun, 30 Aug 2026 02:40:51 GMT",
+  "Last-Modified": "Sun, 30 Aug 2026 02:39:51 GMT",
+  "Server": "nginx",
+  "Strict-Transport-Security": "max-age=31536000; includeSubDomains; preload",
+  "Vary": "Accept-Encoding",
+  "Via": "1.1 025e061928e1c94f4ec3a3438db5f230.cloudfront.net (CloudFront)",
+  "X-Amz-Cf-Id": "KXuXbKaQ5CksJIuIZdA8Zyuj1fdkLpTC-1995Ev9uNrF4NssXJe2IA==",
+  "X-Amz-Cf-Pop": "ATL58-P11",
+  "X-Cache": "Miss from cloudfront",
+  "X-Content-Type-Options": "nosniff",
+  "X-Frame-Options": "SAMEORIGIN",
+  "X-XSS-Protection": "1; mode=block"
+ },
+ "response_utc": "2026-08-30T02:39:51.923330Z"
+}

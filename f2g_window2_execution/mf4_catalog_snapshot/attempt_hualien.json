@@ -1,0 +1,53 @@
+{
+ "bbox": {
+  "max_lat": 25.5,
+  "max_lon": 122.5,
+  "min_lat": 22.0,
+  "min_lon": 120.0
+ },
+ "carrier": "hualien",
+ "effective_url": "https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&starttime=2025-10-11T00%3A00%3A00&endtime=2026-08-28T00%3A00%3A00&minmagnitude=4.0&minlatitude=22.0&maxlatitude=25.5&minlongitude=120.0&maxlongitude=122.5&orderby=time-asc&limit=20000",
+ "http_status": 200,
+ "params": {
+  "endtime": "2026-08-28T00:00:00",
+  "format": "geojson",
+  "limit": "20000",
+  "maxlatitude": "25.5",
+  "maxlongitude": "122.5",
+  "minlatitude": "22.0",
+  "minlongitude": "120.0",
+  "minmagnitude": "4.0",
+  "orderby": "time-asc",
+  "starttime": "2025-10-11T00:00:00"
+ },
+ "raw_bytes": 56317,
+ "raw_file": "raw_hualien.geojson",
+ "raw_sha256": "88e02da59da908a7dd259b26bc8c7cd6f942392d6168f1d7fefa67f518357d53",
+ "region": "hualien",
+ "request_utc": "2026-08-30T02:39:51.103451Z",
+ "requested_url": "https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&starttime=2025-10-11T00%3A00%3A00&endtime=2026-08-28T00%3A00%3A00&minmagnitude=4.0&minlatitude=22.0&maxlatitude=25.5&minlongitude=120.0&maxlongitude=122.5&orderby=time-asc&limit=20000",
+ "response_headers": {
+  "Access-Control-Allow-Headers": "*",
+  "Access-Control-Allow-Methods": "GET, OPTIONS",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Max-Age": "86400",
+  "Cache-Control": "public, max-age=60",
+  "Connection": "close",
+  "Content-Type": "application/json; charset=utf-8",
+  "Date": "Sun, 30 Aug 2026 02:39:51 GMT",
+  "Expires": "Sun, 30 Aug 2026 02:40:51 GMT",
+  "Last-Modified": "Sun, 30 Aug 2026 02:39:51 GMT",
+  "Server": "nginx",
+  "Strict-Transport-Security": "max-age=31536000; includeSubDomains; preload",
+  "Transfer-Encoding": "chunked",
+  "Vary": "Accept-Encoding",
+  "Via": "1.1 0c833a4490529ae1e3a109e499761a2e.cloudfront.net (CloudFront)",
+  "X-Amz-Cf-Id": "3LKJd9R7ObGbydbKwyIkMmtE18aGCS94LJAb3L1-uzQOmkPrrRlRug==",
+  "X-Amz-Cf-Pop": "ATL58-P11",
+  "X-Cache": "Miss from cloudfront",
+  "X-Content-Type-Options": "nosniff",
+  "X-Frame-Options": "SAMEORIGIN",
+  "X-XSS-Protection": "1; mode=block"
+ },
+ "response_utc": "2026-08-30T02:39:51.402534Z"
+}

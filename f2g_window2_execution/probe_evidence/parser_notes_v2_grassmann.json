@@ -1,0 +1,19 @@
+{
+ "schema": "f2g-w2-probe-parser-notes-v2",
+ "author": "grassmann",
+ "note": "Append-only companion for the TWO attempt-2 retries (codex 1623Z ruling; retry-input record retry_input_record_v1_grassmann.json committed pre-fire at 1e155a3). Attempt-1 evidence byte-untouched.",
+ "operations": {
+  "kp_attempt2": {
+   "body_sha256_ref": "kp_attempt2.envelope.json",
+   "parser": "GFZ Kp JSON: {Kp: [8 three-hourly floats], datetime: [8 ISO Z instants at 00/03/06/09/12/15/18/21], meta {license CC BY 4.0, source GFZ Potsdam}, status: ['def'...]} -- definitive values; day coverage = 8/8 intervals",
+   "recomputed_coverage": {"intervals": 8, "of_expected": 8, "status_all_definitive": true},
+   "tls": "verified chain via certifi 2025.10.05, CERT_REQUIRED + check_hostname (context asserted in the driver); peer-cert extraction unavailable through the stdlib response object on this client -- disclosed, the TLS client identity fields are in the envelope",
+   "verdict": "TEMPLATE_GRAMMAR_CONFIRMED (the attempt-1 refusal was, as diagnosed, purely the local trust store)"
+  },
+  "socal_coachella_attempt2": {
+   "body_sha256_ref": "socal_coachella_attempt2.envelope.json",
+   "parser": null,
+   "verdict": "PROBE_REFUSED AGAIN (SCEDC HTTP 400 on the long-form parameter grammar too; the 400 error body was not captured -- the client raised before the body read, disclosed). Template remains BLOCKED. Per the ruling's final clause this stops here and routes: exclusion or another request is a SEPARATE codex decision. Candidate hypotheses for that decision (untested, zero further requests made): SCEDC may reject the 12-station comma list length, the explicit day-window against level=channel, or require different availability semantics entirely (their availability service rather than station)."
+  }
+ }
+}

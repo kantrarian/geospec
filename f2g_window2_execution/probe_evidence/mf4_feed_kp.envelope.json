@@ -1,0 +1,11 @@
+{
+ "key": "MF4_FEED/kp",
+ "probe_day_utc": "2025-11-15",
+ "raw_body_bytes": 0,
+ "raw_body_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+ "refusal": "PROBE_REFUSED: URLError: <urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate (_ssl.c:1006)>",
+ "request_start_utc": "2026-08-24T18:50:57Z",
+ "requested_url": "https://kp.gfz-potsdam.de/app/json/?start=2025-11-15T00%3A00%3A00Z&end=2025-11-15T23%3A59%3A59Z&index=Kp",
+ "response_complete_utc": "2026-08-24T18:50:58Z",
+ "schema": "f2g-w2-probe-envelope-v1"
+}

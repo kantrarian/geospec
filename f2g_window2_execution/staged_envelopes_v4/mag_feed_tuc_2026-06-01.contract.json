@@ -1,0 +1,26 @@
+{
+ "carrier": "tuc",
+ "cutoff": "2026-07-31",
+ "endpoint": "https://geomag.usgs.gov/ws/data/",
+ "expected_keys": [
+  "2026-06-01"
+ ],
+ "lane": "MAG_FEED",
+ "operation_params": {
+  "carrier": "tuc",
+  "day": "2026-06-01"
+ },
+ "request_params": {
+  "endtime": "2026-06-02T00:00:00Z",
+  "format": "json",
+  "id": "TUC",
+  "sampling_period": "60",
+  "starttime": "2026-06-01T00:00:00Z"
+ },
+ "schema": "f2g-w2-static-contract-v1",
+ "source": {
+  "kind": "usgs-geomag-ws-minute",
+  "ref": "https://geomag.usgs.gov/ws/data/"
+ },
+ "utc_day": "2026-06-01"
+}

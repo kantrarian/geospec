@@ -60,8 +60,8 @@ def as_result(row):
 
 
 def next_day(row, days=1):
-    """The same row as issued `days` later: report date, THD scored day and THD requested window advance (the THD
-    operator measures each report day's own window); NOTHING of the LG observation changes."""
+    """Synthetic next report with a genuinely later returned THD trace, not merely a later request.
+    NOTHING of the LG observation changes; raw sample digests below are synthetic."""
     out = copy.deepcopy(row)
     d = datetime.fromisoformat(out["date"]) + timedelta(days=days)
     out["date"] = d.isoformat()
@@ -73,6 +73,12 @@ def next_day(row, days=1):
                 w = p.get("window_requested")
                 if w:
                     p["window_requested"] = [(datetime.fromisoformat(x) + timedelta(days=days)).isoformat() for x in w]
+                epoch = p.get("epoch")
+                if epoch:
+                    p["epoch"] = [(datetime.fromisoformat(x.replace("Z", "+00:00")) + timedelta(days=days)).isoformat()
+                                  for x in epoch]
+                    p["raw_samples_sha256"] = hashlib.sha256(
+                        ("SYNTHETIC next trace " + str(p["epoch"])).encode()).hexdigest()
     return out
 
 
@@ -109,7 +115,8 @@ class IssuedTokyoRepeatedInput(unittest.TestCase):
         self.assertEqual(p["regime"]["not_confirmed_reasons"], ["REPEATED_INPUT:lambda_geo"])
         thd = p["regime"]["observation_updates"]["seismic_thd"]
         self.assertEqual((thd["steps"], thd["observation_updates"]), ([MC.STEP_ADVANCED], 2))
-        self.assertEqual(thd["epochs"], ["2026-11-13T00:00:00", "2026-11-12T00:00:00"])
+        # Actual last samples, not the requested midnight boundary.
+        self.assertEqual(thd["epochs"], ["2026-11-12T23:59:59.994538", "2026-11-11T23:59:59.994538"])
 
     def test_b_new_retrieval_and_report_timestamps_do_not_advance_the_observation(self):
         cur = next_day(self.tokyo)
@@ -224,7 +231,8 @@ class IssuedTokyoRepeatedInput(unittest.TestCase):
         row = self.tokyo
         without_current = MC.regime_persistence(row["tier"], row["method_set"], [row, None], REQUIRED)
         self.assertFalse(without_current["is_confirmed"])
-        self.assertEqual(without_current["not_confirmed_reasons"], ["UNKNOWN_OBSERVATION_IDENTITY:lambda_geo"])
+        self.assertEqual(without_current["not_confirmed_reasons"],
+                         ["UNKNOWN_OBSERVATION_IDENTITY:lambda_geo", "UNKNOWN_OBSERVATION_IDENTITY:seismic_thd"])
         with_current = MC.regime_persistence(row["tier"], row["method_set"], [row, None], REQUIRED,
                                              current_row=next_day(row))
         self.assertEqual((with_current["consecutive_days"], with_current["is_confirmed"]), (2, False))
@@ -247,13 +255,27 @@ class IssuedThdOnlyControls(unittest.TestCase):
         self.rep = issued_report()
 
     def test_issued_confirmed_thd_regions_still_confirm(self):
-        for region in ("campi_flegrei", "kaikoura"):
+        for region in ("campi_flegrei",):
             row = self.rep["regions"][region]
             self.assertTrue(row["persistence"]["is_confirmed"])
             p = persistence(next_day(row), [row], region)
             thd = p["regime"]["observation_updates"]["seismic_thd"]
             self.assertEqual((thd["steps"], p["is_confirmed"]), ([MC.STEP_ADVANCED], True), region)
             self.assertEqual(p["regime"]["not_confirmed_reasons"], [], region)
+
+    def test_kaikoura_issued_row_missing_sample_hash_does_not_establish_novelty(self):
+        row = self.rep["regions"]["kaikoura"]
+        self.assertTrue(row["persistence"]["is_confirmed"])  # preserve original issued status
+        provider = row["thd_attempts"]["stations"][0]["providers"][0]
+        self.assertNotIn("raw_samples_sha256", provider)
+        p = persistence(next_day(row), [row], "kaikoura")
+        self.assertFalse(p["is_confirmed"])
+        self.assertEqual(p["regime"]["not_confirmed_reasons"], ["UNKNOWN_OBSERVATION_IDENTITY:seismic_thd"])
+        # A fully identified SYNTHETIC pair still confirms; do not invent a hash for issued history.
+        synthetic = copy.deepcopy(row)
+        synthetic["thd_attempts"]["stations"][0]["providers"][0]["raw_samples_sha256"] = hashlib.sha256(
+            b"SYNTHETIC Kaikoura control, not measured").hexdigest()
+        self.assertTrue(persistence(next_day(synthetic), [synthetic], "kaikoura")["is_confirmed"])
 
     def test_a_repeated_retained_thd_window_is_a_repeated_input(self):
         row = self.rep["regions"]["campi_flegrei"]
@@ -285,12 +307,21 @@ class WriterPathAndConsumers(unittest.TestCase):
         self.tmp = tempfile.mkdtemp(prefix="confirm-cayley-")
         self.addCleanup(shutil.rmtree, self.tmp, True)
 
-    def lg_thd(self, epoch, digest):
+    def lg_thd(self, epoch, digest, report_day=None):
         res = T.run("tokyo_kanto", T.comp("lambda_geo", 1.0), T.unavailable("fault_correlation"),
                     T.comp("seismic_thd", 0.0, station="IU.MAJO", shared=("kumamoto", "tokyo_kanto")))
         res.components["lambda_geo"].baseline_provenance = {"measurement": {
             "observation_day": epoch, "input_sha256": SYNTHETIC_DIGEST + digest,
             "input_selection_sha256": SYNTHETIC_DIGEST + "selection", "operator_identity": SYNTHETIC_DIGEST + "op"}}
+        res.date = report_day or T.DAY
+        end, start = res.date.isoformat(), (res.date - timedelta(hours=25)).isoformat()
+        # Synthetic retained evidence, explicit rather than inferred from the report day.
+        res.thd_attempts = {"schema": "thd-station-attempts-v3", "scored_day": res.date.date().isoformat(),
+                            "stations": [{"selected": True, "station": "IU.MAJO", "outcome": "VALUE",
+                                          "measurement_identity": hashlib.sha256(b"SYNTHETIC THD operator").hexdigest(),
+                                          "providers": [{"outcome": "DATA_RETURNED", "trace_id": "IU.MAJO..BHZ",
+                                                         "window_requested": [start, end], "epoch": [start + "Z", end + "Z"],
+                                                         "raw_samples_sha256": hashlib.sha256(("SYNTHETIC samples " + end).encode()).hexdigest()}]}]}
         return res
 
     def issued_row(self, res):
@@ -303,18 +334,17 @@ class WriterPathAndConsumers(unittest.TestCase):
         return RD.check_persistence({"tokyo_kanto": cur}, None, T.DAY, loader=loader)
 
     def test_writer_rows_repeated_and_advanced(self):
-        prior = self.issued_row(self.lg_thd("2026-10-19", "a"))
+        prior = self.issued_row(self.lg_thd("2026-10-19", "a", T.DAY - timedelta(days=1)))
         self.assertEqual(prior["tier"], 2)
         same = self.check(self.lg_thd("2026-10-19", "a"), [prior])["tokyo_kanto"]
         self.assertEqual((same["consecutive_days"], same["is_confirmed"]), (2, False))
         self.assertEqual(same["regime"]["not_confirmed_reasons"], ["REPEATED_INPUT:lambda_geo"])
         new = self.check(self.lg_thd("2026-10-20", "b"), [prior])["tokyo_kanto"]
         self.assertEqual((new["consecutive_days"], new["is_confirmed"]), (2, True))
-        # writer rows carry no thd_attempts: THD advances by its operator window and says so
-        self.assertEqual(new["regime"]["observation_updates"]["seismic_thd"]["steps"], [MC.STEP_ADVANCED_BY_WINDOW])
+        self.assertEqual(new["regime"]["observation_updates"]["seismic_thd"]["steps"], [MC.STEP_ADVANCED])
 
     def test_every_consumer_reads_the_repaired_flag(self):
-        prior = self.issued_row(self.lg_thd("2026-10-19", "a"))
+        prior = self.issued_row(self.lg_thd("2026-10-19", "a", T.DAY - timedelta(days=1)))
         cur = self.lg_thd("2026-10-19", "a")
         pers = self.check(cur, [prior])
         path = RD.save_results({"tokyo_kanto": cur}, Path(self.tmp), T.DAY, pers)

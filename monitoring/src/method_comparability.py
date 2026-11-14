@@ -36,7 +36,7 @@ from __future__ import annotations
 
 import hashlib
 import inspect
-from datetime import date
+from datetime import date, datetime, timezone
 from typing import Dict, Iterable, List, Mapping, Optional, Sequence
 
 import calibration_eligibility as CE
@@ -274,24 +274,25 @@ def persistence_basis(ms: Mapping):
 # included method's OBSERVATION to have advanced across the counted report days: two reports of one retained LG epoch
 # are two report days and ONE observation, never a second measurement. Novelty is read only from retained measurement
 # identity -- LG: the selected observation epoch with its input, selection and operator digests; THD: the operator's
-# own report-day window, compared through the retained requested window wherever a row carries one. Retrieval times,
+# retained returned-trace epoch, sample digest and selected-station identity. Requested windows are consistency
+# checks only, never evidence of new observations. Retrieval times,
 # report or publication times, file mtimes, calibration dates and an unchanged-content refresh are never read as
 # observation evidence. The same epoch with different digests is a REVISION, not a new observation. An identity that
 # is not retained stays UNKNOWN and blocks confirmation. Distinct epochs are NOT statistically independent evidence
 # (adjacent LG epochs share most of their input window); nothing here says they are.
 CONFIRMATION_RULE_VERSION = "observation-update-confirmation-v1"
 STEP_ADVANCED = "ADVANCED"                                 # a later retained epoch
-STEP_ADVANCED_BY_WINDOW = "ADVANCED_BY_OPERATOR_WINDOW"    # THD without a retained window: each report day's own window
+STEP_ADVANCED_BY_WINDOW = "ADVANCED_BY_OPERATOR_WINDOW"    # obsolete candidate label, never emitted
 STEP_REPEATED = "REPEATED_INPUT"                           # same epoch, same retained digests
 STEP_REVISED = "REVISED_SAME_EPOCH"                        # same epoch, different digests: a revision, not an update
 STEP_REGRESSED = "EPOCH_REGRESSED"                         # an earlier epoch than the older report's
 STEP_UNKNOWN = "UNKNOWN_OBSERVATION_IDENTITY"              # not retained, not registered, or inconsistent
-UPDATE_STEPS = frozenset((STEP_ADVANCED, STEP_ADVANCED_BY_WINDOW))
+UPDATE_STEPS = frozenset((STEP_ADVANCED,))
 BLOCKING_STEPS = frozenset((STEP_UNKNOWN, STEP_REGRESSED))
 UPDATES_BELOW_REQUIRED = "OBSERVATION_UPDATES_BELOW_REQUIRED"
 LG_OBSERVATION_BASIS = "RETAINED_LG_MEASUREMENT"
 LG_OBSERVATION_CONTENT = ("input_sha256", "input_selection_sha256", "operator_identity")
-THD_OBSERVATION_BASIS = "THD_OPERATOR_REPORT_DAY_WINDOW"
+THD_OBSERVATION_BASIS = "RETAINED_THD_TRACE_EPOCH"
 
 
 def _field(obj, key):
@@ -312,24 +313,64 @@ def _iso_day(value) -> Optional[str]:
         return None
 
 
-def _thd_retained_window_end(row):
-    """The requested-window end of the row's SELECTED THD station, as retained in `thd_attempts`; None when the row
-    retains no attempts; "INCONSISTENT" when the retained window does not end at the row's own scored day 00:00."""
+def _utc_time(value):
+    if not isinstance(value, str) or "T" not in value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        # These retained provider records declare UTC; older request strings omit Z.
+        return parsed.replace(tzinfo=timezone.utc) if parsed.tzinfo is None else parsed.astimezone(timezone.utc)
+    except ValueError:
+        return None
+
+
+def _thd_retained_observation(row):
+    """No report-day fallback. Bind actual returned data to the included station.
+
+    A requested window may advance while returned data remain unchanged.
+    Missing/ambiguous retained evidence cannot establish observation novelty.
+    """
     block = _field(row, "thd_attempts")
     if not isinstance(block, Mapping):
         return None
-    ends = set()
-    for st in block.get("stations") or []:
-        if not isinstance(st, Mapping) or not st.get("selected"):
-            continue
-        for p in st.get("providers") or []:
-            if isinstance(p, Mapping) and p.get("outcome") == "DATA_RETURNED":
-                w = p.get("window_requested")
-                ends.add(w[1] if isinstance(w, (list, tuple)) and len(w) == 2 and isinstance(w[1], str) else None)
+    stations = [s for s in block.get("stations") or [] if isinstance(s, Mapping) and s.get("selected")]
+    if len(stations) != 1:
+        return None
+    station = stations[0]
+    ms = _field(row, "method_set")
+    support = (ms.get("support") or {}).get("seismic_thd") if isinstance(ms, Mapping) else None
+    if not isinstance(support, Mapping) or station.get("station") != support.get("identity"):
+        return None
+    mid = station.get("measurement_identity")
+    if station.get("outcome") != "VALUE" or not isinstance(mid, str) or not mid:
+        return None
+    providers = [p for p in station.get("providers") or []
+                 if isinstance(p, Mapping) and p.get("outcome") == "DATA_RETURNED"]
+    if len(providers) != 1:
+        return None
+    provider = providers[0]
+    window, epoch = provider.get("window_requested"), provider.get("epoch")
+    if not all(isinstance(v, (list, tuple)) and len(v) == 2 for v in (window, epoch)):
+        return None
+    start, end = map(_utc_time, epoch)
+    request_start, request_end = map(_utc_time, window)
     day = _iso_day(block.get("scored_day"))
-    if len(ends) != 1 or None in ends or day is None or ends != {day + "T00:00:00"}:
-        return "INCONSISTENT"
-    return ends.pop()
+    if any(v is None for v in (start, end, request_start, request_end)) or day is None:
+        return None
+    if not (start < end and request_start < request_end and end >= request_start
+            and start < request_end and end <= request_end
+            and request_end == _utc_time(day + "T00:00:00")):
+        return None
+    digest, trace = provider.get("raw_samples_sha256"), provider.get("trace_id")
+    if not isinstance(digest, str) or len(digest) != 64 or any(c not in "0123456789abcdef" for c in digest):
+        return None
+    if not isinstance(trace, str) or not trace.startswith(str(station.get("station")) + "."):
+        return None
+    return {"status": "KNOWN", "basis": THD_OBSERVATION_BASIS,
+            "epoch": end.replace(tzinfo=None).isoformat(), "retained_window": True,
+            "content": {"station": station["station"], "measurement_identity": mid,
+                        "trace_id": trace, "raw_samples_sha256": digest,
+                        "returned_start": start.replace(tzinfo=None).isoformat()}}
 
 
 def observation_identity(method: str, row) -> Dict:
@@ -348,11 +389,11 @@ def observation_identity(method: str, row) -> Dict:
         return {"status": "UNKNOWN", "basis": LG_OBSERVATION_BASIS, "epoch": None,
                 "reason": "no retained observation_day with input, selection and operator digests"}
     if method == "seismic_thd":
-        end = _thd_retained_window_end(row)
-        if end == "INCONSISTENT":
+        retained = _thd_retained_observation(row)
+        if retained is None:
             return {"status": "UNKNOWN", "basis": THD_OBSERVATION_BASIS, "epoch": None,
-                    "reason": "retained THD attempts do not show one selected window ending at the scored day"}
-        return {"status": "KNOWN", "basis": THD_OBSERVATION_BASIS, "epoch": end, "retained_window": end is not None}
+                    "reason": "no consistent retained selected THD trace epoch and sample identity"}
+        return retained
     return {"status": "UNKNOWN", "basis": "NOT_REGISTERED", "epoch": None,
             "reason": "no registered observation identity for this method"}
 
@@ -362,8 +403,8 @@ def observation_step(newer: Mapping, older: Mapping) -> str:
     if newer.get("status") != "KNOWN" or older.get("status") != "KNOWN":
         return STEP_UNKNOWN
     a, b = newer.get("epoch"), older.get("epoch")
-    if newer.get("basis") == THD_OBSERVATION_BASIS and (a is None or b is None):
-        return STEP_ADVANCED_BY_WINDOW
+    if a is None or b is None:
+        return STEP_UNKNOWN
     if a > b:
         return STEP_ADVANCED
     if a < b:

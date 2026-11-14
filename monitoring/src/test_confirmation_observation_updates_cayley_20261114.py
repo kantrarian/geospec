@@ -178,6 +178,16 @@ class IssuedTokyoRepeatedInput(unittest.TestCase):
         self.assertEqual(p["regime"]["not_confirmed_reasons"], ["UNKNOWN_OBSERVATION_IDENTITY:lambda_geo"])
         self.assertFalse(p["is_confirmed"])
 
+    def test_e_unknown_identity_is_disclosed_on_a_first_report_day(self):
+        """With no prior day there is no step to catch it: the current identity itself must say UNKNOWN."""
+        cur = next_day(self.tokyo)
+        del lg_measurement(cur)["observation_day"]
+        p = persistence(cur, [None], "tokyo_kanto")
+        self.assertEqual((p["consecutive_days"], p["is_confirmed"]), (1, False))
+        self.assertEqual(p["regime"]["observation_updates"]["lambda_geo"]["steps"], [])
+        self.assertEqual(p["regime"]["not_confirmed_reasons"],
+                         ["REPORT_DAYS_BELOW_REQUIRED", "UNKNOWN_OBSERVATION_IDENTITY:lambda_geo"])
+
     def test_e_a_gap_resets_with_its_reason(self):
         p = persistence(next_day(self.tokyo), [None, self.tokyo], "tokyo_kanto")
         self.assertEqual((p["consecutive_days"], p["is_confirmed"]), (1, False))

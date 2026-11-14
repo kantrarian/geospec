@@ -235,6 +235,34 @@ def combined_entry(region_report):
     if isinstance(method_set, dict):
         out["method_set"] = {k: method_set.get(k) for k in ("label", "rule_version", "contract_version",
                                                            "comparability_key", "risk_basis")}
+    persistence = persistence_entry(region_report)
+    if persistence is not None:
+        out["persistence"] = persistence
+    return out
+
+
+PERSISTENCE_KEYS = ("current_tier", "consecutive_days", "is_confirmed")
+CONFIRMATION_KEYS = ("confirmation_rule", "report_days", "report_days_met", "not_confirmed_reasons")
+OBSERVATION_UPDATE_KEYS = ("observation_updates", "epochs", "steps", "revisions")
+
+
+def persistence_entry(region_report):
+    """The issued persistence exactly as the report recorded it (observation-update confirmation; codex 93df4f774
+    item 3), so the download carries the same flag, counts, observation epochs and reasons as the report and card.
+    Copied, never recomputed: a report issued before the confirmation rule keeps its flag and day count as issued and
+    carries no confirmation fields (null), never an inferred reason."""
+    p = region_report.get("persistence")
+    if not isinstance(p, dict):
+        return None
+    regime = p.get("regime") if isinstance(p.get("regime"), dict) else {}
+    out = {k: p.get(k) for k in PERSISTENCE_KEYS}
+    out.update({k: regime.get(k) for k in CONFIRMATION_KEYS})
+    updates = regime.get("observation_updates")
+    out["observation_updates"] = ({m: {k: u.get(k) for k in OBSERVATION_UPDATE_KEYS}
+                                   for m, u in sorted(updates.items()) if isinstance(u, dict)}
+                                  if isinstance(updates, dict) else None)
+    transition = regime.get("regime_transition")
+    out["regime_transition_kind"] = ((transition.get("kind") or "REGIME") if isinstance(transition, dict) else None)
     return out
 
 

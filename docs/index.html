@@ -1054,6 +1054,61 @@
                          style="font-size:0.72rem; opacity:0.85; margin-top:0.35rem">${text}</div>`;
         }
 
+        // CONFIRMATION-AUDIT (cayley 2026-11-14; codex 191be4566, 93df4f774 item 3). Confirmation needs report days AND a
+        // new retained observation from every included method (observation-update-confirmation-v1, contract v2). One
+        // function reads ONLY the recorded persistence fields and serves both the card line and the raw-history download,
+        // so they cannot disagree. Nothing is recomputed: a report issued before the rule keeps its flag, with no reason.
+        const CONFIRM_LABELS = {lambda_geo: 'LG', seismic_thd: 'THD', fault_correlation: 'FC'};
+        const CONFIRM_CHAIN = {GAP: 'no report on the previous day', REGIME_TRANSITION: 'rule change: earlier report days are not counted',
+            METHOD_SET_CHANGE: 'method set changed', MEASUREMENT_SUPPORT_CHANGE: 'measurement support changed',
+            PRIOR_DAY_BELOW_WATCH: 'previous day below WATCH', NO_EARLIER_REPORT: 'no earlier report'};
+        function confirmationAudit(p, tier) {
+            const escH = s => String(s).replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
+            if (!p || typeof p !== 'object') return {status: 'NOT_RETAINED', report_days: null, updates: {}, reasons: [], text: null};
+            const reasons = Array.isArray(p.not_confirmed_reasons) ? p.not_confirmed_reasons.filter(r => typeof r === 'string') : [];
+            const updates = {};
+            for (const [m, u] of Object.entries(p.observation_updates && typeof p.observation_updates === 'object' ? p.observation_updates : {})) {
+                if (!u || typeof u !== 'object') continue;
+                const n = Number.isInteger(u.observation_updates) ? u.observation_updates : null;
+                const latest = Array.isArray(u.epochs) && typeof u.epochs[0] === 'string' ? u.epochs[0] : null;
+                updates[m] = {count: n, latest};
+            }
+            const legacy = typeof p.confirmation_rule !== 'string';
+            const days = Number.isInteger(p.report_days) ? p.report_days : Number.isInteger(p.consecutive_days) ? p.consecutive_days : null;
+            const status = !(tier >= 1) ? 'NOT_APPLICABLE' : p.is_confirmed === true ? (legacy ? 'CONFIRMED_BEFORE_RULE' : 'CONFIRMED')
+                : (legacy ? 'PRELIMINARY_BEFORE_RULE' : 'NOT_CONFIRMED');
+            if (status === 'NOT_APPLICABLE' || legacy) return {status, report_days: days, updates, reasons, text: null};
+            const say = r => {
+                const [code, arg] = [r.split(':')[0], r.split(':').slice(1).join(':')], L = CONFIRM_LABELS[arg] || arg;
+                return code === 'REPEATED_INPUT' ? L + ' repeated input (the same observation as the previous report)'
+                    : code === 'REVISED_SAME_EPOCH' ? L + ' revised the same observation (a revision, not a new observation)'
+                    : code === 'UNKNOWN_OBSERVATION_IDENTITY' ? L + ' observation identity missing from the retained evidence (a value exists; a new observation cannot be established)'
+                    : code === 'EPOCH_REGRESSED' ? L + ' observation is earlier than the previous report\'s'
+                    : code === 'OBSERVATION_UPDATES_BELOW_REQUIRED' ? L + ' has too few new observations'
+                    : code === 'REPORT_DAYS_BELOW_REQUIRED' ? 'too few report days (' + (CONFIRM_CHAIN[arg] || arg || 'reason not recorded') + ')'
+                    : r;
+            };
+            const counts = Object.entries(updates).map(([m, u]) => (CONFIRM_LABELS[m] || m) + ' ' +
+                (u.count === null ? 'observation unknown' : u.count + ' observation' + (u.count === 1 ? '' : 's')) +
+                (m === 'lambda_geo' && u.latest ? ' (latest ' + u.latest + ')' : ''));
+            const text = (status === 'CONFIRMED' ? 'Confirmed' : 'Not confirmed') + ': ' +
+                (days === null ? 'report days unknown' : days + ' report day' + (days === 1 ? '' : 's')) +
+                (counts.length ? '; ' + counts.join('; ') : '') + (reasons.length ? ' — ' + reasons.map(say).join('; ') : '');
+            return {status, report_days: days, updates, reasons, text: escH(text)};
+        }
+        function cardPersistence(data) {
+            const p = data && data.persistence;
+            if (!p || typeof p !== 'object') return null;
+            const r = p.regime && typeof p.regime === 'object' ? p.regime : {};
+            return {is_confirmed: p.is_confirmed, consecutive_days: p.consecutive_days, confirmation_rule: r.confirmation_rule,
+                report_days: r.report_days, not_confirmed_reasons: r.not_confirmed_reasons, observation_updates: r.observation_updates};
+        }
+        function confirmationCardLine(data) {
+            const a = confirmationAudit(cardPersistence(data), data ? data.tier : null);
+            if (!a.text) return '';
+            return `<div class="confirmation-line" data-status="${a.status}" style="font-size:0.72rem; opacity:0.85; margin-top:0.35rem">${a.text}</div>`;
+        }
+
         function renderCards(ensembleData) {
             const grid = document.getElementById('status-grid');
             const regions = ensembleData.regions || {};
@@ -1131,6 +1186,7 @@
                                 </div>
                             </div>
                             ${fallback ? '' : lgCardObservation(components.lambda_geo, data.date || ensembleData.date)}
+                            ${fallback ? '' : confirmationCardLine(data)}
                             ${renderEventsSection(region, eventsData)}
                         </div>
                     `;
@@ -1821,6 +1877,16 @@
             'calibrated_on','calibration_sha256','operator_identity','input_sha256','effective_weight',
             'weighted_contribution','contribution_basis','unclamped_ratio'];
         RAW_COLUMNS.push(...LG_AUDIT_COLUMNS.map(k=>'lg_'+k));
+        // The report's own confirmation fields, region-level, through the same confirmationAudit as the card line.
+        const CONFIRMATION_COLUMNS = ['confirmation_status', 'report_days', 'lg_observation_updates', 'thd_observation_updates',
+            'not_confirmed_reasons'];
+        RAW_COLUMNS.push(...CONFIRMATION_COLUMNS);
+        function rawConfirmation(d) {
+            const comb = d.combined || {}, p = comb.persistence, tier = (comb.recorded || {}).tier;
+            const a = confirmationAudit(p, tier), n = m => a.updates[m] ? rawCell(a.updates[m].count) : '';
+            return {confirmation_status: p ? a.status : '', report_days: p ? rawCell(a.report_days) : '',
+                lg_observation_updates: n('lambda_geo'), thd_observation_updates: n('seismic_thd'), not_confirmed_reasons: a.reasons.join(' ')};
+        }
         function rawLgAudit(d) {
             const m=d.methods?.lambda_geo||{},a=m.admission||{};
             return lgUseAudit({day:d.date,component:{...m.recorded,baseline_provenance:m.calibration?.baseline_provenance,
@@ -1931,7 +1997,8 @@
                     csv_disagrees: d.csv_disagrees ? rawCell(d.csv_disagrees.reason) : '',
                     superseded_revisions: String((d.superseded || []).length),
                     notes: (m.recorded && typeof m.recorded.notes === 'string') ? m.recorded.notes : '',
-                    ...Object.fromEntries(LG_AUDIT_COLUMNS.map(k=>['lg_'+k,method==='lambda_geo'?rawCell(rawLgAudit(d)[k]):'']))
+                    ...Object.fromEntries(LG_AUDIT_COLUMNS.map(k=>['lg_'+k,method==='lambda_geo'?rawCell(rawLgAudit(d)[k]):''])),
+                    ...rawConfirmation(d)
                 };
             });
         }

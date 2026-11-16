@@ -39,14 +39,14 @@
      "seismic_thd": 1.0
     },
     "method_set": {
-     "comparability_key": "THD|calibration-eligibility-v3|method-comparability-v2|THD:THD_STATION_BASELINE:max_age=50,min_lag=30,convention=thd-daily-measurement-v1|THD:SeismicTHDAnalyzer.analyze_window@9cb122ea13b8+thd_to_risk_with_baseline@06687c9aed44|operator_class=thd-operator-class-v1:fd420772c86ae549|THD=1.0",
-     "contract_version": "method-comparability-v2",
+     "comparability_key": "THD|calibration-eligibility-v3|method-comparability-v3|THD:THD_STATION_BASELINE:max_age=50,min_lag=30,convention=thd-daily-measurement-v1|THD:SeismicTHDAnalyzer.analyze_window@9cb122ea13b8+thd_to_risk_with_baseline@06687c9aed44|operator_class=thd-operator-class-v1:fd420772c86ae549|THD=1.0",
+     "contract_version": "method-comparability-v3",
      "label": "THD",
      "risk_basis": "CONDITIONAL_MEAN_OVER_INCLUDED_METHODS",
      "rule_version": "calibration-eligibility-v3"
     },
     "persistence": {
-     "confirmation_rule": "observation-update-confirmation-v1",
+     "confirmation_rule": "observation-update-confirmation-v2",
      "consecutive_days": 2,
      "current_tier": 1,
      "is_confirmed": true,
@@ -234,14 +234,14 @@
      "seismic_thd": 1.0
     },
     "method_set": {
-     "comparability_key": "THD|calibration-eligibility-v3|method-comparability-v2|THD:THD_STATION_BASELINE:max_age=50,min_lag=30|THD:SeismicTHDAnalyzer.analyze_window@9cb122ea13b8+thd_to_risk_with_baseline@06687c9aed44|daily_operator=13d395c54e2a7e20898c090176cec0866fc310cdc4e1279cad5a08853aadc132|daily_measurement@d38f700bbe29+fetch_bound@edd7daf77c28+stitch_window@4856b33b274c|THD=1.0",
-     "contract_version": "method-comparability-v2",
+     "comparability_key": "THD|calibration-eligibility-v3|method-comparability-v3|THD:THD_STATION_BASELINE:max_age=50,min_lag=30|THD:SeismicTHDAnalyzer.analyze_window@9cb122ea13b8+thd_to_risk_with_baseline@06687c9aed44|daily_operator=13d395c54e2a7e20898c090176cec0866fc310cdc4e1279cad5a08853aadc132|daily_measurement@d38f700bbe29+fetch_bound@edd7daf77c28+stitch_window@4856b33b274c|THD=1.0",
+     "contract_version": "method-comparability-v3",
      "label": "THD",
      "risk_basis": "CONDITIONAL_MEAN_OVER_INCLUDED_METHODS",
      "rule_version": "calibration-eligibility-v3"
     },
     "persistence": {
-     "confirmation_rule": "observation-update-confirmation-v1",
+     "confirmation_rule": "observation-update-confirmation-v2",
      "consecutive_days": 2,
      "current_tier": 1,
      "is_confirmed": false,
@@ -432,14 +432,14 @@
      "seismic_thd": 0.4285714285714286
     },
     "method_set": {
-     "comparability_key": "LG+THD|calibration-eligibility-v3|method-comparability-v2|LG:lg-integration-candidate-v1:CandidatePolicy(effective_scored_day='2026-11-12', baseline_max_age_days=45, calibration_min_lag_days=30, observation_max_age_days=45, min_baseline_samples=30),THD:THD_STATION_BASELINE:max_age=50,min_lag=30,convention=thd-daily-measurement-v1|LG:lambda_geo_to_risk@cb015ec176ba|operator=77a41ed479b8c5da91c7d4f9bbb6facffd028b244d31a16d3f22fe09fd6caaa7,THD:SeismicTHDAnalyzer.analyze_window@9cb122ea13b8+thd_to_risk_with_baseline@06687c9aed44|operator_class=thd-operator-class-v1:b236fd4a9c010bfb|LG=0.5714285714285715,THD=0.4285714285714286",
-     "contract_version": "method-comparability-v2",
+     "comparability_key": "LG+THD|calibration-eligibility-v3|method-comparability-v3|LG:lg-integration-candidate-v1:CandidatePolicy(effective_scored_day='2026-11-12', baseline_max_age_days=45, calibration_min_lag_days=30, observation_max_age_days=45, min_baseline_samples=30),THD:THD_STATION_BASELINE:max_age=50,min_lag=30,convention=thd-daily-measurement-v1|LG:lambda_geo_to_risk@cb015ec176ba|operator=77a41ed479b8c5da91c7d4f9bbb6facffd028b244d31a16d3f22fe09fd6caaa7,THD:SeismicTHDAnalyzer.analyze_window@9cb122ea13b8+thd_to_risk_with_baseline@06687c9aed44|operator_class=thd-operator-class-v1:b236fd4a9c010bfb|LG=0.5714285714285715,THD=0.4285714285714286",
+     "contract_version": "method-comparability-v3",
      "label": "LG+THD",
      "risk_basis": "CONDITIONAL_MEAN_OVER_INCLUDED_METHODS",
      "rule_version": "calibration-eligibility-v3"
     },
     "persistence": {
-     "confirmation_rule": "observation-update-confirmation-v1",
+     "confirmation_rule": "observation-update-confirmation-v2",
      "consecutive_days": 2,
      "current_tier": 2,
      "is_confirmed": false,
@@ -1563,8 +1563,8 @@
     },
     "method_set": {
      "comparability_complete": true,
-     "comparability_key": "THD|calibration-eligibility-v3|method-comparability-v2|THD:THD_STATION_BASELINE:max_age=50,min_lag=30,convention=thd-daily-measurement-v1|THD:SeismicTHDAnalyzer.analyze_window@9cb122ea13b8+thd_to_risk_with_baseline@06687c9aed44|operator_class=thd-operator-class-v1:fd420772c86ae549|THD=1.0",
-     "contract_version": "method-comparability-v2",
+     "comparability_key": "THD|calibration-eligibility-v3|method-comparability-v3|THD:THD_STATION_BASELINE:max_age=50,min_lag=30,convention=thd-daily-measurement-v1|THD:SeismicTHDAnalyzer.analyze_window@9cb122ea13b8+thd_to_risk_with_baseline@06687c9aed44|operator_class=thd-operator-class-v1:fd420772c86ae549|THD=1.0",
+     "contract_version": "method-comparability-v3",
      "effective_weights": {
       "seismic_thd": 1.0
      },
@@ -1589,7 +1589,7 @@
       "lambda_geo": 0.4,
       "seismic_thd": 0.3
      },
-     "regime": "calibration-eligibility-v3|method-comparability-v2",
+     "regime": "calibration-eligibility-v3|method-comparability-v3",
      "risk_basis": "CONDITIONAL_MEAN_OVER_INCLUDED_METHODS",
      "rule_version": "calibration-eligibility-v3",
      "states": {
@@ -1618,7 +1618,7 @@
      "current_tier": 1,
      "is_confirmed": true,
      "regime": {
-      "confirmation_rule": "observation-update-confirmation-v1",
+      "confirmation_rule": "observation-update-confirmation-v2",
       "method_set_changed": false,
       "method_set_history": [
        null,
@@ -1644,11 +1644,11 @@
         ]
        }
       },
-      "regime": "calibration-eligibility-v3|method-comparability-v2",
+      "regime": "calibration-eligibility-v3|method-comparability-v3",
       "regime_transition": {
        "days_back": 2,
        "from": "calibration-eligibility-v3|method-comparability-v1",
-       "to": "calibration-eligibility-v3|method-comparability-v2"
+       "to": "calibration-eligibility-v3|method-comparability-v3"
       },
       "report_days": 2,
       "report_days_met": true,
@@ -1937,8 +1937,8 @@
     },
     "method_set": {
      "comparability_complete": true,
-     "comparability_key": "THD|calibration-eligibility-v3|method-comparability-v2|THD:THD_STATION_BASELINE:max_age=50,min_lag=30|THD:SeismicTHDAnalyzer.analyze_window@9cb122ea13b8+thd_to_risk_with_baseline@06687c9aed44|daily_operator=13d395c54e2a7e20898c090176cec0866fc310cdc4e1279cad5a08853aadc132|daily_measurement@d38f700bbe29+fetch_bound@edd7daf77c28+stitch_window@4856b33b274c|THD=1.0",
-     "contract_version": "method-comparability-v2",
+     "comparability_key": "THD|calibration-eligibility-v3|method-comparability-v3|THD:THD_STATION_BASELINE:max_age=50,min_lag=30|THD:SeismicTHDAnalyzer.analyze_window@9cb122ea13b8+thd_to_risk_with_baseline@06687c9aed44|daily_operator=13d395c54e2a7e20898c090176cec0866fc310cdc4e1279cad5a08853aadc132|daily_measurement@d38f700bbe29+fetch_bound@edd7daf77c28+stitch_window@4856b33b274c|THD=1.0",
+     "contract_version": "method-comparability-v3",
      "effective_weights": {
       "seismic_thd": 1.0
      },
@@ -1963,7 +1963,7 @@
       "lambda_geo": 0.4,
       "seismic_thd": 0.3
      },
-     "regime": "calibration-eligibility-v3|method-comparability-v2",
+     "regime": "calibration-eligibility-v3|method-comparability-v3",
      "risk_basis": "CONDITIONAL_MEAN_OVER_INCLUDED_METHODS",
      "rule_version": "calibration-eligibility-v3",
      "states": {
@@ -1992,7 +1992,7 @@
      "current_tier": 1,
      "is_confirmed": false,
      "regime": {
-      "confirmation_rule": "observation-update-confirmation-v1",
+      "confirmation_rule": "observation-update-confirmation-v2",
       "method_set_changed": false,
       "method_set_history": [
        null,
@@ -2022,11 +2022,11 @@
         ]
        }
       },
-      "regime": "calibration-eligibility-v3|method-comparability-v2",
+      "regime": "calibration-eligibility-v3|method-comparability-v3",
       "regime_transition": {
        "days_back": 2,
        "from": "calibration-eligibility-v3|method-comparability-v1",
-       "to": "calibration-eligibility-v3|method-comparability-v2"
+       "to": "calibration-eligibility-v3|method-comparability-v3"
       },
       "report_days": 2,
       "report_days_met": true,
@@ -3061,8 +3061,8 @@
     },
     "method_set": {
      "comparability_complete": true,
-     "comparability_key": "LG+THD|calibration-eligibility-v3|method-comparability-v2|LG:lg-integration-candidate-v1:CandidatePolicy(effective_scored_day='2026-11-12', baseline_max_age_days=45, calibration_min_lag_days=30, observation_max_age_days=45, min_baseline_samples=30),THD:THD_STATION_BASELINE:max_age=50,min_lag=30,convention=thd-daily-measurement-v1|LG:lambda_geo_to_risk@cb015ec176ba|operator=77a41ed479b8c5da91c7d4f9bbb6facffd028b244d31a16d3f22fe09fd6caaa7,THD:SeismicTHDAnalyzer.analyze_window@9cb122ea13b8+thd_to_risk_with_baseline@06687c9aed44|operator_class=thd-operator-class-v1:b236fd4a9c010bfb|LG=0.5714285714285715,THD=0.4285714285714286",
-     "contract_version": "method-comparability-v2",
+     "comparability_key": "LG+THD|calibration-eligibility-v3|method-comparability-v3|LG:lg-integration-candidate-v1:CandidatePolicy(effective_scored_day='2026-11-12', baseline_max_age_days=45, calibration_min_lag_days=30, observation_max_age_days=45, min_baseline_samples=30),THD:THD_STATION_BASELINE:max_age=50,min_lag=30,convention=thd-daily-measurement-v1|LG:lambda_geo_to_risk@cb015ec176ba|operator=77a41ed479b8c5da91c7d4f9bbb6facffd028b244d31a16d3f22fe09fd6caaa7,THD:SeismicTHDAnalyzer.analyze_window@9cb122ea13b8+thd_to_risk_with_baseline@06687c9aed44|operator_class=thd-operator-class-v1:b236fd4a9c010bfb|LG=0.5714285714285715,THD=0.4285714285714286",
+     "contract_version": "method-comparability-v3",
      "effective_weights": {
       "lambda_geo": 0.5714285714285715,
       "seismic_thd": 0.4285714285714286
@@ -3084,7 +3084,7 @@
       "lambda_geo": 0.4,
       "seismic_thd": 0.3
      },
-     "regime": "calibration-eligibility-v3|method-comparability-v2",
+     "regime": "calibration-eligibility-v3|method-comparability-v3",
      "risk_basis": "CONDITIONAL_MEAN_OVER_INCLUDED_METHODS",
      "rule_version": "calibration-eligibility-v3",
      "states": {
@@ -3123,7 +3123,7 @@
      "current_tier": 2,
      "is_confirmed": false,
      "regime": {
-      "confirmation_rule": "observation-update-confirmation-v1",
+      "confirmation_rule": "observation-update-confirmation-v2",
       "method_set_changed": false,
       "method_set_history": [
        null,
@@ -3137,7 +3137,7 @@
       ],
       "observation_updates": {
        "lambda_geo": {
-        "basis": "RETAINED_LG_MEASUREMENT",
+        "basis": "RETAINED_LG_SELECTED_OBSERVATION_CONTENT",
         "blocking": [],
         "epochs": [
          "2026-10-19",
@@ -3165,11 +3165,11 @@
         ]
        }
       },
-      "regime": "calibration-eligibility-v3|method-comparability-v2",
+      "regime": "calibration-eligibility-v3|method-comparability-v3",
       "regime_transition": {
        "days_back": 2,
        "from": "calibration-eligibility-v3|method-comparability-v1",
-       "to": "calibration-eligibility-v3|method-comparability-v2"
+       "to": "calibration-eligibility-v3|method-comparability-v3"
       },
       "report_days": 2,
       "report_days_met": true,
@@ -3360,6 +3360,6 @@
     "tier_name": "ELEVATED"
    }
   },
-  "schema_note": "SYNTHETIC v2 report built from the issued 2026-11-12 rows"
+  "schema_note": "SYNTHETIC current-contract report built from the issued 2026-11-12 rows"
  }
 }

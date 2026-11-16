@@ -3,10 +3,11 @@
 ONE saved fixture, produced here from the issued 2026-11-12 report through the REAL run_ensemble_daily.check_persistence
 and print_summary and the REAL raw_history_cayley.day_from_report, must give the same flag, report days, observation
 counts, dates and reasons in the report JSON, the printed summary/alert, the raw-history day the Pages download reads, and
-(test_confirmation_card.js) the Pages card line and download columns. Three regions, all contract v2:
-  tokyo_kanto    v2 pair, same LG observation 2026-10-19  -> NOT confirmed, REPEATED_INPUT:lambda_geo
-  campi_flegrei  v2 pair, genuinely later THD trace        -> confirmed
-  kaikoura       v2 pair, issued THD record has no sample digest -> NOT confirmed, UNKNOWN_OBSERVATION_IDENTITY:seismic_thd
+(test_confirmation_card.js) the Pages card line and download columns. Three regions, all under the CURRENT contract (v3 since 2026-11-16;
+regenerated deliberately then with --write, codex 5851b0649 answer 2; v2 before):
+  tokyo_kanto    pair, same LG observation 2026-10-19  -> NOT confirmed, REPEATED_INPUT:lambda_geo
+  campi_flegrei  pair, genuinely later THD trace        -> confirmed
+  kaikoura       pair, issued THD record has no sample digest -> NOT confirmed, UNKNOWN_OBSERVATION_IDENTITY:seismic_thd
 Synthetic parts (the later reports, their THD trace digests) are labelled; nothing here is a forecast of a run.
 Usage: py -3.11 -B test_confirmation_cross_view_cayley_20261114.py            (check)
        py -3.11 -B test_confirmation_cross_view_cayley_20261114.py --write    (regenerate the fixture once, reviewed)
@@ -36,8 +37,8 @@ def build():
     regions = {}
     for region in REGIONS:
         issued = rep["regions"][region]
-        prior = C.as_v2(C.next_day(issued))           # 2026-11-13, contract v2 (SYNTHETIC later report)
-        cur = C.next_day(prior)                        # 2026-11-14, contract v2 (SYNTHETIC later report)
+        prior = C.as_v2(C.next_day(issued))           # 2026-11-13, current contract (SYNTHETIC later report)
+        cur = C.next_day(prior)                        # 2026-11-14, current contract (SYNTHETIC later report)
         if region == "kaikoura":                       # keep the issued record's missing digest, never invent one
             for row in (prior, cur):
                 for st in row["thd_attempts"]["stations"]:
@@ -46,7 +47,7 @@ def build():
         pers = C.persistence(cur, [prior, issued], region)
         cur["persistence"] = json.loads(json.dumps(pers))
         regions[region] = cur
-    report = {"date": "2026-11-14", "schema_note": "SYNTHETIC v2 report built from the issued 2026-11-12 rows",
+    report = {"date": "2026-11-14", "schema_note": "SYNTHETIC current-contract report built from the issued 2026-11-12 rows",
               "regions": regions}
     results = {r: C.SimpleNamespace(tier=row["tier"], tier_name=row["tier_name"], combined_risk=row["combined_risk"],
                                     confidence=row["confidence"], methods_available=row["methods_available"])
@@ -92,7 +93,7 @@ class CrossView(unittest.TestCase):
             self.assertEqual((p["consecutive_days"], p["regime"]["report_days"]), (e["report_days"],) * 2, region)
             self.assertEqual(p["regime"]["not_confirmed_reasons"], e["reasons"], region)
             self.assertEqual(p["regime"]["contract_version"] if "contract_version" in p["regime"] else
-                             self.saved["report"]["regions"][region]["method_set"]["contract_version"], "method-comparability-v2")
+                             self.saved["report"]["regions"][region]["method_set"]["contract_version"], MC.COMPARISON_CONTRACT_VERSION)
             self.assertEqual(u["seismic_thd"]["observation_updates"], e["thd_observation_updates"], region)
             if "lg_observation_updates" in e:
                 self.assertEqual(u["lambda_geo"]["observation_updates"], e["lg_observation_updates"])

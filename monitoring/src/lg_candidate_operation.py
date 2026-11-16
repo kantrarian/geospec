@@ -296,7 +296,8 @@ def daily_candidate(op: Optional[Operation], regions, scored_day: date, run_day:
                                status=v['status']) for r, v in scored.items()}
                 summary['scoring'] = {r: dict(status=v['status'], ratio=v['ratio'], refusal=v['refusal'],
                                               gate=v.get('gate'),
-                                              refresh=[x.get('outcome') for x in (v.get('refresh') or [])])
+                                              refresh=[x.get('outcome') for x in (v.get('refresh') or [])],
+                                              observation_record=v.get('observation_record'))
                                       for r, v in scored.items()}
                 summary['retries_left'] = ctx.acquisition.retries_left
     except Exception as exc:                                # the daily service goes on; this region's LG is excluded

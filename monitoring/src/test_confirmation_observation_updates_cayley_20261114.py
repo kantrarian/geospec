@@ -86,8 +86,32 @@ def lg_measurement(row):
     return row["components"]["lambda_geo"]["baseline_provenance"]["measurement"]
 
 
+def fixture_content(row):
+    """Updated deliberately 2026-11-16 (cayley; codex 5851b0649 / 8c8d84db9, contract v3). LG repeat/revision now reads
+    the selected observation's dependency content (lg-observation-content-v1), which these RULE-LOGIC fixtures do not
+    carry. They model one observation's content by the digests they already vary: a FIXTURE summary whose sha256 is
+    derived from observation_day + input_sha256 + input_selection_sha256 + operator_identity, so "same digests" stays
+    "same content". A row missing any of those gets no content (UNKNOWN), as before. This is a test model, not the
+    writer: the writer-built identity (real producer output, real bytes) is tested in
+    test_lg_observation_identity_cayley_20261116. Returns a deep copy; the issued fixture is never modified."""
+    out = copy.deepcopy(row)
+    comp = (out.get("components") or {}).get("lambda_geo") or {}
+    m = (comp.get("baseline_provenance") or {}).get("measurement")
+    keys = ("observation_day", "input_sha256", "input_selection_sha256", "operator_identity")
+    if isinstance(m, dict) and "observation_content" not in m and all(isinstance(m.get(k), str) and m.get(k) for k in keys):
+        m["observation_content"] = {
+            "schema": MC.LG_OBSERVATION_CONTENT_SCHEMA, "encoding": MC.LG_OBSERVATION_CONTENT_ENCODING,
+            "status": "KNOWN", "epoch": m["observation_day"],
+            "sha256": hashlib.sha256(("FIXTURE content " + "|".join(m[k] for k in keys)).encode()).hexdigest()}
+    return out
+
+
 def persistence(current_row, priors, region):
-    """REAL check_persistence with a loader serving issued prior rows nearest first (None = hole)."""
+    """REAL check_persistence with a loader serving issued prior rows nearest first (None = hole). Every row passes
+    through fixture_content (see there)."""
+    current_row = fixture_content(current_row)
+    priors = [None if r is None else fixture_content(r) for r in priors]
+
     def loader(days_back):
         r = priors[days_back - 1] if days_back - 1 < len(priors) else None
         return None if r is None else {"regions": {region: r}}
@@ -228,7 +252,7 @@ class IssuedTokyoRepeatedInput(unittest.TestCase):
 
     def test_codex_repetition_fixture_no_longer_confirms(self):
         """codex 191be4566: regime_persistence(row tier, row method_set, [row, None], 2) returned is_confirmed true."""
-        row = self.tokyo
+        row = fixture_content(self.tokyo)              # v3: the fixture's LG content (see fixture_content)
         without_current = MC.regime_persistence(row["tier"], row["method_set"], [row, None], REQUIRED)
         self.assertFalse(without_current["is_confirmed"])
         self.assertEqual(without_current["not_confirmed_reasons"],
@@ -301,7 +325,8 @@ class IssuedThdOnlyControls(unittest.TestCase):
 
 
 def as_v2(row):
-    """The row as a method-comparability-v2 report would carry it: same values, the new contract's regime and key."""
+    """The row as a report under the CURRENT contract would carry it (v3 since 2026-11-16; the name is kept from v2):
+    same values, the current contract's regime and key."""
     out = copy.deepcopy(row)
     ms = out["method_set"]
     old = ms["contract_version"]
@@ -311,15 +336,16 @@ def as_v2(row):
 
 
 class ContractTransition(unittest.TestCase):
-    """codex 93df4f774 item 2: v1 -> v2 is a disclosed one-day regime reset; later complete v2 pairs can confirm."""
+    """codex 93df4f774 item 2: v1 -> v2 is a disclosed one-day regime reset; later complete pairs can confirm. Updated
+    deliberately 2026-11-16 (codex 5851b0649 answer 2): the current contract is v3, by the same mechanism."""
 
     def setUp(self):
         self.rep = issued_report()
         self.tokyo = self.rep["regions"]["tokyo_kanto"]
 
-    def test_the_contract_is_v2_and_the_issued_rows_are_v1(self):
-        self.assertEqual(MC.COMPARISON_CONTRACT_VERSION, "method-comparability-v2")
-        self.assertIn("method-comparability-v2", MC.regime_id())
+    def test_the_contract_is_v3_and_the_issued_rows_are_v1(self):
+        self.assertEqual(MC.COMPARISON_CONTRACT_VERSION, "method-comparability-v3")
+        self.assertIn("method-comparability-v3", MC.regime_id())
         self.assertEqual(self.tokyo["method_set"]["contract_version"], "method-comparability-v1")
 
     def test_a_v1_prior_does_not_count_toward_a_v2_confirmation(self):
@@ -370,9 +396,11 @@ class WriterPathAndConsumers(unittest.TestCase):
     def lg_thd(self, epoch, digest, report_day=None):
         res = T.run("tokyo_kanto", T.comp("lambda_geo", 1.0), T.unavailable("fault_correlation"),
                     T.comp("seismic_thd", 0.0, station="IU.MAJO", shared=("kumamoto", "tokyo_kanto")))
-        res.components["lambda_geo"].baseline_provenance = {"measurement": {
-            "observation_day": epoch, "input_sha256": SYNTHETIC_DIGEST + digest,
-            "input_selection_sha256": SYNTHETIC_DIGEST + "selection", "operator_identity": SYNTHETIC_DIGEST + "op"}}
+        res.components["lambda_geo"].baseline_provenance = fixture_content({"components": {"lambda_geo": {
+            "baseline_provenance": {"measurement": {
+                "observation_day": epoch, "input_sha256": SYNTHETIC_DIGEST + digest,
+                "input_selection_sha256": SYNTHETIC_DIGEST + "selection",
+                "operator_identity": SYNTHETIC_DIGEST + "op"}}}}})["components"]["lambda_geo"]["baseline_provenance"]
         res.date = report_day or T.DAY
         end, start = res.date.isoformat(), (res.date - timedelta(hours=25)).isoformat()
         # Synthetic retained evidence, explicit rather than inferred from the report day.

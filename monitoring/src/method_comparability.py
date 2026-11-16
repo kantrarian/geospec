@@ -32,6 +32,14 @@ Contract:
      needs each included method's retained observation to have advanced over those report days. A repeated input
      is two report days and one observation, with an explicit reason; unknown identity blocks confirmation. Every
      included method counts, a qualified zero included (codex ruling A). Introduced as contract v2.
+  7. observation-update-confirmation-v2 (2026-11-16; codex 5851b0649 / 8c8d84db9): LG repeat and revision compare the
+     SELECTED OBSERVATION's dependency content (lg-observation-content-v1, written by lg_observation_identity), not
+     the report's whole input manifest, whose digests embed the scored day's as-of instant. A row without that
+     content, or with a schema, encoding, epoch or digest that does not bind, is UNKNOWN; the as-of-bearing digests are
+     never a fallback. The decision rule (only ADVANCED counts), THD's identity, the scores and the weights are
+     unchanged. Introduced as contract v3: the explicit REGIME_TRANSITION reset stops every chain at the last v2 day,
+     so no pre-v3 row is ever compared (WATCH+ regions, THD-only ones included, restart their confirmation sequence
+     once; no score or tier moves).
 """
 from __future__ import annotations
 
@@ -44,7 +52,8 @@ import calibration_eligibility as CE
 
 # v2 (2026-11-14; codex 93df4f774 item 2) = v1 + observation-update confirmation (point 6 above). The bump is a regime
 # change: no v1 report day is carried into a v2 confirmation, and the reset is disclosed as REGIME_TRANSITION.
-COMPARISON_CONTRACT_VERSION = "method-comparability-v2"
+# v3 (2026-11-16; codex 5851b0649 answer 2) = v2 with the LG selected-observation identity (point 7). Same mechanism.
+COMPARISON_CONTRACT_VERSION = "method-comparability-v3"
 
 METHOD_ORDER = ("lambda_geo", "fault_correlation", "seismic_thd")
 METHOD_LABELS = {"lambda_geo": "LG", "fault_correlation": "FC", "seismic_thd": "THD"}
@@ -276,14 +285,15 @@ def persistence_basis(ms: Mapping):
 # Report-day persistence (`consecutive_days`) is counted exactly as before. CONFIRMATION additionally needs every
 # included method's OBSERVATION to have advanced across the counted report days: two reports of one retained LG epoch
 # are two report days and ONE observation, never a second measurement. Novelty is read only from retained measurement
-# identity -- LG: the selected observation epoch with its input, selection and operator digests; THD: the operator's
+# identity -- LG (point 7, v3): the selected observation epoch with its dependency-content digest
+# (lg-observation-content-v1); THD: the operator's
 # retained returned-trace epoch, sample digest and selected-station identity. Requested windows are consistency
 # checks only, never evidence of new observations. Retrieval times,
 # report or publication times, file mtimes, calibration dates and an unchanged-content refresh are never read as
 # observation evidence. The same epoch with different digests is a REVISION, not a new observation. An identity that
 # is not retained stays UNKNOWN and blocks confirmation. Distinct epochs are NOT statistically independent evidence
 # (adjacent LG epochs share most of their input window); nothing here says they are.
-CONFIRMATION_RULE_VERSION = "observation-update-confirmation-v1"
+CONFIRMATION_RULE_VERSION = "observation-update-confirmation-v2"   # v2: LG reads lg-observation-content-v1 (point 7)
 STEP_ADVANCED = "ADVANCED"                                 # a later retained epoch
 STEP_ADVANCED_BY_WINDOW = "ADVANCED_BY_OPERATOR_WINDOW"    # obsolete candidate label, never emitted
 STEP_REPEATED = "REPEATED_INPUT"                           # same epoch, same retained digests
@@ -301,8 +311,11 @@ CHAIN_METHOD_SET_CHANGE = "METHOD_SET_CHANGE"
 CHAIN_SUPPORT_CHANGE = "MEASUREMENT_SUPPORT_CHANGE"
 CHAIN_PRIOR_BELOW_WATCH = "PRIOR_DAY_BELOW_WATCH"
 CHAIN_NO_EARLIER_REPORT = "NO_EARLIER_REPORT"
-LG_OBSERVATION_BASIS = "RETAINED_LG_MEASUREMENT"
-LG_OBSERVATION_CONTENT = ("input_sha256", "input_selection_sha256", "operator_identity")
+LG_OBSERVATION_BASIS = "RETAINED_LG_SELECTED_OBSERVATION_CONTENT"
+# Written by lg_observation_identity (runner side) into measurement['observation_content']; matched here by literal
+# so this module imports nothing of the producer.
+LG_OBSERVATION_CONTENT_SCHEMA = "lg-observation-content-v1"
+LG_OBSERVATION_CONTENT_ENCODING = "lg-observation-content-c14n-v1"
 THD_OBSERVATION_BASIS = "RETAINED_THD_TRACE_EPOCH"
 
 
@@ -384,21 +397,44 @@ def _thd_retained_observation(row):
                         "returned_start": start.replace(tzinfo=None).isoformat()}}
 
 
+def _lg_retained_observation(component) -> Dict:
+    """LG under point 7: KNOWN only with an lg-observation-content-v1 summary whose status is KNOWN, whose schema and
+    encoding are exactly the registered ones, whose epoch is exactly the measurement's observation_day and whose digest
+    is a lowercase sha256. Anything else is UNKNOWN by name, even when a nonempty hash string exists; the report's
+    as-of-bearing input digests are never read as observation content."""
+    def unknown(reason):
+        return {"status": "UNKNOWN", "basis": LG_OBSERVATION_BASIS, "epoch": None, "reason": reason}
+    prov = _field(component, "baseline_provenance")
+    m = prov.get("measurement") if isinstance(prov, Mapping) else None
+    if not isinstance(m, Mapping):
+        return unknown("no retained LG measurement")
+    epoch = _iso_day(m.get("observation_day"))
+    oc = m.get("observation_content")
+    if epoch is None or m.get("observation_day") != epoch:
+        return unknown("no retained observation_day")
+    if not isinstance(oc, Mapping):
+        return unknown("no selected-observation content (a pre-v3 row, or a run that did not record it)")
+    if oc.get("schema") != LG_OBSERVATION_CONTENT_SCHEMA or oc.get("encoding") != LG_OBSERVATION_CONTENT_ENCODING:
+        return unknown("selected-observation content schema or encoding is not the registered one")
+    if oc.get("status") != "KNOWN":
+        return unknown("selected-observation content UNKNOWN: %s" % (oc.get("reason") or "no reason recorded"))
+    if oc.get("epoch") != epoch:
+        return unknown("selected-observation content is for another epoch")
+    digest = oc.get("sha256")
+    if not isinstance(digest, str) or len(digest) != 64 or any(c not in "0123456789abcdef" for c in digest):
+        return unknown("selected-observation content digest is not a sha256")
+    return {"status": "KNOWN", "basis": LG_OBSERVATION_BASIS, "epoch": epoch,
+            "content": {"schema": LG_OBSERVATION_CONTENT_SCHEMA, "encoding": LG_OBSERVATION_CONTENT_ENCODING,
+                        "sha256": digest}}
+
+
 def observation_identity(method: str, row) -> Dict:
     """The retained observation identity of one method in one report row: the issued JSON row of a prior day, or the
     current EnsembleResult (whose components carry the same fields that row will be issued with)."""
     components = _field(row, "components")
     component = components.get(method) if isinstance(components, Mapping) else None
     if method == "lambda_geo":
-        prov = _field(component, "baseline_provenance")
-        m = prov.get("measurement") if isinstance(prov, Mapping) else None
-        if isinstance(m, Mapping):
-            epoch = _iso_day(m.get("observation_day"))
-            content = {k: m.get(k) for k in LG_OBSERVATION_CONTENT}
-            if epoch is not None and all(isinstance(v, str) and v for v in content.values()):
-                return {"status": "KNOWN", "basis": LG_OBSERVATION_BASIS, "epoch": epoch, "content": content}
-        return {"status": "UNKNOWN", "basis": LG_OBSERVATION_BASIS, "epoch": None,
-                "reason": "no retained observation_day with input, selection and operator digests"}
+        return _lg_retained_observation(component)
     if method == "seismic_thd":
         retained = _thd_retained_observation(row)
         if retained is None:

@@ -34,6 +34,7 @@ from pathlib import Path
 from typing import Callable, Dict, List, Optional
 
 import live_data as LD
+import lg_observation_identity as OI
 import lg_producer_candidate as P
 import lg_refresh_candidate as RF
 
@@ -234,13 +235,18 @@ def scoring_run(ctx: RunContext, regions, scored_day: date) -> Dict[str, dict]:
         refresh = refresh_region_inputs(ctx, region, scored_day, P.DAYS_BACK, declared=entry['station_codes'])
         ratio, prov, trace = P.candidate_lambda_geo(region, scored_day, ctx.cache_dir, ctx.baselines_dir,
                                                     catalog_store=catalog_store(ctx.baselines_dir))
+        record = None
         if isinstance(prov, dict) and isinstance(prov.get('measurement'), dict):
             prov['measurement']['station_freshness'] = station_file_freshness(
                 refresh, entry['station_codes'], scored_day,
                 selected_files=(trace.get('input_manifest') or {}).get('stations'))
+            # lg-observation-content-v1 (cayley 2026-11-16, codex 5851b0649): the selected observation's dependency
+            # identity, from the same retained bytes and the same bound catalog; never moves the value or its operator.
+            prov['measurement']['observation_content'], record = OI.observation_content(
+                region, scored_day, ctx.cache_dir, path, trace, prov['measurement'], entry)
         results[region] = dict(status=trace['status'], gate=gate, ratio=ratio, provenance=prov, trace=trace,
                                refusal=None if ratio is not None else (trace['status'], trace.get('detail', '')),
-                               refresh=refresh)
+                               refresh=refresh, observation_record=record)
     ctx.log.append(dict(scored_day=scored_day.isoformat(), run_id=ctx.run_id, retries_left=ctx.acquisition.retries_left,
                         regions={r: v['status'] for r, v in results.items()}))
     return results

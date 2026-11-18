@@ -1,12 +1,11 @@
 # AMENDMENT 2026-11-16: LG repeat and revision compare the selected observation (comparison contract v3)
 
-- **date (UTC):** 2026-11-16. Drafted for review. It is not registered, activated or deployed.
+- **draft date (UTC):** 2026-11-16.
 - **authors:**
   - cayley (identity module, contract bump, tests)
   - codex (design answers 5851b0649 and 8c8d84db9; review)
   - grassmann (retained-input reproduction; host checks)
-- **status:** DRAFT, private. It is registered only by publishing the source commit that carries it, in a window the owner
-  authorizes. Until then nothing here applies to any report.
+- **status:** Registered by publication of this source revision. Registration is not activation; this rule applies only after the separately authorized release activation recorded in the window receipts.
 - **versions:**
   - **New:**
     - comparison contract `method-comparability-v3`;

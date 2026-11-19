@@ -1,0 +1,20 @@
+{
+  "artifact_hashes": {
+    "docs/data.csv": "39d6a32b75431d0c96bee3a4ca33ab17a918f8101b849eef3d47f5ba515dedeb",
+    "docs/ensemble_latest.json": "e67757eeebc5da11d2ccf67e1896af7cdccbd611ee88f55be1e92dba89591947"
+  },
+  "availability_utc": "2026-11-17T12:19:05Z",
+  "built_utc": "2026-11-18T12:08:24Z",
+  "commit_sha": "30f8270b1436ad014ce1f26b1245b4e6b6a547ae",
+  "day": "2026-11-15",
+  "deployment": {
+    "api_url": "https://api.github.com/repos/kantrarian/geospec/pages/builds/1377769817",
+    "created_at": "2026-11-17T12:18:31Z",
+    "error": "",
+    "id": "1377769817",
+    "source": "github-pages-build",
+    "status": "built",
+    "updated_at": "2026-11-17T12:19:05Z"
+  },
+  "schema": "geospec-publication-receipt-v2"
+}

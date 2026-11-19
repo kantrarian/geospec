@@ -1,34 +1,34 @@
 {
  "build": {
   "mode": "STAGED_FOR_THE_NEXT_COMMIT",
-  "parent_commit": "30f8270b1436ad014ce1f26b1245b4e6b6a547ae"
+  "parent_commit": "73c204f75fb62b2ed3f75a3bc1bc2bf1e5942792"
  },
  "dates": {
   "first": "2025-10-18",
-  "last": "2026-11-16"
+  "last": "2026-11-17"
  },
  "documentation": "docs/JSON_SCHEMA.md (meanings only; reports record no unit)",
  "files": {
-  "anchorage.json": "57940a7ae2fef95f48d4e93aaebaa6c94f67944eaceaa6e72237fbba43c527f0",
-  "campi_flegrei.json": "aa1cb93b6eaca52c72693830dbe66689fe82e944831220db70b377a80594f4ec",
-  "cascadia.json": "b196dfbdd525e47525d1f4a7496af2351e49bac669c6c2631c05482aea60c887",
-  "hualien.json": "e59d7d88d5bffbefb3f228d668ccdc08cf5f1d98c41fe20115644c3960d0eaa2",
-  "istanbul_marmara.json": "14421fcf08f848fe1934da5a929aa22d2762e160aa584e2e0b71e3601efc133d",
-  "kaikoura.json": "eb491df974f0159bc5a1a081ed4e774a01d6226698ffa5108d1374e07be261f4",
-  "kumamoto.json": "6aefa64b4d2d8c9066de8a6ce070a427f901addfa81ecd0d54169501c082bbc2",
-  "mexico_guerrero.json": "0a700e8507f0d0db95628011d027d1bcba64dbfabd9c58b3230ad9df837e2966",
-  "norcal_hayward.json": "8f20165cbd68d3a15cb69045965fb0a686e61e518e33df0caf1e4af0d4b86a9e",
-  "ridgecrest.json": "0d725ef4420b91acffc0bebe932a07f2349b10d862bf218ba2fbd032eaa3220e",
-  "socal_saf_coachella.json": "51285c5393d5c6a5c632533f5ce46017985a4f218ade49c5c78c616339af7bf3",
-  "socal_saf_mojave.json": "93162d0e0be702f08fc0ebea710f20b98da7e1bf0bd132d4554e80dd8ba236cf",
-  "tokyo_kanto.json": "0214f7510c00d7fbe98b455216a88180714333dd82c4a36094465a88904e4f6e",
-  "turkey_kahramanmaras.json": "4fa93063068cb2dbb0554eaa847855bc3ccc3fa9e8d73c2e069b498b1c98832b"
+  "anchorage.json": "29df1641b4733ad64b9237882eefe690d8fd3f2307315f5e50db2240fe657db1",
+  "campi_flegrei.json": "19d9a2b537dc4e3f12a3ff67323b99eef7d217d21fdc082fe5f34429ad785f0f",
+  "cascadia.json": "09198a428a7eab2f9dabec799822a8f01c6d84f2b080b532def622e5a08b53f9",
+  "hualien.json": "f34bf79bb2757a37b3b87df479d5d5fc57304be251dd09c6be03f0a43a7d466b",
+  "istanbul_marmara.json": "47aef8a02d426619dca2f2964ec035133dc63ac37728eb7453e21a71ade2c93b",
+  "kaikoura.json": "3645d1ecb3bbce37aaf513476af331ac7f4824c1e973d26ef7267b8d5ddf5a0d",
+  "kumamoto.json": "7f8932dab45d7272b62bed8e5c0a51115415734bf7decebdd07b83c10803950d",
+  "mexico_guerrero.json": "10596a41259426ecb0761227df9a59650334f77205118ad44e49725a5503b966",
+  "norcal_hayward.json": "e52977a8edae2f03094aeebc3ebaa58dc01d00502bd0c8fcb4fd8381709e132a",
+  "ridgecrest.json": "a790e90e508a1d23ed615b26432db6a3af43a487efeb1a6b2f3dc59d1c7181b4",
+  "socal_saf_coachella.json": "ea3aa13ca97249f33ab96fceb9966d08ed2464e561df9ecc432449c167ac7b48",
+  "socal_saf_mojave.json": "b04dcf73e111c0525a24901ab3a990e3a894ceb8ecfbcd448096d2c659cd07a4",
+  "tokyo_kanto.json": "45cb4e4c51e94b55bb506b6e692b798e10def9070e6a8c754bd2fbbad076f57d",
+  "turkey_kahramanmaras.json": "e40a9514d48a6e199d8cd11682763317cf8eba202ef109c5dcf5d35a6b2dd553"
  },
  "inputs": {
   "capsule_sha256": "a4f61f64379d7b8b2cb18f54c74ca40548bd3cd94ef463ec60ba870b3cf26d4e",
-  "data_csv_sha256": "51edc16abc86a5a3d53b57468a48d7fafa3ef6876996139105d68b9e08a0a8cb",
-  "journal_entries": 76,
-  "journal_sha256": "e989a75afd23c882dd85eca915237839ac752a25f6de2cfc134044eebd049a28",
+  "data_csv_sha256": "6e9cf51f31f8bb9d489d3ed57986b71eb34caccc774c7f8d80e6ea3197c46abe",
+  "journal_entries": 77,
+  "journal_sha256": "4bf55f4fd78a3d70cc6bcce30d4c06fa7ffdd3ac48abf08431bb788e31c66927",
   "undated_unparseable_capsule_records": [
    {
     "byte_length": 0,
@@ -57,8 +57,8 @@
   }
  },
  "preservation": {
-  "compared": 4102,
-  "equal": 3790,
+  "compared": 4116,
+  "equal": 3804,
   "mismatch_reasons": {
    "CSV_EQUALS_A_SUPERSEDED_REVISION": 45,
    "CSV_EQUALS_NO_RETAINED_REVISION": 36,

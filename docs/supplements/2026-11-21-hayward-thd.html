@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Hayward THD, November 18, 2026 | GeoSpec retrospective supplement</title>
+  <style>
+    :root { color-scheme: light dark; }
+    body { max-width: 43rem; margin: 2rem auto; padding: 0 1rem; font: 1rem/1.55 system-ui, sans-serif; }
+    h1, h2 { line-height: 1.2; } h2 { font-size: 1.2rem; margin-top: 1.7rem; }
+    .date { font-size: .9rem; } li { margin: .4rem 0; }
+  </style>
+</head>
+<body>
+  <main>
+    <a href="../index.html#raw-first-section">Back to measured values and recorded scores</a>
+    <h1>Hayward THD for November 18, 2026</h1>
+    <p class="date">Retrospective supplement &middot; Published <time datetime="2026-11-21">November 21, 2026</time> (UTC)</p>
+    <p><strong>As issued: no data.</strong> The original report had no qualifying input for Hayward.
+      Its zero in the CSV is a placeholder, not a measured zero.</p>
+    <p><strong>Recovered later: raw THD 0.8053893; THD component score 0.4467354.</strong>
+      These come from a replay of the station waveform, not from the issued report.
+      The component score is not a combined regional score or an earthquake probability.</p>
+    <h2>What was available when</h2>
+    <ul>
+      <li><strong>Observation window:</strong> November 16 at 23:00 through November 18 at 00:00 UTC,
+        for the November 18 scored day. Station and channel: <code>BK.BRK.00.BHZ</code>.</li>
+      <li><strong>Report issued:</strong> November 20 at 12:07:52 UTC, without a usable waveform for this station.</li>
+      <li><strong>Waveform recovered:</strong> November 20 at 13:53:54&ndash;13:53:56 UTC from NCEDC.
+        This does not establish that the data could have been retrieved at issue time.</li>
+      <li><strong>Replay computed:</strong> November 21 at 00:10:57&ndash;00:11:13 UTC.</li>
+    </ul>
+    <h2>Method and limits</h2>
+    <p>The original THD method processed one 25-hour trace with 3,600,000 samples at 40 Hz and no recorded
+      gaps or overlaps. Against the November 14 BK.BRK baseline (center 0.392402, scale 0.180585), the
+      recovered value gives z = 2.2869414. The conversion from raw THD to component score was independently
+      reproduced; the waveform-to-THD measurement was computed once.</p>
+    <p>This supplement is excluded from live scoring, confirmations, alerts and prospective performance
+      evaluation. No combined score or tier was reconstructed. The original record and data feeds have not
+      been amended.</p>
+    <p><a href="../ensemble/2026-11-18/20261120T120812584928Z-f0d3f3c8.json">Read the original November 18 report (JSON)</a>
+      &mdash; see <code>regions.norcal_hayward</code>.</p>
+  </main>
+</body>
+</html>

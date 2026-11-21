@@ -1,0 +1,41 @@
+{
+ "absent_stations": [],
+ "artifact_claim_kind": "STATION_PRESENCE",
+ "carrier": "istanbul_marmara",
+ "data_rows": 12,
+ "identity": "sta-overlap",
+ "kind": "fdsn-station-presence",
+ "lane": "SELECTION_RECORDS",
+ "outside_station_rows_excluded": 0,
+ "present_stations": [
+  "ADVT",
+  "BOTS",
+  "GAZK",
+  "GEML",
+  "GULT",
+  "HRTX",
+  "ISK",
+  "KAVV",
+  "KRBG",
+  "MDNY",
+  "NMR2",
+  "NMR3"
+ ],
+ "registered_stations": [
+  "ADVT",
+  "BOTS",
+  "GAZK",
+  "GEML",
+  "GULT",
+  "HRTX",
+  "ISK",
+  "KAVV",
+  "KRBG",
+  "MDNY",
+  "NMR2",
+  "NMR3"
+ ],
+ "schema": "f2g-w2-admission-artifact-v1",
+ "support_outcome": "NOT_APPLICABLE",
+ "utc_day": "2026-07-21"
+}

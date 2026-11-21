@@ -1,0 +1,25 @@
+{
+ "authority": {
+  "blob_sha256": "b5b0a61a4edcdac2bfcd8a819f2e118a81c492947a0b6167ffd07ef09338967e",
+  "commit": "332a98acd34797163413350dc4989fdb37ec87b2",
+  "keys_sha256": "9a2b5b6c5e0b0f456f4587e7eed63c561440685cae33bad59ac4b3d4ebc7cee9",
+  "path": "docs/f2g_window2_execution/staged_expected_contracts_v3.json"
+ },
+ "carrier": "socal_coachella",
+ "effective_url": "https://service.scedc.caltech.edu/fdsnws/station/1/query?cha=HHZ&endtime=2026-07-24T00%3A00%3A00.000000&format=text&level=channel&maxlatitude=34.1500&maxlongitude=-115.0500&minlatitude=32.6500&minlongitude=-116.9500&net=CI&nodata=404&starttime=2026-07-23T00%3A00%3A00.000000",
+ "headers": {
+  "content-type": "text/plain; charset=UTF-8",
+  "date": "Tue, 25 Aug 2026 04:58:47 GMT",
+  "server": "Apache/2.4.37 (Red Hat Enterprise Linux) mod_jk/1.2.48 PHP/8.2.1 OpenSSL/1.1.1k"
+ },
+ "http_status": 200,
+ "lane": "SELECTION_RECORDS",
+ "raw_body_bytes": 8951,
+ "raw_body_sha256": "f3e4d0a48dcc6d10fa583f2022b3b1d8a2091c834926172c57cc40c687d1e714",
+ "request_start_utc": "2026-08-25T04:58:47Z",
+ "requested_url": "https://service.scedc.caltech.edu/fdsnws/station/1/query?cha=HHZ&endtime=2026-07-24T00%3A00%3A00.000000&format=text&level=channel&maxlatitude=34.1500&maxlongitude=-115.0500&minlatitude=32.6500&minlongitude=-116.9500&net=CI&nodata=404&starttime=2026-07-23T00%3A00%3A00.000000",
+ "response_complete_utc": "2026-08-25T04:58:47Z",
+ "schema": "f2g-w2-capture-transcript-v1",
+ "static_contract_sha256": "ce5e979950340619d7aab17f90f8b94c322dd1e40b46ccd58e0f2d98460034a5",
+ "utc_day": "2026-07-23"
+}

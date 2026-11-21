@@ -1,0 +1,29 @@
+{
+ "carrier": "izn",
+ "cutoff": "2026-07-31",
+ "endpoint": "https://imag-data.bgs.ac.uk/GIN_V1/GINServices",
+ "expected_keys": [
+  "2026-04-03"
+ ],
+ "lane": "MAG_FEED",
+ "operation_params": {
+  "carrier": "izn",
+  "day": "2026-04-03"
+ },
+ "request_params": {
+  "Request": "GetData",
+  "dataDuration": "1",
+  "dataStartDate": "2026-04-03",
+  "format": "json",
+  "observatoryIagaCode": "IZN",
+  "publicationState": "adj-or-rep",
+  "samplesPerDay": "minute",
+  "testObsys": "0"
+ },
+ "schema": "f2g-w2-static-contract-v1",
+ "source": {
+  "kind": "intermagnet-gin-minute",
+  "ref": "https://imag-data.bgs.ac.uk/GIN_V1/GINServices"
+ },
+ "utc_day": "2026-04-03"
+}

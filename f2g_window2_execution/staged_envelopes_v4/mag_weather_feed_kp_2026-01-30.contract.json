@@ -1,0 +1,24 @@
+{
+ "carrier": "kp",
+ "cutoff": "2026-07-31",
+ "endpoint": "https://kp.gfz-potsdam.de/app/json/",
+ "expected_keys": [
+  "2026-01-30"
+ ],
+ "lane": "MAG_WEATHER_FEED",
+ "operation_params": {
+  "carrier": "kp",
+  "day": "2026-01-30"
+ },
+ "request_params": {
+  "end": "2026-01-30T23:59:59Z",
+  "index": "Kp",
+  "start": "2026-01-30T00:00:00Z"
+ },
+ "schema": "f2g-w2-static-contract-v1",
+ "source": {
+  "kind": "gfz-kp-json",
+  "ref": "https://kp.gfz-potsdam.de/app/json/"
+ },
+ "utc_day": "2026-01-30"
+}

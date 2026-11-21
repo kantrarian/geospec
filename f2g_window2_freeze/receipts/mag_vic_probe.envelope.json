@@ -1,0 +1,16 @@
+{
+ "body_path": "docs/f2g_window2_freeze/receipts/mag_vic_probe.json",
+ "body_sha256": "24a9bbe3c53851f261552bc0e425c2d9a032d8890b411bf716e4a7388864c526",
+ "effective_url": "https://imag-data.bgs.ac.uk/GIN_V1/GINServices?Request=GetData&format=json&testObsys=0&observatoryIagaCode=VIC&samplesPerDay=minute&dataStartDate=2026-08-19&dataDuration=1&publicationState=adj-or-rep",
+ "fired_utc": "2026-08-22T01:13:40Z",
+ "http_status": 200,
+ "parser_version": "json keys datetime[] (INTERMAGNET GIN JSON)",
+ "recomputed_coverage_samples": 1440,
+ "requested_url": "https://imag-data.bgs.ac.uk/GIN_V1/GINServices?Request=GetData&format=json&testObsys=0&observatoryIagaCode=VIC&samplesPerDay=minute&dataStartDate=2026-08-19&dataDuration=1&publicationState=adj-or-rep",
+ "response_headers": {
+  "content-length": "96430",
+  "content-type": "application/json",
+  "date": "Sat, 22 Aug 2026 01:13:38 GMT"
+ },
+ "schema": "f2g-receipt-envelope-v1"
+}

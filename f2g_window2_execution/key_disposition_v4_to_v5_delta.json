@@ -1,0 +1,272 @@
+{
+ "authority_keys": {
+  "added": 24,
+  "common": 2032,
+  "removed": 24
+ },
+ "movement_matrix": {
+  "ABSENT->HTTP_CAPTURE": 24,
+  "REUSE_OR_BRIDGE->ABSENT": 24
+ },
+ "new_authority": {
+  "blob_sha256": "e42041443fb130ce5800d2470739e71c8929d7f322209c33db3d7ad57529d369",
+  "census": 2056,
+  "keys_sha256": "0625cc9e020ba6c562ceb740422ceb71668f0e0ba8516518a9df9b5515768e1a",
+  "path": "docs/f2g_window2_execution/staged_expected_contracts_v4.json"
+ },
+ "old_authority": {
+  "blob_sha256": "3c24182b042de1a14d2717610b8940acd93f44be8dc8fdc344cce771d28d4f66",
+  "census": 2056,
+  "keys_sha256": "3e7a4779f95e6feb835331998ec4b270721fd54e5b36520af03b79e68cb920a9",
+  "path": "docs/f2g_window2_execution/staged_expected_contracts_v3.json"
+ },
+ "rows": [
+  {
+   "key": "SELECTION_RECORDS/cascadia/2026-05-30",
+   "new_partition": "ABSENT",
+   "old_partition": "REUSE_OR_BRIDGE"
+  },
+  {
+   "key": "SELECTION_RECORDS/cascadia/2026-05-31",
+   "new_partition": "ABSENT",
+   "old_partition": "REUSE_OR_BRIDGE"
+  },
+  {
+   "key": "SELECTION_RECORDS/cascadia/2026-06-01",
+   "new_partition": "ABSENT",
+   "old_partition": "REUSE_OR_BRIDGE"
+  },
+  {
+   "key": "SELECTION_RECORDS/cascadia/2026-06-02",
+   "new_partition": "ABSENT",
+   "old_partition": "REUSE_OR_BRIDGE"
+  },
+  {
+   "key": "SELECTION_RECORDS/cascadia/2026-06-03",
+   "new_partition": "ABSENT",
+   "old_partition": "REUSE_OR_BRIDGE"
+  },
+  {
+   "key": "SELECTION_RECORDS/cascadia/2026-06-04",
+   "new_partition": "ABSENT",
+   "old_partition": "REUSE_OR_BRIDGE"
+  },
+  {
+   "key": "SELECTION_RECORDS/cascadia/2026-08-28",
+   "new_partition": "HTTP_CAPTURE",
+   "old_partition": "ABSENT"
+  },
+  {
+   "key": "SELECTION_RECORDS/cascadia/2026-08-29",
+   "new_partition": "HTTP_CAPTURE",
+   "old_partition": "ABSENT"
+  },
+  {
+   "key": "SELECTION_RECORDS/cascadia/2026-08-30",
+   "new_partition": "HTTP_CAPTURE",
+   "old_partition": "ABSENT"
+  },
+  {
+   "key": "SELECTION_RECORDS/cascadia/2026-08-31",
+   "new_partition": "HTTP_CAPTURE",
+   "old_partition": "ABSENT"
+  },
+  {
+   "key": "SELECTION_RECORDS/cascadia/2026-09-01",
+   "new_partition": "HTTP_CAPTURE",
+   "old_partition": "ABSENT"
+  },
+  {
+   "key": "SELECTION_RECORDS/cascadia/2026-09-02",
+   "new_partition": "HTTP_CAPTURE",
+   "old_partition": "ABSENT"
+  },
+  {
+   "key": "SELECTION_RECORDS/istanbul_marmara/2026-05-30",
+   "new_partition": "ABSENT",
+   "old_partition": "REUSE_OR_BRIDGE"
+  },
+  {
+   "key": "SELECTION_RECORDS/istanbul_marmara/2026-05-31",
+   "new_partition": "ABSENT",
+   "old_partition": "REUSE_OR_BRIDGE"
+  },
+  {
+   "key": "SELECTION_RECORDS/istanbul_marmara/2026-06-01",
+   "new_partition": "ABSENT",
+   "old_partition": "REUSE_OR_BRIDGE"
+  },
+  {
+   "key": "SELECTION_RECORDS/istanbul_marmara/2026-06-02",
+   "new_partition": "ABSENT",
+   "old_partition": "REUSE_OR_BRIDGE"
+  },
+  {
+   "key": "SELECTION_RECORDS/istanbul_marmara/2026-06-03",
+   "new_partition": "ABSENT",
+   "old_partition": "REUSE_OR_BRIDGE"
+  },
+  {
+   "key": "SELECTION_RECORDS/istanbul_marmara/2026-06-04",
+   "new_partition": "ABSENT",
+   "old_partition": "REUSE_OR_BRIDGE"
+  },
+  {
+   "key": "SELECTION_RECORDS/istanbul_marmara/2026-08-28",
+   "new_partition": "HTTP_CAPTURE",
+   "old_partition": "ABSENT"
+  },
+  {
+   "key": "SELECTION_RECORDS/istanbul_marmara/2026-08-29",
+   "new_partition": "HTTP_CAPTURE",
+   "old_partition": "ABSENT"
+  },
+  {
+   "key": "SELECTION_RECORDS/istanbul_marmara/2026-08-30",
+   "new_partition": "HTTP_CAPTURE",
+   "old_partition": "ABSENT"
+  },
+  {
+   "key": "SELECTION_RECORDS/istanbul_marmara/2026-08-31",
+   "new_partition": "HTTP_CAPTURE",
+   "old_partition": "ABSENT"
+  },
+  {
+   "key": "SELECTION_RECORDS/istanbul_marmara/2026-09-01",
+   "new_partition": "HTTP_CAPTURE",
+   "old_partition": "ABSENT"
+  },
+  {
+   "key": "SELECTION_RECORDS/istanbul_marmara/2026-09-02",
+   "new_partition": "HTTP_CAPTURE",
+   "old_partition": "ABSENT"
+  },
+  {
+   "key": "SELECTION_RECORDS/socal_coachella/2026-05-30",
+   "new_partition": "ABSENT",
+   "old_partition": "REUSE_OR_BRIDGE"
+  },
+  {
+   "key": "SELECTION_RECORDS/socal_coachella/2026-05-31",
+   "new_partition": "ABSENT",
+   "old_partition": "REUSE_OR_BRIDGE"
+  },
+  {
+   "key": "SELECTION_RECORDS/socal_coachella/2026-06-01",
+   "new_partition": "ABSENT",
+   "old_partition": "REUSE_OR_BRIDGE"
+  },
+  {
+   "key": "SELECTION_RECORDS/socal_coachella/2026-06-02",
+   "new_partition": "ABSENT",
+   "old_partition": "REUSE_OR_BRIDGE"
+  },
+  {
+   "key": "SELECTION_RECORDS/socal_coachella/2026-06-03",
+   "new_partition": "ABSENT",
+   "old_partition": "REUSE_OR_BRIDGE"
+  },
+  {
+   "key": "SELECTION_RECORDS/socal_coachella/2026-06-04",
+   "new_partition": "ABSENT",
+   "old_partition": "REUSE_OR_BRIDGE"
+  },
+  {
+   "key": "SELECTION_RECORDS/socal_coachella/2026-08-28",
+   "new_partition": "HTTP_CAPTURE",
+   "old_partition": "ABSENT"
+  },
+  {
+   "key": "SELECTION_RECORDS/socal_coachella/2026-08-29",
+   "new_partition": "HTTP_CAPTURE",
+   "old_partition": "ABSENT"
+  },
+  {
+   "key": "SELECTION_RECORDS/socal_coachella/2026-08-30",
+   "new_partition": "HTTP_CAPTURE",
+   "old_partition": "ABSENT"
+  },
+  {
+   "key": "SELECTION_RECORDS/socal_coachella/2026-08-31",
+   "new_partition": "HTTP_CAPTURE",
+   "old_partition": "ABSENT"
+  },
+  {
+   "key": "SELECTION_RECORDS/socal_coachella/2026-09-01",
+   "new_partition": "HTTP_CAPTURE",
+   "old_partition": "ABSENT"
+  },
+  {
+   "key": "SELECTION_RECORDS/socal_coachella/2026-09-02",
+   "new_partition": "HTTP_CAPTURE",
+   "old_partition": "ABSENT"
+  },
+  {
+   "key": "SELECTION_RECORDS/turkey_kahramanmaras/2026-05-30",
+   "new_partition": "ABSENT",
+   "old_partition": "REUSE_OR_BRIDGE"
+  },
+  {
+   "key": "SELECTION_RECORDS/turkey_kahramanmaras/2026-05-31",
+   "new_partition": "ABSENT",
+   "old_partition": "REUSE_OR_BRIDGE"
+  },
+  {
+   "key": "SELECTION_RECORDS/turkey_kahramanmaras/2026-06-01",
+   "new_partition": "ABSENT",
+   "old_partition": "REUSE_OR_BRIDGE"
+  },
+  {
+   "key": "SELECTION_RECORDS/turkey_kahramanmaras/2026-06-02",
+   "new_partition": "ABSENT",
+   "old_partition": "REUSE_OR_BRIDGE"
+  },
+  {
+   "key": "SELECTION_RECORDS/turkey_kahramanmaras/2026-06-03",
+   "new_partition": "ABSENT",
+   "old_partition": "REUSE_OR_BRIDGE"
+  },
+  {
+   "key": "SELECTION_RECORDS/turkey_kahramanmaras/2026-06-04",
+   "new_partition": "ABSENT",
+   "old_partition": "REUSE_OR_BRIDGE"
+  },
+  {
+   "key": "SELECTION_RECORDS/turkey_kahramanmaras/2026-08-28",
+   "new_partition": "HTTP_CAPTURE",
+   "old_partition": "ABSENT"
+  },
+  {
+   "key": "SELECTION_RECORDS/turkey_kahramanmaras/2026-08-29",
+   "new_partition": "HTTP_CAPTURE",
+   "old_partition": "ABSENT"
+  },
+  {
+   "key": "SELECTION_RECORDS/turkey_kahramanmaras/2026-08-30",
+   "new_partition": "HTTP_CAPTURE",
+   "old_partition": "ABSENT"
+  },
+  {
+   "key": "SELECTION_RECORDS/turkey_kahramanmaras/2026-08-31",
+   "new_partition": "HTTP_CAPTURE",
+   "old_partition": "ABSENT"
+  },
+  {
+   "key": "SELECTION_RECORDS/turkey_kahramanmaras/2026-09-01",
+   "new_partition": "HTTP_CAPTURE",
+   "old_partition": "ABSENT"
+  },
+  {
+   "key": "SELECTION_RECORDS/turkey_kahramanmaras/2026-09-02",
+   "new_partition": "HTTP_CAPTURE",
+   "old_partition": "ABSENT"
+  }
+ ],
+ "schema": "f2g-w2-key-disposition-delta-v1",
+ "successor_capsule_path": "docs/f2g_window2_execution/key_disposition_capsule_v5.json",
+ "supersedes_capsule": {
+  "blob_sha256": "e7e99db9ff53377c58fbaad91e6e58cadb8ef9e16ba8fc87374e1236246a2b2c",
+  "path": "docs/f2g_window2_execution/key_disposition_capsule_v4.json",
+  "schema": "f2g-w2-key-disposition-capsule-v2"
+ }
+}

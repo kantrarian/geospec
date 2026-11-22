@@ -135,6 +135,29 @@ class FetchRecordsProviders(unittest.TestCase):
         self.assertTrue(used["response"].startswith("NOT_REMOVED"))
         self.assertEqual(used["epoch"][0], "2026-10-01T00:00:00")
 
+    def test_an_ncedc_attempt_records_the_named_bundle_and_an_iris_attempt_does_not(self):
+        # 2026-11-22 (codex 78548eb68): thd-scoped-tls-trust-v1 covers NCEDC; the attempt that used it says which bundle
+        try:
+            import certifi
+        except ImportError:
+            self.skipTest("certifi is not installed")
+        import hashlib
+        _Client.BEHAVIOUR = {"NCEDC": "raise", "IRIS": 20 * 3600 * 24}
+        attempts = []
+        self.fetch(attempts)
+        ncedc, iris = attempts
+        self.assertEqual((ncedc["provider"], iris["provider"]), ("NCEDC", "IRIS"))
+        with open(certifi.where(), "rb") as fh:
+            digest = hashlib.sha256(fh.read()).hexdigest()
+        self.assertEqual(ncedc["tls_trust"], dict(version="thd-scoped-tls-trust-v1", source="CERTIFI_BUNDLE",
+                                                  package_version=certifi.__version__, bundle_sha256=digest))
+        self.assertNotIn("tls_trust", iris)
+        _Client.BEHAVIOUR = {"NCEDC": 20 * 3600 * 24}
+        served = []
+        data, rate = self.fetch(served)
+        self.assertEqual(([a["provider"] for a in served], served[0]["outcome"], rate), (["NCEDC"], "DATA_RETURNED", 20.0))
+        self.assertEqual(served[0]["tls_trust"]["bundle_sha256"], digest)
+
     def test_all_providers_failing_is_recorded_and_returns_nothing(self):
         _Client.BEHAVIOUR = {"IRIS": "empty"}
         attempts = []

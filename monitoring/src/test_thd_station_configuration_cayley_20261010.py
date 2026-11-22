@@ -84,6 +84,15 @@ class ConfiguredStations(unittest.TestCase):
                          [("HINET.N.KI2H", ["NIED_HINET:NIED"]), ("IU.MAJO", ["FDSN:IRIS"])])
         self.assertEqual(self.c["norcal_hayward"]["stations"][0]["providers"], ["FDSN:NCEDC", "FDSN:IRIS"])
 
+    def test_hayward_declares_scoped_trust_for_ncedc_only(self):
+        # 2026-11-22 (codex 78548eb68): NCEDC is verified against the named bundle; its IRIS fallback keeps default trust
+        (st,) = self.c["norcal_hayward"]["stations"]
+        self.assertEqual(st["tls_trust"], {"NCEDC": "CERTIFI_BUNDLE", "IRIS": None})
+        for region, block in self.c.items():
+            for other in block["stations"]:
+                scoped = {p for p, source in other["tls_trust"].items() if source is not None}
+                self.assertLessEqual(scoped, {"INGV", "NCEDC"}, region)
+
     def test_unbound_operator_identity_is_the_measurement_identity(self):
         import thd_daily_measurement as TDM
         st = self.c["anchorage"]["stations"][0]

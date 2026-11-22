@@ -292,8 +292,11 @@ class BeforeAfter(unittest.TestCase):
         for key in ("configuration_sha256", "region_configuration_sha256"):
             self.assertNotEqual(p_conf[key], b_conf[key])
         changed = sorted(f for f in b_conf["source"]["files"] if b_conf["source"]["files"][f] != p_conf["source"]["files"].get(f))
+        # 2026-11-22 (codex 78548eb68): thd_provider_routing.py joins the stamped files -- it gained the NCEDC row of
+        # TLS_TRUST. That row is content for BK/NC stations only; this region's stations are asserted equal just above
         self.assertTrue(set(changed) <= {"monitoring/src/run_ensemble_daily.py", "monitoring/src/thd_daily_measurement.py",
-                                         "monitoring/src/thd_station_configuration.py"}, changed)
+                                         "monitoring/src/thd_station_configuration.py",
+                                         "monitoring/src/thd_provider_routing.py"}, changed)
         rest = {k for k in set(b_conf) | set(p_conf) if b_conf.get(k) != p_conf.get(k)}
         self.assertEqual(rest, {"versions", "configuration_sha256", "region_configuration_sha256", "source"})
 

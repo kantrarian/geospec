@@ -392,6 +392,18 @@ TLS_TRUST = {   # provider key -> declared CA source and basis
              "basis": "RETAINED: grassmann ce29dc72 -- urllib with the runner venv's default trust store refuses "
                       "webservices.ingv.it (CERTIFICATE_VERIFY_FAILED, unable to get local issuer certificate); "
                       "verified with a named CA bundle in the same probe"},
+    # NCEDC (cayley 2026-11-22; codex 78548eb68). The certificate served from 2026-11-17 chains through a cross-signed
+    # Sectigo Root E46 up to USERTrust ECC. The host's default trust (the Windows stores, in an order that differs per
+    # process) holds TWO certificates of that name and key -- the self-signed root and a cross-certificate whose own
+    # issuer is absent -- so path building verifies or fails with code 2 by trust-set order alone. The named bundle holds
+    # the self-signed Root E46, so the path ends there and never reaches the ambiguous name.
+    "NCEDC": {"source": CERTIFI_BUNDLE,
+              "basis": "RETAINED: grassmann 99bf4e60d -- with the runner venv's default trust store all five "
+                       "service.ncedc.org discovery requests fail certificate verification (verify code 2, unable to "
+                       "get issuer certificate) before any HTTP exchange; fda8ad40f -- the server's chain is complete "
+                       "and a bare default context fails the same way; 45ba008c1 -- one handshake through this "
+                       "module's trust_context with the named CA bundle verified, the path ending at the bundle's "
+                       "self-signed Sectigo Root E46"},
 }
 
 

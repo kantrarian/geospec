@@ -13,6 +13,7 @@ No provider is contacted. Run: <py with obspy> -B -m unittest test_thd_scoped_tl
 """
 import hashlib
 import http.server
+import json
 import os
 import ssl
 import sys
@@ -305,6 +306,129 @@ class NcedcScopedTrust(unittest.TestCase):
             with self.assertRaises(OSError):
                 TPR.fdsn_client("NCEDC", timeout=120)
         self.assertEqual(made, [], "no default-trust client is built when the named bundle is unavailable")
+
+
+class PreparedFacts(unittest.TestCase):
+    """codex 99934af01: inside `recording_attempts`, fdsn_client records the trust facts on the attempt the fetch has just
+    opened, as soon as the bundle is loaded and hashed and BEFORE the client is constructed. They say which bundle was
+    prepared, not that a connection verified. Written only onto an exactly matching open record; never a guess."""
+
+    @staticmethod
+    def opened(provider="NCEDC", **extra):
+        return dict(provider=provider, adapter=TPR.FDSN, routing=TPR.ROUTING_VERSION, **extra)
+
+    def setUp(self):
+        try:
+            import certifi
+        except ImportError:
+            self.skipTest("certifi is not installed")
+        self.facts = dict(version=TPR.TLS_TRUST_VERSION, source=TPR.CERTIFI_BUNDLE, package_version=certifi.__version__,
+                          bundle_sha256=hashlib.sha256(Path(certifi.where()).read_bytes()).hexdigest())
+
+    def test_the_facts_are_recorded_before_the_client_is_constructed(self):
+        from unittest import mock
+        attempts = [self.opened("IRIS", outcome="NO_TRACES"), self.opened()]
+        seen = []
+
+        def stand_in(base_url, *, ssl_context, timeout, client_class=None):
+            seen.append(dict(attempts[-1]))             # the record as it is when construction starts
+            raise RuntimeError("synthetic discovery failure")
+        with mock.patch.object(TPR, "scoped_trust_client", stand_in), TPR.recording_attempts(attempts):
+            with self.assertRaises(RuntimeError):
+                TPR.fdsn_client("NCEDC", timeout=120)
+        self.assertEqual(seen, [dict(self.opened(), tls_trust=self.facts)])
+        self.assertEqual(attempts[-1]["tls_trust"], self.facts)
+        self.assertNotIn("tls_trust", attempts[0], "an earlier attempt is never touched")
+
+    def test_the_record_holds_a_copy_and_the_return_value_is_unchanged(self):
+        from unittest import mock
+        attempts = [self.opened()]
+        with mock.patch.object(TPR, "scoped_trust_client", lambda *a, **k: "CLIENT"):
+            with TPR.recording_attempts(attempts):
+                client, facts = TPR.fdsn_client("NCEDC", timeout=120)
+            again, facts_outside = TPR.fdsn_client("NCEDC", timeout=120)
+        self.assertEqual((client, again, facts, facts_outside), ("CLIENT", "CLIENT", self.facts, self.facts))
+        self.assertEqual(attempts[0]["tls_trust"], facts)
+        self.assertIsNot(attempts[0]["tls_trust"], facts)
+
+    def test_nothing_is_written_unless_the_newest_record_is_exactly_the_open_attempt(self):
+        from unittest import mock
+        cases = {"no scope list": None, "empty list": [],
+                 "another provider": [self.opened("IRIS")],
+                 "already has an outcome": [self.opened(outcome="PROVIDER_ERROR")],
+                 "already has trust facts": [self.opened(tls_trust={"source": "EARLIER"})],
+                 "not an FDSN attempt": [dict(provider="NCEDC", adapter="NIED_HINET")],
+                 "not a record": ["NCEDC"],
+                 "matching record is not the newest": [self.opened(), self.opened("IRIS")]}
+        with mock.patch.object(TPR, "scoped_trust_client", lambda *a, **k: "CLIENT"):
+            for label, attempts in cases.items():
+                with self.subTest(case=label):
+                    before = json.dumps(attempts, sort_keys=True)
+                    with TPR.recording_attempts(attempts):
+                        TPR.fdsn_client("NCEDC", timeout=120)
+                    self.assertEqual(json.dumps(attempts, sort_keys=True), before)
+
+    def test_nothing_is_written_for_default_trust_or_for_a_bundle_that_cannot_be_loaded(self):
+        from unittest import mock
+
+        class FakeClient:
+            def __init__(self, provider, timeout):
+                pass
+        attempts = [self.opened("IRIS")]
+        with mock.patch("obspy.clients.fdsn.Client", FakeClient), TPR.recording_attempts(attempts):
+            client, facts = TPR.fdsn_client("IRIS", timeout=7)
+        self.assertEqual((type(client), facts, attempts), (FakeClient, None, [self.opened("IRIS")]))
+        attempts = [self.opened()]
+        with mock.patch.object(TPR, "trust_context", side_effect=OSError("bundle unreadable")), \
+                TPR.recording_attempts(attempts):
+            with self.assertRaises(OSError):
+                TPR.fdsn_client("NCEDC", timeout=120)
+        self.assertEqual(attempts, [self.opened()], "no digest is reported for a bundle that was never hashed")
+
+    def test_the_scope_closes_restores_an_outer_scope_and_is_per_thread(self):
+        from unittest import mock
+        outer, inner, other = [self.opened()], [self.opened()], []
+        self.assertIsNone(getattr(TPR._RECORDING, "attempts", None))
+        with mock.patch.object(TPR, "scoped_trust_client", lambda *a, **k: "CLIENT"):
+            with TPR.recording_attempts(outer):
+                with TPR.recording_attempts(inner):
+                    TPR.fdsn_client("NCEDC", timeout=120)
+                self.assertIn("tls_trust", inner[0])
+                self.assertNotIn("tls_trust", outer[0])
+                seen = []
+                worker = threading.Thread(target=lambda: seen.append(getattr(TPR._RECORDING, "attempts", "UNSET")))
+                worker.start(); worker.join()
+                self.assertEqual(seen, ["UNSET"], "another thread does not see this thread's scope")
+                TPR.fdsn_client("NCEDC", timeout=120)
+                self.assertIn("tls_trust", outer[0])
+            with self.assertRaises(RuntimeError):
+                with TPR.recording_attempts(other):
+                    raise RuntimeError("the scope closes on an exception too")
+        self.assertIsNone(getattr(TPR._RECORDING, "attempts", None))
+
+    def test_real_discovery_refused_by_an_untrusted_issuer_still_records_the_prepared_bundle(self):
+        # the REAL obspy constructor, against a local TLS server whose certificate the prepared bundle does not trust:
+        # discovery fails as it did at NCEDC (no service found), and the prepared facts are already on the record
+        if FX is None:
+            self.skipTest("cryptography is not installed: the TEST-ONLY TLS material cannot be generated here")
+        from unittest import mock
+        from obspy.clients.fdsn.header import FDSNNoServiceException
+        with Server() as srv:
+            url = "https://localhost:%d" % srv.port
+            refused, served = [self.opened(url)], [self.opened(url)]
+            with mock.patch.dict(TPR.TLS_TRUST, {url: {"source": TPR.CERTIFI_BUNDLE, "basis": "TEST-ONLY"}}):
+                with mock.patch("certifi.where", lambda: str(FX / "unrelated_ca.pem")), TPR.recording_attempts(refused):
+                    with self.assertRaises(FDSNNoServiceException):
+                        TPR.fdsn_client(url, timeout=10)
+                self.assertEqual(_Handler.hits, [], "a refused handshake serves nothing")
+                # the same construction with the trusted test CA verifies and discovers: the refusal was the trust
+                with mock.patch("certifi.where", lambda: str(FX / "test_ca.pem")), TPR.recording_attempts(served):
+                    client, facts = TPR.fdsn_client(url, timeout=10)
+        self.assertIn("dataselect", client.services)
+        self.assertEqual(refused[0]["tls_trust"]["bundle_sha256"],
+                         hashlib.sha256((FX / "unrelated_ca.pem").read_bytes()).hexdigest())
+        self.assertEqual(served[0]["tls_trust"], facts)
+        self.assertEqual(facts["bundle_sha256"], hashlib.sha256((FX / "test_ca.pem").read_bytes()).hexdigest())
 
 
 class CrossSignedChain(unittest.TestCase):

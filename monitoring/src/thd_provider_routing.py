@@ -455,14 +455,63 @@ def scoped_trust_client(base_url, *, ssl_context, timeout, client_class=None):
     return ScopedTrustClient(base_url, timeout=timeout, ssl_context=ssl_context)
 
 
+# ---- prepared trust on the attempt record (cayley 2026-11-22; codex 99934af01) ---------------------------------------
+# The fetch attaches the trust facts to its attempt record only AFTER fdsn_client returns, so an attempt whose client
+# CONSTRUCTOR fails (obspy's service discovery: the Hayward days of 2026-11-18..20) lost which bundle had been prepared.
+# The fetch itself is not edited: seismic_thd.fetch_continuous_data_for_thd's SOURCE is part of every station's
+# measurement identity (thd_daily_measurement._code_identity), so one changed line there would unbind every THD
+# baseline. Instead the CALLER names the attempts list it is recording into, and fdsn_client -- which the fetch calls
+# immediately after appending the attempt record -- writes the prepared facts onto that record before it constructs
+# the client. The facts say which bundle the client was given; they are NOT evidence that any connection verified.
+import threading as _threading
+
+_RECORDING = _threading.local()
+
+
+class recording_attempts:
+    """`with recording_attempts(attempts):` -- while active on this thread, fdsn_client records the PREPARED trust facts
+    on the attempt record the fetch has just opened in `attempts`. `attempts` may be None (not recording): nothing is
+    written. Nested use restores the outer list on exit."""
+
+    def __init__(self, attempts):
+        self._attempts = attempts
+
+    def __enter__(self):
+        self._outer = getattr(_RECORDING, "attempts", None)
+        _RECORDING.attempts = self._attempts
+        return self._attempts
+
+    def __exit__(self, *exc):
+        _RECORDING.attempts = self._outer
+        return False
+
+
+def _record_prepared_trust(provider, facts):
+    """True when the facts were written. They are written ONLY onto the newest record of the list being recorded, and
+    only when that record is an FDSN attempt for this same provider that has no outcome and no trust facts yet -- the
+    state the fetch leaves it in just before it asks for the client. Anything else is left alone: never a guess."""
+    attempts = getattr(_RECORDING, "attempts", None)
+    if not attempts:
+        return False
+    record = attempts[-1]
+    if (not isinstance(record, dict) or record.get("provider") != provider or record.get("adapter") != FDSN
+            or "outcome" in record or "tls_trust" in record):
+        return False
+    record["tls_trust"] = dict(facts)
+    return True
+
+
 def fdsn_client(provider, *, timeout):
     """(client, trust_facts): the scoped-trust client when the provider declares a CA source, else the default client
-    and None. The single construction site for the THD FDSN providers."""
+    and None. The single construction site for the THD FDSN providers. Inside `recording_attempts`, the prepared facts
+    are recorded on the open attempt as soon as the named bundle has been loaded and hashed, BEFORE the client is
+    constructed; when the bundle itself cannot be loaded nothing was hashed, so nothing is recorded."""
     trust = tls_trust_for(provider)
     if trust is None:
         from obspy.clients.fdsn import Client
         return Client(provider, timeout=timeout), None
     context, facts = trust_context(trust["source"])
+    _record_prepared_trust(provider, facts)
     return scoped_trust_client(provider, ssl_context=context, timeout=timeout), facts
 
 

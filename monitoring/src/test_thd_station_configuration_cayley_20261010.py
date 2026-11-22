@@ -93,6 +93,14 @@ class ConfiguredStations(unittest.TestCase):
                 scoped = {p for p, source in other["tls_trust"].items() if source is not None}
                 self.assertLessEqual(scoped, {"INGV", "NCEDC"}, region)
 
+    def test_the_hayward_measurement_identity_is_the_issued_one(self):
+        # The trust change must not move a measurement identity: BK.BRK's is the value ISSUED on ticks 55 to 58 (public
+        # 2d311f2e .. 928154c7), which the baseline station check and the private replays are bound to. The identity
+        # hashes the SOURCE of seismic_thd.fetch_continuous_data_for_thd, thd_daily_measurement.measure and the
+        # analyzer's analyze_window: an edit to any of them fails here, and is then a decision, not a side effect.
+        (st,) = self.c["norcal_hayward"]["stations"]
+        self.assertEqual(st["operator"]["identity"], "ad69c95ba392870441d9409aa3d372431f9653c7380c848beb30bbab3dc0b49d")
+
     def test_unbound_operator_identity_is_the_measurement_identity(self):
         import thd_daily_measurement as TDM
         st = self.c["anchorage"]["stations"][0]

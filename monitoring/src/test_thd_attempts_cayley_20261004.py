@@ -158,6 +158,112 @@ class FetchRecordsProviders(unittest.TestCase):
         self.assertEqual(([a["provider"] for a in served], served[0]["outcome"], rate), (["NCEDC"], "DATA_RETURNED", 20.0))
         self.assertEqual(served[0]["tls_trust"]["bundle_sha256"], digest)
 
+    # ---- codex 99934af01: the PREPARED bundle on an attempt whose client constructor fails -------------------------
+    # The failure of 2026-11-18..20 was raised by the client CONSTRUCTOR (obspy's service discovery), before the fetch
+    # had the trust facts in hand. The fetch is NOT edited (its source is part of every measurement identity): the
+    # caller names the list it records into (thd_provider_routing.recording_attempts) and fdsn_client writes the facts.
+    @staticmethod
+    def _refusing_ncedc_constructor():
+        original = _Client.__init__
+
+        class FDSNNoServiceException(Exception):
+            pass
+
+        def refuse_at_discovery(client, name, timeout=None):
+            if name == "NCEDC":
+                raise FDSNNoServiceException("synthetic constructor refusal")
+            return original(client, name, timeout)
+        return refuse_at_discovery
+
+    @staticmethod
+    def _certifi_facts():
+        import certifi
+        import hashlib
+        with open(certifi.where(), "rb") as fh:
+            return dict(version="thd-scoped-tls-trust-v1", source="CERTIFI_BUNDLE", package_version=certifi.__version__,
+                        bundle_sha256=hashlib.sha256(fh.read()).hexdigest())
+
+    def test_the_prepared_bundle_survives_a_constructor_that_fails_at_discovery(self):
+        try:
+            import certifi  # noqa: F401
+        except ImportError:
+            self.skipTest("certifi is not installed")
+        import thd_provider_routing as TPR
+        attempts = []
+        with mock.patch.object(_Client, "__init__", self._refusing_ncedc_constructor()), \
+                mock.patch.object(_Client, "BEHAVIOUR", {"IRIS": "empty"}), TPR.recording_attempts(attempts):
+            self.assertEqual(self.fetch(attempts), (None, 0.0))
+        ncedc, iris = attempts
+        self.assertEqual((ncedc["provider"], ncedc["outcome"], ncedc["typed_outcome"], ncedc["exception_class"]),
+                         ("NCEDC", "PROVIDER_ERROR", "TRANSPORT_ERROR", "FDSNNoServiceException"))
+        self.assertEqual(ncedc["tls_trust"], self._certifi_facts())
+        self.assertEqual((iris["provider"], iris["outcome"]), ("IRIS", "NO_TRACES"))
+        self.assertNotIn("tls_trust", iris)
+
+    def test_the_real_ensemble_path_records_the_prepared_bundle(self):
+        # the production composition: GeoSpecEnsemble.compute_thd_risk -> thd_daily_measurement.measure -> the REAL
+        # fetch, with recording on. This is the caller that names the list; nothing else has to.
+        try:
+            import certifi  # noqa: F401
+        except ImportError:
+            self.skipTest("certifi is not installed")
+        self.addCleanup(setattr, E, "fetch_continuous_data_for_thd", E.fetch_continuous_data_for_thd)
+        E.fetch_continuous_data_for_thd = self.ST.fetch_continuous_data_for_thd
+        for recording in (True, False):
+            ensemble = E.GeoSpecEnsemble(region="norcal_hayward", record_thd_attempts=recording)
+            with mock.patch.object(_Client, "__init__", self._refusing_ncedc_constructor()), \
+                    mock.patch.object(_Client, "BEHAVIOUR", {"IRIS": "empty"}):
+                result = ensemble.compute_thd_risk(DAY, "BK", "BRK")
+            self.assertFalse(result.available)
+            if not recording:
+                self.assertIsNone(ensemble.last_thd_fetch_attempts)
+                continue
+            ncedc, iris = ensemble.last_thd_fetch_attempts
+            self.assertEqual((ncedc["provider"], ncedc["outcome"], ncedc["exception_class"]),
+                             ("NCEDC", "PROVIDER_ERROR", "FDSNNoServiceException"))
+            self.assertEqual(ncedc["tls_trust"], self._certifi_facts())
+            self.assertEqual(iris["provider"], "IRIS")
+            self.assertNotIn("tls_trust", iris)
+        import thd_provider_routing as TPR
+        self.assertIsNone(getattr(TPR._RECORDING, "attempts", None), "the recording scope is closed after the call")
+
+    def test_a_bundle_that_cannot_be_loaded_reports_no_digest_and_the_fallback_still_runs(self):
+        # nothing was hashed, so nothing is reported: no invented digest, no default-trust client for NCEDC
+        import thd_provider_routing as TPR
+        built = []
+        original = _Client.__init__
+
+        def counting(client, name, timeout=None):
+            built.append(name)
+            return original(client, name, timeout)
+        attempts = []
+        with mock.patch.object(TPR, "trust_context", side_effect=OSError("bundle unreadable")), \
+                mock.patch.object(_Client, "__init__", counting), \
+                mock.patch.object(_Client, "BEHAVIOUR", {"IRIS": 20 * 3600 * 24}), TPR.recording_attempts(attempts):
+            data, rate = self.fetch(attempts)
+        ncedc, iris = attempts
+        self.assertEqual((ncedc["provider"], ncedc["outcome"], ncedc["exception_class"]), ("NCEDC", "PROVIDER_ERROR", "OSError"))
+        self.assertNotIn("tls_trust", ncedc)
+        self.assertEqual(built, ["IRIS"], "no client of any kind was built for NCEDC")
+        self.assertEqual((iris["outcome"], rate), ("DATA_RETURNED", 20.0))
+
+    def test_outside_a_recording_scope_the_fetch_behaves_exactly_as_before(self):
+        # the stated limit: a bare fetch (no caller scope) still loses the facts on a constructor failure, as at
+        # d1ea267c; the value path is identical with and without the scope
+        import thd_provider_routing as TPR
+        refuse = self._refusing_ncedc_constructor()
+        bare, scoped = [], []
+        with mock.patch.object(_Client, "__init__", refuse), mock.patch.object(_Client, "BEHAVIOUR", {"IRIS": 20 * 3600 * 24}):
+            a = self.fetch(bare)
+            with TPR.recording_attempts(scoped):
+                b = self.fetch(scoped)
+            c = self.fetch(None)
+        self.assertNotIn("tls_trust", bare[0])
+        self.assertEqual({k: v for k, v in scoped[0].items() if k != "tls_trust"}, bare[0])
+        self.assertEqual(scoped[1], bare[1])
+        self.assertEqual((a[1], b[1], c[1]), (20.0, 20.0, 20.0))
+        self.assertTrue(np.array_equal(a[0], b[0]) and np.array_equal(a[0], c[0]))
+
     def test_all_providers_failing_is_recorded_and_returns_nothing(self):
         _Client.BEHAVIOUR = {"IRIS": "empty"}
         attempts = []

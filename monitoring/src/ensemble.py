@@ -985,7 +985,12 @@ class GeoSpecEnsemble:
             if fetch_kwargs:
                 from functools import partial
                 _fetch = partial(fetch_continuous_data_for_thd, **fetch_kwargs)
-            _m = TDM.measure(station_network, station_code, date, analyzer=self.thd_analyzer, fetch=_fetch)
+            # (codex 99934af01) name the attempts list being recorded, so an attempt whose client constructor fails still
+            # carries the PREPARED trust bundle; the measurement and the fetch themselves are untouched (their source is
+            # part of the measurement identity). With recording off the list is None and nothing is written.
+            import thd_provider_routing as TPR
+            with TPR.recording_attempts(self.last_thd_fetch_attempts):
+                _m = TDM.measure(station_network, station_code, date, analyzer=self.thd_analyzer, fetch=_fetch)
             self.last_thd_measurement_identity = _m.get('measurement_identity')
             if _m['thd'] is None:
                 return MethodResult(

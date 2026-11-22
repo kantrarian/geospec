@@ -1,34 +1,34 @@
 {
  "build": {
   "mode": "STAGED_FOR_THE_NEXT_COMMIT",
-  "parent_commit": "372054b2eedb0e99e1138224887281824f4dad45"
+  "parent_commit": "e8ab3d326a897446adf0d27ccea142fb783182ac"
  },
  "dates": {
   "first": "2025-10-18",
-  "last": "2026-11-19"
+  "last": "2026-11-20"
  },
  "documentation": "docs/JSON_SCHEMA.md (meanings only; reports record no unit)",
  "files": {
-  "anchorage.json": "90649e9a05b5c5bba0f8e95b7e449350d566ae82bf6aa63e2d1028cee636353e",
-  "campi_flegrei.json": "01bfe07e65fa58c95cbdbe29cdc17abe5b389aebeb91cf75886b8da9ebe6a403",
-  "cascadia.json": "372ea09a5054c8a455a64a196bfe9492b65fd98bf6b2ebe35ff1c90ab8426c64",
-  "hualien.json": "a398a8178e7f4c677aa8d8d288e729f250384f898b190812d9587eb60fb6ccb1",
-  "istanbul_marmara.json": "f8ce3ff5ffb0aeeb691f4b40844c6648652dbd53286c7948cdab174b7e70903e",
-  "kaikoura.json": "5dad61da8afcbec1b81b0b69ba27dd32326fe171386de51011bce5c05cdf1752",
-  "kumamoto.json": "1b81376c5a5fe0edf058dbf24a1c399c967c58f028c6841b147c3d287fdbba64",
-  "mexico_guerrero.json": "a72eb04af905fb89867f8f3e0732beebf3c9dc9393257bad135e26f79d30a324",
-  "norcal_hayward.json": "2442264a8b8917cd87708deb8bbf604f1926cd481249c9903d9d56dccebc3b61",
-  "ridgecrest.json": "3d68e14583f953c6d83b87f9d862bd681ec5b48d5b1cf78fd4756a8356b3b4e5",
-  "socal_saf_coachella.json": "aa3f4b916179cb5b79aa8dd3207ca28b55d4b8a57489560a302830e36ae5a9a7",
-  "socal_saf_mojave.json": "4e2d418e39268889a3e7b4afab0b510d4165d54895819ffc22caecdc4bfcef96",
-  "tokyo_kanto.json": "15e27ab4b0473d0880cb7b23c69faec54cb73337e0e6c820163d259efe5474e2",
-  "turkey_kahramanmaras.json": "bcc49cf99ea92dbd14d9fe08cabdd3abdeba3474b4afcae394f16fde576e80d9"
+  "anchorage.json": "97ea88e3b5103ed7e76e8efd6fd386fd646433c2e5d8dada3f74c217ec97334c",
+  "campi_flegrei.json": "b260ab2fbf4d320e5e959de57f809aff974b270a45cdd4f77f703a6b6aa90d50",
+  "cascadia.json": "9b143fa2fde5d1c6c6d423f9d930072f778542f6e40c7c5d91ea62941feb87e7",
+  "hualien.json": "1f15fb97e3771f083df2b3fa74387af39006f3efffaffbc80ac4e2e38f7b6850",
+  "istanbul_marmara.json": "2542c7c8b7f35f694144cc23c6a87d3d0803cae12f529f4a004101f7bc650fa0",
+  "kaikoura.json": "f95dcce4bbee6ac718267d90c4bc0b7e57c438f8cb052a91e0f41ce12f8fd36b",
+  "kumamoto.json": "2f3728d00e061124561bf3b5b8264722fb866db78d159501719d85d9cbdc126b",
+  "mexico_guerrero.json": "e8e945bf2c1e908960a90fd1a0aa697b0baabb99034c2c65db958786caf02c10",
+  "norcal_hayward.json": "4331b898fa3b8a60bda8a54ac2bc10bad4073a01289a4853ddfd7b5aa0933b76",
+  "ridgecrest.json": "e84ab2ea5674d27404a53c2614f1dc8cfa07ad3b7c17d40c81a3c7ef520c67f4",
+  "socal_saf_coachella.json": "e28a4586aedb9bb9923509eea5eb40ab28be478c2ab518d8c4352c7f21cb4b41",
+  "socal_saf_mojave.json": "0f1346f98441c0a253737954cc31e6fd9096d806106bde68466adaee0470704d",
+  "tokyo_kanto.json": "caec0d33becf7410441e0848aed691f6717962d25210455e6861cd54ead42b47",
+  "turkey_kahramanmaras.json": "b46c262a4c6fbdfb8168b5df74d914975726bd0c46a78c580f15a98b25d8f9ff"
  },
  "inputs": {
   "capsule_sha256": "a4f61f64379d7b8b2cb18f54c74ca40548bd3cd94ef463ec60ba870b3cf26d4e",
-  "data_csv_sha256": "1a58b2a75195424367b21aa31397ae94549bdc53de17c6bd52fa7e987db45198",
-  "journal_entries": 79,
-  "journal_sha256": "012f4fbddeb4748d51b6faf574dbbd11bf9e6c28bbaba9662daf05a48da561d0",
+  "data_csv_sha256": "190f446eecdcc9e04f49d8dea4ab06aa05a57518424559341617e75ba08cae92",
+  "journal_entries": 80,
+  "journal_sha256": "fb88dada7c6ad5e21e1170d8d02cd36763dda2becab1ccd14a051fc2f8ea9184",
   "undated_unparseable_capsule_records": [
    {
     "byte_length": 0,
@@ -57,8 +57,8 @@
   }
  },
  "preservation": {
-  "compared": 4144,
-  "equal": 3832,
+  "compared": 4158,
+  "equal": 3846,
   "mismatch_reasons": {
    "CSV_EQUALS_A_SUPERSEDED_REVISION": 45,
    "CSV_EQUALS_NO_RETAINED_REVISION": 36,
@@ -8596,6 +8596,66 @@
       "reason": null,
       "run_id": "20261121T120816093726Z-34774a31",
       "sha256": "066533c9ae3210f2b002703ac7c53833b841e4b530f14dfa593e29fccc77f29b",
+      "supersedes": null
+     },
+     "state": "RETROSPECTIVE_RECONSTRUCTION_NOT_ISSUED",
+     "value": 0.20170810588612323
+    },
+    {
+     "components": {
+      "lambda_geo": {
+       "admission": {
+        "basis": "METHOD_SET",
+        "code": "NO_REGISTERED_FRESHNESS_POLICY",
+        "included": false,
+        "reason": "NO_REGISTERED_FRESHNESS_POLICY: lambda_geo_baselines.json:norcal_hayward: lambda_geo has no registered baseline-age bound; qualification unknown",
+        "state": "NOT_QUALIFIED",
+        "weight": null
+       },
+       "base_weight": 0.4,
+       "calibration": {
+        "baseline_provenance": {
+         "calibrated_on": "2026-11-17",
+         "calibration_sha256": "fafd25521c4a7e081b797da31727b7796abb79753a3aba24df34de2c956ab894",
+         "n_days": 90,
+         "quality": "good",
+         "source": "lambda_geo_baselines.json:norcal_hayward",
+         "window_end": "2026-10-18",
+         "window_start": "2026-07-20"
+        },
+        "calibration": {
+         "eligible_for_tiering": false,
+         "reason": "NO_REGISTERED_FRESHNESS_POLICY: lambda_geo_baselines.json:norcal_hayward: lambda_geo has no registered baseline-age bound; qualification unknown",
+         "rule_version": "calibration-eligibility-v3",
+         "status": "missing"
+        }
+       },
+       "effective_weight": 1.0,
+       "raw_value": 2.076308873960352,
+       "recorded_score": 0.20170810588612323,
+       "station": null,
+       "warnings": [
+        "CALIBRATION_MISSING",
+        "NOT_ADMITTED_NOT_QUALIFIED",
+        "REPEATS_PREVIOUS_MEASURED_VALUE"
+       ]
+      }
+     },
+     "csv": {
+      "agreement": "no_data",
+      "methods": "0",
+      "risk": "0.0000",
+      "tier": "-1"
+     },
+     "date": "2026-11-20",
+     "original_state": "NO_QUALIFIED_METHOD",
+     "rule": "retained-component-weighted-mean-v1",
+     "source": {
+      "kind": "REVISION_CURRENT",
+      "path": "docs/ensemble/2026-11-20/20261122T120829281832Z-6ab6a1ee.json",
+      "reason": null,
+      "run_id": "20261122T120829281832Z-6ab6a1ee",
+      "sha256": "8e872cea5d0785e7aa88509487e2bf29f9993ab6750fdbfa7eca625f76825cf7",
       "supersedes": null
      },
      "state": "RETROSPECTIVE_RECONSTRUCTION_NOT_ISSUED",

@@ -1,5 +1,5 @@
 {
-  "date": "2026-11-19",
+  "date": "2026-11-20",
   "earthquake_events": {
     "anchorage": {
       "bounds": {
@@ -77,7 +77,7 @@
         "time": "2026-10-30T19:11:23.943000",
         "url": "https://earthquake.usgs.gov/earthquakes/eventpage/aka2026vngzyw"
       },
-      "last_updated": "2026-11-21T12:07:55.034559",
+      "last_updated": "2026-11-22T12:08:08.341151",
       "m65_plus_events": [],
       "most_recent_event": {
         "depth_km": 3.6,
@@ -102,7 +102,7 @@
       "event_count": 0,
       "events": [],
       "largest_event": null,
-      "last_updated": "2026-11-21T12:07:54.487877",
+      "last_updated": "2026-11-22T12:08:07.783774",
       "m65_plus_events": [],
       "most_recent_event": null,
       "region": "campi_flegrei"
@@ -130,12 +130,12 @@
         {
           "depth_km": 10,
           "event_id": "us7000txrk",
-          "latitude": 44.4539,
-          "longitude": -129.6205,
+          "latitude": 44.448,
+          "longitude": -129.63,
           "mag_type": "mb",
           "magnitude": 4.5,
           "place": "off the coast of Oregon",
-          "time": "2026-11-12T08:17:28.440000",
+          "time": "2026-11-12T08:17:28.248000",
           "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us7000txrk"
         },
         {
@@ -183,7 +183,7 @@
         "time": "2026-09-07T01:30:24.206000",
         "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us7000tesi"
       },
-      "last_updated": "2026-11-21T12:07:53.538064",
+      "last_updated": "2026-11-22T12:08:05.436263",
       "m65_plus_events": [],
       "most_recent_event": {
         "depth_km": 10,
@@ -274,7 +274,7 @@
         "time": "2026-10-23T20:58:01.497000",
         "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us6000u4gs"
       },
-      "last_updated": "2026-11-21T12:07:55.439180",
+      "last_updated": "2026-11-22T12:08:09.101424",
       "m65_plus_events": [],
       "most_recent_event": {
         "depth_km": 12.86,
@@ -299,7 +299,7 @@
       "event_count": 0,
       "events": [],
       "largest_event": null,
-      "last_updated": "2026-11-21T12:07:54.113130",
+      "last_updated": "2026-11-22T12:08:06.239456",
       "m65_plus_events": [],
       "most_recent_event": null,
       "region": "istanbul_marmara"
@@ -336,7 +336,7 @@
         "time": "2026-10-26T06:24:29.328000",
         "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us6000u4ya"
       },
-      "last_updated": "2026-11-21T12:07:54.655022",
+      "last_updated": "2026-11-22T12:08:07.960003",
       "m65_plus_events": [],
       "most_recent_event": {
         "depth_km": 35,
@@ -363,12 +363,12 @@
         {
           "depth_km": 10,
           "event_id": "us7000tz1n",
-          "latitude": 32.3069,
-          "longitude": 130.4701,
+          "latitude": 32.2798,
+          "longitude": 130.4667,
           "mag_type": "mww",
           "magnitude": 5.3,
-          "place": "7 km N of Tsunagi, Japan",
-          "time": "2026-11-18T17:22:23.552000",
+          "place": "4 km N of Tsunagi, Japan",
+          "time": "2026-11-18T17:22:23.428000",
           "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us7000tz1n"
         },
         {
@@ -419,25 +419,25 @@
       "largest_event": {
         "depth_km": 10,
         "event_id": "us7000tz1n",
-        "latitude": 32.3069,
-        "longitude": 130.4701,
+        "latitude": 32.2798,
+        "longitude": 130.4667,
         "mag_type": "mww",
         "magnitude": 5.3,
-        "place": "7 km N of Tsunagi, Japan",
-        "time": "2026-11-18T17:22:23.552000",
+        "place": "4 km N of Tsunagi, Japan",
+        "time": "2026-11-18T17:22:23.428000",
         "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us7000tz1n"
       },
-      "last_updated": "2026-11-21T12:07:55.218469",
+      "last_updated": "2026-11-22T12:08:08.700206",
       "m65_plus_events": [],
       "most_recent_event": {
         "depth_km": 10,
         "event_id": "us7000tz1n",
-        "latitude": 32.3069,
-        "longitude": 130.4701,
+        "latitude": 32.2798,
+        "longitude": 130.4667,
         "mag_type": "mww",
         "magnitude": 5.3,
-        "place": "7 km N of Tsunagi, Japan",
-        "time": "2026-11-18T17:22:23.552000",
+        "place": "4 km N of Tsunagi, Japan",
+        "time": "2026-11-18T17:22:23.428000",
         "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us7000tz1n"
       },
       "region": "kumamoto"
@@ -518,7 +518,7 @@
         "time": "2026-09-06T18:46:18.226000",
         "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us7000terb"
       },
-      "last_updated": "2026-11-21T12:07:55.831615",
+      "last_updated": "2026-11-22T12:08:09.290280",
       "m65_plus_events": [],
       "most_recent_event": {
         "depth_km": 10,
@@ -543,7 +543,7 @@
       "event_count": 0,
       "events": [],
       "largest_event": null,
-      "last_updated": "2026-11-21T12:07:53.352111",
+      "last_updated": "2026-11-22T12:08:05.060271",
       "m65_plus_events": [],
       "most_recent_event": null,
       "region": "norcal_hayward"
@@ -558,7 +558,7 @@
       "event_count": 0,
       "events": [],
       "largest_event": null,
-      "last_updated": "2026-11-21T12:07:52.528149",
+      "last_updated": "2026-11-22T12:08:04.204651",
       "m65_plus_events": [],
       "most_recent_event": null,
       "region": "ridgecrest"
@@ -573,7 +573,7 @@
       "event_count": 0,
       "events": [],
       "largest_event": null,
-      "last_updated": "2026-11-21T12:07:52.990498",
+      "last_updated": "2026-11-22T12:08:04.826127",
       "m65_plus_events": [],
       "most_recent_event": null,
       "region": "socal_saf_coachella"
@@ -588,7 +588,7 @@
       "event_count": 0,
       "events": [],
       "largest_event": null,
-      "last_updated": "2026-11-21T12:07:52.775094",
+      "last_updated": "2026-11-22T12:08:04.434016",
       "m65_plus_events": [],
       "most_recent_event": null,
       "region": "socal_saf_mojave"
@@ -600,7 +600,7 @@
         "minlat": 34.5,
         "minlon": 138.5
       },
-      "event_count": 29,
+      "event_count": 28,
       "events": [
         {
           "depth_km": 73.353,
@@ -612,17 +612,6 @@
           "place": "3 km E of Tako, Japan",
           "time": "2026-11-12T13:27:22.321000",
           "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us7000txsr"
-        },
-        {
-          "depth_km": 35,
-          "event_id": "us7000tx96",
-          "latitude": 36.3338,
-          "longitude": 141.4659,
-          "mag_type": "mb",
-          "magnitude": 4.9,
-          "place": "78 km ESE of Hitachi, Japan",
-          "time": "2026-11-10T05:20:08.677000",
-          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us7000tx96"
         },
         {
           "depth_km": 35,
@@ -656,6 +645,17 @@
           "place": "68 km ESE of Hitachi, Japan",
           "time": "2026-11-07T11:05:21.202000",
           "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us7000ty2j"
+        },
+        {
+          "depth_km": 49.685,
+          "event_id": "us7000tv3q",
+          "latitude": 35.5565,
+          "longitude": 140.4252,
+          "mag_type": "mwr",
+          "magnitude": 4.8,
+          "place": "4 km S of Narut\u014d, Japan",
+          "time": "2026-11-03T05:40:18.280000",
+          "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us7000tv3q"
         }
       ],
       "largest_event": {
@@ -669,7 +669,7 @@
         "time": "2026-11-07T11:07:42.734000",
         "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us7000twrq"
       },
-      "last_updated": "2026-11-21T12:07:53.737679",
+      "last_updated": "2026-11-22T12:08:05.878724",
       "m65_plus_events": [],
       "most_recent_event": {
         "depth_km": 73.353,
@@ -760,7 +760,7 @@
         "time": "2026-10-04T11:43:22.802000",
         "url": "https://earthquake.usgs.gov/earthquakes/eventpage/us6000tzip"
       },
-      "last_updated": "2026-11-21T12:07:54.305101",
+      "last_updated": "2026-11-22T12:08:07.589744",
       "m65_plus_events": [],
       "most_recent_event": {
         "depth_km": 10,
@@ -779,7 +779,7 @@
   "regions": {
     "anchorage": {
       "agreement": "single_method",
-      "combined_risk": 0.2193879845473457,
+      "combined_risk": 0.1794751577691513,
       "components": {
         "fault_correlation": {
           "available": false,
@@ -888,7 +888,7 @@
           },
           "calibration": {
             "eligible_for_tiering": true,
-            "reason": "CALIBRATED: n=91, window 2026-07-17..2026-10-15, end 35 d before the scored day",
+            "reason": "CALIBRATED: n=91, window 2026-07-17..2026-10-15, end 36 d before the scored day",
             "rule_version": "calibration-eligibility-v3",
             "status": "calibrated"
           },
@@ -896,12 +896,12 @@
           "is_critical": false,
           "is_elevated": false,
           "name": "seismic_thd",
-          "notes": "sta=IU.COLA, THD=0.5730, z=1.27, baseline_mean=0.2826, baseline_std=0.2286, n=91, rate=40Hz",
-          "raw_secondary": 224.35938856114487,
-          "raw_value": 0.5730139189337586,
-          "risk_score": 0.2193879845473457,
+          "notes": "sta=IU.COLA, THD=0.5046, z=0.97, baseline_mean=0.2826, baseline_std=0.2286, n=91, rate=40Hz",
+          "raw_secondary": 1054.613657841377,
+          "raw_value": 0.5045764924599251,
+          "risk_score": 0.1794751577691513,
           "sample_rate_hz": 40.0,
-          "z_score": 1.2704098841050928
+          "z_score": 0.9710636832686347
         }
       },
       "confidence": 0.5,
@@ -911,7 +911,7 @@
         "segments_defined": 1,
         "segments_working": 0
       },
-      "date": "2026-11-19T00:00:00",
+      "date": "2026-11-20T00:00:00",
       "effective_weights": {
         "seismic_thd": 1.0
       },
@@ -987,7 +987,7 @@
               "basis": "RETAINED_THD_TRACE_EPOCH",
               "blocking": [],
               "epochs": [
-                "2026-11-18T23:59:59.994539"
+                "2026-11-19T23:59:59.994538"
               ],
               "observation_updates": 1,
               "report_days": 1,
@@ -1011,7 +1011,7 @@
       "region": "anchorage",
       "thd_attempts": {
         "schema": "thd-station-attempts-v3",
-        "scored_day": "2026-11-19",
+        "scored_day": "2026-11-20",
         "stations": [
           {
             "attempted": true,
@@ -1024,33 +1024,33 @@
                 "coverage": {
                   "coverage_fraction": 1.0,
                   "coverage_version": "thd-coverage-facts-v2",
-                  "covered_seconds": 89999.980461,
+                  "covered_seconds": 89999.980462,
                   "edge_fill": "NONE",
-                  "extent_seconds": 89999.980461,
+                  "extent_seconds": 89999.980462,
                   "fill": "NONE",
                   "gap_seconds": 0,
                   "gaps": 0,
-                  "missing_head_seconds": 0.019539,
+                  "missing_head_seconds": 0.019538,
                   "missing_tail_seconds": 0.0,
                   "nonfinite_or_masked_handling": "NONE",
                   "nonfinite_or_masked_seconds": 0.0,
                   "overlap_resolution": "MERGE_METHOD_1_LATER_TRACE_KEPT_UNCHANGED",
-                  "overlap_seconds": 3.880462,
+                  "overlap_seconds": 0.755462,
                   "overlaps": 1,
                   "requested_seconds": 90000.0,
                   "sample_period_seconds": 0.025,
                   "status": "FULL"
                 },
                 "epoch": [
-                  "2026-11-17T23:00:00.019539Z",
-                  "2026-11-18T23:59:59.994539Z"
+                  "2026-11-18T23:00:00.019538Z",
+                  "2026-11-19T23:59:59.994538Z"
                 ],
                 "location": "00",
                 "n_samples": 3600000,
                 "nslc_requested": "IU.COLA.00.BHZ",
                 "outcome": "DATA_RETURNED",
                 "provider": "IRIS",
-                "raw_samples_sha256": "af2593c91ddec3dc752cbe446ffa68aac51c7e392cce180951ca6fa1a33fbd9c",
+                "raw_samples_sha256": "ac425832d7c773484d7f15776ef014e66dd40850afa98e0b1b5bb02e824c100b",
                 "reason": null,
                 "response": "NOT_REMOVED (raw counts; demean and linear detrend only)",
                 "response_epoch": {
@@ -1071,12 +1071,12 @@
                 "traces_before_merge": 2,
                 "typed_outcome": "DATA_RETURNED",
                 "window_requested": [
-                  "2026-11-17T23:00:00",
-                  "2026-11-19T00:00:00"
+                  "2026-11-18T23:00:00",
+                  "2026-11-20T00:00:00"
                 ]
               }
             ],
-            "reason": "sta=IU.COLA, THD=0.5730, z=1.27, baseline_mean=0.2826, baseline_std=0.2286, n=91, rate=40Hz",
+            "reason": "sta=IU.COLA, THD=0.5046, z=0.97, baseline_mean=0.2826, baseline_std=0.2286, n=91, rate=40Hz",
             "role": "CONFIGURED_PRIMARY",
             "selected": true,
             "station": "IU.COLA"
@@ -1097,7 +1097,7 @@
         "region_configuration_sha256": "ffcc4fc2777b6006c3c850f362549891cfb350cc62ad82f514cc5c3a252145ad",
         "schema": "thd-station-configuration-v1",
         "source": {
-          "commit": "372054b2eedb0e99e1138224887281824f4dad45",
+          "commit": "e8ab3d326a897446adf0d27ccea142fb783182ac",
           "commit_status": "HEAD_CLEAN",
           "files": {
             "monitoring/src/run_ensemble_daily.py": "0a3e4d297e6e3cfd2d95f8a91cfbbcc027e7c7542bec270eedabd611f120010c",
@@ -1169,7 +1169,7 @@
     },
     "campi_flegrei": {
       "agreement": "single_method",
-      "combined_risk": 0.4697090207257001,
+      "combined_risk": 0.7136571314068887,
       "components": {
         "fault_correlation": {
           "available": false,
@@ -1278,20 +1278,20 @@
           },
           "calibration": {
             "eligible_for_tiering": true,
-            "reason": "CALIBRATED: n=91, window 2026-07-17..2026-10-15, end 35 d before the scored day",
+            "reason": "CALIBRATED: n=91, window 2026-07-17..2026-10-15, end 36 d before the scored day",
             "rule_version": "calibration-eligibility-v3",
             "status": "calibrated"
           },
           "frozen": false,
           "is_critical": false,
-          "is_elevated": false,
+          "is_elevated": true,
           "name": "seismic_thd",
-          "notes": "sta=IV.CAFE, THD=0.2991, z=2.38, baseline_mean=0.1442, baseline_std=0.0651, n=91, rate=100Hz",
-          "raw_secondary": 80742.01104662893,
-          "raw_value": 0.29905654645572877,
-          "risk_score": 0.4697090207257001,
+          "notes": "sta=IV.CAFE, THD=0.3626, z=3.35, baseline_mean=0.1442, baseline_std=0.0651, n=91, rate=100Hz",
+          "raw_secondary": 876309.9453512443,
+          "raw_value": 0.3625659975904694,
+          "risk_score": 0.7136571314068887,
           "sample_rate_hz": 100.0,
-          "z_score": 2.3788360829028004
+          "z_score": 3.3546285256275548
         }
       },
       "confidence": 0.5,
@@ -1301,7 +1301,7 @@
         "segments_defined": 4,
         "segments_working": 0
       },
-      "date": "2026-11-19T00:00:00",
+      "date": "2026-11-20T00:00:00",
       "effective_weights": {
         "seismic_thd": 1.0
       },
@@ -1356,9 +1356,9 @@
         "weighted_coverage": 0.3
       },
       "methods_available": 1,
-      "notes": "calibration-eligibility-v3: excluded from tier lambda_geo=missing",
+      "notes": "calibration-eligibility-v3: excluded from tier lambda_geo=missing | Tier capped at WATCH (was ELEVATED): need >=2 methods for ELEVATED+",
       "persistence": {
-        "consecutive_days": 3,
+        "consecutive_days": 4,
         "current_tier": 1,
         "is_confirmed": true,
         "regime": {
@@ -1377,26 +1377,24 @@
               "basis": "RETAINED_THD_TRACE_EPOCH",
               "blocking": [],
               "epochs": [
+                "2026-11-20T00:00:00",
                 "2026-11-19T00:00:00",
                 "2026-11-18T00:00:00",
                 "2026-11-17T00:00:00"
               ],
-              "observation_updates": 3,
-              "report_days": 3,
+              "observation_updates": 4,
+              "report_days": 4,
               "revisions": 0,
               "steps": [
+                "ADVANCED",
                 "ADVANCED",
                 "ADVANCED"
               ]
             }
           },
           "regime": "calibration-eligibility-v3|method-comparability-v3",
-          "regime_transition": {
-            "days_back": 3,
-            "from": "calibration-eligibility-v3|method-comparability-v2",
-            "to": "calibration-eligibility-v3|method-comparability-v3"
-          },
-          "report_days": 3,
+          "regime_transition": null,
+          "report_days": 4,
           "report_days_met": true,
           "resets_on_method_set_change": true
         },
@@ -1410,7 +1408,7 @@
       "region": "campi_flegrei",
       "thd_attempts": {
         "schema": "thd-station-attempts-v3",
-        "scored_day": "2026-11-19",
+        "scored_day": "2026-11-20",
         "stations": [
           {
             "attempted": true,
@@ -1421,14 +1419,14 @@
                 "adapter": "FDSN",
                 "channel": "HHZ",
                 "coverage": {
-                  "coverage_fraction": 1.0,
+                  "coverage_fraction": 0.999572,
                   "coverage_version": "thd-coverage-facts-v2",
-                  "covered_seconds": 90000.0,
+                  "covered_seconds": 89961.5,
                   "edge_fill": "NONE",
-                  "extent_seconds": 90000.0,
-                  "fill": "NONE",
-                  "gap_seconds": 0,
-                  "gaps": 0,
+                  "extent_seconds": 89961.5,
+                  "fill": "MERGE_INTERPOLATE_UNCHANGED",
+                  "gap_seconds": 38.5,
+                  "gaps": 1,
                   "missing_head_seconds": 0.0,
                   "missing_tail_seconds": 0.0,
                   "nonfinite_or_masked_handling": "NONE",
@@ -1438,18 +1436,18 @@
                   "overlaps": 0,
                   "requested_seconds": 90000.0,
                   "sample_period_seconds": 0.01,
-                  "status": "FULL"
+                  "status": "PARTIAL"
                 },
                 "epoch": [
-                  "2026-11-17T23:00:00.000000Z",
-                  "2026-11-19T00:00:00.000000Z"
+                  "2026-11-18T23:00:00.000000Z",
+                  "2026-11-20T00:00:00.000000Z"
                 ],
                 "location": "",
                 "n_samples": 9000001,
                 "nslc_requested": "IV.CAFE..HHZ",
                 "outcome": "DATA_RETURNED",
                 "provider": "INGV",
-                "raw_samples_sha256": "6d5dbe78dacbe000f9ea08bc9aa33d6983116dc3fa0741e31e6463f362dda40c",
+                "raw_samples_sha256": "dbc60da566b7b2159d19e288ee5191dde0268495f4827f4e53fc374864feee59",
                 "reason": null,
                 "response": "NOT_REMOVED (raw counts; demean and linear detrend only)",
                 "response_epoch": {
@@ -1473,15 +1471,15 @@
                 },
                 "trace_id": "IV.CAFE..HHZ",
                 "traces_after_merge": 1,
-                "traces_before_merge": 1,
+                "traces_before_merge": 2,
                 "typed_outcome": "DATA_RETURNED",
                 "window_requested": [
-                  "2026-11-17T23:00:00",
-                  "2026-11-19T00:00:00"
+                  "2026-11-18T23:00:00",
+                  "2026-11-20T00:00:00"
                 ]
               }
             ],
-            "reason": "sta=IV.CAFE, THD=0.2991, z=2.38, baseline_mean=0.1442, baseline_std=0.0651, n=91, rate=100Hz",
+            "reason": "sta=IV.CAFE, THD=0.3626, z=3.35, baseline_mean=0.1442, baseline_std=0.0651, n=91, rate=100Hz",
             "role": "CONFIGURED_PRIMARY",
             "selected": true,
             "station": "IV.CAFE"
@@ -1493,7 +1491,7 @@
         "region_configuration_sha256": "ec9b366244f277460d5e1415b1d030ea0dfbceac55f7532460163114410042a6",
         "schema": "thd-station-configuration-v1",
         "source": {
-          "commit": "372054b2eedb0e99e1138224887281824f4dad45",
+          "commit": "e8ab3d326a897446adf0d27ccea142fb783182ac",
           "commit_status": "HEAD_CLEAN",
           "files": {
             "monitoring/src/run_ensemble_daily.py": "0a3e4d297e6e3cfd2d95f8a91cfbbcc027e7c7542bec270eedabd611f120010c",
@@ -1545,7 +1543,7 @@
     },
     "cascadia": {
       "agreement": "single_method",
-      "combined_risk": 0.21556004253725902,
+      "combined_risk": 0.1793627624313026,
       "components": {
         "fault_correlation": {
           "available": false,
@@ -1654,7 +1652,7 @@
           },
           "calibration": {
             "eligible_for_tiering": true,
-            "reason": "CALIBRATED: n=91, window 2026-07-17..2026-10-15, end 35 d before the scored day",
+            "reason": "CALIBRATED: n=91, window 2026-07-17..2026-10-15, end 36 d before the scored day",
             "rule_version": "calibration-eligibility-v3",
             "status": "calibrated"
           },
@@ -1662,12 +1660,12 @@
           "is_critical": false,
           "is_elevated": false,
           "name": "seismic_thd",
-          "notes": "sta=IU.COR, THD=0.5071, z=1.24, baseline_mean=0.3410, baseline_std=0.1337, n=91, rate=40Hz",
-          "raw_secondary": 93.77302328644873,
-          "raw_value": 0.5070729674682738,
-          "risk_score": 0.21556004253725902,
+          "notes": "sta=IU.COR, THD=0.4708, z=0.97, baseline_mean=0.3410, baseline_std=0.1337, n=91, rate=40Hz",
+          "raw_secondary": 373.52765390285987,
+          "raw_value": 0.47076419973959105,
+          "risk_score": 0.1793627624313026,
           "sample_rate_hz": 40.0,
-          "z_score": 1.2417003190294427
+          "z_score": 0.9702207182347697
         }
       },
       "confidence": 0.5,
@@ -1677,7 +1675,7 @@
         "segments_defined": 4,
         "segments_working": 0
       },
-      "date": "2026-11-19T00:00:00",
+      "date": "2026-11-20T00:00:00",
       "effective_weights": {
         "seismic_thd": 1.0
       },
@@ -1753,7 +1751,7 @@
               "basis": "RETAINED_THD_TRACE_EPOCH",
               "blocking": [],
               "epochs": [
-                "2026-11-18T23:59:59.994538"
+                "2026-11-19T23:59:59.994538"
               ],
               "observation_updates": 1,
               "report_days": 1,
@@ -1777,7 +1775,7 @@
       "region": "cascadia",
       "thd_attempts": {
         "schema": "thd-station-attempts-v3",
-        "scored_day": "2026-11-19",
+        "scored_day": "2026-11-20",
         "stations": [
           {
             "attempted": true,
@@ -1801,22 +1799,22 @@
                   "nonfinite_or_masked_handling": "NONE",
                   "nonfinite_or_masked_seconds": 0.0,
                   "overlap_resolution": "MERGE_METHOD_1_LATER_TRACE_KEPT_UNCHANGED",
-                  "overlap_seconds": 3.080461,
+                  "overlap_seconds": 7.480462,
                   "overlaps": 1,
                   "requested_seconds": 90000.0,
                   "sample_period_seconds": 0.025,
                   "status": "FULL"
                 },
                 "epoch": [
-                  "2026-11-17T23:00:00.019538Z",
-                  "2026-11-18T23:59:59.994538Z"
+                  "2026-11-18T23:00:00.019538Z",
+                  "2026-11-19T23:59:59.994538Z"
                 ],
                 "location": "00",
                 "n_samples": 3600000,
                 "nslc_requested": "IU.COR.00.BHZ",
                 "outcome": "DATA_RETURNED",
                 "provider": "IRIS",
-                "raw_samples_sha256": "8d80acbc0276af94ef7d91054f00396009d2edc18deac197fea9a1b337cfa34d",
+                "raw_samples_sha256": "cc779e8ff2209a7b94a84f14bb2d18bf9bd9f25f6fab4fe39684c1dccf4fb160",
                 "reason": null,
                 "response": "NOT_REMOVED (raw counts; demean and linear detrend only)",
                 "response_epoch": {
@@ -1837,12 +1835,12 @@
                 "traces_before_merge": 2,
                 "typed_outcome": "DATA_RETURNED",
                 "window_requested": [
-                  "2026-11-17T23:00:00",
-                  "2026-11-19T00:00:00"
+                  "2026-11-18T23:00:00",
+                  "2026-11-20T00:00:00"
                 ]
               }
             ],
-            "reason": "sta=IU.COR, THD=0.5071, z=1.24, baseline_mean=0.3410, baseline_std=0.1337, n=91, rate=40Hz",
+            "reason": "sta=IU.COR, THD=0.4708, z=0.97, baseline_mean=0.3410, baseline_std=0.1337, n=91, rate=40Hz",
             "role": "CONFIGURED_PRIMARY",
             "selected": true,
             "station": "IU.COR"
@@ -1854,7 +1852,7 @@
         "region_configuration_sha256": "f3c0f0d52d6f0671618a678c8cc24efa439febe2a00f29a0d9778c7a0ffb3daa",
         "schema": "thd-station-configuration-v1",
         "source": {
-          "commit": "372054b2eedb0e99e1138224887281824f4dad45",
+          "commit": "e8ab3d326a897446adf0d27ccea142fb783182ac",
           "commit_status": "HEAD_CLEAN",
           "files": {
             "monitoring/src/run_ensemble_daily.py": "0a3e4d297e6e3cfd2d95f8a91cfbbcc027e7c7542bec270eedabd611f120010c",
@@ -1906,7 +1904,7 @@
     },
     "hualien": {
       "agreement": "single_method",
-      "combined_risk": 0.042865986957815926,
+      "combined_risk": 0.03613924969869167,
       "components": {
         "fault_correlation": {
           "available": false,
@@ -1992,7 +1990,7 @@
           },
           "calibration": {
             "eligible_for_tiering": true,
-            "reason": "CALIBRATED: n=89, window 2026-07-17..2026-10-15, end 35 d before the scored day",
+            "reason": "CALIBRATED: n=89, window 2026-07-17..2026-10-15, end 36 d before the scored day",
             "rule_version": "calibration-eligibility-v3",
             "status": "calibrated"
           },
@@ -2000,12 +1998,12 @@
           "is_critical": false,
           "is_elevated": false,
           "name": "seismic_thd",
-          "notes": "sta=IU.TATO, THD=0.3895, z=-0.24, baseline_mean=0.4089, baseline_std=0.0625, n=89, rate=40Hz",
-          "raw_secondary": 730.3114505727,
-          "raw_value": 0.38948601584396303,
-          "risk_score": 0.042865986957815926,
+          "notes": "sta=IU.TATO, THD=0.3711, z=-0.46, baseline_mean=0.4089, baseline_std=0.0625, n=89, rate=40Hz",
+          "raw_secondary": 2282.3656345828203,
+          "raw_value": 0.3711473605035632,
+          "risk_score": 0.03613924969869167,
           "sample_rate_hz": 40.0,
-          "z_score": -0.23780043473946916
+          "z_score": -0.4620250100436111
         }
       },
       "confidence": 0.5,
@@ -2015,7 +2013,7 @@
         "segments_defined": 1,
         "segments_working": 0
       },
-      "date": "2026-11-19T00:00:00",
+      "date": "2026-11-20T00:00:00",
       "effective_weights": {
         "seismic_thd": 1.0
       },
@@ -2091,7 +2089,7 @@
               "basis": "RETAINED_THD_TRACE_EPOCH",
               "blocking": [],
               "epochs": [
-                "2026-11-18T23:59:59.994539"
+                "2026-11-19T23:59:59.994538"
               ],
               "observation_updates": 1,
               "report_days": 1,
@@ -2106,8 +2104,8 @@
           "resets_on_method_set_change": true
         },
         "tier_history": [
-          0,
           1,
+          0,
           0,
           0
         ]
@@ -2115,7 +2113,7 @@
       "region": "hualien",
       "thd_attempts": {
         "schema": "thd-station-attempts-v3",
-        "scored_day": "2026-11-19",
+        "scored_day": "2026-11-20",
         "stations": [
           {
             "attempted": true,
@@ -2128,33 +2126,33 @@
                 "coverage": {
                   "coverage_fraction": 1.0,
                   "coverage_version": "thd-coverage-facts-v2",
-                  "covered_seconds": 89999.980461,
+                  "covered_seconds": 89999.980462,
                   "edge_fill": "NONE",
-                  "extent_seconds": 89999.980461,
+                  "extent_seconds": 89999.980462,
                   "fill": "NONE",
                   "gap_seconds": 0,
                   "gaps": 0,
-                  "missing_head_seconds": 0.019539,
+                  "missing_head_seconds": 0.019538,
                   "missing_tail_seconds": 0.0,
                   "nonfinite_or_masked_handling": "NONE",
                   "nonfinite_or_masked_seconds": 0.0,
                   "overlap_resolution": "MERGE_METHOD_1_LATER_TRACE_KEPT_UNCHANGED",
-                  "overlap_seconds": 3.405461,
+                  "overlap_seconds": 0.080462,
                   "overlaps": 1,
                   "requested_seconds": 90000.0,
                   "sample_period_seconds": 0.025,
                   "status": "FULL"
                 },
                 "epoch": [
-                  "2026-11-17T23:00:00.019539Z",
-                  "2026-11-18T23:59:59.994539Z"
+                  "2026-11-18T23:00:00.019538Z",
+                  "2026-11-19T23:59:59.994538Z"
                 ],
                 "location": "00",
                 "n_samples": 3600000,
                 "nslc_requested": "IU.TATO.00.BHZ",
                 "outcome": "DATA_RETURNED",
                 "provider": "IRIS",
-                "raw_samples_sha256": "82f7f83dfa467f64af29153e4e99448e2d2d4723f80f432fc1edbc5141801aa2",
+                "raw_samples_sha256": "acfba4a0b47d87d5d276442d9b8a824c1aa20ce3b93804c028fa22b9a96562c2",
                 "reason": null,
                 "response": "NOT_REMOVED (raw counts; demean and linear detrend only)",
                 "response_epoch": {
@@ -2175,12 +2173,12 @@
                 "traces_before_merge": 2,
                 "typed_outcome": "DATA_RETURNED",
                 "window_requested": [
-                  "2026-11-17T23:00:00",
-                  "2026-11-19T00:00:00"
+                  "2026-11-18T23:00:00",
+                  "2026-11-20T00:00:00"
                 ]
               }
             ],
-            "reason": "sta=IU.TATO, THD=0.3895, z=-0.24, baseline_mean=0.4089, baseline_std=0.0625, n=89, rate=40Hz",
+            "reason": "sta=IU.TATO, THD=0.3711, z=-0.46, baseline_mean=0.4089, baseline_std=0.0625, n=89, rate=40Hz",
             "role": "CONFIGURED_PRIMARY",
             "selected": true,
             "station": "IU.TATO"
@@ -2192,7 +2190,7 @@
         "region_configuration_sha256": "66317875815283c49870d7e42fc62667796e3e64d1257d7783f7c5cfb3dccf86",
         "schema": "thd-station-configuration-v1",
         "source": {
-          "commit": "372054b2eedb0e99e1138224887281824f4dad45",
+          "commit": "e8ab3d326a897446adf0d27ccea142fb783182ac",
           "commit_status": "HEAD_CLEAN",
           "files": {
             "monitoring/src/run_ensemble_daily.py": "0a3e4d297e6e3cfd2d95f8a91cfbbcc027e7c7542bec270eedabd611f120010c",
@@ -2244,13 +2242,13 @@
     },
     "istanbul_marmara": {
       "agreement": "single_method",
-      "combined_risk": 0.036859524344696755,
+      "combined_risk": 0.04350167591300839,
       "components": {
         "fault_correlation": {
           "available": false,
           "calibration": {
             "eligible_for_tiering": false,
-            "reason": "CAPSULE_PAST_VALID_THROUGH: scored day 2026-11-19 past valid_through 2026-09-09 (STALE)",
+            "reason": "CAPSULE_PAST_VALID_THROUGH: scored day 2026-11-20 past valid_through 2026-09-09 (STALE)",
             "rule_version": "calibration-eligibility-v3",
             "status": "expired"
           },
@@ -2258,7 +2256,7 @@
           "is_critical": false,
           "is_elevated": false,
           "name": "fault_correlation",
-          "notes": "calibration unavailable: scored day 2026-11-19 past valid_through 2026-09-09 (STALE)",
+          "notes": "calibration unavailable: scored day 2026-11-20 past valid_through 2026-09-09 (STALE)",
           "raw_secondary": null,
           "raw_value": 0.0,
           "risk_score": 0.0
@@ -2353,7 +2351,7 @@
           },
           "calibration": {
             "eligible_for_tiering": true,
-            "reason": "SHARED_SUPPORT: calibrated (n=91, window 2026-07-17..2026-10-15, end 35 d) shared by istanbul_marmara,turkey_kahramanmaras",
+            "reason": "SHARED_SUPPORT: calibrated (n=91, window 2026-07-17..2026-10-15, end 36 d) shared by istanbul_marmara,turkey_kahramanmaras",
             "rule_version": "calibration-eligibility-v3",
             "status": "shared_station"
           },
@@ -2361,12 +2359,12 @@
           "is_critical": false,
           "is_elevated": false,
           "name": "seismic_thd",
-          "notes": "sta=IU.ANTO, THD=0.3062, z=-0.44, baseline_mean=0.3591, baseline_std=0.1207, n=91, rate=40Hz",
-          "raw_secondary": 50638.111935301866,
-          "raw_value": 0.30619191604233564,
-          "risk_score": 0.036859524344696755,
+          "notes": "sta=IU.ANTO, THD=0.3329, z=-0.22, baseline_mean=0.3591, baseline_std=0.1207, n=91, rate=40Hz",
+          "raw_secondary": 76982.78598036074,
+          "raw_value": 0.33291882692796027,
+          "risk_score": 0.04350167591300839,
           "sample_rate_hz": 40.0,
-          "z_score": -0.4380158551767749
+          "z_score": -0.21661080289972048
         }
       },
       "confidence": 0.5,
@@ -2376,7 +2374,7 @@
         "segments_defined": 3,
         "segments_working": 0
       },
-      "date": "2026-11-19T00:00:00",
+      "date": "2026-11-20T00:00:00",
       "effective_weights": {
         "seismic_thd": 1.0
       },
@@ -2390,7 +2388,7 @@
         "excluded": {
           "fault_correlation": {
             "code": "CAPSULE_PAST_VALID_THROUGH",
-            "reason": "CAPSULE_PAST_VALID_THROUGH: scored day 2026-11-19 past valid_through 2026-09-09 (STALE)",
+            "reason": "CAPSULE_PAST_VALID_THROUGH: scored day 2026-11-20 past valid_through 2026-09-09 (STALE)",
             "state": "EXPIRED"
           },
           "lambda_geo": {
@@ -2453,7 +2451,7 @@
               "basis": "RETAINED_THD_TRACE_EPOCH",
               "blocking": [],
               "epochs": [
-                "2026-11-18T23:59:59.994538"
+                "2026-11-19T23:59:59.994538"
               ],
               "observation_updates": 1,
               "report_days": 1,
@@ -2468,7 +2466,7 @@
           "resets_on_method_set_change": true
         },
         "tier_history": [
-          1,
+          0,
           0,
           0,
           0
@@ -2477,7 +2475,7 @@
       "region": "istanbul_marmara",
       "thd_attempts": {
         "schema": "thd-station-attempts-v3",
-        "scored_day": "2026-11-19",
+        "scored_day": "2026-11-20",
         "stations": [
           {
             "attempted": true,
@@ -2501,22 +2499,22 @@
                   "nonfinite_or_masked_handling": "NONE",
                   "nonfinite_or_masked_seconds": 0.0,
                   "overlap_resolution": "MERGE_METHOD_1_LATER_TRACE_KEPT_UNCHANGED",
-                  "overlap_seconds": 2.505462,
+                  "overlap_seconds": 5.280462,
                   "overlaps": 1,
                   "requested_seconds": 90000.0,
                   "sample_period_seconds": 0.025,
                   "status": "FULL"
                 },
                 "epoch": [
-                  "2026-11-17T23:00:00.019538Z",
-                  "2026-11-18T23:59:59.994538Z"
+                  "2026-11-18T23:00:00.019538Z",
+                  "2026-11-19T23:59:59.994538Z"
                 ],
                 "location": "00",
                 "n_samples": 3600000,
                 "nslc_requested": "IU.ANTO.00.BHZ",
                 "outcome": "DATA_RETURNED",
                 "provider": "IRIS",
-                "raw_samples_sha256": "d52548754f8f1889e6bd17355a7ef4e71b3f2506fde8faca5a10fd5f69321c09",
+                "raw_samples_sha256": "7a524149b442ccb4edd673dbb19349c822d94a195f0c342e6ffb4a8dc79f5765",
                 "reason": null,
                 "response": "NOT_REMOVED (raw counts; demean and linear detrend only)",
                 "response_epoch": {
@@ -2537,12 +2535,12 @@
                 "traces_before_merge": 2,
                 "typed_outcome": "DATA_RETURNED",
                 "window_requested": [
-                  "2026-11-17T23:00:00",
-                  "2026-11-19T00:00:00"
+                  "2026-11-18T23:00:00",
+                  "2026-11-20T00:00:00"
                 ]
               }
             ],
-            "reason": "sta=IU.ANTO, THD=0.3062, z=-0.44, baseline_mean=0.3591, baseline_std=0.1207, n=91, rate=40Hz",
+            "reason": "sta=IU.ANTO, THD=0.3329, z=-0.22, baseline_mean=0.3591, baseline_std=0.1207, n=91, rate=40Hz",
             "role": "CONFIGURED_PRIMARY",
             "selected": true,
             "station": "IU.ANTO"
@@ -2554,7 +2552,7 @@
         "region_configuration_sha256": "9fe8cb3ba4f3569a667f414420c5cf826afbdf731ba54b3d415a9041fb888a5f",
         "schema": "thd-station-configuration-v1",
         "source": {
-          "commit": "372054b2eedb0e99e1138224887281824f4dad45",
+          "commit": "e8ab3d326a897446adf0d27ccea142fb783182ac",
           "commit_status": "HEAD_CLEAN",
           "files": {
             "monitoring/src/run_ensemble_daily.py": "0a3e4d297e6e3cfd2d95f8a91cfbbcc027e7c7542bec270eedabd611f120010c",
@@ -2606,7 +2604,7 @@
     },
     "kaikoura": {
       "agreement": "single_method",
-      "combined_risk": 0.04480367600892375,
+      "combined_risk": 0.12096940701392468,
       "components": {
         "fault_correlation": {
           "available": false,
@@ -2646,9 +2644,9 @@
           "is_critical": false,
           "is_elevated": false,
           "name": "lambda_geo",
-          "notes": "ratio=0.6x",
+          "notes": "ratio=0.4x",
           "raw_secondary": null,
-          "raw_value": 0.5716293166572702,
+          "raw_value": 0.4165454099671761,
           "risk_score": 0.0,
           "support": {
             "calibration_class": "LG_BASELINE_RATIO:max_age=None,min_lag=None",
@@ -2715,7 +2713,7 @@
           },
           "calibration": {
             "eligible_for_tiering": true,
-            "reason": "CALIBRATED: n=79, window 2026-07-17..2026-10-15, end 35 d before the scored day",
+            "reason": "CALIBRATED: n=79, window 2026-07-17..2026-10-15, end 36 d before the scored day",
             "rule_version": "calibration-eligibility-v3",
             "status": "calibrated"
           },
@@ -2723,12 +2721,12 @@
           "is_critical": false,
           "is_elevated": false,
           "name": "seismic_thd",
-          "notes": "sta=IU.SNZO, THD=0.3153, z=-0.17, baseline_mean=0.3340, baseline_std=0.1078, n=79, rate=40Hz",
-          "raw_secondary": 772.218528105878,
-          "raw_value": 0.31528685964045916,
-          "risk_score": 0.04480367600892375,
+          "notes": "sta=IU.SNZO, THD=0.3913, z=0.53, baseline_mean=0.3340, baseline_std=0.1078, n=79, rate=40Hz",
+          "raw_secondary": 4894.992578150791,
+          "raw_value": 0.3913215233480482,
+          "risk_score": 0.12096940701392468,
           "sample_rate_hz": 40.0,
-          "z_score": -0.17321079970254175
+          "z_score": 0.5322705526044351
         }
       },
       "confidence": 0.5,
@@ -2738,7 +2736,7 @@
         "segments_defined": 3,
         "segments_working": 0
       },
-      "date": "2026-11-19T00:00:00",
+      "date": "2026-11-20T00:00:00",
       "effective_weights": {
         "seismic_thd": 1.0
       },
@@ -2840,7 +2838,7 @@
       "region": "kaikoura",
       "thd_attempts": {
         "schema": "thd-station-attempts-v3",
-        "scored_day": "2026-11-19",
+        "scored_day": "2026-11-20",
         "stations": [
           {
             "attempted": true,
@@ -2850,8 +2848,8 @@
               {
                 "channel": "BHZ",
                 "epoch": [
-                  "2026-11-17T23:00:00.019538Z",
-                  "2026-11-18T23:59:59.994538Z"
+                  "2026-11-18T23:00:00.019539Z",
+                  "2026-11-19T23:59:59.994539Z"
                 ],
                 "location": "00",
                 "n_samples": 3600000,
@@ -2867,12 +2865,12 @@
                 "traces_after_merge": 1,
                 "traces_before_merge": 2,
                 "window_requested": [
-                  "2026-11-17T23:00:00",
-                  "2026-11-19T00:00:00"
+                  "2026-11-18T23:00:00",
+                  "2026-11-20T00:00:00"
                 ]
               }
             ],
-            "reason": "sta=IU.SNZO, THD=0.3153, z=-0.17, baseline_mean=0.3340, baseline_std=0.1078, n=79, rate=40Hz",
+            "reason": "sta=IU.SNZO, THD=0.3913, z=0.53, baseline_mean=0.3340, baseline_std=0.1078, n=79, rate=40Hz",
             "role": "CONFIGURED_PRIMARY",
             "selected": true,
             "station": "IU.SNZO"
@@ -2884,7 +2882,7 @@
         "region_configuration_sha256": "36eb5a05c825ceb5f2bcbda62c9460873eb6b67261801303f072dfa58b1acc8d",
         "schema": "thd-station-configuration-v1",
         "source": {
-          "commit": "372054b2eedb0e99e1138224887281824f4dad45",
+          "commit": "e8ab3d326a897446adf0d27ccea142fb783182ac",
           "commit_status": "HEAD_CLEAN",
           "files": {
             "monitoring/src/run_ensemble_daily.py": "0a3e4d297e6e3cfd2d95f8a91cfbbcc027e7c7542bec270eedabd611f120010c",
@@ -2935,7 +2933,7 @@
     },
     "kumamoto": {
       "agreement": "all_normal",
-      "combined_risk": 0.027270756244327312,
+      "combined_risk": 0.015580166446565737,
       "components": {
         "fault_correlation": {
           "available": false,
@@ -2961,12 +2959,12 @@
             "calibrated_on": "2026-11-18",
             "calibration_sha256": "3e549c891f4a96287f52891494220618f37ce0d53131c41201a8a1e6f7f54e0a",
             "measurement": {
-              "as_of": "2026-11-19T23:59:59",
+              "as_of": "2026-11-20T23:59:59",
               "data_end_day": "2026-10-31",
-              "input_selection_sha256": "ec118aae6600749bf8c87f9e59d39057da5d08b0d2650e2d419eb0f42e637b02",
-              "input_sha256": "859ffc94ead1ae4276bcd563927d626fd0dd76a31eb1b27eee93e8cf8f805627",
+              "input_selection_sha256": "fa89f76676b06c87cac02b089bc4b7cb1cd9425e0bfb5110d29547bcf4ea4fad",
+              "input_sha256": "21864b61b484dd6abd44615b367fac7ff7e31d650708727e9af9a3a9b2c6644c",
               "lambda_max": 0.7053272945014082,
-              "observation_age_days": 28,
+              "observation_age_days": 29,
               "observation_content": {
                 "closure_recompute": {
                   "equal": true,
@@ -2993,84 +2991,79 @@
               "retrieval": {
                 "catalog_mtime_utc": "2026-11-11T16:38:02Z",
                 "files_mtime_utc": {
-                  "AIRA": "2026-11-21T12:01:40Z",
-                  "G040": "2026-11-21T12:01:41Z",
-                  "G060": "2026-11-21T12:01:41Z",
-                  "G061": "2026-11-21T12:01:41Z",
-                  "G062": "2026-11-21T12:01:41Z",
-                  "G063": "2026-11-21T12:01:42Z",
-                  "G064": "2026-11-21T12:01:42Z",
-                  "G065": "2026-11-21T12:01:42Z",
-                  "G067": "2026-11-21T12:01:42Z",
-                  "G068": "2026-11-21T12:01:42Z",
-                  "G069": "2026-11-21T12:01:43Z",
-                  "G070": "2026-11-21T12:01:43Z",
-                  "G071": "2026-11-21T12:01:43Z",
-                  "G074": "2026-11-21T12:01:43Z",
-                  "G075": "2026-11-21T12:01:44Z",
-                  "G076": "2026-11-21T12:01:44Z",
-                  "G077": "2026-11-21T12:01:44Z",
-                  "G078": "2026-11-21T12:01:44Z",
-                  "G079": "2026-11-21T12:01:45Z",
-                  "G080": "2026-11-21T12:01:45Z",
-                  "G081": "2026-11-21T12:01:45Z",
-                  "G082": "2026-11-21T12:01:45Z",
-                  "G083": "2026-11-21T12:01:46Z",
-                  "G084": "2026-11-21T12:01:46Z",
-                  "G085": "2026-11-21T12:01:46Z",
-                  "G086": "2026-11-21T12:01:46Z",
-                  "G087": "2026-11-21T12:01:46Z",
-                  "G088": "2026-11-21T12:01:47Z",
-                  "G089": "2026-11-21T12:01:47Z",
-                  "G090": "2026-11-21T12:01:47Z",
-                  "G091": "2026-11-21T12:01:47Z",
-                  "G092": "2026-11-21T12:01:48Z",
-                  "G093": "2026-11-21T12:01:48Z",
-                  "G133": "2026-11-21T12:01:48Z",
-                  "G137": "2026-11-21T12:01:48Z",
-                  "G168": "2026-11-21T12:01:49Z",
-                  "G211": "2026-11-21T12:01:49Z",
-                  "G225": "2026-11-21T12:01:49Z",
-                  "G237": "2026-11-21T12:01:49Z",
-                  "G252": "2026-11-21T12:01:49Z",
-                  "J079": "2026-11-21T12:01:49Z",
-                  "J086": "2026-11-21T12:01:50Z"
+                  "AIRA": "2026-11-22T12:01:44Z",
+                  "G040": "2026-11-22T12:01:44Z",
+                  "G060": "2026-11-22T12:01:45Z",
+                  "G061": "2026-11-22T12:01:45Z",
+                  "G062": "2026-11-22T12:01:45Z",
+                  "G063": "2026-11-22T12:01:45Z",
+                  "G064": "2026-11-22T12:01:46Z",
+                  "G065": "2026-11-22T12:01:46Z",
+                  "G067": "2026-11-22T12:01:46Z",
+                  "G068": "2026-11-22T12:01:46Z",
+                  "G069": "2026-11-22T12:01:47Z",
+                  "G070": "2026-11-22T12:01:47Z",
+                  "G071": "2026-11-22T12:01:47Z",
+                  "G074": "2026-11-22T12:01:47Z",
+                  "G075": "2026-11-22T12:01:48Z",
+                  "G076": "2026-11-22T12:01:48Z",
+                  "G077": "2026-11-22T12:01:48Z",
+                  "G078": "2026-11-22T12:01:49Z",
+                  "G079": "2026-11-22T12:01:49Z",
+                  "G080": "2026-11-22T12:01:49Z",
+                  "G081": "2026-11-22T12:01:50Z",
+                  "G082": "2026-11-22T12:01:50Z",
+                  "G083": "2026-11-22T12:01:50Z",
+                  "G084": "2026-11-22T12:01:50Z",
+                  "G085": "2026-11-22T12:01:51Z",
+                  "G086": "2026-11-22T12:01:51Z",
+                  "G087": "2026-11-22T12:01:51Z",
+                  "G088": "2026-11-22T12:01:51Z",
+                  "G089": "2026-11-22T12:01:52Z",
+                  "G090": "2026-11-22T12:01:52Z",
+                  "G091": "2026-11-22T12:01:52Z",
+                  "G092": "2026-11-22T12:01:52Z",
+                  "G093": "2026-11-22T12:01:53Z",
+                  "G133": "2026-11-22T12:01:53Z",
+                  "G137": "2026-11-22T12:01:53Z",
+                  "G168": "2026-11-22T12:01:53Z",
+                  "G211": "2026-11-22T12:01:54Z",
+                  "G225": "2026-11-22T12:01:54Z",
+                  "G237": "2026-11-22T12:01:54Z",
+                  "G252": "2026-11-22T12:01:54Z",
+                  "J079": "2026-11-22T12:01:55Z",
+                  "J086": "2026-11-22T12:01:55Z"
                 },
-                "newest_mtime_utc": "2026-11-21T12:01:50Z",
-                "oldest_mtime_utc": "2026-11-21T12:01:40Z"
+                "newest_mtime_utc": "2026-11-22T12:01:55Z",
+                "oldest_mtime_utc": "2026-11-22T12:01:44Z"
               },
               "selection_reason": "latest full-support interior epoch",
               "selection_status": "OK",
               "series": [
                 [
-                  "2026-08-22",
-                  0.12145874441667805,
-                  false
-                ],
-                [
                   "2026-08-23",
-                  0.1821881166250304,
+                  0.26144918195262296,
                   false
                 ],
                 [
                   "2026-08-24",
-                  0.3232529848968293,
+                  0.39217377292898886,
                   false
                 ],
                 [
                   "2026-08-25",
-                  0.3187220742443375,
+                  0.5085045661668941,
                   false
                 ],
                 [
                   "2026-08-26",
-                  0.6508653726477672,
+                  0.8463209294595954,
                   false
                 ],
                 [
                   "2026-08-27",
-                  1.2005972425993012,
-                  true
+                  1.2949998955763875,
+                  false
                 ],
                 [
                   "2026-08-28",
@@ -3446,7 +3439,7 @@
                 ],
                 "latest_file_end_day": "2026-10-31",
                 "rule": "File ends bound possible support; interior gaps and the producer support grid determine the observation.",
-                "scored_day": "2026-11-19",
+                "scored_day": "2026-11-20",
                 "selected_files": {
                   "AIRA": {
                     "file": "AIRA.igs20.tenv",
@@ -3888,7 +3881,7 @@
           },
           "calibration": {
             "eligible_for_tiering": true,
-            "reason": "SHARED_SUPPORT: calibrated (n=89, window 2026-07-17..2026-10-15, end 35 d) shared by kumamoto,tokyo_kanto",
+            "reason": "SHARED_SUPPORT: calibrated (n=89, window 2026-07-17..2026-10-15, end 36 d) shared by kumamoto,tokyo_kanto",
             "rule_version": "calibration-eligibility-v3",
             "status": "shared_station"
           },
@@ -3896,12 +3889,12 @@
           "is_critical": false,
           "is_elevated": false,
           "name": "seismic_thd",
-          "notes": "sta=IU.MAJO, THD=0.4222, z=0.10, baseline_mean=0.4110, baseline_std=0.1097, n=89, rate=40Hz",
-          "raw_secondary": 1691.1308464158026,
-          "raw_value": 0.422179058200082,
-          "risk_score": 0.06363176457009706,
+          "notes": "sta=IU.MAJO, THD=0.3611, z=-0.45, baseline_mean=0.4110, baseline_std=0.1097, n=89, rate=40Hz",
+          "raw_secondary": 8523.779893578128,
+          "raw_value": 0.3610825748300394,
+          "risk_score": 0.036353721708653385,
           "sample_rate_hz": 40.0,
-          "z_score": 0.1022382342757279
+          "z_score": -0.4548759430448873
         }
       },
       "confidence": 0.8,
@@ -3911,7 +3904,7 @@
         "segments_defined": 1,
         "segments_working": 0
       },
-      "date": "2026-11-19T00:00:00",
+      "date": "2026-11-20T00:00:00",
       "effective_weights": {
         "lambda_geo": 0.5714285714285715,
         "seismic_thd": 0.4285714285714286
@@ -4008,7 +4001,7 @@
               "basis": "RETAINED_THD_TRACE_EPOCH",
               "blocking": [],
               "epochs": [
-                "2026-11-18T23:59:59.994538"
+                "2026-11-19T23:59:59.994536"
               ],
               "observation_updates": 1,
               "report_days": 1,
@@ -4032,7 +4025,7 @@
       "region": "kumamoto",
       "thd_attempts": {
         "schema": "thd-station-attempts-v3",
-        "scored_day": "2026-11-19",
+        "scored_day": "2026-11-20",
         "stations": [
           {
             "attempted": true,
@@ -4045,33 +4038,33 @@
                 "coverage": {
                   "coverage_fraction": 1.0,
                   "coverage_version": "thd-coverage-facts-v2",
-                  "covered_seconds": 89999.980462,
+                  "covered_seconds": 89999.980464,
                   "edge_fill": "NONE",
-                  "extent_seconds": 89999.980462,
+                  "extent_seconds": 89999.980464,
                   "fill": "NONE",
                   "gap_seconds": 0,
                   "gaps": 0,
-                  "missing_head_seconds": 0.019538,
+                  "missing_head_seconds": 0.019536,
                   "missing_tail_seconds": 0.0,
                   "nonfinite_or_masked_handling": "NONE",
                   "nonfinite_or_masked_seconds": 0.0,
                   "overlap_resolution": "MERGE_METHOD_1_LATER_TRACE_KEPT_UNCHANGED",
-                  "overlap_seconds": 1.605462,
+                  "overlap_seconds": 5.630462,
                   "overlaps": 1,
                   "requested_seconds": 90000.0,
                   "sample_period_seconds": 0.025,
                   "status": "FULL"
                 },
                 "epoch": [
-                  "2026-11-17T23:00:00.019538Z",
-                  "2026-11-18T23:59:59.994538Z"
+                  "2026-11-18T23:00:00.019536Z",
+                  "2026-11-19T23:59:59.994536Z"
                 ],
                 "location": "00",
                 "n_samples": 3600000,
                 "nslc_requested": "IU.MAJO.00.BHZ",
                 "outcome": "DATA_RETURNED",
                 "provider": "IRIS",
-                "raw_samples_sha256": "f4d9e4d808ba4329c1bde803236efbbbe4c3f792e642ba2ad1b45a431091a974",
+                "raw_samples_sha256": "d1de1f3706a25beafcc921aa1f181b1c8cc8433cb2d71e39da7c51636db09c1a",
                 "reason": null,
                 "response": "NOT_REMOVED (raw counts; demean and linear detrend only)",
                 "response_epoch": {
@@ -4092,12 +4085,12 @@
                 "traces_before_merge": 2,
                 "typed_outcome": "DATA_RETURNED",
                 "window_requested": [
-                  "2026-11-17T23:00:00",
-                  "2026-11-19T00:00:00"
+                  "2026-11-18T23:00:00",
+                  "2026-11-20T00:00:00"
                 ]
               }
             ],
-            "reason": "sta=IU.MAJO, THD=0.4222, z=0.10, baseline_mean=0.4110, baseline_std=0.1097, n=89, rate=40Hz",
+            "reason": "sta=IU.MAJO, THD=0.3611, z=-0.45, baseline_mean=0.4110, baseline_std=0.1097, n=89, rate=40Hz",
             "role": "CONFIGURED_PRIMARY",
             "selected": true,
             "station": "IU.MAJO"
@@ -4109,7 +4102,7 @@
         "region_configuration_sha256": "fd42d7ad51ff7de5b4c1f0a5ba7c79081f1a491fba112a4de17695b73d4c5a63",
         "schema": "thd-station-configuration-v1",
         "source": {
-          "commit": "372054b2eedb0e99e1138224887281824f4dad45",
+          "commit": "e8ab3d326a897446adf0d27ccea142fb783182ac",
           "commit_status": "HEAD_CLEAN",
           "files": {
             "monitoring/src/run_ensemble_daily.py": "0a3e4d297e6e3cfd2d95f8a91cfbbcc027e7c7542bec270eedabd611f120010c",
@@ -4161,7 +4154,7 @@
     },
     "mexico_guerrero": {
       "agreement": "single_method",
-      "combined_risk": 0.031057491287806938,
+      "combined_risk": 0.05680748726932664,
       "components": {
         "fault_correlation": {
           "available": false,
@@ -4270,7 +4263,7 @@
           },
           "calibration": {
             "eligible_for_tiering": true,
-            "reason": "CALIBRATED: n=71, window 2026-07-17..2026-10-15, end 35 d before the scored day",
+            "reason": "CALIBRATED: n=71, window 2026-07-17..2026-10-15, end 36 d before the scored day",
             "rule_version": "calibration-eligibility-v3",
             "status": "calibrated"
           },
@@ -4278,12 +4271,12 @@
           "is_critical": false,
           "is_elevated": false,
           "name": "seismic_thd",
-          "notes": "sta=MX.TLIG, THD=0.0872, z=-0.63, baseline_mean=0.1200, baseline_std=0.0520, n=71, rate=20Hz",
-          "raw_secondary": 27543.269884201127,
-          "raw_value": 0.08719600406262795,
-          "risk_score": 0.031057491287806934,
+          "notes": "sta=MX.TLIG, THD=0.1227, z=0.05, baseline_mean=0.1200, baseline_std=0.0520, n=71, rate=20Hz",
+          "raw_secondary": 36338.53668513298,
+          "raw_value": 0.12269143059658259,
+          "risk_score": 0.05680748726932664,
           "sample_rate_hz": 20.0,
-          "z_score": -0.6314169570731023
+          "z_score": 0.0510561545199498
         }
       },
       "confidence": 0.5,
@@ -4293,7 +4286,7 @@
         "segments_defined": 1,
         "segments_working": 0
       },
-      "date": "2026-11-19T00:00:00",
+      "date": "2026-11-20T00:00:00",
       "effective_weights": {
         "seismic_thd": 1.0
       },
@@ -4369,7 +4362,7 @@
               "basis": "RETAINED_THD_TRACE_EPOCH",
               "blocking": [],
               "epochs": [
-                "2026-11-18T23:59:59.963394"
+                "2026-11-19T23:59:59.963393"
               ],
               "observation_updates": 1,
               "report_days": 1,
@@ -4393,7 +4386,7 @@
       "region": "mexico_guerrero",
       "thd_attempts": {
         "schema": "thd-station-attempts-v3",
-        "scored_day": "2026-11-19",
+        "scored_day": "2026-11-20",
         "stations": [
           {
             "attempted": true,
@@ -4406,33 +4399,33 @@
                 "coverage": {
                   "coverage_fraction": 1.0,
                   "coverage_version": "thd-coverage-facts-v2",
-                  "covered_seconds": 89999.986606,
+                  "covered_seconds": 89999.986607,
                   "edge_fill": "NONE",
-                  "extent_seconds": 89999.986606,
+                  "extent_seconds": 89999.986607,
                   "fill": "NONE",
                   "gap_seconds": 0,
                   "gaps": 0,
-                  "missing_head_seconds": 0.013394,
+                  "missing_head_seconds": 0.013393,
                   "missing_tail_seconds": 0.0,
                   "nonfinite_or_masked_handling": "NONE",
                   "nonfinite_or_masked_seconds": 0.0,
                   "overlap_resolution": "MERGE_METHOD_1_LATER_TRACE_KEPT_UNCHANGED",
-                  "overlap_seconds": 10.586607,
+                  "overlap_seconds": 9.386607,
                   "overlaps": 1,
                   "requested_seconds": 90000.0,
                   "sample_period_seconds": 0.05,
                   "status": "FULL"
                 },
                 "epoch": [
-                  "2026-11-17T23:00:00.013394Z",
-                  "2026-11-18T23:59:59.963394Z"
+                  "2026-11-18T23:00:00.013393Z",
+                  "2026-11-19T23:59:59.963393Z"
                 ],
                 "location": "",
                 "n_samples": 1800000,
                 "nslc_requested": "MX.TLIG..BHZ",
                 "outcome": "DATA_RETURNED",
                 "provider": "IRIS",
-                "raw_samples_sha256": "9140752d4f8c95929c06001c01e6ccdcc5a69bb6978f3d5567b73b0dc0a21ee2",
+                "raw_samples_sha256": "2eb96493d3c6e399d42909c51e4c4aa36743d450a17fda837cc6104619c6dd7b",
                 "reason": null,
                 "response": "NOT_REMOVED (raw counts; demean and linear detrend only)",
                 "response_epoch": {
@@ -4453,12 +4446,12 @@
                 "traces_before_merge": 2,
                 "typed_outcome": "DATA_RETURNED",
                 "window_requested": [
-                  "2026-11-17T23:00:00",
-                  "2026-11-19T00:00:00"
+                  "2026-11-18T23:00:00",
+                  "2026-11-20T00:00:00"
                 ]
               }
             ],
-            "reason": "sta=MX.TLIG, THD=0.0872, z=-0.63, baseline_mean=0.1200, baseline_std=0.0520, n=71, rate=20Hz",
+            "reason": "sta=MX.TLIG, THD=0.1227, z=0.05, baseline_mean=0.1200, baseline_std=0.0520, n=71, rate=20Hz",
             "role": "CONFIGURED_PRIMARY",
             "selected": true,
             "station": "MX.TLIG"
@@ -4479,7 +4472,7 @@
         "region_configuration_sha256": "55ce04700b9cf89d4fee76cb1c636d30fd064fe6b4a2fd6ad5bcbb4cff14c205",
         "schema": "thd-station-configuration-v1",
         "source": {
-          "commit": "372054b2eedb0e99e1138224887281824f4dad45",
+          "commit": "e8ab3d326a897446adf0d27ccea142fb783182ac",
           "commit_status": "HEAD_CLEAN",
           "files": {
             "monitoring/src/run_ensemble_daily.py": "0a3e4d297e6e3cfd2d95f8a91cfbbcc027e7c7542bec270eedabd611f120010c",
@@ -4623,7 +4616,7 @@
         "segments_defined": 4,
         "segments_working": 0
       },
-      "date": "2026-11-19T00:00:00",
+      "date": "2026-11-20T00:00:00",
       "effective_weights": {},
       "method_set": {
         "comparability_complete": false,
@@ -4677,7 +4670,7 @@
           "method_set_changed": false,
           "method_set_history": [
             "THD",
-            "THD",
+            "NONE",
             "NONE",
             "NONE"
           ],
@@ -4695,8 +4688,8 @@
           "resets_on_method_set_change": true
         },
         "tier_history": [
-          0,
           1,
+          -1,
           -1,
           -1
         ]
@@ -4704,7 +4697,7 @@
       "region": "norcal_hayward",
       "thd_attempts": {
         "schema": "thd-station-attempts-v3",
-        "scored_day": "2026-11-19",
+        "scored_day": "2026-11-20",
         "stations": [
           {
             "attempted": true,
@@ -4723,8 +4716,8 @@
                 "selector_basis": "PINNED_FROM_STATIONXML RETAINED: level=response StationXML stationxml_response_20261010/BK.BRK.BHZ.response.xml (agent-framework 55995dfa, owner-authorized 643dd746): the only open BHZ epoch is BK.BRK.00.BHZ at 40 Hz (2011-09-12 to 3000-01-01); no served trace yet",
                 "typed_outcome": "TRANSPORT_ERROR",
                 "window_requested": [
-                  "2026-11-17T23:00:00",
-                  "2026-11-19T00:00:00"
+                  "2026-11-18T23:00:00",
+                  "2026-11-20T00:00:00"
                 ]
               },
               {
@@ -4739,8 +4732,8 @@
                 "selector_basis": "PINNED_FROM_STATIONXML RETAINED: level=response StationXML stationxml_response_20261010/BK.BRK.BHZ.response.xml (agent-framework 55995dfa, owner-authorized 643dd746): the only open BHZ epoch is BK.BRK.00.BHZ at 40 Hz (2011-09-12 to 3000-01-01); no served trace yet",
                 "typed_outcome": "NO_DATA",
                 "window_requested": [
-                  "2026-11-17T23:00:00",
-                  "2026-11-19T00:00:00"
+                  "2026-11-18T23:00:00",
+                  "2026-11-20T00:00:00"
                 ]
               }
             ],
@@ -4756,7 +4749,7 @@
         "region_configuration_sha256": "fc4ef5d29153da96b631d162619e511bd8589bbc344d3b00c137c561ac3d08a1",
         "schema": "thd-station-configuration-v1",
         "source": {
-          "commit": "372054b2eedb0e99e1138224887281824f4dad45",
+          "commit": "e8ab3d326a897446adf0d27ccea142fb783182ac",
           "commit_status": "HEAD_CLEAN",
           "files": {
             "monitoring/src/run_ensemble_daily.py": "0a3e4d297e6e3cfd2d95f8a91cfbbcc027e7c7542bec270eedabd611f120010c",
@@ -4810,7 +4803,7 @@
     },
     "ridgecrest": {
       "agreement": "single_method",
-      "combined_risk": 0.15071850241621432,
+      "combined_risk": 0.18154740816565534,
       "components": {
         "fault_correlation": {
           "available": false,
@@ -4919,7 +4912,7 @@
           },
           "calibration": {
             "eligible_for_tiering": true,
-            "reason": "SHARED_SUPPORT: calibrated (n=91, window 2026-07-17..2026-10-15, end 35 d) shared by ridgecrest,socal_saf_coachella,socal_saf_mojave",
+            "reason": "SHARED_SUPPORT: calibrated (n=91, window 2026-07-17..2026-10-15, end 36 d) shared by ridgecrest,socal_saf_coachella,socal_saf_mojave",
             "rule_version": "calibration-eligibility-v3",
             "status": "shared_station"
           },
@@ -4927,12 +4920,12 @@
           "is_critical": false,
           "is_elevated": false,
           "name": "seismic_thd",
-          "notes": "sta=IU.TUC, THD=0.4386, z=0.76, baseline_mean=0.3743, baseline_std=0.0851, n=91, rate=40Hz",
-          "raw_secondary": 42392.99368674105,
-          "raw_value": 0.4385556132276558,
-          "risk_score": 0.15071850241621432,
+          "notes": "sta=IU.TUC, THD=0.4582, z=0.99, baseline_mean=0.3743, baseline_std=0.0851, n=91, rate=40Hz",
+          "raw_secondary": 185188.03911238335,
+          "raw_value": 0.45822268243371855,
+          "risk_score": 0.18154740816565534,
           "sample_rate_hz": 40.0,
-          "z_score": 0.7553887681216074
+          "z_score": 0.9866055612424148
         }
       },
       "confidence": 0.5,
@@ -4942,7 +4935,7 @@
         "segments_defined": 3,
         "segments_working": 0
       },
-      "date": "2026-11-19T00:00:00",
+      "date": "2026-11-20T00:00:00",
       "effective_weights": {
         "seismic_thd": 1.0
       },
@@ -5020,7 +5013,7 @@
               "basis": "RETAINED_THD_TRACE_EPOCH",
               "blocking": [],
               "epochs": [
-                "2026-11-18T23:59:59.994539"
+                "2026-11-19T23:59:59.994539"
               ],
               "observation_updates": 1,
               "report_days": 1,
@@ -5044,7 +5037,7 @@
       "region": "ridgecrest",
       "thd_attempts": {
         "schema": "thd-station-attempts-v3",
-        "scored_day": "2026-11-19",
+        "scored_day": "2026-11-20",
         "stations": [
           {
             "attempted": true,
@@ -5068,22 +5061,22 @@
                   "nonfinite_or_masked_handling": "NONE",
                   "nonfinite_or_masked_seconds": 0.0,
                   "overlap_resolution": "MERGE_METHOD_1_LATER_TRACE_KEPT_UNCHANGED",
-                  "overlap_seconds": 9.880462,
+                  "overlap_seconds": 6.155464,
                   "overlaps": 1,
                   "requested_seconds": 90000.0,
                   "sample_period_seconds": 0.025,
                   "status": "FULL"
                 },
                 "epoch": [
-                  "2026-11-17T23:00:00.019539Z",
-                  "2026-11-18T23:59:59.994539Z"
+                  "2026-11-18T23:00:00.019539Z",
+                  "2026-11-19T23:59:59.994539Z"
                 ],
                 "location": "00",
                 "n_samples": 3600000,
                 "nslc_requested": "IU.TUC.00.BHZ",
                 "outcome": "DATA_RETURNED",
                 "provider": "IRIS",
-                "raw_samples_sha256": "c6acf38829a19f0e248cb0220d832719e331717ff8354459ba183486b9164993",
+                "raw_samples_sha256": "391d5605bf0250c00ce848d1ed92926b669bb0e02f8566e82e6c0d6c82605e3d",
                 "reason": null,
                 "response": "NOT_REMOVED (raw counts; demean and linear detrend only)",
                 "response_epoch": {
@@ -5104,12 +5097,12 @@
                 "traces_before_merge": 2,
                 "typed_outcome": "DATA_RETURNED",
                 "window_requested": [
-                  "2026-11-17T23:00:00",
-                  "2026-11-19T00:00:00"
+                  "2026-11-18T23:00:00",
+                  "2026-11-20T00:00:00"
                 ]
               }
             ],
-            "reason": "sta=IU.TUC, THD=0.4386, z=0.76, baseline_mean=0.3743, baseline_std=0.0851, n=91, rate=40Hz",
+            "reason": "sta=IU.TUC, THD=0.4582, z=0.99, baseline_mean=0.3743, baseline_std=0.0851, n=91, rate=40Hz",
             "role": "CONFIGURED_PRIMARY",
             "selected": true,
             "station": "IU.TUC"
@@ -5121,7 +5114,7 @@
         "region_configuration_sha256": "701837bbe41a546d16b25ce3c647af6268dec27b99d835394312dd3520213467",
         "schema": "thd-station-configuration-v1",
         "source": {
-          "commit": "372054b2eedb0e99e1138224887281824f4dad45",
+          "commit": "e8ab3d326a897446adf0d27ccea142fb783182ac",
           "commit_status": "HEAD_CLEAN",
           "files": {
             "monitoring/src/run_ensemble_daily.py": "0a3e4d297e6e3cfd2d95f8a91cfbbcc027e7c7542bec270eedabd611f120010c",
@@ -5173,13 +5166,13 @@
     },
     "socal_saf_coachella": {
       "agreement": "single_method",
-      "combined_risk": 0.15071850241621432,
+      "combined_risk": 0.18154740816565534,
       "components": {
         "fault_correlation": {
           "available": false,
           "calibration": {
             "eligible_for_tiering": false,
-            "reason": "CAPSULE_PAST_VALID_THROUGH: scored day 2026-11-19 past valid_through 2026-09-09 (STALE)",
+            "reason": "CAPSULE_PAST_VALID_THROUGH: scored day 2026-11-20 past valid_through 2026-09-09 (STALE)",
             "rule_version": "calibration-eligibility-v3",
             "status": "expired"
           },
@@ -5187,7 +5180,7 @@
           "is_critical": false,
           "is_elevated": false,
           "name": "fault_correlation",
-          "notes": "calibration unavailable: scored day 2026-11-19 past valid_through 2026-09-09 (STALE)",
+          "notes": "calibration unavailable: scored day 2026-11-20 past valid_through 2026-09-09 (STALE)",
           "raw_secondary": null,
           "raw_value": 0.0,
           "risk_score": 0.0
@@ -5282,7 +5275,7 @@
           },
           "calibration": {
             "eligible_for_tiering": true,
-            "reason": "SHARED_SUPPORT: calibrated (n=91, window 2026-07-17..2026-10-15, end 35 d) shared by ridgecrest,socal_saf_coachella,socal_saf_mojave",
+            "reason": "SHARED_SUPPORT: calibrated (n=91, window 2026-07-17..2026-10-15, end 36 d) shared by ridgecrest,socal_saf_coachella,socal_saf_mojave",
             "rule_version": "calibration-eligibility-v3",
             "status": "shared_station"
           },
@@ -5290,12 +5283,12 @@
           "is_critical": false,
           "is_elevated": false,
           "name": "seismic_thd",
-          "notes": "sta=IU.TUC, THD=0.4386, z=0.76, baseline_mean=0.3743, baseline_std=0.0851, n=91, rate=40Hz",
-          "raw_secondary": 42392.99368674105,
-          "raw_value": 0.4385556132276558,
-          "risk_score": 0.15071850241621432,
+          "notes": "sta=IU.TUC, THD=0.4582, z=0.99, baseline_mean=0.3743, baseline_std=0.0851, n=91, rate=40Hz",
+          "raw_secondary": 185188.03911238335,
+          "raw_value": 0.45822268243371855,
+          "risk_score": 0.18154740816565534,
           "sample_rate_hz": 40.0,
-          "z_score": 0.7553887681216074
+          "z_score": 0.9866055612424148
         }
       },
       "confidence": 0.5,
@@ -5305,7 +5298,7 @@
         "segments_defined": 3,
         "segments_working": 0
       },
-      "date": "2026-11-19T00:00:00",
+      "date": "2026-11-20T00:00:00",
       "effective_weights": {
         "seismic_thd": 1.0
       },
@@ -5319,7 +5312,7 @@
         "excluded": {
           "fault_correlation": {
             "code": "CAPSULE_PAST_VALID_THROUGH",
-            "reason": "CAPSULE_PAST_VALID_THROUGH: scored day 2026-11-19 past valid_through 2026-09-09 (STALE)",
+            "reason": "CAPSULE_PAST_VALID_THROUGH: scored day 2026-11-20 past valid_through 2026-09-09 (STALE)",
             "state": "EXPIRED"
           },
           "lambda_geo": {
@@ -5383,7 +5376,7 @@
               "basis": "RETAINED_THD_TRACE_EPOCH",
               "blocking": [],
               "epochs": [
-                "2026-11-18T23:59:59.994539"
+                "2026-11-19T23:59:59.994539"
               ],
               "observation_updates": 1,
               "report_days": 1,
@@ -5407,7 +5400,7 @@
       "region": "socal_saf_coachella",
       "thd_attempts": {
         "schema": "thd-station-attempts-v3",
-        "scored_day": "2026-11-19",
+        "scored_day": "2026-11-20",
         "stations": [
           {
             "attempted": true,
@@ -5431,22 +5424,22 @@
                   "nonfinite_or_masked_handling": "NONE",
                   "nonfinite_or_masked_seconds": 0.0,
                   "overlap_resolution": "MERGE_METHOD_1_LATER_TRACE_KEPT_UNCHANGED",
-                  "overlap_seconds": 9.880462,
+                  "overlap_seconds": 6.155464,
                   "overlaps": 1,
                   "requested_seconds": 90000.0,
                   "sample_period_seconds": 0.025,
                   "status": "FULL"
                 },
                 "epoch": [
-                  "2026-11-17T23:00:00.019539Z",
-                  "2026-11-18T23:59:59.994539Z"
+                  "2026-11-18T23:00:00.019539Z",
+                  "2026-11-19T23:59:59.994539Z"
                 ],
                 "location": "00",
                 "n_samples": 3600000,
                 "nslc_requested": "IU.TUC.00.BHZ",
                 "outcome": "DATA_RETURNED",
                 "provider": "IRIS",
-                "raw_samples_sha256": "c6acf38829a19f0e248cb0220d832719e331717ff8354459ba183486b9164993",
+                "raw_samples_sha256": "391d5605bf0250c00ce848d1ed92926b669bb0e02f8566e82e6c0d6c82605e3d",
                 "reason": null,
                 "response": "NOT_REMOVED (raw counts; demean and linear detrend only)",
                 "response_epoch": {
@@ -5467,12 +5460,12 @@
                 "traces_before_merge": 2,
                 "typed_outcome": "DATA_RETURNED",
                 "window_requested": [
-                  "2026-11-17T23:00:00",
-                  "2026-11-19T00:00:00"
+                  "2026-11-18T23:00:00",
+                  "2026-11-20T00:00:00"
                 ]
               }
             ],
-            "reason": "sta=IU.TUC, THD=0.4386, z=0.76, baseline_mean=0.3743, baseline_std=0.0851, n=91, rate=40Hz",
+            "reason": "sta=IU.TUC, THD=0.4582, z=0.99, baseline_mean=0.3743, baseline_std=0.0851, n=91, rate=40Hz",
             "role": "CONFIGURED_PRIMARY",
             "selected": true,
             "station": "IU.TUC"
@@ -5484,7 +5477,7 @@
         "region_configuration_sha256": "701837bbe41a546d16b25ce3c647af6268dec27b99d835394312dd3520213467",
         "schema": "thd-station-configuration-v1",
         "source": {
-          "commit": "372054b2eedb0e99e1138224887281824f4dad45",
+          "commit": "e8ab3d326a897446adf0d27ccea142fb783182ac",
           "commit_status": "HEAD_CLEAN",
           "files": {
             "monitoring/src/run_ensemble_daily.py": "0a3e4d297e6e3cfd2d95f8a91cfbbcc027e7c7542bec270eedabd611f120010c",
@@ -5536,7 +5529,7 @@
     },
     "socal_saf_mojave": {
       "agreement": "single_method",
-      "combined_risk": 0.15071850241621432,
+      "combined_risk": 0.18154740816565534,
       "components": {
         "fault_correlation": {
           "available": false,
@@ -5645,7 +5638,7 @@
           },
           "calibration": {
             "eligible_for_tiering": true,
-            "reason": "SHARED_SUPPORT: calibrated (n=91, window 2026-07-17..2026-10-15, end 35 d) shared by ridgecrest,socal_saf_coachella,socal_saf_mojave",
+            "reason": "SHARED_SUPPORT: calibrated (n=91, window 2026-07-17..2026-10-15, end 36 d) shared by ridgecrest,socal_saf_coachella,socal_saf_mojave",
             "rule_version": "calibration-eligibility-v3",
             "status": "shared_station"
           },
@@ -5653,12 +5646,12 @@
           "is_critical": false,
           "is_elevated": false,
           "name": "seismic_thd",
-          "notes": "sta=IU.TUC, THD=0.4386, z=0.76, baseline_mean=0.3743, baseline_std=0.0851, n=91, rate=40Hz",
-          "raw_secondary": 42392.99368674105,
-          "raw_value": 0.4385556132276558,
-          "risk_score": 0.15071850241621432,
+          "notes": "sta=IU.TUC, THD=0.4582, z=0.99, baseline_mean=0.3743, baseline_std=0.0851, n=91, rate=40Hz",
+          "raw_secondary": 185188.03911238335,
+          "raw_value": 0.45822268243371855,
+          "risk_score": 0.18154740816565534,
           "sample_rate_hz": 40.0,
-          "z_score": 0.7553887681216074
+          "z_score": 0.9866055612424148
         }
       },
       "confidence": 0.5,
@@ -5668,7 +5661,7 @@
         "segments_defined": 4,
         "segments_working": 0
       },
-      "date": "2026-11-19T00:00:00",
+      "date": "2026-11-20T00:00:00",
       "effective_weights": {
         "seismic_thd": 1.0
       },
@@ -5746,7 +5739,7 @@
               "basis": "RETAINED_THD_TRACE_EPOCH",
               "blocking": [],
               "epochs": [
-                "2026-11-18T23:59:59.994539"
+                "2026-11-19T23:59:59.994539"
               ],
               "observation_updates": 1,
               "report_days": 1,
@@ -5770,7 +5763,7 @@
       "region": "socal_saf_mojave",
       "thd_attempts": {
         "schema": "thd-station-attempts-v3",
-        "scored_day": "2026-11-19",
+        "scored_day": "2026-11-20",
         "stations": [
           {
             "attempted": true,
@@ -5794,22 +5787,22 @@
                   "nonfinite_or_masked_handling": "NONE",
                   "nonfinite_or_masked_seconds": 0.0,
                   "overlap_resolution": "MERGE_METHOD_1_LATER_TRACE_KEPT_UNCHANGED",
-                  "overlap_seconds": 9.880462,
+                  "overlap_seconds": 6.155464,
                   "overlaps": 1,
                   "requested_seconds": 90000.0,
                   "sample_period_seconds": 0.025,
                   "status": "FULL"
                 },
                 "epoch": [
-                  "2026-11-17T23:00:00.019539Z",
-                  "2026-11-18T23:59:59.994539Z"
+                  "2026-11-18T23:00:00.019539Z",
+                  "2026-11-19T23:59:59.994539Z"
                 ],
                 "location": "00",
                 "n_samples": 3600000,
                 "nslc_requested": "IU.TUC.00.BHZ",
                 "outcome": "DATA_RETURNED",
                 "provider": "IRIS",
-                "raw_samples_sha256": "c6acf38829a19f0e248cb0220d832719e331717ff8354459ba183486b9164993",
+                "raw_samples_sha256": "391d5605bf0250c00ce848d1ed92926b669bb0e02f8566e82e6c0d6c82605e3d",
                 "reason": null,
                 "response": "NOT_REMOVED (raw counts; demean and linear detrend only)",
                 "response_epoch": {
@@ -5830,12 +5823,12 @@
                 "traces_before_merge": 2,
                 "typed_outcome": "DATA_RETURNED",
                 "window_requested": [
-                  "2026-11-17T23:00:00",
-                  "2026-11-19T00:00:00"
+                  "2026-11-18T23:00:00",
+                  "2026-11-20T00:00:00"
                 ]
               }
             ],
-            "reason": "sta=IU.TUC, THD=0.4386, z=0.76, baseline_mean=0.3743, baseline_std=0.0851, n=91, rate=40Hz",
+            "reason": "sta=IU.TUC, THD=0.4582, z=0.99, baseline_mean=0.3743, baseline_std=0.0851, n=91, rate=40Hz",
             "role": "CONFIGURED_PRIMARY",
             "selected": true,
             "station": "IU.TUC"
@@ -5847,7 +5840,7 @@
         "region_configuration_sha256": "701837bbe41a546d16b25ce3c647af6268dec27b99d835394312dd3520213467",
         "schema": "thd-station-configuration-v1",
         "source": {
-          "commit": "372054b2eedb0e99e1138224887281824f4dad45",
+          "commit": "e8ab3d326a897446adf0d27ccea142fb783182ac",
           "commit_status": "HEAD_CLEAN",
           "files": {
             "monitoring/src/run_ensemble_daily.py": "0a3e4d297e6e3cfd2d95f8a91cfbbcc027e7c7542bec270eedabd611f120010c",
@@ -5899,7 +5892,7 @@
     },
     "tokyo_kanto": {
       "agreement": "mostly_elevated",
-      "combined_risk": 0.5986993276728988,
+      "combined_risk": 0.5870087378751372,
       "components": {
         "fault_correlation": {
           "available": false,
@@ -5925,12 +5918,12 @@
             "calibrated_on": "2026-11-18",
             "calibration_sha256": "3e549c891f4a96287f52891494220618f37ce0d53131c41201a8a1e6f7f54e0a",
             "measurement": {
-              "as_of": "2026-11-19T23:59:59",
+              "as_of": "2026-11-20T23:59:59",
               "data_end_day": "2026-10-28",
-              "input_selection_sha256": "52c5fcdc3bee511a1f65c5e43aa5db8e86116e766bc5d2013d4f806aaf7241b7",
-              "input_sha256": "626c3e08902ae7de4427e266245c1ee4c321a60babefde9a1c92ae05f734f849",
+              "input_selection_sha256": "788b4c098a9451d1735649fe4670c4179b094138febc68b8f31f81780f7b9637",
+              "input_sha256": "560a634d45e311d9f7f13260582b61397bf4cf353337cc9687be7ee940411845",
               "lambda_max": 0.23598679156368635,
-              "observation_age_days": 28,
+              "observation_age_days": 29,
               "observation_content": {
                 "closure_recompute": {
                   "equal": true,
@@ -5957,80 +5950,75 @@
               "retrieval": {
                 "catalog_mtime_utc": "2026-11-11T16:38:02Z",
                 "files_mtime_utc": {
-                  "G100": "2026-11-21T12:01:30Z",
-                  "G114": "2026-11-21T12:01:30Z",
-                  "G115": "2026-11-21T12:01:30Z",
-                  "G144": "2026-11-21T12:01:31Z",
-                  "G163": "2026-11-21T12:01:31Z",
-                  "G171": "2026-11-21T12:01:31Z",
-                  "G178": "2026-11-21T12:01:31Z",
-                  "G183": "2026-11-21T12:01:31Z",
-                  "G194": "2026-11-21T12:01:31Z",
-                  "G206": "2026-11-21T12:01:32Z",
-                  "G222": "2026-11-21T12:01:32Z",
-                  "G223": "2026-11-21T12:01:32Z",
-                  "G224": "2026-11-21T12:01:32Z",
-                  "G229": "2026-11-21T12:01:32Z",
-                  "G231": "2026-11-21T12:01:32Z",
-                  "G248": "2026-11-21T12:01:33Z",
-                  "G250": "2026-11-21T12:01:33Z",
-                  "G251": "2026-11-21T12:01:33Z",
-                  "H023": "2026-11-21T12:01:33Z",
-                  "I001": "2026-11-21T12:01:33Z",
-                  "I002": "2026-11-21T12:01:34Z",
-                  "I003": "2026-11-21T12:01:34Z",
-                  "I005": "2026-11-21T12:01:34Z",
-                  "I006": "2026-11-21T12:01:34Z",
-                  "I007": "2026-11-21T12:01:35Z",
-                  "I010": "2026-11-21T12:01:35Z",
-                  "I011": "2026-11-21T12:01:35Z",
-                  "I012": "2026-11-21T12:01:36Z",
-                  "I013": "2026-11-21T12:01:36Z",
-                  "I014": "2026-11-21T12:01:36Z",
-                  "I015": "2026-11-21T12:01:36Z",
-                  "I016": "2026-11-21T12:01:37Z",
-                  "I018": "2026-11-21T12:01:37Z",
-                  "I019": "2026-11-21T12:01:37Z",
-                  "I020": "2026-11-21T12:01:38Z",
-                  "I021": "2026-11-21T12:01:38Z",
-                  "I022": "2026-11-21T12:01:38Z",
-                  "I023": "2026-11-21T12:01:38Z"
+                  "G100": "2026-11-22T12:01:32Z",
+                  "G114": "2026-11-22T12:01:33Z",
+                  "G115": "2026-11-22T12:01:33Z",
+                  "G144": "2026-11-22T12:01:33Z",
+                  "G163": "2026-11-22T12:01:33Z",
+                  "G171": "2026-11-22T12:01:34Z",
+                  "G178": "2026-11-22T12:01:34Z",
+                  "G183": "2026-11-22T12:01:34Z",
+                  "G194": "2026-11-22T12:01:34Z",
+                  "G206": "2026-11-22T12:01:35Z",
+                  "G222": "2026-11-22T12:01:35Z",
+                  "G223": "2026-11-22T12:01:35Z",
+                  "G224": "2026-11-22T12:01:35Z",
+                  "G229": "2026-11-22T12:01:35Z",
+                  "G231": "2026-11-22T12:01:35Z",
+                  "G248": "2026-11-22T12:01:35Z",
+                  "G250": "2026-11-22T12:01:36Z",
+                  "G251": "2026-11-22T12:01:36Z",
+                  "H023": "2026-11-22T12:01:36Z",
+                  "I001": "2026-11-22T12:01:36Z",
+                  "I002": "2026-11-22T12:01:37Z",
+                  "I003": "2026-11-22T12:01:37Z",
+                  "I005": "2026-11-22T12:01:37Z",
+                  "I006": "2026-11-22T12:01:37Z",
+                  "I007": "2026-11-22T12:01:38Z",
+                  "I010": "2026-11-22T12:01:38Z",
+                  "I011": "2026-11-22T12:01:39Z",
+                  "I012": "2026-11-22T12:01:39Z",
+                  "I013": "2026-11-22T12:01:39Z",
+                  "I014": "2026-11-22T12:01:40Z",
+                  "I015": "2026-11-22T12:01:40Z",
+                  "I016": "2026-11-22T12:01:40Z",
+                  "I018": "2026-11-22T12:01:41Z",
+                  "I019": "2026-11-22T12:01:41Z",
+                  "I020": "2026-11-22T12:01:41Z",
+                  "I021": "2026-11-22T12:01:42Z",
+                  "I022": "2026-11-22T12:01:42Z",
+                  "I023": "2026-11-22T12:01:42Z"
                 },
-                "newest_mtime_utc": "2026-11-21T12:01:38Z",
-                "oldest_mtime_utc": "2026-11-21T12:01:30Z"
+                "newest_mtime_utc": "2026-11-22T12:01:42Z",
+                "oldest_mtime_utc": "2026-11-22T12:01:32Z"
               },
               "selection_reason": "latest full-support interior epoch",
               "selection_status": "OK",
               "series": [
                 [
-                  "2026-08-22",
-                  0.007094502175427137,
-                  false
-                ],
-                [
                   "2026-08-23",
-                  0.010641753263135382,
+                  0.00954028877778889,
                   false
                 ],
                 [
                   "2026-08-24",
-                  0.017490515924604145,
+                  0.014310433166670907,
                   false
                 ],
                 [
                   "2026-08-25",
-                  0.023136261302390035,
+                  0.022434670492586413,
                   false
                 ],
                 [
                   "2026-08-26",
-                  0.029865354934044873,
+                  0.02236674061832262,
                   false
                 ],
                 [
                   "2026-08-27",
-                  0.027589155921535918,
-                  true
+                  0.0193917311024809,
+                  false
                 ],
                 [
                   "2026-08-28",
@@ -6386,7 +6374,7 @@
                 ],
                 "latest_file_end_day": "2026-10-28",
                 "rule": "File ends bound possible support; interior gaps and the producer support grid determine the observation.",
-                "scored_day": "2026-11-19",
+                "scored_day": "2026-11-20",
                 "selected_files": {
                   "G100": {
                     "file": "G100.igs20.tenv",
@@ -6796,7 +6784,7 @@
           },
           "calibration": {
             "eligible_for_tiering": true,
-            "reason": "SHARED_SUPPORT: calibrated (n=89, window 2026-07-17..2026-10-15, end 35 d) shared by kumamoto,tokyo_kanto",
+            "reason": "SHARED_SUPPORT: calibrated (n=89, window 2026-07-17..2026-10-15, end 36 d) shared by kumamoto,tokyo_kanto",
             "rule_version": "calibration-eligibility-v3",
             "status": "shared_station"
           },
@@ -6804,12 +6792,12 @@
           "is_critical": false,
           "is_elevated": false,
           "name": "seismic_thd",
-          "notes": "sta=IU.MAJO, THD=0.4222, z=0.10, baseline_mean=0.4110, baseline_std=0.1097, n=89, rate=40Hz",
-          "raw_secondary": 1691.1308464158026,
-          "raw_value": 0.422179058200082,
-          "risk_score": 0.06363176457009706,
+          "notes": "sta=IU.MAJO, THD=0.3611, z=-0.45, baseline_mean=0.4110, baseline_std=0.1097, n=89, rate=40Hz",
+          "raw_secondary": 8523.779893578128,
+          "raw_value": 0.3610825748300394,
+          "risk_score": 0.036353721708653385,
           "sample_rate_hz": 40.0,
-          "z_score": 0.1022382342757279
+          "z_score": -0.4548759430448873
         }
       },
       "confidence": 0.75,
@@ -6819,7 +6807,7 @@
         "segments_defined": 0,
         "segments_working": 0
       },
-      "date": "2026-11-19T00:00:00",
+      "date": "2026-11-20T00:00:00",
       "effective_weights": {
         "lambda_geo": 0.5714285714285715,
         "seismic_thd": 0.4285714285714286
@@ -6884,7 +6872,7 @@
       "methods_available": 2,
       "notes": "",
       "persistence": {
-        "consecutive_days": 2,
+        "consecutive_days": 3,
         "current_tier": 2,
         "is_confirmed": false,
         "regime": {
@@ -6906,12 +6894,14 @@
               "blocking": [],
               "epochs": [
                 "2026-10-22",
+                "2026-10-22",
                 "2026-10-22"
               ],
               "observation_updates": 1,
-              "report_days": 2,
+              "report_days": 3,
               "revisions": 0,
               "steps": [
+                "REPEATED_INPUT",
                 "REPEATED_INPUT"
               ]
             },
@@ -6919,24 +6909,26 @@
               "basis": "RETAINED_THD_TRACE_EPOCH",
               "blocking": [],
               "epochs": [
+                "2026-11-19T23:59:59.994536",
                 "2026-11-18T23:59:59.994538",
                 "2026-11-17T23:59:59.994538"
               ],
-              "observation_updates": 2,
-              "report_days": 2,
+              "observation_updates": 3,
+              "report_days": 3,
               "revisions": 0,
               "steps": [
+                "ADVANCED",
                 "ADVANCED"
               ]
             }
           },
           "regime": "calibration-eligibility-v3|method-comparability-v3",
           "regime_transition": {
-            "days_back": 2,
+            "days_back": 3,
             "kind": "MEASUREMENT_SUPPORT",
             "reason": "support unknown or changed; start a new confirmation sequence"
           },
-          "report_days": 2,
+          "report_days": 3,
           "report_days_met": true,
           "resets_on_method_set_change": true
         },
@@ -6950,7 +6942,7 @@
       "region": "tokyo_kanto",
       "thd_attempts": {
         "schema": "thd-station-attempts-v3",
-        "scored_day": "2026-11-19",
+        "scored_day": "2026-11-20",
         "stations": [
           {
             "attempted": true,
@@ -6969,8 +6961,8 @@
                 "selector_basis": "WILDCARD_LOCATION_NOT_PINNED",
                 "typed_outcome": "AUTH_REQUIRED",
                 "window_requested": [
-                  "2026-11-17T23:00:00",
-                  "2026-11-19T00:00:00"
+                  "2026-11-18T23:00:00",
+                  "2026-11-20T00:00:00"
                 ]
               }
             ],
@@ -6990,33 +6982,33 @@
                 "coverage": {
                   "coverage_fraction": 1.0,
                   "coverage_version": "thd-coverage-facts-v2",
-                  "covered_seconds": 89999.980462,
+                  "covered_seconds": 89999.980464,
                   "edge_fill": "NONE",
-                  "extent_seconds": 89999.980462,
+                  "extent_seconds": 89999.980464,
                   "fill": "NONE",
                   "gap_seconds": 0,
                   "gaps": 0,
-                  "missing_head_seconds": 0.019538,
+                  "missing_head_seconds": 0.019536,
                   "missing_tail_seconds": 0.0,
                   "nonfinite_or_masked_handling": "NONE",
                   "nonfinite_or_masked_seconds": 0.0,
                   "overlap_resolution": "MERGE_METHOD_1_LATER_TRACE_KEPT_UNCHANGED",
-                  "overlap_seconds": 1.605462,
+                  "overlap_seconds": 5.630462,
                   "overlaps": 1,
                   "requested_seconds": 90000.0,
                   "sample_period_seconds": 0.025,
                   "status": "FULL"
                 },
                 "epoch": [
-                  "2026-11-17T23:00:00.019538Z",
-                  "2026-11-18T23:59:59.994538Z"
+                  "2026-11-18T23:00:00.019536Z",
+                  "2026-11-19T23:59:59.994536Z"
                 ],
                 "location": "00",
                 "n_samples": 3600000,
                 "nslc_requested": "IU.MAJO.00.BHZ",
                 "outcome": "DATA_RETURNED",
                 "provider": "IRIS",
-                "raw_samples_sha256": "f4d9e4d808ba4329c1bde803236efbbbe4c3f792e642ba2ad1b45a431091a974",
+                "raw_samples_sha256": "d1de1f3706a25beafcc921aa1f181b1c8cc8433cb2d71e39da7c51636db09c1a",
                 "reason": null,
                 "response": "NOT_REMOVED (raw counts; demean and linear detrend only)",
                 "response_epoch": {
@@ -7037,12 +7029,12 @@
                 "traces_before_merge": 2,
                 "typed_outcome": "DATA_RETURNED",
                 "window_requested": [
-                  "2026-11-17T23:00:00",
-                  "2026-11-19T00:00:00"
+                  "2026-11-18T23:00:00",
+                  "2026-11-20T00:00:00"
                 ]
               }
             ],
-            "reason": "sta=IU.MAJO, THD=0.4222, z=0.10, baseline_mean=0.4110, baseline_std=0.1097, n=89, rate=40Hz",
+            "reason": "sta=IU.MAJO, THD=0.3611, z=-0.45, baseline_mean=0.4110, baseline_std=0.1097, n=89, rate=40Hz",
             "role": "CONFIGURED_FALLBACK",
             "selected": true,
             "station": "IU.MAJO"
@@ -7054,7 +7046,7 @@
         "region_configuration_sha256": "a51daaf7e659b7c024c84f031d4d12ab4e26c352e3e9b77289a45bcf57ddeafc",
         "schema": "thd-station-configuration-v1",
         "source": {
-          "commit": "372054b2eedb0e99e1138224887281824f4dad45",
+          "commit": "e8ab3d326a897446adf0d27ccea142fb783182ac",
           "commit_status": "HEAD_CLEAN",
           "files": {
             "monitoring/src/run_ensemble_daily.py": "0a3e4d297e6e3cfd2d95f8a91cfbbcc027e7c7542bec270eedabd611f120010c",
@@ -7126,13 +7118,13 @@
     },
     "turkey_kahramanmaras": {
       "agreement": "single_method",
-      "combined_risk": 0.036859524344696755,
+      "combined_risk": 0.04350167591300839,
       "components": {
         "fault_correlation": {
           "available": false,
           "calibration": {
             "eligible_for_tiering": false,
-            "reason": "CAPSULE_PAST_VALID_THROUGH: scored day 2026-11-19 past valid_through 2026-09-09 (STALE)",
+            "reason": "CAPSULE_PAST_VALID_THROUGH: scored day 2026-11-20 past valid_through 2026-09-09 (STALE)",
             "rule_version": "calibration-eligibility-v3",
             "status": "expired"
           },
@@ -7140,7 +7132,7 @@
           "is_critical": false,
           "is_elevated": false,
           "name": "fault_correlation",
-          "notes": "calibration unavailable: scored day 2026-11-19 past valid_through 2026-09-09 (STALE)",
+          "notes": "calibration unavailable: scored day 2026-11-20 past valid_through 2026-09-09 (STALE)",
           "raw_secondary": null,
           "raw_value": 0.0,
           "risk_score": 0.0
@@ -7212,7 +7204,7 @@
           },
           "calibration": {
             "eligible_for_tiering": true,
-            "reason": "SHARED_SUPPORT: calibrated (n=91, window 2026-07-17..2026-10-15, end 35 d) shared by istanbul_marmara,turkey_kahramanmaras",
+            "reason": "SHARED_SUPPORT: calibrated (n=91, window 2026-07-17..2026-10-15, end 36 d) shared by istanbul_marmara,turkey_kahramanmaras",
             "rule_version": "calibration-eligibility-v3",
             "status": "shared_station"
           },
@@ -7220,12 +7212,12 @@
           "is_critical": false,
           "is_elevated": false,
           "name": "seismic_thd",
-          "notes": "sta=IU.ANTO, THD=0.3062, z=-0.44, baseline_mean=0.3591, baseline_std=0.1207, n=91, rate=40Hz",
-          "raw_secondary": 50638.111935301866,
-          "raw_value": 0.30619191604233564,
-          "risk_score": 0.036859524344696755,
+          "notes": "sta=IU.ANTO, THD=0.3329, z=-0.22, baseline_mean=0.3591, baseline_std=0.1207, n=91, rate=40Hz",
+          "raw_secondary": 76982.78598036074,
+          "raw_value": 0.33291882692796027,
+          "risk_score": 0.04350167591300839,
           "sample_rate_hz": 40.0,
-          "z_score": -0.4380158551767749
+          "z_score": -0.21661080289972048
         }
       },
       "confidence": 0.5,
@@ -7235,7 +7227,7 @@
         "segments_defined": 3,
         "segments_working": 0
       },
-      "date": "2026-11-19T00:00:00",
+      "date": "2026-11-20T00:00:00",
       "effective_weights": {
         "seismic_thd": 1.0
       },
@@ -7249,7 +7241,7 @@
         "excluded": {
           "fault_correlation": {
             "code": "CAPSULE_PAST_VALID_THROUGH",
-            "reason": "CAPSULE_PAST_VALID_THROUGH: scored day 2026-11-19 past valid_through 2026-09-09 (STALE)",
+            "reason": "CAPSULE_PAST_VALID_THROUGH: scored day 2026-11-20 past valid_through 2026-09-09 (STALE)",
             "state": "EXPIRED"
           },
           "lambda_geo": {
@@ -7312,7 +7304,7 @@
               "basis": "RETAINED_THD_TRACE_EPOCH",
               "blocking": [],
               "epochs": [
-                "2026-11-18T23:59:59.994538"
+                "2026-11-19T23:59:59.994538"
               ],
               "observation_updates": 1,
               "report_days": 1,
@@ -7327,7 +7319,7 @@
           "resets_on_method_set_change": true
         },
         "tier_history": [
-          1,
+          0,
           0,
           0,
           0
@@ -7336,7 +7328,7 @@
       "region": "turkey_kahramanmaras",
       "thd_attempts": {
         "schema": "thd-station-attempts-v3",
-        "scored_day": "2026-11-19",
+        "scored_day": "2026-11-20",
         "stations": [
           {
             "attempted": true,
@@ -7360,22 +7352,22 @@
                   "nonfinite_or_masked_handling": "NONE",
                   "nonfinite_or_masked_seconds": 0.0,
                   "overlap_resolution": "MERGE_METHOD_1_LATER_TRACE_KEPT_UNCHANGED",
-                  "overlap_seconds": 2.505462,
+                  "overlap_seconds": 5.280462,
                   "overlaps": 1,
                   "requested_seconds": 90000.0,
                   "sample_period_seconds": 0.025,
                   "status": "FULL"
                 },
                 "epoch": [
-                  "2026-11-17T23:00:00.019538Z",
-                  "2026-11-18T23:59:59.994538Z"
+                  "2026-11-18T23:00:00.019538Z",
+                  "2026-11-19T23:59:59.994538Z"
                 ],
                 "location": "00",
                 "n_samples": 3600000,
                 "nslc_requested": "IU.ANTO.00.BHZ",
                 "outcome": "DATA_RETURNED",
                 "provider": "IRIS",
-                "raw_samples_sha256": "d52548754f8f1889e6bd17355a7ef4e71b3f2506fde8faca5a10fd5f69321c09",
+                "raw_samples_sha256": "7a524149b442ccb4edd673dbb19349c822d94a195f0c342e6ffb4a8dc79f5765",
                 "reason": null,
                 "response": "NOT_REMOVED (raw counts; demean and linear detrend only)",
                 "response_epoch": {
@@ -7396,12 +7388,12 @@
                 "traces_before_merge": 2,
                 "typed_outcome": "DATA_RETURNED",
                 "window_requested": [
-                  "2026-11-17T23:00:00",
-                  "2026-11-19T00:00:00"
+                  "2026-11-18T23:00:00",
+                  "2026-11-20T00:00:00"
                 ]
               }
             ],
-            "reason": "sta=IU.ANTO, THD=0.3062, z=-0.44, baseline_mean=0.3591, baseline_std=0.1207, n=91, rate=40Hz",
+            "reason": "sta=IU.ANTO, THD=0.3329, z=-0.22, baseline_mean=0.3591, baseline_std=0.1207, n=91, rate=40Hz",
             "role": "CONFIGURED_PRIMARY",
             "selected": true,
             "station": "IU.ANTO"
@@ -7413,7 +7405,7 @@
         "region_configuration_sha256": "9fe8cb3ba4f3569a667f414420c5cf826afbdf731ba54b3d415a9041fb888a5f",
         "schema": "thd-station-configuration-v1",
         "source": {
-          "commit": "372054b2eedb0e99e1138224887281824f4dad45",
+          "commit": "e8ab3d326a897446adf0d27ccea142fb783182ac",
           "commit_status": "HEAD_CLEAN",
           "files": {
             "monitoring/src/run_ensemble_daily.py": "0a3e4d297e6e3cfd2d95f8a91cfbbcc027e7c7542bec270eedabd611f120010c",
@@ -7465,8 +7457,8 @@
     }
   },
   "revision": {
-    "date": "2026-11-19",
-    "fired_utc": "2026-11-21T12:08:16.093726Z",
+    "date": "2026-11-20",
+    "fired_utc": "2026-11-22T12:08:29.281832Z",
     "inputs": {
       "entries": [
         {
@@ -7569,6 +7561,14 @@
           "sha256": "6728d1e59366333cc65889cb8ef1041097259fd31ca15a74fcdc0b9f0f4f0188"
         },
         {
+          "byte_length": 302347,
+          "data_day": "2026-11-19",
+          "identity": "20261121T120816093726Z-34774a31",
+          "keyset": null,
+          "kind": "prior_revision",
+          "sha256": "066533c9ae3210f2b002703ac7c53833b841e4b530f14dfa593e29fccc77f29b"
+        },
+        {
           "byte_length": 303688,
           "data_day": "2026-11-18",
           "identity": "20261120T120812584928Z-f0d3f3c8",
@@ -7585,26 +7585,25 @@
           "sha256": "19e9f724b22d45b9250cbc2fd78318574bedf798f640f38307636cc5ab06c2de"
         },
         {
-          "byte_length": 305554,
-          "data_day": "2026-11-16",
-          "identity": "20261118T120635105194Z-0d8bcfd1",
-          "keyset": null,
-          "kind": "prior_revision",
-          "sha256": "e38216c54af6c3b35e2e8cbde05b2d7682e0ffd5df22fdcdf771d30212210224"
-        },
-        {
           "byte_length": 42,
-          "data_day": "2026-11-19",
-          "identity": "2026-11-19",
+          "data_day": "2026-11-20",
+          "identity": "2026-11-20",
           "keyset": null,
           "kind": "scored_day",
-          "sha256": "5ac454f0cfbe235406e22acae2ed8d70c945f6d14967e9bc9d422530c264553e"
+          "sha256": "ead3ff220e7dc2da83fb4c079151b539b7dc7c15ff8570e58a7e9f3ceedf4cd1"
         }
       ],
       "schema": "geospec-ensemble-inputs-capsule-v1"
     },
-    "inputs_sha256": "f32073d6a6ae0148636e7397a5666fe7ec4390f113998c77f0527fd4b90953a6",
+    "inputs_sha256": "12ddd6f49ba15b2ef8e59fd8b13bbc42c6f4152e0718207ffb8413312c68498d",
     "persistence_inputs": [
+      {
+        "date": "2026-11-19",
+        "kind": "revision",
+        "legacy": null,
+        "run_id": "20261121T120816093726Z-34774a31",
+        "sha256": "066533c9ae3210f2b002703ac7c53833b841e4b530f14dfa593e29fccc77f29b"
+      },
       {
         "date": "2026-11-18",
         "kind": "revision",
@@ -7618,29 +7617,22 @@
         "legacy": null,
         "run_id": "20261119T121639789532Z-026bd7b2",
         "sha256": "19e9f724b22d45b9250cbc2fd78318574bedf798f640f38307636cc5ab06c2de"
-      },
-      {
-        "date": "2026-11-16",
-        "kind": "revision",
-        "legacy": null,
-        "run_id": "20261118T120635105194Z-0d8bcfd1",
-        "sha256": "e38216c54af6c3b35e2e8cbde05b2d7682e0ffd5df22fdcdf771d30212210224"
       }
     ],
     "reason": null,
-    "run_id": "20261121T120816093726Z-34774a31",
+    "run_id": "20261122T120829281832Z-6ab6a1ee",
     "schema": "geospec-ensemble-revision-v1",
-    "scored_day_utc": "2026-11-19",
+    "scored_day_utc": "2026-11-20",
     "source_index": {
-      "entry_count": 78,
-      "prefix_sha256": "88ad3855109bdcb34705577c0f1089dcb625afd6b33cc71388e7770d21597358"
+      "entry_count": 79,
+      "prefix_sha256": "012f4fbddeb4748d51b6faf574dbbd11bf9e6c28bbaba9662daf05a48da561d0"
     },
     "supersedes": null
   },
   "stress_release_drops": [
     {
       "confidence": "moderate",
-      "consecutive_elevated_days": 4,
+      "consecutive_elevated_days": 3,
       "delta_z": 1.8565035212258305,
       "drop_date": "2026-11-17",
       "drop_tier": 0,
@@ -7652,7 +7644,7 @@
     },
     {
       "confidence": "moderate",
-      "consecutive_elevated_days": 4,
+      "consecutive_elevated_days": 3,
       "delta_z": 1.8565035212258305,
       "drop_date": "2026-11-17",
       "drop_tier": 0,
@@ -7669,7 +7661,7 @@
       "groups": {
         "LG+THD|calibration-eligibility-v3|method-comparability-v3|LG:lg-integration-candidate-v1:CandidatePolicy(effective_scored_day='2026-11-12', baseline_max_age_days=45, calibration_min_lag_days=30, observation_max_age_days=45, min_baseline_samples=30),THD:THD_STATION_BASELINE:max_age=50,min_lag=30,convention=thd-daily-measurement-v1|LG:lambda_geo_to_risk@cb015ec176ba|operator=658414e3d36e5bcd4c4d3bac43194155cdce7d2a8a8b802f747d5b5b96f832e3,THD:SeismicTHDAnalyzer.analyze_window@9cb122ea13b8+thd_to_risk_with_baseline@06687c9aed44|operator_class=thd-operator-class-v1:b236fd4a9c010bfb|LG=0.5714285714285715,THD=0.4285714285714286": {
           "label": "LG+THD",
-          "max_risk": 0.027270756244327312,
+          "max_risk": 0.015580166446565737,
           "max_risk_region": "kumamoto",
           "max_risk_regions": [
             "kumamoto"
@@ -7681,7 +7673,7 @@
         },
         "LG+THD|calibration-eligibility-v3|method-comparability-v3|LG:lg-integration-candidate-v1:CandidatePolicy(effective_scored_day='2026-11-12', baseline_max_age_days=45, calibration_min_lag_days=30, observation_max_age_days=45, min_baseline_samples=30),THD:THD_STATION_BASELINE:max_age=50,min_lag=30,convention=thd-daily-measurement-v1|LG:lambda_geo_to_risk@cb015ec176ba|operator=77a41ed479b8c5da91c7d4f9bbb6facffd028b244d31a16d3f22fe09fd6caaa7,THD:SeismicTHDAnalyzer.analyze_window@9cb122ea13b8+thd_to_risk_with_baseline@06687c9aed44|operator_class=thd-operator-class-v1:b236fd4a9c010bfb|LG=0.5714285714285715,THD=0.4285714285714286": {
           "label": "LG+THD",
-          "max_risk": 0.5986993276728988,
+          "max_risk": 0.5870087378751372,
           "max_risk_region": "tokyo_kanto",
           "max_risk_regions": [
             "tokyo_kanto"
@@ -7693,10 +7685,12 @@
         },
         "THD|calibration-eligibility-v3|method-comparability-v3|THD:THD_STATION_BASELINE:max_age=50,min_lag=30,convention=thd-daily-measurement-v1|THD:SeismicTHDAnalyzer.analyze_window@9cb122ea13b8+thd_to_risk_with_baseline@06687c9aed44|operator_class=thd-operator-class-v1:b236fd4a9c010bfb|THD=1.0": {
           "label": "THD",
-          "max_risk": 0.2193879845473457,
-          "max_risk_region": "anchorage",
+          "max_risk": 0.18154740816565534,
+          "max_risk_region": null,
           "max_risk_regions": [
-            "anchorage"
+            "ridgecrest",
+            "socal_saf_coachella",
+            "socal_saf_mojave"
           ],
           "maximum_basis": "DESCRIPTIVE_METHOD_SCORE_WITHIN_ONE_COMPARABLE_GROUP_NOT_CALIBRATED_REGIONAL_RISK",
           "regions": [
@@ -7712,7 +7706,7 @@
         },
         "THD|calibration-eligibility-v3|method-comparability-v3|THD:THD_STATION_BASELINE:max_age=50,min_lag=30,convention=thd-daily-measurement-v1|THD:SeismicTHDAnalyzer.analyze_window@9cb122ea13b8+thd_to_risk_with_baseline@06687c9aed44|operator_class=thd-operator-class-v1:b40910ec2a5ae805|THD=1.0": {
           "label": "THD",
-          "max_risk": 0.031057491287806938,
+          "max_risk": 0.05680748726932664,
           "max_risk_region": "mexico_guerrero",
           "max_risk_regions": [
             "mexico_guerrero"
@@ -7724,7 +7718,7 @@
         },
         "THD|calibration-eligibility-v3|method-comparability-v3|THD:THD_STATION_BASELINE:max_age=50,min_lag=30,convention=thd-daily-measurement-v1|THD:SeismicTHDAnalyzer.analyze_window@9cb122ea13b8+thd_to_risk_with_baseline@06687c9aed44|operator_class=thd-operator-class-v1:fd420772c86ae549|THD=1.0": {
           "label": "THD",
-          "max_risk": 0.4697090207257001,
+          "max_risk": 0.7136571314068887,
           "max_risk_region": "campi_flegrei",
           "max_risk_regions": [
             "campi_flegrei"
@@ -7736,7 +7730,7 @@
         },
         "THD|calibration-eligibility-v3|method-comparability-v3|THD:THD_STATION_BASELINE:max_age=50,min_lag=30|THD:SeismicTHDAnalyzer.analyze_window@9cb122ea13b8+thd_to_risk_with_baseline@06687c9aed44|daily_operator=13d395c54e2a7e20898c090176cec0866fc310cdc4e1279cad5a08853aadc132|daily_measurement@d38f700bbe29+fetch_bound@edd7daf77c28+stitch_window@4856b33b274c|THD=1.0": {
           "label": "THD",
-          "max_risk": 0.04480367600892375,
+          "max_risk": 0.12096940701392468,
           "max_risk_region": "kaikoura",
           "max_risk_regions": [
             "kaikoura"
@@ -7766,5 +7760,5 @@
     },
     "total_regions": 14
   },
-  "timestamp": "2026-11-21T12:07:55.835615+00:00"
+  "timestamp": "2026-11-22T12:08:09.292279+00:00"
 }

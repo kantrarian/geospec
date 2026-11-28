@@ -1,0 +1,24 @@
+{
+ "authority": {
+  "blob_sha256": "b5b0a61a4edcdac2bfcd8a819f2e118a81c492947a0b6167ffd07ef09338967e",
+  "commit": "332a98acd34797163413350dc4989fdb37ec87b2",
+  "keys_sha256": "9a2b5b6c5e0b0f456f4587e7eed63c561440685cae33bad59ac4b3d4ebc7cee9",
+  "path": "docs/f2g_window2_execution/staged_expected_contracts_v3.json"
+ },
+ "carrier": "cascadia",
+ "effective_url": "https://service.earthscope.org/fdsnws/station/1/query?cha=HHZ&endtime=2026-07-10&format=text&level=channel&maxlatitude=51.0&maxlongitude=-121.5&minlatitude=45.0&minlongitude=-128.0&net=UW%2CCC%2CCN&nodata=404&starttime=2026-07-09",
+ "headers": {
+  "content-type": "text/plain",
+  "date": "Tue, 25 Aug 2026 04:55:04 GMT"
+ },
+ "http_status": 200,
+ "lane": "SELECTION_RECORDS",
+ "raw_body_bytes": 24846,
+ "raw_body_sha256": "7ea1abe4ffd208585caede5252dd4083b35186d270b3514dce3ea78bea6d1fd9",
+ "request_start_utc": "2026-08-25T04:55:03Z",
+ "requested_url": "https://service.iris.edu/fdsnws/station/1/query?cha=HHZ&endtime=2026-07-10&format=text&level=channel&maxlatitude=51.0&maxlongitude=-121.5&minlatitude=45.0&minlongitude=-128.0&net=UW%2CCC%2CCN&nodata=404&starttime=2026-07-09",
+ "response_complete_utc": "2026-08-25T04:55:04Z",
+ "schema": "f2g-w2-capture-transcript-v1",
+ "static_contract_sha256": "5c6c67a39a24578183fbb5cec9a8ede89af6c4d8a63b05a4f29824f336199ad0",
+ "utc_day": "2026-07-09"
+}

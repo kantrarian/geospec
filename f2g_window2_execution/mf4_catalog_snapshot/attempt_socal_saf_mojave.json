@@ -1,0 +1,53 @@
+{
+ "bbox": {
+  "max_lat": 36.0,
+  "max_lon": -116.0,
+  "min_lat": 33.8,
+  "min_lon": -118.5
+ },
+ "carrier": "socal_saf_mojave",
+ "effective_url": "https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&starttime=2025-10-11T00%3A00%3A00&endtime=2026-08-28T00%3A00%3A00&minmagnitude=4.0&minlatitude=33.8&maxlatitude=36.0&minlongitude=-118.5&maxlongitude=-116.0&orderby=time-asc&limit=20000",
+ "http_status": 200,
+ "params": {
+  "endtime": "2026-08-28T00:00:00",
+  "format": "geojson",
+  "limit": "20000",
+  "maxlatitude": "36.0",
+  "maxlongitude": "-116.0",
+  "minlatitude": "33.8",
+  "minlongitude": "-118.5",
+  "minmagnitude": "4.0",
+  "orderby": "time-asc",
+  "starttime": "2025-10-11T00:00:00"
+ },
+ "raw_bytes": 4873,
+ "raw_file": "raw_socal_saf_mojave.geojson",
+ "raw_sha256": "2a096f85be3b22a3ddb4a539cd95394196a09b1d79b9957912e592ad23291f0c",
+ "region": "socal_saf_mojave",
+ "request_utc": "2026-08-30T02:39:53.857794Z",
+ "requested_url": "https://earthquake.usgs.gov/fdsnws/event/1/query?format=geojson&starttime=2025-10-11T00%3A00%3A00&endtime=2026-08-28T00%3A00%3A00&minmagnitude=4.0&minlatitude=33.8&maxlatitude=36.0&minlongitude=-118.5&maxlongitude=-116.0&orderby=time-asc&limit=20000",
+ "response_headers": {
+  "Access-Control-Allow-Headers": "*",
+  "Access-Control-Allow-Methods": "GET, OPTIONS",
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Max-Age": "86400",
+  "Cache-Control": "public, max-age=60",
+  "Connection": "close",
+  "Content-Length": "4873",
+  "Content-Type": "application/json; charset=utf-8",
+  "Date": "Sun, 30 Aug 2026 02:39:54 GMT",
+  "Expires": "Sun, 30 Aug 2026 02:40:54 GMT",
+  "Last-Modified": "Sun, 30 Aug 2026 02:39:54 GMT",
+  "Server": "nginx",
+  "Strict-Transport-Security": "max-age=31536000; includeSubDomains; preload",
+  "Vary": "Accept-Encoding",
+  "Via": "1.1 84ab3c8265e8d21e44cda4c5fa1dec46.cloudfront.net (CloudFront)",
+  "X-Amz-Cf-Id": "QK1AhJJnF-5gbe8eTyYUGTO7zh0Fhl5d4xHMc7MSOU3hON08ll9LSw==",
+  "X-Amz-Cf-Pop": "ATL58-P11",
+  "X-Cache": "Miss from cloudfront",
+  "X-Content-Type-Options": "nosniff",
+  "X-Frame-Options": "SAMEORIGIN",
+  "X-XSS-Protection": "1; mode=block"
+ },
+ "response_utc": "2026-08-30T02:39:54.287111Z"
+}

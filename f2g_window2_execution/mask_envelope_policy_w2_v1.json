@@ -1,0 +1,48 @@
+{
+ "admitted_relations": [
+  "EXACT"
+ ],
+ "anticipated_masks": {
+  "carriers": [
+   "cascadia",
+   "istanbul_marmara",
+   "socal_coachella",
+   "turkey_kahramanmaras"
+  ],
+  "path": "docs/f2g_window2_execution/power_geometry_inputs_w2_v1.json",
+  "per_carrier_count": {
+   "cascadia": 192,
+   "istanbul_marmara": 192,
+   "socal_coachella": 192,
+   "turkey_kahramanmaras": 192
+  },
+  "per_carrier_sha256": {
+   "cascadia": "3f6a5fd7ebbc2d0b07a60c485c61254c93cd1e5c41718e3ea76c0ca16271e081",
+   "istanbul_marmara": "3f6a5fd7ebbc2d0b07a60c485c61254c93cd1e5c41718e3ea76c0ca16271e081",
+   "socal_coachella": "3f6a5fd7ebbc2d0b07a60c485c61254c93cd1e5c41718e3ea76c0ca16271e081",
+   "turkey_kahramanmaras": "3f6a5fd7ebbc2d0b07a60c485c61254c93cd1e5c41718e3ea76c0ca16271e081"
+  },
+  "sha256": "cd15a8b097f018e7ee8873b38f8ad111f1d6e6fcf4f31334bd563c8b410a6410"
+ },
+ "calendar_frame": {
+  "engine_days": 192,
+  "excluded_days": [
+   "2026-09-03"
+  ],
+  "frame_id": "w2-calendar-v4-noncal",
+  "path": "docs/f2g_window2_execution/calendar_authority_w2_v4.json",
+  "sha256": "c4a156974845422048508ba9bca5f366bfb86f0e76dc7cd6db872adc8d70829d"
+ },
+ "claim_ceiling": "mask-envelope policy only. It authorizes no post-window recertification and relaxes no Stage-3 rule; prestart consumes the comparator verdict. Lambda_geo INCONCLUSIVE",
+ "comparator_identity": {
+  "path": "monitoring/src/w2_geometry_bind_comparator_cayley.py",
+  "sha256_lf": "064e0f44bf90780f93f7301d453347df51364f7f676b4502e00ed64462f3aea7"
+ },
+ "ruling_basis": "codex cycle-6 combined review 2026-08-31T18:07Z item 2 (CRITICAL): the anticipated mask is the MAXIMAL full engine grid, so EXACT is the only relation this power work supports. REALIZED_SUBSET is an uncertified outage; REALIZED_SUPERSET is impossible on a maximal anticipation and would signal an out-of-grid, excluded or duplicate day, not more data; DIVERGENT is outside the frame",
+ "schema": "f2g-w2-mask-envelope-policy-v1",
+ "well_formedness": [
+  "a realized mask with DUPLICATE days refuses",
+  "a realized mask with days OUTSIDE the engine grid refuses",
+  "a realized mask carrying an EXCLUDED (PRESTART) day refuses"
+ ]
+}

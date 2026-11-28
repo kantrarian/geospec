@@ -1,0 +1,7 @@
+{
+ "body_count": 1405,
+ "body_name_set_digest": "276a085a1718e8ff88cf353ddec1d7d97fe46e409c91f9e5a55eb436b019b732",
+ "note": "codex 1617Z: integrity of whatever bodies are present is not IDENTITY of the named store. attest_store() proved every observed body matched its content address, so a DIFFERENT internally consistent directory -- even one holding a single valid body -- earned EVIDENCE and was handed this store_id from a CONSTANT. This descriptor is the authority the attestation must match exactly.",
+ "schema": "f2g-w2-expected-store-descriptor-v1",
+ "store_id": "s4t-w2-capture-20260825"
+}

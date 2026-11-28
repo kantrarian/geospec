@@ -1,0 +1,101 @@
+{
+ "claim_ceiling": "seed-authority registration only; binds the draw grammar and its root identity. It draws no replicate, certifies nothing, admits nothing, opens no window-2 value, and is not a power result; Lambda_geo INCONCLUSIVE",
+ "families": [
+  "B1B",
+  "B2A",
+  "B2B",
+  "B3A"
+ ],
+ "grammar": {
+  "engine_module": {
+   "blob_sha256_lf": "4a39d3fbdc543e8c64e7b8a068bcb384d320361973bce68fc0b2b219c27968f1",
+   "design_manifest_commit": "5fba5446cd96722fb86021df5065a46b8a1a78f5",
+   "design_pin": "engine_b2a_b3a",
+   "function": "derive_substream_seed",
+   "path": "monitoring/src/d2_f2g_phase_b_stats.py"
+  },
+  "fold_token": "full",
+  "master_rule": "one master numpy PCG64 Generator per (authority, family), seeded with that substream seed",
+  "purpose_token": "power",
+  "registered_entrypoint": {
+   "blob_sha256_lf": "ebae7eb21567fe28a9196cc711e3aa2342789e2bf49b5c64845673715b2cb8c2",
+   "function": "rep_seed_registered",
+   "path": "monitoring/src/w2_power_harness_cayley.py"
+  },
+  "replicate_rule": "replicate r's seed = the r-th sequential int64 draw of that master: master.integers(0, 2**63, size=r+1, dtype=int64)[r] -- sequential, so replicate r is only defined relative to the same master stream",
+  "substream_rule": "derive_substream_seed(root, family, 'full', 'power') = int.from_bytes(sha256(f'{root}||{family}||{fold}||{purpose}').digest()[:8], 'big')"
+ },
+ "grammar_evidence": {
+  "by_family": {
+   "B1B": {
+    "master_substream_seed": 7544877420500903308,
+    "replicate_seeds": [
+     4745140672962977742,
+     5009031946544213598,
+     3380960911158734160
+    ]
+   },
+   "B2A": {
+    "master_substream_seed": 13221988183036404436,
+    "replicate_seeds": [
+     7849973191386664719,
+     8061507987131393407,
+     1829622129494518810
+    ]
+   },
+   "B2B": {
+    "master_substream_seed": 8518858627201872838,
+    "replicate_seeds": [
+     1272866411950957644,
+     1309055937370200606,
+     7335683674764004851
+    ]
+   },
+   "B3A": {
+    "master_substream_seed": 17483160116057051139,
+    "replicate_seeds": [
+     7550429127900486931,
+     2027925964617746545,
+     5319282221255739397
+    ]
+   }
+  },
+  "method": "master + first 3 replicate seeds per family, computed through the REGISTERED entrypoint at the carrier commit (never re-implemented here); a verifier rebuilding this record recomputes them, so any drift in the root, the engine module, or the entrypoint refuses",
+  "replicates_bound": 3
+ },
+ "prohibitions": [
+  "never mint a random seed",
+  "never hash the current clock, the target commit, or the capsule to obtain a seed",
+  "never accept a caller-supplied 64-hex seed authority: the geometry validator requires this record's exact root, resolved from its manifest pin"
+ ],
+ "root_source": {
+  "blob_sha256_lf": "58b513b6c30b70c8014510788da9d7d819ce8971ca59b7dfdc11c57a1664586f",
+  "blob_sha256_raw": "58b513b6c30b70c8014510788da9d7d819ce8971ca59b7dfdc11c57a1664586f",
+  "bytes": 5578,
+  "commit": "337571c81df8d2a8242867fda69406bd67de9446",
+  "identity_rule": "LF-normalized sha256 of the committed blob at the registered root commit; the frozen commit is required to be an ancestor of the carrier",
+  "live_path_blob_sha256_lf": "58b513b6c30b70c8014510788da9d7d819ce8971ca59b7dfdc11c57a1664586f",
+  "live_path_matches_frozen_root": true,
+  "path": "docs/f2g_phase_b_prereg_amendment2_DRAFT.md"
+ },
+ "ruling_basis": "codex w2r1 pre-fire ruling 2026-08-31T15:07Z item 3 (CRITICAL): the seed authority is the already-frozen Amendment-2 root, not a new choice; the geometry lane must resolve it from this manifest-pinned record rather than accept any 64-hex caller value",
+ "schema": "f2g-w2-power-seed-authority-v1",
+ "seed_authority_sha256": "58b513b6c30b70c8014510788da9d7d819ce8971ca59b7dfdc11c57a1664586f",
+ "state": "REGISTERED",
+ "target_identity": {
+  "consumed_implementations": {
+   "monitoring/src/d2_f2g_phase_b_stats.py": "4a39d3fbdc543e8c64e7b8a068bcb384d320361973bce68fc0b2b219c27968f1",
+   "monitoring/src/w2_power_harness_cayley.py": "ebae7eb21567fe28a9196cc711e3aa2342789e2bf49b5c64845673715b2cb8c2"
+  },
+  "execution": "ISOLATED_TARGET_WORKER",
+  "rule": "every consumed implementation's source must equal its bytes AT THE NAMED TARGET, and every registered steering constant re-derived from the target source by AST must equal the live runtime value; otherwise the build REFUSES rather than producing target-labelled output built from other code",
+  "steering_constants_verified": {
+   "monitoring/src/w2_power_harness_cayley.py:GRAPH": [
+    "B1B",
+    "B2A",
+    "B2B",
+    "B3A"
+   ]
+  }
+ }
+}

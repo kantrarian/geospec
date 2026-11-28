@@ -1,0 +1,25 @@
+{
+ "authority_ref": {
+  "blob_sha256": "efbda04e6fb26fedd7a8d9a6e25200edebd840809e21dd0a4b09c388e9e9d562",
+  "commit": "a81b8785442c3baa080eb0a9a20a228f2e1c9ebf",
+  "keys_sha256": "8acddd360a581e2e132ae362ab41cbba0782bd299e0197c2ac0283289361f593",
+  "path": "docs/f2g_window2_execution/omni_probe_authority_v4.json"
+ },
+ "authorization": "codex 2026-08-25T13:04:35Z step-2 clearance; owner go in-session",
+ "claim_ceiling": "grammar evidence only; satisfies NO scientific key; admission only via the v4 predecessor-evidence bridge",
+ "effective_url": "https://omniweb.gsfc.nasa.gov/cgi/nx1.cgi?activity=retrieve&end_date=20260101&res=min&spacecraft=omni_min&start_date=20260101&vars=17&vars=18&vars=21",
+ "http_status": 200,
+ "operation_id": "omni_corrected_probe_20260101",
+ "raw_body_bytes": 56792,
+ "raw_body_sha256": "bc39dbab8f24d1ec718710cd58875ecd556dd1299851dc64acdd850ce965b3c8",
+ "request_start_utc": "2026-08-25T13:23:30Z",
+ "requested_url": "https://omniweb.gsfc.nasa.gov/cgi/nx1.cgi?activity=retrieve&end_date=20260101&res=min&spacecraft=omni_min&start_date=20260101&vars=17&vars=18&vars=21",
+ "response_complete_utc": "2026-08-25T13:23:30Z",
+ "response_headers": {
+  "content-type": "text/html",
+  "date": "Tue, 25 Aug 2026 13:23:30 GMT",
+  "server": "Apache"
+ },
+ "schema": "f2g-w2-probe-envelope-v1",
+ "transcript_sha256": "41f2c1339a67df654310cb0282cfab615ee4749b024b6df9564c687f03535f00"
+}

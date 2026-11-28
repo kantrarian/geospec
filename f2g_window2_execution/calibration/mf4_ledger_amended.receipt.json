@@ -1,0 +1,21 @@
+{
+ "amended_training_digest": "bbb193d0e008703ec764c08cf4471478a13ce33bb55ceaf9f558a28ce1160ffc",
+ "catalog_binding": {
+  "acquisition_receipt_sha256": "054002dd617b174e859645fce5c34a9adbc5b5c8024a0eed54f55757ae29c9ff",
+  "snapshot_sha256": "490c407796209a513995a9012911a1e3764825622d4e33d355c983a13dbbb7f3"
+ },
+ "cutoff": "2026-08-20",
+ "input_feed_path": "docs/f2g_window2_execution/calibration/mf4_input_feed_amended.json",
+ "input_feed_sha256": "e38d9488143aef35228366fdee9abf45ddb3716b25ef26d4bab413e969202115",
+ "lane": "MF4_AMENDED",
+ "ledger_path": "docs/f2g_window2_execution/calibration/mf4_ledger_amended.json",
+ "ledger_sha256": "44d4ec4d9194ef97bbc9a1d441e7e2fef9bd43ac57f275130765d766f03a35d5",
+ "n_rows": 3727,
+ "producer_identity": {
+  "module": "w2_calibration_feed_producer_cayley.py",
+  "source_sha256_normalized": "213e0044443074e4aea68706df6f836d0c342d8f2ca720441cc3df8bcb451c95"
+ },
+ "runner_source_sha256_normalized": "6965fe8f27e74976d9b5e069aee59e4e86b48afe746f41fd385cdf46f1091ab2",
+ "schema": "f2g-w2-calibration-receipt-v1",
+ "training_digest": "a3f94c23e1162c2aecfe4b54686edfdb5f35078dc72840b2344dd56a016d7dfd"
+}

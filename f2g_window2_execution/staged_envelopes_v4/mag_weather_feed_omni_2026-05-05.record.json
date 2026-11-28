@@ -1,0 +1,55 @@
+{
+ "capture_time_utc": "2026-08-27T04:45:39Z",
+ "carrier": "omni",
+ "cutoff": "2026-07-31",
+ "endpoint": "https://omniweb.gsfc.nasa.gov/cgi/nx1.cgi",
+ "expected_keys": [
+  "2026-05-05"
+ ],
+ "lane": "MAG_WEATHER_FEED",
+ "operation_params": {
+  "carrier": "omni",
+  "day": "2026-05-05"
+ },
+ "output_sha256": "9dc247d2c9dfbbd7ce261a84852ec36552683a4e72c12b65bb34224c246b0ed3",
+ "raw_body_bytes": 56792,
+ "raw_body_sha256": "8a157d40e80ccba15858d019fa985aa69109716d07b40064341a064170937735",
+ "receipt": {
+  "authority": {
+   "blob_sha256": "3c24182b042de1a14d2717610b8940acd93f44be8dc8fdc344cce771d28d4f66",
+   "commit": "2f91143ec1b36a0b59558bdb0741987ef0fbba10",
+   "keys_sha256": "3e7a4779f95e6feb835331998ec4b270721fd54e5b36520af03b79e68cb920a9",
+   "path": "docs/f2g_window2_execution/staged_expected_contracts_v3.json"
+  },
+  "effective_url": "https://omniweb.gsfc.nasa.gov/cgi/nx1.cgi?activity=retrieve&end_date=20260505&res=min&spacecraft=omni_min&start_date=20260505&vars=17&vars=18&vars=21",
+  "headers": {
+   "content-type": "text/html",
+   "date": "Thu, 27 Aug 2026 04:45:38 GMT",
+   "server": "Apache"
+  },
+  "http_status": 200,
+  "request_start_utc": "2026-08-27T04:45:37Z",
+  "requested_url": "https://omniweb.gsfc.nasa.gov/cgi/nx1.cgi?activity=retrieve&end_date=20260505&res=min&spacecraft=omni_min&start_date=20260505&vars=17&vars=18&vars=21",
+  "response_complete_utc": "2026-08-27T04:45:39Z",
+  "transcript_sha256": "d84f3ac89d9d58b68ac7a4f769f24c97d999f70e243172cbf1e8b7ae80459a9f"
+ },
+ "request_params": {
+  "activity": "retrieve",
+  "end_date": "20260505",
+  "res": "min",
+  "spacecraft": "omni_min",
+  "start_date": "20260505",
+  "vars": [
+   "17",
+   "18",
+   "21"
+  ]
+ },
+ "schema": "f2g-w2-staged-envelope-v1",
+ "source": {
+  "kind": "omniweb-highres-cgi",
+  "ref": "https://omniweb.gsfc.nasa.gov/cgi/nx1.cgi",
+  "sha256": "8a157d40e80ccba15858d019fa985aa69109716d07b40064341a064170937735"
+ },
+ "utc_day": "2026-05-05"
+}
